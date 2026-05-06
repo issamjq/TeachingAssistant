@@ -279,6 +279,50 @@ export function RowActions({ onEdit, onDelete }) {
   );
 }
 
+// Inline editor for an array of `{ name, url }` attachment refs.
+// We don't host file uploads — paste a URL (Google Drive, OneDrive, etc.).
+export function AttachmentsList({ value = [], onChange }) {
+  const update = (i, patch) =>
+    onChange(value.map((a, idx) => (idx === i ? { ...a, ...patch } : a)));
+  const remove = (i) => onChange(value.filter((_, idx) => idx !== i));
+  const add = () => onChange([...(value || []), { name: "", url: "" }]);
+
+  return (
+    <div className="space-y-2">
+      {(value || []).map((a, i) => (
+        <div key={i} className="flex items-center gap-2">
+          <input
+            placeholder="Label (e.g. Worksheet)"
+            value={a.name || ""}
+            onChange={(e) => update(i, { name: e.target.value })}
+            className={`${inputClasses} max-w-[40%]`}
+          />
+          <input
+            placeholder="https://…"
+            value={a.url || ""}
+            onChange={(e) => update(i, { url: e.target.value })}
+            className={inputClasses}
+          />
+          <button
+            onClick={() => remove(i)}
+            className="text-muted hover:text-accent"
+            title="Remove"
+          >
+            <X size={14} />
+          </button>
+        </div>
+      ))}
+      <button
+        type="button"
+        onClick={add}
+        className="text-accent hover:text-ink font-serif italic text-sm border-b border-accent hover:border-ink transition"
+      >
+        + Add attachment
+      </button>
+    </div>
+  );
+}
+
 // Tag-style multi-select. Click a chip to toggle. Used for teacher majors
 // and grade_levels in the edit form.
 //

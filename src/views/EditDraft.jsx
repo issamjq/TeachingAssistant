@@ -3,7 +3,7 @@ import { Save, CheckCircle2, Trash2, Plus } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { GRADE_LEVELS } from "../lib/enums";
-import { Field, inputClasses, selectClasses, api } from "./_shared";
+import { Field, AttachmentsList, inputClasses, selectClasses, api } from "./_shared";
 
 const STATUSES = ["In progress", "Ready to use", "Blocked", "Paused"];
 
@@ -33,6 +33,7 @@ export default function EditDraft({ draft: initial, onClose, onMarkReady }) {
     duration_minutes: initial?.duration_minutes || 45,
     objectives: ensureArray(initial?.objectives),
     materials: ensureArray(initial?.materials),
+    attachments: ensureArray(initial?.attachments),
     intro: initial?.intro || "",
     main_activity: initial?.main_activity || "",
     conclusion: initial?.conclusion || "",
@@ -53,6 +54,7 @@ export default function EditDraft({ draft: initial, onClose, onMarkReady }) {
         planned_date: d.planned_date ? d.planned_date.slice(0, 10) : "",
         objectives: ensureArray(d.objectives),
         materials: ensureArray(d.materials),
+        attachments: ensureArray(d.attachments),
       }));
     }).catch(() => {});
   }, [initial?.id]);
@@ -230,6 +232,19 @@ export default function EditDraft({ draft: initial, onClose, onMarkReady }) {
               >
                 <Plus size={12} /> Add material
               </button>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-6">
+              <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-1">Attachments</p>
+              <p className="text-xs text-muted mb-4">
+                Paste links to files in Drive, OneDrive, or anywhere else. Mudir doesn&rsquo;t host uploads itself yet.
+              </p>
+              <AttachmentsList
+                value={form.attachments}
+                onChange={(v) => set("attachments", v)}
+              />
             </CardContent>
           </Card>
         </div>

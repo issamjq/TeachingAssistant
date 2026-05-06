@@ -21,6 +21,7 @@ import AdminConsole from "./views/AdminConsole";
 import DevConsole from "./views/DevConsole";
 import NotificationsBell from "./views/NotificationsBell";
 import { getRole, onRoleChange, ROLE_LABELS } from "./lib/role";
+import { api } from "./views/_shared";
 
 const TEACHER_NAV = [
   {
@@ -194,7 +195,50 @@ export default function StudioApp({ onClose }) {
         inner = (
           <TemplatesLibrary
             onNewTemplate={goNewTemplate}
-            onUseTemplate={(t) => goEditDraft({ name: `${t.name} (from template)`, progress: 25 })}
+            onUseTemplate={async (t) => {
+              try {
+                // Clone the template into a new draft so the teacher gets the
+                // full lesson plan pre-filled, not just a title. Stages from
+                // the template flow into the lesson body buckets.
+                const stages = Array.isArray(t.stages) ? t.stages : [];
+                let intro = "", main_activity = "", conclusion = "";
+                if (stages.length === 1) intro = `${stages[0].name}: ${stages[0].note || ""}`.trim();
+                else if (stages.length === 2) {
+                  intro = `${stages[0].name}: ${stages[0].note || ""}`.trim();
+                  main_activity = `${stages[1].name}: ${stages[1].note || ""}`.trim();
+                } else if (stages.length >= 3) {
+                  intro = `${stages[0].name}: ${stages[0].note || ""}`.trim();
+                  conclusion = `${stages[stages.length - 1].name}: ${stages[stages.length - 1].note || ""}`.trim();
+                  main_activity = stages.slice(1, -1).map((s) => `${s.name}: ${s.note || ""}`.trim()).join("\n");
+                } else if (t.flow) {
+                  main_activity = t.flow;
+                }
+                const newDraft = await api("/api/drafts", {
+                  method: "POST",
+                  body: {
+                    name: `${t.name} (from template)`,
+                    subject: t.subject,
+                    grade: t.grade,
+                    duration_minutes: t.duration,
+                    status: "In progress",
+                    progress: 25,
+                    objectives: Array.isArray(t.objectives) ? t.objectives : [],
+                    intro,
+                    main_activity,
+                    conclusion,
+                    tags: t.tags || [],
+                  },
+                });
+                // Increment used_count so popular templates float to the top.
+                api(`/api/templates/${t.id}`, {
+                  method: "PATCH",
+                  body: { used_count: (t.used_count || 0) + 1 },
+                }).catch(() => {});
+                goEditDraft(newDraft);
+              } catch (e) {
+                alert(`Could not clone template: ${e.message}`);
+              }
+            }}
           />
         );
         break;
@@ -268,7 +312,7 @@ export default function StudioApp({ onClose }) {
 
   return (
     <div className="h-screen bg-paper flex text-ink font-sans overflow-hidden">
-      <aside className="w-64 flex-col flex-shrink-0 hidden md:flex h-full" style={{ backgroundColor: "#1a1814" }}>
+      <aside className="w-64 flex-col flex-shrink-0 hidden md:flex h-full print:hidden" style={{ backgroundColor: "#1a1814" }}>
         <div className="px-6 py-7">
           <div className="font-serif italic font-semibold text-2xl text-white">
             <span className="text-accent not-italic mr-1.5">◈</span>Mudir
@@ -326,7 +370,7 @@ export default function StudioApp({ onClose }) {
       </aside>
 
       <main className="flex-1 flex flex-col min-w-0 h-full">
-        <header className="border-b border-line bg-paper-cool px-8 py-4 flex items-center justify-between flex-shrink-0">
+        <header className="border-b border-line bg-paper-cool px-8 py-4 flex items-center justify-between flex-shrink-0 print:hidden">
           <nav className="text-sm flex items-center gap-2 flex-wrap text-muted">
             {crumbs.map((c, i) => (
               <React.Fragment key={i}>

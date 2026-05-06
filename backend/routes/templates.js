@@ -1,7 +1,11 @@
 import { crudRouter } from "../lib/crud.js";
 
-const FIELDS = ["name", "subject", "duration", "grade", "flow", "tags", "used_count", "starred"];
-const SELECT = "id, name, subject, duration, grade, flow, tags, used_count, starred, updated_at";
+const FIELDS = [
+  "name", "subject", "duration", "grade", "flow", "tags",
+  "used_count", "starred", "objectives", "stages",
+];
+const SELECT = `id, name, subject, duration, grade, flow, tags,
+                used_count, starred, objectives, stages, updated_at`;
 
 export default crudRouter({
   table: "templates",

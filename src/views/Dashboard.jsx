@@ -9,6 +9,7 @@ export default function Dashboard({ onJump }) {
   const [data, setData] = useState(null);
   const [me, setMe] = useState(null);
   const [error, setError] = useState(null);
+  const [query, setQuery] = useState("");
 
   useEffect(() => {
     api("/api/me").then(setMe).catch(() => {});
@@ -31,6 +32,15 @@ export default function Dashboard({ onJump }) {
   const pendingHomework = data?.pending_homework || [];
   const pendingQuizzes = data?.pending_quizzes || [];
   const recentDrafts = data?.recent_drafts || [];
+  const q = query.trim().toLowerCase();
+  const filteredDrafts = q
+    ? recentDrafts.filter(
+        (d) =>
+          d.name.toLowerCase().includes(q) ||
+          (d.subject || "").toLowerCase().includes(q) ||
+          (d.status || "").toLowerCase().includes(q)
+      )
+    : recentDrafts;
 
   const kpis = [
     { label: "Today",    value: todayLessons.length, caption: "scheduled lessons" },
@@ -53,7 +63,9 @@ export default function Dashboard({ onJump }) {
         <div className="bg-paper-cool border border-line rounded-full px-4 py-2.5 flex items-center gap-2 w-full md:w-72">
           <Search size={15} className="text-muted" />
           <input
-            placeholder="Search lessons, students…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Filter recent drafts…"
             className="bg-transparent outline-none text-sm w-full text-ink placeholder:text-muted"
           />
         </div>
@@ -260,15 +272,19 @@ export default function Dashboard({ onJump }) {
               All drafts →
             </button>
           </div>
-          {recentDrafts.length === 0 ? (
-            <p className="text-sm text-muted py-4">No drafts yet — start one in Lesson Plans.</p>
+          {filteredDrafts.length === 0 ? (
+            <p className="text-sm text-muted py-4">
+              {recentDrafts.length === 0
+                ? "No drafts yet — start one in Lesson Plans."
+                : "No drafts match your filter."}
+            </p>
           ) : (
             <div className="space-y-0">
-              {recentDrafts.map((d, i) => (
+              {filteredDrafts.map((d, i) => (
                 <div
                   key={d.id}
                   className={`flex items-center justify-between gap-4 py-3 text-sm ${
-                    i < recentDrafts.length - 1 ? "border-b border-dashed border-line" : ""
+                    i < filteredDrafts.length - 1 ? "border-b border-dashed border-line" : ""
                   }`}
                 >
                   <div>

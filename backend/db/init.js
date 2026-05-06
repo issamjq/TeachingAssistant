@@ -101,7 +101,7 @@ ALTER TABLE teachers  ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'act
 `;
 
 // =============================================================================
-// SCHEMA — drafts as full lesson-plan rows.
+// SCHEMA — drafts as full lesson-plan rows + templates as rich starting points.
 // =============================================================================
 const SCHEMA_LESSON_FIELDS = `
 ALTER TABLE drafts ADD COLUMN IF NOT EXISTS planned_date     DATE;
@@ -116,6 +116,11 @@ ALTER TABLE drafts ADD COLUMN IF NOT EXISTS conclusion       TEXT;
 ALTER TABLE drafts ADD COLUMN IF NOT EXISTS assessment_method TEXT;
 ALTER TABLE drafts ADD COLUMN IF NOT EXISTS attachments      JSONB DEFAULT '[]'::jsonb;
 ALTER TABLE drafts ADD COLUMN IF NOT EXISTS tags             TEXT[] DEFAULT '{}';
+
+-- Templates carry a rich enough payload that "Use template" can clone the
+-- full lesson plan, not just the title.
+ALTER TABLE templates ADD COLUMN IF NOT EXISTS objectives JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE templates ADD COLUMN IF NOT EXISTS stages     JSONB DEFAULT '[]'::jsonb;
 `;
 
 // =============================================================================
@@ -272,10 +277,31 @@ CREATE TABLE IF NOT EXISTS notifications (
   message TEXT NOT NULL,
   link TEXT,
   is_read BOOLEAN NOT NULL DEFAULT FALSE,
+  ref_table TEXT,
+  ref_id INT,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
+ALTER TABLE notifications ADD COLUMN IF NOT EXISTS ref_table TEXT;
+ALTER TABLE notifications ADD COLUMN IF NOT EXISTS ref_id INT;
+-- Dedup key for /api/notifications/refresh: one row per (teacher, kind, target).
+-- Postgres treats NULLs as distinct, so legacy rows without a ref aren't
+-- collapsed.
+DROP INDEX IF EXISTS notifications_dedup_idx;
+CREATE UNIQUE INDEX notifications_dedup_idx
+  ON notifications (teacher_id, kind, ref_table, ref_id)
+  WHERE ref_table IS NOT NULL AND ref_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS notifications_teacher_unread_idx
   ON notifications (teacher_id, is_read, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS activity_completions (
+  id SERIAL PRIMARY KEY,
+  activity_id INT NOT NULL REFERENCES activities(id) ON DELETE CASCADE,
+  student_id INT NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+  status TEXT NOT NULL DEFAULT 'Pending',
+  notes TEXT,
+  recorded_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE (activity_id, student_id)
+);
 
 CREATE TABLE IF NOT EXISTS library_resources (
   id SERIAL PRIMARY KEY,

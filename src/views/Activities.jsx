@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Plus } from "lucide-react";
+import { Plus, ListChecks } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { GRADE_LEVELS } from "../lib/enums";
@@ -15,6 +15,7 @@ export default function Activities() {
   const [editing, setEditing] = useState(null);
   const [deleting, setDeleting] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [completionsFor, setCompletionsFor] = useState(null);
 
   const reload = () => {
     setLoading(true);
@@ -90,10 +91,16 @@ export default function Activities() {
                 {a.instructions && (
                   <p className="text-sm text-ink-soft mb-3 leading-relaxed line-clamp-3">{a.instructions}</p>
                 )}
-                <div className="pt-3 border-t border-dashed border-line">
+                <div className="pt-3 border-t border-dashed border-line flex items-center justify-between">
                   <span className="font-mono text-[10px] uppercase tracking-wider text-muted">
                     Updated {timeAgo(a.updated_at)}
                   </span>
+                  <button
+                    onClick={() => setCompletionsFor(a)}
+                    className="inline-flex items-center gap-1.5 text-accent hover:text-ink font-serif italic text-sm border-b border-accent hover:border-ink transition"
+                  >
+                    <ListChecks size={13} /> Completions
+                  </button>
                 </div>
               </CardContent>
             </Card>
@@ -115,6 +122,13 @@ export default function Activities() {
           initial={editing === "new" ? null : editing}
           onClose={() => setEditing(null)}
           onSaved={onSaved}
+        />
+      )}
+
+      {completionsFor && (
+        <CompletionsModal
+          activity={completionsFor}
+          onClose={() => setCompletionsFor(null)}
         />
       )}
 
@@ -203,6 +217,76 @@ function ActivityModal({ initial, onClose, onSaved }) {
         <Field label="Instructions">
           <textarea rows={4} className={inputClasses} value={form.instructions} onChange={(e) => set("instructions", e.target.value)} />
         </Field>
+      </div>
+    </Modal>
+  );
+}
+
+function CompletionsModal({ activity, onClose }) {
+  const [rows, setRows] = useState([]);
+  useEffect(() => {
+    api(`/api/activities/${activity.id}/completions`).then(setRows).catch(() => {});
+  }, [activity.id]);
+
+  const update = async (sid, patch) => {
+    await api(`/api/activities/${activity.id}/completions/${sid}`, {
+      method: "PUT",
+      body: patch,
+    });
+    api(`/api/activities/${activity.id}/completions`).then(setRows);
+  };
+
+  return (
+    <Modal
+      open onClose={onClose}
+      eyebrow={activity.title}
+      title="Completions"
+      wide
+      footer={<Button variant="secondary" onClick={onClose}>Close</Button>}
+    >
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted border-b border-line">
+              <th className="text-left py-2 font-medium">Student</th>
+              <th className="text-left py-2 font-medium">Status</th>
+              <th className="text-left py-2 font-medium">Notes</th>
+              <th className="text-left py-2 font-medium">Recorded</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.student_id} className="border-b border-line/60 last:border-0">
+                <td className="py-2 text-ink">
+                  {r.first_name} {r.last_name}{" "}
+                  <span className="font-mono text-[10px] text-muted ml-1">{r.code}</span>
+                </td>
+                <td className="py-2">
+                  <select
+                    defaultValue={r.status || "Pending"}
+                    onChange={(e) => update(r.student_id, { status: e.target.value })}
+                    className="rounded-md border border-line bg-paper px-2 py-1 text-xs"
+                  >
+                    {["Pending", "Done", "Partial", "Skipped"].map((s) => <option key={s}>{s}</option>)}
+                  </select>
+                </td>
+                <td className="py-2">
+                  <input
+                    defaultValue={r.notes ?? ""}
+                    onBlur={(e) => update(r.student_id, { notes: e.target.value || null })}
+                    className="rounded-md border border-line bg-paper px-2 py-1 text-xs w-full"
+                  />
+                </td>
+                <td className="py-2 text-muted text-xs">
+                  {r.recorded_at ? new Date(r.recorded_at).toLocaleString() : "—"}
+                </td>
+              </tr>
+            ))}
+            {rows.length === 0 && (
+              <tr><td colSpan={4} className="py-6 text-center text-muted">No students in your roster yet.</td></tr>
+            )}
+          </tbody>
+        </table>
       </div>
     </Modal>
   );

@@ -8,7 +8,13 @@ export default function NotificationsBell() {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
 
-  const reload = () => api("/api/notifications").then(setItems).catch(() => {});
+  // Ask the server to emit any new reminders (lessons starting soon, homework
+  // due, quizzes scheduled), then read the resulting list. Both calls are safe
+  // to repeat — the refresh endpoint dedups.
+  const reload = async () => {
+    try { await api("/api/notifications/refresh", { method: "POST", body: {} }); } catch {}
+    api("/api/notifications").then(setItems).catch(() => {});
+  };
 
   useEffect(() => {
     reload();

@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { GRADE_LEVELS } from "../lib/enums";
 import {
   Field, Modal, ConfirmDelete, RowActions, SortHeader, useSortable,
-  inputClasses, selectClasses, api,
+  AttachmentsList, inputClasses, selectClasses, api,
 } from "./_shared";
 
 export default function Homework() {
@@ -168,12 +168,18 @@ const EMPTY = {
   instructions: "",
   due_date: "",
   status: "Open",
+  attachments: [],
 };
 
 function HomeworkModal({ initial, onClose, onSaved }) {
   const isNew = !initial;
   const [form, setForm] = useState(() => initial
-    ? { ...EMPTY, ...initial, due_date: initial.due_date ? initial.due_date.slice(0, 10) : "" }
+    ? {
+        ...EMPTY,
+        ...initial,
+        due_date: initial.due_date ? initial.due_date.slice(0, 10) : "",
+        attachments: Array.isArray(initial.attachments) ? initial.attachments : [],
+      }
     : EMPTY
   );
   const [saving, setSaving] = useState(false);
@@ -240,6 +246,13 @@ function HomeworkModal({ initial, onClose, onSaved }) {
         <Field label="Instructions">
           <textarea rows={4} className={inputClasses} value={form.instructions} onChange={(e) => set("instructions", e.target.value)} />
         </Field>
+      </div>
+      <div className="mt-4">
+        <p className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted mb-2">Attachments (links)</p>
+        <AttachmentsList
+          value={form.attachments}
+          onChange={(v) => set("attachments", v)}
+        />
       </div>
     </Modal>
   );

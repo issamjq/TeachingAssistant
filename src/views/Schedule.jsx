@@ -267,6 +267,7 @@ const EMPTY = {
   location: "",
   notes: "",
   status: "planned",
+  draft_id: null,
 };
 
 function ScheduleModal({ initial, onClose, onSaved }) {
@@ -283,7 +284,27 @@ function ScheduleModal({ initial, onClose, onSaved }) {
   });
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState(null);
+  const [drafts, setDrafts] = useState([]);
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+
+  // Load lesson plans so the user can link this schedule entry to one.
+  useEffect(() => {
+    api("/api/drafts").then(setDrafts).catch(() => {});
+  }, []);
+
+  // When the user picks a lesson plan, prefill any empty fields from it.
+  const linkDraft = (id) => {
+    const d = drafts.find((x) => x.id === Number(id));
+    if (!d) { set("draft_id", null); return; }
+    setForm((f) => ({
+      ...f,
+      draft_id: d.id,
+      title: f.title || d.name,
+      subject: f.subject || d.subject || "",
+      grade: f.grade || d.grade || "",
+      section: f.section || d.section || "",
+    }));
+  };
 
   const submit = async () => {
     setSaving(true);
@@ -319,6 +340,22 @@ function ScheduleModal({ initial, onClose, onSaved }) {
         </div>
       )}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="md:col-span-2">
+          <Field label="Link to lesson plan (optional)">
+            <select
+              className={selectClasses}
+              value={form.draft_id || ""}
+              onChange={(e) => linkDraft(e.target.value)}
+            >
+              <option value="">— Standalone entry, no linked plan</option>
+              {drafts.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.name}{d.subject ? ` · ${d.subject}` : ""}{d.grade ? ` · ${d.grade}` : ""}
+                </option>
+              ))}
+            </select>
+          </Field>
+        </div>
         <div className="md:col-span-2">
           <Field label="Title">
             <input className={inputClasses} value={form.title} onChange={(e) => set("title", e.target.value)} />

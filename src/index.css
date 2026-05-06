@@ -17,3 +17,12 @@
   --font-serif: "Fraunces", Georgia, serif;
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
 }
+
+/* When the user uses the browser's "Save as PDF" / Print, drop the
+   viewport-locking layout that the studio uses on screen so the report
+   flows down a printed page instead of being clipped. */
+@media print {
+  html, body, #root { height: auto !important; overflow: visible !important; }
+  .h-screen { height: auto !important; }
+  .overflow-hidden, .overflow-y-auto { overflow: visible !important; }
+}

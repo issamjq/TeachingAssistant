@@ -49,6 +49,29 @@ export default function NewDraft({ onCancel, onSave, onOpenFull }) {
     setSaving(true);
     setSaveErr(null);
     try {
+      const durationInt = parseInt(String(duration).match(/\d+/)?.[0] || "0", 10);
+      const cleanedObjectives = objectives.map((o) => o.trim()).filter(Boolean);
+      const validStages = stages.filter((s) => s.name?.trim());
+
+      // Map the on-screen "stages" to the lesson plan's intro / main /
+      // conclusion buckets so the EditDraft view picks them up. Three or
+      // more stages: first → intro, last → conclusion, middle stages are
+      // joined into main_activity. Two stages: intro + main. One stage: intro.
+      let intro = "", main_activity = "", conclusion = "";
+      if (validStages.length === 1) {
+        intro = `${validStages[0].name}: ${validStages[0].note || ""}`.trim();
+      } else if (validStages.length === 2) {
+        intro = `${validStages[0].name}: ${validStages[0].note || ""}`.trim();
+        main_activity = `${validStages[1].name}: ${validStages[1].note || ""}`.trim();
+      } else if (validStages.length >= 3) {
+        intro = `${validStages[0].name}: ${validStages[0].note || ""}`.trim();
+        conclusion = `${validStages[validStages.length - 1].name}: ${validStages[validStages.length - 1].note || ""}`.trim();
+        main_activity = validStages
+          .slice(1, -1)
+          .map((s) => `${s.name}: ${s.note || ""}`.trim())
+          .join("\n");
+      }
+
       const created = await api("/api/drafts", {
         method: "POST",
         body: {
@@ -57,6 +80,13 @@ export default function NewDraft({ onCancel, onSave, onOpenFull }) {
           status: "In progress",
           progress: 25,
           note: `${grade}${klass ? " · " + klass : ""}${duration ? " · " + duration : ""}`,
+          grade,
+          section: klass,
+          duration_minutes: durationInt || null,
+          objectives: cleanedObjectives,
+          intro,
+          main_activity,
+          conclusion,
         },
       });
       onSave(created);

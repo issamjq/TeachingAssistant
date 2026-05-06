@@ -7,12 +7,51 @@ import { crudRouter } from "../lib/crud.js";
 const FIELDS = ["student_id", "subject", "term", "category", "score", "max_score", "notes"];
 const SELECT = "id, student_id, subject, term, category, score, max_score, notes, recorded_at";
 
-const router = crudRouter({
+// /summary must be registered BEFORE the crud helper's /:id route, otherwise
+// Express matches /:id with id="summary" and Postgres fails to parse it.
+const router = Router();
+
+router.get("/summary", async (_req, res) => {
+  try {
+    const cur = await loadCurrentTeacher();
+    const r = await pool.query(
+      `WITH entries AS (
+         SELECT student_id, score::numeric AS score, max_score::numeric AS max_score
+           FROM student_grades
+          WHERE teacher_id = $1 AND score IS NOT NULL AND max_score IS NOT NULL
+         UNION ALL
+         SELECT qs.student_id, qs.score, qs.max_score
+           FROM quiz_scores qs
+           JOIN quizzes q ON q.id = qs.quiz_id
+          WHERE q.teacher_id = $1 AND qs.score IS NOT NULL AND qs.max_score IS NOT NULL
+         UNION ALL
+         SELECT hs.student_id, hs.score, hs.max_score
+           FROM homework_submissions hs
+           JOIN homework h ON h.id = hs.homework_id
+          WHERE h.teacher_id = $1 AND hs.score IS NOT NULL AND hs.max_score IS NOT NULL
+       )
+       SELECT s.id AS student_id, s.first_name, s.last_name, s.grade, s.section,
+              COUNT(e.*)::int AS entries,
+              COALESCE(ROUND(AVG(e.score / NULLIF(e.max_score, 0) * 100)::numeric, 1), 0) AS average_pct
+         FROM students s
+         LEFT JOIN entries e ON e.student_id = s.id
+        WHERE s.teacher_id = $1
+        GROUP BY s.id
+        ORDER BY s.grade, s.section, s.last_name`,
+      [cur.id]
+    );
+    res.json(r.rows);
+  } catch (err) {
+    handleErr(res, "GET /api/grades/summary", err);
+  }
+});
+
+router.use("/", crudRouter({
   table: "student_grades",
   fields: FIELDS,
   selectCols: SELECT,
   listOrderBy: "recorded_at DESC, id DESC",
-  timestampOnPatch: null, // recorded_at stays at insert time
+  timestampOnPatch: null,
   routeName: "/api/grades",
   teacherScoped: true,
   listExtra: async (req) => {
@@ -24,27 +63,6 @@ const router = crudRouter({
     if (clauses.length === 0) return null;
     return { where: clauses.join(" AND "), params };
   },
-});
-
-// GET /api/grades/summary — per-student average across all subjects.
-router.get("/summary", async (req, res) => {
-  try {
-    const cur = await loadCurrentTeacher();
-    const r = await pool.query(
-      `SELECT s.id AS student_id, s.first_name, s.last_name, s.grade, s.section,
-              COUNT(g.id)::int AS entries,
-              COALESCE(ROUND(AVG(g.score / NULLIF(g.max_score, 0) * 100)::numeric, 1), 0) AS average_pct
-         FROM students s
-         LEFT JOIN student_grades g ON g.student_id = s.id AND g.teacher_id = $1
-        WHERE s.teacher_id = $1
-        GROUP BY s.id
-        ORDER BY s.grade, s.section, s.last_name`,
-      [cur.id]
-    );
-    res.json(r.rows);
-  } catch (err) {
-    handleErr(res, "GET /api/grades/summary", err);
-  }
-});
+}));
 
 export default router;

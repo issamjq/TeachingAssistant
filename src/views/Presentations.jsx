@@ -224,10 +224,16 @@ function PresentationModal({ initial, onClose, onSaved }) {
             />
             <textarea
               rows={3}
-              className={inputClasses}
+              className={inputClasses + " mb-2"}
               placeholder="Content"
               value={s.body || ""}
               onChange={(e) => updateSlide(i, { body: e.target.value })}
+            />
+            <input
+              className={inputClasses}
+              placeholder="Image URL (optional)"
+              value={s.image_url || ""}
+              onChange={(e) => updateSlide(i, { image_url: e.target.value })}
             />
           </div>
         ))}
@@ -261,6 +267,13 @@ function PresentMode({ presentation, onClose }) {
         {cur ? (
           <div className="max-w-4xl w-full text-center">
             <h2 className="font-serif text-6xl mb-8">{cur.title}</h2>
+            {cur.image_url && (
+              <img
+                src={cur.image_url}
+                alt=""
+                className="max-h-[40vh] mx-auto mb-6 rounded-lg border border-white/10 object-contain"
+              />
+            )}
             <p className="text-2xl leading-relaxed text-paper-cool/80 whitespace-pre-line">{cur.body}</p>
           </div>
         ) : (

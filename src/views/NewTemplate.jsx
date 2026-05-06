@@ -48,6 +48,8 @@ export default function NewTemplate({ onCancel, onSave }) {
         .filter((s) => s.name?.trim())
         .map((s) => s.name)
         .join(" → ");
+      // The full stages + objectives now persist in their own JSONB columns,
+      // so "Use template" can clone the lesson plan in one click.
       await api("/api/templates", {
         method: "POST",
         body: {
@@ -59,6 +61,10 @@ export default function NewTemplate({ onCancel, onSave }) {
           tags,
           used_count: 0,
           starred: false,
+          objectives: objectives.filter((o) => o.trim()),
+          stages: stages
+            .filter((s) => s.name?.trim())
+            .map((s) => ({ name: s.name, duration: s.duration, note: s.note })),
         },
       });
       onSave();

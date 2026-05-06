@@ -30,6 +30,11 @@ export default function Reports() {
     URL.revokeObjectURL(url);
   };
 
+  // Open the browser print dialog. Combined with the @media print rules below,
+  // this gives the user a clean PDF via "Save as PDF" without bundling a
+  // PDF library.
+  const exportPdf = () => window.print();
+
   return (
     <div>
       <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-8">
@@ -43,10 +48,10 @@ export default function Reports() {
           <p className="text-muted mt-2">A snapshot of your class — averages, counts, exportable to CSV.</p>
         </div>
         <div className="flex gap-3">
-          <Button variant="secondary" onClick={exportCsv}>
+          <Button variant="secondary" onClick={exportCsv} className="print:hidden">
             <FileSpreadsheet size={14} className="mr-2" /> Export CSV
           </Button>
-          <Button variant="secondary" disabled title="Coming soon">
+          <Button variant="secondary" onClick={exportPdf} className="print:hidden">
             <FileDown size={14} className="mr-2" /> Export PDF
           </Button>
         </div>
