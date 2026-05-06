@@ -1,22 +1,19 @@
 import { Router } from "express";
 import { pool } from "./db.js";
 import { buildPatch, handleErr } from "./helpers.js";
+import { loadCurrentTeacher } from "./currentTeacher.js";
 
 // Build a standard CRUD router for a single table.
-//   table       : SQL table name
-//   fields      : columns clients are allowed to set (used for INSERT / UPDATE)
-//   selectCols  : columns to return (RETURNING + GET projection)
-//   listOrderBy : ORDER BY clause for the list endpoint (no leading "ORDER BY")
-//   timestampOnPatch : column to set to NOW() on PATCH (e.g. "updated_at" or "last_edited"); pass null to skip
-//   listExtra(req)   : optional async function returning { where, params }
-//                      to scope the list (used by /api/students for ?teacher=me)
 //
-// Endpoints mounted (relative to wherever this router is .use()'d):
-//   GET    /        list rows
-//   POST   /        create — body is a partial object of `fields`
-//   GET    /:id     fetch one
-//   PATCH  /:id     partial update — only fields in `fields` are written
-//   DELETE /:id     hard delete
+//   table          : SQL table name
+//   fields         : columns clients are allowed to set (used for INSERT / UPDATE)
+//   selectCols     : columns to return (RETURNING + GET projection)
+//   listOrderBy    : ORDER BY clause for the list endpoint (no leading "ORDER BY")
+//   timestampOnPatch : column to set to NOW() on PATCH; pass null to skip.
+//   teacherScoped  : if true, every endpoint scopes by current teacher's id
+//                    (forbids cross-teacher reads, stamps teacher_id on inserts).
+//   listExtra(req, ctx) : optional, returns { where, params, skip } extending the scope.
+//   afterMutation(row)  : optional callback after each successful POST / PATCH.
 export function crudRouter({
   table,
   fields,
@@ -24,22 +21,35 @@ export function crudRouter({
   listOrderBy,
   timestampOnPatch = "updated_at",
   routeName,
+  teacherScoped = false,
   listExtra = null,
   afterMutation = null,
 }) {
   const router = Router();
   const tag = routeName || `/api/${table}`;
 
+  const scopeFor = async () => {
+    if (!teacherScoped) return { where: "", params: [], teacherId: null };
+    const cur = await loadCurrentTeacher();
+    if (!cur) throw new Error("Current teacher not resolved (no STF-001 in DB?)");
+    return { where: "teacher_id = $1", params: [cur.id], teacherId: cur.id };
+  };
+
   router.get("/", async (req, res) => {
     try {
-      let where = "";
-      let params = [];
+      const scope = await scopeFor();
+      let where = scope.where ? `WHERE ${scope.where}` : "";
+      let params = [...scope.params];
+
       if (listExtra) {
-        const extra = await listExtra(req);
+        const extra = await listExtra(req, { teacherId: scope.teacherId });
         if (extra?.skip) return res.json([]);
         if (extra?.where) {
-          where = extra.where;
-          params = extra.params || [];
+          // Re-base extra's $N placeholders on top of current params length.
+          const offset = params.length;
+          const rebased = extra.where.replace(/\$(\d+)/g, (_, n) => `$${Number(n) + offset}`);
+          where = where ? `${where} AND ${rebased}` : `WHERE ${rebased}`;
+          params = [...params, ...(extra.params || [])];
         }
       }
       const r = await pool.query(
@@ -54,10 +64,15 @@ export function crudRouter({
 
   router.post("/", async (req, res) => {
     try {
-      const body = req.body || {};
-      const { sets, params } = buildPatch(body, fields);
+      const scope = await scopeFor();
+      const body = { ...(req.body || {}) };
+      if (teacherScoped) body.teacher_id = scope.teacherId;
+
+      const allowed = teacherScoped ? [...fields, "teacher_id"] : fields;
+      const { sets, params } = buildPatch(body, allowed);
       if (sets.length === 0) return res.status(400).json({ error: "No fields" });
-      const cols = fields.filter((k) => Object.prototype.hasOwnProperty.call(body, k));
+
+      const cols = allowed.filter((k) => Object.prototype.hasOwnProperty.call(body, k));
       const placeholders = params.map((_, i) => `$${i + 1}`).join(", ");
       const r = await pool.query(
         `INSERT INTO ${table} (${cols.join(", ")}) VALUES (${placeholders})
@@ -73,7 +88,14 @@ export function crudRouter({
 
   router.get("/:id", async (req, res) => {
     try {
-      const r = await pool.query(`SELECT ${selectCols} FROM ${table} WHERE id = $1`, [req.params.id]);
+      const scope = await scopeFor();
+      const params = [req.params.id];
+      let where = `WHERE id = $1`;
+      if (scope.where) {
+        params.push(...scope.params);
+        where += ` AND teacher_id = $${params.length}`;
+      }
+      const r = await pool.query(`SELECT ${selectCols} FROM ${table} ${where}`, params);
       if (r.rows.length === 0) return res.status(404).json({ error: "Not found" });
       res.json(r.rows[0]);
     } catch (err) {
@@ -83,14 +105,21 @@ export function crudRouter({
 
   router.patch("/:id", async (req, res) => {
     try {
+      const scope = await scopeFor();
       const { sets, params } = buildPatch(req.body || {}, fields);
       if (sets.length === 0) return res.status(400).json({ error: "No fields" });
+
       params.push(req.params.id);
+      const idIdx = params.length;
       const ts = timestampOnPatch ? `, ${timestampOnPatch} = NOW()` : "";
+
+      let where = `WHERE id = $${idIdx}`;
+      if (scope.where) {
+        params.push(...scope.params);
+        where += ` AND teacher_id = $${params.length}`;
+      }
       const r = await pool.query(
-        `UPDATE ${table} SET ${sets.join(", ")}${ts}
-          WHERE id = $${params.length}
-          RETURNING ${selectCols}`,
+        `UPDATE ${table} SET ${sets.join(", ")}${ts} ${where} RETURNING ${selectCols}`,
         params
       );
       if (r.rows.length === 0) return res.status(404).json({ error: "Not found" });
@@ -103,7 +132,14 @@ export function crudRouter({
 
   router.delete("/:id", async (req, res) => {
     try {
-      const r = await pool.query(`DELETE FROM ${table} WHERE id = $1`, [req.params.id]);
+      const scope = await scopeFor();
+      const params = [req.params.id];
+      let where = `WHERE id = $1`;
+      if (scope.where) {
+        params.push(...scope.params);
+        where += ` AND teacher_id = $${params.length}`;
+      }
+      const r = await pool.query(`DELETE FROM ${table} ${where}`, params);
       if (r.rowCount === 0) return res.status(404).json({ error: "Not found" });
       res.json({ ok: true });
     } catch (err) {

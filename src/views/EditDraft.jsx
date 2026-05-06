@@ -1,340 +1,278 @@
-import React, { useState } from "react";
-import { Pencil, X, ChevronDown, CheckCircle2, Lock } from "lucide-react";
+import React, { useEffect, useState } from "react";
+import { Save, CheckCircle2, Trash2, Plus } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Section, Field, FilePill, inputClasses } from "./_shared";
+import { GRADE_LEVELS } from "../lib/enums";
+import { Field, inputClasses, selectClasses, api } from "./_shared";
 
-const initialStages = [
-  { id: 1, name: "Warm-up", duration: 5, note: "Ask: where have you heard a metaphor today?", done: true },
-  { id: 2, name: "Mini-lesson", duration: 12, note: "Define simile, metaphor, personification with examples.", done: true },
-  { id: 3, name: "Guided practice", duration: 15, note: "Identify devices in a short poem together.", done: false, editing: true },
-  { id: 4, name: "Independent task", duration: 13, note: "Each student writes 3 lines using one device.", done: false },
-];
+const STATUSES = ["In progress", "Ready to use", "Blocked", "Paused"];
 
-const initialChecklist = [
-  { label: "Draft name", done: true },
-  { label: "Subject & grade", done: true },
-  { label: "Objectives (≥1)", done: true },
-  { label: "Lesson flow (≥2 stages)", done: true },
-  { label: "Materials attached", done: true },
-  { label: "Slides ready", done: false },
-  { label: "Quiz attached", done: false },
-  { label: "Reviewed", done: false },
-];
+const ensureArray = (v) => {
+  if (Array.isArray(v)) return v;
+  if (v == null) return [];
+  if (typeof v === "string") {
+    try { const p = JSON.parse(v); return Array.isArray(p) ? p : []; } catch { return []; }
+  }
+  return [];
+};
 
-const recentChanges = [
-  { msg: "Edited stage: Guided practice", when: "just now" },
-  { msg: "Added objective", when: "3 min ago" },
-  { msg: "Uploaded Examples_slides.pptx", when: "12 min ago" },
-  { msg: "Created from blank", when: "1 hour ago" },
-];
+// Full lesson-plan editor wired to the drafts table. Loads existing draft by
+// id; if no id is present we POST a new one on first save and then track its
+// id for subsequent saves.
+export default function EditDraft({ draft: initial, onClose, onMarkReady }) {
+  const [draftId, setDraftId] = useState(initial?.id || null);
+  const [form, setForm] = useState(() => ({
+    name: initial?.name || "",
+    note: initial?.note || "",
+    subject: initial?.subject || "",
+    status: initial?.status || "In progress",
+    progress: initial?.progress ?? 25,
+    planned_date: initial?.planned_date ? initial.planned_date.slice(0, 10) : "",
+    grade: initial?.grade || "",
+    section: initial?.section || "",
+    duration_minutes: initial?.duration_minutes || 45,
+    objectives: ensureArray(initial?.objectives),
+    materials: ensureArray(initial?.materials),
+    intro: initial?.intro || "",
+    main_activity: initial?.main_activity || "",
+    conclusion: initial?.conclusion || "",
+    assessment_method: initial?.assessment_method || "",
+  }));
+  const [saving, setSaving] = useState(false);
+  const [savedAt, setSavedAt] = useState(null);
+  const [err, setErr] = useState(null);
 
-export default function EditDraft({ draft, onClose, onMarkReady }) {
-  const [progress, setProgress] = useState(draft?.progress ?? 65);
-  const [objectives] = useState([
-    "Identify simile, metaphor, and personification in a poem",
-    "Explain how figurative language creates meaning",
-  ]);
-  const [stages, setStages] = useState(initialStages);
-  const [checklist, setChecklist] = useState(initialChecklist);
+  // If we got handed a real id, refresh from the server (in case the row was
+  // edited elsewhere since the list was loaded).
+  useEffect(() => {
+    if (!initial?.id) return;
+    api(`/api/drafts/${initial.id}`).then((d) => {
+      setForm((f) => ({
+        ...f,
+        ...d,
+        planned_date: d.planned_date ? d.planned_date.slice(0, 10) : "",
+        objectives: ensureArray(d.objectives),
+        materials: ensureArray(d.materials),
+      }));
+    }).catch(() => {});
+  }, [initial?.id]);
 
-  const totalMin = stages.reduce((t, s) => t + s.duration, 0);
+  const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
 
-  const toggleCheck = (label) =>
-    setChecklist((p) => p.map((c) => (c.label === label ? { ...c, done: !c.done } : c)));
+  const persist = async (overrides = {}) => {
+    setSaving(true); setErr(null);
+    try {
+      const body = { ...form, ...overrides };
+      if (draftId) {
+        const saved = await api(`/api/drafts/${draftId}`, { method: "PATCH", body });
+        setForm((f) => ({ ...f, ...saved, planned_date: saved.planned_date ? saved.planned_date.slice(0, 10) : "" }));
+      } else {
+        const saved = await api(`/api/drafts`, { method: "POST", body });
+        setDraftId(saved.id);
+      }
+      setSavedAt(new Date());
+    } catch (e) {
+      setErr(e.message);
+    } finally {
+      setSaving(false);
+    }
+  };
 
-  const stopEditing = (id) =>
-    setStages((p) => p.map((s) => (s.id === id ? { ...s, editing: false } : s)));
+  const markReady = async () => {
+    await persist({ status: "Ready to use", progress: 100 });
+    onMarkReady?.();
+  };
+
+  const addArrayItem = (key) => set(key, [...(form[key] || []), ""]);
+  const updateArrayItem = (key, i, v) =>
+    set(key, (form[key] || []).map((x, idx) => (idx === i ? v : x)));
+  const removeArrayItem = (key, i) =>
+    set(key, (form[key] || []).filter((_, idx) => idx !== i));
 
   return (
     <div>
-      <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4 mb-6">
+      <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-8">
         <div>
           <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-2 inline-flex items-center gap-2.5">
-            <span className="w-6 h-px bg-accent" /> Edit draft
+            <span className="w-6 h-px bg-accent" /> Lesson plan editor
           </p>
-          <div className="flex items-center gap-2 mb-1">
-            <h2 className="font-serif text-4xl font-medium text-ink">
-              {draft?.name || "Poetry — figurative language"}
-            </h2>
-            <button className="text-muted hover:text-ink">
-              <Pencil size={16} />
-            </button>
-          </div>
-          <p className="font-mono text-[10px] uppercase tracking-wider text-muted mt-1">
-            English · Grade 7B · 45 min · Friday May 8 · 10:30 AM
+          <h2 className="font-serif text-4xl font-medium text-ink">
+            {form.name || <em className="italic font-light text-accent">Untitled lesson</em>}
+          </h2>
+          <p className="text-muted mt-2 font-mono text-[10px] uppercase tracking-wider">
+            {savedAt
+              ? `Saved ${savedAt.toLocaleTimeString()}`
+              : err
+              ? <span className="text-accent">{err}</span>
+              : draftId ? "Loaded from Neon" : "Unsaved — click Save to persist"}
           </p>
         </div>
-        <div className="flex items-center gap-3">
-          <button className="inline-flex items-center gap-2 bg-paper border border-line rounded-full px-3 py-1.5 font-mono text-[10px] uppercase tracking-wider text-ink-soft">
-            <span className="h-1.5 w-1.5 rounded-full bg-ink" /> In progress <ChevronDown size={12} />
-          </button>
-          <Button variant="secondary">Preview</Button>
-          <Button onClick={onClose}>Save & close</Button>
+        <div className="flex gap-3">
+          <Button variant="secondary" onClick={onClose} disabled={saving}>Close</Button>
+          <Button variant="secondary" onClick={() => persist()} disabled={saving}>
+            <Save size={14} className="mr-2" /> {saving ? "Saving…" : "Save"}
+          </Button>
+          <Button onClick={markReady} disabled={saving}>
+            <CheckCircle2 size={14} className="mr-2" /> Mark ready
+          </Button>
         </div>
       </div>
 
-      <Card className="mb-6">
-        <CardContent className="p-5">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
-            <div>
-              <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-2">Draft progress</p>
-              <div className="flex items-baseline gap-2 mb-3">
-                <span className="font-serif text-3xl font-medium text-ink">{progress}%</span>
-                <span className="text-sm text-muted">complete</span>
-              </div>
-              <input
-                type="range"
-                min="0"
-                max="100"
-                value={progress}
-                onChange={(e) => setProgress(Number(e.target.value))}
-                className="w-full accent-ink"
-              />
-              <div className="flex justify-between font-mono text-[9px] uppercase tracking-wider text-muted mt-1">
-                <span>0%</span>
-                <span>25%</span>
-                <span>50%</span>
-                <span>75%</span>
-                <span>100%</span>
-              </div>
-            </div>
-            <div>
-              <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-2">Quick set</p>
-              <div className="flex gap-2 flex-wrap mb-3">
-                {[0, 25, 50, 75, 100].map((p) => (
-                  <button
-                    key={p}
-                    onClick={() => setProgress(p)}
-                    className={`px-3 py-1.5 rounded-md font-mono text-[10px] uppercase tracking-wider border transition ${
-                      progress === p
-                        ? "bg-ink text-paper-cool border-ink"
-                        : "bg-paper-cool text-ink-soft border-line hover:border-ink"
-                    }`}
-                  >
-                    {p}%
-                  </button>
-                ))}
-              </div>
-              <p className="text-xs text-muted">
-                Drag the slider, or let progress update from your checklist below
-              </p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
-          <Section step="Section 1" title="Basic information">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <Field label="Subject">
-                <input className={inputClasses} defaultValue="English" />
-              </Field>
-              <Field label="Grade">
-                <input className={inputClasses} defaultValue="Grade 7" />
-              </Field>
-              <Field label="Class">
-                <input className={inputClasses} defaultValue="7B" />
-              </Field>
-              <Field label="Duration">
-                <input className={inputClasses} defaultValue="45 min" />
-              </Field>
-            </div>
-          </Section>
-
-          <Section step="Section 2" title="Learning objectives" badge="Done">
-            <div className="space-y-2">
-              {objectives.map((o, i) => (
-                <div key={i} className="flex items-center gap-2">
-                  <span className="h-7 w-7 rounded-full bg-paper border border-line text-ink-soft font-mono text-[10px] flex items-center justify-center flex-shrink-0">
-                    {i + 1}
-                  </span>
-                  <input defaultValue={o} className={inputClasses} />
-                  <span className="text-muted cursor-grab select-none">⋮⋮</span>
-                  <button className="text-muted hover:text-accent">
-                    <X size={16} />
-                  </button>
+          <Card>
+            <CardContent className="p-6">
+              <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-4">Basics</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="md:col-span-2">
+                  <Field label="Lesson title">
+                    <input className={inputClasses} value={form.name} onChange={(e) => set("name", e.target.value)} />
+                  </Field>
                 </div>
-              ))}
-            </div>
-            <button className="text-accent hover:text-ink font-serif italic text-sm mt-3 border-b border-accent hover:border-ink transition">
-              + Add objective
-            </button>
-          </Section>
+                <Field label="Subject">
+                  <input className={inputClasses} value={form.subject} onChange={(e) => set("subject", e.target.value)} />
+                </Field>
+                <Field label="Grade">
+                  <select className={selectClasses} value={form.grade || ""} onChange={(e) => set("grade", e.target.value)}>
+                    <option value="">—</option>
+                    {GRADE_LEVELS.map((g) => <option key={g} value={g}>{g}</option>)}
+                  </select>
+                </Field>
+                <Field label="Section">
+                  <input className={inputClasses} value={form.section || ""} onChange={(e) => set("section", e.target.value)} />
+                </Field>
+                <Field label="Duration (minutes)">
+                  <input type="number" className={inputClasses} value={form.duration_minutes ?? ""} onChange={(e) => set("duration_minutes", e.target.value === "" ? null : Number(e.target.value))} />
+                </Field>
+                <Field label="Planned date">
+                  <input type="date" className={inputClasses} value={form.planned_date || ""} onChange={(e) => set("planned_date", e.target.value)} />
+                </Field>
+                <Field label="Status">
+                  <select className={selectClasses} value={form.status} onChange={(e) => set("status", e.target.value)}>
+                    {STATUSES.map((s) => <option key={s}>{s}</option>)}
+                  </select>
+                </Field>
+              </div>
+            </CardContent>
+          </Card>
 
-          <Section step="Section 3" title="Lesson flow" badge={`Total: ${totalMin} min`}>
-            <div className="space-y-2">
-              {stages.map((s) => (
-                <div
-                  key={s.id}
-                  className={`rounded-lg p-3 flex items-start gap-3 border ${
-                    s.editing ? "bg-paper-cool border-ink ring-1 ring-ink" : "bg-paper border-line"
-                  }`}
-                >
-                  <span className="text-muted leading-none mt-0.5 select-none cursor-grab">⋮⋮</span>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      {s.done ? (
-                        <CheckCircle2 size={16} className="text-sage" />
-                      ) : (
-                        <span className="h-4 w-4 rounded-full border border-line inline-block" />
-                      )}
-                      <span className="font-medium text-sm text-ink">{s.name}</span>
-                      <span className="font-mono text-[9px] uppercase tracking-wider px-2 py-0.5 bg-paper-cool border border-line text-ink-soft rounded">
-                        {s.duration} min
-                      </span>
-                    </div>
-                    <p className="text-xs text-muted">{s.note}</p>
-                  </div>
-                  {s.editing ? (
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => stopEditing(s.id)}
-                        className="bg-ink text-paper-cool font-mono text-[10px] uppercase tracking-wider px-3 py-1 rounded"
-                      >
-                        Save
-                      </button>
-                      <button
-                        onClick={() => stopEditing(s.id)}
-                        className="font-mono text-[10px] uppercase tracking-wider px-3 py-1 rounded text-muted"
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  ) : (
-                    <button className="text-muted hover:text-ink">
-                      <Pencil size={14} />
+          <Card>
+            <CardContent className="p-6">
+              <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-4">Learning objectives</p>
+              <div className="space-y-2">
+                {form.objectives.map((o, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <span className="h-7 w-7 rounded-full bg-paper border border-line text-ink-soft font-mono text-[10px] flex items-center justify-center flex-shrink-0">
+                      {i + 1}
+                    </span>
+                    <input
+                      className={inputClasses}
+                      value={o}
+                      onChange={(e) => updateArrayItem("objectives", i, e.target.value)}
+                      placeholder="Add an objective…"
+                    />
+                    <button onClick={() => removeArrayItem("objectives", i)} className="text-muted hover:text-accent">
+                      <Trash2 size={14} />
                     </button>
-                  )}
-                </div>
-              ))}
-            </div>
-            <button className="text-accent hover:text-ink font-serif italic text-sm mt-3 border-b border-accent hover:border-ink transition">
-              + Add stage
-            </button>
-          </Section>
-
-          <Section step="Section 4" title="Notes & resources">
-            <textarea
-              defaultValue={
-                "Reminder: print the poem handout in advance.\nMaybe show a 2-minute video clip about figurative language at the start."
-              }
-              className="w-full rounded-md border border-line bg-paper px-3 py-2.5 text-sm outline-none focus:border-ink mb-4 text-ink"
-              rows={3}
-            />
-            <div className="flex flex-wrap gap-3">
-              <FilePill name="Poem_handout.pdf" type="PDF" size="480 KB" removable />
-              <FilePill name="Examples_slides.pptx" type="PPTX" size="2.1 MB" removable />
-              <button className="border border-dashed border-line rounded-lg px-4 py-3 text-sm text-muted hover:border-ink hover:text-ink transition">
-                + Upload file
+                  </div>
+                ))}
+              </div>
+              <button
+                onClick={() => addArrayItem("objectives")}
+                className="text-accent hover:text-ink font-serif italic text-sm mt-3 border-b border-accent hover:border-ink transition inline-flex items-center gap-1.5"
+              >
+                <Plus size={12} /> Add objective
               </button>
-            </div>
-          </Section>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-6">
+              <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-4">Lesson body</p>
+              <div className="space-y-4">
+                <Field label="Intro (warm-up)">
+                  <textarea rows={2} className={inputClasses} value={form.intro || ""} onChange={(e) => set("intro", e.target.value)} />
+                </Field>
+                <Field label="Main activity">
+                  <textarea rows={4} className={inputClasses} value={form.main_activity || ""} onChange={(e) => set("main_activity", e.target.value)} />
+                </Field>
+                <Field label="Conclusion (exit ticket / wrap-up)">
+                  <textarea rows={2} className={inputClasses} value={form.conclusion || ""} onChange={(e) => set("conclusion", e.target.value)} />
+                </Field>
+                <Field label="Assessment method">
+                  <input className={inputClasses} value={form.assessment_method || ""} onChange={(e) => set("assessment_method", e.target.value)} placeholder="e.g. exit ticket, formative quiz, peer review" />
+                </Field>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-6">
+              <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-4">Materials</p>
+              <div className="space-y-2">
+                {form.materials.map((m, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <input
+                      className={inputClasses}
+                      value={m}
+                      onChange={(e) => updateArrayItem("materials", i, e.target.value)}
+                      placeholder="Worksheet, slide, lab equipment…"
+                    />
+                    <button onClick={() => removeArrayItem("materials", i)} className="text-muted hover:text-accent">
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <button
+                onClick={() => addArrayItem("materials")}
+                className="text-accent hover:text-ink font-serif italic text-sm mt-3 border-b border-accent hover:border-ink transition inline-flex items-center gap-1.5"
+              >
+                <Plus size={12} /> Add material
+              </button>
+            </CardContent>
+          </Card>
         </div>
 
         <aside className="space-y-5">
           <Card>
             <CardContent className="p-5">
-              <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-1">
-                Completion checklist
+              <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-3">Progress</p>
+              <p className="font-serif text-3xl text-ink">{form.progress}%</p>
+              <input
+                type="range"
+                min="0"
+                max="100"
+                value={form.progress}
+                onChange={(e) => set("progress", Number(e.target.value))}
+                className="w-full mt-3 accent-ink"
+              />
+              <p className="font-mono text-[10px] uppercase tracking-wider text-muted mt-2">
+                Drag to update. Marking the lesson ready bumps it to 100%.
               </p>
-              <p className="text-xs text-muted mb-4">
-                Tick items as you finish them. Progress updates automatically.
-              </p>
-              <div className="space-y-1">
-                {checklist.map((c) => (
-                  <button
-                    key={c.label}
-                    onClick={() => toggleCheck(c.label)}
-                    className={`w-full flex items-center gap-2 px-3 py-2 rounded-md text-left transition ${
-                      c.done ? "bg-paper" : "hover:bg-paper-warm"
-                    }`}
-                  >
-                    {c.done ? (
-                      <CheckCircle2 size={16} className="text-sage" />
-                    ) : (
-                      <span className="h-4 w-4 rounded-full border border-line inline-block" />
-                    )}
-                    <span className={`text-sm ${c.done ? "text-ink" : "text-muted"}`}>
-                      {c.label}
-                    </span>
-                  </button>
-                ))}
-              </div>
             </CardContent>
           </Card>
 
           <Card>
             <CardContent className="p-5">
-              <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-3">Tags</p>
-              <div className="flex flex-wrap gap-1.5">
-                {["Poetry", "Figurative language"].map((t) => (
-                  <span
-                    key={t}
-                    className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-paper border border-line text-ink-soft font-mono text-[9px] uppercase tracking-wider rounded"
-                  >
-                    {t} <X size={10} />
-                  </span>
-                ))}
-                <button className="px-2 py-0.5 border border-dashed border-line text-muted font-mono text-[9px] uppercase tracking-wider rounded hover:border-ink hover:text-ink">
-                  + Add
-                </button>
-              </div>
+              <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-3">Notes to self</p>
+              <textarea
+                rows={4}
+                className={inputClasses}
+                value={form.note || ""}
+                onChange={(e) => set("note", e.target.value)}
+                placeholder="Reminders, what to print, things to ask the lab tech…"
+              />
             </CardContent>
           </Card>
 
-          <Card>
-            <CardContent className="p-5">
-              <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-3">Recent changes</p>
-              <ul className="space-y-3">
-                {recentChanges.map(({ msg, when }) => (
-                  <li key={msg} className="flex gap-3 text-sm">
-                    <span className="h-2 w-2 rounded-full bg-accent mt-1.5 flex-shrink-0" />
-                    <div>
-                      <p className="text-ink-soft">{msg}</p>
-                      <p className="font-mono text-[10px] uppercase tracking-wider text-muted mt-0.5">
-                        {when}
-                      </p>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            </CardContent>
-          </Card>
-
-          <div className="bg-paper-warm border border-line rounded-lg p-4 flex gap-3">
-            <Lock size={16} className="text-ink-soft flex-shrink-0 mt-0.5" />
-            <div>
-              <p className="text-sm font-medium text-ink">Private to you</p>
-              <p className="text-xs text-muted mt-0.5">Only you can see and edit this draft.</p>
-            </div>
+          <div className="bg-paper-warm border border-line rounded-lg p-4">
+            <p className="text-sm font-medium text-ink">Private to you</p>
+            <p className="text-xs text-muted mt-0.5">
+              No one else can see this lesson plan. It lives in your account only.
+            </p>
           </div>
-
-          <Card className="border-accent">
-            <CardContent className="p-5">
-              <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent mb-3">
-                Danger zone
-              </p>
-              <button className="w-full border border-accent text-accent rounded-lg py-2.5 text-sm font-medium hover:bg-accent hover:text-paper-cool transition">
-                Delete draft
-              </button>
-            </CardContent>
-          </Card>
         </aside>
-      </div>
-
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mt-8 pt-6 border-t border-line">
-        <Button onClick={onClose} variant="secondary">
-          ← Back to drafts
-        </Button>
-        <div className="flex items-center gap-3 flex-wrap justify-end">
-          <span className="font-mono text-[10px] uppercase tracking-wider text-sage flex items-center gap-1.5">
-            <span className="h-1.5 w-1.5 rounded-full bg-sage" /> All changes saved
-          </span>
-          <Button variant="secondary">Save as template</Button>
-          <Button onClick={onMarkReady}>Mark as ready to use →</Button>
-        </div>
       </div>
     </div>
   );

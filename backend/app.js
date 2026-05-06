@@ -5,6 +5,18 @@ import templatesRouter from "./routes/templates.js";
 import draftsRouter from "./routes/drafts.js";
 import teachersRouter from "./routes/teachers.js";
 import studentsRouter from "./routes/students.js";
+import scheduleRouter from "./routes/schedule.js";
+import quizzesRouter from "./routes/quizzes.js";
+import homeworkRouter from "./routes/homework.js";
+import attendanceRouter from "./routes/attendance.js";
+import gradesRouter from "./routes/grades.js";
+import presentationsRouter from "./routes/presentations.js";
+import activitiesRouter from "./routes/activities.js";
+import notificationsRouter from "./routes/notifications.js";
+import libraryRouter from "./routes/library.js";
+import dashboardRouter from "./routes/dashboard.js";
+import adminRouter from "./routes/admin.js";
+import devRouter from "./routes/dev.js";
 
 // Build the Express app. Used by:
 //   - backend/index.js — standalone, listens on PORT (Render)
@@ -30,11 +42,26 @@ export function buildApp() {
 
   app.get("/healthz", (_req, res) => res.json({ ok: true }));
 
+  // Teacher data — every route is scoped by the current teacher's id.
   app.use("/api/me", meRouter);
   app.use("/api/templates", templatesRouter);
   app.use("/api/drafts", draftsRouter);
-  app.use("/api/teachers", teachersRouter);
   app.use("/api/students", studentsRouter);
+  app.use("/api/schedule", scheduleRouter);
+  app.use("/api/quizzes", quizzesRouter);
+  app.use("/api/homework", homeworkRouter);
+  app.use("/api/attendance", attendanceRouter);
+  app.use("/api/grades", gradesRouter);
+  app.use("/api/presentations", presentationsRouter);
+  app.use("/api/activities", activitiesRouter);
+  app.use("/api/notifications", notificationsRouter);
+  app.use("/api/library", libraryRouter);
+  app.use("/api/dashboard", dashboardRouter);
+
+  // Cross-tenant — admin manages teacher accounts, dev inspects everything.
+  app.use("/api/teachers", teachersRouter);
+  app.use("/api/admin", adminRouter);
+  app.use("/api/dev", devRouter);
 
   return app;
 }

@@ -1,5 +1,4 @@
 import { crudRouter } from "../lib/crud.js";
-import { loadCurrentTeacher } from "../lib/currentTeacher.js";
 
 const FIELDS = [
   "first_name", "last_name", "student_id", "date_of_birth", "gender",
@@ -19,6 +18,10 @@ const SELECT = `id, first_name, last_name, student_id, date_of_birth, gender,
   secondary_guardian_email, secondary_guardian_phone,
   enrollment_date, notes, created_at, updated_at`;
 
+// Students belong to the teacher who created them. teacherScoped takes care
+// of all four endpoints (list / get / create / update / delete). The legacy
+// `?teacher=me` query parameter is now a no-op and intentionally ignored —
+// every list call already returns only the current teacher's students.
 export default crudRouter({
   table: "students",
   fields: FIELDS,
@@ -26,14 +29,5 @@ export default crudRouter({
   listOrderBy: "grade, section, last_name, first_name",
   timestampOnPatch: "updated_at",
   routeName: "/api/students",
-  // Scope the list to the current teacher's grades when ?teacher=me.
-  // `skip: true` short-circuits to an empty array when the teacher has no
-  // grades set (the crud helper returns [] without running a query).
-  listExtra: async (req) => {
-    if (req.query.teacher !== "me") return null;
-    const cur = await loadCurrentTeacher();
-    const grades = cur?.grade_levels || [];
-    if (grades.length === 0) return { skip: true };
-    return { where: "WHERE grade = ANY($1)", params: [grades] };
-  },
+  teacherScoped: true,
 });

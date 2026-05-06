@@ -10,4 +10,5 @@ export default crudRouter({
   listOrderBy: "used_count DESC NULLS LAST, id",
   timestampOnPatch: "updated_at",
   routeName: "/api/templates",
+  teacherScoped: true,
 });

@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { Bell, ChevronRight, X } from "lucide-react";
+import React, { useEffect, useState } from "react";
+import { ChevronRight, X } from "lucide-react";
 import Dashboard from "./views/Dashboard";
 import TemplatesLibrary from "./views/TemplatesLibrary";
 import NewTemplate from "./views/NewTemplate";
@@ -8,25 +8,38 @@ import NewDraft from "./views/NewDraft";
 import EditDraft from "./views/EditDraft";
 import Database from "./views/Database";
 import AccountProfile from "./views/AccountProfile";
+import Schedule from "./views/Schedule";
+import Quizzes from "./views/Quizzes";
+import QuizBuilder from "./views/QuizBuilder";
+import Homework from "./views/Homework";
+import Presentations from "./views/Presentations";
+import Activities from "./views/Activities";
+import Library from "./views/Library";
+import Reports from "./views/Reports";
+import Studio from "./views/Studio";
+import AdminConsole from "./views/AdminConsole";
+import DevConsole from "./views/DevConsole";
+import NotificationsBell from "./views/NotificationsBell";
+import { getRole, onRoleChange, ROLE_LABELS } from "./lib/role";
 
-const NAV = [
+const TEACHER_NAV = [
   {
     section: "Workspace",
     items: [
       { key: "dashboard", label: "Dashboard", icon: "◇" },
-      { key: "studio", label: "Studio", icon: "+" },
-      { key: "library", label: "Library", icon: "≡" },
+      { key: "studio",    label: "Studio",    icon: "+" },
+      { key: "library",   label: "Library",   icon: "≡" },
     ],
   },
   {
     section: "Teaching",
     items: [
-      { key: "lesson-plans", label: "Lesson Plans", letter: "L" },
-      { key: "schedule", label: "Schedule", letter: "S" },
-      { key: "quizzes", label: "Quizzes & Exams", letter: "Q" },
-      { key: "homework", label: "Homework", letter: "H" },
-      { key: "presentations", label: "Presentations", letter: "P" },
-      { key: "activities", label: "Activities", letter: "A" },
+      { key: "lesson-plans",  label: "Lesson Plans",     letter: "L" },
+      { key: "schedule",      label: "Schedule",         letter: "S" },
+      { key: "quizzes",       label: "Quizzes & Exams",  letter: "Q" },
+      { key: "homework",      label: "Homework",         letter: "H" },
+      { key: "presentations", label: "Presentations",    letter: "P" },
+      { key: "activities",    label: "Activities",       letter: "A" },
     ],
   },
   {
@@ -41,81 +54,130 @@ const NAV = [
   },
 ];
 
-const ITEM_LABEL = Object.fromEntries(
-  NAV.flatMap((s) => s.items.map((i) => [i.key, i.label]))
-);
+const ADMIN_NAV = [
+  {
+    section: "Admin",
+    items: [{ key: "admin-console", label: "Admin console", letter: "A" }],
+  },
+];
+
+const DEV_NAV = [
+  {
+    section: "Dev",
+    items: [{ key: "dev-console", label: "Dev console", letter: "D" }],
+  },
+];
+
+const NAV_BY_ROLE = {
+  teacher: TEACHER_NAV,
+  admin: ADMIN_NAV,
+  dev: DEV_NAV,
+};
+
+const DEFAULT_ROUTE = {
+  teacher: "dashboard",
+  admin: "admin-console",
+  dev: "dev-console",
+};
 
 function NavBadge({ letter, icon, active }) {
   const base =
     "h-7 w-7 rounded-md flex items-center justify-center font-mono text-[11px] font-medium tracking-wider flex-shrink-0";
-  const colors = active
-    ? "bg-white/20 text-white"
-    : "bg-white/10 text-white/75";
+  const colors = active ? "bg-white/20 text-white" : "bg-white/10 text-white/75";
   if (icon) {
-    return (
-      <span className={`${base} ${colors} text-base leading-none`}>{icon}</span>
-    );
+    return <span className={`${base} ${colors} text-base leading-none`}>{icon}</span>;
   }
   return <span className={`${base} ${colors}`}>{letter}</span>;
 }
 
-function ComingSoon({ name }) {
-  return (
-    <div className="flex flex-col items-center justify-center py-32 text-center">
-      <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-3 inline-flex items-center gap-2.5">
-        <span className="w-6 h-px bg-accent" /> {name}
-      </p>
-      <h2 className="font-serif text-5xl font-medium text-ink mb-3">
-        Coming <em className="italic font-light text-accent">soon</em>
-      </h2>
-      <p className="text-muted max-w-md">
-        This part of Mudir isn’t built yet. Lesson Plans is the live tab — that’s where the
-        functional studio lives.
-      </p>
-    </div>
-  );
-}
-
 export default function StudioApp({ onClose }) {
-  const [active, setActive] = useState("dashboard");
+  const [role, setRoleState] = useState(getRole());
+  const [active, setActive] = useState(DEFAULT_ROUTE[getRole()]);
   const [view, setView] = useState({ name: "templates" });
+
+  // React to role changes initiated elsewhere (Account → role switcher).
+  useEffect(() => {
+    return onRoleChange((next) => {
+      setRoleState(next);
+      setActive(DEFAULT_ROUTE[next]);
+    });
+  }, []);
+
+  const nav = NAV_BY_ROLE[role];
+  const itemLabel = Object.fromEntries(
+    nav.flatMap((s) => s.items.map((i) => [i.key, i.label]))
+  );
+  itemLabel["account"] = "Account";
 
   const goLessonPlans = (subView = "templates") => {
     setActive("lesson-plans");
     setView({ name: subView });
   };
   const goNewTemplate = () => setView({ name: "newTemplate" });
-  const goNewDraft = () => setView({ name: "newDraft" });
-  const goEditDraft = (draft) => setView({ name: "editDraft", draft });
+  const goNewDraft   = () => setView({ name: "newDraft" });
+  const goEditDraft  = (draft) => setView({ name: "editDraft", draft });
+  const goQuizBuilder = (quiz) => setView({ name: "quizBuilder", quiz });
 
   const handleNavClick = (key) => {
     setActive(key);
     if (key === "lesson-plans") setView({ name: "templates" });
+    if (key === "quizzes") setView({ name: "quizzesList" });
   };
 
-  let crumbs = [{ label: ITEM_LABEL[active] || "Studio" }];
+  let crumbs = [{ label: itemLabel[active] || "Studio" }];
   let mainContent;
 
-  if (active === "dashboard") {
-    mainContent = <Dashboard />;
-  } else if (active === "database") {
-    mainContent = <Database />;
-  } else if (active === "account") {
+  if (active === "account") {
     crumbs = [{ label: "Account" }];
     mainContent = <AccountProfile />;
+  } else if (role === "admin") {
+    crumbs = [{ label: "Admin console" }];
+    mainContent = <AdminConsole />;
+  } else if (role === "dev") {
+    crumbs = [{ label: "Dev console" }];
+    mainContent = <DevConsole />;
+  } else if (active === "dashboard") {
+    mainContent = <Dashboard onJump={handleNavClick} />;
+  } else if (active === "database") {
+    mainContent = <Database />;
+  } else if (active === "schedule") {
+    mainContent = <Schedule />;
+  } else if (active === "homework") {
+    mainContent = <Homework />;
+  } else if (active === "presentations") {
+    mainContent = <Presentations />;
+  } else if (active === "activities") {
+    mainContent = <Activities />;
+  } else if (active === "library") {
+    mainContent = <Library />;
+  } else if (active === "studio") {
+    mainContent = <Studio onJump={handleNavClick} />;
+  } else if (active === "reports") {
+    mainContent = <Reports />;
+  } else if (active === "quizzes") {
+    if (view.name === "quizBuilder") {
+      crumbs = [
+        { label: "Quizzes & Exams", onClick: () => { setActive("quizzes"); setView({ name: "quizzesList" }); } },
+        { label: view.quiz?.id ? "Edit quiz" : "New quiz" },
+      ];
+      mainContent = (
+        <QuizBuilder
+          quiz={view.quiz}
+          onClose={() => { setActive("quizzes"); setView({ name: "quizzesList" }); }}
+        />
+      );
+    } else {
+      mainContent = <Quizzes onOpenQuiz={goQuizBuilder} />;
+    }
   } else if (active === "lesson-plans") {
-    crumbs = [
-      { label: "Lesson Plans", onClick: () => goLessonPlans("templates") },
-    ];
+    crumbs = [{ label: "Lesson Plans", onClick: () => goLessonPlans("templates") }];
 
     const tab = (key, label, onClick, isActive) => (
       <button
         key={key}
         onClick={onClick}
         className={`px-4 py-2 font-mono text-[11px] uppercase tracking-[0.15em] border-b-2 transition ${
-          isActive
-            ? "border-accent text-ink"
-            : "border-transparent text-muted hover:text-ink"
+          isActive ? "border-accent text-ink" : "border-transparent text-muted hover:text-ink"
         }`}
       >
         {label}
@@ -123,7 +185,7 @@ export default function StudioApp({ onClose }) {
     );
 
     const isTemplatesArea = ["templates", "newTemplate"].includes(view.name);
-    const isDraftsArea = ["drafts", "newDraft", "editDraft"].includes(view.name);
+    const isDraftsArea    = ["drafts", "newDraft", "editDraft"].includes(view.name);
 
     let inner;
     switch (view.name) {
@@ -132,9 +194,7 @@ export default function StudioApp({ onClose }) {
         inner = (
           <TemplatesLibrary
             onNewTemplate={goNewTemplate}
-            onUseTemplate={(t) =>
-              goEditDraft({ name: `${t.name} (from template)`, progress: 25 })
-            }
+            onUseTemplate={(t) => goEditDraft({ name: `${t.name} (from template)`, progress: 25 })}
           />
         );
         break;
@@ -162,17 +222,15 @@ export default function StudioApp({ onClose }) {
         inner = (
           <NewDraft
             onCancel={() => goLessonPlans("drafts")}
-            onSave={() => goLessonPlans("drafts")}
-            onOpenFull={() =>
-              goEditDraft({ name: "Poetry — figurative language", progress: 65 })
-            }
+            onSave={(saved) => saved?.id ? goEditDraft(saved) : goLessonPlans("drafts")}
+            onOpenFull={() => goEditDraft({ name: "Poetry — figurative language", progress: 65 })}
           />
         );
         break;
       case "editDraft":
         crumbs.push(
           { label: "Reusable drafts", onClick: () => goLessonPlans("drafts") },
-          { label: "Edit draft" }
+          { label: "Edit lesson plan" }
         );
         inner = (
           <EditDraft
@@ -196,15 +254,21 @@ export default function StudioApp({ onClose }) {
       </div>
     );
   } else {
-    mainContent = <ComingSoon name={ITEM_LABEL[active] || active} />;
+    mainContent = (
+      <div className="flex flex-col items-center justify-center py-32 text-center">
+        <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-3 inline-flex items-center gap-2.5">
+          <span className="w-6 h-px bg-accent" /> {itemLabel[active] || active}
+        </p>
+        <h2 className="font-serif text-5xl font-medium text-ink mb-3">
+          Coming <em className="italic font-light text-accent">soon</em>
+        </h2>
+      </div>
+    );
   }
 
   return (
     <div className="min-h-screen bg-paper flex text-ink font-sans">
-      <aside
-        className="w-64 flex-col flex-shrink-0 hidden md:flex"
-        style={{ backgroundColor: "#1a1814" }}
-      >
+      <aside className="w-64 flex-col flex-shrink-0 hidden md:flex" style={{ backgroundColor: "#1a1814" }}>
         <div className="px-6 py-7">
           <div className="font-serif italic font-semibold text-2xl text-white">
             <span className="text-accent not-italic mr-1.5">◈</span>Mudir
@@ -212,7 +276,7 @@ export default function StudioApp({ onClose }) {
         </div>
 
         <nav className="px-3 flex-1 overflow-y-auto pb-4">
-          {NAV.map((section) => (
+          {nav.map((section) => (
             <div key={section.section} className="mb-5">
               <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-white/40 mb-2 px-3">
                 {section.section}
@@ -225,16 +289,10 @@ export default function StudioApp({ onClose }) {
                       key={item.key}
                       onClick={() => handleNavClick(item.key)}
                       className={`w-full flex items-center gap-2.5 px-2 py-1.5 rounded-lg text-sm transition ${
-                        isActive
-                          ? "bg-accent text-white font-medium"
-                          : "text-white/85 hover:bg-white/5"
+                        isActive ? "bg-accent text-white font-medium" : "text-white/85 hover:bg-white/5"
                       }`}
                     >
-                      <NavBadge
-                        letter={item.letter}
-                        icon={item.icon}
-                        active={isActive}
-                      />
+                      <NavBadge letter={item.letter} icon={item.icon} active={isActive} />
                       <span className="truncate">{item.label}</span>
                     </button>
                   );
@@ -260,7 +318,7 @@ export default function StudioApp({ onClose }) {
                 Sara Al-Mansoori
               </p>
               <p className="font-mono text-[10px] uppercase tracking-wider text-white/50 mt-0.5">
-                Teacher
+                {ROLE_LABELS[role]}
               </p>
             </div>
           </button>
@@ -284,9 +342,7 @@ export default function StudioApp({ onClose }) {
             ))}
           </nav>
           <div className="flex items-center gap-3">
-            <button className="h-9 w-9 rounded-md border border-line hover:bg-paper-warm flex items-center justify-center transition">
-              <Bell size={15} className="text-ink-soft" />
-            </button>
+            {role === "teacher" && <NotificationsBell />}
             <button
               onClick={() => setActive("account")}
               title="Open account"
