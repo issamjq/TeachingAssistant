@@ -267,8 +267,8 @@ export default function StudioApp({ onClose }) {
   }
 
   return (
-    <div className="min-h-screen bg-paper flex text-ink font-sans">
-      <aside className="w-64 flex-col flex-shrink-0 hidden md:flex" style={{ backgroundColor: "#1a1814" }}>
+    <div className="h-screen bg-paper flex text-ink font-sans overflow-hidden">
+      <aside className="w-64 flex-col flex-shrink-0 hidden md:flex h-full" style={{ backgroundColor: "#1a1814" }}>
         <div className="px-6 py-7">
           <div className="font-serif italic font-semibold text-2xl text-white">
             <span className="text-accent not-italic mr-1.5">◈</span>Mudir
@@ -325,8 +325,8 @@ export default function StudioApp({ onClose }) {
         </div>
       </aside>
 
-      <main className="flex-1 flex flex-col min-w-0">
-        <header className="border-b border-line bg-paper-cool px-8 py-4 flex items-center justify-between">
+      <main className="flex-1 flex flex-col min-w-0 h-full">
+        <header className="border-b border-line bg-paper-cool px-8 py-4 flex items-center justify-between flex-shrink-0">
           <nav className="text-sm flex items-center gap-2 flex-wrap text-muted">
             {crumbs.map((c, i) => (
               <React.Fragment key={i}>
