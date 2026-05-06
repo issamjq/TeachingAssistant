@@ -384,8 +384,15 @@ export function ChipMultiSelect({ value = [], onChange, options, allowCustom = f
 
 // Throw-anything fetch helper that throws on non-2xx so callers can `try`.
 // Returns parsed JSON; pass null for body on GET/DELETE.
+//
+// In dev, VITE_API_URL is unset so requests go to the same origin and hit
+// Vite's mounted Express app. In production, set VITE_API_URL on Vercel to
+// the Render backend URL (e.g. https://mudir-api.onrender.com) and every
+// /api/* call will be redirected there.
+const API_BASE = (import.meta.env.VITE_API_URL || "").replace(/\/$/, "");
+
 export async function api(path, { method = "GET", body } = {}) {
-  const res = await fetch(path, {
+  const res = await fetch(API_BASE + path, {
     method,
     headers: body ? { "Content-Type": "application/json" } : undefined,
     body: body ? JSON.stringify(body) : undefined,

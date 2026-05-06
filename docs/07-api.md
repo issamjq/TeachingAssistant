@@ -2,37 +2,35 @@
 
 ## Approach
 
-There is no separate Express/Node process. API endpoints are mounted as a **Vite middleware plugin** inside the dev server. The full implementation is in `vite.config.js`:
+The API is a single **Express app** under [`server/`](../server/). Two transports plug it in:
 
-```js
-const apiPlugin = {
-  name: "mudir-api",
-  configureServer(server) {
-    server.middlewares.use("/api/templates", async (req, res) => { /* SELECT ... */ });
-    server.middlewares.use("/api/drafts",   async (req, res) => { /* SELECT ... */ });
-  },
-};
+- **Production** — `node server/index.js` listens on `PORT` (Render).
+- **Dev** — `vite.config.js` mounts the same `buildApp()` instance as Vite middleware, so `npm run dev` keeps the SPA + API on the same origin (no CORS, no proxy).
+
+```
+server/
+  index.js              # bootstrap (express + listen) — used by Render
+  app.js                # buildApp() — same instance used by Vite middleware
+  lib/
+    db.js               # shared pg.Pool
+    helpers.js          # buildPatch, handleErr
+    crud.js             # crudRouter() — list / create / get / patch / delete
+    currentTeacher.js   # cache for the no-auth "logged-in teacher"
+  routes/
+    me.js               # GET / PATCH /api/me
+    teachers.js         # crudRouter('teachers')
+    students.js         # crudRouter('students') with ?teacher=me filter
+    templates.js        # crudRouter('templates')
+    drafts.js           # crudRouter('drafts')
 ```
 
-The plugin shares one `pg.Pool` for the lifetime of the dev process.
+The Pool is process-scoped — long-running on Render, dev-server-scoped under Vite.
 
 ## Why this shape
 
-- No second process to start. `npm run dev` is everything.
-- No CORS or proxy config — Vite serves both the SPA and the API on the same origin.
-- The middleware lives next to the rest of the dev tooling, so it's discoverable.
-
-## Caveat: dev-only
-
-`vite build` produces a static `dist/` bundle. The middleware plugin runs in `vite dev` only — it is **not** part of a production build. So `npm run preview` does not serve the API, and a deployed `dist/` will hit 404s on `/api/*`.
-
-For production, replace this plugin with one of:
-
-- A small Node/Express server.
-- Serverless functions (Vercel/Netlify/Cloudflare). Each `/api/*` route becomes its own function.
-- Neon's serverless driver + edge functions.
-
-The query logic itself ports cleanly — only the transport changes.
+- **One source of truth.** Both transports share the same Express app, so dev and prod can't drift.
+- **Dev stays simple.** `npm run dev` mounts the API automatically; no second process to start, no CORS to configure.
+- **Render-friendly.** Just `npm install` + `npm run start:server`.
 
 ## Current endpoints
 

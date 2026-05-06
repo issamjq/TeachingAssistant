@@ -13,7 +13,37 @@ npm run dev                # Vite on http://localhost:5173
 
 ## Deploying
 
-This repo has a `vercel.json` set up for **front-end-only** static hosting (build → `dist/`, SPA rewrites). The landing page works perfectly on a static deploy. The studio's `/api/*` routes are Vite middleware and are **dev-only** — on Vercel they will 404 unless you split the API into Vercel serverless functions or run it on a separate backend (Render, Fly, etc.). See [`docs/07-api.md`](docs/07-api.md) for the porting notes.
+The repo deploys as **two services**:
+
+- **Frontend** → Vercel (static `dist/`, configured by `vercel.json`).
+- **Backend** → Render (Express app in [`server/`](server/), one source of truth shared with the dev-mode Vite middleware via `server/app.js`).
+
+### Backend on Render
+
+1. https://dashboard.render.com → **New** → **Web Service** → connect this GitHub repo.
+2. Settings:
+   - **Environment**: Node
+   - **Branch**: `main`
+   - **Build command**: `npm install`
+   - **Start command**: `npm run start:server`
+   - **Instance type**: Free
+3. **Environment variables**:
+   - `DATABASE_URL` — your Neon connection string (same one in your local `.env`).
+   - `ALLOWED_ORIGINS` — `https://<your-vercel-app>.vercel.app` (comma-separated if you have multiple). Leave unset only while testing.
+   - `PORT` — Render sets this automatically; do not add it.
+4. Deploy. Render gives you a URL like `https://mudir-api.onrender.com`. Hit `/healthz` to confirm it's up.
+
+> Free-tier Render web services sleep after 15 min idle and cold-start in ~30 s on the first request after waking.
+
+### Frontend on Vercel
+
+1. https://vercel.com/new → import the same repo.
+2. Vercel auto-detects Vite from `vercel.json`. No build override needed.
+3. **Environment variables**:
+   - `VITE_API_URL` — the Render URL from above (no trailing slash).
+4. Deploy. The landing page + studio both work end-to-end.
+
+If you change `VITE_API_URL` later, redeploy the frontend (Vite bakes env vars into the build at compile time).
 
 ## Documentation
 
