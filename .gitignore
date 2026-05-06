@@ -1,0 +1,9 @@
+node_modules
+dist
+.vite
+.env
+.env.local
+.claude/
+.vercel/
+.DS_Store
+*.log

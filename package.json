@@ -1,0 +1,25 @@
+{
+  "name": "mudir-teacher-studio",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "db:init": "node db/init.js"
+  },
+  "dependencies": {
+    "@tailwindcss/vite": "^4.2.4",
+    "dotenv": "^17.4.2",
+    "lucide-react": "^1.14.0",
+    "pg": "^8.20.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "tailwindcss": "^4.2.4"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.4",
+    "vite": "^5.4.10"
+  }
+}
