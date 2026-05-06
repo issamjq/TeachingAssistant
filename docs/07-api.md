@@ -2,15 +2,17 @@
 
 ## Approach
 
-The API is a single **Express app** under [`server/`](../server/). Two transports plug it in:
+The API is a single **Express app** under [`backend/`](../backend/). Two transports plug it in:
 
-- **Production** — `node server/index.js` listens on `PORT` (Render).
+- **Production** — `node backend/index.js` listens on `PORT` (Render).
 - **Dev** — `vite.config.js` mounts the same `buildApp()` instance as Vite middleware, so `npm run dev` keeps the SPA + API on the same origin (no CORS, no proxy).
 
 ```
-server/
+backend/
   index.js              # bootstrap (express + listen) — used by Render
   app.js                # buildApp() — same instance used by Vite middleware
+  db/
+    init.js             # schema + seed (`npm run db:init`)
   lib/
     db.js               # shared pg.Pool
     helpers.js          # buildPatch, handleErr
@@ -30,7 +32,7 @@ The Pool is process-scoped — long-running on Render, dev-server-scoped under V
 
 - **One source of truth.** Both transports share the same Express app, so dev and prod can't drift.
 - **Dev stays simple.** `npm run dev` mounts the API automatically; no second process to start, no CORS to configure.
-- **Render-friendly.** Just `npm install` + `npm run start:server`.
+- **Render-friendly.** Just `npm install` + `npm run start:backend`.
 
 ## Current endpoints
 

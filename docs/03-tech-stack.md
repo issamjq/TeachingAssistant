@@ -12,18 +12,20 @@
 
 No router. View state lives in `src/App.jsx` as a plain `useState` machine. See [Architecture](04-architecture.md).
 
-## Backend (dev-only)
+## Backend
 
 | Tool | Version | Why |
 |---|---|---|
+| **express** | ^5.x | Single Express app under [`backend/`](../backend/) — standalone on Render in prod, mounted as Vite middleware in dev. |
+| **cors** | ^2.x | Enables Vercel → Render cross-origin requests. Open by default; lock down with `ALLOWED_ORIGINS`. |
 | **pg** | ^8.20.0 | Postgres client. Connects to Neon over SSL. |
-| **dotenv** | ^17.4.2 | Loads `DATABASE_URL` from `.env` for both Vite and `db/init.js`. |
+| **dotenv** | ^17.4.2 | Loads `DATABASE_URL` from `.env` for both Vite and `backend/db/init.js`. |
 
-The "backend" today is a small Vite middleware plugin defined in `vite.config.js` — it intercepts `/api/*` requests during `npm run dev` and queries Postgres. This is not a separate process. See [API](07-api.md).
+`backend/app.js` exports `buildApp()` so the same routes serve both transports. See [API](07-api.md).
 
 ## Database
 
-**Neon Postgres** (serverless Postgres). Connection string in `.env`. Schema is two tables (`templates`, `drafts`); see [Database](06-database.md).
+**Neon Postgres** (serverless Postgres). Connection string in `.env`. Schema covers `templates`, `drafts`, `teachers`, `students`; see [Database](06-database.md).
 
 ## Why these picks
 

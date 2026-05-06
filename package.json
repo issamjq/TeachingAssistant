@@ -7,9 +7,9 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "db:init": "node db/init.js",
-    "start": "node server/index.js",
-    "start:server": "node server/index.js"
+    "db:init": "node backend/db/init.js",
+    "start": "node backend/index.js",
+    "start:backend": "node backend/index.js"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.2.4",

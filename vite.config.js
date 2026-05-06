@@ -3,7 +3,7 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import path from "node:path";
-import { buildApp } from "./server/app.js";
+import { buildApp } from "./backend/app.js";
 
 // In dev, mount the same Express app the standalone Render server uses.
 // One source of truth for /api/* routes — no behaviour drift between dev

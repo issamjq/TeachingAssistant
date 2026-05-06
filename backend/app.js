@@ -7,8 +7,8 @@ import teachersRouter from "./routes/teachers.js";
 import studentsRouter from "./routes/students.js";
 
 // Build the Express app. Used by:
-//   - server/index.js — standalone, listens on PORT (Render)
-//   - vite.config.js  — mounted as Vite middleware in dev
+//   - backend/index.js — standalone, listens on PORT (Render)
+//   - vite.config.js   — mounted as Vite middleware in dev
 //
 // CORS is open by default. In production, set ALLOWED_ORIGINS to a
 // comma-separated list of frontend URLs to lock it down.

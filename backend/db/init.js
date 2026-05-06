@@ -1,6 +1,6 @@
 import "dotenv/config";
 import pg from "pg";
-import { GRADE_LEVELS, NATIONALITIES } from "../src/lib/enums.js";
+import { GRADE_LEVELS, NATIONALITIES } from "../../src/lib/enums.js";
 
 const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
 

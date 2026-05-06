@@ -1,6 +1,6 @@
 // Single source of truth for reference data.
 // Imported by:
-//   - db/init.js — to build CHECK constraints + validate seed data
+//   - backend/db/init.js — to build CHECK constraints + validate seed data
 //   - vite.config.js — when mutation endpoints validate request bodies (TODO)
 //   - studio views    — to populate dropdowns
 // If you need a new value, add it here and re-run `npm run db:init` so the

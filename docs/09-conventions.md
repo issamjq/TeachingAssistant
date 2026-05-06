@@ -96,7 +96,7 @@ Rules:
 - **Add new values to `enums.js` and re-run `npm run db:init`.** The init script rebuilds the DB `CHECK` constraints from the JS lists, so a new value won't actually be insertable until the constraint is refreshed.
 - The DB rejects unknown values via `CHECK` constraints — so a typo in seed data or a future POST handler will surface as a 500 rather than silently corrupt the column.
 
-If you need a new constrained enum (e.g. a fixed list of guardian relationships), add it to `enums.js`, export it, add a CHECK constraint in `db/init.js`, and re-run init.
+If you need a new constrained enum (e.g. a fixed list of guardian relationships), add it to `enums.js`, export it, add a CHECK constraint in `backend/db/init.js`, and re-run init.
 
 ## Things to avoid
 

@@ -1,14 +1,13 @@
 # 06 — Database
 
-Four tables in Neon Postgres, created and seeded by `db/init.js`. Idempotent — safe to re-run.
+Four tables in Neon Postgres, created and seeded by `backend/db/init.js`. Idempotent — safe to re-run.
 
 ## Reference data — single source of truth
 
 Allowed values for `majors`, `grade_levels`, and `nationality` live in **[`src/lib/enums.js`](../src/lib/enums.js)**. That file is imported by:
 
-- `db/init.js` — to build `CHECK` constraints from the same lists
-- (later) `vite.config.js` — when mutation endpoints validate request bodies
-- (later) studio views — to populate dropdowns
+- `backend/db/init.js` — to build `CHECK` constraints from the same lists
+- studio views — to populate dropdowns and chip multi-selects
 
 To add a value, edit `src/lib/enums.js` and re-run `npm run db:init`. The init script drops and re-adds the relevant `CHECK` constraints, so they always match the JS lists.
 
@@ -24,8 +23,8 @@ Bad inserts are rejected at the DB level — Postgres returns a `CHECK` violatio
 
 `DATABASE_URL` in `.env`. The same string is consumed by:
 
-- `vite.config.js` — for the dev API middleware
-- `db/init.js` — for schema creation and seeding
+- `backend/lib/db.js` — the shared `pg.Pool` used by every `/api/*` route (both standalone Express and the Vite middleware mount)
+- `backend/db/init.js` — for schema creation and seeding
 
 Both use the `pg` Pool client.
 

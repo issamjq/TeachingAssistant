@@ -16,7 +16,7 @@ npm run dev                # Vite on http://localhost:5173
 The repo deploys as **two services**:
 
 - **Frontend** → Vercel (static `dist/`, configured by `vercel.json`).
-- **Backend** → Render (Express app in [`server/`](server/), one source of truth shared with the dev-mode Vite middleware via `server/app.js`).
+- **Backend** → Render (Express app in [`backend/`](backend/), one source of truth shared with the dev-mode Vite middleware via `backend/app.js`).
 
 ### Backend on Render
 
@@ -25,7 +25,7 @@ The repo deploys as **two services**:
    - **Environment**: Node
    - **Branch**: `main`
    - **Build command**: `npm install`
-   - **Start command**: `npm run start:server`
+   - **Start command**: `npm run start:backend`
    - **Instance type**: Free
 3. **Environment variables**:
    - `DATABASE_URL` — your Neon connection string (same one in your local `.env`).
