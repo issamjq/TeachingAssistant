@@ -1,10 +1,14 @@
 import React, { useState } from "react";
 import DatabaseProfile from "./DatabaseProfile";
 import DatabaseStudents from "./DatabaseStudents";
+import DatabaseAttendance from "./DatabaseAttendance";
+import DatabaseGrades from "./DatabaseGrades";
 
 const TABS = [
-  { key: "profile",  label: "Teaching profile" },
-  { key: "students", label: "My students" },
+  { key: "profile",    label: "Teaching profile" },
+  { key: "students",   label: "My students" },
+  { key: "attendance", label: "Attendance" },
+  { key: "grades",     label: "Grades" },
 ];
 
 export default function Database() {
@@ -28,8 +32,10 @@ export default function Database() {
         ))}
       </div>
 
-      {active === "profile"  && <DatabaseProfile />}
-      {active === "students" && <DatabaseStudents />}
+      {active === "profile"    && <DatabaseProfile />}
+      {active === "students"   && <DatabaseStudents />}
+      {active === "attendance" && <DatabaseAttendance />}
+      {active === "grades"     && <DatabaseGrades />}
     </div>
   );
 }

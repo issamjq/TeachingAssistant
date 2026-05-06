@@ -15,6 +15,7 @@ import activitiesRouter from "./routes/activities.js";
 import notificationsRouter from "./routes/notifications.js";
 import libraryRouter from "./routes/library.js";
 import dashboardRouter from "./routes/dashboard.js";
+import studioRouter from "./routes/studio.js";
 import adminRouter from "./routes/admin.js";
 import devRouter from "./routes/dev.js";
 
@@ -57,6 +58,7 @@ export function buildApp() {
   app.use("/api/notifications", notificationsRouter);
   app.use("/api/library", libraryRouter);
   app.use("/api/dashboard", dashboardRouter);
+  app.use("/api/studio", studioRouter);
 
   // Cross-tenant — admin manages teacher accounts, dev inspects everything.
   app.use("/api/teachers", teachersRouter);

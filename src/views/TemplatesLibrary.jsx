@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import { Search, Star, Upload, Plus } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,41 @@ import {
   selectClasses,
 } from "./_shared";
 import { MAJORS } from "../lib/enums";
+
+// Lazy-load mammoth only when the user actually clicks Import .docx, so the
+// ~280 KB parser stays out of the main bundle.
+const importDocx = async (file) => {
+  const mammoth = await import("mammoth/mammoth.browser.js");
+  const buf = await file.arrayBuffer();
+  const { value } = await mammoth.extractRawText({ arrayBuffer: buf });
+  return value;
+};
+
+// Walk the parsed plain text and try to bucket it. We don't get headings from
+// extractRawText, so this is intentionally light: split on the obvious
+// markers and dump everything else into `flow`. The teacher can refine
+// after the import.
+const buckets = (text) => {
+  const out = { name: "", flow: "", objectives: [], tags: [] };
+  const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  if (lines.length === 0) return out;
+  out.name = lines[0].slice(0, 120);
+  let mode = null;
+  for (const line of lines.slice(1)) {
+    const lower = line.toLowerCase();
+    if (/^objectives?:?$/.test(lower)) { mode = "objectives"; continue; }
+    if (/^(tags|keywords):?$/.test(lower)) { mode = "tags"; continue; }
+    if (/^(flow|outline|stages|steps):?$/.test(lower)) { mode = "flow"; continue; }
+    if (mode === "objectives" && /^[-•*]/.test(line)) {
+      out.objectives.push(line.replace(/^[-•*]\s*/, ""));
+    } else if (mode === "tags") {
+      out.tags.push(...line.split(/[,;]+/).map((t) => t.trim()).filter(Boolean));
+    } else {
+      out.flow += (out.flow ? " → " : "") + line;
+    }
+  }
+  return out;
+};
 
 const SORTS = {
   most_used: { label: "Most used", cmp: (a, b) => (b.used_count || 0) - (a.used_count || 0) },
@@ -29,6 +64,39 @@ export default function TemplatesLibrary({ onNewTemplate, onUseTemplate, onEditT
   const [error, setError] = useState(null);
   const [deleting, setDeleting] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const fileInputRef = useRef(null);
+
+  const handleImport = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // allow re-picking the same file
+    if (!file) return;
+    setImporting(true);
+    try {
+      const text = await importDocx(file);
+      const parsed = buckets(text);
+      const created = await api("/api/templates", {
+        method: "POST",
+        body: {
+          name: parsed.name || file.name.replace(/\.docx$/i, ""),
+          subject: "General",
+          duration: 45,
+          grade: "—",
+          flow: parsed.flow,
+          tags: parsed.tags,
+          used_count: 0,
+          starred: false,
+          objectives: parsed.objectives,
+          stages: [],
+        },
+      });
+      setTemplates((rows) => [created, ...rows]);
+    } catch (err) {
+      alert(`Could not import: ${err.message}`);
+    } finally {
+      setImporting(false);
+    }
+  };
 
   useEffect(() => {
     api("/api/templates")
@@ -94,8 +162,21 @@ export default function TemplatesLibrary({ onNewTemplate, onUseTemplate, onEditT
           <p className="text-muted mt-2">Pick a starting point. Edit it once, reuse it forever.</p>
         </div>
         <div className="flex gap-3">
-          <Button variant="secondary" className="px-4">
-            <Upload size={15} className="mr-2" /> Import .docx
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".docx"
+            className="hidden"
+            onChange={handleImport}
+          />
+          <Button
+            variant="secondary"
+            className="px-4"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={importing}
+          >
+            <Upload size={15} className="mr-2" />
+            {importing ? "Importing…" : "Import .docx"}
           </Button>
           <Button onClick={onNewTemplate}>
             <Plus size={15} className="mr-2" /> New template
