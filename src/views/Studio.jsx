@@ -95,7 +95,7 @@ export default function Studio() {
         </h2>
         <p className="text-muted mt-2 max-w-2xl">
           Tell Mudir what you need. It writes a first draft you can refine in the matching section.
-          Powered by Claude Opus 4.7 — gated by the <span className="font-mono text-ink">ai_studio</span> feature flag.
+          Powered by Claude Haiku 4.5 — gated by the <span className="font-mono text-ink">ai_studio</span> feature flag.
         </p>
       </div>
 
@@ -140,7 +140,7 @@ export default function Studio() {
           </div>
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mt-4">
             <p className="font-mono text-[10px] uppercase tracking-wider text-muted">
-              Opus 4.7 · adaptive thinking · prompt caching enabled
+              Haiku 4.5 · fast + cost-efficient
             </p>
             <Button onClick={generate} disabled={busy || !prompt.trim()}>
               <Sparkles size={14} className="mr-2" />

@@ -140,13 +140,16 @@ router.post("/generate", async (req, res) => {
 
     const client = new Anthropic();
 
-    // Streaming with .finalMessage() — defends against SDK HTTP timeouts on
-    // larger generations and lets us add a token-by-token UI later without
-    // changing the server.
+    // Haiku 4.5 — 5× cheaper than Opus, and lesson plans / quizzes / homework
+    // are well-structured tasks where the system prompt does most of the
+    // lifting. No adaptive thinking (Haiku doesn't benefit much for this
+    // shape, and `effort` would error on Haiku 4.5 anyway).
+    // The cache_control marker is left on the system block so the prefix
+    // caches once the prompt grows past the 4096-token Haiku minimum.
     const stream = client.messages.stream({
-      model: "claude-opus-4-7",
+      model: "claude-haiku-4-5",
       max_tokens: 4096,
-      thinking: { type: "adaptive" },
+      thinking: { type: "disabled" },
       system: [
         { type: "text", text: SYSTEM_PROMPT, cache_control: { type: "ephemeral" } },
       ],
