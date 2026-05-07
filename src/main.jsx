@@ -1,21 +1,26 @@
-import React, { useState, useEffect } from "react";
+import React, { useEffect } from "react";
 import { createRoot } from "react-dom/client";
 import "./index.css";
 import StudioApp from "./App.jsx";
 import Landing from "./views/Landing.jsx";
+import { useRoute, navigate, clearRoute } from "./lib/route.js";
 
+// Top-level surface decided by the URL hash:
+//   no hash         → landing page
+//   any "#/..."     → studio
 function Root() {
-  const [view, setView] = useState("landing");
+  const route = useRoute();
+  const inStudio = route !== null;
 
   useEffect(() => {
-    document.body.classList.toggle("studio-open", view === "studio");
-    if (view === "landing") window.scrollTo(0, 0);
-  }, [view]);
+    document.body.classList.toggle("studio-open", inStudio);
+    if (!inStudio) window.scrollTo(0, 0);
+  }, [inStudio]);
 
-  if (view === "studio") {
-    return <StudioApp onClose={() => setView("landing")} />;
+  if (inStudio) {
+    return <StudioApp onClose={() => clearRoute()} />;
   }
-  return <Landing onOpenStudio={() => setView("studio")} />;
+  return <Landing onOpenStudio={() => navigate(["dashboard"])} />;
 }
 
 createRoot(document.getElementById("root")).render(

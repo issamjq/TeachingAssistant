@@ -1,8 +1,9 @@
-import React, { useState } from "react";
+import React from "react";
 import DatabaseProfile from "./DatabaseProfile";
 import DatabaseStudents from "./DatabaseStudents";
 import DatabaseAttendance from "./DatabaseAttendance";
 import DatabaseGrades from "./DatabaseGrades";
+import { navigate } from "../lib/route";
 
 const TABS = [
   { key: "profile",    label: "Teaching profile" },
@@ -11,8 +12,11 @@ const TABS = [
   { key: "grades",     label: "Grades" },
 ];
 
-export default function Database() {
-  const [active, setActive] = useState("profile");
+// `sub` comes from the URL hash (#/database/<sub>) so reload keeps the user on
+// whichever tab they were on. Defaults to "profile" when the URL is bare.
+export default function Database({ sub }) {
+  const active = TABS.some((t) => t.key === sub) ? sub : "profile";
+  const setActive = (key) => navigate(["database", key]);
 
   return (
     <div>

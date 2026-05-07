@@ -22,6 +22,7 @@ import DevConsole from "./views/DevConsole";
 import NotificationsBell from "./views/NotificationsBell";
 import { getRole, onRoleChange, ROLE_LABELS } from "./lib/role";
 import { api } from "./views/_shared";
+import { useRoute, navigate, replace } from "./lib/route";
 
 const TEACHER_NAV = [
   {
@@ -56,29 +57,29 @@ const TEACHER_NAV = [
 ];
 
 const ADMIN_NAV = [
-  {
-    section: "Admin",
-    items: [{ key: "admin-console", label: "Admin console", letter: "A" }],
-  },
+  { section: "Admin", items: [{ key: "admin-console", label: "Admin console", letter: "A" }] },
 ];
 
 const DEV_NAV = [
-  {
-    section: "Dev",
-    items: [{ key: "dev-console", label: "Dev console", letter: "D" }],
-  },
+  { section: "Dev", items: [{ key: "dev-console", label: "Dev console", letter: "D" }] },
 ];
 
-const NAV_BY_ROLE = {
-  teacher: TEACHER_NAV,
-  admin: ADMIN_NAV,
-  dev: DEV_NAV,
-};
+const NAV_BY_ROLE = { teacher: TEACHER_NAV, admin: ADMIN_NAV, dev: DEV_NAV };
 
-const DEFAULT_ROUTE = {
-  teacher: "dashboard",
-  admin: "admin-console",
-  dev: "dev-console",
+const DEFAULT_ROUTE = { teacher: "dashboard", admin: "admin-console", dev: "dev-console" };
+
+// Sections legitimately reachable from the URL bar for each role. Anything
+// outside this list bounces back to the role's default — keeps a stale
+// `#/quizzes` from rendering for an admin who switched roles.
+const SECTIONS_BY_ROLE = {
+  teacher: new Set([
+    "dashboard", "studio", "library",
+    "lesson-plans", "schedule", "quizzes", "homework", "presentations", "activities",
+    "database", "reports",
+    "account",
+  ]),
+  admin: new Set(["admin-console", "account"]),
+  dev: new Set(["dev-console", "account"]),
 };
 
 function NavBadge({ letter, icon, active }) {
@@ -93,16 +94,33 @@ function NavBadge({ letter, icon, active }) {
 
 export default function StudioApp({ onClose }) {
   const [role, setRoleState] = useState(getRole());
-  const [active, setActive] = useState(DEFAULT_ROUTE[getRole()]);
-  const [view, setView] = useState({ name: "templates" });
+  const route = useRoute();
 
-  // React to role changes initiated elsewhere (Account → role switcher).
+  // Derive what to render purely from the URL — single source of truth.
+  // Falls back to the role's default if the URL section doesn't apply.
+  const section = route?.section || DEFAULT_ROUTE[role];
+  const sub = route?.sub || null;
+  const extraId = route?.extra?.[0] || null;
+
+  // Listen for role changes from Account → role switcher.
   useEffect(() => {
     return onRoleChange((next) => {
       setRoleState(next);
-      setActive(DEFAULT_ROUTE[next]);
+      navigate([DEFAULT_ROUTE[next]]);
     });
   }, []);
+
+  // Bounce sections that don't apply to the current role to the role's home.
+  // Replace (not push) so the back button doesn't re-trigger the bounce.
+  useEffect(() => {
+    if (!route) {
+      replace([DEFAULT_ROUTE[role]]);
+      return;
+    }
+    if (!SECTIONS_BY_ROLE[role].has(section)) {
+      replace([DEFAULT_ROUTE[role]]);
+    }
+  }, [role, route, section]);
 
   const nav = NAV_BY_ROLE[role];
   const itemLabel = Object.fromEntries(
@@ -110,25 +128,24 @@ export default function StudioApp({ onClose }) {
   );
   itemLabel["account"] = "Account";
 
-  const goLessonPlans = (subView = "templates") => {
-    setActive("lesson-plans");
-    setView({ name: subView });
-  };
-  const goNewTemplate = () => setView({ name: "newTemplate" });
-  const goNewDraft   = () => setView({ name: "newDraft" });
-  const goEditDraft  = (draft) => setView({ name: "editDraft", draft });
-  const goQuizBuilder = (quiz) => setView({ name: "quizBuilder", quiz });
+  const goLessonPlans = (subView = "templates") => navigate(["lesson-plans", subView]);
+  const goNewTemplate = () => navigate(["lesson-plans", "newTemplate"]);
+  const goNewDraft   = () => navigate(["lesson-plans", "newDraft"]);
+  const goEditDraft  = (draft) => navigate(["lesson-plans", "edit-draft", draft.id]);
+  const goQuizBuilder = (quiz) => navigate(["quizzes", quiz?.id ? "edit" : "new", quiz?.id].filter(Boolean));
 
   const handleNavClick = (key) => {
-    setActive(key);
-    if (key === "lesson-plans") setView({ name: "templates" });
-    if (key === "quizzes") setView({ name: "quizzesList" });
+    // Top-level sections that have a default sub-tab pre-fill it so the
+    // breadcrumbs and tabs show the right thing immediately.
+    if (key === "lesson-plans") return navigate(["lesson-plans", "templates"]);
+    if (key === "database") return navigate(["database", "profile"]);
+    return navigate([key]);
   };
 
-  let crumbs = [{ label: itemLabel[active] || "Studio" }];
+  let crumbs = [{ label: itemLabel[section] || "Studio" }];
   let mainContent;
 
-  if (active === "account") {
+  if (section === "account") {
     crumbs = [{ label: "Account" }];
     mainContent = <AccountProfile />;
   } else if (role === "admin") {
@@ -137,41 +154,42 @@ export default function StudioApp({ onClose }) {
   } else if (role === "dev") {
     crumbs = [{ label: "Dev console" }];
     mainContent = <DevConsole />;
-  } else if (active === "dashboard") {
+  } else if (section === "dashboard") {
     mainContent = <Dashboard onJump={handleNavClick} />;
-  } else if (active === "database") {
-    mainContent = <Database />;
-  } else if (active === "schedule") {
+  } else if (section === "database") {
+    mainContent = <Database sub={sub || "profile"} />;
+  } else if (section === "schedule") {
     mainContent = <Schedule />;
-  } else if (active === "homework") {
+  } else if (section === "homework") {
     mainContent = <Homework />;
-  } else if (active === "presentations") {
+  } else if (section === "presentations") {
     mainContent = <Presentations />;
-  } else if (active === "activities") {
+  } else if (section === "activities") {
     mainContent = <Activities />;
-  } else if (active === "library") {
+  } else if (section === "library") {
     mainContent = <Library />;
-  } else if (active === "studio") {
+  } else if (section === "studio") {
     mainContent = <Studio onJump={handleNavClick} />;
-  } else if (active === "reports") {
+  } else if (section === "reports") {
     mainContent = <Reports />;
-  } else if (active === "quizzes") {
-    if (view.name === "quizBuilder") {
+  } else if (section === "quizzes") {
+    if (sub === "new" || sub === "edit") {
       crumbs = [
-        { label: "Quizzes & Exams", onClick: () => { setActive("quizzes"); setView({ name: "quizzesList" }); } },
-        { label: view.quiz?.id ? "Edit quiz" : "New quiz" },
+        { label: "Quizzes & Exams", onClick: () => navigate(["quizzes"]) },
+        { label: sub === "edit" ? "Edit quiz" : "New quiz" },
       ];
       mainContent = (
         <QuizBuilder
-          quiz={view.quiz}
-          onClose={() => { setActive("quizzes"); setView({ name: "quizzesList" }); }}
+          quiz={sub === "edit" ? { id: Number(extraId) } : null}
+          onClose={() => navigate(["quizzes"])}
         />
       );
     } else {
       mainContent = <Quizzes onOpenQuiz={goQuizBuilder} />;
     }
-  } else if (active === "lesson-plans") {
+  } else if (section === "lesson-plans") {
     crumbs = [{ label: "Lesson Plans", onClick: () => goLessonPlans("templates") }];
+    const view = sub || "templates";
 
     const tab = (key, label, onClick, isActive) => (
       <button
@@ -185,11 +203,11 @@ export default function StudioApp({ onClose }) {
       </button>
     );
 
-    const isTemplatesArea = ["templates", "newTemplate"].includes(view.name);
-    const isDraftsArea    = ["drafts", "newDraft", "editDraft"].includes(view.name);
+    const isTemplatesArea = ["templates", "newTemplate"].includes(view);
+    const isDraftsArea    = ["drafts", "newDraft", "edit-draft"].includes(view);
 
     let inner;
-    switch (view.name) {
+    switch (view) {
       case "templates":
         crumbs.push({ label: "Templates library" });
         inner = (
@@ -197,9 +215,6 @@ export default function StudioApp({ onClose }) {
             onNewTemplate={goNewTemplate}
             onUseTemplate={async (t) => {
               try {
-                // Clone the template into a new draft so the teacher gets the
-                // full lesson plan pre-filled, not just a title. Stages from
-                // the template flow into the lesson body buckets.
                 const stages = Array.isArray(t.stages) ? t.stages : [];
                 let intro = "", main_activity = "", conclusion = "";
                 if (stages.length === 1) intro = `${stages[0].name}: ${stages[0].note || ""}`.trim();
@@ -229,7 +244,6 @@ export default function StudioApp({ onClose }) {
                     tags: t.tags || [],
                   },
                 });
-                // Increment used_count so popular templates float to the top.
                 api(`/api/templates/${t.id}`, {
                   method: "PATCH",
                   body: { used_count: (t.used_count || 0) + 1 },
@@ -267,24 +281,28 @@ export default function StudioApp({ onClose }) {
           <NewDraft
             onCancel={() => goLessonPlans("drafts")}
             onSave={(saved) => saved?.id ? goEditDraft(saved) : goLessonPlans("drafts")}
-            onOpenFull={() => goEditDraft({ name: "Poetry — figurative language", progress: 65 })}
+            onOpenFull={() => goLessonPlans("drafts")}
           />
         );
         break;
-      case "editDraft":
+      case "edit-draft":
         crumbs.push(
           { label: "Reusable drafts", onClick: () => goLessonPlans("drafts") },
           { label: "Edit lesson plan" }
         );
         inner = (
           <EditDraft
-            draft={view.draft}
+            // EditDraft fetches the latest from /api/drafts/:id on mount,
+            // so passing just the id is enough — survives a refresh.
+            draft={extraId ? { id: Number(extraId) } : null}
             onClose={() => goLessonPlans("drafts")}
             onMarkReady={() => goLessonPlans("drafts")}
           />
         );
         break;
       default:
+        // Unknown sub — bounce to the templates tab.
+        replace(["lesson-plans", "templates"]);
         inner = null;
     }
 
@@ -301,7 +319,7 @@ export default function StudioApp({ onClose }) {
     mainContent = (
       <div className="flex flex-col items-center justify-center py-32 text-center">
         <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-3 inline-flex items-center gap-2.5">
-          <span className="w-6 h-px bg-accent" /> {itemLabel[active] || active}
+          <span className="w-6 h-px bg-accent" /> {itemLabel[section] || section}
         </p>
         <h2 className="font-serif text-5xl font-medium text-ink mb-3">
           Coming <em className="italic font-light text-accent">soon</em>
@@ -309,6 +327,8 @@ export default function StudioApp({ onClose }) {
       </div>
     );
   }
+
+  const sidebarActive = section === "account" ? "account" : section;
 
   return (
     <div className="h-screen bg-paper flex text-ink font-sans overflow-hidden">
@@ -320,14 +340,14 @@ export default function StudioApp({ onClose }) {
         </div>
 
         <nav className="px-3 flex-1 overflow-y-auto pb-4">
-          {nav.map((section) => (
-            <div key={section.section} className="mb-5">
+          {nav.map((s) => (
+            <div key={s.section} className="mb-5">
               <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-white/40 mb-2 px-3">
-                {section.section}
+                {s.section}
               </p>
               <div className="space-y-0.5">
-                {section.items.map((item) => {
-                  const isActive = active === item.key;
+                {s.items.map((item) => {
+                  const isActive = sidebarActive === item.key;
                   return (
                     <button
                       key={item.key}
@@ -348,10 +368,10 @@ export default function StudioApp({ onClose }) {
 
         <div className="p-3 border-t border-white/10">
           <button
-            onClick={() => setActive("account")}
+            onClick={() => navigate(["account"])}
             title="Open account"
             className={`w-full flex items-center gap-3 p-2 rounded-lg text-left transition ${
-              active === "account" ? "bg-white/10" : "hover:bg-white/5"
+              section === "account" ? "bg-white/10" : "hover:bg-white/5"
             }`}
           >
             <div className="h-9 w-9 rounded-full bg-white/10 text-white flex items-center justify-center font-mono text-[11px] tracking-wider font-semibold flex-shrink-0">
@@ -388,7 +408,7 @@ export default function StudioApp({ onClose }) {
           <div className="flex items-center gap-3">
             {role === "teacher" && <NotificationsBell />}
             <button
-              onClick={() => setActive("account")}
+              onClick={() => navigate(["account"])}
               title="Open account"
               className="h-9 w-9 rounded-full bg-ink text-paper-cool flex items-center justify-center font-mono text-[11px] tracking-wider font-semibold hover:bg-accent transition"
             >
