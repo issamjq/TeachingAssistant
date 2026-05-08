@@ -18,12 +18,12 @@ const API_BASE = (import.meta.env.VITE_API_URL || "").replace(/\/$/, "");
 // Order matters — this is the clockwise order around the wheel starting at
 // the top position (12 o'clock).
 const KINDS = [
-  { value: "lesson_plan",  label: "Lesson",     icon: FileText,      oneliner: "Structured class with starter, activities & exit ticket.", sample: "A 45-minute Grade 7 science lesson on photosynthesis with a hands-on starter, two activities, and a quick exit ticket." },
-  { value: "quiz",         label: "Quiz",       icon: GraduationCap, oneliner: "MCQ, T/F, short or essay — ready to grade.",                sample: "8-question Grade 8 algebra quiz covering linear equations — mix of MCQ and short answer, total 20 marks." },
-  { value: "homework",     label: "Homework",   icon: ClipboardList, oneliner: "Take-home tasks with grading criteria.",                    sample: "Reading-comprehension homework for Grade 6 English on a short story — students answer 5 questions in writing." },
-  { value: "activity",     label: "Activity",   icon: Users,         oneliner: "Pair, group, or individual classroom exercise.",            sample: "Group activity for Grade 5 history: students roleplay a town hall debating the construction of the railway." },
-  { value: "presentation", label: "Slides",     icon: Layers,        oneliner: "Slide-by-slide outline ready to refine.",                   sample: "8-slide intro deck on the water cycle for Grade 4." },
-  { value: "schedule",     label: "Schedule",   icon: Calendar,      oneliner: "Weekly plan or term timeline.",                             sample: "A weekly schedule for Grade 7 Science covering forces and motion across one week (5 days, ~50 min each)." },
+  { value: "lesson_plan",  label: "Lesson",     icon: FileText,      oneliner: "Structured class plan",       sample: "A 45-minute Grade 7 science lesson on photosynthesis with a hands-on starter, two activities, and a quick exit ticket." },
+  { value: "quiz",         label: "Quiz",       icon: GraduationCap, oneliner: "MCQ, T/F, short or essay",    sample: "8-question Grade 8 algebra quiz covering linear equations — mix of MCQ and short answer, total 20 marks." },
+  { value: "homework",     label: "Homework",   icon: ClipboardList, oneliner: "Take-home tasks",             sample: "Reading-comprehension homework for Grade 6 English on a short story — students answer 5 questions in writing." },
+  { value: "activity",     label: "Activity",   icon: Users,         oneliner: "Pair, group or solo task",    sample: "Group activity for Grade 5 history: students roleplay a town hall debating the construction of the railway." },
+  { value: "presentation", label: "Slides",     icon: Layers,        oneliner: "Slide-by-slide outline",      sample: "8-slide intro deck on the water cycle for Grade 4." },
+  { value: "schedule",     label: "Schedule",   icon: Calendar,      oneliner: "Weekly or term plan",         sample: "A weekly schedule for Grade 7 Science covering forces and motion across one week (5 days, ~50 min each)." },
 ];
 
 const SEGMENTS = KINDS.length;
@@ -52,7 +52,7 @@ function StudioWheel({ value, onChange }) {
   const active = KINDS[idx];
 
   return (
-    <div className="relative w-full max-w-[280px] mx-auto aspect-square select-none">
+    <div className="relative w-full max-w-[260px] sm:max-w-[300px] md:max-w-[340px] mx-auto aspect-square select-none">
       {/* Outer ring */}
       <div className="absolute inset-0 rounded-full bg-paper-cool border border-line shadow-[inset_0_2px_8px_rgba(0,0,0,0.04)]" />
 
@@ -63,7 +63,7 @@ function StudioWheel({ value, onChange }) {
         preserveAspectRatio="xMidYMid meet"
       >
         <path
-          d={wedgePath({ halfWidthDeg: SEGMENT_DEG / 2 - 1, innerR: 26, outerR: 43 })}
+          d={wedgePath({ halfWidthDeg: SEGMENT_DEG / 2 - 1, innerR: 22, outerR: 46 })}
           fill="var(--color-accent)"
         />
         {/* Faint dotted radial dividers between segments */}
@@ -72,10 +72,10 @@ function StudioWheel({ value, onChange }) {
           return (
             <line
               key={i}
-              x1={Math.cos(a) * 26}
-              y1={Math.sin(a) * 26}
-              x2={Math.cos(a) * 43}
-              y2={Math.sin(a) * 43}
+              x1={Math.cos(a) * 22}
+              y1={Math.sin(a) * 22}
+              x2={Math.cos(a) * 46}
+              y2={Math.sin(a) * 46}
               stroke="var(--color-line)"
               strokeWidth="0.3"
               strokeDasharray="0.6 0.6"
@@ -85,8 +85,10 @@ function StudioWheel({ value, onChange }) {
         })}
       </svg>
 
-      {/* Inner cream disc — the "stage" where the active kind name sits */}
-      <div className="absolute inset-[26%] rounded-full bg-paper-warm border border-line/70" />
+      {/* Inner cream disc — the "stage" where the active kind name sits.
+          Smaller (inset-[30%] = 20% radius) so labels at 40% out from
+          centre have clear breathing room and never overlap. */}
+      <div className="absolute inset-[30%] rounded-full bg-paper-warm border border-line/70" />
 
       {/* Down-arrow indicator above the active wedge — sits in the cream
           ring between the wedge top and the wheel boundary, with a clear
@@ -110,8 +112,8 @@ function StudioWheel({ value, onChange }) {
       >
         {KINDS.map((k, i) => {
           const angle = -90 + i * SEGMENT_DEG;
-          const x = Math.cos((angle * Math.PI) / 180) * 36; // 36% out from center
-          const y = Math.sin((angle * Math.PI) / 180) * 36;
+          const x = Math.cos((angle * Math.PI) / 180) * 40; // 40% out from center
+          const y = Math.sin((angle * Math.PI) / 180) * 40;
           const isActive = i === idx;
           const Icon = k.icon;
           return (
@@ -146,13 +148,14 @@ function StudioWheel({ value, onChange }) {
         })}
       </div>
 
-      {/* Center content — fixed, doesn't rotate */}
-      <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-12 pointer-events-none">
-        <p className="text-xs text-muted mb-1.5">Make a</p>
-        <h3 className="text-3xl font-semibold text-ink leading-none mb-2.5 tracking-tight">
+      {/* Center content — fixed, doesn't rotate. Padded inside the inner
+          disc with breathing room so it never crowds the labels. */}
+      <div className="absolute inset-[30%] flex flex-col items-center justify-center text-center pointer-events-none">
+        <p className="text-[10px] text-muted mb-0.5 uppercase tracking-wider">Make a</p>
+        <h3 className="text-xl sm:text-2xl font-semibold text-ink leading-none mb-1 tracking-tight">
           {active.label}
         </h3>
-        <p className="text-xs text-muted leading-relaxed max-w-[170px]">
+        <p className="text-[10px] text-muted leading-snug px-2">
           {active.oneliner}
         </p>
       </div>
