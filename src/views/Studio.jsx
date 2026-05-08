@@ -250,13 +250,30 @@ export default function Studio() {
         }
       }
     } catch (e) {
-      if (e.name !== "AbortError") setError(e.message);
+      if (e.name !== "AbortError") {
+        // Non-abort failure → drop any partial output so the wheel comes back
+        // and the user sees the error banner above it.
+        setStreamingText("");
+        setResult(null);
+        setError(e.message);
+      }
     } finally {
       setBusy(false);
     }
   };
 
   const cancel = () => abortRef.current?.abort();
+
+  // "Make another" — return to the wheel without throwing away the prompt /
+  // selected kind so the user can tweak and regenerate quickly.
+  const makeAnother = () => {
+    abortRef.current?.abort();
+    setBusy(false);
+    setStreamingText("");
+    setResult(null);
+    setSavedDraftId(null);
+    setError(null);
+  };
 
   const copyToClipboard = async () => {
     if (!result?.text) return;
@@ -294,6 +311,9 @@ export default function Studio() {
   };
 
   const active = KINDS.find((k) => k.value === kind);
+  // Picker is visible only when we're NOT generating, streaming, or showing
+  // a result — keeps focus on one thing at a time.
+  const showPicker = !busy && !streamingText && !result;
 
   return (
     <div>
@@ -310,6 +330,7 @@ export default function Studio() {
         </p>
       </div>
 
+      {showPicker && (
       <Card>
         <CardContent className="p-6">
           {/* Wheel header — eyebrow on the left, RESET on the right */}
@@ -353,21 +374,15 @@ export default function Studio() {
               <p className="font-mono text-[10px] uppercase tracking-wider text-muted">
                 Haiku 4.5 · streaming
               </p>
-              <div className="flex items-center gap-2">
-                {busy && (
-                  <Button variant="secondary" onClick={cancel} className="text-xs px-3 py-1.5">
-                    <X size={13} className="mr-1.5" /> Cancel
-                  </Button>
-                )}
-                <Button onClick={generate} disabled={busy || !prompt.trim()}>
-                  <Sparkles size={14} className="mr-2" />
-                  {busy ? "Generating…" : "Generate"}
-                </Button>
-              </div>
+              <Button onClick={generate} disabled={!prompt.trim()}>
+                <Sparkles size={14} className="mr-2" />
+                Generate
+              </Button>
             </div>
           </div>
         </CardContent>
       </Card>
+      )}
 
       {error && (
         <div className="mt-6 bg-paper border border-accent rounded-lg p-4">
@@ -381,38 +396,49 @@ export default function Studio() {
         </div>
       )}
 
-      {(streamingText || result) && (
-        <Card className="mt-6">
+      {(busy || streamingText || result) && (
+        <Card>
           <CardContent className="p-6">
-            <div className="flex items-center justify-between mb-4">
-              <div>
+            <div className="flex items-center justify-between mb-4 gap-3">
+              <div className="min-w-0">
                 <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-1">
-                  {result ? "Generated" : "Generating…"}
+                  {busy ? "Generating…" : "Generated"}
                 </p>
-                <p className="font-serif text-xl text-ink">
+                <p className="font-serif text-xl text-ink truncate">
                   {KINDS.find((k) => k.value === (result?.kind ?? kind))?.label}
                 </p>
               </div>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="secondary"
-                  onClick={copyToClipboard}
-                  disabled={!result}
-                  className="text-xs px-3 py-1.5"
-                >
-                  {copied ? <><Check size={13} className="mr-1.5" /> Copied</> : <><Copy size={13} className="mr-1.5" /> Copy</>}
-                </Button>
-                {(result?.kind ?? kind) === "lesson_plan" && (
-                  savedDraftId ? (
-                    <span className="font-mono text-[10px] uppercase tracking-wider text-sage inline-flex items-center gap-1.5">
-                      <Check size={13} /> Saved as draft #{savedDraftId}
-                    </span>
-                  ) : (
-                    <Button onClick={saveAsDraft} disabled={saving || !result} className="text-xs px-3 py-1.5">
-                      <Save size={13} className="mr-1.5" />
-                      {saving ? "Saving…" : "Save as draft"}
+              <div className="flex items-center gap-2 flex-shrink-0">
+                {busy ? (
+                  <Button variant="secondary" onClick={cancel} className="text-xs px-3 py-1.5">
+                    <X size={13} className="mr-1.5" /> Cancel
+                  </Button>
+                ) : (
+                  <>
+                    <Button
+                      variant="secondary"
+                      onClick={copyToClipboard}
+                      disabled={!result}
+                      className="text-xs px-3 py-1.5"
+                    >
+                      {copied ? <><Check size={13} className="mr-1.5" /> Copied</> : <><Copy size={13} className="mr-1.5" /> Copy</>}
                     </Button>
-                  )
+                    {(result?.kind ?? kind) === "lesson_plan" && (
+                      savedDraftId ? (
+                        <span className="font-mono text-[10px] uppercase tracking-wider text-sage inline-flex items-center gap-1.5">
+                          <Check size={13} /> Saved as draft #{savedDraftId}
+                        </span>
+                      ) : (
+                        <Button variant="secondary" onClick={saveAsDraft} disabled={saving || !result} className="text-xs px-3 py-1.5">
+                          <Save size={13} className="mr-1.5" />
+                          {saving ? "Saving…" : "Save as draft"}
+                        </Button>
+                      )
+                    )}
+                    <Button onClick={makeAnother} className="text-xs px-3 py-1.5">
+                      <Sparkles size={13} className="mr-1.5" /> Make another
+                    </Button>
+                  </>
                 )}
               </div>
             </div>
