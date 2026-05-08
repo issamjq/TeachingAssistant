@@ -52,7 +52,7 @@ function StudioWheel({ value, onChange }) {
   const active = KINDS[idx];
 
   return (
-    <div className="relative w-full max-w-[360px] mx-auto aspect-square select-none">
+    <div className="relative w-full max-w-[280px] mx-auto aspect-square select-none">
       {/* Outer ring */}
       <div className="absolute inset-0 rounded-full bg-paper-cool border border-line shadow-[inset_0_2px_8px_rgba(0,0,0,0.04)]" />
 
@@ -167,6 +167,10 @@ export default function Studio() {
   // 2 = write the brief and Generate. Flips between the two with a 3D
   // card-flip animation defined in index.css.
   const [step, setStep] = useState(1);
+  // After generation, the result view paginates one section card at a
+  // time so nothing scrolls. Reset whenever the section count changes
+  // (new generation, removed card).
+  const [sectionIndex, setSectionIndex] = useState(0);
   const [busy, setBusy] = useState(false);
   const [streamingText, setStreamingText] = useState("");
   const [result, setResult] = useState(null);
@@ -289,19 +293,30 @@ export default function Studio() {
   const onClose = () => navigate(["dashboard"]);
 
   useEffect(() => {
-    const onEsc = (e) => {
-      if (e.key === "Escape") {
-        // Don't hijack Esc when an editable card is open — that field
-        // already uses Esc to cancel its own edit. We only react when the
-        // event target isn't an input/textarea inside the popup.
-        const tag = e.target?.tagName;
-        if (tag === "TEXTAREA" || tag === "INPUT") return;
+    const onKey = (e) => {
+      // Don't hijack keys when the user is typing in an input / textarea.
+      const tag = e.target?.tagName;
+      const inField = tag === "TEXTAREA" || tag === "INPUT";
+      if (e.key === "Escape" && !inField) {
         onClose();
+      } else if (e.key === "ArrowLeft" && !inField && sections.length > 1) {
+        setSectionIndex((i) => Math.max(0, i - 1));
+      } else if (e.key === "ArrowRight" && !inField && sections.length > 1) {
+        setSectionIndex((i) => Math.min(sections.length - 1, i + 1));
       }
     };
-    window.addEventListener("keydown", onEsc);
-    return () => window.removeEventListener("keydown", onEsc);
-  }, []);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [sections.length]);
+
+  // Reset / clamp the visible section index whenever sections change.
+  useEffect(() => {
+    if (sections.length === 0) {
+      setSectionIndex(0);
+    } else if (sectionIndex >= sections.length) {
+      setSectionIndex(sections.length - 1);
+    }
+  }, [sections.length, sectionIndex]);
 
   // Warn before the user discards an in-flight or freshly-generated draft.
   // Two layers:
@@ -511,31 +526,33 @@ export default function Studio() {
         onClick={onClose}
       />
 
-      {/* Centered popup panel */}
-      <div className="relative bg-paper-cool border border-line rounded-2xl shadow-2xl w-full max-w-3xl max-h-[94vh] overflow-y-auto studio-popup-frame print:max-h-none print:max-w-none print:rounded-none print:shadow-none print:border-0">
+      {/* Centered popup panel — sized so content always fits without an
+          inner scrollbar. overflow-hidden + max-h-[92vh] is a hard cap;
+          everything inside is intentionally small enough to fit. */}
+      <div className="relative bg-paper-cool border border-line rounded-2xl shadow-2xl w-full max-w-2xl max-h-[92vh] overflow-hidden studio-popup-frame print:max-h-none print:max-w-none print:rounded-none print:shadow-none print:border-0 print:overflow-visible">
         <button
           onClick={onClose}
           title="Close (Esc)"
-          className="absolute top-3 right-3 z-10 h-8 w-8 rounded-md border border-line bg-paper-cool hover:bg-paper-warm hover:border-ink flex items-center justify-center text-ink-soft transition print:hidden"
+          className="absolute top-2.5 right-2.5 z-10 h-8 w-8 rounded-md border border-line bg-paper-cool hover:bg-paper-warm hover:border-ink flex items-center justify-center text-ink-soft transition print:hidden"
         >
           <X size={15} />
         </button>
 
-        <div className="p-5 md:p-6">
+        <div className="p-4 md:p-5">
           <div className="mb-3 pr-10">
-            <h2 className="font-serif text-3xl font-medium text-ink leading-none">
+            <h2 className="font-serif text-2xl font-medium text-ink leading-none">
               AI <em className="italic font-light text-accent">studio</em>
             </h2>
-            <p className="text-sm text-muted mt-1.5">
-              Pick what to make on the wheel, write a one-line brief, and Mudir drafts it.
+            <p className="text-xs text-muted mt-1">
+              Pick what to make, write a one-line brief, Mudir drafts it.
             </p>
           </div>
 
       {showPicker && (
       <Card>
-        <CardContent className="p-5">
+        <CardContent className="p-3 md:p-4">
           {/* Step indicator + reset */}
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center justify-between mb-2">
             <p className="text-sm text-ink-soft">
               Step <span className="text-ink font-medium">{step}</span> of 2 —
               <span className="text-muted ml-1.5">
@@ -557,19 +574,19 @@ export default function Studio() {
           <div className="studio-flip-container">
             <div
               className={`studio-flip-card ${step === 2 ? "is-flipped" : ""}`}
-              style={{ minHeight: 460 }}
+              style={{ minHeight: 360 }}
             >
               {/* Step 1 — wheel */}
               <div className="studio-flip-side studio-flip-front">
                 <div className="flex flex-col items-center">
                   <StudioWheel value={kind} onChange={onPickKind} />
-                  <div className="mt-5 flex items-center gap-3">
+                  <div className="mt-3 flex items-center gap-3">
                     <p className="text-xs text-muted">
                       Picked <span className="text-ink font-medium">{active?.label}</span>
                     </p>
                     <Button
                       onClick={() => setStep(2)}
-                      className="hover:scale-[1.02] active:scale-[0.99] transition-transform"
+                      className="hover:scale-[1.02] active:scale-[0.99] transition-transform px-4 py-2 text-sm"
                     >
                       Next step <ChevronRight size={14} className="ml-1.5" />
                     </Button>
@@ -699,15 +716,13 @@ export default function Studio() {
                 )}
               </div>
             </div>
-            {/* Editable section cards, full width. Live preview removed
-                per the redesign — each card is the canonical view of its
-                own section. While the initial draft is still streaming,
-                show the streaming markdown as a single placeholder block
-                until the structured sections are parsed. */}
-            <div className="space-y-3 min-h-[280px] max-w-2xl mx-auto print:hidden">
+            {/* Result paginates ONE section at a time — no vertical
+                scrolling, the user flips through the sections like cards
+                in a deck (Prev / Next or ← / → keys). */}
+            <div className="print:hidden">
               {sections.length === 0 ? (
                 <Card>
-                  <CardContent className="p-5">
+                  <CardContent className="p-4 max-h-[55vh] overflow-y-auto">
                     {busy ? (
                       <pre className="whitespace-pre-wrap text-sm text-ink-soft leading-relaxed font-sans">
                         {streamingText}
@@ -719,17 +734,70 @@ export default function Studio() {
                   </CardContent>
                 </Card>
               ) : (
-                sections.map((s) => (
-                  <div key={s.id} id={`studio-card-${s.id}`} className="scroll-mt-4">
-                    <StudioCard
-                      section={s}
-                      onSave={(md) => setSectionMarkdown(s.id, md)}
-                      onRegenerate={(hint) => regenerateSection(s.id, hint)}
-                      onCancelRegenerate={() => cancelRegenerate(s.id)}
-                      onRemove={() => removeSection(s.id)}
-                    />
+                <>
+                  {/* Pagination header */}
+                  <div className="flex items-center justify-between gap-3 mb-2.5">
+                    <p className="text-xs text-muted truncate">
+                      Section <span className="text-ink font-medium">{sectionIndex + 1}</span> of {sections.length} ·
+                      <span className="text-ink-soft ml-1">{sections[sectionIndex]?.title}</span>
+                    </p>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setSectionIndex((i) => Math.max(0, i - 1))}
+                        disabled={sectionIndex === 0}
+                        title="Previous section (←)"
+                        className="h-7 w-7 rounded-md border border-line bg-paper hover:border-ink hover:bg-paper-warm flex items-center justify-center text-ink-soft transition disabled:opacity-30 disabled:cursor-not-allowed"
+                      >
+                        <ChevronLeft size={14} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSectionIndex((i) => Math.min(sections.length - 1, i + 1))}
+                        disabled={sectionIndex >= sections.length - 1}
+                        title="Next section (→)"
+                        className="h-7 w-7 rounded-md border border-line bg-paper hover:border-ink hover:bg-paper-warm flex items-center justify-center text-ink-soft transition disabled:opacity-30 disabled:cursor-not-allowed"
+                      >
+                        <ChevronRight size={14} />
+                      </button>
+                    </div>
                   </div>
-                ))
+
+                  {/* The visible section. The key includes index+id so React
+                      remounts on change → the studio-card-flip-in animation
+                      fires for every navigation. */}
+                  <div
+                    key={`${sectionIndex}-${sections[sectionIndex]?.id}`}
+                    className="studio-card-flip-in"
+                  >
+                    <div className="max-h-[58vh] overflow-y-auto rounded-md">
+                      <StudioCard
+                        section={sections[sectionIndex]}
+                        onSave={(md) => setSectionMarkdown(sections[sectionIndex].id, md)}
+                        onRegenerate={(hint) => regenerateSection(sections[sectionIndex].id, hint)}
+                        onCancelRegenerate={() => cancelRegenerate(sections[sectionIndex].id)}
+                        onRemove={() => removeSection(sections[sectionIndex].id)}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Tiny dot indicator below */}
+                  <div className="flex items-center justify-center gap-1.5 mt-3">
+                    {sections.map((s, i) => (
+                      <button
+                        key={s.id}
+                        type="button"
+                        onClick={() => setSectionIndex(i)}
+                        title={s.title}
+                        className={`h-1.5 rounded-full transition-all ${
+                          i === sectionIndex
+                            ? "w-6 bg-accent"
+                            : "w-1.5 bg-line hover:bg-ink-soft"
+                        }`}
+                      />
+                    ))}
+                  </div>
+                </>
               )}
             </div>
 
