@@ -1,30 +1,163 @@
 import React, { useRef, useState } from "react";
 import {
   Sparkles, FileText, ClipboardList, GraduationCap,
-  Layers, Users, Save, Copy, Check, X,
+  Layers, Users, Calendar, Save, Copy, Check, X, RotateCcw,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { selectClasses, api } from "./_shared";
+import { api } from "./_shared";
 
 // Same base URL the rest of the app uses (Vercel rewrites /api → Render in
 // prod; same-origin in dev via the Vite middleware).
 const API_BASE = (import.meta.env.VITE_API_URL || "").replace(/\/$/, "");
 
-// AI Studio. Wired to /api/studio/generate which calls Claude Opus 4.7 with
-// adaptive thinking + prompt caching. Gated by the ai_studio feature flag —
-// off by default; toggle from the Dev console.
+// Order matters — this is the clockwise order around the wheel starting at
+// the top position (12 o'clock).
 const KINDS = [
-  { value: "lesson_plan",  label: "Lesson plan",  icon: FileText,      sample: "A 45-minute Grade 7 science lesson on photosynthesis with a hands-on starter, two activities, and a quick exit ticket." },
-  { value: "quiz",         label: "Quiz",         icon: GraduationCap, sample: "8-question Grade 8 algebra quiz covering linear equations — mix of MCQ and short answer, total 20 marks." },
-  { value: "homework",     label: "Homework",     icon: ClipboardList, sample: "Reading-comprehension homework for Grade 6 English on a short story — students answer 5 questions in writing." },
-  { value: "activity",     label: "Activity",     icon: Sparkles,      sample: "Group activity for Grade 5 history: students roleplay a town hall debating the construction of the railway." },
-  { value: "presentation", label: "Presentation", icon: Layers,        sample: "8-slide intro deck on the water cycle for Grade 4." },
-  { value: "feedback",     label: "Feedback",     icon: Users,         sample: "Write feedback paragraphs for: Mariam (strong analysis but weak grammar), Khalid (clean writing, weak depth), Sara (excellent on both)." },
+  { value: "lesson_plan",  label: "Lesson",     icon: FileText,      oneliner: "Structured class with starter, activities & exit ticket.", sample: "A 45-minute Grade 7 science lesson on photosynthesis with a hands-on starter, two activities, and a quick exit ticket." },
+  { value: "quiz",         label: "Quiz",       icon: GraduationCap, oneliner: "MCQ, T/F, short or essay — ready to grade.",                sample: "8-question Grade 8 algebra quiz covering linear equations — mix of MCQ and short answer, total 20 marks." },
+  { value: "homework",     label: "Homework",   icon: ClipboardList, oneliner: "Take-home tasks with grading criteria.",                    sample: "Reading-comprehension homework for Grade 6 English on a short story — students answer 5 questions in writing." },
+  { value: "activity",     label: "Activity",   icon: Users,         oneliner: "Pair, group, or individual classroom exercise.",            sample: "Group activity for Grade 5 history: students roleplay a town hall debating the construction of the railway." },
+  { value: "presentation", label: "Slides",     icon: Layers,        oneliner: "Slide-by-slide outline ready to refine.",                   sample: "8-slide intro deck on the water cycle for Grade 4." },
+  { value: "schedule",     label: "Schedule",   icon: Calendar,      oneliner: "Weekly plan or term timeline.",                             sample: "A weekly schedule for Grade 7 Science covering forces and motion across one week (5 days, ~50 min each)." },
 ];
 
+const SEGMENTS = KINDS.length;
+const SEGMENT_DEG = 360 / SEGMENTS;
+const DEFAULT_KIND = "lesson_plan";
+
+// Build a donut-slice (annular sector) path centered around the top of an
+// SVG with origin at (0, 0). Used once for the static highlighter wedge that
+// sits above the rotating wheel of labels.
+const wedgePath = ({ centerDeg = -90, halfWidthDeg, innerR, outerR }) => {
+  const a1 = ((centerDeg - halfWidthDeg) * Math.PI) / 180;
+  const a2 = ((centerDeg + halfWidthDeg) * Math.PI) / 180;
+  const o1 = [Math.cos(a1) * outerR, Math.sin(a1) * outerR];
+  const o2 = [Math.cos(a2) * outerR, Math.sin(a2) * outerR];
+  const i2 = [Math.cos(a2) * innerR, Math.sin(a2) * innerR];
+  const i1 = [Math.cos(a1) * innerR, Math.sin(a1) * innerR];
+  return `M ${o1[0]} ${o1[1]} A ${outerR} ${outerR} 0 0 1 ${o2[0]} ${o2[1]} L ${i2[0]} ${i2[1]} A ${innerR} ${innerR} 0 0 0 ${i1[0]} ${i1[1]} Z`;
+};
+
+// Roulette-style picker. Clicking any segment rotates the wheel so that
+// segment lands under the static accent wedge at the top. Labels rotate with
+// the wheel but each one counter-rotates so its text stays upright.
+function StudioWheel({ value, onChange }) {
+  const idx = Math.max(0, KINDS.findIndex((k) => k.value === value));
+  const rotation = -idx * SEGMENT_DEG;
+  const active = KINDS[idx];
+
+  return (
+    <div className="relative w-full max-w-[440px] mx-auto aspect-square select-none">
+      {/* Outer ring */}
+      <div className="absolute inset-0 rounded-full bg-paper-cool border border-line shadow-[inset_0_2px_8px_rgba(0,0,0,0.04)]" />
+
+      {/* Static highlighter wedge — accent fills the top segment */}
+      <svg
+        className="absolute inset-0 w-full h-full pointer-events-none"
+        viewBox="-50 -50 100 100"
+        preserveAspectRatio="xMidYMid meet"
+      >
+        <path
+          d={wedgePath({ halfWidthDeg: SEGMENT_DEG / 2 - 1, innerR: 26, outerR: 47 })}
+          fill="var(--color-accent)"
+        />
+        {/* Faint dotted radial dividers between segments */}
+        {Array.from({ length: SEGMENTS }).map((_, i) => {
+          const a = ((-90 + (i + 0.5) * SEGMENT_DEG) * Math.PI) / 180;
+          return (
+            <line
+              key={i}
+              x1={Math.cos(a) * 26}
+              y1={Math.sin(a) * 26}
+              x2={Math.cos(a) * 47}
+              y2={Math.sin(a) * 47}
+              stroke="var(--color-line)"
+              strokeWidth="0.3"
+              strokeDasharray="0.6 0.6"
+              opacity="0.55"
+            />
+          );
+        })}
+      </svg>
+
+      {/* Inner cream disc — the "stage" where the active kind name sits */}
+      <div className="absolute inset-[26%] rounded-full bg-paper-warm border border-line/70" />
+
+      {/* Down-arrow indicator above the active wedge (fixed; doesn't rotate) */}
+      <svg
+        className="absolute left-1/2 -translate-x-1/2 text-accent"
+        style={{ top: "1.5%" }}
+        width="14" height="10" viewBox="0 0 14 10" fill="currentColor"
+      >
+        <path d="M7 10 L0 0 L14 0 Z" />
+      </svg>
+
+      {/* Rotating layer with labels. Cubic-bezier with a touch of overshoot
+          gives that "roulette wheel settling" feel. */}
+      <div
+        className="absolute inset-0"
+        style={{
+          transform: `rotate(${rotation}deg)`,
+          transition: "transform 750ms cubic-bezier(0.34, 1.18, 0.6, 1)",
+        }}
+      >
+        {KINDS.map((k, i) => {
+          const angle = -90 + i * SEGMENT_DEG;
+          const x = Math.cos((angle * Math.PI) / 180) * 36; // 36% out from center
+          const y = Math.sin((angle * Math.PI) / 180) * 36;
+          const isActive = i === idx;
+          const Icon = k.icon;
+          return (
+            <button
+              key={k.value}
+              type="button"
+              onClick={() => onChange(k.value)}
+              className="absolute"
+              style={{
+                left: `${50 + x}%`,
+                top: `${50 + y}%`,
+                // First centers the button on its anchor, then counter-rotates
+                // so the icon + text stay upright as the wheel spins.
+                transform: `translate(-50%, -50%) rotate(${-rotation}deg)`,
+                transition: "transform 750ms cubic-bezier(0.34, 1.18, 0.6, 1)",
+              }}
+            >
+              <div
+                className={`flex flex-col items-center gap-1.5 px-3 py-2 rounded-lg transition ${
+                  isActive
+                    ? "text-paper-cool"
+                    : "text-ink-soft hover:text-ink hover:bg-paper-warm/60"
+                }`}
+              >
+                <Icon size={18} strokeWidth={1.5} />
+                <span className="font-sans text-[12px] tracking-wide font-medium">
+                  {k.label}
+                </span>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Center content — fixed, doesn't rotate */}
+      <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-12 pointer-events-none">
+        <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted mb-2">
+          Make a
+        </p>
+        <h3 className="font-serif italic text-[40px] leading-none text-ink mb-3">
+          {active.label}
+        </h3>
+        <p className="text-xs text-muted leading-relaxed max-w-[170px]">
+          {active.oneliner}
+        </p>
+      </div>
+    </div>
+  );
+}
+
 export default function Studio() {
-  const [kind, setKind] = useState("lesson_plan");
+  const [kind, setKind] = useState(DEFAULT_KIND);
   const [prompt, setPrompt] = useState("");
   const [busy, setBusy] = useState(false);
   const [streamingText, setStreamingText] = useState("");
@@ -34,6 +167,28 @@ export default function Studio() {
   const [saving, setSaving] = useState(false);
   const [savedDraftId, setSavedDraftId] = useState(null);
   const abortRef = useRef(null);
+
+  const onPickKind = (next) => {
+    setKind(next);
+    // If the prompt is still the previous kind's sample (or empty), nudge
+    // it to the new kind's sample so the user has something to start from.
+    const previous = KINDS.find((k) => k.sample === prompt);
+    if (!prompt.trim() || previous) {
+      const found = KINDS.find((k) => k.value === next);
+      if (found) setPrompt(found.sample);
+    }
+  };
+
+  const reset = () => {
+    abortRef.current?.abort();
+    setKind(DEFAULT_KIND);
+    setPrompt("");
+    setBusy(false);
+    setStreamingText("");
+    setResult(null);
+    setError(null);
+    setSavedDraftId(null);
+  };
 
   // Consume the SSE stream from /api/studio/generate. Each `delta` event
   // appends to `streamingText` so the UI re-renders as tokens arrive; the
@@ -54,8 +209,6 @@ export default function Studio() {
         signal: abortRef.current.signal,
       });
 
-      // Pre-stream errors (flag off, missing API key, validation) come back
-      // as JSON 4xx — surface them the same way as before.
       if (!res.ok) {
         let data = null;
         try { data = await res.json(); } catch { /* ignore */ }
@@ -72,8 +225,6 @@ export default function Studio() {
         if (done) break;
         buffer += decoder.decode(value, { stream: true });
 
-        // SSE events are separated by a blank line ("\n\n"). The trailing
-        // chunk may be partial — keep it in `buffer` for the next read.
         const events = buffer.split("\n\n");
         buffer = events.pop() || "";
 
@@ -114,14 +265,10 @@ export default function Studio() {
     setTimeout(() => setCopied(false), 1500);
   };
 
-  // For lesson plans, offer one-click save into a real draft so the teacher
-  // can refine in the EditDraft editor.
   const saveAsDraft = async () => {
     if (!result?.text) return;
     setSaving(true);
     try {
-      // Quick parse: first H1/H2 line becomes the name, the rest goes into
-      // main_activity. The teacher refines the structure in EditDraft.
       const lines = result.text.split(/\r?\n/);
       const titleLine = lines.find((l) => /^#{1,2}\s+/.test(l)) || "Untitled lesson";
       const name = titleLine.replace(/^#+\s*/, "").trim().slice(0, 120);
@@ -146,6 +293,8 @@ export default function Studio() {
     }
   };
 
+  const active = KINDS.find((k) => k.value === kind);
+
   return (
     <div>
       <div className="mb-8">
@@ -156,64 +305,65 @@ export default function Studio() {
           AI <em className="italic font-light text-accent">studio</em>
         </h2>
         <p className="text-muted mt-2 max-w-2xl">
-          Tell Mudir what you need. It writes a first draft you can refine in the matching section.
+          Pick what to make on the wheel, write a one-line brief, and Mudir drafts it.
           Powered by Claude Haiku 4.5 — gated by the <span className="font-mono text-ink">ai_studio</span> feature flag.
         </p>
       </div>
 
       <Card>
         <CardContent className="p-6">
-          <div className="flex flex-col md:flex-row gap-3 mb-4">
-            <div className="md:w-56">
-              <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-2">What to make</p>
-              <select
-                className={selectClasses}
-                value={kind}
-                onChange={(e) => {
-                  setKind(e.target.value);
-                  const found = KINDS.find((k) => k.value === e.target.value);
-                  if (found && !prompt) setPrompt(found.sample);
-                }}
-              >
-                {KINDS.map((k) => <option key={k.value} value={k.value}>{k.label}</option>)}
-              </select>
-            </div>
-            <div className="flex-1">
-              <div className="flex items-center justify-between mb-2">
-                <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted">Prompt</p>
-                <button
-                  onClick={() => {
-                    const found = KINDS.find((k) => k.value === kind);
-                    if (found) setPrompt(found.sample);
-                  }}
-                  className="font-mono text-[10px] uppercase tracking-wider text-accent hover:text-ink"
-                >
-                  Use sample
-                </button>
-              </div>
-              <textarea
-                rows={3}
-                value={prompt}
-                onChange={(e) => setPrompt(e.target.value)}
-                placeholder={KINDS.find((k) => k.value === kind)?.sample}
-                className="w-full rounded-md border border-line bg-paper focus:border-ink focus:outline-none px-3 py-2.5 text-sm"
-              />
-            </div>
-          </div>
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mt-4">
-            <p className="font-mono text-[10px] uppercase tracking-wider text-muted">
-              Haiku 4.5 · streaming
+          {/* Wheel header — eyebrow on the left, RESET on the right */}
+          <div className="flex items-center justify-between mb-4">
+            <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted inline-flex items-center gap-2.5">
+              <span className="w-6 h-px bg-accent" /> What to make
             </p>
-            <div className="flex items-center gap-2">
-              {busy && (
-                <Button variant="secondary" onClick={cancel} className="text-xs px-3 py-1.5">
-                  <X size={13} className="mr-1.5" /> Cancel
+            <button
+              type="button"
+              onClick={reset}
+              className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted hover:text-accent inline-flex items-center gap-1.5 transition"
+            >
+              <RotateCcw size={11} /> Reset
+            </button>
+          </div>
+
+          <StudioWheel value={kind} onChange={onPickKind} />
+
+          {/* Prompt + Generate */}
+          <div className="mt-8 max-w-2xl mx-auto">
+            <div className="flex items-center justify-between mb-2">
+              <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted">
+                Brief for the {active?.label?.toLowerCase()}
+              </p>
+              <button
+                type="button"
+                onClick={() => setPrompt(active?.sample || "")}
+                className="font-mono text-[10px] uppercase tracking-wider text-accent hover:text-ink"
+              >
+                Use sample
+              </button>
+            </div>
+            <textarea
+              rows={3}
+              value={prompt}
+              onChange={(e) => setPrompt(e.target.value)}
+              placeholder={active?.sample}
+              className="w-full rounded-md border border-line bg-paper focus:border-ink focus:outline-none px-3 py-2.5 text-sm"
+            />
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mt-4">
+              <p className="font-mono text-[10px] uppercase tracking-wider text-muted">
+                Haiku 4.5 · streaming
+              </p>
+              <div className="flex items-center gap-2">
+                {busy && (
+                  <Button variant="secondary" onClick={cancel} className="text-xs px-3 py-1.5">
+                    <X size={13} className="mr-1.5" /> Cancel
+                  </Button>
+                )}
+                <Button onClick={generate} disabled={busy || !prompt.trim()}>
+                  <Sparkles size={14} className="mr-2" />
+                  {busy ? "Generating…" : "Generate"}
                 </Button>
-              )}
-              <Button onClick={generate} disabled={busy || !prompt.trim()}>
-                <Sparkles size={14} className="mr-2" />
-                {busy ? "Generating…" : "Generate"}
-              </Button>
+              </div>
             </div>
           </div>
         </CardContent>

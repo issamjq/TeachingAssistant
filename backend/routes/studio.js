@@ -100,6 +100,20 @@ FEEDBACK — produce per-student paragraphs in this shape:
   ## <Student name>
   One paragraph. Lead with a specific strength, then a specific area to improve, then a concrete suggested next step. Avoid vague praise like "great job".
 
+SCHEDULE — produce a week or term plan:
+  ## Title
+  Class · grade · weeks covered
+
+  ## Weekly plan
+  Day-by-day for one representative week. For each day:
+  - **Monday**: subject, lesson title, key activity, ~minutes
+  - **Tuesday**: …
+  Use only the days the teacher actually teaches; don't invent extra days.
+
+  ## Pacing notes
+  2–4 bullets: prerequisites, sequencing rationale, room/equipment requirements,
+  and any handoff to colleagues if relevant.
+
 If the teacher's prompt is missing key context (subject, grade, duration), make a reasonable assumption and STATE IT in italics in one short line just under the title (e.g. *Assumed Grade 7, 45 minutes — adjust as needed.*). Don't pepper the body with caveats.
 
 If the teacher's prompt is unsafe, off-topic, or asks you to write something a teacher shouldn't deliver to students, refuse briefly and suggest a constructive alternative.`;
@@ -126,7 +140,7 @@ router.post("/generate", async (req, res) => {
       return res.status(400).json({ error: "Prompt is required" });
     }
     const allowedKinds = new Set([
-      "lesson_plan", "quiz", "homework", "activity", "presentation", "feedback",
+      "lesson_plan", "quiz", "homework", "activity", "presentation", "feedback", "schedule",
     ]);
     const k = allowedKinds.has(kind) ? kind : "lesson_plan";
 
