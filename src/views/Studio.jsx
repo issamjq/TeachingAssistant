@@ -3,6 +3,7 @@ import { setNavGuard } from "../lib/route";
 import {
   Sparkles, FileText, ClipboardList, GraduationCap,
   Layers, Users, Calendar, Save, Copy, Check, X, RotateCcw, FileDown,
+  ChevronRight, ChevronLeft,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -162,6 +163,10 @@ function StudioWheel({ value, onChange }) {
 export default function Studio() {
   const [kind, setKind] = useState(DEFAULT_KIND);
   const [prompt, setPrompt] = useState("");
+  // Two-step flow inside the picker. 1 = pick the activity on the wheel,
+  // 2 = write the brief and Generate. Flips between the two with a 3D
+  // card-flip animation defined in index.css.
+  const [step, setStep] = useState(1);
   const [busy, setBusy] = useState(false);
   const [streamingText, setStreamingText] = useState("");
   const [result, setResult] = useState(null);
@@ -173,9 +178,6 @@ export default function Studio() {
   const [copied, setCopied] = useState(false);
   const [saving, setSaving] = useState(false);
   const [savedDraftId, setSavedDraftId] = useState(null);
-  // {id, ts} — bumped each time the user clicks a section in the live
-  // preview. The matching StudioCard reads this and pops into edit mode.
-  const [editTrigger, setEditTrigger] = useState(null);
   const abortRef = useRef(null);
   // One AbortController per regenerating section, keyed by section id, so
   // each card can be cancelled independently.
@@ -201,6 +203,7 @@ export default function Studio() {
     setResult(null);
     setError(null);
     setSavedDraftId(null);
+    setStep(1);
   };
 
   // Consume the SSE stream from /api/studio/generate. Each `delta` event
@@ -325,18 +328,10 @@ export default function Studio() {
     setSections([]);
     setSavedDraftId(null);
     setError(null);
+    setStep(1);
   };
 
   // --- per-section editing -------------------------------------------------
-
-  // Click a section in the live preview → scroll the matching card on the
-  // left into view AND open it in edit mode. The Date.now() in the trigger
-  // makes it fire even if the user re-clicks the same section.
-  const openSectionForEdit = (id) => {
-    const el = document.getElementById(`studio-card-${id}`);
-    if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
-    setEditTrigger({ id, ts: Date.now() });
-  };
 
   const setSectionMarkdown = (id, markdown) => {
     setSections((prev) => prev.map((s) => (s.id === id ? { ...s, markdown } : s)));
@@ -500,11 +495,17 @@ export default function Studio() {
       </div>
 
       {showPicker && (
+      <div className="studio-popup-frame max-w-3xl mx-auto">
       <Card>
-        <CardContent className="p-4">
-          {/* Wheel header — label on the left, Reset on the right */}
-          <div className="flex items-center justify-between mb-3">
-            <p className="text-sm text-ink-soft">What to make</p>
+        <CardContent className="p-5">
+          {/* Step indicator + reset */}
+          <div className="flex items-center justify-between mb-4">
+            <p className="text-sm text-ink-soft">
+              Step <span className="text-ink font-medium">{step}</span> of 2 —
+              <span className="text-muted ml-1.5">
+                {step === 1 ? "Pick what to make" : "Brief Mudir"}
+              </span>
+            </p>
             <button
               type="button"
               onClick={reset}
@@ -514,41 +515,78 @@ export default function Studio() {
             </button>
           </div>
 
-          {/* Wheel left, brief on the right — fits on a single screen so the
-              teacher doesn't have to scroll between picking and writing. */}
-          <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-8 lg:gap-12 items-center">
-            <StudioWheel value={kind} onChange={onPickKind} />
-
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-sm text-ink-soft">
-                  Brief for the {active?.label?.toLowerCase()}
-                </p>
-                <button
-                  type="button"
-                  onClick={() => setPrompt(active?.sample || "")}
-                  className="text-xs text-accent hover:text-ink"
-                >
-                  Use sample
-                </button>
+          {/* 3D card-flip container. Both faces are absolutely positioned
+              and share the same min-height so the rotateY swap doesn't
+              jump in size. */}
+          <div className="studio-flip-container">
+            <div
+              className={`studio-flip-card ${step === 2 ? "is-flipped" : ""}`}
+              style={{ minHeight: 460 }}
+            >
+              {/* Step 1 — wheel */}
+              <div className="studio-flip-side studio-flip-front">
+                <div className="flex flex-col items-center">
+                  <StudioWheel value={kind} onChange={onPickKind} />
+                  <div className="mt-5 flex items-center gap-3">
+                    <p className="text-xs text-muted">
+                      Picked <span className="text-ink font-medium">{active?.label}</span>
+                    </p>
+                    <Button
+                      onClick={() => setStep(2)}
+                      className="hover:scale-[1.02] active:scale-[0.99] transition-transform"
+                    >
+                      Next step <ChevronRight size={14} className="ml-1.5" />
+                    </Button>
+                  </div>
+                </div>
               </div>
-              <textarea
-                rows={5}
-                value={prompt}
-                onChange={(e) => setPrompt(e.target.value)}
-                placeholder={active?.sample}
-                className="w-full rounded-md border border-line bg-paper focus:border-ink focus:outline-none px-3 py-2.5 text-sm resize-none"
-              />
-              <div className="flex justify-end mt-3">
-                <Button onClick={generate} disabled={!prompt.trim()}>
-                  <Sparkles size={14} className="mr-2" />
-                  Generate
-                </Button>
+
+              {/* Step 2 — brief */}
+              <div className="studio-flip-side studio-flip-back">
+                <div className="max-w-xl mx-auto h-full flex flex-col justify-center">
+                  <div className="mb-3 flex items-baseline justify-between gap-3">
+                    <p className="text-sm text-ink-soft">
+                      For the <span className="text-ink font-medium">{active?.label}</span>
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setPrompt(active?.sample || "")}
+                      className="text-xs text-accent hover:text-ink"
+                    >
+                      Use sample
+                    </button>
+                  </div>
+                  <textarea
+                    rows={6}
+                    value={prompt}
+                    onChange={(e) => setPrompt(e.target.value)}
+                    placeholder={active?.sample}
+                    className="w-full rounded-md border border-line bg-paper focus:border-ink focus:outline-none px-3 py-2.5 text-sm resize-none"
+                  />
+                  <div className="flex items-center justify-between mt-4">
+                    <Button
+                      variant="secondary"
+                      onClick={() => setStep(1)}
+                      className="hover:scale-[1.02] active:scale-[0.99] transition-transform"
+                    >
+                      <ChevronLeft size={14} className="mr-1.5" /> Back
+                    </Button>
+                    <Button
+                      onClick={generate}
+                      disabled={!prompt.trim()}
+                      className="hover:scale-[1.02] active:scale-[0.99] transition-transform"
+                    >
+                      <Sparkles size={14} className="mr-2" />
+                      Generate
+                    </Button>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
         </CardContent>
       </Card>
+      </div>
       )}
 
       {error && (
@@ -564,6 +602,7 @@ export default function Studio() {
       )}
 
       {(busy || streamingText || result) && (
+      <div className="studio-popup-frame max-w-3xl mx-auto">
         <Card className="studio-result-card">
           <CardContent className="p-5">
             {/* Print-only view — only this block survives the print dialog,
@@ -626,68 +665,38 @@ export default function Studio() {
                 )}
               </div>
             </div>
-            {/* Split pane: editable section cards on the left, live preview
-                on the right. While the initial generation is still streaming,
-                the cards aren't built yet — show the streaming markdown in
-                the preview pane only and a placeholder on the left. */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 min-h-[420px] print:hidden">
-              {/* Left: section cards */}
-              <div className="space-y-3 min-w-0">
-                <p className="text-sm text-ink-soft mb-1">Sections</p>
-                {sections.length === 0 ? (
-                  <Card>
-                    <CardContent className="p-5 text-sm text-muted">
-                      {busy
-                        ? "Cards will appear here once the first draft finishes streaming. You can edit and regenerate each part independently."
-                        : "Nothing to edit yet."}
-                    </CardContent>
-                  </Card>
-                ) : (
-                  sections.map((s) => (
-                    // Wrapping div carries the scroll target — clicking the
-                    // matching block in the live preview scrolls here.
-                    <div key={s.id} id={`studio-card-${s.id}`} className="scroll-mt-4">
-                      <StudioCard
-                        section={s}
-                        editTrigger={editTrigger}
-                        onSave={(md) => setSectionMarkdown(s.id, md)}
-                        onRegenerate={(hint) => regenerateSection(s.id, hint)}
-                        onCancelRegenerate={() => cancelRegenerate(s.id)}
-                        onRemove={() => removeSection(s.id)}
-                      />
-                    </div>
-                  ))
-                )}
-              </div>
-
-              {/* Right: live preview — always renders the latest joined
-                  markdown (sections > streaming text). Sticks while the user
-                  scrolls through long card lists on the left. */}
-              <div className="min-w-0">
-                <p className="text-sm text-ink-soft mb-1">Live preview</p>
-                <div className="bg-paper border border-line rounded-xl p-6 lg:sticky lg:top-4 max-h-[70vh] overflow-y-auto">
-                  {sections.length === 0 ? (
-                    <pre className="whitespace-pre-wrap text-sm text-ink leading-relaxed font-sans">
-                      {streamingText}
-                      {busy && <span className="inline-block w-1.5 h-4 bg-accent ml-0.5 animate-pulse align-text-bottom" />}
-                    </pre>
-                  ) : (
-                    // Each section in the preview is its own clickable block —
-                    // tap it to jump to the matching card on the left and
-                    // open it in edit mode.
-                    sections.map((s) => (
-                      <div
-                        key={s.id}
-                        onClick={() => openSectionForEdit(s.id)}
-                        title="Click to edit this section"
-                        className="cursor-pointer rounded-md -mx-2 px-2 py-0.5 transition hover:bg-paper-warm/60 hover:ring-1 hover:ring-line/70"
-                      >
-                        {renderMarkdown(s.streamingMarkdown != null ? s.streamingMarkdown : s.markdown)}
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
+            {/* Editable section cards, full width. Live preview removed
+                per the redesign — each card is the canonical view of its
+                own section. While the initial draft is still streaming,
+                show the streaming markdown as a single placeholder block
+                until the structured sections are parsed. */}
+            <div className="space-y-3 min-h-[280px] max-w-2xl mx-auto print:hidden">
+              {sections.length === 0 ? (
+                <Card>
+                  <CardContent className="p-5">
+                    {busy ? (
+                      <pre className="whitespace-pre-wrap text-sm text-ink-soft leading-relaxed font-sans">
+                        {streamingText}
+                        <span className="inline-block w-1.5 h-4 bg-accent ml-0.5 animate-pulse align-text-bottom" />
+                      </pre>
+                    ) : (
+                      <p className="text-sm text-muted">Nothing to edit yet.</p>
+                    )}
+                  </CardContent>
+                </Card>
+              ) : (
+                sections.map((s) => (
+                  <div key={s.id} id={`studio-card-${s.id}`} className="scroll-mt-4">
+                    <StudioCard
+                      section={s}
+                      onSave={(md) => setSectionMarkdown(s.id, md)}
+                      onRegenerate={(hint) => regenerateSection(s.id, hint)}
+                      onCancelRegenerate={() => cancelRegenerate(s.id)}
+                      onRemove={() => removeSection(s.id)}
+                    />
+                  </div>
+                ))
+              )}
             </div>
 
             {result && (
@@ -705,6 +714,7 @@ export default function Studio() {
             )}
           </CardContent>
         </Card>
+      </div>
       )}
     </div>
   );
