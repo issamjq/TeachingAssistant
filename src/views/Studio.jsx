@@ -347,37 +347,40 @@ export default function Studio() {
             </button>
           </div>
 
-          <StudioWheel value={kind} onChange={onPickKind} />
+          {/* Wheel left, brief on the right — fits on a single screen so the
+              teacher doesn't have to scroll between picking and writing. */}
+          <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-8 lg:gap-12 items-center">
+            <StudioWheel value={kind} onChange={onPickKind} />
 
-          {/* Prompt + Generate */}
-          <div className="mt-8 max-w-2xl mx-auto">
-            <div className="flex items-center justify-between mb-2">
-              <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted">
-                Brief for the {active?.label?.toLowerCase()}
-              </p>
-              <button
-                type="button"
-                onClick={() => setPrompt(active?.sample || "")}
-                className="font-mono text-[10px] uppercase tracking-wider text-accent hover:text-ink"
-              >
-                Use sample
-              </button>
-            </div>
-            <textarea
-              rows={3}
-              value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
-              placeholder={active?.sample}
-              className="w-full rounded-md border border-line bg-paper focus:border-ink focus:outline-none px-3 py-2.5 text-sm"
-            />
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mt-4">
-              <p className="font-mono text-[10px] uppercase tracking-wider text-muted">
-                Haiku 4.5 · streaming
-              </p>
-              <Button onClick={generate} disabled={!prompt.trim()}>
-                <Sparkles size={14} className="mr-2" />
-                Generate
-              </Button>
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted">
+                  Brief for the {active?.label?.toLowerCase()}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setPrompt(active?.sample || "")}
+                  className="font-mono text-[10px] uppercase tracking-wider text-accent hover:text-ink"
+                >
+                  Use sample
+                </button>
+              </div>
+              <textarea
+                rows={6}
+                value={prompt}
+                onChange={(e) => setPrompt(e.target.value)}
+                placeholder={active?.sample}
+                className="w-full rounded-md border border-line bg-paper focus:border-ink focus:outline-none px-3 py-2.5 text-sm resize-none"
+              />
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mt-4">
+                <p className="font-mono text-[10px] uppercase tracking-wider text-muted">
+                  Haiku 4.5 · streaming
+                </p>
+                <Button onClick={generate} disabled={!prompt.trim()}>
+                  <Sparkles size={14} className="mr-2" />
+                  Generate
+                </Button>
+              </div>
             </div>
           </div>
         </CardContent>
