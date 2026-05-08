@@ -20,9 +20,22 @@
 
 /* When the user uses the browser's "Save as PDF" / Print, drop the
    viewport-locking layout that the studio uses on screen so the report
-   flows down a printed page instead of being clipped. */
+   flows down a printed page instead of being clipped. Also neutralize
+   the cream paper aesthetic — printers want white background to save ink,
+   and shadows / coloured borders look weird on paper. */
 @media print {
-  html, body, #root { height: auto !important; overflow: visible !important; }
+  html, body, #root { height: auto !important; overflow: visible !important; background: #fff !important; }
   .h-screen { height: auto !important; }
-  .overflow-hidden, .overflow-y-auto { overflow: visible !important; }
+  .overflow-hidden, .overflow-y-auto { overflow: visible !important; max-height: none !important; }
+  .bg-paper, .bg-paper-cool, .bg-paper-warm { background: transparent !important; }
+  * { box-shadow: none !important; }
+  /* Strip the visual chrome on the outermost result card during print so
+     the rendered markdown sits on plain white paper. Inner card borders
+     (the per-section cards on the left) are already hidden via print:hidden
+     so only the print-only content block is visible. */
+  .studio-result-card, .studio-result-card > * {
+    border: 0 !important;
+    padding: 0 !important;
+    background: transparent !important;
+  }
 }

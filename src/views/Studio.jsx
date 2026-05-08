@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { setNavGuard } from "../lib/route";
 import {
   Sparkles, FileText, ClipboardList, GraduationCap,
-  Layers, Users, Calendar, Save, Copy, Check, X, RotateCcw,
+  Layers, Users, Calendar, Save, Copy, Check, X, RotateCcw, FileDown,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -440,6 +440,12 @@ export default function Studio() {
   // Always derive from sections so manual edits + regenerations flow through.
   const fullText = () => (sections.length ? joinSections(sections) : streamingText);
 
+  // Browser print → "Save as PDF" in the print dialog. The @media print
+  // rules in index.css plus the studio-result-card / print:hidden classes
+  // strip every bit of UI chrome and render only the joined markdown on
+  // a clean white page.
+  const exportPdf = () => window.print();
+
   const copyToClipboard = async () => {
     const text = fullText();
     if (!text) return;
@@ -558,9 +564,17 @@ export default function Studio() {
       )}
 
       {(busy || streamingText || result) && (
-        <Card>
+        <Card className="studio-result-card">
           <CardContent className="p-5">
-            <div className="flex items-center justify-between mb-4 gap-3">
+            {/* Print-only view — only this block survives the print dialog,
+                everything else inside the card is print:hidden. Renders the
+                joined current document on a clean white page. */}
+            <div className="hidden print:block">
+              {sections.length > 0
+                ? renderMarkdown(joinSections(sections))
+                : <pre className="whitespace-pre-wrap font-sans">{streamingText}</pre>}
+            </div>
+            <div className="flex items-center justify-between mb-4 gap-3 print:hidden">
               <div className="min-w-0">
                 <p className="text-xs text-muted mb-1">
                   {busy ? "Generating…" : "Generated"}
@@ -576,6 +590,15 @@ export default function Studio() {
                   </Button>
                 ) : (
                   <>
+                    <Button
+                      variant="secondary"
+                      onClick={exportPdf}
+                      disabled={!result}
+                      className="text-xs px-3 py-1.5"
+                      title="Open the print dialog and choose Save as PDF"
+                    >
+                      <FileDown size={13} className="mr-1.5" /> Export PDF
+                    </Button>
                     <Button
                       variant="secondary"
                       onClick={copyToClipboard}
@@ -607,7 +630,7 @@ export default function Studio() {
                 on the right. While the initial generation is still streaming,
                 the cards aren't built yet — show the streaming markdown in
                 the preview pane only and a placeholder on the left. */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 min-h-[420px]">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 min-h-[420px] print:hidden">
               {/* Left: section cards */}
               <div className="space-y-3 min-w-0">
                 <p className="text-sm text-ink-soft mb-1">Sections</p>
@@ -668,7 +691,7 @@ export default function Studio() {
             </div>
 
             {result && (
-              <div className="mt-4 flex flex-wrap gap-4 text-xs text-muted">
+              <div className="mt-4 flex flex-wrap gap-4 text-xs text-muted print:hidden">
                 <span>{result.usage.input_tokens} input tokens</span>
                 <span>{result.usage.output_tokens} output tokens</span>
                 {result.usage.cache_read_input_tokens > 0 && (

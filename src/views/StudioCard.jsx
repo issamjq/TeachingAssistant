@@ -77,13 +77,12 @@ export default function StudioCard({ section, editTrigger, onSave, onRegenerate,
 
   // --- inline edit ----------------------------------------------------------
   if (editing) {
-    // Native check for the platform-appropriate save modifier — Cmd on Mac,
-    // Ctrl on Windows / Linux. Plain Enter stays a newline so multi-line
-    // lists / paragraphs still work; the on-screen hint tells the teacher
-    // the shortcut.
-    const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad|iPod/i.test(navigator.platform);
+    // Compose-style shortcuts (Gmail / Twitter convention):
+    //   Enter           → Save
+    //   Shift + Enter   → newline (so multi-line markdown still works)
+    //   Esc             → Cancel
     const onKey = (e) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+      if (e.key === "Enter" && !e.shiftKey) {
         e.preventDefault();
         commitEdit();
       } else if (e.key === "Escape") {
@@ -117,7 +116,7 @@ export default function StudioCard({ section, editTrigger, onSave, onRegenerate,
               </Button>
             </div>
             <p className="text-[10px] text-muted">
-              {isMac ? "⌘ + Enter" : "Ctrl + Enter"} to save · Esc to cancel
+              Enter to save · Shift + Enter for newline · Esc to cancel
             </p>
           </div>
         </CardContent>
