@@ -77,6 +77,20 @@ export default function StudioCard({ section, editTrigger, onSave, onRegenerate,
 
   // --- inline edit ----------------------------------------------------------
   if (editing) {
+    // Native check for the platform-appropriate save modifier — Cmd on Mac,
+    // Ctrl on Windows / Linux. Plain Enter stays a newline so multi-line
+    // lists / paragraphs still work; the on-screen hint tells the teacher
+    // the shortcut.
+    const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad|iPod/i.test(navigator.platform);
+    const onKey = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+        e.preventDefault();
+        commitEdit();
+      } else if (e.key === "Escape") {
+        e.preventDefault();
+        setEditing(false);
+      }
+    };
     return (
       <Card>
         <CardContent className="p-4">
@@ -89,15 +103,22 @@ export default function StudioCard({ section, editTrigger, onSave, onRegenerate,
             rows={Math.max(6, draft.split("\n").length + 1)}
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={onKey}
+            autoFocus
             className={`${inputClasses} font-mono text-[12px] leading-relaxed`}
           />
-          <div className="flex items-center gap-2 mt-3">
-            <Button onClick={commitEdit} className="text-xs px-3 py-1.5">
-              <Check size={13} className="mr-1.5" /> Save
-            </Button>
-            <Button variant="secondary" onClick={() => setEditing(false)} className="text-xs px-3 py-1.5">
-              Cancel
-            </Button>
+          <div className="flex items-center justify-between gap-2 mt-3">
+            <div className="flex items-center gap-2">
+              <Button onClick={commitEdit} className="text-xs px-3 py-1.5">
+                <Check size={13} className="mr-1.5" /> Save
+              </Button>
+              <Button variant="secondary" onClick={() => setEditing(false)} className="text-xs px-3 py-1.5">
+                Cancel
+              </Button>
+            </div>
+            <p className="text-[10px] text-muted">
+              {isMac ? "⌘ + Enter" : "Ctrl + Enter"} to save · Esc to cancel
+            </p>
           </div>
         </CardContent>
       </Card>
