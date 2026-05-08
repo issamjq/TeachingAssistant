@@ -61,7 +61,7 @@ function StudioWheel({ value, onChange }) {
         preserveAspectRatio="xMidYMid meet"
       >
         <path
-          d={wedgePath({ halfWidthDeg: SEGMENT_DEG / 2 - 1, innerR: 26, outerR: 47 })}
+          d={wedgePath({ halfWidthDeg: SEGMENT_DEG / 2 - 1, innerR: 26, outerR: 43 })}
           fill="var(--color-accent)"
         />
         {/* Faint dotted radial dividers between segments */}
@@ -72,8 +72,8 @@ function StudioWheel({ value, onChange }) {
               key={i}
               x1={Math.cos(a) * 26}
               y1={Math.sin(a) * 26}
-              x2={Math.cos(a) * 47}
-              y2={Math.sin(a) * 47}
+              x2={Math.cos(a) * 43}
+              y2={Math.sin(a) * 43}
               stroke="var(--color-line)"
               strokeWidth="0.3"
               strokeDasharray="0.6 0.6"
@@ -86,13 +86,15 @@ function StudioWheel({ value, onChange }) {
       {/* Inner cream disc — the "stage" where the active kind name sits */}
       <div className="absolute inset-[26%] rounded-full bg-paper-warm border border-line/70" />
 
-      {/* Down-arrow indicator above the active wedge (fixed; doesn't rotate) */}
+      {/* Down-arrow indicator above the active wedge — sits in the cream
+          ring between the wedge top and the wheel boundary, with a clear
+          gap so it doesn't touch the highlighted segment. */}
       <svg
         className="absolute left-1/2 -translate-x-1/2 text-accent"
-        style={{ top: "1.5%" }}
-        width="14" height="10" viewBox="0 0 14 10" fill="currentColor"
+        style={{ top: "3.5%" }}
+        width="16" height="11" viewBox="0 0 16 11" fill="currentColor"
       >
-        <path d="M7 10 L0 0 L14 0 Z" />
+        <path d="M8 11 L0 0 L16 0 Z" />
       </svg>
 
       {/* Rotating layer with labels. Cubic-bezier with a touch of overshoot
