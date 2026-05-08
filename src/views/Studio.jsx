@@ -174,6 +174,9 @@ export default function Studio() {
   const [copied, setCopied] = useState(false);
   const [saving, setSaving] = useState(false);
   const [savedDraftId, setSavedDraftId] = useState(null);
+  // {id, ts} — bumped each time the user clicks a section in the live
+  // preview. The matching StudioCard reads this and pops into edit mode.
+  const [editTrigger, setEditTrigger] = useState(null);
   const abortRef = useRef(null);
   // One AbortController per regenerating section, keyed by section id, so
   // each card can be cancelled independently.
@@ -294,6 +297,15 @@ export default function Studio() {
   };
 
   // --- per-section editing -------------------------------------------------
+
+  // Click a section in the live preview → scroll the matching card on the
+  // left into view AND open it in edit mode. The Date.now() in the trigger
+  // makes it fire even if the user re-clicks the same section.
+  const openSectionForEdit = (id) => {
+    const el = document.getElementById(`studio-card-${id}`);
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+    setEditTrigger({ id, ts: Date.now() });
+  };
 
   const setSectionMarkdown = (id, markdown) => {
     setSections((prev) => prev.map((s) => (s.id === id ? { ...s, markdown } : s)));
@@ -589,14 +601,18 @@ export default function Studio() {
                   </Card>
                 ) : (
                   sections.map((s) => (
-                    <StudioCard
-                      key={s.id}
-                      section={s}
-                      onSave={(md) => setSectionMarkdown(s.id, md)}
-                      onRegenerate={(hint) => regenerateSection(s.id, hint)}
-                      onCancelRegenerate={() => cancelRegenerate(s.id)}
-                      onRemove={() => removeSection(s.id)}
-                    />
+                    // Wrapping div carries the scroll target — clicking the
+                    // matching block in the live preview scrolls here.
+                    <div key={s.id} id={`studio-card-${s.id}`} className="scroll-mt-4">
+                      <StudioCard
+                        section={s}
+                        editTrigger={editTrigger}
+                        onSave={(md) => setSectionMarkdown(s.id, md)}
+                        onRegenerate={(hint) => regenerateSection(s.id, hint)}
+                        onCancelRegenerate={() => cancelRegenerate(s.id)}
+                        onRemove={() => removeSection(s.id)}
+                      />
+                    </div>
                   ))
                 )}
               </div>
@@ -615,7 +631,19 @@ export default function Studio() {
                       {busy && <span className="inline-block w-1.5 h-4 bg-accent ml-0.5 animate-pulse align-text-bottom" />}
                     </pre>
                   ) : (
-                    renderMarkdown(joinSections(sections))
+                    // Each section in the preview is its own clickable block —
+                    // tap it to jump to the matching card on the left and
+                    // open it in edit mode.
+                    sections.map((s) => (
+                      <div
+                        key={s.id}
+                        onClick={() => openSectionForEdit(s.id)}
+                        title="Click to edit this section"
+                        className="cursor-pointer rounded-md -mx-2 px-2 py-0.5 transition hover:bg-paper-warm/60 hover:ring-1 hover:ring-line/70"
+                      >
+                        {renderMarkdown(s.streamingMarkdown != null ? s.streamingMarkdown : s.markdown)}
+                      </div>
+                    ))
                   )}
                 </div>
               </div>

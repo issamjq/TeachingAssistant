@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Pencil, Sparkles, X, Check, Trash2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -12,11 +12,25 @@ import { inputClasses } from "./_shared";
 //
 // During an active regeneration we render `streamingMarkdown` instead of
 // the persisted markdown, with a blinking cursor at the tail.
-export default function StudioCard({ section, onSave, onRegenerate, onCancelRegenerate, onRemove }) {
+//
+// `editTrigger` is a `{id, ts}` object the parent updates when the user
+// clicks the corresponding section in the live preview. The ts changes on
+// every click so re-clicking the same section re-fires the effect.
+export default function StudioCard({ section, editTrigger, onSave, onRegenerate, onCancelRegenerate, onRemove }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(section.markdown);
   const [hintOpen, setHintOpen] = useState(false);
   const [hint, setHint] = useState("");
+
+  // Open in edit mode when the parent fires a trigger for this section.
+  // Skip if the section is currently regenerating — that UI takes priority.
+  useEffect(() => {
+    if (!editTrigger || editTrigger.id !== section.id) return;
+    if (section.regenerating) return;
+    setDraft(section.markdown);
+    setEditing(true);
+    setHintOpen(false);
+  }, [editTrigger]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const beginEdit = () => {
     setDraft(section.markdown);
