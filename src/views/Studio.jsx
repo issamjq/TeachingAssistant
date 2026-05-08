@@ -1,4 +1,5 @@
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
+import { setNavGuard } from "../lib/route";
 import {
   Sparkles, FileText, ClipboardList, GraduationCap,
   Layers, Users, Calendar, Save, Copy, Check, X, RotateCcw,
@@ -278,6 +279,38 @@ export default function Studio() {
   };
 
   const cancel = () => abortRef.current?.abort();
+
+  // Warn before the user discards an in-flight or freshly-generated draft.
+  // Two layers:
+  //   1. setNavGuard — intercepts in-app navigation (sidebar, breadcrumbs,
+  //      avatar, the X-to-landing button) so a click on Dashboard or Class
+  //      roster prompts before swapping views.
+  //   2. beforeunload — covers the cases the in-app guard can't reach:
+  //      browser refresh, closing the tab, typing a new URL, browser back.
+  // Both clear automatically once there's nothing unsaved (Make another or
+  // a successful Save as draft).
+  useEffect(() => {
+    const hasUnsaved = busy || !!streamingText || !!result || sections.length > 0;
+    if (!hasUnsaved) return;
+
+    const cleanupGuard = setNavGuard(() =>
+      window.confirm(
+        "You have an AI generation in progress or unsaved. Leave the Studio anyway?"
+      )
+    );
+    const onBeforeUnload = (e) => {
+      e.preventDefault();
+      // Modern browsers ignore the message string and show their own copy,
+      // but setting returnValue is still required to trigger the prompt.
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+
+    return () => {
+      cleanupGuard();
+      window.removeEventListener("beforeunload", onBeforeUnload);
+    };
+  }, [busy, streamingText, result, sections.length]);
 
   // "Make another" — return to the wheel without throwing away the prompt /
   // selected kind so the user can tweak and regenerate quickly.

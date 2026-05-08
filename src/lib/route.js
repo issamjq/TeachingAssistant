@@ -22,6 +22,21 @@ import { useEffect, useState } from "react";
 
 const EVT = "mudir:routechange";
 
+// Pluggable navigation guard. A view that has unsaved state can register a
+// function via setNavGuard(); on every navigate / replace / clearRoute call
+// the guard runs first, and if it returns false (e.g. the user said
+// "Cancel" in a confirm dialog) the navigation is aborted. Only one guard
+// is active at a time — the registering view should call the returned
+// cleanup function on unmount or when its unsaved state clears.
+let _guard = null;
+export function setNavGuard(guard) {
+  _guard = guard;
+  return () => {
+    if (_guard === guard) _guard = null;
+  };
+}
+const allowed = () => (_guard ? _guard() !== false : true);
+
 export const parseHash = (hash) => {
   const m = hash.match(/^#\/?(.*)$/);
   if (!m || !m[1]) return null;
@@ -46,6 +61,7 @@ const fire = () => window.dispatchEvent(new Event(EVT));
 export const replace = (parts) => {
   const next = pathFor(parts);
   if (window.location.hash === next) return;
+  if (!allowed()) return;
   window.history.replaceState(null, "", next || window.location.pathname + window.location.search);
   fire();
 };
@@ -55,6 +71,7 @@ export const replace = (parts) => {
 export const navigate = (parts) => {
   const next = pathFor(parts);
   if (window.location.hash === next) return;
+  if (!allowed()) return;
   window.history.pushState(null, "", next || window.location.pathname + window.location.search);
   fire();
 };
@@ -62,6 +79,7 @@ export const navigate = (parts) => {
 // Clears the hash entirely — used to return to the landing page from the studio.
 export const clearRoute = () => {
   if (!window.location.hash) return;
+  if (!allowed()) return;
   window.history.pushState(null, "", window.location.pathname + window.location.search);
   fire();
 };
