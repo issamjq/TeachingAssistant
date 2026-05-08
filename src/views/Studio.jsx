@@ -50,7 +50,7 @@ function StudioWheel({ value, onChange }) {
   const active = KINDS[idx];
 
   return (
-    <div className="relative w-full max-w-[440px] mx-auto aspect-square select-none">
+    <div className="relative w-full max-w-[360px] mx-auto aspect-square select-none">
       {/* Outer ring */}
       <div className="absolute inset-0 rounded-full bg-paper-cool border border-line shadow-[inset_0_2px_8px_rgba(0,0,0,0.04)]" />
 
@@ -451,18 +451,18 @@ export default function Studio() {
 
   return (
     <div>
-      <div className="mb-5">
-        <h2 className="font-serif text-4xl font-medium text-ink leading-none">
+      <div className="mb-3">
+        <h2 className="font-serif text-3xl font-medium text-ink leading-none">
           AI <em className="italic font-light text-accent">studio</em>
         </h2>
-        <p className="text-sm text-muted mt-2">
+        <p className="text-sm text-muted mt-1.5">
           Pick what to make on the wheel, write a one-line brief, and Mudir drafts it.
         </p>
       </div>
 
       {showPicker && (
       <Card>
-        <CardContent className="p-5">
+        <CardContent className="p-4">
           {/* Wheel header — label on the left, Reset on the right */}
           <div className="flex items-center justify-between mb-3">
             <p className="text-sm text-ink-soft">What to make</p>
@@ -494,16 +494,13 @@ export default function Studio() {
                 </button>
               </div>
               <textarea
-                rows={6}
+                rows={5}
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
                 placeholder={active?.sample}
                 className="w-full rounded-md border border-line bg-paper focus:border-ink focus:outline-none px-3 py-2.5 text-sm resize-none"
               />
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mt-4">
-                <p className="text-xs text-muted">
-                  Claude Haiku 4.5 · streaming
-                </p>
+              <div className="flex justify-end mt-3">
                 <Button onClick={generate} disabled={!prompt.trim()}>
                   <Sparkles size={14} className="mr-2" />
                   Generate
