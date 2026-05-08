@@ -140,12 +140,11 @@ router.post("/generate", async (req, res) => {
 
     const client = new Anthropic();
 
-    // Haiku 4.5 — 5× cheaper than Opus, and lesson plans / quizzes / homework
-    // are well-structured tasks where the system prompt does most of the
-    // lifting. No adaptive thinking (Haiku doesn't benefit much for this
-    // shape, and `effort` would error on Haiku 4.5 anyway).
-    // The cache_control marker is left on the system block so the prefix
-    // caches once the prompt grows past the 4096-token Haiku minimum.
+    // Stream Anthropic deltas to the browser as SSE. The browser renders
+    // tokens as they arrive — same wall-clock time as the old buffered path,
+    // but the user sees progress in ~1–2s instead of staring at a 12s
+    // spinner. The final SSE event carries `usage` + `stop_reason` so the
+    // frontend can show the same token-cost strip we had before.
     const stream = client.messages.stream({
       model: "claude-haiku-4-5",
       max_tokens: 4096,
@@ -156,23 +155,41 @@ router.post("/generate", async (req, res) => {
       messages: [{ role: "user", content: userMessage }],
     });
 
-    const message = await stream.finalMessage();
-    const text = message.content
-      .filter((b) => b.type === "text")
-      .map((b) => b.text)
-      .join("\n");
+    res.setHeader("Content-Type", "text/event-stream; charset=utf-8");
+    res.setHeader("Cache-Control", "no-cache, no-transform");
+    res.setHeader("Connection", "keep-alive");
+    // Hint for proxies (nginx etc.) to forward chunks without buffering.
+    res.setHeader("X-Accel-Buffering", "no");
+    res.flushHeaders?.();
 
-    res.json({
-      text,
-      kind: k,
-      stop_reason: message.stop_reason,
-      usage: {
-        input_tokens: message.usage.input_tokens,
-        output_tokens: message.usage.output_tokens,
-        cache_read_input_tokens: message.usage.cache_read_input_tokens ?? 0,
-        cache_creation_input_tokens: message.usage.cache_creation_input_tokens ?? 0,
-      },
-    });
+    const send = (event) => res.write(`data: ${JSON.stringify(event)}\n\n`);
+
+    // If the client disconnects mid-stream, abort the upstream Anthropic call
+    // so we stop paying for output tokens nobody will read.
+    req.on("close", () => stream.abort?.());
+
+    try {
+      for await (const ev of stream) {
+        if (ev.type === "content_block_delta" && ev.delta.type === "text_delta") {
+          send({ type: "delta", text: ev.delta.text });
+        }
+      }
+      const message = await stream.finalMessage();
+      send({
+        type: "done",
+        kind: k,
+        stop_reason: message.stop_reason,
+        usage: {
+          input_tokens: message.usage.input_tokens,
+          output_tokens: message.usage.output_tokens,
+          cache_read_input_tokens: message.usage.cache_read_input_tokens ?? 0,
+          cache_creation_input_tokens: message.usage.cache_creation_input_tokens ?? 0,
+        },
+      });
+    } catch (e) {
+      send({ type: "error", message: e.message });
+    }
+    res.end();
   } catch (err) {
     handleErr(res, "POST /api/studio/generate", err);
   }
