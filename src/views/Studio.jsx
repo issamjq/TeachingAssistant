@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { setNavGuard } from "../lib/route";
+import { setNavGuard, navigate } from "../lib/route";
 import {
   Sparkles, FileText, ClipboardList, GraduationCap,
   Layers, Users, Calendar, Save, Copy, Check, X, RotateCcw, FileDown,
@@ -283,6 +283,26 @@ export default function Studio() {
 
   const cancel = () => abortRef.current?.abort();
 
+  // Studio is a real overlay popup — backdrop click, X button, and Esc all
+  // route to the dashboard (which goes through the nav guard, so unsaved
+  // work prompts before discarding).
+  const onClose = () => navigate(["dashboard"]);
+
+  useEffect(() => {
+    const onEsc = (e) => {
+      if (e.key === "Escape") {
+        // Don't hijack Esc when an editable card is open — that field
+        // already uses Esc to cancel its own edit. We only react when the
+        // event target isn't an input/textarea inside the popup.
+        const tag = e.target?.tagName;
+        if (tag === "TEXTAREA" || tag === "INPUT") return;
+        onClose();
+      }
+    };
+    window.addEventListener("keydown", onEsc);
+    return () => window.removeEventListener("keydown", onEsc);
+  }, []);
+
   // Warn before the user discards an in-flight or freshly-generated draft.
   // Two layers:
   //   1. setNavGuard — intercepts in-app navigation (sidebar, breadcrumbs,
@@ -484,18 +504,34 @@ export default function Studio() {
   const showPicker = !busy && !streamingText && !result;
 
   return (
-    <div>
-      <div className="mb-3">
-        <h2 className="font-serif text-3xl font-medium text-ink leading-none">
-          AI <em className="italic font-light text-accent">studio</em>
-        </h2>
-        <p className="text-sm text-muted mt-1.5">
-          Pick what to make on the wheel, write a one-line brief, and Mudir drafts it.
-        </p>
-      </div>
+    <div className="fixed inset-0 z-50 flex items-start md:items-center justify-center p-3 md:p-6 print:static print:p-0">
+      {/* Backdrop — click to close (nav-guard intercepts if unsaved). */}
+      <div
+        className="absolute inset-0 bg-ink/30 backdrop-blur-sm print:hidden"
+        onClick={onClose}
+      />
+
+      {/* Centered popup panel */}
+      <div className="relative bg-paper-cool border border-line rounded-2xl shadow-2xl w-full max-w-3xl max-h-[94vh] overflow-y-auto studio-popup-frame print:max-h-none print:max-w-none print:rounded-none print:shadow-none print:border-0">
+        <button
+          onClick={onClose}
+          title="Close (Esc)"
+          className="absolute top-3 right-3 z-10 h-8 w-8 rounded-md border border-line bg-paper-cool hover:bg-paper-warm hover:border-ink flex items-center justify-center text-ink-soft transition print:hidden"
+        >
+          <X size={15} />
+        </button>
+
+        <div className="p-5 md:p-6">
+          <div className="mb-3 pr-10">
+            <h2 className="font-serif text-3xl font-medium text-ink leading-none">
+              AI <em className="italic font-light text-accent">studio</em>
+            </h2>
+            <p className="text-sm text-muted mt-1.5">
+              Pick what to make on the wheel, write a one-line brief, and Mudir drafts it.
+            </p>
+          </div>
 
       {showPicker && (
-      <div className="studio-popup-frame max-w-3xl mx-auto">
       <Card>
         <CardContent className="p-5">
           {/* Step indicator + reset */}
@@ -586,7 +622,6 @@ export default function Studio() {
           </div>
         </CardContent>
       </Card>
-      </div>
       )}
 
       {error && (
@@ -602,8 +637,7 @@ export default function Studio() {
       )}
 
       {(busy || streamingText || result) && (
-      <div className="studio-popup-frame max-w-3xl mx-auto">
-        <Card className="studio-result-card">
+        <Card className="studio-result-card mt-4">
           <CardContent className="p-5">
             {/* Print-only view — only this block survives the print dialog,
                 everything else inside the card is print:hidden. Renders the
@@ -714,8 +748,9 @@ export default function Studio() {
             )}
           </CardContent>
         </Card>
-      </div>
       )}
+        </div>
+      </div>
     </div>
   );
 }
