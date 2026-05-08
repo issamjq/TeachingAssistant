@@ -6,6 +6,8 @@ import {
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { api } from "./_shared";
+import { parseSections, joinSections, renderMarkdown } from "../lib/markdown";
+import StudioCard from "./StudioCard";
 
 // Same base URL the rest of the app uses (Vercel rewrites /api → Render in
 // prod; same-origin in dev via the Vite middleware).
@@ -162,11 +164,18 @@ export default function Studio() {
   const [busy, setBusy] = useState(false);
   const [streamingText, setStreamingText] = useState("");
   const [result, setResult] = useState(null);
+  // Sections are the editable per-card breakdown of the result. They start
+  // as the parsed structure of streamingText and are then mutated as the
+  // user edits or regenerates individual cards.
+  const [sections, setSections] = useState([]);
   const [error, setError] = useState(null);
   const [copied, setCopied] = useState(false);
   const [saving, setSaving] = useState(false);
   const [savedDraftId, setSavedDraftId] = useState(null);
   const abortRef = useRef(null);
+  // One AbortController per regenerating section, keyed by section id, so
+  // each card can be cancelled independently.
+  const regenAbortsRef = useRef(new Map());
 
   const onPickKind = (next) => {
     setKind(next);
@@ -244,6 +253,8 @@ export default function Studio() {
               stop_reason: payload.stop_reason,
               usage: payload.usage,
             });
+            // Parse the final text into editable section cards.
+            setSections(parseSections(acc, payload.kind));
           } else if (payload.type === "error") {
             throw new Error(payload.message);
           }
@@ -255,6 +266,7 @@ export default function Studio() {
         // and the user sees the error banner above it.
         setStreamingText("");
         setResult(null);
+        setSections([]);
         setError(e.message);
       }
     } finally {
@@ -268,25 +280,135 @@ export default function Studio() {
   // selected kind so the user can tweak and regenerate quickly.
   const makeAnother = () => {
     abortRef.current?.abort();
+    // Cancel any in-flight section regenerations too.
+    regenAbortsRef.current.forEach((c) => c.abort?.());
+    regenAbortsRef.current.clear();
     setBusy(false);
     setStreamingText("");
     setResult(null);
+    setSections([]);
     setSavedDraftId(null);
     setError(null);
   };
 
+  // --- per-section editing -------------------------------------------------
+
+  const setSectionMarkdown = (id, markdown) => {
+    setSections((prev) => prev.map((s) => (s.id === id ? { ...s, markdown } : s)));
+  };
+
+  const removeSection = (id) => {
+    setSections((prev) => prev.filter((s) => s.id !== id));
+  };
+
+  const cancelRegenerate = (id) => {
+    const ctrl = regenAbortsRef.current.get(id);
+    ctrl?.abort?.();
+    regenAbortsRef.current.delete(id);
+    setSections((prev) =>
+      prev.map((s) => (s.id === id ? { ...s, regenerating: false, streamingMarkdown: null } : s))
+    );
+  };
+
+  // Stream a fresh replacement for a single section. Updates the card's
+  // streamingMarkdown live as deltas arrive, then commits to markdown when
+  // the stream completes.
+  const regenerateSection = async (id, hint) => {
+    const target = sections.find((s) => s.id === id);
+    if (!target) return;
+
+    const ctrl = new AbortController();
+    regenAbortsRef.current.set(id, ctrl);
+    setSections((prev) =>
+      prev.map((s) => (s.id === id ? { ...s, regenerating: true, streamingMarkdown: "" } : s))
+    );
+
+    try {
+      const fullDocument = sections.map((s) => s.markdown).join("\n\n");
+      const res = await fetch(API_BASE + "/api/studio/regenerate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          kind: result?.kind || kind,
+          fullDocument,
+          sectionMarkdown: target.markdown,
+          hint: hint || null,
+        }),
+        signal: ctrl.signal,
+      });
+
+      if (!res.ok) {
+        let data = null;
+        try { data = await res.json(); } catch { /* ignore */ }
+        throw new Error(data?.error || `HTTP ${res.status}`);
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let acc = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const events = buffer.split("\n\n");
+        buffer = events.pop() || "";
+        for (const evt of events) {
+          const dataLine = evt.split("\n").find((l) => l.startsWith("data: "));
+          if (!dataLine) continue;
+          let payload;
+          try { payload = JSON.parse(dataLine.slice(6)); } catch { continue; }
+
+          if (payload.type === "delta") {
+            acc += payload.text;
+            // Update streaming markdown so live preview tracks the new text.
+            setSections((prev) =>
+              prev.map((s) => (s.id === id ? { ...s, streamingMarkdown: acc } : s))
+            );
+          } else if (payload.type === "done") {
+            setSections((prev) =>
+              prev.map((s) =>
+                s.id === id
+                  ? { ...s, markdown: acc.trim(), streamingMarkdown: null, regenerating: false }
+                  : s
+              )
+            );
+          } else if (payload.type === "error") {
+            throw new Error(payload.message);
+          }
+        }
+      }
+    } catch (e) {
+      if (e.name !== "AbortError") {
+        // Roll back to the previous content; show a top-level error banner.
+        setError(`Could not regenerate "${target.title}": ${e.message}`);
+      }
+      setSections((prev) =>
+        prev.map((s) => (s.id === id ? { ...s, regenerating: false, streamingMarkdown: null } : s))
+      );
+    } finally {
+      regenAbortsRef.current.delete(id);
+    }
+  };
+
+  // Always derive from sections so manual edits + regenerations flow through.
+  const fullText = () => (sections.length ? joinSections(sections) : streamingText);
+
   const copyToClipboard = async () => {
-    if (!result?.text) return;
-    await navigator.clipboard.writeText(result.text);
+    const text = fullText();
+    if (!text) return;
+    await navigator.clipboard.writeText(text);
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
   };
 
   const saveAsDraft = async () => {
-    if (!result?.text) return;
+    const text = fullText();
+    if (!text) return;
     setSaving(true);
     try {
-      const lines = result.text.split(/\r?\n/);
+      const lines = text.split(/\r?\n/);
       const titleLine = lines.find((l) => /^#{1,2}\s+/.test(l)) || "Untitled lesson";
       const name = titleLine.replace(/^#+\s*/, "").trim().slice(0, 120);
       const draft = await api("/api/drafts", {
@@ -297,7 +419,7 @@ export default function Studio() {
           status: "In progress",
           progress: 50,
           note: "Generated by AI Studio. Refine below.",
-          main_activity: result.text,
+          main_activity: text,
           objectives: [],
           materials: [],
         },
@@ -445,12 +567,60 @@ export default function Studio() {
                 )}
               </div>
             </div>
-            <pre className="whitespace-pre-wrap text-sm text-ink leading-relaxed font-sans bg-paper border border-line rounded-lg p-5 max-h-[600px] overflow-y-auto">
-              {result?.text ?? streamingText}
-              {busy && <span className="inline-block w-1.5 h-4 bg-accent ml-0.5 animate-pulse align-text-bottom" />}
-            </pre>
+            {/* Split pane: editable section cards on the left, live preview
+                on the right. While the initial generation is still streaming,
+                the cards aren't built yet — show the streaming markdown in
+                the preview pane only and a placeholder on the left. */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 min-h-[420px]">
+              {/* Left: section cards */}
+              <div className="space-y-3 min-w-0">
+                <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-1 inline-flex items-center gap-2">
+                  <span className="w-6 h-px bg-accent" /> Sections
+                </p>
+                {sections.length === 0 ? (
+                  <Card>
+                    <CardContent className="p-5 text-sm text-muted">
+                      {busy
+                        ? "Cards will appear here once the first draft finishes streaming. You can edit and regenerate each part independently."
+                        : "Nothing to edit yet."}
+                    </CardContent>
+                  </Card>
+                ) : (
+                  sections.map((s) => (
+                    <StudioCard
+                      key={s.id}
+                      section={s}
+                      onSave={(md) => setSectionMarkdown(s.id, md)}
+                      onRegenerate={(hint) => regenerateSection(s.id, hint)}
+                      onCancelRegenerate={() => cancelRegenerate(s.id)}
+                      onRemove={() => removeSection(s.id)}
+                    />
+                  ))
+                )}
+              </div>
+
+              {/* Right: live preview — always renders the latest joined
+                  markdown (sections > streaming text). Sticks while the user
+                  scrolls through long card lists on the left. */}
+              <div className="min-w-0">
+                <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-1 inline-flex items-center gap-2">
+                  <span className="w-6 h-px bg-accent" /> Live preview
+                </p>
+                <div className="bg-paper border border-line rounded-xl p-6 lg:sticky lg:top-4 max-h-[70vh] overflow-y-auto">
+                  {sections.length === 0 ? (
+                    <pre className="whitespace-pre-wrap text-sm text-ink leading-relaxed font-sans">
+                      {streamingText}
+                      {busy && <span className="inline-block w-1.5 h-4 bg-accent ml-0.5 animate-pulse align-text-bottom" />}
+                    </pre>
+                  ) : (
+                    renderMarkdown(joinSections(sections))
+                  )}
+                </div>
+              </div>
+            </div>
+
             {result && (
-              <div className="mt-3 flex flex-wrap gap-4 font-mono text-[10px] uppercase tracking-wider text-muted">
+              <div className="mt-4 flex flex-wrap gap-4 font-mono text-[10px] uppercase tracking-wider text-muted">
                 <span>{result.usage.input_tokens} input tokens</span>
                 <span>{result.usage.output_tokens} output tokens</span>
                 {result.usage.cache_read_input_tokens > 0 && (

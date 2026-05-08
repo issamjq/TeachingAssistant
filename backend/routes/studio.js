@@ -209,4 +209,91 @@ router.post("/generate", async (req, res) => {
   }
 });
 
+// POST /api/studio/regenerate — replace a single section of an existing
+// document. The frontend sends the full document for context and the exact
+// markdown of the section it wants replaced. The model returns ONLY the new
+// block in the same shape (heading level, numbering, etc.) so the frontend
+// can swap it in without re-parsing the world.
+router.post("/regenerate", async (req, res) => {
+  try {
+    const flag = await pool.query(
+      "SELECT enabled FROM feature_flags WHERE key = 'ai_studio'"
+    );
+    if (!flag.rows[0]?.enabled) {
+      return res.status(403).json({
+        error: "AI Studio is disabled. Toggle the ai_studio feature flag in the Dev console first.",
+      });
+    }
+    if (!process.env.ANTHROPIC_API_KEY) {
+      return res.status(500).json({
+        error: "ANTHROPIC_API_KEY isn't configured on the server.",
+      });
+    }
+
+    const { kind, fullDocument, sectionMarkdown, hint } = req.body || {};
+    if (!kind || !fullDocument || !sectionMarkdown) {
+      return res.status(400).json({ error: "kind, fullDocument and sectionMarkdown are required" });
+    }
+
+    const client = new Anthropic();
+
+    const userMessage =
+      `KIND: ${String(kind).toUpperCase()}\n\n` +
+      `FULL DOCUMENT (for context — do not return any of this back):\n` +
+      `"""${fullDocument}"""\n\n` +
+      `SECTION TO REPLACE (verbatim — same shape and heading level should come back):\n` +
+      `"""${sectionMarkdown}"""\n\n` +
+      `TASK: Generate a fresh replacement for the section above. ` +
+      (hint && String(hint).trim()
+        ? `Guidance from the teacher: ${String(hint).trim()}\n\n`
+        : `Keep the same purpose and shape, but vary the wording, examples, or specifics.\n\n`) +
+      `Output ONLY the new replacement markdown for that section. ` +
+      `Match the exact format: same heading level (## or none), same numbering if it's a numbered item, ` +
+      `same internal structure. Do not include any other section, no preamble, no explanation.`;
+
+    const stream = client.messages.stream({
+      model: "claude-haiku-4-5",
+      max_tokens: 2048,
+      thinking: { type: "disabled" },
+      system: [
+        { type: "text", text: SYSTEM_PROMPT, cache_control: { type: "ephemeral" } },
+      ],
+      messages: [{ role: "user", content: userMessage }],
+    });
+
+    res.setHeader("Content-Type", "text/event-stream; charset=utf-8");
+    res.setHeader("Cache-Control", "no-cache, no-transform");
+    res.setHeader("Connection", "keep-alive");
+    res.setHeader("X-Accel-Buffering", "no");
+    res.flushHeaders?.();
+
+    const send = (event) => res.write(`data: ${JSON.stringify(event)}\n\n`);
+    req.on("close", () => stream.abort?.());
+
+    try {
+      for await (const ev of stream) {
+        if (ev.type === "content_block_delta" && ev.delta.type === "text_delta") {
+          send({ type: "delta", text: ev.delta.text });
+        }
+      }
+      const message = await stream.finalMessage();
+      send({
+        type: "done",
+        stop_reason: message.stop_reason,
+        usage: {
+          input_tokens: message.usage.input_tokens,
+          output_tokens: message.usage.output_tokens,
+          cache_read_input_tokens: message.usage.cache_read_input_tokens ?? 0,
+          cache_creation_input_tokens: message.usage.cache_creation_input_tokens ?? 0,
+        },
+      });
+    } catch (e) {
+      send({ type: "error", message: e.message });
+    }
+    res.end();
+  } catch (err) {
+    handleErr(res, "POST /api/studio/regenerate", err);
+  }
+});
+
 export default router;
