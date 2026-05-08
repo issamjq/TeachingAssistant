@@ -146,10 +146,8 @@ function StudioWheel({ value, onChange }) {
 
       {/* Center content — fixed, doesn't rotate */}
       <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-12 pointer-events-none">
-        <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted mb-2">
-          Make a
-        </p>
-        <h3 className="font-serif italic text-[40px] leading-none text-ink mb-3">
+        <p className="text-xs text-muted mb-1.5">Make a</p>
+        <h3 className="text-3xl font-semibold text-ink leading-none mb-2.5 tracking-tight">
           {active.label}
         </h3>
         <p className="text-xs text-muted leading-relaxed max-w-[170px]">
@@ -453,31 +451,25 @@ export default function Studio() {
 
   return (
     <div>
-      <div className="mb-8">
-        <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-2 inline-flex items-center gap-2.5">
-          <span className="w-6 h-px bg-accent" /> Studio
-        </p>
-        <h2 className="font-serif text-4xl font-medium text-ink">
+      <div className="mb-5">
+        <h2 className="font-serif text-4xl font-medium text-ink leading-none">
           AI <em className="italic font-light text-accent">studio</em>
         </h2>
-        <p className="text-muted mt-2 max-w-2xl">
+        <p className="text-sm text-muted mt-2">
           Pick what to make on the wheel, write a one-line brief, and Mudir drafts it.
-          Powered by Claude Haiku 4.5 — gated by the <span className="font-mono text-ink">ai_studio</span> feature flag.
         </p>
       </div>
 
       {showPicker && (
       <Card>
-        <CardContent className="p-6">
-          {/* Wheel header — eyebrow on the left, RESET on the right */}
-          <div className="flex items-center justify-between mb-4">
-            <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted inline-flex items-center gap-2.5">
-              <span className="w-6 h-px bg-accent" /> What to make
-            </p>
+        <CardContent className="p-5">
+          {/* Wheel header — label on the left, Reset on the right */}
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-sm text-ink-soft">What to make</p>
             <button
               type="button"
               onClick={reset}
-              className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted hover:text-accent inline-flex items-center gap-1.5 transition"
+              className="text-xs text-muted hover:text-accent inline-flex items-center gap-1.5 transition"
             >
               <RotateCcw size={11} /> Reset
             </button>
@@ -490,13 +482,13 @@ export default function Studio() {
 
             <div>
               <div className="flex items-center justify-between mb-2">
-                <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted">
+                <p className="text-sm text-ink-soft">
                   Brief for the {active?.label?.toLowerCase()}
                 </p>
                 <button
                   type="button"
                   onClick={() => setPrompt(active?.sample || "")}
-                  className="font-mono text-[10px] uppercase tracking-wider text-accent hover:text-ink"
+                  className="text-xs text-accent hover:text-ink"
                 >
                   Use sample
                 </button>
@@ -509,8 +501,8 @@ export default function Studio() {
                 className="w-full rounded-md border border-line bg-paper focus:border-ink focus:outline-none px-3 py-2.5 text-sm resize-none"
               />
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mt-4">
-                <p className="font-mono text-[10px] uppercase tracking-wider text-muted">
-                  Haiku 4.5 · streaming
+                <p className="text-xs text-muted">
+                  Claude Haiku 4.5 · streaming
                 </p>
                 <Button onClick={generate} disabled={!prompt.trim()}>
                   <Sparkles size={14} className="mr-2" />
@@ -524,12 +516,12 @@ export default function Studio() {
       )}
 
       {error && (
-        <div className="mt-6 bg-paper border border-accent rounded-lg p-4">
-          <p className="font-mono text-[10px] uppercase tracking-wider text-accent mb-1">Could not generate</p>
+        <div className="mt-5 bg-paper border border-accent rounded-lg p-4">
+          <p className="text-sm font-medium text-accent mb-1">Could not generate</p>
           <p className="text-sm text-ink-soft">{error}</p>
           {error.includes("ai_studio") && (
             <p className="text-xs text-muted mt-2">
-              Open Dev console (switch role from Account) → Feature flags → flip <span className="font-mono text-ink">ai_studio</span> to On.
+              Open Dev console (switch role from Account) → Feature flags → flip <span className="text-ink">ai_studio</span> to On.
             </p>
           )}
         </div>
@@ -537,13 +529,13 @@ export default function Studio() {
 
       {(busy || streamingText || result) && (
         <Card>
-          <CardContent className="p-6">
+          <CardContent className="p-5">
             <div className="flex items-center justify-between mb-4 gap-3">
               <div className="min-w-0">
-                <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-1">
+                <p className="text-xs text-muted mb-1">
                   {busy ? "Generating…" : "Generated"}
                 </p>
-                <p className="font-serif text-xl text-ink truncate">
+                <p className="text-xl font-semibold text-ink truncate">
                   {KINDS.find((k) => k.value === (result?.kind ?? kind))?.label}
                 </p>
               </div>
@@ -588,9 +580,7 @@ export default function Studio() {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 min-h-[420px]">
               {/* Left: section cards */}
               <div className="space-y-3 min-w-0">
-                <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-1 inline-flex items-center gap-2">
-                  <span className="w-6 h-px bg-accent" /> Sections
-                </p>
+                <p className="text-sm text-ink-soft mb-1">Sections</p>
                 {sections.length === 0 ? (
                   <Card>
                     <CardContent className="p-5 text-sm text-muted">
@@ -621,9 +611,7 @@ export default function Studio() {
                   markdown (sections > streaming text). Sticks while the user
                   scrolls through long card lists on the left. */}
               <div className="min-w-0">
-                <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-1 inline-flex items-center gap-2">
-                  <span className="w-6 h-px bg-accent" /> Live preview
-                </p>
+                <p className="text-sm text-ink-soft mb-1">Live preview</p>
                 <div className="bg-paper border border-line rounded-xl p-6 lg:sticky lg:top-4 max-h-[70vh] overflow-y-auto">
                   {sections.length === 0 ? (
                     <pre className="whitespace-pre-wrap text-sm text-ink leading-relaxed font-sans">
@@ -650,7 +638,7 @@ export default function Studio() {
             </div>
 
             {result && (
-              <div className="mt-4 flex flex-wrap gap-4 font-mono text-[10px] uppercase tracking-wider text-muted">
+              <div className="mt-4 flex flex-wrap gap-4 text-xs text-muted">
                 <span>{result.usage.input_tokens} input tokens</span>
                 <span>{result.usage.output_tokens} output tokens</span>
                 {result.usage.cache_read_input_tokens > 0 && (

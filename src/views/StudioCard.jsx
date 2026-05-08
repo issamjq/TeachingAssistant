@@ -55,7 +55,7 @@ export default function StudioCard({ section, editTrigger, onSave, onRegenerate,
       <Card className="border-accent">
         <CardContent className="p-4">
           <div className="flex items-center justify-between mb-2 gap-2">
-            <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent inline-flex items-center gap-2">
+            <p className="text-xs text-accent inline-flex items-center gap-2">
               <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" /> Regenerating · {section.title}
             </p>
             <button
@@ -81,7 +81,7 @@ export default function StudioCard({ section, editTrigger, onSave, onRegenerate,
       <Card>
         <CardContent className="p-4">
           <div className="flex items-center justify-between mb-2">
-            <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted">
+            <p className="text-xs text-muted">
               Editing · {section.title}
             </p>
           </div>
@@ -109,7 +109,7 @@ export default function StudioCard({ section, editTrigger, onSave, onRegenerate,
     return (
       <Card className="border-accent">
         <CardContent className="p-4">
-          <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-2">
+          <p className="text-xs text-muted mb-2">
             Regenerate · {section.title}
           </p>
           <input
@@ -138,7 +138,7 @@ export default function StudioCard({ section, editTrigger, onSave, onRegenerate,
     <Card className="hover:border-ink/40 transition-colors">
       <CardContent className="p-4">
         <div className="flex items-center justify-between mb-2 gap-2">
-          <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted truncate">
+          <p className="text-xs text-muted truncate">
             {section.title}
           </p>
           <div className="flex items-center gap-1 flex-shrink-0">

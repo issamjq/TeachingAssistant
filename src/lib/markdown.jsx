@@ -144,13 +144,15 @@ export function renderMarkdown(markdown) {
     if (m) {
       const level = m[1].length;
       const text = m[2];
+      // Studio uses Inter Tight body throughout — no serif headings, no
+      // mono-uppercase eyebrows. Only weight + size differentiates levels.
       const headingClasses = {
-        1: "font-serif text-2xl text-ink mt-6 mb-3 leading-tight",
-        2: "font-serif text-xl text-ink mt-5 mb-2 leading-tight",
-        3: "font-serif text-base font-medium text-ink mt-4 mb-1.5",
-        4: "font-mono text-[10px] uppercase tracking-[0.18em] text-muted mt-4 mb-1.5",
-        5: "font-mono text-[10px] uppercase tracking-wider text-muted mt-3 mb-1",
-        6: "font-mono text-[10px] uppercase tracking-wider text-muted mt-3 mb-1",
+        1: "text-xl font-semibold text-ink mt-5 mb-2 leading-tight",
+        2: "text-lg font-semibold text-ink mt-4 mb-1.5 leading-tight",
+        3: "text-base font-semibold text-ink mt-3 mb-1",
+        4: "text-sm font-semibold text-ink-soft mt-3 mb-1",
+        5: "text-sm font-medium text-muted mt-2 mb-0.5",
+        6: "text-sm font-medium text-muted mt-2 mb-0.5",
       }[Math.min(level, 6)];
       const Tag = `h${Math.min(level + 1, 6)}`;
       out.push(React.createElement(Tag, { key: key++, className: headingClasses }, renderInline(text, `h${key}`)));
