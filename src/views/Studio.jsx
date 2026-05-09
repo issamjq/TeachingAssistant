@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { setNavGuard, navigate } from "../lib/route";
+import { setNavGuard } from "../lib/route";
 import {
   Sparkles, FileText, ClipboardList, GraduationCap,
   Layers, Users, Calendar, Save, Copy, Check, X, RotateCcw, FileDown,
@@ -290,19 +290,12 @@ export default function Studio() {
 
   const cancel = () => abortRef.current?.abort();
 
-  // Studio is a real overlay popup — backdrop click, X button, and Esc all
-  // route to the dashboard (which goes through the nav guard, so unsaved
-  // work prompts before discarding).
-  const onClose = () => navigate(["dashboard"]);
-
   useEffect(() => {
     const onKey = (e) => {
       // Don't hijack keys when the user is typing in an input / textarea.
       const tag = e.target?.tagName;
       const inField = tag === "TEXTAREA" || tag === "INPUT";
-      if (e.key === "Escape" && !inField) {
-        onClose();
-      } else if (e.key === "ArrowLeft" && !inField && sections.length > 1) {
+      if (e.key === "ArrowLeft" && !inField && sections.length > 1) {
         setSectionIndex((i) => Math.max(0, i - 1));
       } else if (e.key === "ArrowRight" && !inField && sections.length > 1) {
         setSectionIndex((i) => Math.min(sections.length - 1, i + 1));
@@ -336,7 +329,7 @@ export default function Studio() {
 
     const cleanupGuard = setNavGuard(() =>
       window.confirm(
-        "You have an AI generation in progress or unsaved. Leave the Studio anyway?"
+        "You have an AI generation in progress or unsaved. Leave anyway?"
       )
     );
     const onBeforeUnload = (e) => {
@@ -522,34 +515,15 @@ export default function Studio() {
   const showPicker = !busy && !streamingText && !result;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start md:items-center justify-center p-3 md:p-6 print:static print:p-0">
-      {/* Backdrop — click to close (nav-guard intercepts if unsaved). */}
-      <div
-        className="absolute inset-0 bg-ink/30 backdrop-blur-sm print:hidden"
-        onClick={onClose}
-      />
-
-      {/* Centered popup panel — sized so content always fits without an
-          inner scrollbar. overflow-hidden + max-h-[92vh] is a hard cap;
-          everything inside is intentionally small enough to fit. */}
-      <div className="relative bg-paper-cool border border-line rounded-2xl shadow-2xl w-full max-w-2xl max-h-[92vh] overflow-hidden studio-popup-frame print:max-h-none print:max-w-none print:rounded-none print:shadow-none print:border-0 print:overflow-visible">
-        <button
-          onClick={onClose}
-          title="Close (Esc)"
-          className="absolute top-2.5 right-2.5 z-10 h-8 w-8 rounded-md border border-line bg-paper-cool hover:bg-paper-warm hover:border-ink flex items-center justify-center text-ink-soft transition print:hidden"
-        >
-          <X size={15} />
-        </button>
-
-        <div className="p-4 md:p-5">
-          <div className="mb-3 pr-10">
-            <h2 className="font-serif text-2xl font-medium text-ink leading-none">
-              AI <em className="italic font-light text-accent">studio</em>
-            </h2>
-            <p className="text-xs text-muted mt-1">
-              Pick what to make, write a one-line brief, Mudir drafts it.
-            </p>
-          </div>
+    <div>
+      <div className="mb-3">
+        <h2 className="font-serif text-2xl font-medium text-ink leading-none">
+          AI <em className="italic font-light text-accent">studio</em>
+        </h2>
+        <p className="text-xs text-muted mt-1">
+          Pick what to make, write a one-line brief, Mudir drafts it.
+        </p>
+      </div>
 
       {showPicker && (
       <Card>
@@ -820,8 +794,6 @@ export default function Studio() {
           </CardContent>
         </Card>
       )}
-        </div>
-      </div>
     </div>
   );
 }
