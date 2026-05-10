@@ -18,29 +18,8 @@
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
 }
 
-/* AI Studio — 3D card flip between Step 1 and Step 2.
-   The flip container holds two absolutely-positioned faces (front / back),
-   each occupying the same space; rotateY(180deg) on the inner wrapper
-   swaps which face is visible. backface-visibility hides whichever face
-   is currently rotated away from the viewer. */
-.studio-flip-container { perspective: 1400px; }
-.studio-flip-card {
-  position: relative;
-  width: 100%;
-  transition: transform 700ms cubic-bezier(0.65, 0, 0.35, 1);
-  transform-style: preserve-3d;
-}
-.studio-flip-card.is-flipped { transform: rotateY(180deg); }
-.studio-flip-side {
-  position: absolute;
-  inset: 0;
-  -webkit-backface-visibility: hidden;
-          backface-visibility: hidden;
-}
-.studio-flip-back { transform: rotateY(180deg); }
-
-/* Per-section flip-in: fires every time the visible section changes in
-   the result view (Prev / Next / dot click / arrow key). */
+/* AI Studio — per-section flip-in: fires every time the visible section
+   changes in the result view (sidebar click or ←/→ arrow key). */
 .studio-card-flip-in {
   animation: studio-card-flip-in 420ms cubic-bezier(0.4, 0, 0.2, 1) both;
   transform-origin: center center;
