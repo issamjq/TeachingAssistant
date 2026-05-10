@@ -3,7 +3,7 @@ import { setNavGuard } from "../lib/route";
 import {
   Sparkles, FileText, ClipboardList, GraduationCap,
   Layers, Users, Calendar, Save, Copy, Check, X, RotateCcw, FileDown,
-  Send, Paperclip, Plus, Wand2, RefreshCw, Zap, Shuffle, Dices,
+  Send, Paperclip, Plus, Wand2, RefreshCw, Zap, Dices, ChevronDown,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -15,41 +15,45 @@ import StudioCard from "./StudioCard";
 // prod; same-origin in dev via the Vite middleware).
 const API_BASE = (import.meta.env.VITE_API_URL || "").replace(/\/$/, "");
 
+// Each kind has its headline split into three parts so the noun-phrase can
+// be rendered as an inline-clickable element inside the Mudir sentence:
+//   "{verb} a {inlineLabel}. {suffix}"
+// e.g.  Plan  a  [schedule ▾].  Tell Mudir the timeframe.
 const KINDS = [
   {
     value: "lesson_plan",  label: "Lesson",     icon: FileText,
     oneliner: "Structured class plan",
-    headline: "Make a lesson plan. Tell Mudir what to teach.",
+    verb: "Make", inlineLabel: "lesson plan",   suffix: "Tell Mudir what to teach.",
     sample: "A 45-minute Grade 7 science lesson on photosynthesis with a hands-on starter, two activities, and a quick exit ticket.",
   },
   {
     value: "quiz",         label: "Quiz",       icon: GraduationCap,
     oneliner: "MCQ, T/F, short or essay",
-    headline: "Make a quiz. Tell Mudir what to test.",
+    verb: "Make", inlineLabel: "quiz",          suffix: "Tell Mudir what to test.",
     sample: "8-question Grade 8 algebra quiz covering linear equations — mix of MCQ and short answer, total 20 marks.",
   },
   {
     value: "homework",     label: "Homework",   icon: ClipboardList,
     oneliner: "Take-home tasks",
-    headline: "Make homework. Tell Mudir the focus.",
+    verb: "Make", inlineLabel: "homework",      suffix: "Tell Mudir the focus.",
     sample: "Reading-comprehension homework for Grade 6 English on a short story — students answer 5 questions in writing.",
   },
   {
     value: "activity",     label: "Activity",   icon: Users,
     oneliner: "Pair, group or solo task",
-    headline: "Plan an activity. Tell Mudir what learners explore.",
+    verb: "Plan", inlineLabel: "activity",      suffix: "Tell Mudir what learners explore.",
     sample: "Group activity for Grade 5 history: students roleplay a town hall debating the construction of the railway.",
   },
   {
     value: "presentation", label: "Slides",     icon: Layers,
     oneliner: "Slide-by-slide outline",
-    headline: "Make slides. Tell Mudir what to cover.",
+    verb: "Make", inlineLabel: "slide deck",    suffix: "Tell Mudir what to cover.",
     sample: "8-slide intro deck on the water cycle for Grade 4.",
   },
   {
     value: "schedule",     label: "Schedule",   icon: Calendar,
     oneliner: "Weekly or term plan",
-    headline: "Plan a schedule. Tell Mudir the timeframe.",
+    verb: "Plan", inlineLabel: "schedule",      suffix: "Tell Mudir the timeframe.",
     sample: "A weekly schedule for Grade 7 Science covering forces and motion across one week (5 days, ~50 min each).",
   },
 ];
@@ -869,39 +873,25 @@ export default function Studio() {
         </h2>
       </div>
 
-      {/* Kind picker — single button that opens the roulette popup. */}
-      <div className="mb-7">
-        {(() => {
-          const ActiveIcon = active?.icon;
-          return (
-            <button
-              key={pulseKey}
-              type="button"
-              onClick={() => setPickerOpen(true)}
-              title="Spin to change (K)"
-              className="studio-kind-pulse inline-flex items-center gap-2.5 pl-3 pr-2 py-1.5 rounded-full bg-ink text-paper-cool border border-ink shadow-sm hover:scale-[1.02] active:scale-[0.99] transition-all duration-200"
-            >
-              {ActiveIcon && <ActiveIcon size={15} strokeWidth={1.75} />}
-              <span className="text-sm font-medium">{active?.label}</span>
-              <span className="h-4 w-px bg-paper-cool/25" />
-              <span className="inline-flex items-center gap-1 pl-0.5 pr-2 text-[11px] text-paper-cool/75 font-mono uppercase tracking-wider">
-                <Shuffle size={11} />
-                Spin
-              </span>
-            </button>
-          );
-        })()}
-      </div>
-
-      {/* Mudir prompt block */}
-      <div className="flex items-start gap-3 mb-5">
+      {/* Mudir prompt block — the kind noun-phrase inside the sentence is
+          itself the picker. Teachers read the sentence, see one phrase
+          styled like a tappable mini-card with an icon + chevron, and
+          click it to swap the kind. No "spin" jargon needed. */}
+      <div className="flex items-start gap-3 mb-6">
         <div className="flex-shrink-0 h-10 w-10 rounded-md bg-ink text-paper-cool font-serif text-base font-medium flex items-center justify-center shadow-sm">
           M
         </div>
         <div className="flex-1 min-w-0 pt-0.5">
           <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-1.5">Mudir</p>
-          <p className="font-serif text-xl md:text-2xl text-ink leading-snug">
-            {active?.headline}
+          <p className="font-serif text-xl md:text-2xl text-ink leading-relaxed">
+            {active?.verb} a{" "}
+            <InlineKindPicker
+              active={active}
+              pulseKey={pulseKey}
+              onClick={() => setPickerOpen(true)}
+            />
+            {". "}
+            {active?.suffix}
           </p>
         </div>
       </div>
@@ -1047,10 +1037,10 @@ export default function Studio() {
             </button>
 
             <div className="mb-4 pr-10">
-              <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-1">Pick what to make</p>
               <h3 className="font-serif text-xl md:text-2xl font-medium text-ink leading-tight">
-                Spin the <em className="italic font-light text-accent">wheel</em>
+                What are you <em className="italic font-light text-accent">making?</em>
               </h3>
+              <p className="text-sm text-muted mt-1">Tap any option below.</p>
             </div>
 
             <StudioWheel value={kind} onChange={onPickFromWheel} />
@@ -1096,5 +1086,26 @@ function ParamChip({ children }) {
     <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-line bg-paper-cool text-[11px] text-ink-soft">
       {children}
     </span>
+  );
+}
+
+// The kind word inside the Mudir headline, rendered as a tappable mini-card.
+// Affordance is carried by the icon, the rounded paper-warm pill, and the
+// chevron — no text instructions needed.
+function InlineKindPicker({ active, pulseKey, onClick }) {
+  if (!active) return null;
+  const Icon = active.icon;
+  return (
+    <button
+      key={pulseKey}
+      type="button"
+      onClick={onClick}
+      title="Tap to choose what Mudir makes"
+      className="studio-kind-pulse group inline-flex items-center gap-1.5 px-2.5 py-1 mx-0.5 rounded-lg bg-paper-warm border border-line hover:border-accent hover:bg-paper-cool focus:outline-none focus-visible:border-accent focus-visible:ring-2 focus-visible:ring-accent/20 transition-all duration-200 align-middle whitespace-nowrap text-[0.78em] font-sans font-medium tracking-normal cursor-pointer"
+    >
+      <Icon size={13} strokeWidth={1.75} className="text-ink-soft group-hover:text-accent transition-colors duration-200" />
+      <span className="text-ink leading-none">{active.inlineLabel}</span>
+      <ChevronDown size={12} className="text-muted group-hover:text-accent transition-colors duration-200" />
+    </button>
   );
 }
