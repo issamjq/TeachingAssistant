@@ -40,3 +40,12 @@ npm install
 npm run db:init   # one-time
 npm run dev       # http://localhost:5173
 ```
+
+## Deploy policy — push without asking
+
+When a unit of work is finished, ship it. Do **not** ask for confirmation first. The deploy story is:
+
+- **`git push origin main`** → Vercel auto-deploys the frontend (static `dist/`) **and** Render auto-deploys the backend (`npm run start:backend`). One push covers both.
+- **`npm run db:init`** → applies schema / seed / `CHECK` constraints to Neon Postgres. Run this whenever `backend/db/init.js` or `src/lib/enums.js` changes. The script is idempotent — re-running it against an already-seeded DB is safe and will not duplicate rows.
+
+Carve-out: actions that **delete or rewrite live data** on Neon (`TRUNCATE`, dropping columns, destructive migrations) still need explicit confirmation. Idempotent re-init does not.
