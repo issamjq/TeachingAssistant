@@ -91,6 +91,10 @@ export default function Studio() {
   const [prompt, setPrompt] = useState("");
   const [busy, setBusy] = useState(false);
   const [streamingText, setStreamingText] = useState("");
+  // Structured-quiz path: while the model is calling submit_quiz, the
+  // backend streams raw partial-JSON chunks. We accumulate them only to
+  // estimate progress (count "position": occurrences) — never parsed.
+  const [quizPartial, setQuizPartial] = useState("");
   const [result, setResult] = useState(null);
   // Sections are the editable per-card breakdown of the result. They start
   // as the parsed structure of streamingText and are then mutated as the
@@ -178,6 +182,7 @@ export default function Studio() {
     setPrompt("");
     setBusy(false);
     setStreamingText("");
+    setQuizPartial("");
     setResult(null);
     setSections([]);
     setError(null);
@@ -185,17 +190,20 @@ export default function Studio() {
     setTweak("");
   };
 
-  // Consume the SSE stream from /api/studio/generate.
+  // Consume the SSE stream from the studio endpoint. For kind=quiz we hit
+  // the structured /api/studio/quiz path (tool-use → typed Quiz object);
+  // every other kind uses the markdown /api/studio/generate path.
   const generate = async () => {
     if (!prompt.trim()) return;
     abortRef.current?.abort();
     abortRef.current = new AbortController();
     setBusy(true); setError(null); setResult(null);
-    setStreamingText(""); setSavedDraftId(null);
+    setStreamingText(""); setQuizPartial(""); setSavedDraftId(null);
     setSections([]);
 
+    const isQuiz = kind === "quiz";
     try {
-      const res = await fetch(API_BASE + "/api/studio/generate", {
+      const res = await fetch(API_BASE + (isQuiz ? "/api/studio/quiz" : "/api/studio/generate"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ kind, prompt: prompt.trim() }),
@@ -230,15 +238,47 @@ export default function Studio() {
           if (payload.type === "delta") {
             acc += payload.text;
             setStreamingText(acc);
+          } else if (payload.type === "json_delta") {
+            // Quiz path — keep accumulating the partial JSON only as a
+            // progress signal; final structured object arrives in `done`.
+            setQuizPartial((prev) => prev + (payload.partial || ""));
           } else if (payload.type === "done") {
-            setResult({
-              text: acc,
-              kind: payload.kind,
-              stop_reason: payload.stop_reason,
-              usage: payload.usage,
-            });
-            setSections(parseSections(acc, payload.kind));
-            setSectionIndex(0);
+            if (payload.kind === "quiz" && payload.quiz) {
+              setResult({
+                kind: "quiz",
+                quiz: payload.quiz,
+                stop_reason: payload.stop_reason,
+                usage: payload.usage,
+              });
+              // Synthesize sections so the existing sidebar/right-pane
+              // chrome (active section, A·1 of N, ←→ cycle) keeps working.
+              // Section 0 is meta (title + instructions); each question is
+              // its own section after that.
+              const qSections = [
+                {
+                  id: "meta",
+                  title: payload.quiz.title || "Title",
+                  kind: "quiz_meta",
+                },
+                ...(payload.quiz.questions || []).map((q, i) => ({
+                  id: `q-${q.position ?? i + 1}`,
+                  title: `Question ${q.position ?? i + 1}`,
+                  kind: "quiz_question",
+                  question: q,
+                })),
+              ];
+              setSections(qSections);
+              setSectionIndex(0);
+            } else {
+              setResult({
+                text: acc,
+                kind: payload.kind,
+                stop_reason: payload.stop_reason,
+                usage: payload.usage,
+              });
+              setSections(parseSections(acc, payload.kind));
+              setSectionIndex(0);
+            }
           } else if (payload.type === "error") {
             throw new Error(payload.message);
           }
@@ -479,10 +519,43 @@ export default function Studio() {
   };
 
   const saveAsDraft = async () => {
-    const text = fullText();
-    if (!text) return;
     setSaving(true);
     try {
+      // Quiz path: persist as a real Quiz row + its quiz_questions in one
+      // atomic transaction. The teacher can then open it in QuizBuilder
+      // for further edits / scoring.
+      if (result?.kind === "quiz" && result.quiz) {
+        const q = result.quiz;
+        const created = await api("/api/quizzes/bulk", {
+          method: "POST",
+          body: {
+            title: q.title || "Untitled quiz",
+            subject: q.subject || null,
+            grade: q.grade || null,
+            duration_minutes: q.duration_minutes || null,
+            total_marks: q.total_marks || null,
+            instructions: q.instructions || null,
+            status: "Draft",
+            questions: (q.questions || []).map((qq, i) => ({
+              position: qq.position ?? i + 1,
+              type: qq.type,
+              prompt: qq.prompt,
+              choices: qq.choices ?? null,
+              correct_answer: qq.correct_answer ?? null,
+              marks: qq.marks ?? 1,
+            })),
+          },
+        });
+        setSavedDraftId(created.quiz.id);
+        return;
+      }
+
+      // Markdown path (lesson plan, homework, etc.) — keeps the existing
+      // drafts-table behaviour. Drafts table is structured around lesson
+      // plans; everything else still saves there until per-kind tables
+      // exist.
+      const text = fullText();
+      if (!text) return;
       const lines = text.split(/\r?\n/);
       const titleLine = lines.find((l) => /^#{1,2}\s+/.test(l)) || "Untitled lesson";
       const name = titleLine.replace(/^#+\s*/, "").trim().slice(0, 120);
@@ -661,11 +734,15 @@ export default function Studio() {
                               {s.title || `Part ${letter}`}
                             </span>
                           </span>
-                          {itemCount > 0 && (
+                          {s.kind === "quiz_question" && s.question?.marks ? (
+                            <span className="hidden md:inline-block text-[11px] text-muted font-mono">
+                              {s.question.marks}m
+                            </span>
+                          ) : itemCount > 0 ? (
                             <span className="hidden md:inline-block text-[11px] text-muted font-mono">
                               {itemCount}q
                             </span>
-                          )}
+                          ) : null}
                         </button>
                       );
                     })}
@@ -685,9 +762,13 @@ export default function Studio() {
 
               <div className="print:hidden">
                 {sections.length === 0 ? (
-                  // Pre-parse — render the streaming markdown live so the
-                  // teacher sees real headings + lists, never raw "## " or
-                  // "**" syntax.
+                  // Pre-parse — for the markdown path render the streaming
+                  // markdown live so the teacher sees real headings; for
+                  // the structured-quiz path show a structured progress
+                  // panel because the JSON tool input isn't human-readable.
+                  kind === "quiz" ? (
+                    <QuizStreamingPlaceholder partial={quizPartial} busy={busy} />
+                  ) : (
                   <div>
                     <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent mb-3 inline-flex items-center gap-2">
                       <span className="h-1.5 w-1.5 rounded-full bg-accent animate-pulse" />
@@ -706,6 +787,7 @@ export default function Studio() {
                       )}
                     </div>
                   </div>
+                  )
                 ) : (
                   <>
                     <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent mb-2">
@@ -720,47 +802,62 @@ export default function Studio() {
                     </h3>
 
                     {/* Section content — keyed so the in-animation fires
-                        on each navigation. */}
+                        on each navigation. Quiz sections render a typed
+                        question/meta card; everything else renders the
+                        existing markdown StudioCard. */}
                     <div
                       key={`${sectionIndex}-${currentSection?.id}`}
                       className="studio-card-flip-in"
                     >
                       <div className="max-h-[55vh] overflow-y-auto rounded-md">
-                        <StudioCard
-                          section={currentSection}
-                          onSave={(md) => setSectionMarkdown(currentSection.id, md)}
-                          onRegenerate={(hint) => regenerateSection(currentSection.id, hint)}
-                          onCancelRegenerate={() => cancelRegenerate(currentSection.id)}
-                          onRemove={() => removeSection(currentSection.id)}
-                        />
+                        {currentSection?.kind === "quiz_meta" ? (
+                          <QuizMetaCard quiz={result?.quiz} />
+                        ) : currentSection?.kind === "quiz_question" ? (
+                          <QuizQuestionCard
+                            question={currentSection.question}
+                            index={sectionIndex - 1}
+                          />
+                        ) : (
+                          <StudioCard
+                            section={currentSection}
+                            onSave={(md) => setSectionMarkdown(currentSection.id, md)}
+                            onRegenerate={(hint) => regenerateSection(currentSection.id, hint)}
+                            onCancelRegenerate={() => cancelRegenerate(currentSection.id)}
+                            onRemove={() => removeSection(currentSection.id)}
+                          />
+                        )}
                       </div>
                     </div>
 
-                    {/* Section action chips */}
-                    <div className="flex flex-wrap items-center gap-2 mt-5">
-                      <ActionChip
-                        onClick={makeHarder}
-                        disabled={tweakBusy}
-                        title="Bump difficulty"
-                      >
-                        <Wand2 size={13} /> Harder
-                      </ActionChip>
-                      <ActionChip
-                        onClick={() => regenerateSection(currentSection.id, null)}
-                        disabled={tweakBusy}
-                        title="Regenerate this section"
-                      >
-                        <RefreshCw size={13} className={tweakBusy ? "animate-spin" : ""} /> Regenerate
-                      </ActionChip>
-                      {tweakBusy && (
+                    {/* Section action chips — markdown path only. Editing
+                        a structured quiz happens in the QuizBuilder after
+                        save. */}
+                    {result?.kind !== "quiz" && (
+                      <div className="flex flex-wrap items-center gap-2 mt-5">
                         <ActionChip
-                          onClick={() => cancelRegenerate(currentSection.id)}
-                          title="Cancel regeneration"
+                          onClick={makeHarder}
+                          disabled={tweakBusy}
+                          title="Bump difficulty"
                         >
-                          <X size={13} /> Cancel
+                          <Wand2 size={13} /> Harder
                         </ActionChip>
-                      )}
-                    </div>
+                        <ActionChip
+                          onClick={() => regenerateSection(currentSection.id, null)}
+                          disabled={tweakBusy}
+                          title="Regenerate this section"
+                        >
+                          <RefreshCw size={13} className={tweakBusy ? "animate-spin" : ""} /> Regenerate
+                        </ActionChip>
+                        {tweakBusy && (
+                          <ActionChip
+                            onClick={() => cancelRegenerate(currentSection.id)}
+                            title="Cancel regeneration"
+                          >
+                            <X size={13} /> Cancel
+                          </ActionChip>
+                        )}
+                      </div>
+                    )}
 
                     {/* Keyboard hint — shown only when there's more than one
                         section to navigate between. */}
@@ -779,8 +876,11 @@ export default function Studio() {
         </Card>
 
         {/* Tweak input bar — sticky at the bottom of the viewport so the
-            teacher always sees it once generation starts. Frosted-glass
-            paper so content underneath stays subtly readable as you scroll. */}
+            teacher always sees it once generation starts. Hidden for
+            structured quizzes (post-save editing happens in the QuizBuilder).
+            Frosted-glass paper so content underneath stays subtly readable
+            as you scroll. */}
+        {result?.kind !== "quiz" && (
         <div className="sticky bottom-2 md:bottom-3 z-20 mt-5 print:hidden">
           <div
             className={`bg-paper-cool/95 backdrop-blur-md border rounded-2xl pl-4 pr-2 py-2 flex items-center gap-3 shadow-lg transition-all duration-200 ${
@@ -814,6 +914,7 @@ export default function Studio() {
             </Button>
           </div>
         </div>
+        )}
 
         {error && (
           <div className="mt-4 bg-paper border border-accent rounded-lg p-4 shadow-sm">
@@ -1168,5 +1269,213 @@ function KindMenu({ activeValue, cursor, onPick, onClose, onCursor }) {
         </div>
       </div>
     </>
+  );
+}
+
+// --- Quiz components -------------------------------------------------------
+//
+// Structured-quiz path. The studio's regular markdown view doesn't apply
+// here because each question has typed fields. These three components
+// render the quiz progress (while streaming), the meta/header card, and
+// each individual question.
+
+const QUIZ_TYPE_LABELS = {
+  mcq: "Multiple choice",
+  tf: "True / False",
+  short: "Short answer",
+  essay: "Essay",
+};
+
+function QuizStreamingPlaceholder({ partial, busy }) {
+  // Each question generated by the model contains a "position" key, so
+  // counting those occurrences gives a rough live count. The model writes
+  // JSON top-down, so we're underestimating until each block closes.
+  const detected = (partial.match(/"position"\s*:/g) || []).length;
+  return (
+    <div>
+      <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent mb-3 inline-flex items-center gap-2">
+        <span className="h-1.5 w-1.5 rounded-full bg-accent animate-pulse" />
+        {busy ? "Building quiz" : "Done"}
+      </p>
+      <div className="rounded-lg border border-line bg-paper-warm/40 p-5">
+        <p className="font-serif text-lg text-ink leading-snug">
+          Mudir is structuring your quiz<span className="italic text-accent">…</span>
+        </p>
+        <p className="text-sm text-muted mt-2">
+          Picking question types, writing prompts, building the answer key.
+        </p>
+        <p className="mt-4 text-[11px] font-mono uppercase tracking-[0.18em] text-muted">
+          {detected > 0
+            ? `${detected} question${detected === 1 ? "" : "s"} drafted so far`
+            : "Warming up"}
+          {busy && (
+            <span className="inline-block w-1.5 h-3 bg-accent ml-2 animate-pulse align-text-bottom" />
+          )}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function QuizMetaCard({ quiz }) {
+  if (!quiz) return null;
+  const totalQ = (quiz.questions || []).length;
+  return (
+    <div className="rounded-xl border border-line bg-paper-cool p-5 md:p-6">
+      <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-2">
+        Cover
+      </p>
+      <h4 className="font-serif text-2xl md:text-3xl font-medium text-ink leading-tight mb-3">
+        {quiz.title}
+      </h4>
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-ink-soft mb-4">
+        {quiz.subject && <span>{quiz.subject}</span>}
+        {quiz.grade && (<><span className="text-line">·</span><span>{quiz.grade}</span></>)}
+        {quiz.duration_minutes && (<><span className="text-line">·</span><span>{quiz.duration_minutes} min</span></>)}
+        <span className="text-line">·</span>
+        <span>{totalQ} question{totalQ === 1 ? "" : "s"}</span>
+        {quiz.total_marks != null && (
+          <>
+            <span className="text-line">·</span>
+            <span className="font-medium text-ink">{quiz.total_marks} marks</span>
+          </>
+        )}
+      </div>
+      {quiz.instructions && (
+        <div>
+          <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-1.5">
+            Instructions
+          </p>
+          <p className="text-sm text-ink-soft leading-relaxed">{quiz.instructions}</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function QuizQuestionCard({ question, index }) {
+  const [showAnswer, setShowAnswer] = useState(false);
+  if (!question) return null;
+  const typeLabel = QUIZ_TYPE_LABELS[question.type] || question.type;
+  const choices = Array.isArray(question.choices) ? question.choices : [];
+  const correctLetter =
+    typeof question.correct_answer === "string" && question.correct_answer.length === 1
+      ? question.correct_answer.toUpperCase()
+      : null;
+
+  return (
+    <div className="rounded-xl border border-line bg-paper-cool p-5 md:p-6">
+      <div className="flex items-center justify-between gap-3 mb-3">
+        <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted">
+          Question {question.position ?? index + 1}
+        </span>
+        <div className="flex items-center gap-2">
+          <span className="px-2 py-0.5 rounded-full border border-line bg-paper text-[11px] text-ink-soft">
+            {typeLabel}
+          </span>
+          <span className="font-mono text-[11px] text-muted">
+            {question.marks} mark{question.marks === 1 ? "" : "s"}
+          </span>
+        </div>
+      </div>
+
+      <p className="font-serif text-lg md:text-xl text-ink leading-snug mb-4 whitespace-pre-wrap">
+        {question.prompt}
+      </p>
+
+      {question.type === "mcq" && choices.length > 0 && (
+        <ol className="space-y-2 mb-4">
+          {choices.map((c, i) => {
+            const letter = String.fromCharCode(65 + i);
+            const isCorrect = showAnswer && letter === correctLetter;
+            return (
+              <li
+                key={i}
+                className={`flex items-start gap-3 px-3 py-2 rounded-lg border transition-colors duration-200 ${
+                  isCorrect
+                    ? "border-accent/50 bg-accent/[0.06]"
+                    : "border-line bg-paper"
+                }`}
+              >
+                <span className={`flex-shrink-0 h-6 w-6 rounded-md font-mono text-[11px] flex items-center justify-center ${
+                  isCorrect ? "bg-accent text-paper-cool" : "bg-paper-warm text-ink-soft"
+                }`}>
+                  {letter}
+                </span>
+                <span className="flex-1 text-sm text-ink leading-snug">{c}</span>
+                {isCorrect && <Check size={14} className="text-accent flex-shrink-0 mt-0.5" />}
+              </li>
+            );
+          })}
+        </ol>
+      )}
+
+      {question.type === "tf" && (
+        <div className="flex gap-2 mb-4">
+          {["True", "False"].map((label) => {
+            const isCorrect = showAnswer &&
+              ((label === "True" && question.correct_answer === true) ||
+               (label === "False" && question.correct_answer === false));
+            return (
+              <span
+                key={label}
+                className={`px-3 py-1.5 rounded-lg border text-sm ${
+                  isCorrect
+                    ? "border-accent bg-accent/[0.06] text-accent font-medium"
+                    : "border-line bg-paper text-ink-soft"
+                }`}
+              >
+                {label}
+                {isCorrect && <Check size={13} className="inline ml-1.5 -mt-0.5" />}
+              </span>
+            );
+          })}
+        </div>
+      )}
+
+      <div className="border-t border-line pt-3 mt-1">
+        {!showAnswer ? (
+          <button
+            type="button"
+            onClick={() => setShowAnswer(true)}
+            className="text-[11px] font-mono uppercase tracking-[0.14em] text-muted hover:text-accent transition-colors duration-200"
+          >
+            Reveal answer key
+          </button>
+        ) : (
+          <div>
+            <div className="flex items-center justify-between gap-3 mb-1.5">
+              <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent">
+                Answer key
+              </p>
+              <button
+                type="button"
+                onClick={() => setShowAnswer(false)}
+                className="text-[11px] text-muted hover:text-accent"
+              >
+                Hide
+              </button>
+            </div>
+            {question.type === "mcq" && (
+              <p className="text-sm text-ink-soft">
+                Correct answer: <span className="font-medium text-ink">{correctLetter}</span>
+              </p>
+            )}
+            {question.type === "tf" && (
+              <p className="text-sm text-ink-soft">
+                Correct answer: <span className="font-medium text-ink">{question.correct_answer ? "True" : "False"}</span>
+              </p>
+            )}
+            {(question.type === "short" || question.type === "essay") && (
+              <p className="text-sm text-ink-soft leading-relaxed whitespace-pre-wrap">
+                {typeof question.correct_answer === "string"
+                  ? question.correct_answer
+                  : JSON.stringify(question.correct_answer)}
+              </p>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
   );
 }

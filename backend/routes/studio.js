@@ -209,6 +209,171 @@ router.post("/generate", async (req, res) => {
   }
 });
 
+// ---------------------------------------------------------------------------
+// POST /api/studio/quiz — STRUCTURED quiz generation.
+//
+// The studio's regular /generate path returns a free-form markdown blob,
+// which is fine for human-readable outputs (lesson plans, homework, slides)
+// but useless for quizzes — we can't tell question from answer, can't save
+// per-question, can't render MCQ choices vs. essay rubrics differently.
+//
+// This endpoint forces the model to call a single `submit_quiz` tool whose
+// JSON schema mirrors our quiz_questions table exactly:
+//   type ∈ {mcq, tf, short, essay}, choices, correct_answer, marks, ...
+//
+// We stream Anthropic's `input_json_delta` events as SSE so the browser
+// can show progress, and we wait until the tool_use block is complete to
+// emit a final structured `done` event with the parsed object.
+// ---------------------------------------------------------------------------
+const QUIZ_TOOL = {
+  name: "submit_quiz",
+  description:
+    "Submit the finished quiz with full structure. Call this exactly once with the entire quiz — every required field MUST be set. Do not respond with prose; only call this tool.",
+  input_schema: {
+    type: "object",
+    properties: {
+      title: { type: "string", description: "Short title for the quiz." },
+      subject: { type: "string", description: "Subject e.g. Math, English." },
+      grade: { type: "string", description: "Grade level e.g. 'Grade 8'." },
+      duration_minutes: {
+        type: "integer",
+        description: "Estimated time to take the quiz, in minutes.",
+      },
+      total_marks: {
+        type: "integer",
+        description: "Sum of marks across all questions. Must equal Σ question.marks.",
+      },
+      instructions: {
+        type: "string",
+        description: "2–3 sentences for students. Plain text, no markdown.",
+      },
+      questions: {
+        type: "array",
+        minItems: 1,
+        items: {
+          type: "object",
+          properties: {
+            position: { type: "integer", minimum: 1 },
+            type: {
+              type: "string",
+              enum: ["mcq", "tf", "short", "essay"],
+              description:
+                "mcq = multiple choice (4 options, one correct letter); tf = true/false; short = short answer; essay = essay/long answer.",
+            },
+            prompt: { type: "string", description: "The question stem. Plain text." },
+            choices: {
+              type: ["array", "null"],
+              description:
+                "For mcq: an array of 4 strings labelled A–D (do NOT prefix the letter, only the option text). For tf: ['True', 'False']. For short/essay: null.",
+              items: { type: "string" },
+            },
+            correct_answer: {
+              description:
+                "For mcq: the letter 'A'|'B'|'C'|'D'. For tf: true or false. For short: the expected answer text. For essay: a 1–2 sentence rubric outline.",
+            },
+            marks: { type: "integer", minimum: 1 },
+          },
+          required: ["position", "type", "prompt", "marks", "correct_answer"],
+        },
+      },
+    },
+    required: ["title", "subject", "grade", "total_marks", "instructions", "questions"],
+  },
+};
+
+router.post("/quiz", async (req, res) => {
+  try {
+    const flag = await pool.query(
+      "SELECT enabled FROM feature_flags WHERE key = 'ai_studio'"
+    );
+    if (!flag.rows[0]?.enabled) {
+      return res.status(403).json({
+        error: "AI Studio is disabled. Toggle the ai_studio feature flag in the Dev console first.",
+      });
+    }
+    if (!process.env.ANTHROPIC_API_KEY) {
+      return res.status(500).json({
+        error: "ANTHROPIC_API_KEY isn't configured on the server.",
+      });
+    }
+
+    const { prompt } = req.body || {};
+    if (!prompt || !String(prompt).trim()) {
+      return res.status(400).json({ error: "Prompt is required" });
+    }
+
+    const cur = await loadCurrentTeacher();
+    const userMessage =
+      `KIND: QUIZ\n` +
+      `TEACHER CONTEXT: ${cur ? `id=${cur.id}, grades=${(cur.grade_levels || []).join(", ")}` : "none"}\n` +
+      `\nPROMPT:\n${String(prompt).trim()}\n\n` +
+      `Use the submit_quiz tool. Do not return prose.`;
+
+    const client = new Anthropic();
+
+    const stream = client.messages.stream({
+      model: "claude-haiku-4-5",
+      max_tokens: 4096,
+      thinking: { type: "disabled" },
+      system: [
+        { type: "text", text: SYSTEM_PROMPT, cache_control: { type: "ephemeral" } },
+      ],
+      tools: [QUIZ_TOOL],
+      tool_choice: { type: "tool", name: "submit_quiz" },
+      messages: [{ role: "user", content: userMessage }],
+    });
+
+    res.setHeader("Content-Type", "text/event-stream; charset=utf-8");
+    res.setHeader("Cache-Control", "no-cache, no-transform");
+    res.setHeader("Connection", "keep-alive");
+    res.setHeader("X-Accel-Buffering", "no");
+    res.flushHeaders?.();
+
+    const send = (event) => res.write(`data: ${JSON.stringify(event)}\n\n`);
+    req.on("close", () => stream.abort?.());
+
+    try {
+      // Stream raw partial JSON (input_json_delta) so the frontend can show
+      // the user that bytes are arriving. The frontend doesn't try to parse
+      // the partial — it just shows a progress signal — and waits for the
+      // final `done` event below for the typed quiz.
+      for await (const ev of stream) {
+        if (
+          ev.type === "content_block_delta" &&
+          ev.delta?.type === "input_json_delta"
+        ) {
+          send({ type: "json_delta", partial: ev.delta.partial_json });
+        }
+      }
+      const message = await stream.finalMessage();
+      const toolBlock = (message.content || []).find(
+        (b) => b.type === "tool_use" && b.name === "submit_quiz"
+      );
+      if (!toolBlock) {
+        send({ type: "error", message: "Model did not call submit_quiz." });
+        return res.end();
+      }
+      send({
+        type: "done",
+        kind: "quiz",
+        quiz: toolBlock.input,
+        stop_reason: message.stop_reason,
+        usage: {
+          input_tokens: message.usage.input_tokens,
+          output_tokens: message.usage.output_tokens,
+          cache_read_input_tokens: message.usage.cache_read_input_tokens ?? 0,
+          cache_creation_input_tokens: message.usage.cache_creation_input_tokens ?? 0,
+        },
+      });
+    } catch (e) {
+      send({ type: "error", message: e.message });
+    }
+    res.end();
+  } catch (err) {
+    handleErr(res, "POST /api/studio/quiz", err);
+  }
+});
+
 // POST /api/studio/regenerate — replace a single section of an existing
 // document. The frontend sends the full document for context and the exact
 // markdown of the section it wants replaced. The model returns ONLY the new

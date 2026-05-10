@@ -25,6 +25,70 @@ const router = crudRouter({
 const QUESTION_FIELDS = ["position", "type", "prompt", "choices", "correct_answer", "marks"];
 const QUESTION_SELECT = "id, quiz_id, position, type, prompt, choices, correct_answer, marks";
 
+// POST /api/quizzes/bulk — create a quiz and all its questions in one
+// atomic transaction. Used by AI Studio's "Save" action when the structured
+// quiz generator returns a complete quiz object. Body shape mirrors what
+// the studio /api/studio/quiz endpoint emits:
+//   { title, subject, grade, duration_minutes, total_marks, instructions,
+//     questions: [{ position, type, prompt, choices, correct_answer, marks }] }
+router.post("/bulk", async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const cur = await loadCurrentTeacher();
+    if (!cur) return res.status(401).json({ error: "No current teacher" });
+    const {
+      title, subject, grade, section, duration_minutes,
+      total_marks, status, scheduled_for, instructions,
+      questions,
+    } = req.body || {};
+    if (!title || !Array.isArray(questions) || questions.length === 0) {
+      return res.status(400).json({ error: "title and a non-empty questions array are required" });
+    }
+
+    await client.query("BEGIN");
+    const quizRes = await client.query(
+      `INSERT INTO quizzes (teacher_id, title, subject, grade, section,
+                            duration_minutes, total_marks, status,
+                            scheduled_for, instructions)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, COALESCE($8, 'Draft'), $9, $10)
+       RETURNING ${QUIZ_SELECT}`,
+      [
+        cur.id, title, subject || null, grade || null, section || null,
+        duration_minutes || null, total_marks || null, status || null,
+        scheduled_for || null, instructions || null,
+      ]
+    );
+    const quiz = quizRes.rows[0];
+
+    const inserted = [];
+    for (let i = 0; i < questions.length; i++) {
+      const q = questions[i];
+      const r = await client.query(
+        `INSERT INTO quiz_questions (quiz_id, position, type, prompt, choices, correct_answer, marks)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         RETURNING ${QUESTION_SELECT}`,
+        [
+          quiz.id,
+          q.position ?? i + 1,
+          q.type,
+          q.prompt,
+          q.choices != null ? JSON.stringify(q.choices) : null,
+          q.correct_answer != null ? JSON.stringify(q.correct_answer) : null,
+          q.marks ?? 1,
+        ]
+      );
+      inserted.push(r.rows[0]);
+    }
+    await client.query("COMMIT");
+    res.status(201).json({ quiz, questions: inserted });
+  } catch (err) {
+    await client.query("ROLLBACK").catch(() => {});
+    handleErr(res, "POST /api/quizzes/bulk", err);
+  } finally {
+    client.release();
+  }
+});
+
 // Helper: ensure the quiz being touched belongs to the current teacher.
 const assertOwnsQuiz = async (quizId) => {
   const cur = await loadCurrentTeacher();
