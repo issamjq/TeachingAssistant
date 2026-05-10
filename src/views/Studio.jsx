@@ -90,13 +90,13 @@ function StudioWheel({ value, onChange }) {
           centre have clear breathing room and never overlap. */}
       <div className="absolute inset-[30%] rounded-full bg-paper-warm border border-line/70" />
 
-      {/* Down-arrow indicator above the active wedge — sits in the cream
-          ring between the wedge top and the wheel boundary, with a clear
-          gap so it doesn't touch the highlighted segment. */}
+      {/* Down-arrow indicator — sits just above the wheel rim and points
+          down at the active wedge, so it never crowds the selected label
+          inside the wedge. */}
       <svg
         className="absolute left-1/2 -translate-x-1/2 text-accent"
-        style={{ top: "3.5%" }}
-        width="16" height="11" viewBox="0 0 16 11" fill="currentColor"
+        style={{ top: "-14px" }}
+        width="18" height="13" viewBox="0 0 16 11" fill="currentColor"
       >
         <path d="M8 11 L0 0 L16 0 Z" />
       </svg>
