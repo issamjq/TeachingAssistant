@@ -52,7 +52,7 @@ function StudioWheel({ value, onChange }) {
   const active = KINDS[idx];
 
   return (
-    <div className="relative w-full max-w-[260px] sm:max-w-[300px] md:max-w-[340px] mx-auto aspect-square select-none">
+    <div className="relative w-full max-w-[280px] sm:max-w-[320px] md:max-w-[360px] lg:max-w-[400px] mx-auto aspect-square select-none">
       {/* Outer ring */}
       <div className="absolute inset-0 rounded-full bg-paper-cool border border-line shadow-[inset_0_2px_8px_rgba(0,0,0,0.04)]" />
 
@@ -515,31 +515,30 @@ export default function Studio() {
   const showPicker = !busy && !streamingText && !result;
 
   return (
-    <div>
-      <div className="mb-3">
-        <h2 className="font-serif text-2xl font-medium text-ink leading-none">
+    <div className="max-w-5xl mx-auto">
+      <div className="mb-6 md:mb-8">
+        <h2 className="font-serif text-3xl md:text-4xl font-medium text-ink leading-tight">
           AI <em className="italic font-light text-accent">studio</em>
         </h2>
-        <p className="text-xs text-muted mt-1">
+        <p className="text-sm md:text-base text-muted mt-2 max-w-xl">
           Pick what to make, write a one-line brief, Mudir drafts it.
         </p>
       </div>
 
       {showPicker && (
-      <Card>
-        <CardContent className="p-3 md:p-4">
+      <Card className="shadow-sm">
+        <CardContent className="p-5 md:p-7 lg:p-8">
           {/* Step indicator + reset */}
-          <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center justify-between mb-4 md:mb-5">
             <p className="text-sm text-ink-soft">
-              Step <span className="text-ink font-medium">{step}</span> of 2 —
-              <span className="text-muted ml-1.5">
-                {step === 1 ? "Pick what to make" : "Brief Mudir"}
-              </span>
+              Step <span className="text-ink font-medium">{step}</span> of 2
+              <span className="mx-2 text-line">·</span>
+              <span className="text-muted">{step === 1 ? "Pick what to make" : "Brief Mudir"}</span>
             </p>
             <button
               type="button"
               onClick={reset}
-              className="text-xs text-muted hover:text-accent inline-flex items-center gap-1.5 transition"
+              className="text-xs text-muted hover:text-accent inline-flex items-center gap-1.5 transition-colors duration-200"
             >
               <RotateCcw size={11} /> Reset
             </button>
@@ -547,23 +546,23 @@ export default function Studio() {
 
           {/* 3D card-flip container. Both faces are absolutely positioned
               and share the same min-height so the rotateY swap doesn't
-              jump in size. */}
+              jump in size. Min-height scales with breakpoint so the wheel
+              breathes on larger screens. */}
           <div className="studio-flip-container">
             <div
-              className={`studio-flip-card ${step === 2 ? "is-flipped" : ""}`}
-              style={{ minHeight: 360 }}
+              className={`studio-flip-card min-h-[380px] md:min-h-[420px] lg:min-h-[460px] ${step === 2 ? "is-flipped" : ""}`}
             >
               {/* Step 1 — wheel */}
               <div className="studio-flip-side studio-flip-front">
-                <div className="flex flex-col items-center">
+                <div className="flex flex-col items-center justify-center h-full">
                   <StudioWheel value={kind} onChange={onPickKind} />
-                  <div className="mt-3 flex items-center gap-3">
-                    <p className="text-xs text-muted">
+                  <div className="mt-5 md:mt-6 flex flex-wrap items-center justify-center gap-3 md:gap-4">
+                    <p className="text-sm text-muted">
                       Picked <span className="text-ink font-medium">{active?.label}</span>
                     </p>
                     <Button
                       onClick={() => setStep(2)}
-                      className="hover:scale-[1.02] active:scale-[0.99] transition-transform px-4 py-2 text-sm"
+                      className="hover:scale-[1.02] active:scale-[0.99] transition-transform duration-200 px-4 py-2 text-sm"
                     >
                       Next step <ChevronRight size={14} className="ml-1.5" />
                     </Button>
@@ -573,7 +572,7 @@ export default function Studio() {
 
               {/* Step 2 — brief */}
               <div className="studio-flip-side studio-flip-back">
-                <div className="max-w-xl mx-auto h-full flex flex-col justify-center">
+                <div className="max-w-2xl mx-auto h-full flex flex-col justify-center">
                   <div className="mb-3 flex items-baseline justify-between gap-3">
                     <p className="text-sm text-ink-soft">
                       For the <span className="text-ink font-medium">{active?.label}</span>
@@ -581,7 +580,7 @@ export default function Studio() {
                     <button
                       type="button"
                       onClick={() => setPrompt(active?.sample || "")}
-                      className="text-xs text-accent hover:text-ink"
+                      className="text-xs text-accent hover:text-ink transition-colors duration-200 underline-offset-4 hover:underline"
                     >
                       Use sample
                     </button>
@@ -591,20 +590,20 @@ export default function Studio() {
                     value={prompt}
                     onChange={(e) => setPrompt(e.target.value)}
                     placeholder={active?.sample}
-                    className="w-full rounded-md border border-line bg-paper focus:border-ink focus:outline-none px-3 py-2.5 text-sm resize-none"
+                    className="w-full rounded-lg border border-line bg-paper focus:border-ink focus:outline-none focus:ring-2 focus:ring-ink/10 px-4 py-3 text-sm resize-none transition-colors duration-200"
                   />
-                  <div className="flex items-center justify-between mt-4">
+                  <div className="flex items-center justify-between mt-5">
                     <Button
                       variant="secondary"
                       onClick={() => setStep(1)}
-                      className="hover:scale-[1.02] active:scale-[0.99] transition-transform"
+                      className="hover:scale-[1.02] active:scale-[0.99] transition-transform duration-200"
                     >
                       <ChevronLeft size={14} className="mr-1.5" /> Back
                     </Button>
                     <Button
                       onClick={generate}
                       disabled={!prompt.trim()}
-                      className="hover:scale-[1.02] active:scale-[0.99] transition-transform"
+                      className="hover:scale-[1.02] active:scale-[0.99] transition-transform duration-200"
                     >
                       <Sparkles size={14} className="mr-2" />
                       Generate
@@ -619,7 +618,7 @@ export default function Studio() {
       )}
 
       {error && (
-        <div className="mt-5 bg-paper border border-accent rounded-lg p-4">
+        <div className="mt-5 bg-paper border border-accent rounded-lg p-4 shadow-sm">
           <p className="text-sm font-medium text-accent mb-1">Could not generate</p>
           <p className="text-sm text-ink-soft">{error}</p>
           {error.includes("ai_studio") && (
@@ -631,8 +630,8 @@ export default function Studio() {
       )}
 
       {(busy || streamingText || result) && (
-        <Card className="studio-result-card mt-4">
-          <CardContent className="p-5">
+        <Card className="studio-result-card mt-5 md:mt-6 shadow-sm">
+          <CardContent className="p-5 md:p-7">
             {/* Print-only view — only this block survives the print dialog,
                 everything else inside the card is print:hidden. Renders the
                 joined current document on a clean white page. */}
@@ -641,16 +640,16 @@ export default function Studio() {
                 ? renderMarkdown(joinSections(sections))
                 : <pre className="whitespace-pre-wrap font-sans">{streamingText}</pre>}
             </div>
-            <div className="flex items-center justify-between mb-4 gap-3 print:hidden">
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-5 gap-3 md:gap-4 print:hidden">
               <div className="min-w-0">
-                <p className="text-xs text-muted mb-1">
+                <p className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted mb-1">
                   {busy ? "Generating…" : "Generated"}
                 </p>
-                <p className="text-xl font-semibold text-ink truncate">
+                <p className="text-xl md:text-2xl font-semibold text-ink truncate">
                   {KINDS.find((k) => k.value === (result?.kind ?? kind))?.label}
                 </p>
               </div>
-              <div className="flex items-center gap-2 flex-shrink-0">
+              <div className="flex items-center gap-2 flex-wrap md:flex-nowrap md:flex-shrink-0">
                 {busy ? (
                   <Button variant="secondary" onClick={cancel} className="text-xs px-3 py-1.5">
                     <X size={13} className="mr-1.5" /> Cancel
@@ -699,7 +698,7 @@ export default function Studio() {
             <div className="print:hidden">
               {sections.length === 0 ? (
                 <Card>
-                  <CardContent className="p-4 max-h-[55vh] overflow-y-auto">
+                  <CardContent className="p-4 md:p-5 max-h-[55vh] overflow-y-auto">
                     {busy ? (
                       <pre className="whitespace-pre-wrap text-sm text-ink-soft leading-relaxed font-sans">
                         {streamingText}
@@ -713,7 +712,7 @@ export default function Studio() {
               ) : (
                 <>
                   {/* Pagination header */}
-                  <div className="flex items-center justify-between gap-3 mb-2.5">
+                  <div className="flex items-center justify-between gap-3 mb-3">
                     <p className="text-xs text-muted truncate">
                       Section <span className="text-ink font-medium">{sectionIndex + 1}</span> of {sections.length} ·
                       <span className="text-ink-soft ml-1">{sections[sectionIndex]?.title}</span>
@@ -724,7 +723,7 @@ export default function Studio() {
                         onClick={() => setSectionIndex((i) => Math.max(0, i - 1))}
                         disabled={sectionIndex === 0}
                         title="Previous section (←)"
-                        className="h-7 w-7 rounded-md border border-line bg-paper hover:border-ink hover:bg-paper-warm flex items-center justify-center text-ink-soft transition disabled:opacity-30 disabled:cursor-not-allowed"
+                        className="h-8 w-8 rounded-md border border-line bg-paper hover:border-ink hover:bg-paper-warm flex items-center justify-center text-ink-soft transition-colors duration-200 disabled:opacity-30 disabled:cursor-not-allowed"
                       >
                         <ChevronLeft size={14} />
                       </button>
@@ -733,7 +732,7 @@ export default function Studio() {
                         onClick={() => setSectionIndex((i) => Math.min(sections.length - 1, i + 1))}
                         disabled={sectionIndex >= sections.length - 1}
                         title="Next section (→)"
-                        className="h-7 w-7 rounded-md border border-line bg-paper hover:border-ink hover:bg-paper-warm flex items-center justify-center text-ink-soft transition disabled:opacity-30 disabled:cursor-not-allowed"
+                        className="h-8 w-8 rounded-md border border-line bg-paper hover:border-ink hover:bg-paper-warm flex items-center justify-center text-ink-soft transition-colors duration-200 disabled:opacity-30 disabled:cursor-not-allowed"
                       >
                         <ChevronRight size={14} />
                       </button>
@@ -747,7 +746,7 @@ export default function Studio() {
                     key={`${sectionIndex}-${sections[sectionIndex]?.id}`}
                     className="studio-card-flip-in"
                   >
-                    <div className="max-h-[58vh] overflow-y-auto rounded-md">
+                    <div className="max-h-[60vh] overflow-y-auto rounded-md">
                       <StudioCard
                         section={sections[sectionIndex]}
                         onSave={(md) => setSectionMarkdown(sections[sectionIndex].id, md)}
@@ -758,20 +757,25 @@ export default function Studio() {
                     </div>
                   </div>
 
-                  {/* Tiny dot indicator below */}
-                  <div className="flex items-center justify-center gap-1.5 mt-3">
+                  {/* Tiny dot indicator below — wider touch targets via
+                      vertical padding so taps still hit the small bar. */}
+                  <div className="flex items-center justify-center gap-1.5 mt-4">
                     {sections.map((s, i) => (
                       <button
                         key={s.id}
                         type="button"
                         onClick={() => setSectionIndex(i)}
                         title={s.title}
-                        className={`h-1.5 rounded-full transition-all ${
-                          i === sectionIndex
-                            ? "w-6 bg-accent"
-                            : "w-1.5 bg-line hover:bg-ink-soft"
-                        }`}
-                      />
+                        className="py-2 -my-2 group"
+                      >
+                        <span
+                          className={`block h-1.5 rounded-full transition-all duration-300 ${
+                            i === sectionIndex
+                              ? "w-6 bg-accent"
+                              : "w-1.5 bg-line group-hover:bg-ink-soft"
+                          }`}
+                        />
+                      </button>
                     ))}
                   </div>
                 </>
@@ -779,7 +783,7 @@ export default function Studio() {
             </div>
 
             {result && (
-              <div className="mt-4 flex flex-wrap gap-4 text-xs text-muted print:hidden">
+              <div className="mt-5 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted print:hidden">
                 <span>{result.usage.input_tokens} input tokens</span>
                 <span>{result.usage.output_tokens} output tokens</span>
                 {result.usage.cache_read_input_tokens > 0 && (
