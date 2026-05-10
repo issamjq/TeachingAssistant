@@ -3,7 +3,7 @@ import { setNavGuard } from "../lib/route";
 import {
   Sparkles, FileText, ClipboardList, GraduationCap,
   Layers, Users, Calendar, Save, Copy, Check, X, RotateCcw, FileDown,
-  Send, Paperclip, Plus, Wand2, RefreshCw, Zap,
+  Send, Paperclip, Plus, Wand2, RefreshCw, Zap, Shuffle, Dices,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -76,6 +76,130 @@ const SUGGESTIONS_BY_KIND = {
   schedule:     ["Two-week version", "Compress to 3 days", "Add a review day"],
 };
 
+// --- Roulette wheel picker -------------------------------------------------
+
+const SEGMENTS = KINDS.length;
+const SEGMENT_DEG = 360 / SEGMENTS;
+
+// Build a donut-slice (annular sector) path centered around the top of an
+// SVG with origin at (0, 0). Used once for the static highlighter wedge that
+// sits above the rotating wheel of labels.
+const wedgePath = ({ centerDeg = -90, halfWidthDeg, innerR, outerR }) => {
+  const a1 = ((centerDeg - halfWidthDeg) * Math.PI) / 180;
+  const a2 = ((centerDeg + halfWidthDeg) * Math.PI) / 180;
+  const o1 = [Math.cos(a1) * outerR, Math.sin(a1) * outerR];
+  const o2 = [Math.cos(a2) * outerR, Math.sin(a2) * outerR];
+  const i2 = [Math.cos(a2) * innerR, Math.sin(a2) * innerR];
+  const i1 = [Math.cos(a1) * innerR, Math.sin(a1) * innerR];
+  return `M ${o1[0]} ${o1[1]} A ${outerR} ${outerR} 0 0 1 ${o2[0]} ${o2[1]} L ${i2[0]} ${i2[1]} A ${innerR} ${innerR} 0 0 0 ${i1[0]} ${i1[1]} Z`;
+};
+
+// Roulette-style picker. Clicking any segment rotates the wheel so that
+// segment lands under the static accent wedge at the top. Labels rotate
+// with the wheel but each one counter-rotates so its text stays upright.
+function StudioWheel({ value, onChange }) {
+  const idx = Math.max(0, KINDS.findIndex((k) => k.value === value));
+  const rotation = -idx * SEGMENT_DEG;
+  const active = KINDS[idx];
+
+  return (
+    <div className="relative w-full max-w-[280px] sm:max-w-[320px] mx-auto aspect-square select-none">
+      <div className="absolute inset-0 rounded-full bg-paper-cool border border-line shadow-[inset_0_2px_8px_rgba(0,0,0,0.04)]" />
+
+      <svg
+        className="absolute inset-0 w-full h-full pointer-events-none"
+        viewBox="-50 -50 100 100"
+        preserveAspectRatio="xMidYMid meet"
+      >
+        <path
+          d={wedgePath({ halfWidthDeg: SEGMENT_DEG / 2 - 1, innerR: 22, outerR: 46 })}
+          fill="var(--color-accent)"
+        />
+        {Array.from({ length: SEGMENTS }).map((_, i) => {
+          const a = ((-90 + (i + 0.5) * SEGMENT_DEG) * Math.PI) / 180;
+          return (
+            <line
+              key={i}
+              x1={Math.cos(a) * 22}
+              y1={Math.sin(a) * 22}
+              x2={Math.cos(a) * 46}
+              y2={Math.sin(a) * 46}
+              stroke="var(--color-line)"
+              strokeWidth="0.3"
+              strokeDasharray="0.6 0.6"
+              opacity="0.55"
+            />
+          );
+        })}
+      </svg>
+
+      <div className="absolute inset-[30%] rounded-full bg-paper-warm border border-line/70" />
+
+      {/* Selection pointer — sits above the wheel rim, points down. */}
+      <svg
+        className="absolute left-1/2 -translate-x-1/2 text-accent"
+        style={{ top: "-14px" }}
+        width="18" height="13" viewBox="0 0 16 11" fill="currentColor"
+      >
+        <path d="M8 11 L0 0 L16 0 Z" />
+      </svg>
+
+      <div
+        className="absolute inset-0"
+        style={{
+          transform: `rotate(${rotation}deg)`,
+          transition: "transform 750ms cubic-bezier(0.34, 1.18, 0.6, 1)",
+        }}
+      >
+        {KINDS.map((k, i) => {
+          const angle = -90 + i * SEGMENT_DEG;
+          const x = Math.cos((angle * Math.PI) / 180) * 40;
+          const y = Math.sin((angle * Math.PI) / 180) * 40;
+          const isActive = i === idx;
+          const Icon = k.icon;
+          return (
+            <button
+              key={k.value}
+              type="button"
+              onClick={() => onChange(k.value)}
+              className="absolute"
+              style={{
+                left: `${50 + x}%`,
+                top: `${50 + y}%`,
+                transform: `translate(-50%, -50%) rotate(${-rotation}deg)`,
+                transition: "transform 750ms cubic-bezier(0.34, 1.18, 0.6, 1)",
+              }}
+            >
+              <div
+                className={`flex flex-col items-center gap-1.5 px-3 py-2 rounded-lg transition ${
+                  isActive
+                    ? "text-paper-cool"
+                    : "text-ink-soft hover:text-ink hover:bg-paper-warm/60"
+                }`}
+              >
+                <Icon size={18} strokeWidth={1.5} />
+                <span className="font-sans text-[12px] tracking-wide font-medium">
+                  {k.label}
+                </span>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="absolute inset-[30%] flex flex-col items-center justify-center text-center pointer-events-none">
+        <p className="text-[10px] text-muted mb-0.5 uppercase tracking-wider">Make a</p>
+        <h3 className="text-xl sm:text-2xl font-semibold text-ink leading-none mb-1 tracking-tight">
+          {active.label}
+        </h3>
+        <p className="text-[10px] text-muted leading-snug px-2">
+          {active.oneliner}
+        </p>
+      </div>
+    </div>
+  );
+}
+
 export default function Studio() {
   const [kind, setKind] = useState("lesson_plan");
   const [prompt, setPrompt] = useState("");
@@ -94,6 +218,10 @@ export default function Studio() {
   // The "Ask Mudir to tweak" input. Submitting it regenerates the current
   // section with the typed hint as guidance.
   const [tweak, setTweak] = useState("");
+  // Roulette popup — opened from the kind button on the picker view.
+  const [pickerOpen, setPickerOpen] = useState(false);
+  // Pulse the kind button briefly each time the kind changes via the wheel.
+  const [pulseKey, setPulseKey] = useState(0);
   const abortRef = useRef(null);
   // One AbortController per regenerating section, keyed by section id, so
   // each card can be cancelled independently.
@@ -122,6 +250,21 @@ export default function Studio() {
       const found = KINDS.find((k) => k.value === next);
       if (found) setPrompt(found.sample);
     }
+  };
+
+  // Wheel pick: spin to it, then fade the popup out so the user is back on
+  // the brief screen with the new kind selected.
+  const onPickFromWheel = (next) => {
+    onPickKind(next);
+    setPulseKey((n) => n + 1);
+    // Hold long enough for the wheel's 750ms easing to land before closing.
+    setTimeout(() => setPickerOpen(false), 700);
+  };
+
+  const surpriseMe = () => {
+    const others = KINDS.filter((k) => k.value !== kind);
+    const next = others[Math.floor(Math.random() * others.length)].value;
+    onPickFromWheel(next);
   };
 
   const reset = () => {
@@ -210,20 +353,29 @@ export default function Studio() {
 
   const cancel = () => abortRef.current?.abort();
 
-  // Section index keyboard nav (←/→ when not typing).
+  // Keyboard shortcuts:
+  //   ←/→  navigate result sections (when not typing)
+  //   K    open the kind picker (when not typing, picker view only)
+  //   Esc  close the kind picker
   useEffect(() => {
     const onKey = (e) => {
       const tag = e.target?.tagName;
       const inField = tag === "TEXTAREA" || tag === "INPUT";
-      if (e.key === "ArrowLeft" && !inField && sections.length > 1) {
+      if (e.key === "Escape" && pickerOpen) {
+        e.preventDefault();
+        setPickerOpen(false);
+      } else if (e.key === "ArrowLeft" && !inField && sections.length > 1) {
         setSectionIndex((i) => Math.max(0, i - 1));
       } else if (e.key === "ArrowRight" && !inField && sections.length > 1) {
         setSectionIndex((i) => Math.min(sections.length - 1, i + 1));
+      } else if ((e.key === "k" || e.key === "K") && !inField && !pickerOpen && sections.length === 0 && !busy) {
+        e.preventDefault();
+        setPickerOpen(true);
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [sections.length]);
+  }, [sections.length, pickerOpen, busy]);
 
   // Reset / clamp the visible section index whenever sections change.
   useEffect(() => {
@@ -717,27 +869,28 @@ export default function Studio() {
         </h2>
       </div>
 
-      {/* Kind picker — horizontal pills */}
-      <div className="flex flex-wrap gap-2 mb-7">
-        {KINDS.map((k) => {
-          const Icon = k.icon;
-          const isActive = k.value === kind;
+      {/* Kind picker — single button that opens the roulette popup. */}
+      <div className="mb-7">
+        {(() => {
+          const ActiveIcon = active?.icon;
           return (
             <button
-              key={k.value}
+              key={pulseKey}
               type="button"
-              onClick={() => onPickKind(k.value)}
-              className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-full border text-sm transition-all duration-200 ${
-                isActive
-                  ? "bg-ink text-paper-cool border-ink shadow-sm scale-[1.01]"
-                  : "bg-paper-cool text-ink-soft border-line hover:border-ink hover:bg-paper-warm"
-              }`}
+              onClick={() => setPickerOpen(true)}
+              title="Spin to change (K)"
+              className="studio-kind-pulse inline-flex items-center gap-2.5 pl-3 pr-2 py-1.5 rounded-full bg-ink text-paper-cool border border-ink shadow-sm hover:scale-[1.02] active:scale-[0.99] transition-all duration-200"
             >
-              <Icon size={14} strokeWidth={1.75} />
-              {k.label}
+              {ActiveIcon && <ActiveIcon size={15} strokeWidth={1.75} />}
+              <span className="text-sm font-medium">{active?.label}</span>
+              <span className="h-4 w-px bg-paper-cool/25" />
+              <span className="inline-flex items-center gap-1 pl-0.5 pr-2 text-[11px] text-paper-cool/75 font-mono uppercase tracking-wider">
+                <Shuffle size={11} />
+                Spin
+              </span>
             </button>
           );
-        })}
+        })()}
       </div>
 
       {/* Mudir prompt block */}
@@ -842,6 +995,11 @@ export default function Studio() {
             <span>Generate</span>
           </span>
           <span className="text-line">·</span>
+          <span className="inline-flex items-center gap-1.5">
+            <kbd className="px-1.5 py-0.5 rounded border border-line bg-paper-cool font-mono text-[10px]">K</kbd>
+            <span>Pick</span>
+          </span>
+          <span className="text-line">·</span>
           <button
             type="button"
             onClick={reset}
@@ -866,6 +1024,51 @@ export default function Studio() {
               Open Dev console (switch role from Account) → Feature flags → flip <span className="text-ink">ai_studio</span> to On.
             </p>
           )}
+        </div>
+      )}
+
+      {/* Roulette popup — backdrop click and Esc both close. Picking a
+          segment spins the wheel, holds for the easing to land, then
+          fades the popup out automatically. */}
+      {pickerOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-ink/30 backdrop-blur-sm studio-popup-fade"
+            onClick={() => setPickerOpen(false)}
+          />
+          <div className="studio-popup-rise relative bg-paper-cool rounded-2xl border border-line shadow-2xl w-full max-w-md p-6 md:p-7">
+            <button
+              type="button"
+              onClick={() => setPickerOpen(false)}
+              title="Close (Esc)"
+              className="absolute top-3 right-3 h-8 w-8 rounded-md border border-line bg-paper-cool hover:bg-paper-warm hover:border-ink flex items-center justify-center text-ink-soft transition-colors duration-200"
+            >
+              <X size={14} />
+            </button>
+
+            <div className="mb-4 pr-10">
+              <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-1">Pick what to make</p>
+              <h3 className="font-serif text-xl md:text-2xl font-medium text-ink leading-tight">
+                Spin the <em className="italic font-light text-accent">wheel</em>
+              </h3>
+            </div>
+
+            <StudioWheel value={kind} onChange={onPickFromWheel} />
+
+            <div className="mt-5 flex items-center justify-between gap-3">
+              <button
+                type="button"
+                onClick={surpriseMe}
+                className="inline-flex items-center gap-1.5 text-xs text-muted hover:text-accent transition-colors duration-200"
+              >
+                <Dices size={12} /> Surprise me
+              </button>
+              <p className="text-[11px] text-muted">
+                <kbd className="px-1.5 py-0.5 rounded border border-line bg-paper font-mono text-[10px] mr-1.5">Esc</kbd>
+                close
+              </p>
+            </div>
+          </div>
         </div>
       )}
     </div>
