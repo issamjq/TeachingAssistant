@@ -129,6 +129,18 @@ export default function Studio() {
     return line ? line.replace(/^#+\s*/, "").trim() : `${active?.label || ""} draft`;
   }, [sections, streamingText, active?.label]);
 
+  // While streaming and before the final parse, run parseSections on the
+  // partial text so the sidebar can show section letters lighting up as
+  // they appear. Only used when the canonical sections array is empty.
+  const previewSections = useMemo(() => {
+    if (sections.length || !streamingText) return [];
+    try {
+      return parseSections(streamingText, kind) || [];
+    } catch {
+      return [];
+    }
+  }, [sections.length, streamingText, kind]);
+
   const onPickKind = (next) => {
     setKind(next);
     // If the prompt is still the previous kind's sample (or empty), nudge
@@ -523,11 +535,11 @@ export default function Studio() {
         {/* Top bar: brand + crumb + actions */}
         <div className="flex items-center justify-between gap-4 mb-5 print:hidden flex-wrap">
           <div className="flex items-center gap-4 min-w-0">
-            <h2 className="font-serif text-2xl md:text-3xl font-medium text-ink leading-none">
+            <h2 className="font-serif text-2xl md:text-3xl font-medium text-ink leading-none flex-shrink-0">
               AI <em className="italic font-light text-accent">studio</em>
             </h2>
             <span className="hidden md:block h-6 w-px bg-line" />
-            <p className="hidden md:block font-mono text-[10px] uppercase tracking-[0.18em] text-muted truncate max-w-md">
+            <p className="hidden md:block font-serif text-base md:text-lg italic text-ink-soft truncate max-w-md leading-tight">
               {docTitle}
             </p>
           </div>
@@ -551,22 +563,20 @@ export default function Studio() {
                 ? <><Check size={13} className="mr-1.5" /> Copied</>
                 : <><Copy size={13} className="mr-1.5" /> Copy</>}
             </Button>
-            {(result?.kind ?? kind) === "lesson_plan" && (
-              savedDraftId ? (
-                <span className="font-mono text-[10px] uppercase tracking-wider text-sage inline-flex items-center gap-1.5 px-2">
-                  <Check size={13} /> Saved #{savedDraftId}
-                </span>
-              ) : (
-                <Button
-                  variant="secondary"
-                  onClick={saveAsDraft}
-                  disabled={saving || !result}
-                  className="text-xs px-3 py-1.5"
-                >
-                  <Save size={13} className="mr-1.5" />
-                  {saving ? "Saving…" : "Save"}
-                </Button>
-              )
+            {savedDraftId ? (
+              <span className="font-mono text-[10px] uppercase tracking-wider text-sage inline-flex items-center gap-1.5 px-2">
+                <Check size={13} /> Saved #{savedDraftId}
+              </span>
+            ) : (
+              <Button
+                variant="secondary"
+                onClick={saveAsDraft}
+                disabled={saving || !result}
+                className="text-xs px-3 py-1.5"
+              >
+                <Save size={13} className="mr-1.5" />
+                {saving ? "Saving…" : "Save"}
+              </Button>
             )}
             {busy ? (
               <Button variant="secondary" onClick={cancel} className="text-xs px-3 py-1.5">
@@ -589,10 +599,31 @@ export default function Studio() {
                 <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-3">Sections</p>
                 {sections.length === 0 ? (
                   busy ? (
-                    <p className="text-xs text-muted inline-flex items-center gap-2">
-                      <span className="h-1.5 w-1.5 rounded-full bg-accent animate-pulse" />
-                      Generating…
-                    </p>
+                    <div className="space-y-1.5">
+                      {previewSections.map((s, i) => {
+                        const letter = String.fromCharCode(65 + i);
+                        return (
+                          <div
+                            key={s.id || i}
+                            className="studio-section-fade-in flex items-center gap-2.5 px-2.5 py-2 rounded-lg"
+                          >
+                            <span className="flex-shrink-0 h-7 w-7 rounded-md font-mono text-[11px] uppercase tracking-wider bg-ink text-paper-cool flex items-center justify-center">
+                              {letter}
+                            </span>
+                            <span className="flex-1 min-w-0 text-sm text-ink-soft truncate">
+                              {s.title || `Part ${letter}`}
+                            </span>
+                          </div>
+                        );
+                      })}
+                      <div className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg opacity-60">
+                        <span className="flex-shrink-0 h-7 w-7 rounded-md bg-line/60 animate-pulse" />
+                        <span className="flex-1 min-w-0 text-xs text-muted inline-flex items-center gap-2">
+                          <span className="h-1.5 w-1.5 rounded-full bg-accent animate-pulse" />
+                          Drafting…
+                        </span>
+                      </div>
+                    </div>
                   ) : (
                     <p className="text-xs text-muted">No sections yet.</p>
                   )
@@ -654,25 +685,34 @@ export default function Studio() {
 
               <div className="print:hidden">
                 {sections.length === 0 ? (
-                  // Pre-parse — show streaming text as it arrives
+                  // Pre-parse — render the streaming markdown live so the
+                  // teacher sees real headings + lists, never raw "## " or
+                  // "**" syntax.
                   <div>
                     <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent mb-3 inline-flex items-center gap-2">
                       <span className="h-1.5 w-1.5 rounded-full bg-accent animate-pulse" />
                       {busy ? "Generating" : "Done"}
                     </p>
-                    <pre className="whitespace-pre-wrap text-sm text-ink-soft leading-relaxed font-sans max-h-[60vh] overflow-y-auto">
-                      {streamingText || (
-                        <span className="text-muted">No content yet…</span>
+                    <div className="max-h-[60vh] overflow-y-auto pr-1 studio-stream">
+                      {streamingText ? (
+                        <>
+                          {renderMarkdown(streamingText)}
+                          {busy && (
+                            <span className="inline-block w-1.5 h-4 bg-accent ml-0.5 animate-pulse align-text-bottom" />
+                          )}
+                        </>
+                      ) : (
+                        <p className="text-sm text-muted italic">Mudir is thinking…</p>
                       )}
-                      {busy && (
-                        <span className="inline-block w-1.5 h-4 bg-accent ml-0.5 animate-pulse align-text-bottom" />
-                      )}
-                    </pre>
+                    </div>
                   </div>
                 ) : (
                   <>
                     <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent mb-2">
                       Part {currentLetter} · {active?.label}
+                      {sections.length > 1 && (
+                        <span className="text-muted ml-2">· {sectionIndex + 1} of {sections.length}</span>
+                      )}
                       {items > 0 && <span className="text-muted ml-2">· {items} item{items === 1 ? "" : "s"}</span>}
                     </p>
                     <h3 className="font-serif text-2xl md:text-3xl font-medium text-ink mb-5 leading-tight">
@@ -721,6 +761,16 @@ export default function Studio() {
                         </ActionChip>
                       )}
                     </div>
+
+                    {/* Keyboard hint — shown only when there's more than one
+                        section to navigate between. */}
+                    {sections.length > 1 && (
+                      <p className="mt-5 inline-flex items-center gap-1.5 text-[11px] text-muted">
+                        <kbd className="px-1.5 py-0.5 rounded border border-line bg-paper-cool font-mono text-[10px] leading-none">←</kbd>
+                        <kbd className="px-1.5 py-0.5 rounded border border-line bg-paper-cool font-mono text-[10px] leading-none">→</kbd>
+                        cycle sections
+                      </p>
+                    )}
                   </>
                 )}
               </div>
