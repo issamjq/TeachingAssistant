@@ -127,11 +127,16 @@ export default function Studio() {
   const tweakBusy = !!currentSection?.regenerating;
 
   // First H1/H2 in the joined doc — used as the result-view subtitle.
+  // For the quiz path the title is a typed field; prefer that over any
+  // markdown heading so the header tracks live edits.
   const docTitle = useMemo(() => {
-    const text = sections.length ? joinSections(sections) : streamingText;
-    const line = text.split(/\r?\n/).find((l) => /^#{1,3}\s+/.test(l));
+    if (result?.kind === "quiz" && result.quiz?.title) return result.quiz.title;
+    const text = sections.length && sections[0]?.markdown != null
+      ? joinSections(sections)
+      : streamingText;
+    const line = (text || "").split(/\r?\n/).find((l) => /^#{1,3}\s+/.test(l));
     return line ? line.replace(/^#+\s*/, "").trim() : `${active?.label || ""} draft`;
-  }, [sections, streamingText, active?.label]);
+  }, [result, sections, streamingText, active?.label]);
 
   // While streaming and before the final parse, run parseSections on the
   // partial text so the sidebar can show section letters lighting up as
@@ -144,6 +149,32 @@ export default function Studio() {
       return [];
     }
   }, [sections.length, streamingText, kind]);
+
+  // Mutate the live quiz being previewed/edited. total_marks is derived
+  // from the sum of question marks so the cover always matches reality.
+  const updateQuiz = (patch) => {
+    setResult((prev) => {
+      if (!prev?.quiz) return prev;
+      return { ...prev, quiz: { ...prev.quiz, ...patch } };
+    });
+  };
+
+  const updateQuestion = (index, patch) => {
+    setResult((prev) => {
+      if (!prev?.quiz) return prev;
+      const questions = (prev.quiz.questions || []).map((q, i) =>
+        i === index ? { ...q, ...patch } : q
+      );
+      const totalMarks = questions.reduce(
+        (s, q) => s + (Number(q.marks) || 0),
+        0
+      );
+      return {
+        ...prev,
+        quiz: { ...prev.quiz, questions, total_marks: totalMarks },
+      };
+    });
+  };
 
   const onPickKind = (next) => {
     setKind(next);
@@ -244,30 +275,15 @@ export default function Studio() {
             setQuizPartial((prev) => prev + (payload.partial || ""));
           } else if (payload.type === "done") {
             if (payload.kind === "quiz" && payload.quiz) {
+              // The result-watching effect rebuilds `sections` from the
+              // structured quiz, so we just persist the result here. The
+              // sidebar + right pane re-render automatically.
               setResult({
                 kind: "quiz",
                 quiz: payload.quiz,
                 stop_reason: payload.stop_reason,
                 usage: payload.usage,
               });
-              // Synthesize sections so the existing sidebar/right-pane
-              // chrome (active section, A·1 of N, ←→ cycle) keeps working.
-              // Section 0 is meta (title + instructions); each question is
-              // its own section after that.
-              const qSections = [
-                {
-                  id: "meta",
-                  title: payload.quiz.title || "Title",
-                  kind: "quiz_meta",
-                },
-                ...(payload.quiz.questions || []).map((q, i) => ({
-                  id: `q-${q.position ?? i + 1}`,
-                  title: `Question ${q.position ?? i + 1}`,
-                  kind: "quiz_question",
-                  question: q,
-                })),
-              ];
-              setSections(qSections);
               setSectionIndex(0);
             } else {
               setResult({
@@ -371,6 +387,27 @@ export default function Studio() {
       setSectionIndex(sections.length - 1);
     }
   }, [sections.length, sectionIndex]);
+
+  // Re-synthesize sections from the live quiz on every edit so the sidebar
+  // titles + per-question references stay in sync with what the teacher
+  // typed. Only runs while in the quiz path; the markdown path's sections
+  // are managed by parseSections elsewhere.
+  useEffect(() => {
+    if (result?.kind !== "quiz" || !result.quiz) return;
+    const q = result.quiz;
+    const next = [
+      { id: "meta", title: q.title || "Cover", kind: "quiz_meta" },
+      ...(q.questions || []).map((qq, i) => ({
+        id: `q-${qq.position ?? i + 1}`,
+        title:
+          (qq.prompt || "").trim().slice(0, 50) ||
+          `Question ${qq.position ?? i + 1}`,
+        kind: "quiz_question",
+        question: qq,
+      })),
+    ];
+    setSections(next);
+  }, [result]);
 
   // Warn before the user discards an in-flight or freshly-generated draft.
   useEffect(() => {
@@ -811,11 +848,15 @@ export default function Studio() {
                     >
                       <div className="max-h-[55vh] overflow-y-auto rounded-md">
                         {currentSection?.kind === "quiz_meta" ? (
-                          <QuizMetaCard quiz={result?.quiz} />
+                          <QuizMetaCard
+                            quiz={result?.quiz}
+                            onUpdate={updateQuiz}
+                          />
                         ) : currentSection?.kind === "quiz_question" ? (
                           <QuizQuestionCard
                             question={currentSection.question}
                             index={sectionIndex - 1}
+                            onUpdate={(patch) => updateQuestion(sectionIndex - 1, patch)}
                           />
                         ) : (
                           <StudioCard
@@ -1317,43 +1358,71 @@ function QuizStreamingPlaceholder({ partial, busy }) {
   );
 }
 
-function QuizMetaCard({ quiz }) {
+function QuizMetaCard({ quiz, onUpdate }) {
   if (!quiz) return null;
   const totalQ = (quiz.questions || []).length;
+  // total_marks is derived from the question marks; updateQuestion already
+  // recomputes it on each change, so the cover always matches reality.
   return (
     <div className="rounded-xl border border-line bg-paper-cool p-5 md:p-6">
       <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-2">
         Cover
       </p>
-      <h4 className="font-serif text-2xl md:text-3xl font-medium text-ink leading-tight mb-3">
-        {quiz.title}
-      </h4>
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-ink-soft mb-4">
-        {quiz.subject && <span>{quiz.subject}</span>}
-        {quiz.grade && (<><span className="text-line">·</span><span>{quiz.grade}</span></>)}
-        {quiz.duration_minutes && (<><span className="text-line">·</span><span>{quiz.duration_minutes} min</span></>)}
+      <EditableText
+        value={quiz.title || ""}
+        onChange={(v) => onUpdate({ title: v })}
+        placeholder="Quiz title"
+        className="font-serif text-2xl md:text-3xl font-medium text-ink leading-tight mb-3 w-full"
+      />
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-ink-soft mb-4">
+        <MetaField
+          label="Subject"
+          value={quiz.subject || ""}
+          onChange={(v) => onUpdate({ subject: v })}
+          placeholder="—"
+        />
         <span className="text-line">·</span>
-        <span>{totalQ} question{totalQ === 1 ? "" : "s"}</span>
-        {quiz.total_marks != null && (
-          <>
-            <span className="text-line">·</span>
-            <span className="font-medium text-ink">{quiz.total_marks} marks</span>
-          </>
-        )}
+        <MetaField
+          label="Grade"
+          value={quiz.grade || ""}
+          onChange={(v) => onUpdate({ grade: v })}
+          placeholder="—"
+        />
+        <span className="text-line">·</span>
+        <MetaField
+          label="Duration"
+          value={quiz.duration_minutes || ""}
+          onChange={(v) => onUpdate({ duration_minutes: v === "" ? null : Number(v) })}
+          placeholder="—"
+          suffix="min"
+          numeric
+        />
+        <span className="text-line">·</span>
+        <span className="text-ink-soft">
+          {totalQ} question{totalQ === 1 ? "" : "s"}
+        </span>
+        <span className="text-line">·</span>
+        <span className="font-medium text-ink">
+          {quiz.total_marks ?? 0} marks
+        </span>
       </div>
-      {quiz.instructions && (
-        <div>
-          <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-1.5">
-            Instructions
-          </p>
-          <p className="text-sm text-ink-soft leading-relaxed">{quiz.instructions}</p>
-        </div>
-      )}
+      <div>
+        <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-1.5">
+          Instructions
+        </p>
+        <EditableTextarea
+          value={quiz.instructions || ""}
+          onChange={(v) => onUpdate({ instructions: v })}
+          placeholder="Add instructions for students…"
+          rows={2}
+          className="text-sm text-ink-soft leading-relaxed w-full"
+        />
+      </div>
     </div>
   );
 }
 
-function QuizQuestionCard({ question, index }) {
+function QuizQuestionCard({ question, index, onUpdate }) {
   const [showAnswer, setShowAnswer] = useState(false);
   if (!question) return null;
   const typeLabel = QUIZ_TYPE_LABELS[question.type] || question.type;
@@ -1362,6 +1431,12 @@ function QuizQuestionCard({ question, index }) {
     typeof question.correct_answer === "string" && question.correct_answer.length === 1
       ? question.correct_answer.toUpperCase()
       : null;
+
+  const updateChoice = (i, text) => {
+    const next = choices.slice();
+    next[i] = text;
+    onUpdate({ choices: next });
+  };
 
   return (
     <div className="rounded-xl border border-line bg-paper-cool p-5 md:p-6">
@@ -1373,37 +1448,60 @@ function QuizQuestionCard({ question, index }) {
           <span className="px-2 py-0.5 rounded-full border border-line bg-paper text-[11px] text-ink-soft">
             {typeLabel}
           </span>
-          <span className="font-mono text-[11px] text-muted">
-            {question.marks} mark{question.marks === 1 ? "" : "s"}
+          <span className="font-mono text-[11px] text-muted inline-flex items-center gap-1">
+            <EditableNumber
+              value={question.marks ?? 1}
+              onChange={(v) => onUpdate({ marks: Math.max(1, Number(v) || 1) })}
+              min={1}
+              className="w-8 text-right"
+            />
+            <span>mark{question.marks === 1 ? "" : "s"}</span>
           </span>
         </div>
       </div>
 
-      <p className="font-serif text-lg md:text-xl text-ink leading-snug mb-4 whitespace-pre-wrap">
-        {question.prompt}
-      </p>
+      <EditableTextarea
+        value={question.prompt || ""}
+        onChange={(v) => onUpdate({ prompt: v })}
+        placeholder="Question prompt"
+        rows={2}
+        className="font-serif text-lg md:text-xl text-ink leading-snug mb-4 w-full"
+      />
 
-      {question.type === "mcq" && choices.length > 0 && (
+      {question.type === "mcq" && (
         <ol className="space-y-2 mb-4">
           {choices.map((c, i) => {
             const letter = String.fromCharCode(65 + i);
-            const isCorrect = showAnswer && letter === correctLetter;
+            const isCorrect = letter === correctLetter;
+            const showHighlight = showAnswer && isCorrect;
             return (
               <li
                 key={i}
                 className={`flex items-start gap-3 px-3 py-2 rounded-lg border transition-colors duration-200 ${
-                  isCorrect
+                  showHighlight
                     ? "border-accent/50 bg-accent/[0.06]"
                     : "border-line bg-paper"
                 }`}
               >
-                <span className={`flex-shrink-0 h-6 w-6 rounded-md font-mono text-[11px] flex items-center justify-center ${
-                  isCorrect ? "bg-accent text-paper-cool" : "bg-paper-warm text-ink-soft"
-                }`}>
+                <button
+                  type="button"
+                  onClick={() => onUpdate({ correct_answer: letter })}
+                  title={isCorrect ? "This is the correct answer" : "Mark as correct"}
+                  className={`flex-shrink-0 h-6 w-6 rounded-md font-mono text-[11px] flex items-center justify-center transition-colors duration-200 ${
+                    isCorrect
+                      ? "bg-accent text-paper-cool"
+                      : "bg-paper-warm text-ink-soft hover:bg-paper-warm/80 hover:text-ink"
+                  }`}
+                >
                   {letter}
-                </span>
-                <span className="flex-1 text-sm text-ink leading-snug">{c}</span>
-                {isCorrect && <Check size={14} className="text-accent flex-shrink-0 mt-0.5" />}
+                </button>
+                <EditableText
+                  value={c}
+                  onChange={(v) => updateChoice(i, v)}
+                  placeholder={`Option ${letter}`}
+                  className="flex-1 text-sm text-ink leading-snug"
+                />
+                {showHighlight && <Check size={14} className="text-accent flex-shrink-0 mt-0.5" />}
               </li>
             );
           })}
@@ -1412,28 +1510,57 @@ function QuizQuestionCard({ question, index }) {
 
       {question.type === "tf" && (
         <div className="flex gap-2 mb-4">
-          {["True", "False"].map((label) => {
-            const isCorrect = showAnswer &&
-              ((label === "True" && question.correct_answer === true) ||
-               (label === "False" && question.correct_answer === false));
+          {[
+            { label: "True", value: true },
+            { label: "False", value: false },
+          ].map(({ label, value }) => {
+            const isCorrect = question.correct_answer === value;
+            const showHighlight = showAnswer && isCorrect;
             return (
-              <span
+              <button
                 key={label}
-                className={`px-3 py-1.5 rounded-lg border text-sm ${
+                type="button"
+                onClick={() => onUpdate({ correct_answer: value })}
+                className={`px-3 py-1.5 rounded-lg border text-sm transition-colors duration-200 ${
                   isCorrect
-                    ? "border-accent bg-accent/[0.06] text-accent font-medium"
-                    : "border-line bg-paper text-ink-soft"
+                    ? showHighlight
+                      ? "border-accent bg-accent/[0.06] text-accent font-medium"
+                      : "border-ink bg-paper text-ink font-medium"
+                    : "border-line bg-paper text-ink-soft hover:border-ink"
                 }`}
               >
                 {label}
-                {isCorrect && <Check size={13} className="inline ml-1.5 -mt-0.5" />}
-              </span>
+                {showHighlight && <Check size={13} className="inline ml-1.5 -mt-0.5" />}
+              </button>
             );
           })}
         </div>
       )}
 
-      <div className="border-t border-line pt-3 mt-1">
+      {(question.type === "short" || question.type === "essay") && showAnswer && (
+        <div className="mb-4">
+          <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-1.5">
+            {question.type === "essay" ? "Rubric outline" : "Expected answer"}
+          </p>
+          <EditableTextarea
+            value={
+              typeof question.correct_answer === "string"
+                ? question.correct_answer
+                : ""
+            }
+            onChange={(v) => onUpdate({ correct_answer: v })}
+            placeholder={
+              question.type === "essay"
+                ? "1–2 sentences describing what a strong response covers."
+                : "Expected answer text."
+            }
+            rows={2}
+            className="text-sm text-ink-soft leading-relaxed w-full"
+          />
+        </div>
+      )}
+
+      <div className="border-t border-line pt-3 mt-1 flex items-center justify-between gap-3">
         {!showAnswer ? (
           <button
             type="button"
@@ -1443,39 +1570,93 @@ function QuizQuestionCard({ question, index }) {
             Reveal answer key
           </button>
         ) : (
-          <div>
-            <div className="flex items-center justify-between gap-3 mb-1.5">
-              <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent">
-                Answer key
-              </p>
-              <button
-                type="button"
-                onClick={() => setShowAnswer(false)}
-                className="text-[11px] text-muted hover:text-accent"
-              >
-                Hide
-              </button>
-            </div>
-            {question.type === "mcq" && (
-              <p className="text-sm text-ink-soft">
-                Correct answer: <span className="font-medium text-ink">{correctLetter}</span>
-              </p>
-            )}
-            {question.type === "tf" && (
-              <p className="text-sm text-ink-soft">
-                Correct answer: <span className="font-medium text-ink">{question.correct_answer ? "True" : "False"}</span>
-              </p>
-            )}
-            {(question.type === "short" || question.type === "essay") && (
-              <p className="text-sm text-ink-soft leading-relaxed whitespace-pre-wrap">
-                {typeof question.correct_answer === "string"
-                  ? question.correct_answer
-                  : JSON.stringify(question.correct_answer)}
-              </p>
-            )}
-          </div>
+          <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent">
+            Answer key
+          </p>
+        )}
+        {showAnswer && (
+          <button
+            type="button"
+            onClick={() => setShowAnswer(false)}
+            className="text-[11px] text-muted hover:text-accent"
+          >
+            Hide
+          </button>
         )}
       </div>
     </div>
+  );
+}
+
+// --- Editable primitives ---------------------------------------------------
+//
+// These render as plain text in flow until hovered/focused. Subtle
+// underline on hover signals "you can edit this"; a real input border
+// appears once focused. They never lose focus on each keystroke (the
+// input is the source of truth), so typing always feels native.
+
+function EditableText({ value, onChange, placeholder, className = "" }) {
+  // The native `size` attribute lets the input auto-fit its current value
+  // width-wise (in ch units). Useful for inline meta fields like
+  // Subject/Grade. Any explicit width class (e.g. w-full) wins over it.
+  const ch = Math.max((value || placeholder || "").length || 4, 4);
+  return (
+    <input
+      type="text"
+      size={ch}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      placeholder={placeholder}
+      className={`bg-transparent outline-none border-b border-transparent hover:border-line/60 focus:border-ink focus:bg-paper transition-colors duration-150 placeholder:text-muted ${className}`}
+    />
+  );
+}
+
+function EditableTextarea({ value, onChange, placeholder, rows = 2, className = "" }) {
+  return (
+    <textarea
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      placeholder={placeholder}
+      rows={rows}
+      className={`bg-transparent outline-none rounded-md p-2 -m-2 border border-transparent hover:border-line/60 focus:border-ink focus:bg-paper resize-y transition-colors duration-150 placeholder:text-muted whitespace-pre-wrap ${className}`}
+    />
+  );
+}
+
+function EditableNumber({ value, onChange, min = 0, className = "" }) {
+  return (
+    <input
+      type="number"
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      min={min}
+      className={`bg-transparent outline-none border-b border-transparent hover:border-line/60 focus:border-ink focus:bg-paper transition-colors duration-150 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${className}`}
+    />
+  );
+}
+
+function MetaField({ label, value, onChange, placeholder, suffix, numeric }) {
+  return (
+    <span className="inline-flex items-baseline gap-1.5">
+      <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted">
+        {label}
+      </span>
+      {numeric ? (
+        <EditableNumber
+          value={value}
+          onChange={onChange}
+          className="w-12 text-sm text-ink"
+        />
+      ) : (
+        <EditableText
+          value={value}
+          onChange={onChange}
+          placeholder={placeholder}
+          className="text-sm text-ink"
+        />
+      )}
+      {suffix && <span className="text-sm text-muted">{suffix}</span>}
+    </span>
   );
 }
