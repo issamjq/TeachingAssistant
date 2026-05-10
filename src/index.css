@@ -29,19 +29,12 @@
   to   { opacity: 1; transform: perspective(900px) rotateY(0)     translateX(0); }
 }
 
-/* Roulette popup — entrance animations and a kind-button confirm pulse. */
-.studio-popup-fade {
-  animation: studio-fade-in 220ms ease-out both;
+/* Inline kind-popover entrance + the kind-button confirm pulse. */
+.studio-menu-rise {
+  animation: studio-menu-rise 180ms cubic-bezier(0.34, 1.18, 0.6, 1) both;
 }
-.studio-popup-rise {
-  animation: studio-rise 320ms cubic-bezier(0.34, 1.18, 0.6, 1) both;
-}
-@keyframes studio-fade-in {
-  from { opacity: 0; }
-  to   { opacity: 1; }
-}
-@keyframes studio-rise {
-  from { opacity: 0; transform: translateY(10px) scale(0.96); }
+@keyframes studio-menu-rise {
+  from { opacity: 0; transform: translateY(-4px) scale(0.97); }
   to   { opacity: 1; transform: translateY(0)    scale(1); }
 }
 /* Pulse the kind button briefly when its value changes via the wheel.
