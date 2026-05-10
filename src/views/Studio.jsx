@@ -589,7 +589,7 @@ export default function Studio() {
       .length;
 
     return (
-      <div className="max-w-6xl mx-auto pb-8">
+      <div className="max-w-6xl mx-auto pb-20">
         {/* Top bar: brand + crumb + actions */}
         <div className="flex items-center justify-between gap-4 mb-5 print:hidden flex-wrap">
           <div className="flex items-center gap-4 min-w-0">
@@ -798,10 +798,12 @@ export default function Studio() {
           </div>
         </Card>
 
-        {/* Tweak input bar — always visible during generation + after. */}
-        <div className="mt-4 print:hidden">
+        {/* Tweak input bar — sticky at the bottom of the viewport so the
+            teacher always sees it once generation starts. Frosted-glass
+            paper so content underneath stays subtly readable as you scroll. */}
+        <div className="sticky bottom-2 md:bottom-3 z-20 mt-5 print:hidden">
           <div
-            className={`bg-paper-cool border rounded-2xl pl-4 pr-2 py-2 flex items-center gap-3 shadow-sm transition-all duration-200 ${
+            className={`bg-paper-cool/95 backdrop-blur-md border rounded-2xl pl-4 pr-2 py-2 flex items-center gap-3 shadow-lg transition-all duration-200 ${
               tweak.trim() ? "border-ink" : "border-line"
             }`}
           >
@@ -916,7 +918,7 @@ export default function Studio() {
       )}
 
       {/* Big input card */}
-      <div className="bg-paper rounded-2xl border border-line shadow-sm overflow-hidden focus-within:border-ink transition-colors duration-200">
+      <div className="bg-paper-cool rounded-2xl border border-line shadow-sm overflow-hidden focus-within:border-ink transition-colors duration-200">
         <textarea
           rows={4}
           value={prompt}
