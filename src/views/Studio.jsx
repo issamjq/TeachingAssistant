@@ -815,21 +815,6 @@ export default function Studio() {
           </div>
         </div>
 
-        {/* Footer hints + token usage */}
-        {result && (
-          <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-muted print:hidden">
-            <span>{result.usage.input_tokens} input</span>
-            <span>{result.usage.output_tokens} output</span>
-            {result.usage.cache_read_input_tokens > 0 && (
-              <span className="text-sage">{result.usage.cache_read_input_tokens} cache read</span>
-            )}
-            {result.usage.cache_creation_input_tokens > 0 && (
-              <span className="text-gold">{result.usage.cache_creation_input_tokens} cache write</span>
-            )}
-            <span>stop: {result.stop_reason}</span>
-          </div>
-        )}
-
         {error && (
           <div className="mt-4 bg-paper border border-accent rounded-lg p-4 shadow-sm">
             <p className="text-sm font-medium text-accent mb-1">Could not generate</p>
