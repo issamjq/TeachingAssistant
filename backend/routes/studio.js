@@ -309,6 +309,12 @@ router.post("/quiz", async (req, res) => {
     const settingsLines = [];
     if (params && typeof params === "object") {
       if (params.grade) settingsLines.push(`- Grade level: ${params.grade}`);
+      if (params.subject) settingsLines.push(`- Subject: ${params.subject}`);
+      if (params.major) {
+        settingsLines.push(
+          `- Major / focus area: ${params.major} (the specialization within the subject — every question must serve this)`
+        );
+      }
       if (Number.isFinite(Number(params.questions)) && Number(params.questions) > 0) {
         settingsLines.push(
           `- Question count: ${Number(params.questions)} (must produce exactly this many)`
@@ -320,7 +326,6 @@ router.post("/quiz", async (req, res) => {
       if (params.difficulty) {
         settingsLines.push(`- Difficulty: ${params.difficulty}`);
       }
-      if (params.subject) settingsLines.push(`- Subject: ${params.subject}`);
     }
     const settingsBlock = settingsLines.length
       ? `SETTINGS (teacher pre-set — honour these):\n${settingsLines.join("\n")}\n\n`

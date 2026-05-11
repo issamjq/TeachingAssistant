@@ -32,7 +32,10 @@ const KINDS = [
     oneliner: "MCQ, T/F, short or essay",
     menuBlurb: "MCQ, T/F, short or essay",
     verb: "Make", inlineLabel: "quiz",          suffix: "Tell Mudir what to test.",
-    sample: "8-question Grade 8 algebra quiz covering linear equations — mix of MCQ and short answer, total 20 marks.",
+    // The chips above the textarea already carry grade / subject / major
+    // / difficulty / count / duration, so the prompt should focus on
+    // content only: which sub-topics, real-world hooks, what to emphasise.
+    sample: "Linear equations — focus on word problems with real-world scenarios. Avoid pure plug-and-chug.",
   },
   {
     value: "homework",     label: "Homework",   icon: ClipboardList,
@@ -80,10 +83,11 @@ const RECENTS_BY_KIND = {
 // is optional — the AI fills in any field left blank.
 const QUIZ_PARAMS_DEFAULTS = {
   grade: "",
+  subject: "",   // broad academic subject — Math, English, Science
+  major: "",     // specialization within the subject — Algebra, Biology, Romantic poetry
   questions: 10,
   duration: 30,
   difficulty: "Medium",
-  subject: "",
 };
 const QUIZ_DIFFICULTIES = ["Easy", "Medium", "Hard"];
 
@@ -1390,6 +1394,9 @@ function QuizStreamingPlaceholder({ partial, busy }) {
 // All fields are optional; the AI infers anything left empty.
 function QuizParamsRow({ params, onChange }) {
   const set = (patch) => onChange((prev) => ({ ...prev, ...patch }));
+  // Order is intentional: WHAT (grade / subject / major) on the left,
+  // HOW (difficulty / count / duration) on the right, mirroring how a
+  // teacher would describe the quiz aloud.
   return (
     <div className="px-4 py-2.5 border-b border-line/70 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-sm">
       <ParamField
@@ -1397,6 +1404,25 @@ function QuizParamsRow({ params, onChange }) {
         value={params.grade}
         onChange={(v) => set({ grade: v })}
         placeholder="—"
+      />
+      <span className="text-line">·</span>
+      <ParamField
+        label="Subject"
+        value={params.subject}
+        onChange={(v) => set({ subject: v })}
+        placeholder="—"
+      />
+      <span className="text-line">·</span>
+      <ParamField
+        label="Major"
+        value={params.major}
+        onChange={(v) => set({ major: v })}
+        placeholder="—"
+      />
+      <span className="text-line">·</span>
+      <DifficultyToggle
+        value={params.difficulty}
+        onChange={(v) => set({ difficulty: v })}
       />
       <span className="text-line">·</span>
       <ParamField
@@ -1411,18 +1437,6 @@ function QuizParamsRow({ params, onChange }) {
         value={params.duration ?? ""}
         onChange={(v) => set({ duration: v === "" ? null : Number(v) })}
         numeric
-      />
-      <span className="text-line">·</span>
-      <DifficultyToggle
-        value={params.difficulty}
-        onChange={(v) => set({ difficulty: v })}
-      />
-      <span className="text-line">·</span>
-      <ParamField
-        label="Subject"
-        value={params.subject}
-        onChange={(v) => set({ subject: v })}
-        placeholder="—"
       />
     </div>
   );
