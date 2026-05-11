@@ -1479,72 +1479,157 @@ function QuizParamsPanel({ params, onChange }) {
   );
 }
 
-// A chunky field-card that looks like a real form control:
+// A combobox-style field-card. Looks like a form control closed; opens
+// into a text input + filtered dropdown. Teachers can pick from the
+// preset list OR type any custom value — typed text becomes the value
+// even if it doesn't match anything in `options`.
+//
 //   ┌───────────────────────┐
-//   │ ⊕ GRADE             ▾ │   ← icon + mono label + chevron
-//   │ Grade 8               │   ← value (or "Any grade" italic when empty)
+//   │ ⊕ GRADE             ▾ │   header (icon + mono label + chevron)
+//   │ Grade 8 / [type…  ]   │   value or input depending on open
 //   └───────────────────────┘
-// Closed empty: paper bg, muted text — reads as a tappable empty slot.
-// Closed filled: warm paper bg, ink text — clearly "selected".
-// Open: ink bg + accent ring, popover drops below.
-function DropdownChip({ icon: Icon, label, emptyHint, value, options, onChange, suffix }) {
+//
+// Closed empty: dashed border + italic "Any grade" hint.
+// Closed filled: solid border + ink text.
+// Open: focus ring, input replaces the value display, menu drops below.
+// numeric: input forwards inputMode="numeric"; non-numeric typed values
+//          are coerced or ignored on commit.
+function DropdownChip({ icon: Icon, label, emptyHint, value, options, onChange, suffix, numeric }) {
   const [open, setOpen] = useState(false);
-  const isSet = Boolean(value);
-  const display = value
-    ? suffix
-      ? `${value} ${suffix}`
-      : value
-    : emptyHint || "Pick…";
+  const [draft, setDraft] = useState(value == null ? "" : String(value));
+  const inputRef = useRef(null);
+
+  // Re-seed draft from external value when the chip is closed (resets, etc.)
+  useEffect(() => {
+    if (!open) setDraft(value == null ? "" : String(value));
+  }, [value, open]);
+
+  // Focus + select the input as soon as it appears so typing just works.
+  useEffect(() => {
+    if (!open) return;
+    const id = setTimeout(() => {
+      inputRef.current?.focus();
+      inputRef.current?.select();
+    }, 0);
+    return () => clearTimeout(id);
+  }, [open]);
+
+  const openMenu = () => {
+    setDraft(value == null ? "" : String(value));
+    setOpen(true);
+  };
+
+  // Commit a value: trims, coerces to number for numeric chips, then
+  // closes the menu. Invalid numeric input becomes empty (Any).
+  const commit = (raw) => {
+    let v = raw === "" || raw == null ? "" : String(raw).trim();
+    if (numeric && v !== "") {
+      const n = Number(v);
+      v = Number.isFinite(n) && n > 0 ? String(n) : "";
+    }
+    onChange(numeric ? (v === "" ? "" : Number(v)) : v);
+    setOpen(false);
+  };
+
+  const filteredOptions = useMemo(() => {
+    if (!draft) return options;
+    const q = String(draft).toLowerCase();
+    return options.filter((o) => String(o).toLowerCase().includes(q));
+  }, [draft, options]);
+
+  const isSet = Boolean(value) || value === 0;
+  const display = isSet
+    ? suffix ? `${value} ${suffix}` : value
+    : emptyHint || "Pick or type…";
+
+  const cardClass = `w-full text-left rounded-lg border px-3 py-2 transition-all duration-150 ${
+    open
+      ? "bg-paper-cool border-ink shadow-[0_0_0_3px_rgba(200,71,43,0.12)]"
+      : isSet
+        ? "bg-paper-cool border-line hover:border-ink"
+        : "bg-paper border-dashed border-line/80 hover:border-ink hover:bg-paper-cool"
+  }`;
+
+  const header = (
+    <div className="flex items-center justify-between gap-2 mb-0.5">
+      <span className={`inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.16em] ${
+        isSet || open ? "text-ink-soft" : "text-muted"
+      }`}>
+        {Icon && <Icon size={11} strokeWidth={1.75} />}
+        {label}
+      </span>
+      <ChevronDown
+        size={13}
+        className={`flex-shrink-0 ${
+          open ? "rotate-180 text-accent" : "text-muted"
+        } transition-transform duration-150`}
+      />
+    </div>
+  );
+
+  // While open, bump the wrapper above the click-outside scrim so the
+  // input + dropdown stay clickable (scrim is z-40, chip becomes z-50).
   return (
-    <span className="relative inline-block">
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        aria-haspopup="listbox"
-        aria-expanded={open}
-        className={`w-full text-left rounded-lg border px-3 py-2 transition-all duration-150 ${
-          open
-            ? "bg-paper-cool border-ink shadow-[0_0_0_3px_rgba(200,71,43,0.12)]"
-            : isSet
-              ? "bg-paper-cool border-line hover:border-ink"
-              : "bg-paper border-dashed border-line/80 hover:border-ink hover:bg-paper-cool"
-        }`}
-      >
-        <div className="flex items-center justify-between gap-2 mb-0.5">
-          <span className={`inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.16em] ${
-            isSet || open ? "text-ink-soft" : "text-muted"
+    <span className={`relative inline-block ${open ? "z-50" : ""}`}>
+      {!open ? (
+        <button
+          type="button"
+          onClick={openMenu}
+          aria-haspopup="listbox"
+          aria-expanded={false}
+          className={cardClass}
+        >
+          {header}
+          <div className={`text-sm leading-tight ${
+            isSet ? "text-ink font-medium" : "text-muted italic"
           }`}>
-            {Icon && <Icon size={11} strokeWidth={1.75} />}
-            {label}
-          </span>
-          <ChevronDown
-            size={13}
-            className={`flex-shrink-0 ${
-              open ? "rotate-180 text-accent" : "text-muted"
-            } transition-transform duration-150`}
+            {display}
+          </div>
+        </button>
+      ) : (
+        <div className={cardClass}>
+          {header}
+          <input
+            ref={inputRef}
+            type="text"
+            inputMode={numeric ? "numeric" : undefined}
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") { e.preventDefault(); commit(draft); }
+              else if (e.key === "Escape") { e.preventDefault(); setOpen(false); }
+            }}
+            placeholder={emptyHint || "Type or pick…"}
+            className="w-full bg-transparent outline-none text-sm text-ink font-medium leading-tight placeholder:text-muted placeholder:italic placeholder:font-normal"
           />
         </div>
-        <div className={`text-sm leading-tight ${
-          isSet ? "text-ink font-medium" : "text-muted italic"
-        }`}>
-          {display}
-        </div>
-      </button>
+      )}
 
       {open && (
-        <DropdownMenu
+        <ComboboxMenu
           value={value}
-          options={options}
+          draft={draft}
+          options={filteredOptions}
+          allOptions={options}
           suffix={suffix}
-          onPick={(v) => { onChange(v); setOpen(false); }}
-          onClose={() => setOpen(false)}
+          onPick={commit}
+          onClose={() => commit(draft)}
         />
       )}
     </span>
   );
 }
 
-function DropdownMenu({ value, options, suffix, onPick, onClose }) {
+// Filtered menu that opens under a DropdownChip. Shows three regions:
+//   1. "Use \"<draft>\" (custom)" — only when the draft text doesn't
+//      match any preset; lets the teacher commit a free-form value.
+//   2. "Any — let Mudir choose" — clears the field.
+//   3. The filtered preset options.
+function ComboboxMenu({ value, draft, options, allOptions, suffix, onPick, onClose }) {
+  const trimmed = String(draft || "").trim();
+  const isCustom =
+    trimmed.length > 0 &&
+    !allOptions.some((o) => String(o).toLowerCase() === trimmed.toLowerCase());
   return (
     <>
       <button
@@ -1559,6 +1644,25 @@ function DropdownMenu({ value, options, suffix, onPick, onClose }) {
         className="studio-menu-rise absolute left-0 top-full mt-1.5 z-50 min-w-[14rem] max-h-[60vh] overflow-y-auto origin-top-left rounded-xl border border-line bg-paper-cool shadow-xl ring-1 ring-ink/5"
       >
         <ul className="py-1">
+          {isCustom && (
+            <>
+              <li>
+                <button
+                  type="button"
+                  onClick={() => onPick(trimmed)}
+                  className="w-full flex items-center justify-between gap-3 px-3 py-2 text-left text-sm text-ink hover:bg-paper-warm/60"
+                >
+                  <span className="truncate">
+                    Use <span className="font-medium">&ldquo;{trimmed}&rdquo;</span>
+                    <span className="text-muted ml-1.5 text-[11px] italic">custom</span>
+                  </span>
+                  <Plus size={13} className="text-accent flex-shrink-0" />
+                </button>
+              </li>
+              <li className="border-t border-line/60 my-1" />
+            </>
+          )}
+
           <li>
             <button
               type="button"
@@ -1574,8 +1678,13 @@ function DropdownMenu({ value, options, suffix, onPick, onClose }) {
             </button>
           </li>
           <li className="border-t border-line/60 my-1" />
+
+          {options.length === 0 && !isCustom && (
+            <li className="px-3 py-2 text-sm text-muted italic">No matches</li>
+          )}
+
           {options.map((opt) => {
-            const isActive = opt === value;
+            const isActive = String(opt) === String(value);
             return (
               <li key={opt}>
                 <button
