@@ -129,6 +129,10 @@ export default function Studio() {
   const [copied, setCopied] = useState(false);
   const [saving, setSaving] = useState(false);
   const [savedDraftId, setSavedDraftId] = useState(null);
+  // When the teacher edited any correct_answer pre-save we surface a
+  // confirmation modal that lists each change. Holds the diff rows
+  // (null means closed).
+  const [pendingAnswerConfirm, setPendingAnswerConfirm] = useState(null);
   // The "Ask Mudir to tweak" input. Submitting it regenerates the current
   // section with the typed hint as guidance.
   const [tweak, setTweak] = useState("");
@@ -243,6 +247,7 @@ export default function Studio() {
     setSections([]);
     setError(null);
     setSavedDraftId(null);
+    setPendingAnswerConfirm(null);
     setTweak("");
   };
 
@@ -306,9 +311,14 @@ export default function Studio() {
               // The result-watching effect rebuilds `sections` from the
               // structured quiz, so we just persist the result here. The
               // sidebar + right pane re-render automatically.
+              // originalQuiz is a frozen snapshot of what the AI produced,
+              // used at save-time to diff which correct_answers the teacher
+              // edited and surface a "Are you sure?" confirmation.
+              const aiQuiz = payload.quiz;
               setResult({
                 kind: "quiz",
-                quiz: payload.quiz,
+                quiz: aiQuiz,
+                originalQuiz: JSON.parse(JSON.stringify(aiQuiz)),
                 stop_reason: payload.stop_reason,
                 usage: payload.usage,
               });
@@ -583,7 +593,43 @@ export default function Studio() {
     setTimeout(() => setCopied(false), 1500);
   };
 
+  // For quizzes only — compare each question's correct_answer to the AI's
+  // original snapshot and return the rows that changed. Used at Save time.
+  const diffChangedAnswers = () => {
+    if (result?.kind !== "quiz" || !result.quiz || !result.originalQuiz) return [];
+    const current = result.quiz.questions || [];
+    const original = result.originalQuiz.questions || [];
+    const changes = [];
+    for (let i = 0; i < current.length; i++) {
+      const c = current[i];
+      const o = original[i];
+      if (!o) continue;
+      const a = JSON.stringify(c?.correct_answer);
+      const b = JSON.stringify(o?.correct_answer);
+      if (a !== b) {
+        changes.push({
+          position: c.position ?? i + 1,
+          type: c.type,
+          was: o.correct_answer,
+          now: c.correct_answer,
+          prompt: c.prompt,
+        });
+      }
+    }
+    return changes;
+  };
+
+  const handleSaveClick = () => {
+    const changes = diffChangedAnswers();
+    if (changes.length > 0) {
+      setPendingAnswerConfirm(changes);
+      return;
+    }
+    saveAsDraft();
+  };
+
   const saveAsDraft = async () => {
+    setPendingAnswerConfirm(null);
     setSaving(true);
     try {
       // Quiz path: persist as a real Quiz row + its quiz_questions in one
@@ -708,7 +754,7 @@ export default function Studio() {
             ) : (
               <Button
                 variant="secondary"
-                onClick={saveAsDraft}
+                onClick={handleSaveClick}
                 disabled={saving || !result}
                 className="text-xs px-3 py-1.5"
               >
@@ -995,6 +1041,14 @@ export default function Studio() {
               </p>
             )}
           </div>
+        )}
+
+        {pendingAnswerConfirm && (
+          <AnswerChangeConfirm
+            changes={pendingAnswerConfirm}
+            onCancel={() => setPendingAnswerConfirm(null)}
+            onConfirm={saveAsDraft}
+          />
         )}
       </div>
     );
@@ -1826,6 +1880,101 @@ function ComboboxMenu({ value, draft, options, allOptions, suffix, onPick, onClo
         </ul>
       </div>
     </>
+  );
+}
+
+// Save-time confirmation. Surfaced only when the teacher edited at least
+// one correct_answer pre-save. Lists each changed question (was → now)
+// so the teacher can double-check before the change is persisted to the
+// quiz_questions table. Cancel keeps editing; Confirm proceeds with the
+// real save call.
+function AnswerChangeConfirm({ changes, onCancel, onConfirm }) {
+  const formatAnswer = (value, type) => {
+    if (value === true) return "True";
+    if (value === false) return "False";
+    if (value == null || value === "") return "—";
+    if (typeof value === "string") {
+      // Trim long short/essay rubrics so the modal stays readable.
+      if (type === "short" || type === "essay") {
+        return value.length > 60 ? `${value.slice(0, 60)}…` : value;
+      }
+      return value;
+    }
+    return JSON.stringify(value);
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      role="dialog"
+      aria-modal="true"
+    >
+      <div
+        className="absolute inset-0 bg-ink/30 backdrop-blur-sm"
+        onClick={onCancel}
+      />
+      <div className="studio-menu-rise relative bg-paper-cool rounded-2xl border border-line shadow-2xl w-full max-w-md p-6 md:p-7">
+        <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent mb-2">
+          Heads up
+        </p>
+        <h3 className="font-serif text-xl md:text-2xl font-medium text-ink leading-tight mb-2">
+          You changed {changes.length === 1 ? "the correct answer" : `the correct answer in ${changes.length} questions`}.
+        </h3>
+        <p className="text-sm text-muted mb-4 leading-relaxed">
+          Saving will overwrite the answer key with your version. The other
+          edits (prompts, choice text, marks) save without confirmation.
+        </p>
+
+        <ul className="space-y-2 mb-5 max-h-[40vh] overflow-y-auto pr-1">
+          {changes.map((c) => (
+            <li
+              key={c.position}
+              className="rounded-lg border border-line bg-paper p-3"
+            >
+              <div className="flex items-center justify-between gap-2 mb-1.5">
+                <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted">
+                  Question {c.position}
+                </p>
+                <span className="px-2 py-0.5 rounded-full border border-line bg-paper-cool text-[10px] text-ink-soft">
+                  {QUIZ_TYPE_LABELS[c.type] || c.type}
+                </span>
+              </div>
+              <p className="text-sm text-ink-soft leading-snug mb-2 line-clamp-2">
+                {c.prompt}
+              </p>
+              <div className="flex items-center gap-2 text-xs">
+                <span className="text-muted">was</span>
+                <span className="px-1.5 py-0.5 rounded border border-line bg-paper-cool font-mono text-ink-soft line-through">
+                  {formatAnswer(c.was, c.type)}
+                </span>
+                <span className="text-muted">→</span>
+                <span className="px-1.5 py-0.5 rounded border border-accent/40 bg-accent/[0.06] font-mono text-accent">
+                  {formatAnswer(c.now, c.type)}
+                </span>
+              </div>
+            </li>
+          ))}
+        </ul>
+
+        <div className="flex items-center justify-end gap-2">
+          <Button
+            variant="secondary"
+            onClick={onCancel}
+            className="text-sm px-4 py-2"
+          >
+            Cancel
+          </Button>
+          <Button
+            variant="danger"
+            onClick={onConfirm}
+            className="text-sm px-4 py-2"
+          >
+            <Check size={14} className="mr-1.5" />
+            Save anyway
+          </Button>
+        </div>
+      </div>
+    </div>
   );
 }
 
