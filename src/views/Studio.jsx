@@ -1393,6 +1393,73 @@ function QuizStreamingPlaceholder({ partial, busy }) {
   );
 }
 
+// Heuristics to spot the most common chip mix-ups. Each function takes
+// the chip's current value, the whole `params`, and the option list it's
+// drawing from. Returns:
+//   null  → value looks fine
+//   { reason, suggestSlot } → value belongs to suggestSlot, not this one
+//
+// We use small, conservative rules — false positives are worse than
+// false negatives here, because the AI also auto-corrects on the backend.
+const looksLikeGrade = (v) =>
+  /grade\s*\d/i.test(v) ||
+  /^kg\b/i.test(v) ||
+  /^year\s*\d/i.test(v) ||
+  /^form\s*\d/i.test(v);
+
+const looksLikeDifficulty = (v) =>
+  /^(easy|medium|hard|beginner|intermediate|advanced|mixed)$/i.test(v.trim());
+
+const looksLikeMajor = (v) =>
+  MAJORS.some((m) => m.toLowerCase() === v.trim().toLowerCase());
+
+const looksLikeInteger = (v) => /^\d+$/.test(String(v).trim());
+
+const CHIP_VALIDATORS = {
+  grade: (v) => {
+    if (!v) return null;
+    const s = String(v).trim();
+    if (looksLikeGrade(s)) return null;
+    if (looksLikeMajor(s)) return { reason: "That looks like a Major", suggestSlot: "major" };
+    if (looksLikeDifficulty(s)) return { reason: "That looks like a Difficulty", suggestSlot: "difficulty" };
+    if (looksLikeInteger(s)) return null; // could be a custom value
+    return null;
+  },
+  major: (v) => {
+    if (!v) return null;
+    const s = String(v).trim();
+    if (looksLikeGrade(s)) return { reason: "That looks like a Grade", suggestSlot: "grade" };
+    if (looksLikeDifficulty(s)) return { reason: "That looks like a Difficulty", suggestSlot: "difficulty" };
+    return null;
+  },
+  difficulty: (v) => {
+    if (!v) return null;
+    const s = String(v).trim();
+    if (looksLikeDifficulty(s)) return null;
+    if (looksLikeMajor(s)) return { reason: "That looks like a Major", suggestSlot: "major" };
+    if (looksLikeGrade(s)) return { reason: "That looks like a Grade", suggestSlot: "grade" };
+    return null;
+  },
+  questions: (v) => {
+    if (v === "" || v == null) return null;
+    if (!looksLikeInteger(v)) {
+      const s = String(v).trim();
+      if (looksLikeMajor(s)) return { reason: "Looks like a Major", suggestSlot: "major" };
+      return { reason: "Should be a number", suggestSlot: null };
+    }
+    return null;
+  },
+  duration: (v) => {
+    if (v === "" || v == null) return null;
+    if (!looksLikeInteger(v)) {
+      const s = String(v).trim();
+      if (looksLikeMajor(s)) return { reason: "Looks like a Major", suggestSlot: "major" };
+      return { reason: "Should be a number", suggestSlot: null };
+    }
+    return null;
+  },
+};
+
 // Pre-prompt panel that sits ABOVE the input card. Big, clearly chunked
 // settings block with a header so it doesn't read as decoration. Each
 // field is a dropdown chip with an icon, an uppercase label, and a value
@@ -1405,6 +1472,17 @@ function QuizParamsPanel({ params, onChange }) {
     params.grade, params.major, params.difficulty,
     params.questions, params.duration,
   ].filter((v) => v !== "" && v != null).length;
+
+  // Move this chip's current value into `targetSlot` and clear ours.
+  // If `targetSlot` already has a value, swap them so nothing is lost.
+  const moveTo = (fromSlot, targetSlot) => {
+    if (!targetSlot) return;
+    onChange((prev) => ({
+      ...prev,
+      [targetSlot]: prev[fromSlot],
+      [fromSlot]: prev[targetSlot] ?? "",
+    }));
+  };
 
   return (
     <div className="mb-4 rounded-2xl border border-line bg-paper-warm/40 px-4 md:px-5 py-4">
@@ -1428,30 +1506,40 @@ function QuizParamsPanel({ params, onChange }) {
         <DropdownChip
           icon={GraduationCap}
           label="Grade"
+          slot="grade"
           emptyHint="Any grade"
           value={params.grade}
           options={GRADE_LEVELS}
           onChange={(v) => set({ grade: v })}
+          warning={CHIP_VALIDATORS.grade(params.grade)}
+          onMoveTo={(target) => moveTo("grade", target)}
         />
         <DropdownChip
           icon={BookOpen}
           label="Major"
+          slot="major"
           emptyHint="Any major"
           value={params.major}
           options={MAJORS}
           onChange={(v) => set({ major: v })}
+          warning={CHIP_VALIDATORS.major(params.major)}
+          onMoveTo={(target) => moveTo("major", target)}
         />
         <DropdownChip
           icon={Gauge}
           label="Difficulty"
+          slot="difficulty"
           emptyHint="Any level"
           value={params.difficulty}
           options={QUIZ_DIFFICULTIES}
           onChange={(v) => set({ difficulty: v })}
+          warning={CHIP_VALIDATORS.difficulty(params.difficulty)}
+          onMoveTo={(target) => moveTo("difficulty", target)}
         />
         <DropdownChip
           icon={Hash}
           label="Questions"
+          slot="questions"
           emptyHint="Any count"
           value={
             params.questions === "" || params.questions == null
@@ -1460,10 +1548,14 @@ function QuizParamsPanel({ params, onChange }) {
           }
           options={QUIZ_QUESTION_COUNTS.map(String)}
           onChange={(v) => set({ questions: v === "" ? "" : Number(v) })}
+          warning={CHIP_VALIDATORS.questions(params.questions)}
+          onMoveTo={(target) => moveTo("questions", target)}
+          numeric
         />
         <DropdownChip
           icon={Clock}
           label="Duration"
+          slot="duration"
           emptyHint="Any length"
           value={
             params.duration === "" || params.duration == null
@@ -1472,7 +1564,10 @@ function QuizParamsPanel({ params, onChange }) {
           }
           options={QUIZ_DURATIONS.map(String)}
           onChange={(v) => set({ duration: v === "" ? "" : Number(v) })}
+          warning={CHIP_VALIDATORS.duration(params.duration)}
+          onMoveTo={(target) => moveTo("duration", target)}
           suffix="min"
+          numeric
         />
       </div>
     </div>
@@ -1494,7 +1589,7 @@ function QuizParamsPanel({ params, onChange }) {
 // Open: focus ring, input replaces the value display, menu drops below.
 // numeric: input forwards inputMode="numeric"; non-numeric typed values
 //          are coerced or ignored on commit.
-function DropdownChip({ icon: Icon, label, emptyHint, value, options, onChange, suffix, numeric }) {
+function DropdownChip({ icon: Icon, label, emptyHint, value, options, onChange, suffix, numeric, warning, onMoveTo }) {
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState(value == null ? "" : String(value));
   const inputRef = useRef(null);
@@ -1542,12 +1637,15 @@ function DropdownChip({ icon: Icon, label, emptyHint, value, options, onChange, 
     ? suffix ? `${value} ${suffix}` : value
     : emptyHint || "Pick or type…";
 
+  const hasWarning = Boolean(warning && !open);
   const cardClass = `w-full text-left rounded-lg border px-3 py-2 transition-all duration-150 ${
     open
       ? "bg-paper-cool border-ink shadow-[0_0_0_3px_rgba(200,71,43,0.12)]"
-      : isSet
-        ? "bg-paper-cool border-line hover:border-ink"
-        : "bg-paper border-dashed border-line/80 hover:border-ink hover:bg-paper-cool"
+      : hasWarning
+        ? "bg-paper-cool border-accent/70"
+        : isSet
+          ? "bg-paper-cool border-line hover:border-ink"
+          : "bg-paper border-dashed border-line/80 hover:border-ink hover:bg-paper-cool"
   }`;
 
   const header = (
@@ -1572,20 +1670,38 @@ function DropdownChip({ icon: Icon, label, emptyHint, value, options, onChange, 
   return (
     <span className={`relative inline-block ${open ? "z-50" : ""}`}>
       {!open ? (
-        <button
-          type="button"
-          onClick={openMenu}
-          aria-haspopup="listbox"
-          aria-expanded={false}
-          className={cardClass}
-        >
-          {header}
-          <div className={`text-sm leading-tight ${
-            isSet ? "text-ink font-medium" : "text-muted italic"
-          }`}>
-            {display}
-          </div>
-        </button>
+        <div className={cardClass}>
+          <button
+            type="button"
+            onClick={openMenu}
+            aria-haspopup="listbox"
+            aria-expanded={false}
+            className="w-full text-left bg-transparent outline-none"
+          >
+            {header}
+            <div className={`text-sm leading-tight ${
+              isSet ? "text-ink font-medium" : "text-muted italic"
+            }`}>
+              {display}
+            </div>
+          </button>
+          {hasWarning && (
+            <div className="mt-1.5 pt-1.5 border-t border-accent/30 flex items-center justify-between gap-2">
+              <span className="text-[10.5px] text-accent italic leading-tight">
+                {warning.reason}
+              </span>
+              {warning.suggestSlot && onMoveTo && (
+                <button
+                  type="button"
+                  onClick={() => onMoveTo(warning.suggestSlot)}
+                  className="text-[10.5px] font-mono uppercase tracking-[0.12em] text-accent hover:underline flex-shrink-0"
+                >
+                  Move →
+                </button>
+              )}
+            </div>
+          )}
+        </div>
       ) : (
         <div className={cardClass}>
           {header}
