@@ -1753,14 +1753,7 @@ function DropdownChip({ icon: Icon, label, emptyHint, help, value, options, onCh
       }`}>
         {Icon && <Icon size={11} strokeWidth={1.75} />}
         {label}
-        {help && (
-          // Tiny info hint — hover shows the native tooltip with the
-          // help text, so teachers learn what each field means without
-          // a separate doc page or guided tour.
-          <span title={help} className="inline-flex items-center text-muted/80 hover:text-accent cursor-help">
-            <HelpCircle size={10} strokeWidth={1.75} />
-          </span>
-        )}
+        {help && <HelpTip text={help} />}
       </span>
       <ChevronDown
         size={13}
@@ -2267,6 +2260,44 @@ function QuizQuestionCard({ question, index, onUpdate }) {
 // underline on hover signals "you can edit this"; a real input border
 // appears once focused. They never lose focus on each keystroke (the
 // input is the source of truth), so typing always feels native.
+
+// Small custom tooltip for the chip help icons. Native `title` attrs have
+// a 1–2s browser delay and don't fire on touch, so we render our own.
+// Hover (or focus, or tap) shows; mouseleave / re-tap hides. Clicks
+// stopPropagation so they don't bubble to the parent chip and open its
+// dropdown. The popover floats above the chip with a small caret.
+function HelpTip({ text }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <span
+      className="relative inline-flex items-center"
+      onMouseEnter={() => setOpen(true)}
+      onMouseLeave={() => setOpen(false)}
+      onClick={(e) => {
+        e.stopPropagation();
+        setOpen((o) => !o);
+      }}
+      aria-label={`Help: ${text}`}
+    >
+      <HelpCircle
+        size={11}
+        strokeWidth={1.75}
+        className={`cursor-help transition-colors duration-150 ${
+          open ? "text-accent" : "text-muted/80 hover:text-accent"
+        }`}
+      />
+      {open && (
+        <span
+          role="tooltip"
+          className="studio-helptip absolute left-1/2 -translate-x-1/2 top-full mt-2 z-50 w-60 px-3 py-2.5 rounded-lg bg-ink text-paper-cool text-[11px] leading-relaxed shadow-xl pointer-events-none normal-case tracking-normal font-sans font-normal"
+        >
+          <span className="absolute -top-1 left-1/2 -translate-x-1/2 w-2 h-2 rotate-45 bg-ink" />
+          {text}
+        </span>
+      )}
+    </span>
+  );
+}
 
 function EditableText({ value, onChange, placeholder, className = "" }) {
   // The native `size` attribute lets the input auto-fit its current value
