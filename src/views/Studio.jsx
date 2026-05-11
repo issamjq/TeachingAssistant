@@ -4,7 +4,7 @@ import {
   Sparkles, FileText, ClipboardList, GraduationCap,
   Layers, Users, Calendar, Save, Copy, Check, X, RotateCcw, FileDown,
   Send, Paperclip, Plus, Wand2, RefreshCw, Zap, Dices, ChevronDown,
-  BookOpen, Gauge, Hash, Clock,
+  BookOpen, Gauge, Hash, Clock, Globe, HelpCircle,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -14,6 +14,7 @@ import StudioCard from "./StudioCard";
 import {
   GRADE_LEVELS, MAJORS,
   QUIZ_QUESTION_COUNTS, QUIZ_DURATIONS, QUIZ_DIFFICULTIES,
+  QUIZ_LANGUAGES, QUIZ_SECTIONS,
 } from "../lib/enums";
 
 // Same base URL the rest of the app uses (Vercel rewrites /api → Render in
@@ -90,6 +91,8 @@ const RECENTS_BY_KIND = {
 const QUIZ_PARAMS_DEFAULTS = {
   grade: "",       // from GRADE_LEVELS
   major: "",       // from MAJORS (this codebase's school-subject list)
+  language: "",    // from QUIZ_LANGUAGES — output language of the quiz
+  section: "",     // from QUIZ_SECTIONS — class section (e.g. "Section A")
   questions: "",   // from QUIZ_QUESTION_COUNTS
   duration: "",    // from QUIZ_DURATIONS (minutes)
   difficulty: "",  // from QUIZ_DIFFICULTIES
@@ -916,6 +919,16 @@ export default function Studio() {
                         on each navigation. Quiz sections render a typed
                         question/meta card; everything else renders the
                         existing markdown StudioCard. */}
+                    {/* First-time editing hint — shown only for quizzes
+                        and only on the first section. Teaches the inline-
+                        edit affordance without an onboarding tour. */}
+                    {result?.kind === "quiz" && sectionIndex === 0 && (
+                      <div className="mb-4 rounded-lg border border-line bg-paper-warm/40 px-4 py-2.5 text-xs text-ink-soft leading-relaxed">
+                        <span className="font-medium text-ink">Tip · </span>
+                        Click any field to edit — the title, marks, choices, even which letter is correct. Changing the correct answer asks for confirmation before saving.
+                      </div>
+                    )}
+
                     <div
                       key={`${sectionIndex}-${currentSection?.id}`}
                       className="studio-card-flip-in"
@@ -1074,18 +1087,23 @@ export default function Studio() {
         </div>
         <div className="flex-1 min-w-0 pt-0.5">
           <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-1.5">Mudir</p>
-          <p className="font-serif text-xl md:text-2xl text-ink leading-relaxed">
-            {active?.verb} a{" "}
-            <InlineKindPicker
-              active={active}
-              pulseKey={pulseKey}
-              open={pickerOpen}
-              cursor={cursor}
-              onOpen={openPicker}
-              onClose={() => setPickerOpen(false)}
-              onPick={onPickFromMenu}
-              onCursor={setCursor}
-            />
+          <p className="font-serif text-lg sm:text-xl md:text-2xl text-ink leading-relaxed">
+            {/* Keep "{verb} a [pill]" as a no-break unit so the kind pill
+                never lands on its own line under "Make a". The suffix
+                wraps naturally on narrow widths. */}
+            <span className="whitespace-nowrap">
+              {active?.verb} a{" "}
+              <InlineKindPicker
+                active={active}
+                pulseKey={pulseKey}
+                open={pickerOpen}
+                cursor={cursor}
+                onOpen={openPicker}
+                onClose={() => setPickerOpen(false)}
+                onPick={onPickFromMenu}
+                onCursor={setCursor}
+              />
+            </span>
             {". "}
             {active?.suffix}
           </p>
@@ -1523,8 +1541,8 @@ const CHIP_VALIDATORS = {
 function QuizParamsPanel({ params, onChange }) {
   const set = (patch) => onChange((prev) => ({ ...prev, ...patch }));
   const setCount = [
-    params.grade, params.major, params.difficulty,
-    params.questions, params.duration,
+    params.grade, params.major, params.language, params.section,
+    params.difficulty, params.questions, params.duration,
   ].filter((v) => v !== "" && v != null).length;
 
   // Move this chip's current value into `targetSlot` and clear ours.
@@ -1551,17 +1569,18 @@ function QuizParamsPanel({ params, onChange }) {
         </div>
         {setCount > 0 && (
           <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-accent flex-shrink-0">
-            {setCount} of 5 set
+            {setCount} of 7 set
           </p>
         )}
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-2">
         <DropdownChip
           icon={GraduationCap}
           label="Grade"
           slot="grade"
           emptyHint="Any grade"
+          help="Which year group the quiz is for. Drives vocabulary and complexity (KG 1 keeps it visual, Grade 12 allows abstract reasoning)."
           value={params.grade}
           options={GRADE_LEVELS}
           onChange={(v) => set({ grade: v })}
@@ -1573,6 +1592,7 @@ function QuizParamsPanel({ params, onChange }) {
           label="Major"
           slot="major"
           emptyHint="Any major"
+          help="The school subject the quiz tests — Math, Biology, History, etc. Every question must stay on-topic for this major."
           value={params.major}
           options={MAJORS}
           onChange={(v) => set({ major: v })}
@@ -1580,10 +1600,31 @@ function QuizParamsPanel({ params, onChange }) {
           onMoveTo={(target) => moveTo("major", target)}
         />
         <DropdownChip
+          icon={Globe}
+          label="Language"
+          slot="language"
+          emptyHint="Auto (English)"
+          help="The language the quiz will be written in. The whole output — questions, choices, answer key — comes back in this language."
+          value={params.language}
+          options={QUIZ_LANGUAGES}
+          onChange={(v) => set({ language: v })}
+        />
+        <DropdownChip
+          icon={Users}
+          label="Section"
+          slot="section"
+          emptyHint="All sections"
+          help="Which class section the quiz is for (e.g. Grade 6 'A'). Doesn't change the questions much — mainly for filing and printing the cover page."
+          value={params.section}
+          options={QUIZ_SECTIONS}
+          onChange={(v) => set({ section: v })}
+        />
+        <DropdownChip
           icon={Gauge}
           label="Difficulty"
           slot="difficulty"
           emptyHint="Any level"
+          help="How hard the questions should be. Easy = recall + simple application; Medium = grade-appropriate problem solving; Hard = stretches the strongest students."
           value={params.difficulty}
           options={QUIZ_DIFFICULTIES}
           onChange={(v) => set({ difficulty: v })}
@@ -1595,6 +1636,7 @@ function QuizParamsPanel({ params, onChange }) {
           label="Questions"
           slot="questions"
           emptyHint="Any count"
+          help="Exact number of questions to produce. This is a hard constraint — Mudir will fit the scope to this count."
           value={
             params.questions === "" || params.questions == null
               ? ""
@@ -1611,6 +1653,7 @@ function QuizParamsPanel({ params, onChange }) {
           label="Duration"
           slot="duration"
           emptyHint="Any length"
+          help="How long, in minutes, a student should take to finish. Mudir uses this to calibrate question depth (a 15-min quiz is mostly recall; 60 min allows essay-style)."
           value={
             params.duration === "" || params.duration == null
               ? ""
@@ -1643,7 +1686,7 @@ function QuizParamsPanel({ params, onChange }) {
 // Open: focus ring, input replaces the value display, menu drops below.
 // numeric: input forwards inputMode="numeric"; non-numeric typed values
 //          are coerced or ignored on commit.
-function DropdownChip({ icon: Icon, label, emptyHint, value, options, onChange, suffix, numeric, warning, onMoveTo }) {
+function DropdownChip({ icon: Icon, label, emptyHint, help, value, options, onChange, suffix, numeric, warning, onMoveTo }) {
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState(value == null ? "" : String(value));
   const inputRef = useRef(null);
@@ -1709,6 +1752,14 @@ function DropdownChip({ icon: Icon, label, emptyHint, value, options, onChange, 
       }`}>
         {Icon && <Icon size={11} strokeWidth={1.75} />}
         {label}
+        {help && (
+          // Tiny info hint — hover shows the native tooltip with the
+          // help text, so teachers learn what each field means without
+          // a separate doc page or guided tour.
+          <span title={help} className="inline-flex items-center text-muted/80 hover:text-accent cursor-help">
+            <HelpCircle size={10} strokeWidth={1.75} />
+          </span>
+        )}
       </span>
       <ChevronDown
         size={13}
@@ -2186,12 +2237,13 @@ function QuizQuestionCard({ question, index, onUpdate }) {
             type="button"
             onClick={() => setShowAnswer(true)}
             className="text-[11px] font-mono uppercase tracking-[0.14em] text-muted hover:text-accent transition-colors duration-200"
+            title="Show the AI's marking key for this question. You can still edit the correct answer."
           >
-            Reveal answer key
+            Show correct answer
           </button>
         ) : (
           <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent">
-            Answer key
+            Correct answer
           </p>
         )}
         {showAnswer && (

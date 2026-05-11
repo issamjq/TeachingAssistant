@@ -314,6 +314,16 @@ router.post("/quiz", async (req, res) => {
           `- Major (school subject): ${params.major} (every question must be on-topic for this major; if the prompt drifts, prefer the major)`
         );
       }
+      if (params.language) {
+        settingsLines.push(
+          `- Output language: ${params.language} (write the ENTIRE quiz in this language — title, prompts, choices, instructions, and answer key. Do NOT mix languages. If the language uses a non-Latin script, use that script natively).`
+        );
+      }
+      if (params.section) {
+        settingsLines.push(
+          `- Class section: ${params.section} (mention on the cover page only; do not change the question difficulty for this)`
+        );
+      }
       if (Number.isFinite(Number(params.questions)) && Number(params.questions) > 0) {
         settingsLines.push(
           `- Question count: ${Number(params.questions)} (must produce exactly this many)`

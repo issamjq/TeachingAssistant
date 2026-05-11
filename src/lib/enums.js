@@ -40,6 +40,38 @@ export const QUIZ_DURATIONS = [10, 15, 20, 30, 45, 60, 90];
 
 export const QUIZ_DIFFICULTIES = ["Easy", "Medium", "Hard"];
 
+// Output language for the generated quiz. The AI returns the full quiz —
+// title, prompts, choices, answer key — in this language. English head,
+// regional languages first, then other commonly-taught languages. Teachers
+// can also type a custom value (e.g. Urdu, Swahili).
+export const QUIZ_LANGUAGES = [
+  "English",
+  "Arabic",
+  "French",
+  "Spanish",
+  "Turkish",
+  "Urdu",
+  "Mandarin",
+  "Hindi",
+  "Russian",
+  "Portuguese",
+  "German",
+  "Italian",
+];
+
+// Class section labels (Grade 6 "A", Grade 6 "B", etc.). Single letters
+// cover most schools; multi-section schools usually type a custom value
+// like "Maths Track" or "A & B". "All sections" is the catch-all default.
+export const QUIZ_SECTIONS = [
+  "All sections",
+  "Section A",
+  "Section B",
+  "Section C",
+  "Section D",
+  "Section E",
+  "Section F",
+];
+
 // School year levels. Used for:
 //   - teachers.grade_levels (TEXT[])  — which grades a teacher covers
 //   - students.grade        (TEXT)    — which grade a student is in
