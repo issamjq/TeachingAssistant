@@ -297,16 +297,41 @@ router.post("/quiz", async (req, res) => {
       });
     }
 
-    const { prompt } = req.body || {};
+    const { prompt, params } = req.body || {};
     if (!prompt || !String(prompt).trim()) {
       return res.status(400).json({ error: "Prompt is required" });
     }
 
+    // Render the optional pre-prompt knobs as a SETTINGS block. Empty /
+    // null values are skipped so the AI infers them from prose. The
+    // model treats these as hard constraints (count, duration) and
+    // strong steers (difficulty, grade, subject).
+    const settingsLines = [];
+    if (params && typeof params === "object") {
+      if (params.grade) settingsLines.push(`- Grade level: ${params.grade}`);
+      if (Number.isFinite(Number(params.questions)) && Number(params.questions) > 0) {
+        settingsLines.push(
+          `- Question count: ${Number(params.questions)} (must produce exactly this many)`
+        );
+      }
+      if (Number.isFinite(Number(params.duration)) && Number(params.duration) > 0) {
+        settingsLines.push(`- Target duration: ${Number(params.duration)} minutes`);
+      }
+      if (params.difficulty) {
+        settingsLines.push(`- Difficulty: ${params.difficulty}`);
+      }
+      if (params.subject) settingsLines.push(`- Subject: ${params.subject}`);
+    }
+    const settingsBlock = settingsLines.length
+      ? `SETTINGS (teacher pre-set — honour these):\n${settingsLines.join("\n")}\n\n`
+      : "";
+
     const cur = await loadCurrentTeacher();
     const userMessage =
       `KIND: QUIZ\n` +
-      `TEACHER CONTEXT: ${cur ? `id=${cur.id}, grades=${(cur.grade_levels || []).join(", ")}` : "none"}\n` +
-      `\nPROMPT:\n${String(prompt).trim()}\n\n` +
+      `TEACHER CONTEXT: ${cur ? `id=${cur.id}, grades=${(cur.grade_levels || []).join(", ")}` : "none"}\n\n` +
+      settingsBlock +
+      `PROMPT:\n${String(prompt).trim()}\n\n` +
       `Use the submit_quiz tool. Do not return prose.`;
 
     const client = new Anthropic();

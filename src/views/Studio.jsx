@@ -75,6 +75,18 @@ const RECENTS_BY_KIND = {
   schedule:     ["Term 2 plan", "Forces & motion week", "Exam revision"],
 };
 
+// Pre-prompt parameters the teacher can lock in before a quiz is generated.
+// Defaults are the values most teachers reach for on first try; everything
+// is optional — the AI fills in any field left blank.
+const QUIZ_PARAMS_DEFAULTS = {
+  grade: "",
+  questions: 10,
+  duration: 30,
+  difficulty: "Medium",
+  subject: "",
+};
+const QUIZ_DIFFICULTIES = ["Easy", "Medium", "Hard"];
+
 // "Or try" pills under the input. Same data shape as recents but more
 // directive — verbs the teacher might ask Mudir to do.
 const SUGGESTIONS_BY_KIND = {
@@ -95,6 +107,10 @@ export default function Studio() {
   // backend streams raw partial-JSON chunks. We accumulate them only to
   // estimate progress (count "position": occurrences) — never parsed.
   const [quizPartial, setQuizPartial] = useState("");
+  // Pre-prompt knobs the teacher can lock in before generating a quiz.
+  // Every field is optional — left as "" / null the AI infers from prose.
+  // Only surfaced when kind === "quiz".
+  const [quizParams, setQuizParams] = useState(QUIZ_PARAMS_DEFAULTS);
   const [result, setResult] = useState(null);
   // Sections are the editable per-card breakdown of the result. They start
   // as the parsed structure of streamingText and are then mutated as the
@@ -214,6 +230,7 @@ export default function Studio() {
     setBusy(false);
     setStreamingText("");
     setQuizPartial("");
+    setQuizParams(QUIZ_PARAMS_DEFAULTS);
     setResult(null);
     setSections([]);
     setError(null);
@@ -234,10 +251,13 @@ export default function Studio() {
 
     const isQuiz = kind === "quiz";
     try {
+      const body = isQuiz
+        ? { kind, prompt: prompt.trim(), params: quizParams }
+        : { kind, prompt: prompt.trim() };
       const res = await fetch(API_BASE + (isQuiz ? "/api/studio/quiz" : "/api/studio/generate"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ kind, prompt: prompt.trim() }),
+        body: JSON.stringify(body),
         signal: abortRef.current.signal,
       });
 
@@ -1031,6 +1051,13 @@ export default function Studio() {
 
       {/* Big input card */}
       <div className="bg-paper-cool rounded-2xl border border-line shadow-sm overflow-hidden focus-within:border-ink transition-colors duration-200">
+        {/* Quiz pre-prompt knobs — Grade · #Q · Duration · Difficulty ·
+            Subject. Only shown for quiz; the AI infers anything left
+            blank. Placed above the textarea so the teacher reads them
+            as "settings" before composing the prompt. */}
+        {kind === "quiz" && (
+          <QuizParamsRow params={quizParams} onChange={setQuizParams} />
+        )}
         <textarea
           rows={4}
           value={prompt}
@@ -1053,7 +1080,7 @@ export default function Studio() {
             >
               <Paperclip size={14} />
             </button>
-            <ParamChip>{active?.oneliner}</ParamChip>
+            {kind !== "quiz" && <ParamChip>{active?.oneliner}</ParamChip>}
           </div>
           <div className="flex items-center gap-3">
             <p className="hidden sm:block text-xs text-muted italic">Mudir will fill the rest</p>
@@ -1355,6 +1382,107 @@ function QuizStreamingPlaceholder({ partial, busy }) {
         </p>
       </div>
     </div>
+  );
+}
+
+// Pre-prompt parameters row — Grade · #Q · Duration · Difficulty · Subject.
+// Sits inside the input card above the textarea, only when kind === "quiz".
+// All fields are optional; the AI infers anything left empty.
+function QuizParamsRow({ params, onChange }) {
+  const set = (patch) => onChange((prev) => ({ ...prev, ...patch }));
+  return (
+    <div className="px-4 py-2.5 border-b border-line/70 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-sm">
+      <ParamField
+        label="Grade"
+        value={params.grade}
+        onChange={(v) => set({ grade: v })}
+        placeholder="—"
+      />
+      <span className="text-line">·</span>
+      <ParamField
+        label="Q's"
+        value={params.questions ?? ""}
+        onChange={(v) => set({ questions: v === "" ? null : Number(v) })}
+        numeric
+      />
+      <span className="text-line">·</span>
+      <ParamField
+        label="Min"
+        value={params.duration ?? ""}
+        onChange={(v) => set({ duration: v === "" ? null : Number(v) })}
+        numeric
+      />
+      <span className="text-line">·</span>
+      <DifficultyToggle
+        value={params.difficulty}
+        onChange={(v) => set({ difficulty: v })}
+      />
+      <span className="text-line">·</span>
+      <ParamField
+        label="Subject"
+        value={params.subject}
+        onChange={(v) => set({ subject: v })}
+        placeholder="—"
+      />
+    </div>
+  );
+}
+
+// Compact label + editable value used inside QuizParamsRow. Shares look
+// with MetaField (which lives in the QuizMetaCard cover) but lighter
+// since it's part of the input chrome rather than a saved document.
+function ParamField({ label, value, onChange, placeholder, numeric }) {
+  return (
+    <span className="inline-flex items-baseline gap-1.5">
+      <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted">
+        {label}
+      </span>
+      {numeric ? (
+        <EditableNumber
+          value={value}
+          onChange={onChange}
+          className="w-10 text-sm text-ink"
+        />
+      ) : (
+        <EditableText
+          value={value}
+          onChange={onChange}
+          placeholder={placeholder}
+          className="text-sm text-ink"
+        />
+      )}
+    </span>
+  );
+}
+
+// Three-segment toggle for quiz difficulty. Click cycles through Easy /
+// Medium / Hard; visually it's three pills with the active one filled.
+function DifficultyToggle({ value, onChange }) {
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted">
+        Difficulty
+      </span>
+      <span className="inline-flex items-center rounded-md border border-line bg-paper overflow-hidden">
+        {QUIZ_DIFFICULTIES.map((d) => {
+          const isActive = d === value;
+          return (
+            <button
+              key={d}
+              type="button"
+              onClick={() => onChange(d)}
+              className={`px-2 py-0.5 text-[11px] transition-colors duration-150 ${
+                isActive
+                  ? "bg-ink text-paper-cool"
+                  : "text-ink-soft hover:bg-paper-warm"
+              }`}
+            >
+              {d}
+            </button>
+          );
+        })}
+      </span>
+    </span>
   );
 }
 
