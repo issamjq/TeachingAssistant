@@ -1071,8 +1071,8 @@ export default function Studio() {
 
   return (
     <div className="max-w-3xl mx-auto pb-8">
-      <div className="mb-5 md:mb-6">
-        <h2 className="font-serif text-3xl md:text-4xl font-medium text-ink leading-tight">
+      <div className="mb-6 md:mb-7">
+        <h2 className="font-serif text-4xl md:text-5xl font-medium text-ink leading-[1.05] tracking-tight">
           AI <em className="italic font-light text-accent">studio</em>
         </h2>
       </div>
@@ -1081,13 +1081,13 @@ export default function Studio() {
           itself the picker. Teachers read the sentence, see one phrase
           styled like a tappable mini-card with an icon + chevron, and
           click it to swap the kind. No "spin" jargon needed. */}
-      <div className="flex items-start gap-3 mb-6">
-        <div className="flex-shrink-0 h-10 w-10 rounded-md bg-ink text-paper-cool font-serif text-base font-medium flex items-center justify-center shadow-sm">
+      <div className="flex items-start gap-4 mb-7">
+        <div className="flex-shrink-0 h-11 w-11 rounded-lg bg-ink text-paper-cool font-serif italic text-lg flex items-center justify-center shadow-sm">
           M
         </div>
-        <div className="flex-1 min-w-0 pt-0.5">
-          <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-1.5">Mudir</p>
-          <p className="font-serif text-lg sm:text-xl md:text-2xl text-ink leading-relaxed">
+        <div className="flex-1 min-w-0 pt-1">
+          <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-2">Mudir</p>
+          <p className="font-serif text-xl sm:text-2xl md:text-[1.75rem] text-ink leading-[1.45]">
             {/* Keep "{verb} a [pill]" as a no-break unit so the kind pill
                 never lands on its own line under "Make a". The suffix
                 wraps naturally on narrow widths. */}
@@ -1286,15 +1286,15 @@ function InlineKindPicker({
         aria-haspopup="listbox"
         aria-expanded={open}
         title="Tap to choose what Mudir makes — or press K"
-        className={`studio-kind-pulse group inline-flex items-center gap-1.5 px-2.5 py-1 mx-0.5 rounded-lg border focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/20 transition-all duration-200 align-middle whitespace-nowrap text-[0.78em] font-sans font-medium tracking-normal cursor-pointer ${
+        className={`studio-kind-pulse group inline-flex items-center gap-2 px-3.5 py-1 mx-1 rounded-full border focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/20 transition-all duration-200 align-middle whitespace-nowrap text-[0.72em] font-sans font-medium tracking-normal cursor-pointer ${
           open
             ? "bg-ink border-ink text-paper-cool shadow-[0_0_0_4px_rgba(28,26,22,0.06)]"
-            : "bg-paper-warm border-line hover:border-accent hover:bg-paper-cool"
+            : "bg-paper-cool border-line/70 hover:border-ink hover:bg-paper-warm"
         }`}
       >
         <Icon
-          size={13}
-          strokeWidth={1.75}
+          size={12}
+          strokeWidth={1.5}
           className={`transition-colors duration-200 ${
             open ? "text-paper-cool" : "text-ink-soft group-hover:text-accent"
           }`}
@@ -1303,7 +1303,8 @@ function InlineKindPicker({
           {active.label}
         </span>
         <ChevronDown
-          size={12}
+          size={11}
+          strokeWidth={1.5}
           className={`transition-all duration-200 ${
             open
               ? "text-paper-cool rotate-180"
