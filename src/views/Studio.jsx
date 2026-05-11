@@ -10,6 +10,10 @@ import { Button } from "@/components/ui/button";
 import { api } from "./_shared";
 import { parseSections, joinSections, renderMarkdown } from "../lib/markdown";
 import StudioCard from "./StudioCard";
+import {
+  GRADE_LEVELS, MAJORS,
+  QUIZ_QUESTION_COUNTS, QUIZ_DURATIONS, QUIZ_DIFFICULTIES,
+} from "../lib/enums";
 
 // Same base URL the rest of the app uses (Vercel rewrites /api → Render in
 // prod; same-origin in dev via the Vite middleware).
@@ -79,17 +83,16 @@ const RECENTS_BY_KIND = {
 };
 
 // Pre-prompt parameters the teacher can lock in before a quiz is generated.
-// Defaults are the values most teachers reach for on first try; everything
-// is optional — the AI fills in any field left blank.
+// Every field is optional — if left empty the AI infers from the prompt.
+// Default to empty (not 10 / 30 / Medium) so the chip placeholder reads
+// "Pick…" and the teacher sees them as actual choices, not pre-decisions.
 const QUIZ_PARAMS_DEFAULTS = {
-  grade: "",
-  subject: "",   // broad academic subject — Math, English, Science
-  major: "",     // specialization within the subject — Algebra, Biology, Romantic poetry
-  questions: 10,
-  duration: 30,
-  difficulty: "Medium",
+  grade: "",       // from GRADE_LEVELS
+  major: "",       // from MAJORS (this codebase's school-subject list)
+  questions: "",   // from QUIZ_QUESTION_COUNTS
+  duration: "",    // from QUIZ_DURATIONS (minutes)
+  difficulty: "",  // from QUIZ_DIFFICULTIES
 };
-const QUIZ_DIFFICULTIES = ["Easy", "Medium", "Hard"];
 
 // "Or try" pills under the input. Same data shape as recents but more
 // directive — verbs the teacher might ask Mudir to do.
@@ -1389,114 +1392,162 @@ function QuizStreamingPlaceholder({ partial, busy }) {
   );
 }
 
-// Pre-prompt parameters row — Grade · #Q · Duration · Difficulty · Subject.
+// Pre-prompt parameters row — Grade · Major · Difficulty · Questions · Duration.
 // Sits inside the input card above the textarea, only when kind === "quiz".
-// All fields are optional; the AI infers anything left empty.
+// Every field is a clickable dropdown chip drawing from src/lib/enums.js so
+// the teacher picks from a finite list instead of typing meta into the prose.
+// Empty = AI infers from the prompt.
 function QuizParamsRow({ params, onChange }) {
   const set = (patch) => onChange((prev) => ({ ...prev, ...patch }));
-  // Order is intentional: WHAT (grade / subject / major) on the left,
-  // HOW (difficulty / count / duration) on the right, mirroring how a
-  // teacher would describe the quiz aloud.
   return (
-    <div className="px-4 py-2.5 border-b border-line/70 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-sm">
-      <ParamField
+    <div className="px-3 py-2.5 border-b border-line/70 flex flex-wrap items-center gap-1.5">
+      <DropdownChip
         label="Grade"
         value={params.grade}
+        options={GRADE_LEVELS}
         onChange={(v) => set({ grade: v })}
-        placeholder="—"
       />
-      <span className="text-line">·</span>
-      <ParamField
-        label="Subject"
-        value={params.subject}
-        onChange={(v) => set({ subject: v })}
-        placeholder="—"
-      />
-      <span className="text-line">·</span>
-      <ParamField
+      <DropdownChip
         label="Major"
         value={params.major}
+        options={MAJORS}
         onChange={(v) => set({ major: v })}
-        placeholder="—"
       />
-      <span className="text-line">·</span>
-      <DifficultyToggle
+      <DropdownChip
+        label="Difficulty"
         value={params.difficulty}
+        options={QUIZ_DIFFICULTIES}
         onChange={(v) => set({ difficulty: v })}
       />
-      <span className="text-line">·</span>
-      <ParamField
-        label="Q's"
-        value={params.questions ?? ""}
-        onChange={(v) => set({ questions: v === "" ? null : Number(v) })}
-        numeric
+      <DropdownChip
+        label="Questions"
+        value={params.questions === "" || params.questions == null ? "" : String(params.questions)}
+        options={QUIZ_QUESTION_COUNTS.map(String)}
+        onChange={(v) => set({ questions: v === "" ? "" : Number(v) })}
       />
-      <span className="text-line">·</span>
-      <ParamField
-        label="Min"
-        value={params.duration ?? ""}
-        onChange={(v) => set({ duration: v === "" ? null : Number(v) })}
-        numeric
+      <DropdownChip
+        label="Duration"
+        value={params.duration === "" || params.duration == null ? "" : String(params.duration)}
+        options={QUIZ_DURATIONS.map(String)}
+        onChange={(v) => set({ duration: v === "" ? "" : Number(v) })}
+        suffix="min"
       />
     </div>
   );
 }
 
-// Compact label + editable value used inside QuizParamsRow. Shares look
-// with MetaField (which lives in the QuizMetaCard cover) but lighter
-// since it's part of the input chrome rather than a saved document.
-function ParamField({ label, value, onChange, placeholder, numeric }) {
+// A clickable pill that opens a small popover of options. Looks closed:
+//   [ LABEL  Pick… ▾ ]   (empty — soft, prompts the teacher to interact)
+//   [ LABEL  Grade 8 ▾ ] (chosen — pill goes warm to read as "selected")
+// On click the pill goes dark and a menu drops below. Click an option to
+// pick; "Any" clears. Clicking outside closes.
+function DropdownChip({ label, value, options, onChange, suffix }) {
+  const [open, setOpen] = useState(false);
+  const display = value
+    ? suffix
+      ? `${value} ${suffix}`
+      : value
+    : "Pick…";
+  const isSet = Boolean(value);
   return (
-    <span className="inline-flex items-baseline gap-1.5">
-      <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted">
-        {label}
-      </span>
-      {numeric ? (
-        <EditableNumber
-          value={value}
-          onChange={onChange}
-          className="w-10 text-sm text-ink"
+    <span className="relative inline-block">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        className={`group inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[11px] transition-colors duration-150 ${
+          open
+            ? "bg-ink border-ink text-paper-cool shadow-[0_0_0_3px_rgba(28,26,22,0.06)]"
+            : isSet
+              ? "bg-paper-warm border-line text-ink hover:border-accent"
+              : "bg-paper border-line text-ink-soft hover:border-ink hover:bg-paper-warm"
+        }`}
+      >
+        <span className={`font-mono uppercase tracking-[0.12em] ${
+          open ? "text-paper-cool/70" : "text-muted"
+        }`}>
+          {label}
+        </span>
+        <span className={`text-[12px] ${isSet || open ? "font-medium" : "italic"}`}>
+          {display}
+        </span>
+        <ChevronDown
+          size={11}
+          className={`${open ? "rotate-180" : ""} transition-transform duration-150`}
         />
-      ) : (
-        <EditableText
+      </button>
+
+      {open && (
+        <DropdownMenu
           value={value}
-          onChange={onChange}
-          placeholder={placeholder}
-          className="text-sm text-ink"
+          options={options}
+          suffix={suffix}
+          onPick={(v) => { onChange(v); setOpen(false); }}
+          onClose={() => setOpen(false)}
         />
       )}
     </span>
   );
 }
 
-// Three-segment toggle for quiz difficulty. Click cycles through Easy /
-// Medium / Hard; visually it's three pills with the active one filled.
-function DifficultyToggle({ value, onChange }) {
+function DropdownMenu({ value, options, suffix, onPick, onClose }) {
   return (
-    <span className="inline-flex items-center gap-1.5">
-      <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted">
-        Difficulty
-      </span>
-      <span className="inline-flex items-center rounded-md border border-line bg-paper overflow-hidden">
-        {QUIZ_DIFFICULTIES.map((d) => {
-          const isActive = d === value;
-          return (
+    <>
+      <button
+        type="button"
+        aria-label="Close menu"
+        onClick={onClose}
+        className="fixed inset-0 z-40 bg-transparent cursor-default"
+      />
+      <div
+        role="listbox"
+        onClick={(e) => e.stopPropagation()}
+        className="studio-menu-rise absolute left-0 top-full mt-1.5 z-50 min-w-[14rem] max-h-[60vh] overflow-y-auto origin-top-left rounded-xl border border-line bg-paper-cool shadow-xl ring-1 ring-ink/5"
+      >
+        <ul className="py-1">
+          <li>
             <button
-              key={d}
               type="button"
-              onClick={() => onChange(d)}
-              className={`px-2 py-0.5 text-[11px] transition-colors duration-150 ${
-                isActive
-                  ? "bg-ink text-paper-cool"
-                  : "text-ink-soft hover:bg-paper-warm"
+              onClick={() => onPick("")}
+              className={`w-full flex items-center justify-between gap-3 px-3 py-2 text-left text-sm transition-colors duration-100 ${
+                !value
+                  ? "bg-paper-warm text-ink font-medium"
+                  : "text-ink-soft hover:bg-paper-warm/60"
               }`}
             >
-              {d}
+              <span className="italic">Any — let Mudir choose</span>
+              {!value && <Check size={13} className="text-accent" />}
             </button>
-          );
-        })}
-      </span>
-    </span>
+          </li>
+          <li className="border-t border-line/60 my-1" />
+          {options.map((opt) => {
+            const isActive = opt === value;
+            return (
+              <li key={opt}>
+                <button
+                  type="button"
+                  role="option"
+                  aria-selected={isActive}
+                  onClick={() => onPick(opt)}
+                  className={`w-full flex items-center justify-between gap-3 px-3 py-2 text-left text-sm transition-colors duration-100 ${
+                    isActive
+                      ? "bg-paper-warm text-ink font-medium"
+                      : "text-ink hover:bg-paper-warm/60"
+                  }`}
+                >
+                  <span>
+                    {opt}
+                    {suffix && <span className="text-muted ml-1">{suffix}</span>}
+                  </span>
+                  {isActive && <Check size={13} className="text-accent" />}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+    </>
   );
 }
 

@@ -30,6 +30,16 @@ export const MAJORS = [
   "Psychology",
 ];
 
+// AI Studio — Quiz pre-prompt knobs. These power the dropdowns above the
+// quiz prompt textarea so a teacher picks from a finite list instead of
+// typing meta into the prose. Empty = AI infers from the prompt.
+
+export const QUIZ_QUESTION_COUNTS = [5, 8, 10, 12, 15, 20, 25, 30];
+
+export const QUIZ_DURATIONS = [10, 15, 20, 30, 45, 60, 90];
+
+export const QUIZ_DIFFICULTIES = ["Easy", "Medium", "Hard"];
+
 // School year levels. Used for:
 //   - teachers.grade_levels (TEXT[])  — which grades a teacher covers
 //   - students.grade        (TEXT)    — which grade a student is in

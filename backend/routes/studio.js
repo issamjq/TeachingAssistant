@@ -309,10 +309,9 @@ router.post("/quiz", async (req, res) => {
     const settingsLines = [];
     if (params && typeof params === "object") {
       if (params.grade) settingsLines.push(`- Grade level: ${params.grade}`);
-      if (params.subject) settingsLines.push(`- Subject: ${params.subject}`);
       if (params.major) {
         settingsLines.push(
-          `- Major / focus area: ${params.major} (the specialization within the subject — every question must serve this)`
+          `- Major (school subject): ${params.major} (every question must be on-topic for this major; if the prompt drifts, prefer the major)`
         );
       }
       if (Number.isFinite(Number(params.questions)) && Number(params.questions) > 0) {
