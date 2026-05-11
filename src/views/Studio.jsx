@@ -4,6 +4,7 @@ import {
   Sparkles, FileText, ClipboardList, GraduationCap,
   Layers, Users, Calendar, Save, Copy, Check, X, RotateCcw, FileDown,
   Send, Paperclip, Plus, Wand2, RefreshCw, Zap, Dices, ChevronDown,
+  BookOpen, Gauge, Hash, Clock,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -1056,15 +1057,15 @@ export default function Studio() {
         </div>
       )}
 
+      {/* Quiz pre-prompt panel — dedicated block above the input card
+          so the teacher can't miss it. Inside the input card it read
+          as decoration; here it's clearly a settings step. */}
+      {kind === "quiz" && (
+        <QuizParamsPanel params={quizParams} onChange={setQuizParams} />
+      )}
+
       {/* Big input card */}
       <div className="bg-paper-cool rounded-2xl border border-line shadow-sm overflow-hidden focus-within:border-ink transition-colors duration-200">
-        {/* Quiz pre-prompt knobs — Grade · #Q · Duration · Difficulty ·
-            Subject. Only shown for quiz; the AI infers anything left
-            blank. Placed above the textarea so the teacher reads them
-            as "settings" before composing the prompt. */}
-        {kind === "quiz" && (
-          <QuizParamsRow params={quizParams} onChange={setQuizParams} />
-        )}
         <textarea
           rows={4}
           value={prompt}
@@ -1392,63 +1393,108 @@ function QuizStreamingPlaceholder({ partial, busy }) {
   );
 }
 
-// Pre-prompt parameters row — Grade · Major · Difficulty · Questions · Duration.
-// Sits inside the input card above the textarea, only when kind === "quiz".
-// Every field is a clickable dropdown chip drawing from src/lib/enums.js so
-// the teacher picks from a finite list instead of typing meta into the prose.
-// Empty = AI infers from the prompt.
-function QuizParamsRow({ params, onChange }) {
+// Pre-prompt panel that sits ABOVE the input card. Big, clearly chunked
+// settings block with a header so it doesn't read as decoration. Each
+// field is a dropdown chip with an icon, an uppercase label, and a value
+// area; the chip is sized big enough that an empty state ("Pick a grade")
+// is impossible to miss. Every chip is optional — leave any blank and
+// the AI infers from the prompt.
+function QuizParamsPanel({ params, onChange }) {
   const set = (patch) => onChange((prev) => ({ ...prev, ...patch }));
+  const setCount = [
+    params.grade, params.major, params.difficulty,
+    params.questions, params.duration,
+  ].filter((v) => v !== "" && v != null).length;
+
   return (
-    <div className="px-3 py-2.5 border-b border-line/70 flex flex-wrap items-center gap-1.5">
-      <DropdownChip
-        label="Grade"
-        value={params.grade}
-        options={GRADE_LEVELS}
-        onChange={(v) => set({ grade: v })}
-      />
-      <DropdownChip
-        label="Major"
-        value={params.major}
-        options={MAJORS}
-        onChange={(v) => set({ major: v })}
-      />
-      <DropdownChip
-        label="Difficulty"
-        value={params.difficulty}
-        options={QUIZ_DIFFICULTIES}
-        onChange={(v) => set({ difficulty: v })}
-      />
-      <DropdownChip
-        label="Questions"
-        value={params.questions === "" || params.questions == null ? "" : String(params.questions)}
-        options={QUIZ_QUESTION_COUNTS.map(String)}
-        onChange={(v) => set({ questions: v === "" ? "" : Number(v) })}
-      />
-      <DropdownChip
-        label="Duration"
-        value={params.duration === "" || params.duration == null ? "" : String(params.duration)}
-        options={QUIZ_DURATIONS.map(String)}
-        onChange={(v) => set({ duration: v === "" ? "" : Number(v) })}
-        suffix="min"
-      />
+    <div className="mb-4 rounded-2xl border border-line bg-paper-warm/40 px-4 md:px-5 py-4">
+      <div className="flex items-end justify-between gap-3 mb-3">
+        <div>
+          <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-0.5">
+            Quiz settings
+          </p>
+          <p className="font-serif text-base text-ink leading-snug">
+            Pick the basics first <span className="italic text-muted">— or leave them blank and Mudir will figure it out.</span>
+          </p>
+        </div>
+        {setCount > 0 && (
+          <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-accent flex-shrink-0">
+            {setCount} of 5 set
+          </p>
+        )}
+      </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+        <DropdownChip
+          icon={GraduationCap}
+          label="Grade"
+          emptyHint="Any grade"
+          value={params.grade}
+          options={GRADE_LEVELS}
+          onChange={(v) => set({ grade: v })}
+        />
+        <DropdownChip
+          icon={BookOpen}
+          label="Major"
+          emptyHint="Any major"
+          value={params.major}
+          options={MAJORS}
+          onChange={(v) => set({ major: v })}
+        />
+        <DropdownChip
+          icon={Gauge}
+          label="Difficulty"
+          emptyHint="Any level"
+          value={params.difficulty}
+          options={QUIZ_DIFFICULTIES}
+          onChange={(v) => set({ difficulty: v })}
+        />
+        <DropdownChip
+          icon={Hash}
+          label="Questions"
+          emptyHint="Any count"
+          value={
+            params.questions === "" || params.questions == null
+              ? ""
+              : String(params.questions)
+          }
+          options={QUIZ_QUESTION_COUNTS.map(String)}
+          onChange={(v) => set({ questions: v === "" ? "" : Number(v) })}
+        />
+        <DropdownChip
+          icon={Clock}
+          label="Duration"
+          emptyHint="Any length"
+          value={
+            params.duration === "" || params.duration == null
+              ? ""
+              : String(params.duration)
+          }
+          options={QUIZ_DURATIONS.map(String)}
+          onChange={(v) => set({ duration: v === "" ? "" : Number(v) })}
+          suffix="min"
+        />
+      </div>
     </div>
   );
 }
 
-// A clickable pill that opens a small popover of options. Looks closed:
-//   [ LABEL  Pick… ▾ ]   (empty — soft, prompts the teacher to interact)
-//   [ LABEL  Grade 8 ▾ ] (chosen — pill goes warm to read as "selected")
-// On click the pill goes dark and a menu drops below. Click an option to
-// pick; "Any" clears. Clicking outside closes.
-function DropdownChip({ label, value, options, onChange, suffix }) {
+// A chunky field-card that looks like a real form control:
+//   ┌───────────────────────┐
+//   │ ⊕ GRADE             ▾ │   ← icon + mono label + chevron
+//   │ Grade 8               │   ← value (or "Any grade" italic when empty)
+//   └───────────────────────┘
+// Closed empty: paper bg, muted text — reads as a tappable empty slot.
+// Closed filled: warm paper bg, ink text — clearly "selected".
+// Open: ink bg + accent ring, popover drops below.
+function DropdownChip({ icon: Icon, label, emptyHint, value, options, onChange, suffix }) {
   const [open, setOpen] = useState(false);
+  const isSet = Boolean(value);
   const display = value
     ? suffix
       ? `${value} ${suffix}`
       : value
-    : "Pick…";
-  const isSet = Boolean(value);
+    : emptyHint || "Pick…";
   return (
     <span className="relative inline-block">
       <button
@@ -1456,26 +1502,33 @@ function DropdownChip({ label, value, options, onChange, suffix }) {
         onClick={() => setOpen((o) => !o)}
         aria-haspopup="listbox"
         aria-expanded={open}
-        className={`group inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[11px] transition-colors duration-150 ${
+        className={`w-full text-left rounded-lg border px-3 py-2 transition-all duration-150 ${
           open
-            ? "bg-ink border-ink text-paper-cool shadow-[0_0_0_3px_rgba(28,26,22,0.06)]"
+            ? "bg-paper-cool border-ink shadow-[0_0_0_3px_rgba(200,71,43,0.12)]"
             : isSet
-              ? "bg-paper-warm border-line text-ink hover:border-accent"
-              : "bg-paper border-line text-ink-soft hover:border-ink hover:bg-paper-warm"
+              ? "bg-paper-cool border-line hover:border-ink"
+              : "bg-paper border-dashed border-line/80 hover:border-ink hover:bg-paper-cool"
         }`}
       >
-        <span className={`font-mono uppercase tracking-[0.12em] ${
-          open ? "text-paper-cool/70" : "text-muted"
+        <div className="flex items-center justify-between gap-2 mb-0.5">
+          <span className={`inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.16em] ${
+            isSet || open ? "text-ink-soft" : "text-muted"
+          }`}>
+            {Icon && <Icon size={11} strokeWidth={1.75} />}
+            {label}
+          </span>
+          <ChevronDown
+            size={13}
+            className={`flex-shrink-0 ${
+              open ? "rotate-180 text-accent" : "text-muted"
+            } transition-transform duration-150`}
+          />
+        </div>
+        <div className={`text-sm leading-tight ${
+          isSet ? "text-ink font-medium" : "text-muted italic"
         }`}>
-          {label}
-        </span>
-        <span className={`text-[12px] ${isSet || open ? "font-medium" : "italic"}`}>
           {display}
-        </span>
-        <ChevronDown
-          size={11}
-          className={`${open ? "rotate-180" : ""} transition-transform duration-150`}
-        />
+        </div>
       </button>
 
       {open && (
