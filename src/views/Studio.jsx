@@ -1070,9 +1070,9 @@ export default function Studio() {
   // ----- picker view -------------------------------------------------------
 
   return (
-    <div className="max-w-3xl mx-auto pb-8">
-      <div className="mb-6 md:mb-7">
-        <h2 className="font-serif text-4xl md:text-5xl font-medium text-ink leading-[1.05] tracking-tight">
+    <div className="max-w-3xl mx-auto pb-8 px-1 sm:px-0">
+      <div className="mb-5 sm:mb-6 md:mb-7">
+        <h2 className="font-serif text-3xl sm:text-4xl md:text-5xl font-medium text-ink leading-[1.05] tracking-tight">
           AI <em className="italic font-light text-accent">studio</em>
         </h2>
       </div>
@@ -1081,13 +1081,13 @@ export default function Studio() {
           itself the picker. Teachers read the sentence, see one phrase
           styled like a tappable mini-card with an icon + chevron, and
           click it to swap the kind. No "spin" jargon needed. */}
-      <div className="flex items-start gap-4 mb-7">
-        <div className="flex-shrink-0 h-11 w-11 rounded-lg bg-ink text-paper-cool font-serif italic text-lg flex items-center justify-center shadow-sm">
+      <div className="flex items-start gap-3 sm:gap-4 mb-6 sm:mb-7">
+        <div className="flex-shrink-0 h-9 w-9 sm:h-11 sm:w-11 rounded-lg bg-ink text-paper-cool font-serif italic text-base sm:text-lg flex items-center justify-center shadow-sm">
           M
         </div>
-        <div className="flex-1 min-w-0 pt-1">
-          <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-2">Mudir</p>
-          <p className="font-serif text-xl sm:text-2xl md:text-[1.75rem] text-ink leading-[1.45]">
+        <div className="flex-1 min-w-0 pt-0.5 sm:pt-1">
+          <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-1.5 sm:mb-2">Mudir</p>
+          <p className="font-serif text-lg sm:text-xl md:text-2xl lg:text-[1.75rem] text-ink leading-[1.4] sm:leading-[1.45]">
             {/* Keep "{verb} a [pill]" as a no-break unit so the kind pill
                 never lands on its own line under "Make a". The suffix
                 wraps naturally on narrow widths. */}
@@ -1558,7 +1558,7 @@ function QuizParamsPanel({ params, onChange }) {
   };
 
   return (
-    <div className="mb-4 rounded-2xl border border-line bg-paper-warm/40 px-4 md:px-5 py-4">
+    <div className="mb-4 rounded-2xl border border-line bg-paper-warm/40 px-3 sm:px-4 md:px-5 py-3.5 sm:py-4">
       <div className="flex items-end justify-between gap-3 mb-3">
         <div>
           <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-0.5">
@@ -1575,7 +1575,7 @@ function QuizParamsPanel({ params, onChange }) {
         )}
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-2">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
         <DropdownChip
           icon={GraduationCap}
           label="Grade"
@@ -1604,7 +1604,7 @@ function QuizParamsPanel({ params, onChange }) {
           icon={Globe}
           label="Language"
           slot="language"
-          emptyHint="Auto (English)"
+          emptyHint="Auto"
           help="The language the quiz will be written in. The whole output — questions, choices, answer key — comes back in this language."
           value={params.language}
           options={QUIZ_LANGUAGES}
@@ -1774,7 +1774,7 @@ function DropdownChip({ icon: Icon, label, emptyHint, help, value, options, onCh
   // While open, bump the wrapper above the click-outside scrim so the
   // input + dropdown stay clickable (scrim is z-40, chip becomes z-50).
   return (
-    <span className={`relative inline-block ${open ? "z-50" : ""}`}>
+    <span className={`relative block min-w-0 ${open ? "z-50" : ""}`}>
       {!open ? (
         <div className={cardClass}>
           <button
@@ -1785,7 +1785,7 @@ function DropdownChip({ icon: Icon, label, emptyHint, help, value, options, onCh
             className="w-full text-left bg-transparent outline-none"
           >
             {header}
-            <div className={`text-sm leading-tight ${
+            <div className={`text-sm leading-tight truncate ${
               isSet ? "text-ink font-medium" : "text-muted italic"
             }`}>
               {display}
