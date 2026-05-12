@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Calendar, Hash, Pencil } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { MAJORS, GRADE_LEVELS, QUIZ_LANGUAGES } from "../lib/enums";
+import { MAJORS, GRADE_LEVELS, QUIZ_LANGUAGES, QUIZ_SECTIONS } from "../lib/enums";
 import { Field, Modal, ChipMultiSelect, inputClasses, api } from "./_shared";
 
 const initials = (first, last) =>
@@ -87,6 +87,9 @@ export default function DatabaseProfile() {
                 <p className="font-mono text-[11px] uppercase tracking-wider text-muted mt-1">
                   {(me.languages || []).join(" · ") || "No languages set"}
                 </p>
+                <p className="font-mono text-[11px] uppercase tracking-wider text-muted mt-1">
+                  {(me.sections || []).join(" · ") || "No sections set"}
+                </p>
                 {me.bio && (
                   <p className="text-sm text-ink-soft mt-3 max-w-2xl leading-relaxed">{me.bio}</p>
                 )}
@@ -134,6 +137,7 @@ function ProfileEditModal({ initial, onClose, onSaved }) {
     majors: initial.majors || [],
     grade_levels: initial.grade_levels || [],
     languages: initial.languages || [],
+    sections: initial.sections || [],
   });
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState(null);
@@ -250,6 +254,24 @@ function ProfileEditModal({ initial, onClose, onSaved }) {
         <p className="text-xs text-muted mt-2">
           AI Studio uses this to populate the Language dropdown when you generate a quiz, so the list
           shows only what you actually teach. Custom languages are private to you.
+        </p>
+      </div>
+
+      <div className="mt-5">
+        <p className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted mb-2">
+          Sections you teach
+        </p>
+        <ChipMultiSelect
+          value={form.sections}
+          onChange={(v) => set("sections", v)}
+          options={QUIZ_SECTIONS}
+          allowCustom
+          customPlaceholder="Add a section (e.g. 8A, Maths Track)…"
+        />
+        <p className="text-xs text-muted mt-2">
+          AI Studio uses this to populate the Section dropdown when you generate a quiz. Add the
+          specific class sections you teach (Grade 6 &ldquo;A&rdquo;, Grade 6 &ldquo;B&rdquo;, etc.).
+          Custom sections are private to you.
         </p>
       </div>
     </Modal>

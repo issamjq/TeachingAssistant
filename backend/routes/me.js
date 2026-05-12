@@ -4,11 +4,11 @@ import { buildPatch, handleErr } from "../lib/helpers.js";
 import { loadCurrentTeacher, setCurrentTeacher } from "../lib/currentTeacher.js";
 
 const ME_SELECT = `id, first_name, last_name, email, phone, staff_id, majors, grade_levels,
-                   languages, nationality, hire_date, bio, created_at, updated_at`;
+                   languages, sections, nationality, hire_date, bio, created_at, updated_at`;
 
 const ME_FIELDS = [
   "first_name", "last_name", "email", "phone", "staff_id",
-  "majors", "grade_levels", "languages",
+  "majors", "grade_levels", "languages", "sections",
   "nationality", "hire_date", "bio",
 ];
 

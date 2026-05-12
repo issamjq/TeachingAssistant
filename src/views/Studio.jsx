@@ -233,9 +233,11 @@ export default function Studio() {
   const teacherGrades = (teacher?.grade_levels || []).filter(Boolean);
   const teacherMajors = (teacher?.majors || []).filter(Boolean);
   const teacherLanguages = (teacher?.languages || []).filter(Boolean);
+  const teacherSections = (teacher?.sections || []).filter(Boolean);
   const gradeOptions = teacherGrades.length ? teacherGrades : GRADE_LEVELS;
   const majorOptions = teacherMajors.length ? teacherMajors : MAJORS;
   const languageOptions = teacherLanguages.length ? teacherLanguages : QUIZ_LANGUAGES;
+  const sectionOptions = teacherSections.length ? teacherSections : QUIZ_SECTIONS;
 
   const [busy, setBusy] = useState(false);
   const [streamingText, setStreamingText] = useState("");
@@ -1346,6 +1348,7 @@ export default function Studio() {
           gradeOptions={gradeOptions}
           majorOptions={majorOptions}
           languageOptions={languageOptions}
+          sectionOptions={sectionOptions}
         />
       )}
 
@@ -1818,7 +1821,7 @@ const CHIP_VALIDATORS = {
 // area; the chip is sized big enough that an empty state ("Pick a grade")
 // is impossible to miss. Every chip is optional — leave any blank and
 // the AI infers from the prompt.
-function QuizParamsPanel({ params, onChange, gradeOptions, majorOptions, languageOptions }) {
+function QuizParamsPanel({ params, onChange, gradeOptions, majorOptions, languageOptions, sectionOptions }) {
   const set = (patch) => onChange((prev) => ({ ...prev, ...patch }));
   const setCount = [
     params.grade, params.major, params.language, params.section,
@@ -1894,9 +1897,9 @@ function QuizParamsPanel({ params, onChange, gradeOptions, majorOptions, languag
           label="Section"
           slot="section"
           emptyHint="All sections"
-          help="Which class section the quiz is for (e.g. Grade 6 'A'). Doesn't change the questions much — mainly for filing and printing the cover page."
+          help="Which class section the quiz is for (e.g. Grade 6 'A'). The list shows the sections you teach (set in Class Roster → Teaching profile). Type to add a one-off. Mainly used for the cover page — doesn't shift difficulty."
           value={params.section}
-          options={QUIZ_SECTIONS}
+          options={sectionOptions}
           onChange={(v) => set({ section: v })}
         />
         <DropdownChip
