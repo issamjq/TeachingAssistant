@@ -210,6 +210,64 @@ const pickSuggestions = (kind, seed) => {
   return order.slice(0, 3).map((x) => x.s);
 };
 
+// Attachment-specific suggestions — replace the generic "Or try" row
+// whenever the teacher has a file attached. Each chip teaches a real
+// pattern of how the attachment + prompt combine, so teachers discover
+// "make an exact copy" / "same structure, different questions" /
+// "translate" without us writing a manual.
+const ATTACHMENT_SUGGESTIONS_POOL_BY_KIND = {
+  lesson_plan: [
+    "Re-teach what this lesson covers",
+    "Same lesson, simpler scaffolding",
+    "Build a lesson around this material",
+    "Add a hands-on starter to this",
+    "Shorten this to 20 minutes",
+  ],
+  quiz: [
+    "Make an exact copy",
+    "Same structure, different questions",
+    "Same topics, harder",
+    "Same topics, easier",
+    "Translate to the chosen language",
+    "Convert everything to MCQ",
+    "Skip the word problems",
+    "Give me the answer key only",
+    "Make a 20-question version of this",
+    "Add 5 stretch questions to this",
+  ],
+  homework: [
+    "Make a homework version of this",
+    "Easier version for revision",
+    "Add a reflection question",
+    "Convert to a take-home worksheet",
+  ],
+  activity: [
+    "Turn this into a group activity",
+    "Outdoor / hands-on variant",
+    "Pair-and-share version",
+    "Add a quick reflection at the end",
+  ],
+  presentation: [
+    "Turn this into 5 slides",
+    "Outline a 10-slide deck on this",
+    "Add speaker notes for each section",
+    "Make a visual-first version",
+  ],
+  schedule: [
+    "Plan a week around this material",
+    "Build a two-week unit from this",
+    "Add formative assessments",
+  ],
+};
+
+const pickAttachmentSuggestions = (kind, seed) => {
+  const pool = ATTACHMENT_SUGGESTIONS_POOL_BY_KIND[kind] || [];
+  if (pool.length <= 3) return pool;
+  const order = [...pool].map((s, i) => ({ s, k: (i * 9301 + 49297 + seed * 233) % 233280 }));
+  order.sort((a, b) => a.k - b.k);
+  return order.slice(0, 3).map((x) => x.s);
+};
+
 export default function Studio() {
   const [kind, setKind] = useState("lesson_plan");
   const [prompt, setPrompt] = useState("");
@@ -289,10 +347,17 @@ export default function Studio() {
   // so finishing a generation refreshes both rows without a remount.
   const [recencyTick, setRecencyTick] = useState(0);
   const recents = useMemo(() => loadRecents(kind), [kind, recencyTick]);
+  // Suggestions swap based on attachment. With a file attached, the OR
+  // TRY row becomes a how-to-use cheatsheet — "Make an exact copy",
+  // "Same structure, different questions", "Translate to the chosen
+  // language", etc. With no file, it shows the regular kind-specific
+  // directive pool.
   const suggestions = useMemo(
-    () => pickSuggestions(kind, recencyTick + Date.now() % 1000),
+    () => attachment
+      ? pickAttachmentSuggestions(kind, recencyTick + Date.now() % 1000)
+      : pickSuggestions(kind, recencyTick + Date.now() % 1000),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [kind, recencyTick]
+    [kind, recencyTick, Boolean(attachment)]
   );
   const currentSection = sections[sectionIndex];
   const currentLetter = sectionIndex >= 0 ? String.fromCharCode(65 + sectionIndex) : "";
@@ -1433,7 +1498,9 @@ export default function Studio() {
       {/* Suggestions */}
       {suggestions.length > 0 && (
         <div className="mt-4 flex items-center gap-3 flex-wrap">
-          <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted flex-shrink-0">Or try</p>
+          <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted flex-shrink-0">
+            {attachment ? "Do this with it" : "Or try"}
+          </p>
           <div className="flex flex-wrap gap-1.5">
             {suggestions.map((s) => (
               <button
