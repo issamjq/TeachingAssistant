@@ -1389,7 +1389,7 @@ export default function Studio() {
           full prompt into the textarea. */}
       {recents.length > 0 && (
         <div className="mb-4 flex items-center gap-3 flex-wrap">
-          <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted flex-shrink-0">Recent</p>
+          <p className="font-serif italic text-base text-muted flex-shrink-0">Recent</p>
           <div className="flex flex-wrap gap-1.5">
             {recents.slice(0, 4).map((r) => (
               <button
@@ -1498,7 +1498,7 @@ export default function Studio() {
       {/* Suggestions */}
       {suggestions.length > 0 && (
         <div className="mt-4 flex items-center gap-3 flex-wrap">
-          <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted flex-shrink-0">
+          <p className="font-serif italic text-base text-muted flex-shrink-0">
             {attachment ? "Do this with it" : "Or try"}
           </p>
           <div className="flex flex-wrap gap-1.5">
@@ -1921,7 +1921,7 @@ function QuizParamsPanel({ params, onChange, gradeOptions, majorOptions, languag
     <div className="mb-4 rounded-2xl border border-line bg-paper-warm/40 px-3 sm:px-4 md:px-5 py-3.5 sm:py-4">
       <div className="flex items-end justify-between gap-3 mb-3">
         <div>
-          <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-0.5">
+          <p className="font-serif italic text-base text-muted mb-0.5">
             Quiz settings
           </p>
           <p className="font-serif text-base text-ink leading-snug">
