@@ -182,8 +182,11 @@ router.post("/generate", async (req, res) => {
     }
 
     const { prompt, kind, attachment } = req.body || {};
-    if (!prompt || !String(prompt).trim()) {
-      return res.status(400).json({ error: "Prompt is required" });
+    const promptText = String(prompt || "").trim();
+    // An attachment alone is a valid signal — "make a quiz from this
+    // worksheet" doesn't need extra prose. Require ONE of the two.
+    if (!promptText && !attachment) {
+      return res.status(400).json({ error: "Prompt or an attachment is required" });
     }
     const allowedKinds = new Set([
       "lesson_plan", "quiz", "homework", "activity", "presentation", "feedback", "schedule",
@@ -197,7 +200,7 @@ router.post("/generate", async (req, res) => {
       `KIND: ${k.toUpperCase()}\n` +
       `TEACHER CONTEXT: ${cur ? `id=${cur.id}, grades=${(cur.grade_levels || []).join(", ")}` : "none"}\n` +
       `${attachment ? `\nNOTE: An attachment has been provided. Treat it as primary source material — base the output on what's in it.\n` : ""}` +
-      `\nPROMPT:\n${String(prompt).trim()}`;
+      `\nPROMPT:\n${promptText || "(no extra guidance — use the attached file as the full source)"}`;
 
     let userContent;
     try {
@@ -352,8 +355,9 @@ router.post("/quiz", async (req, res) => {
     }
 
     const { prompt, params, attachment } = req.body || {};
-    if (!prompt || !String(prompt).trim()) {
-      return res.status(400).json({ error: "Prompt is required" });
+    const promptText = String(prompt || "").trim();
+    if (!promptText && !attachment) {
+      return res.status(400).json({ error: "Prompt or an attachment is required" });
     }
 
     // Render the optional pre-prompt knobs as a SETTINGS block. Empty /
@@ -402,7 +406,7 @@ router.post("/quiz", async (req, res) => {
       `TEACHER CONTEXT: ${cur ? `id=${cur.id}, grades=${(cur.grade_levels || []).join(", ")}` : "none"}\n\n` +
       settingsBlock +
       `${attachment ? `ATTACHMENT: A file is provided. Base the quiz questions on the content of the attachment (textbook page, worksheet, exam paper, etc.). Use the prompt as additional guidance.\n\n` : ""}` +
-      `PROMPT:\n${String(prompt).trim()}\n\n` +
+      `PROMPT:\n${promptText || "(no extra guidance — base every question on the attached file)"}\n\n` +
       `Use the submit_quiz tool. Do not return prose.`;
 
     let userContent;

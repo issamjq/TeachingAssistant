@@ -448,7 +448,10 @@ export default function Studio() {
   // the structured /api/studio/quiz path (tool-use → typed Quiz object);
   // every other kind uses the markdown /api/studio/generate path.
   const generate = async () => {
-    if (!prompt.trim()) return;
+    // Either a typed prompt or an attached file is enough — when the
+    // teacher only attaches an image of a worksheet, an empty textarea
+    // is a valid signal of "use the whole image".
+    if (!prompt.trim() && !attachment) return;
     abortRef.current?.abort();
     abortRef.current = new AbortController();
     setBusy(true); setError(null); setResult(null);
@@ -1364,7 +1367,11 @@ export default function Studio() {
               generate();
             }
           }}
-          placeholder={active?.sample}
+          placeholder={
+            attachment
+              ? "Optional focus — e.g. \"only the formulas\" or \"skip the diagrams\". Leave blank to use the whole file."
+              : active?.sample
+          }
           className="w-full bg-transparent outline-none px-5 py-4 text-base text-ink placeholder:text-muted resize-none"
         />
         <div className="border-t border-line px-3 py-2.5 flex items-center justify-between gap-3 flex-wrap">
@@ -1399,11 +1406,15 @@ export default function Studio() {
             )}
           </div>
           <div className="flex items-center gap-3">
-            <p className="hidden sm:block text-xs text-muted italic">Mudir will fill the rest</p>
+            <p className="hidden sm:block text-xs text-muted italic">
+              {attachment && !prompt.trim()
+                ? "Mudir will use the whole file"
+                : "Mudir will fill the rest"}
+            </p>
             <Button
               variant="danger"
               onClick={generate}
-              disabled={!prompt.trim()}
+              disabled={!prompt.trim() && !attachment}
               className="hover:scale-[1.02] active:scale-[0.99] transition-transform duration-200 px-4 py-2 text-sm"
             >
               <Send size={14} className="mr-1.5" />
