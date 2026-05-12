@@ -213,6 +213,30 @@ const pickSuggestions = (kind, seed) => {
 export default function Studio() {
   const [kind, setKind] = useState("lesson_plan");
   const [prompt, setPrompt] = useState("");
+  // The signed-in teacher's profile (majors / grade_levels / languages),
+  // fetched once on mount. Used to scope the studio dropdowns down to
+  // what the teacher actually teaches, so they don't scroll past Arabic,
+  // KG 1, etc. when they teach Science to Grades 5–8. Falls back to the
+  // global enums when the profile is empty.
+  const [teacher, setTeacher] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    api("/api/me")
+      .then((data) => { if (alive) setTeacher(data); })
+      .catch(() => { if (alive) setTeacher({}); });
+    return () => { alive = false; };
+  }, []);
+
+  // Per-chip option lists. Prefer the teacher's curated set; fall back
+  // to the global enum so a first-time teacher (empty profile) still
+  // gets a usable dropdown.
+  const teacherGrades = (teacher?.grade_levels || []).filter(Boolean);
+  const teacherMajors = (teacher?.majors || []).filter(Boolean);
+  const teacherLanguages = (teacher?.languages || []).filter(Boolean);
+  const gradeOptions = teacherGrades.length ? teacherGrades : GRADE_LEVELS;
+  const majorOptions = teacherMajors.length ? teacherMajors : MAJORS;
+  const languageOptions = teacherLanguages.length ? teacherLanguages : QUIZ_LANGUAGES;
+
   const [busy, setBusy] = useState(false);
   const [streamingText, setStreamingText] = useState("");
   // Structured-quiz path: while the model is calling submit_quiz, the
@@ -1256,7 +1280,13 @@ export default function Studio() {
           so the teacher can't miss it. Inside the input card it read
           as decoration; here it's clearly a settings step. */}
       {kind === "quiz" && (
-        <QuizParamsPanel params={quizParams} onChange={setQuizParams} />
+        <QuizParamsPanel
+          params={quizParams}
+          onChange={setQuizParams}
+          gradeOptions={gradeOptions}
+          majorOptions={majorOptions}
+          languageOptions={languageOptions}
+        />
       )}
 
       {/* Big input card */}
@@ -1633,7 +1663,7 @@ const CHIP_VALIDATORS = {
 // area; the chip is sized big enough that an empty state ("Pick a grade")
 // is impossible to miss. Every chip is optional — leave any blank and
 // the AI infers from the prompt.
-function QuizParamsPanel({ params, onChange }) {
+function QuizParamsPanel({ params, onChange, gradeOptions, majorOptions, languageOptions }) {
   const set = (patch) => onChange((prev) => ({ ...prev, ...patch }));
   const setCount = [
     params.grade, params.major, params.language, params.section,
@@ -1675,9 +1705,9 @@ function QuizParamsPanel({ params, onChange }) {
           label="Grade"
           slot="grade"
           emptyHint="Any grade"
-          help="Which year group the quiz is for. Drives vocabulary and complexity (KG 1 keeps it visual, Grade 12 allows abstract reasoning)."
+          help="Which year group the quiz is for. The list shows the grades you teach (set in Class Roster → Teaching profile). Type to add a one-off."
           value={params.grade}
-          options={GRADE_LEVELS}
+          options={gradeOptions}
           onChange={(v) => set({ grade: v })}
           warning={CHIP_VALIDATORS.grade(params.grade)}
           onMoveTo={(target) => moveTo("grade", target)}
@@ -1687,9 +1717,9 @@ function QuizParamsPanel({ params, onChange }) {
           label="Major"
           slot="major"
           emptyHint="Any major"
-          help="The school subject the quiz tests — Math, Biology, History, etc. Every question must stay on-topic for this major."
+          help="The school subject the quiz tests. The list shows the majors you teach (set in Class Roster → Teaching profile). Type to add a one-off."
           value={params.major}
-          options={MAJORS}
+          options={majorOptions}
           onChange={(v) => set({ major: v })}
           warning={CHIP_VALIDATORS.major(params.major)}
           onMoveTo={(target) => moveTo("major", target)}
@@ -1699,9 +1729,9 @@ function QuizParamsPanel({ params, onChange }) {
           label="Language"
           slot="language"
           emptyHint="Auto"
-          help="The language the quiz will be written in. The whole output — questions, choices, answer key — comes back in this language."
+          help="The language the quiz will be written in (questions, choices, answer key). The list shows the languages you teach (set in Class Roster → Teaching profile). Type to add a one-off."
           value={params.language}
-          options={QUIZ_LANGUAGES}
+          options={languageOptions}
           onChange={(v) => set({ language: v })}
         />
         <DropdownChip

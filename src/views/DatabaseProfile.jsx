@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Calendar, Hash, Pencil } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { MAJORS, GRADE_LEVELS } from "../lib/enums";
+import { MAJORS, GRADE_LEVELS, QUIZ_LANGUAGES } from "../lib/enums";
 import { Field, Modal, ChipMultiSelect, inputClasses, api } from "./_shared";
 
 const initials = (first, last) =>
@@ -84,6 +84,9 @@ export default function DatabaseProfile() {
                 <p className="font-mono text-[11px] uppercase tracking-wider text-muted mt-1">
                   {(me.grade_levels || []).join(" · ") || "No grades set"}
                 </p>
+                <p className="font-mono text-[11px] uppercase tracking-wider text-muted mt-1">
+                  {(me.languages || []).join(" · ") || "No languages set"}
+                </p>
                 {me.bio && (
                   <p className="text-sm text-ink-soft mt-3 max-w-2xl leading-relaxed">{me.bio}</p>
                 )}
@@ -130,6 +133,7 @@ function ProfileEditModal({ initial, onClose, onSaved }) {
     bio: initial.bio || "",
     majors: initial.majors || [],
     grade_levels: initial.grade_levels || [],
+    languages: initial.languages || [],
   });
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState(null);
@@ -229,6 +233,23 @@ function ProfileEditModal({ initial, onClose, onSaved }) {
         <p className="text-xs text-muted mt-2">
           The students tab uses this to show only kids in your grades. Custom grades are private to you —
           they only match students if a student record uses the exact same value.
+        </p>
+      </div>
+
+      <div className="mt-5">
+        <p className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted mb-2">
+          Languages you teach
+        </p>
+        <ChipMultiSelect
+          value={form.languages}
+          onChange={(v) => set("languages", v)}
+          options={QUIZ_LANGUAGES}
+          allowCustom
+          customPlaceholder="Add a language (e.g. Swahili)…"
+        />
+        <p className="text-xs text-muted mt-2">
+          AI Studio uses this to populate the Language dropdown when you generate a quiz, so the list
+          shows only what you actually teach. Custom languages are private to you.
         </p>
       </div>
     </Modal>

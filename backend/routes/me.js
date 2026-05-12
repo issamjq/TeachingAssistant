@@ -4,11 +4,12 @@ import { buildPatch, handleErr } from "../lib/helpers.js";
 import { loadCurrentTeacher, setCurrentTeacher } from "../lib/currentTeacher.js";
 
 const ME_SELECT = `id, first_name, last_name, email, phone, staff_id, majors, grade_levels,
-                   nationality, hire_date, bio, created_at, updated_at`;
+                   languages, nationality, hire_date, bio, created_at, updated_at`;
 
 const ME_FIELDS = [
   "first_name", "last_name", "email", "phone", "staff_id",
-  "majors", "grade_levels", "nationality", "hire_date", "bio",
+  "majors", "grade_levels", "languages",
+  "nationality", "hire_date", "bio",
 ];
 
 const router = Router();

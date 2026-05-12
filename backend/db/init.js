@@ -21,6 +21,7 @@ CREATE TABLE IF NOT EXISTS teachers (
   staff_id TEXT UNIQUE,
   majors TEXT[] DEFAULT '{}',
   grade_levels TEXT[] DEFAULT '{}',
+  languages TEXT[] DEFAULT '{}',
   nationality TEXT,
   hire_date DATE,
   bio TEXT,
@@ -96,8 +97,9 @@ ALTER TABLE templates ADD COLUMN IF NOT EXISTS teacher_id INT REFERENCES teacher
 ALTER TABLE drafts    ADD COLUMN IF NOT EXISTS teacher_id INT REFERENCES teachers(id) ON DELETE CASCADE;
 ALTER TABLE students  ADD COLUMN IF NOT EXISTS teacher_id INT REFERENCES teachers(id) ON DELETE CASCADE;
 
-ALTER TABLE teachers  ADD COLUMN IF NOT EXISTS role   TEXT NOT NULL DEFAULT 'teacher';
-ALTER TABLE teachers  ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'active';
+ALTER TABLE teachers  ADD COLUMN IF NOT EXISTS role      TEXT NOT NULL DEFAULT 'teacher';
+ALTER TABLE teachers  ADD COLUMN IF NOT EXISTS status    TEXT NOT NULL DEFAULT 'active';
+ALTER TABLE teachers  ADD COLUMN IF NOT EXISTS languages TEXT[] DEFAULT '{}';
 `;
 
 // =============================================================================
