@@ -5,12 +5,12 @@ import { loadCurrentTeacher } from "../lib/currentTeacher.js";
 import { crudRouter } from "../lib/crud.js";
 
 const QUIZ_FIELDS = [
-  "title", "subject", "grade", "section", "duration_minutes",
-  "total_marks", "status", "scheduled_for", "instructions",
+  "title", "subject", "grade", "section", "language", "difficulty",
+  "duration_minutes", "total_marks", "status", "scheduled_for", "instructions",
 ];
-const QUIZ_SELECT = `id, title, subject, grade, section, duration_minutes,
-                     total_marks, status, scheduled_for, instructions,
-                     created_at, updated_at`;
+const QUIZ_SELECT = `id, title, subject, grade, section, language, difficulty,
+                     duration_minutes, total_marks, status, scheduled_for,
+                     instructions, created_at, updated_at`;
 
 const router = crudRouter({
   table: "quizzes",
@@ -37,8 +37,8 @@ router.post("/bulk", async (req, res) => {
     const cur = await loadCurrentTeacher();
     if (!cur) return res.status(401).json({ error: "No current teacher" });
     const {
-      title, subject, grade, section, duration_minutes,
-      total_marks, status, scheduled_for, instructions,
+      title, subject, grade, section, language, difficulty,
+      duration_minutes, total_marks, status, scheduled_for, instructions,
       questions,
     } = req.body || {};
     if (!title || !Array.isArray(questions) || questions.length === 0) {
@@ -47,13 +47,14 @@ router.post("/bulk", async (req, res) => {
 
     await client.query("BEGIN");
     const quizRes = await client.query(
-      `INSERT INTO quizzes (teacher_id, title, subject, grade, section,
-                            duration_minutes, total_marks, status,
+      `INSERT INTO quizzes (teacher_id, title, subject, grade, section, language,
+                            difficulty, duration_minutes, total_marks, status,
                             scheduled_for, instructions)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, COALESCE($8, 'Draft'), $9, $10)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, COALESCE($10, 'Draft'), $11, $12)
        RETURNING ${QUIZ_SELECT}`,
       [
         cur.id, title, subject || null, grade || null, section || null,
+        language || null, difficulty || null,
         duration_minutes || null, total_marks || null, status || null,
         scheduled_for || null, instructions || null,
       ]

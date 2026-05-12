@@ -916,6 +916,9 @@ export default function Studio() {
             title: q.title || "Untitled quiz",
             subject: q.subject || null,
             grade: q.grade || null,
+            section: q.section || null,
+            language: q.language || null,
+            difficulty: q.difficulty || null,
             duration_minutes: q.duration_minutes || null,
             total_marks: q.total_marks || null,
             instructions: q.instructions || null,
@@ -1802,7 +1805,7 @@ function QuizStreamingPlaceholder({ partial, busy }) {
   const detected = (partial.match(/"position"\s*:/g) || []).length;
   return (
     <div>
-      <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent mb-3 inline-flex items-center gap-2">
+      <p className="font-serif italic text-base text-accent mb-3 inline-flex items-center gap-2">
         <span className="h-1.5 w-1.5 rounded-full bg-accent animate-pulse" />
         {busy ? "Building quiz" : "Done"}
       </p>
@@ -1813,7 +1816,7 @@ function QuizStreamingPlaceholder({ partial, busy }) {
         <p className="text-sm text-muted mt-2">
           Picking question types, writing prompts, building the answer key.
         </p>
-        <p className="mt-4 text-[11px] font-mono uppercase tracking-[0.18em] text-muted">
+        <p className="mt-4 font-serif italic text-sm text-muted">
           {detected > 0
             ? `${detected} question${detected === 1 ? "" : "s"} drafted so far`
             : "Warming up"}
@@ -2390,30 +2393,47 @@ function QuizMetaCard({ quiz, onUpdate }) {
   // recomputes it on each change, so the cover always matches reality.
   return (
     <div className="rounded-xl border border-line bg-paper-cool p-5 md:p-6">
-      <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-2">
-        Cover
-      </p>
+      <p className="font-serif italic text-base text-muted mb-2">Cover</p>
       <EditableText
         value={quiz.title || ""}
         onChange={(v) => onUpdate({ title: v })}
         placeholder="Quiz title"
-        className="font-serif text-2xl md:text-3xl font-medium text-ink leading-tight mb-3 w-full"
+        className="font-serif text-2xl md:text-3xl font-medium text-ink leading-tight mb-4 w-full"
       />
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-ink-soft mb-4">
+      {/* Two-row meta grid. Subject / Grade / Major / Language on row 1,
+          Section / Difficulty / Duration on row 2; question + marks
+          totals sit at the end as static stats. */}
+      <div className="flex flex-wrap items-baseline gap-x-4 gap-y-2 text-sm text-ink-soft mb-5">
         <MetaField
           label="Subject"
           value={quiz.subject || ""}
           onChange={(v) => onUpdate({ subject: v })}
           placeholder="—"
         />
-        <span className="text-line">·</span>
         <MetaField
           label="Grade"
           value={quiz.grade || ""}
           onChange={(v) => onUpdate({ grade: v })}
           placeholder="—"
         />
-        <span className="text-line">·</span>
+        <MetaField
+          label="Language"
+          value={quiz.language || ""}
+          onChange={(v) => onUpdate({ language: v })}
+          placeholder="—"
+        />
+        <MetaField
+          label="Section"
+          value={quiz.section || ""}
+          onChange={(v) => onUpdate({ section: v })}
+          placeholder="—"
+        />
+        <MetaField
+          label="Difficulty"
+          value={quiz.difficulty || ""}
+          onChange={(v) => onUpdate({ difficulty: v })}
+          placeholder="—"
+        />
         <MetaField
           label="Duration"
           value={quiz.duration_minutes || ""}
@@ -2422,19 +2442,12 @@ function QuizMetaCard({ quiz, onUpdate }) {
           suffix="min"
           numeric
         />
-        <span className="text-line">·</span>
-        <span className="text-ink-soft">
-          {totalQ} question{totalQ === 1 ? "" : "s"}
-        </span>
-        <span className="text-line">·</span>
-        <span className="font-medium text-ink">
-          {quiz.total_marks ?? 0} marks
+        <span className="font-serif italic text-muted">
+          · {totalQ} question{totalQ === 1 ? "" : "s"} · <span className="text-ink not-italic font-medium">{quiz.total_marks ?? 0} marks</span>
         </span>
       </div>
       <div>
-        <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-1.5">
-          Instructions
-        </p>
+        <p className="font-serif italic text-base text-muted mb-1.5">Instructions</p>
         <EditableTextarea
           value={quiz.instructions || ""}
           onChange={(v) => onUpdate({ instructions: v })}
@@ -2703,9 +2716,7 @@ function EditableNumber({ value, onChange, min = 0, className = "" }) {
 function MetaField({ label, value, onChange, placeholder, suffix, numeric }) {
   return (
     <span className="inline-flex items-baseline gap-1.5">
-      <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted">
-        {label}
-      </span>
+      <span className="font-serif italic text-sm text-muted">{label}</span>
       {numeric ? (
         <EditableNumber
           value={value}
@@ -2720,7 +2731,7 @@ function MetaField({ label, value, onChange, placeholder, suffix, numeric }) {
           className="text-sm text-ink"
         />
       )}
-      {suffix && <span className="text-sm text-muted">{suffix}</span>}
+      {suffix && <span className="font-serif italic text-sm text-muted">{suffix}</span>}
     </span>
   );
 }

@@ -292,6 +292,18 @@ const QUIZ_TOOL = {
       title: { type: "string", description: "Short title for the quiz." },
       subject: { type: "string", description: "Subject e.g. Math, English." },
       grade: { type: "string", description: "Grade level e.g. 'Grade 8'." },
+      language: {
+        type: "string",
+        description: "Language the quiz is written in. Echo back the SETTINGS value (e.g. 'English', 'Arabic'). Default to 'English' if no language was specified.",
+      },
+      section: {
+        type: "string",
+        description: "Class section the quiz is for. Echo back the SETTINGS value (e.g. 'Section A', 'All sections'). Empty string if no section was specified.",
+      },
+      difficulty: {
+        type: "string",
+        description: "Overall difficulty. Echo back the SETTINGS value if provided (one of 'Easy', 'Medium', 'Hard'); otherwise pick the level you actually targeted.",
+      },
       duration_minutes: {
         type: "integer",
         description: "Estimated time to take the quiz, in minutes.",

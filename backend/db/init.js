@@ -102,6 +102,9 @@ ALTER TABLE teachers  ADD COLUMN IF NOT EXISTS role      TEXT NOT NULL DEFAULT '
 ALTER TABLE teachers  ADD COLUMN IF NOT EXISTS status    TEXT NOT NULL DEFAULT 'active';
 ALTER TABLE teachers  ADD COLUMN IF NOT EXISTS languages TEXT[] DEFAULT '{}';
 ALTER TABLE teachers  ADD COLUMN IF NOT EXISTS sections  TEXT[] DEFAULT '{}';
+
+ALTER TABLE quizzes   ADD COLUMN IF NOT EXISTS language   TEXT;
+ALTER TABLE quizzes   ADD COLUMN IF NOT EXISTS difficulty TEXT;
 `;
 
 // =============================================================================
@@ -158,6 +161,8 @@ CREATE TABLE IF NOT EXISTS quizzes (
   subject TEXT,
   grade TEXT,
   section TEXT,
+  language TEXT,
+  difficulty TEXT,
   duration_minutes INT,
   total_marks INT,
   status TEXT NOT NULL DEFAULT 'Draft',
