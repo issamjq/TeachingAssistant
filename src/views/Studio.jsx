@@ -73,15 +73,51 @@ const KINDS = [
   },
 ];
 
-// Sample chips shown above the input. Hardcoded today; later they'll come
-// from the user's actual recent prompts (localStorage or the API).
-const RECENTS_BY_KIND = {
+// Recent prompts live in localStorage so the chips always reflect what
+// THIS teacher actually generated. Stored per kind, capped at 8, prepended
+// on each successful generation. First-time users see a kind-appropriate
+// seed list (so the row is never empty).
+const RECENTS_STORAGE_KEY = (kind) => `mudir:studio:recents:${kind}`;
+const RECENT_SEEDS = {
   lesson_plan:  ["Photosynthesis", "Pythagoras", "Story arc", "Buoyancy"],
   quiz:         ["Linear equations", "Quadratics", "Geometry: angles", "Statistics: mean & median"],
   homework:     ["Reading comp · Lesson 4", "Word problems", "Vocab review"],
   activity:     ["Town-hall debate", "Lab pair-up", "Gallery walk"],
   presentation: ["Water cycle", "World religions", "Plot diagram"],
   schedule:     ["Term 2 plan", "Forces & motion week", "Exam revision"],
+};
+
+const loadRecents = (kind) => {
+  try {
+    const raw = localStorage.getItem(RECENTS_STORAGE_KEY(kind));
+    if (!raw) return RECENT_SEEDS[kind] || [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed) || parsed.length === 0) return RECENT_SEEDS[kind] || [];
+    return parsed;
+  } catch {
+    return RECENT_SEEDS[kind] || [];
+  }
+};
+
+const pushRecent = (kind, fullPrompt) => {
+  const trimmed = String(fullPrompt || "").trim();
+  if (!trimmed) return;
+  try {
+    const cur = loadRecents(kind);
+    const lower = trimmed.toLowerCase();
+    const filtered = cur.filter((p) => p.toLowerCase() !== lower);
+    const next = [trimmed, ...filtered].slice(0, 8);
+    localStorage.setItem(RECENTS_STORAGE_KEY(kind), JSON.stringify(next));
+  } catch {}
+};
+
+// Short label for a chip — full prompt becomes the textarea content on
+// click, but the chip itself only has room for ~3 words.
+const recentLabel = (s) => {
+  const t = String(s || "").trim();
+  // Use the first heading-style chunk before an em-dash / colon, capped.
+  const head = t.split(/[—:|]/)[0].trim() || t;
+  return head.length <= 28 ? head : head.slice(0, 26).trim() + "…";
 };
 
 // Pre-prompt parameters the teacher can lock in before a quiz is generated.
@@ -98,15 +134,80 @@ const QUIZ_PARAMS_DEFAULTS = {
   difficulty: "",  // from QUIZ_DIFFICULTIES
 };
 
-// "Or try" pills under the input. Same data shape as recents but more
-// directive — verbs the teacher might ask Mudir to do.
-const SUGGESTIONS_BY_KIND = {
-  lesson_plan:  ["Pop lesson from yesterday", "Re-teach what 8B got wrong", "Same lesson, harder"],
-  quiz:         ["Pop quiz from Lesson 3", "Mid-term review (3 chapters)", "Re-teach what 8B got wrong"],
-  homework:     ["Easier version for 6B", "Add 2 word problems", "Same idea, shorter"],
-  activity:     ["Quick warm-up version", "Group of 4 instead", "Outdoor variant"],
-  presentation: ["Add slide on examples", "Remove text-heavy slides", "Add a quiz at the end"],
-  schedule:     ["Two-week version", "Compress to 3 days", "Add a review day"],
+// "Or try" pool — directive prompts. Expanded so we can shuffle 3 random
+// suggestions per kind on each mount / kind change. Teachers shouldn't
+// see the same three suggestions every time they open the studio.
+const SUGGESTIONS_POOL_BY_KIND = {
+  lesson_plan: [
+    "Pop lesson from yesterday",
+    "Re-teach what 8B got wrong",
+    "Same lesson, harder",
+    "Same lesson, simpler scaffolding",
+    "Add a hands-on starter",
+    "Plan with a flipped-classroom angle",
+    "Shorten to 20 minutes",
+    "Add a real-world tie-in",
+  ],
+  quiz: [
+    "Pop quiz from Lesson 3",
+    "Mid-term review (3 chapters)",
+    "Re-teach what 8B got wrong",
+    "Diagnostic — measure prior knowledge",
+    "Quick recall — 5 short questions",
+    "End-of-unit challenge",
+    "Word problems only",
+    "MCQ only for fast marking",
+    "Stretch questions for top set",
+    "Spiral review of last 2 weeks",
+  ],
+  homework: [
+    "Easier version for 6B",
+    "Add 2 word problems",
+    "Same idea, shorter",
+    "Extension task for fast finishers",
+    "Family-involved version",
+    "30-minute cap, no internet",
+    "Build on yesterday's lesson",
+  ],
+  activity: [
+    "Quick warm-up version",
+    "Group of 4 instead",
+    "Outdoor variant",
+    "Silent / written variant",
+    "Add a reflection at the end",
+    "Pair-and-share format",
+    "Gamified with points",
+  ],
+  presentation: [
+    "Add slide on examples",
+    "Remove text-heavy slides",
+    "Add a quiz at the end",
+    "More visual, less text",
+    "Compress to 5 slides",
+    "Add speaker notes",
+    "Story arc with a hook + payoff",
+  ],
+  schedule: [
+    "Two-week version",
+    "Compress to 3 days",
+    "Add a review day",
+    "Slot in formative assessments",
+    "Front-load the hardest topics",
+    "Build in a buffer day",
+    "Cover-class friendly version",
+  ],
+};
+
+// Pick three random suggestions per kind. Stable per (kind, generation
+// counter) so the row doesn't reshuffle every render.
+const pickSuggestions = (kind, seed) => {
+  const pool = SUGGESTIONS_POOL_BY_KIND[kind] || [];
+  if (pool.length <= 3) return pool;
+  // Tiny xorshift-style picker so we can derive an order from a seed
+  // (avoiding randomness that would re-shuffle on every render).
+  const order = [...pool].map((s, i) => ({ s, k: (i * 9301 + 49297 + seed * 233) % 233280 }));
+  order.sort((a, b) => a.k - b.k);
+  return order.slice(0, 3).map((x) => x.s);
 };
 
 export default function Studio() {
@@ -151,8 +252,15 @@ export default function Studio() {
   const regenAbortsRef = useRef(new Map());
 
   const active = KINDS.find((k) => k.value === kind);
-  const recents = RECENTS_BY_KIND[kind] || [];
-  const suggestions = SUGGESTIONS_BY_KIND[kind] || [];
+  // Bumping `recencyTick` re-reads localStorage + reshuffles OR TRY,
+  // so finishing a generation refreshes both rows without a remount.
+  const [recencyTick, setRecencyTick] = useState(0);
+  const recents = useMemo(() => loadRecents(kind), [kind, recencyTick]);
+  const suggestions = useMemo(
+    () => pickSuggestions(kind, recencyTick + Date.now() % 1000),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [kind, recencyTick]
+  );
   const currentSection = sections[sectionIndex];
   const currentLetter = sectionIndex >= 0 ? String.fromCharCode(65 + sectionIndex) : "";
   const tweakBusy = !!currentSection?.regenerating;
@@ -310,6 +418,18 @@ export default function Studio() {
             // progress signal; final structured object arrives in `done`.
             setQuizPartial((prev) => prev + (payload.partial || ""));
           } else if (payload.type === "done") {
+            // Persist whatever the teacher just generated to the recents
+            // list for this kind. Prefer the quiz title when available
+            // (it's a cleaner short label than the raw prompt) and fall
+            // back to the prompt text. recencyTick bump forces the
+            // RECENT + OR TRY chips to refresh.
+            const recentText =
+              (payload.kind === "quiz" && payload.quiz?.title)
+                ? payload.quiz.title
+                : prompt.trim();
+            pushRecent(payload.kind, recentText);
+            setRecencyTick((t) => t + 1);
+
             if (payload.kind === "quiz" && payload.quiz) {
               // The result-watching effect rebuilds `sections` from the
               // structured quiz, so we just persist the result here. The
@@ -1110,19 +1230,22 @@ export default function Studio() {
         </div>
       </div>
 
-      {/* Recent chips */}
+      {/* Recent chips — backed by localStorage. Show the four most-recent
+          prompts (or quiz titles) for this kind. Clicking restores the
+          full prompt into the textarea. */}
       {recents.length > 0 && (
         <div className="mb-4 flex items-center gap-3 flex-wrap">
           <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted flex-shrink-0">Recent</p>
           <div className="flex flex-wrap gap-1.5">
-            {recents.map((r) => (
+            {recents.slice(0, 4).map((r) => (
               <button
                 key={r}
                 type="button"
-                onClick={() => setPrompt(`${r}.`)}
+                onClick={() => setPrompt(r)}
+                title={r}
                 className="px-3 py-1.5 rounded-full bg-paper-cool border border-line text-xs text-ink-soft hover:border-ink hover:bg-paper-warm transition-colors duration-200"
               >
-                {r}
+                {recentLabel(r)}
               </button>
             ))}
           </div>
@@ -1196,35 +1319,6 @@ export default function Studio() {
           </div>
         </div>
       )}
-
-      {/* Footer hints */}
-      <div className="mt-7 flex items-center justify-between gap-3 text-[11px] text-muted flex-wrap">
-        <div className="flex items-center gap-3 flex-wrap">
-          <span className="inline-flex items-center gap-1.5">
-            <kbd className="px-1.5 py-0.5 rounded border border-line bg-paper-cool font-mono text-[10px]">⌘</kbd>
-            <kbd className="px-1.5 py-0.5 rounded border border-line bg-paper-cool font-mono text-[10px]">↵</kbd>
-            <span>Generate</span>
-          </span>
-          <span className="text-line">·</span>
-          <span className="inline-flex items-center gap-1.5">
-            <kbd className="px-1.5 py-0.5 rounded border border-line bg-paper-cool font-mono text-[10px]">K</kbd>
-            <span>Pick</span>
-          </span>
-          <span className="text-line">·</span>
-          <button
-            type="button"
-            onClick={reset}
-            className="inline-flex items-center gap-1.5 hover:text-accent transition-colors duration-200"
-          >
-            <RotateCcw size={11} />
-            Reset
-          </button>
-        </div>
-        <div className="inline-flex items-center gap-1.5">
-          <Zap size={11} />
-          <span>usually ~12s</span>
-        </div>
-      </div>
 
       {error && (
         <div className="mt-5 bg-paper border border-accent rounded-lg p-4 shadow-sm">
