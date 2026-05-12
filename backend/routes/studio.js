@@ -493,6 +493,171 @@ router.post("/quiz", async (req, res) => {
   }
 });
 
+// Single-question tool, used by /api/studio/quiz-tweak when the teacher
+// scopes a tweak to one question. Same shape as one item of the QUIZ_TOOL
+// questions array so the frontend can swap it in without further parsing.
+const QUESTION_TOOL = {
+  name: "submit_question",
+  description:
+    "Submit the rewritten quiz question with full structure. Call exactly once with every required field. Do not respond with prose.",
+  input_schema: {
+    type: "object",
+    properties: {
+      position: { type: "integer", minimum: 1 },
+      type: {
+        type: "string",
+        enum: ["mcq", "tf", "short", "essay"],
+        description:
+          "Preserve the original type unless the teacher's guidance explicitly asks to change it.",
+      },
+      prompt: { type: "string", description: "The question stem. Plain text." },
+      choices: {
+        type: ["array", "null"],
+        description:
+          "For mcq: array of 4 strings (no letter prefix). For tf: ['True','False']. For short/essay: null.",
+        items: { type: "string" },
+      },
+      correct_answer: {
+        description:
+          "For mcq: letter 'A'|'B'|'C'|'D'. For tf: true|false. For short: expected answer text. For essay: 1–2 sentence rubric.",
+      },
+      marks: { type: "integer", minimum: 1 },
+    },
+    required: ["position", "type", "prompt", "marks", "correct_answer"],
+  },
+};
+
+// POST /api/studio/quiz-tweak — natural-language tweak of an existing
+// structured quiz. Two scopes:
+//   scope="question"  → rewrite quiz.questions[questionIndex] only.
+//                        Returns { question: <updated question> }.
+//   scope="quiz"      → rewrite the full quiz, honouring the hint.
+//                        Returns { quiz: <updated full quiz> }.
+// The current quiz JSON is passed as context so the model preserves the
+// teacher's in-place edits unless the hint contradicts them.
+router.post("/quiz-tweak", async (req, res) => {
+  try {
+    const flag = await pool.query(
+      "SELECT enabled FROM feature_flags WHERE key = 'ai_studio'"
+    );
+    if (!flag.rows[0]?.enabled) {
+      return res.status(403).json({
+        error: "AI Studio is disabled. Toggle the ai_studio feature flag in the Dev console first.",
+      });
+    }
+    if (!process.env.ANTHROPIC_API_KEY) {
+      return res.status(500).json({
+        error: "ANTHROPIC_API_KEY isn't configured on the server.",
+      });
+    }
+
+    const { quiz, hint, scope, questionIndex } = req.body || {};
+    const hintText = String(hint || "").trim();
+    if (!quiz || !hintText || !scope) {
+      return res.status(400).json({ error: "quiz, hint and scope are required" });
+    }
+    if (scope !== "question" && scope !== "quiz") {
+      return res.status(400).json({ error: "scope must be 'question' or 'quiz'" });
+    }
+    if (scope === "question") {
+      const idx = Number(questionIndex);
+      if (!Number.isInteger(idx) || idx < 0 || !Array.isArray(quiz.questions) || idx >= quiz.questions.length) {
+        return res.status(400).json({ error: "questionIndex is out of range for the supplied quiz" });
+      }
+    }
+
+    const client = new Anthropic();
+    const isQuestionScope = scope === "question";
+    const tool = isQuestionScope ? QUESTION_TOOL : QUIZ_TOOL;
+    const toolName = tool.name;
+
+    const target = isQuestionScope ? quiz.questions[Number(questionIndex)] : null;
+    const userMessage = isQuestionScope
+      ? `KIND: QUIZ_QUESTION_TWEAK\n\n` +
+        `QUIZ CONTEXT (for tone, grade, and to avoid overlap with other questions — do NOT rewrite the others):\n` +
+        `"""${JSON.stringify({
+          title: quiz.title, subject: quiz.subject, grade: quiz.grade,
+          language: quiz.language, difficulty: quiz.difficulty,
+          instructions: quiz.instructions,
+          questions: (quiz.questions || []).map((q, i) => ({
+            position: q.position ?? i + 1,
+            type: q.type,
+            prompt: q.prompt,
+          })),
+        })}"""\n\n` +
+        `QUESTION TO REWRITE (verbatim — keep position and ideally type, change everything else as the guidance asks):\n` +
+        `"""${JSON.stringify(target)}"""\n\n` +
+        `TEACHER GUIDANCE: ${hintText}\n\n` +
+        `Call submit_question exactly once with the rewritten question. ` +
+        `Preserve position. Preserve type unless the guidance explicitly asks otherwise. ` +
+        `Match the quiz's language. Do not return prose.`
+      : `KIND: QUIZ_TWEAK\n\n` +
+        `CURRENT QUIZ (rewrite, honouring the teacher's existing edits unless the guidance contradicts them):\n` +
+        `"""${JSON.stringify(quiz)}"""\n\n` +
+        `TEACHER GUIDANCE: ${hintText}\n\n` +
+        `Call submit_quiz exactly once with the rewritten quiz. ` +
+        `Keep the same language, the same total question count unless the guidance says otherwise, ` +
+        `and make sure total_marks equals Σ question.marks. Do not return prose.`;
+
+    const stream = client.messages.stream({
+      model: "claude-haiku-4-5",
+      max_tokens: 4096,
+      thinking: { type: "disabled" },
+      system: [
+        { type: "text", text: SYSTEM_PROMPT, cache_control: { type: "ephemeral" } },
+      ],
+      tools: [tool],
+      tool_choice: { type: "tool", name: toolName },
+      messages: [{ role: "user", content: userMessage }],
+    });
+
+    res.setHeader("Content-Type", "text/event-stream; charset=utf-8");
+    res.setHeader("Cache-Control", "no-cache, no-transform");
+    res.setHeader("Connection", "keep-alive");
+    res.setHeader("X-Accel-Buffering", "no");
+    res.flushHeaders?.();
+
+    const send = (event) => res.write(`data: ${JSON.stringify(event)}\n\n`);
+    req.on("close", () => stream.abort?.());
+
+    try {
+      for await (const ev of stream) {
+        if (
+          ev.type === "content_block_delta" &&
+          ev.delta?.type === "input_json_delta"
+        ) {
+          send({ type: "json_delta", partial: ev.delta.partial_json });
+        }
+      }
+      const message = await stream.finalMessage();
+      const toolBlock = (message.content || []).find(
+        (b) => b.type === "tool_use" && b.name === toolName
+      );
+      if (!toolBlock) {
+        send({ type: "error", message: `Model did not call ${toolName}.` });
+        return res.end();
+      }
+      send({
+        type: "done",
+        scope,
+        ...(isQuestionScope ? { question: toolBlock.input } : { quiz: toolBlock.input }),
+        stop_reason: message.stop_reason,
+        usage: {
+          input_tokens: message.usage.input_tokens,
+          output_tokens: message.usage.output_tokens,
+          cache_read_input_tokens: message.usage.cache_read_input_tokens ?? 0,
+          cache_creation_input_tokens: message.usage.cache_creation_input_tokens ?? 0,
+        },
+      });
+    } catch (e) {
+      send({ type: "error", message: e.message });
+    }
+    res.end();
+  } catch (err) {
+    handleErr(res, "POST /api/studio/quiz-tweak", err);
+  }
+});
+
 // POST /api/studio/regenerate — replace a single section of an existing
 // document. The frontend sends the full document for context and the exact
 // markdown of the section it wants replaced. The model returns ONLY the new

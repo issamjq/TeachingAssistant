@@ -333,9 +333,16 @@ export default function Studio() {
   // confirmation modal that lists each change. Holds the diff rows
   // (null means closed).
   const [pendingAnswerConfirm, setPendingAnswerConfirm] = useState(null);
+  // When the teacher tries to leave the studio mid-generation or with
+  // unsaved edits, we stash the in-flight nav action here and show a
+  // custom confirm modal. `proceed()` runs the original navigation if
+  // they pick Leave; closing the modal cancels it.
+  const [pendingLeave, setPendingLeave] = useState(null);
   // The "Ask Mudir to tweak" input. Submitting it regenerates the current
-  // section with the typed hint as guidance.
+  // section with the typed hint as guidance. For structured quizzes the
+  // teacher can scope the tweak to the current question or the whole quiz.
   const [tweak, setTweak] = useState("");
+  const [tweakScope, setTweakScope] = useState("question"); // "question" | "quiz"
   // Inline kind popover — opened from the kind pill on the picker view.
   // Keyboard-first: arrow keys move `cursor`, Enter picks, 1–6 jump-pick.
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -733,15 +740,19 @@ export default function Studio() {
   }, [result]);
 
   // Warn before the user discards an in-flight or freshly-generated draft.
+  // We skip the warning for a saved-and-clean quiz — there's nothing to lose
+  // there and the modal would just be friction.
   useEffect(() => {
-    const hasUnsaved = busy || !!streamingText || !!result || sections.length > 0;
-    if (!hasUnsaved) return;
+    const hasInflight = busy || !!streamingText;
+    const hasUnsavedContent = !!result
+      ? !savedDraftId || isDirty
+      : sections.length > 0;
+    if (!hasInflight && !hasUnsavedContent) return;
 
-    const cleanupGuard = setNavGuard(() =>
-      window.confirm(
-        "You have an AI generation in progress or unsaved. Leave anyway?"
-      )
-    );
+    const cleanupGuard = setNavGuard((proceed) => {
+      setPendingLeave({ proceed });
+      return false;
+    });
     const onBeforeUnload = (e) => {
       e.preventDefault();
       e.returnValue = "";
@@ -752,7 +763,7 @@ export default function Studio() {
       cleanupGuard();
       window.removeEventListener("beforeunload", onBeforeUnload);
     };
-  }, [busy, streamingText, result, sections.length]);
+  }, [busy, streamingText, result, sections.length, savedDraftId, isDirty]);
 
   const makeAnother = () => {
     abortRef.current?.abort();
@@ -987,12 +998,123 @@ export default function Studio() {
     }
   };
 
-  // Apply the tweak input as guidance to regenerate the current section.
+  // Apply the tweak input as guidance to regenerate something. Three shapes:
+  //   - Markdown path: regenerate the current section's markdown via the
+  //     existing /api/studio/regenerate endpoint.
+  //   - Quiz path, scope=question: rewrite the open question via the new
+  //     /api/studio/quiz-tweak endpoint, then swap it into result.quiz.
+  //   - Quiz path, scope=quiz: rewrite the entire quiz via the same
+  //     endpoint and replace result.quiz wholesale.
   const sendTweak = () => {
     const hint = tweak.trim();
     if (!hint || sections.length === 0 || tweakBusy) return;
+    if (result?.kind === "quiz" && result.quiz) {
+      const effectiveScope =
+        currentSection?.kind === "quiz_meta" ? "quiz" : tweakScope;
+      tweakQuiz(hint, effectiveScope);
+      return;
+    }
     setTweak("");
     regenerateSection(currentSection.id, hint);
+  };
+
+  // Stream a tweaked question (or whole quiz) back from the structured
+  // /api/studio/quiz-tweak endpoint and merge the result in place.
+  const tweakQuiz = async (hint, scope) => {
+    const q = result?.quiz;
+    if (!q) return;
+    const questionIndex = scope === "question" ? sectionIndex - 1 : null;
+
+    // Reuse the per-section regenerating flag so the card shows a busy
+    // affordance and the tweak input disables itself. For scope=quiz we
+    // flag every section so the sidebar reads "Drafting" across the
+    // board; the new quiz overwrites them as soon as it arrives.
+    setSections((prev) =>
+      prev.map((s) =>
+        scope === "question"
+          ? s.id === currentSection?.id
+            ? { ...s, regenerating: true }
+            : s
+          : { ...s, regenerating: true }
+      )
+    );
+    const ctrl = new AbortController();
+    if (scope === "question" && currentSection?.id) {
+      regenAbortsRef.current.set(currentSection.id, ctrl);
+    } else {
+      regenAbortsRef.current.set("__quiz__", ctrl);
+    }
+    setTweak("");
+
+    try {
+      const res = await fetch(API_BASE + "/api/studio/quiz-tweak", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          quiz: q,
+          hint,
+          scope,
+          questionIndex,
+        }),
+        signal: ctrl.signal,
+      });
+      if (!res.ok) {
+        let data = null;
+        try { data = await res.json(); } catch { /* ignore */ }
+        throw new Error(data?.error || `HTTP ${res.status}`);
+      }
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const events = buffer.split("\n\n");
+        buffer = events.pop() || "";
+        for (const evt of events) {
+          const dataLine = evt.split("\n").find((l) => l.startsWith("data: "));
+          if (!dataLine) continue;
+          let payload;
+          try { payload = JSON.parse(dataLine.slice(6)); } catch { continue; }
+          if (payload.type === "done") {
+            if (payload.scope === "question" && payload.question) {
+              setResult((prev) => {
+                if (!prev?.quiz) return prev;
+                const nextQuestions = (prev.quiz.questions || []).slice();
+                nextQuestions[questionIndex] = payload.question;
+                const totalMarks = nextQuestions.reduce(
+                  (acc, qq) => acc + (Number(qq.marks) || 0),
+                  0
+                );
+                return {
+                  ...prev,
+                  quiz: { ...prev.quiz, questions: nextQuestions, total_marks: totalMarks },
+                };
+              });
+            } else if (payload.scope === "quiz" && payload.quiz) {
+              setResult((prev) =>
+                prev ? { ...prev, quiz: payload.quiz } : prev
+              );
+            }
+            setIsDirty(true);
+          } else if (payload.type === "error") {
+            throw new Error(payload.message);
+          }
+        }
+      }
+    } catch (e) {
+      if (e.name !== "AbortError") {
+        setError(`Could not apply tweak: ${e.message}`);
+      }
+    } finally {
+      setSections((prev) => prev.map((s) => ({ ...s, regenerating: false })));
+      if (scope === "question" && currentSection?.id) {
+        regenAbortsRef.current.delete(currentSection.id);
+      } else {
+        regenAbortsRef.current.delete("__quiz__");
+      }
+    }
   };
 
   const makeHarder = () => {
@@ -1324,11 +1446,12 @@ export default function Studio() {
         )}
 
         {/* Tweak input bar — sticky at the bottom of the viewport so the
-            teacher always sees it once generation starts. Hidden for
-            structured quizzes (post-save editing happens in the QuizBuilder).
+            teacher always sees it once generation starts. For markdown
+            artefacts it regenerates the current section. For structured
+            quizzes a small "this question / whole quiz" toggle picks the
+            scope (auto-defaulted to whole-quiz when the cover is open).
             Frosted-glass paper so content underneath stays subtly readable
             as you scroll. */}
-        {result?.kind !== "quiz" && (
         <div className="sticky bottom-2 md:bottom-3 z-20 mt-5 print:hidden">
           <div
             className={`bg-paper-cool/95 backdrop-blur-md border rounded-2xl pl-4 pr-2 py-2 flex items-center gap-3 shadow-lg transition-all duration-200 ${
@@ -1336,17 +1459,29 @@ export default function Studio() {
             }`}
           >
             <Sparkles size={15} className={`flex-shrink-0 ${tweak.trim() ? "text-accent" : "text-muted"}`} />
+            {result?.kind === "quiz" && sections.length > 0 && (
+              <TweakScopeToggle
+                value={currentSection?.kind === "quiz_meta" ? "quiz" : tweakScope}
+                onChange={setTweakScope}
+                metaLocked={currentSection?.kind === "quiz_meta"}
+                disabled={tweakBusy}
+              />
+            )}
             <input
               type="text"
               value={tweak}
               onChange={(e) => setTweak(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendTweak(); } }}
               placeholder={
-                sections.length
-                  ? `Ask Mudir to tweak — e.g. 'make Part ${currentLetter} harder' or 'add 2 word problems'`
-                  : busy
+                sections.length === 0
+                  ? busy
                     ? "Mudir is drafting — tweak will be ready when sections appear."
                     : "Ask Mudir to tweak…"
+                  : result?.kind === "quiz"
+                    ? (currentSection?.kind === "quiz_meta" || tweakScope === "quiz")
+                      ? "Tweak the whole quiz — e.g. 'switch every question to Arabic' or 'make it harder'"
+                      : `Tweak Question ${(currentSection?.question?.position ?? sectionIndex)} — e.g. 'make this a word problem' or 'replace with True/False'`
+                    : `Ask Mudir to tweak — e.g. 'make Part ${currentLetter} harder' or 'add 2 word problems'`
               }
               disabled={tweakBusy || sections.length === 0}
               className="flex-1 min-w-0 bg-transparent outline-none text-sm placeholder:text-muted disabled:opacity-50"
@@ -1362,7 +1497,6 @@ export default function Studio() {
             </Button>
           </div>
         </div>
-        )}
 
         {error && (
           <div className="mt-4 bg-paper border border-accent rounded-lg p-4 shadow-sm">
@@ -1381,6 +1515,25 @@ export default function Studio() {
             changes={pendingAnswerConfirm}
             onCancel={() => setPendingAnswerConfirm(null)}
             onConfirm={saveAsDraft}
+          />
+        )}
+
+        {pendingLeave && (
+          <LeaveStudioConfirm
+            busy={busy}
+            isDirty={isDirty}
+            savedDraftId={savedDraftId}
+            onStay={() => setPendingLeave(null)}
+            onLeave={() => {
+              const { proceed } = pendingLeave;
+              setPendingLeave(null);
+              // Abort any in-flight generation so the network/SSE doesn't
+              // keep running after the studio unmounts.
+              abortRef.current?.abort();
+              regenAbortsRef.current.forEach((c) => c.abort?.());
+              regenAbortsRef.current.clear();
+              proceed?.();
+            }}
           />
         )}
       </div>
@@ -2536,6 +2689,74 @@ function AnswerChangeConfirm({ changes, onCancel, onConfirm }) {
   );
 }
 
+// Premium custom modal for "you're about to leave with unsaved work."
+// Replaces the native window.confirm. Same modal chrome as
+// AnswerChangeConfirm: backdrop blur, cream paper sheet, serif headline,
+// red eyebrow. Esc and backdrop click both stay; explicit "Leave studio"
+// button proceeds.
+function LeaveStudioConfirm({ busy, isDirty, savedDraftId, onStay, onLeave }) {
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === "Escape") onStay(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onStay]);
+
+  const headline = busy
+    ? "Cancel and leave the studio?"
+    : savedDraftId && !isDirty
+      ? "Leave the studio?"
+      : "Leave with unsaved edits?";
+
+  const body = busy
+    ? "Mudir is still generating. Leaving now cancels the draft — nothing is saved to your library."
+    : savedDraftId && !isDirty
+      ? "Your quiz is safely saved. You can reopen it from the library any time."
+      : "Your in-place edits aren't saved yet. Leaving will discard them.";
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      role="dialog"
+      aria-modal="true"
+    >
+      <div
+        className="absolute inset-0 bg-ink/30 backdrop-blur-sm"
+        onClick={onStay}
+      />
+      <div className="studio-menu-rise relative bg-paper-cool rounded-2xl border border-line shadow-2xl w-full max-w-md p-6 md:p-7">
+        <p className="font-serif italic text-base text-accent mb-2">
+          {busy ? "Mudir is still working" : "Before you go"}
+        </p>
+        <h3 className="font-serif text-xl md:text-2xl font-medium text-ink leading-tight mb-2">
+          {headline}
+        </h3>
+        <p className="text-sm text-ink-soft mb-5 leading-relaxed">
+          {body}
+        </p>
+
+        <div className="flex items-center justify-end gap-2">
+          <Button
+            variant="secondary"
+            onClick={onStay}
+            className="text-sm px-4 py-2"
+            autoFocus
+          >
+            Keep editing
+          </Button>
+          <Button
+            variant="danger"
+            onClick={onLeave}
+            className="text-sm px-4 py-2"
+          >
+            <X size={14} className="mr-1.5" />
+            {busy ? "Cancel & leave" : "Leave studio"}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function QuizMetaCard({ quiz, onUpdate }) {
   if (!quiz) return null;
   const totalQ = (quiz.questions || []).length;
@@ -2789,6 +3010,56 @@ function QuizQuestionCard({ question, index, onUpdate }) {
 // Hover (or focus, or tap) shows; mouseleave / re-tap hides. Clicks
 // stopPropagation so they don't bubble to the parent chip and open its
 // dropdown. The popover floats above the chip with a small caret.
+// Two-option segmented control for the tweak-bar scope. "Question" rewrites
+// the open question; "Quiz" rewrites the whole quiz. Lives inside the
+// frosted tweak bar so it reads as part of the same control. When the cover
+// section is open `metaLocked` pins the value to "quiz" and disables the
+// "question" button — there's no single question to target there.
+function TweakScopeToggle({ value, onChange, metaLocked, disabled }) {
+  const opts = [
+    { id: "question", label: "This question" },
+    { id: "quiz", label: "Whole quiz" },
+  ];
+  return (
+    <div
+      role="group"
+      aria-label="Tweak scope"
+      className={`flex-shrink-0 inline-flex items-center rounded-full bg-paper-warm/70 border border-line p-0.5 ${
+        disabled ? "opacity-60" : ""
+      }`}
+    >
+      {opts.map((o) => {
+        const active = value === o.id;
+        const lockedOff = metaLocked && o.id === "question";
+        return (
+          <button
+            key={o.id}
+            type="button"
+            disabled={disabled || lockedOff}
+            onClick={() => onChange(o.id)}
+            title={
+              lockedOff
+                ? "Open a question section first to tweak just that one."
+                : o.id === "question"
+                  ? "Rewrite only the open question."
+                  : "Rewrite every question in the quiz."
+            }
+            className={`px-2.5 py-1 rounded-full text-[11px] leading-none font-serif italic transition-colors duration-150 ${
+              active
+                ? "bg-ink text-paper-cool"
+                : lockedOff
+                  ? "text-muted/50 cursor-not-allowed"
+                  : "text-ink-soft hover:text-ink"
+            }`}
+          >
+            {o.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function HelpTip({ text }) {
   const [open, setOpen] = useState(false);
   return (
