@@ -90,6 +90,88 @@ router.post("/bulk", async (req, res) => {
   }
 });
 
+// POST /api/quizzes/:id/sync — atomic re-save of a previously-created
+// quiz. Used by the AI Studio when the teacher edits a quiz after
+// saving and wants the changes to persist. Updates the quiz row and
+// REPLACES every quiz_questions row in a single transaction (cleaner
+// than per-field diffs; the studio is the only writer here so we
+// don't need to preserve question IDs).
+router.post("/:quizId/sync", async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const cur = await loadCurrentTeacher();
+    if (!cur) return res.status(401).json({ error: "No current teacher" });
+    const own = await pool.query(
+      "SELECT id FROM quizzes WHERE id = $1 AND teacher_id = $2",
+      [req.params.quizId, cur.id]
+    );
+    if (own.rows.length === 0) return res.status(404).json({ error: "Quiz not found" });
+
+    const {
+      title, subject, grade, section, language, difficulty,
+      duration_minutes, total_marks, status, scheduled_for, instructions,
+      questions,
+    } = req.body || {};
+    if (!title || !Array.isArray(questions) || questions.length === 0) {
+      return res.status(400).json({ error: "title and a non-empty questions array are required" });
+    }
+
+    await client.query("BEGIN");
+    const quizRes = await client.query(
+      `UPDATE quizzes
+          SET title = $2, subject = $3, grade = $4, section = $5,
+              language = $6, difficulty = $7, duration_minutes = $8,
+              total_marks = $9, status = COALESCE($10, status),
+              scheduled_for = $11, instructions = $12,
+              updated_at = NOW()
+        WHERE id = $1 AND teacher_id = $13
+        RETURNING ${QUIZ_SELECT}`,
+      [
+        req.params.quizId, title, subject || null, grade || null,
+        section || null, language || null, difficulty || null,
+        duration_minutes || null, total_marks || null, status || null,
+        scheduled_for || null, instructions || null, cur.id,
+      ]
+    );
+    if (quizRes.rows.length === 0) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ error: "Quiz not found" });
+    }
+
+    await client.query(
+      "DELETE FROM quiz_questions WHERE quiz_id = $1",
+      [req.params.quizId]
+    );
+
+    const inserted = [];
+    for (let i = 0; i < questions.length; i++) {
+      const q = questions[i];
+      const r = await client.query(
+        `INSERT INTO quiz_questions (quiz_id, position, type, prompt, choices, correct_answer, marks)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         RETURNING ${QUESTION_SELECT}`,
+        [
+          req.params.quizId,
+          q.position ?? i + 1,
+          q.type,
+          q.prompt,
+          q.choices != null ? JSON.stringify(q.choices) : null,
+          q.correct_answer != null ? JSON.stringify(q.correct_answer) : null,
+          q.marks ?? 1,
+        ]
+      );
+      inserted.push(r.rows[0]);
+    }
+    await client.query("COMMIT");
+    res.json({ quiz: quizRes.rows[0], questions: inserted });
+  } catch (err) {
+    await client.query("ROLLBACK").catch(() => {});
+    handleErr(res, "POST /api/quizzes/:id/sync", err);
+  } finally {
+    client.release();
+  }
+});
+
 // Helper: ensure the quiz being touched belongs to the current teacher.
 const assertOwnsQuiz = async (quizId) => {
   const cur = await loadCurrentTeacher();

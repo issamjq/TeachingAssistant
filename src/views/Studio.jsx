@@ -922,30 +922,36 @@ export default function Studio() {
       // for further edits / scoring.
       if (result?.kind === "quiz" && result.quiz) {
         const q = result.quiz;
-        const created = await api("/api/quizzes/bulk", {
-          method: "POST",
-          body: {
-            title: q.title || "Untitled quiz",
-            subject: q.subject || null,
-            grade: q.grade || null,
-            section: q.section || null,
-            language: q.language || null,
-            difficulty: q.difficulty || null,
-            duration_minutes: q.duration_minutes || null,
-            total_marks: q.total_marks || null,
-            instructions: q.instructions || null,
-            status: "Draft",
-            questions: (q.questions || []).map((qq, i) => ({
-              position: qq.position ?? i + 1,
-              type: qq.type,
-              prompt: qq.prompt,
-              choices: qq.choices ?? null,
-              correct_answer: qq.correct_answer ?? null,
-              marks: qq.marks ?? 1,
-            })),
-          },
-        });
-        setSavedDraftId(created.quiz.id);
+        const payload = {
+          title: q.title || "Untitled quiz",
+          subject: q.subject || null,
+          grade: q.grade || null,
+          section: q.section || null,
+          language: q.language || null,
+          difficulty: q.difficulty || null,
+          duration_minutes: q.duration_minutes || null,
+          total_marks: q.total_marks || null,
+          instructions: q.instructions || null,
+          status: "Draft",
+          questions: (q.questions || []).map((qq, i) => ({
+            position: qq.position ?? i + 1,
+            type: qq.type,
+            prompt: qq.prompt,
+            choices: qq.choices ?? null,
+            correct_answer: qq.correct_answer ?? null,
+            marks: qq.marks ?? 1,
+          })),
+        };
+        if (savedDraftId) {
+          await api(`/api/quizzes/${savedDraftId}/sync`, { method: "POST", body: payload });
+        } else {
+          const created = await api("/api/quizzes/bulk", { method: "POST", body: payload });
+          setSavedDraftId(created.quiz.id);
+        }
+        // Freeze a new snapshot so further edits diff against the just-saved
+        // state, not the AI's original — otherwise the answer-change modal
+        // would re-fire on every re-save.
+        setResult((prev) => (prev ? { ...prev, originalQuiz: JSON.parse(JSON.stringify(prev.quiz)) } : prev));
         setIsDirty(false);
         return;
       }
@@ -1037,7 +1043,7 @@ export default function Studio() {
                 ? <><Check size={13} className="mr-1.5" /> Copied</>
                 : <><Copy size={13} className="mr-1.5" /> Copy</>}
             </Button>
-            {savedDraftId ? (
+            {savedDraftId && !isDirty ? (
               <span className="font-serif italic text-sm text-sage inline-flex items-center gap-1.5 px-2">
                 <Check size={13} /> Saved #{savedDraftId}
               </span>
@@ -1046,11 +1052,13 @@ export default function Studio() {
                 variant="secondary"
                 onClick={handleSaveClick}
                 disabled={saving || !result || !isDirty}
-                title="Save the whole quiz — cover + every question — to your library"
+                title={savedDraftId
+                  ? `Update saved quiz #${savedDraftId} with your edits`
+                  : "Save the whole quiz — cover + every question — to your library"}
                 className="text-xs px-3 py-1.5"
               >
                 <Save size={13} className="mr-1.5" />
-                {saving ? "Saving…" : "Save"}
+                {saving ? "Saving…" : savedDraftId ? "Save changes" : "Save"}
               </Button>
             )}
             {busy ? (
@@ -1221,7 +1229,7 @@ export default function Studio() {
                       key={`${sectionIndex}-${currentSection?.id}`}
                       className="studio-card-flip-in"
                     >
-                      <div className="max-h-[55vh] overflow-y-auto rounded-md">
+                      <div className="h-[55vh] overflow-y-auto rounded-md">
                         {currentSection?.kind === "quiz_meta" ? (
                           <QuizMetaCard
                             quiz={result?.quiz}
@@ -2719,7 +2727,7 @@ function QuizQuestionCard({ question, index, onUpdate }) {
 
       {(question.type === "short" || question.type === "essay") && showAnswer && (
         <div className="mb-4">
-          <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-1.5">
+          <p className="font-serif italic text-base text-muted mb-1.5">
             {question.type === "essay" ? "Rubric outline" : "Expected answer"}
           </p>
           <EditableTextarea
@@ -2745,13 +2753,13 @@ function QuizQuestionCard({ question, index, onUpdate }) {
           <button
             type="button"
             onClick={() => setShowAnswer(true)}
-            className="text-[11px] font-mono uppercase tracking-[0.14em] text-muted hover:text-accent transition-colors duration-200"
+            className="font-serif italic text-sm text-muted hover:text-accent transition-colors duration-200"
             title="Show the AI's marking key for this question. You can still edit the correct answer."
           >
             Show correct answer
           </button>
         ) : (
-          <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent">
+          <p className="font-serif italic text-base text-accent">
             Correct answer
           </p>
         )}
