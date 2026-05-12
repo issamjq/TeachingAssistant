@@ -444,7 +444,7 @@ const FEATURE_FLAGS = [
 // =============================================================================
 // MAIN
 // =============================================================================
-async function main() {
+export async function runInit() {
   console.log("Creating base schema...");
   await pool.query(SCHEMA_BASE);
 
@@ -609,8 +609,14 @@ async function main() {
   console.log("Done.");
 }
 
-main().catch((err) => {
-  console.error("Init failed:", err);
-  pool.end();
-  process.exit(1);
-});
+// Only run as CLI when the file is invoked directly via `node ...`.
+// When imported (e.g. from backend/index.js so init runs on boot), the
+// caller decides when / how to invoke runInit().
+import { fileURLToPath } from "node:url";
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  runInit().catch((err) => {
+    console.error("Init failed:", err);
+    pool.end();
+    process.exit(1);
+  });
+}
