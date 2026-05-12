@@ -943,6 +943,7 @@ export default function Studio() {
           duration_minutes: q.duration_minutes || null,
           total_marks: q.total_marks || null,
           instructions: q.instructions || null,
+          scheduled_for: q.scheduled_for || null,
           status: "Draft",
           questions: (q.questions || []).map((qq, i) => ({
             position: qq.position ?? i + 1,
@@ -2326,10 +2327,15 @@ function DropdownChip({
   };
 
   const filteredOptions = useMemo(() => {
+    // Numeric chips (DURATION, QUESTIONS) have a small, finite preset
+    // list — typing a custom value should add to it, not filter it away.
+    // The teacher needs to see every preset so they can re-pick a
+    // different one without re-opening the chip.
+    if (numeric) return options;
     if (!draft) return options;
     const q = String(draft).toLowerCase();
     return options.filter((o) => String(o).toLowerCase().includes(q));
-  }, [draft, options]);
+  }, [draft, options, numeric]);
 
   const isSet = Boolean(value) || value === 0;
   const display = isSet
@@ -2760,8 +2766,12 @@ function LeaveStudioConfirm({ busy, isDirty, savedDraftId, onStay, onLeave }) {
 function QuizMetaCard({ quiz, onUpdate }) {
   if (!quiz) return null;
   const totalQ = (quiz.questions || []).length;
-  // total_marks is derived from the question marks; updateQuestion already
-  // recomputes it on each change, so the cover always matches reality.
+  // The meta chips (Subject, Grade, Language, Section, Difficulty, Duration)
+  // were set on the picker view before generation — re-editing them mid-draft
+  // makes no sense (the body of the quiz wouldn't match) so they render as
+  // read-only here. Title, instructions, and the scheduled date stay editable
+  // because they are pure planning fields the teacher controls.
+  const todayISO = new Date().toISOString().slice(0, 10);
   return (
     <div className="rounded-xl border border-line bg-paper-cool p-5 md:p-6">
       <p className="font-serif italic text-base text-muted mb-2">Cover</p>
@@ -2771,52 +2781,55 @@ function QuizMetaCard({ quiz, onUpdate }) {
         placeholder="Quiz title"
         className="font-serif text-2xl md:text-3xl font-medium text-ink leading-tight mb-4 w-full"
       />
-      {/* Two-row meta grid. Subject / Grade / Major / Language on row 1,
-          Section / Difficulty / Duration on row 2; question + marks
-          totals sit at the end as static stats. */}
       <div className="flex flex-wrap items-baseline gap-x-4 gap-y-2 text-sm text-ink-soft mb-5">
-        <MetaField
-          label="Subject"
-          value={quiz.subject || ""}
-          onChange={(v) => onUpdate({ subject: v })}
-          placeholder="—"
-        />
-        <MetaField
-          label="Grade"
-          value={quiz.grade || ""}
-          onChange={(v) => onUpdate({ grade: v })}
-          placeholder="—"
-        />
-        <MetaField
-          label="Language"
-          value={quiz.language || ""}
-          onChange={(v) => onUpdate({ language: v })}
-          placeholder="—"
-        />
-        <MetaField
-          label="Section"
-          value={quiz.section || ""}
-          onChange={(v) => onUpdate({ section: v })}
-          placeholder="—"
-        />
-        <MetaField
-          label="Difficulty"
-          value={quiz.difficulty || ""}
-          onChange={(v) => onUpdate({ difficulty: v })}
-          placeholder="—"
-        />
-        <MetaField
+        <ReadOnlyMeta label="Subject" value={quiz.subject} />
+        <ReadOnlyMeta label="Grade" value={quiz.grade} />
+        <ReadOnlyMeta label="Language" value={quiz.language} />
+        <ReadOnlyMeta label="Section" value={quiz.section} />
+        <ReadOnlyMeta label="Difficulty" value={quiz.difficulty} />
+        <ReadOnlyMeta
           label="Duration"
-          value={quiz.duration_minutes || ""}
-          onChange={(v) => onUpdate({ duration_minutes: v === "" ? null : Number(v) })}
-          placeholder="—"
-          suffix="min"
-          numeric
+          value={quiz.duration_minutes}
+          suffix={quiz.duration_minutes ? "min" : null}
         />
         <span className="font-serif italic text-muted">
           · {totalQ} question{totalQ === 1 ? "" : "s"} · <span className="text-ink not-italic font-medium">{quiz.total_marks ?? 0} marks</span>
         </span>
       </div>
+
+      {/* Scheduled date — when this quiz should run. Optional. Persisted
+          to quizzes.scheduled_for at save time so it shows up on the
+          Quizzes & Exams list and feeds the Schedule view. */}
+      <div className="mb-5">
+        <p className="font-serif italic text-base text-muted mb-1.5">Scheduled date</p>
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            type="date"
+            value={quiz.scheduled_for ? String(quiz.scheduled_for).slice(0, 10) : ""}
+            min={todayISO}
+            onChange={(e) => onUpdate({ scheduled_for: e.target.value || null })}
+            className="bg-paper border border-line rounded-md px-2.5 py-1.5 text-sm text-ink outline-none focus:border-ink focus:bg-paper-cool transition-colors duration-150"
+          />
+          {quiz.scheduled_for ? (
+            <button
+              type="button"
+              onClick={() => onUpdate({ scheduled_for: null })}
+              className="font-serif italic text-xs text-muted hover:text-accent transition-colors duration-150"
+            >
+              Clear
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => onUpdate({ scheduled_for: todayISO })}
+              className="font-serif italic text-xs text-muted hover:text-accent transition-colors duration-150"
+            >
+              Today
+            </button>
+          )}
+        </div>
+      </div>
+
       <div>
         <p className="font-serif italic text-base text-muted mb-1.5">Instructions</p>
         <EditableTextarea
@@ -3111,13 +3124,25 @@ function EditableText({ value, onChange, placeholder, className = "" }) {
 }
 
 function EditableTextarea({ value, onChange, placeholder, rows = 2, className = "" }) {
+  // Auto-grow to fit content so long question prompts don't get clipped and
+  // the teacher never has to drag the resize handle. We measure on each
+  // value change by zeroing the height then snapping back to scrollHeight.
+  // A min-height (derived from `rows`) keeps short prompts from collapsing.
+  const ref = useRef(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  }, [value]);
   return (
     <textarea
+      ref={ref}
       value={value}
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
       rows={rows}
-      className={`bg-transparent outline-none rounded-md p-2 -m-2 border border-transparent hover:border-line/60 focus:border-ink focus:bg-paper resize-y transition-colors duration-150 placeholder:text-muted whitespace-pre-wrap ${className}`}
+      className={`bg-transparent outline-none rounded-md p-2 -m-2 border border-transparent hover:border-line/60 focus:border-ink focus:bg-paper resize-none overflow-hidden transition-colors duration-150 placeholder:text-muted whitespace-pre-wrap ${className}`}
     />
   );
 }
@@ -3131,6 +3156,23 @@ function EditableNumber({ value, onChange, min = 0, className = "" }) {
       min={min}
       className={`bg-transparent outline-none border-b border-transparent hover:border-line/60 focus:border-ink focus:bg-paper transition-colors duration-150 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${className}`}
     />
+  );
+}
+
+// Read-only meta chip used on the quiz cover. Subject / Grade / etc. were
+// locked in pre-generation, so the cover just echoes them as text.
+function ReadOnlyMeta({ label, value, suffix }) {
+  const display = value === 0 || value ? String(value) : "—";
+  const isSet = display !== "—";
+  return (
+    <span className="inline-flex items-baseline gap-1.5">
+      <span className="font-serif italic text-sm text-muted">{label}</span>
+      <span className={`text-sm ${isSet ? "text-ink font-medium" : "text-muted italic"}`}>
+        {display}
+        {isSet && suffix ? <span className="font-serif italic text-muted font-normal not-italic"> </span> : null}
+        {isSet && suffix ? <span className="font-serif italic text-sm text-muted">{suffix}</span> : null}
+      </span>
+    </span>
   );
 }
 

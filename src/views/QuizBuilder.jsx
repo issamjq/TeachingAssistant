@@ -31,9 +31,27 @@ export default function QuizBuilder({ quiz, onClose }) {
   const [err, setErr] = useState(null);
   const [tab, setTab] = useState("questions");
 
-  // Load existing questions + students when editing.
+  // Load existing meta + questions + scores when editing. Callers may pass
+  // just `{ id }` (e.g. the Quizzes list hands us a stub by route), so we
+  // always re-fetch the full quiz here and seed the meta state from the
+  // server. Without this the title / subject / grade fields all render blank
+  // even though the row in the DB has them.
   useEffect(() => {
     if (!quizId) return;
+    api(`/api/quizzes/${quizId}`).then((row) => {
+      if (!row) return;
+      setMeta({
+        title: row.title || "",
+        subject: row.subject || "",
+        grade: row.grade || "",
+        section: row.section || "",
+        duration_minutes: row.duration_minutes ?? 30,
+        total_marks: row.total_marks ?? 0,
+        status: row.status || "Draft",
+        scheduled_for: row.scheduled_for ? String(row.scheduled_for).slice(0, 10) : "",
+        instructions: row.instructions || "",
+      });
+    }).catch(() => {});
     api(`/api/quizzes/${quizId}/questions`).then(setQuestions).catch(() => {});
     api(`/api/quizzes/${quizId}/scores`).then(setScores).catch(() => {});
   }, [quizId]);
