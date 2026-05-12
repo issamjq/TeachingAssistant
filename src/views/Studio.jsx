@@ -324,6 +324,11 @@ export default function Studio() {
   const [copied, setCopied] = useState(false);
   const [saving, setSaving] = useState(false);
   const [savedDraftId, setSavedDraftId] = useState(null);
+  // True whenever the in-memory result differs from what was last
+  // saved (or from the freshly-generated AI version if never saved).
+  // Drives the Save button's enabled state — teachers shouldn't be
+  // able to re-save a quiz they haven't changed.
+  const [isDirty, setIsDirty] = useState(false);
   // When the teacher edited any correct_answer pre-save we surface a
   // confirmation modal that lists each change. Holds the diff rows
   // (null means closed).
@@ -394,6 +399,7 @@ export default function Studio() {
       if (!prev?.quiz) return prev;
       return { ...prev, quiz: { ...prev.quiz, ...patch } };
     });
+    setIsDirty(true);
   };
 
   const updateQuestion = (index, patch) => {
@@ -411,6 +417,7 @@ export default function Studio() {
         quiz: { ...prev.quiz, questions, total_marks: totalMarks },
       };
     });
+    setIsDirty(true);
   };
 
   const onPickKind = (next) => {
@@ -458,6 +465,7 @@ export default function Studio() {
     setSections([]);
     setError(null);
     setSavedDraftId(null);
+    setIsDirty(false);
     setPendingAnswerConfirm(null);
     setTweak("");
   };
@@ -579,6 +587,10 @@ export default function Studio() {
                 : prompt.trim();
             pushRecent(payload.kind, recentText);
             setRecencyTick((t) => t + 1);
+            // A fresh generation IS the first "change worth saving",
+            // so unblock the Save button. Edits keep it true; a real
+            // save flips it back to false.
+            setIsDirty(true);
 
             if (payload.kind === "quiz" && payload.quiz) {
               // The result-watching effect rebuilds `sections` from the
@@ -934,6 +946,7 @@ export default function Studio() {
           },
         });
         setSavedDraftId(created.quiz.id);
+        setIsDirty(false);
         return;
       }
 
@@ -960,6 +973,7 @@ export default function Studio() {
         },
       });
       setSavedDraftId(draft.id);
+      setIsDirty(false);
     } catch (e) {
       alert(`Could not save: ${e.message}`);
     } finally {
@@ -1024,14 +1038,15 @@ export default function Studio() {
                 : <><Copy size={13} className="mr-1.5" /> Copy</>}
             </Button>
             {savedDraftId ? (
-              <span className="font-mono text-[10px] uppercase tracking-wider text-sage inline-flex items-center gap-1.5 px-2">
+              <span className="font-serif italic text-sm text-sage inline-flex items-center gap-1.5 px-2">
                 <Check size={13} /> Saved #{savedDraftId}
               </span>
             ) : (
               <Button
                 variant="secondary"
                 onClick={handleSaveClick}
-                disabled={saving || !result}
+                disabled={saving || !result || !isDirty}
+                title="Save the whole quiz — cover + every question — to your library"
                 className="text-xs px-3 py-1.5"
               >
                 <Save size={13} className="mr-1.5" />
@@ -1056,7 +1071,7 @@ export default function Studio() {
             {/* Sidebar — sections list */}
             <aside className="border-b md:border-b-0 md:border-r border-line bg-paper-warm/30 print:hidden">
               <div className="p-4 md:p-5">
-                <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-3">Sections</p>
+                <p className="font-serif italic text-base text-muted mb-3">Sections</p>
                 {sections.length === 0 ? (
                   busy ? (
                     <div className="space-y-1.5">
@@ -1157,7 +1172,7 @@ export default function Studio() {
                     <QuizStreamingPlaceholder partial={quizPartial} busy={busy} />
                   ) : (
                   <div>
-                    <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent mb-3 inline-flex items-center gap-2">
+                    <p className="font-serif italic text-base text-accent mb-3 inline-flex items-center gap-2">
                       <span className="h-1.5 w-1.5 rounded-full bg-accent animate-pulse" />
                       {busy ? "Generating" : "Done"}
                     </p>
@@ -1177,7 +1192,7 @@ export default function Studio() {
                   )
                 ) : (
                   <>
-                    <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent mb-2">
+                    <p className="font-serif italic text-base text-accent mb-2">
                       Part {currentLetter} · {active?.label}
                       {sections.length > 1 && (
                         <span className="text-muted ml-2">· {sectionIndex + 1} of {sections.length}</span>
@@ -1260,14 +1275,34 @@ export default function Studio() {
                       </div>
                     )}
 
-                    {/* Keyboard hint — shown only when there's more than one
-                        section to navigate between. */}
+                    {/* Section nav — real clickable prev/next buttons.
+                        Same arrows the keyboard handler responds to;
+                        teachers without keyboard discoverability can
+                        just click. Disabled at boundaries. */}
                     {sections.length > 1 && (
-                      <p className="mt-5 inline-flex items-center gap-1.5 text-[11px] text-muted">
-                        <kbd className="px-1.5 py-0.5 rounded border border-line bg-paper-cool font-mono text-[10px] leading-none">←</kbd>
-                        <kbd className="px-1.5 py-0.5 rounded border border-line bg-paper-cool font-mono text-[10px] leading-none">→</kbd>
-                        cycle sections
-                      </p>
+                      <div className="mt-5 inline-flex items-center gap-1.5 text-[11px] text-muted">
+                        <button
+                          type="button"
+                          onClick={() => setSectionIndex((i) => Math.max(0, i - 1))}
+                          disabled={sectionIndex <= 0}
+                          aria-label="Previous section"
+                          className="h-6 w-6 rounded border border-line bg-paper-cool hover:border-ink hover:bg-paper-warm disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center transition-colors duration-150"
+                        >
+                          <span className="font-mono text-[10px] leading-none">←</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setSectionIndex((i) => Math.min(sections.length - 1, i + 1))}
+                          disabled={sectionIndex >= sections.length - 1}
+                          aria-label="Next section"
+                          className="h-6 w-6 rounded border border-line bg-paper-cool hover:border-ink hover:bg-paper-warm disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center transition-colors duration-150"
+                        >
+                          <span className="font-mono text-[10px] leading-none">→</span>
+                        </button>
+                        <span className="font-serif italic text-sm text-muted ml-1">
+                          previous / next section
+                        </span>
+                      </div>
                     )}
                   </>
                 )}
@@ -2479,7 +2514,7 @@ function QuizQuestionCard({ question, index, onUpdate }) {
   return (
     <div className="rounded-xl border border-line bg-paper-cool p-5 md:p-6">
       <div className="flex items-center justify-between gap-3 mb-3">
-        <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted">
+        <span className="font-serif italic text-base text-muted">
           Question {question.position ?? index + 1}
         </span>
         <div className="flex items-center gap-2">
