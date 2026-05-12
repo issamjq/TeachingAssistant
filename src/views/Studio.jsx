@@ -1346,7 +1346,12 @@ export default function Studio() {
                   // the structured-quiz path show a structured progress
                   // panel because the JSON tool input isn't human-readable.
                   kind === "quiz" ? (
-                    <QuizStreamingPlaceholder partial={quizPartial} busy={busy} />
+                    <QuizStreamingPlaceholder
+                      partial={quizPartial}
+                      busy={busy}
+                      expectedCount={Number(quizParams.questions) || 0}
+                      hintPrompt={prompt.trim()}
+                    />
                   ) : (
                   <div>
                     <p className="font-serif italic text-base text-accent mb-3 inline-flex items-center gap-2">
@@ -2145,96 +2150,140 @@ function parsePartialQuiz(partial) {
   return { title, subject, questions, inflight };
 }
 
-function QuizStreamingPlaceholder({ partial, busy }) {
+function QuizStreamingPlaceholder({ partial, busy, expectedCount, hintPrompt }) {
   const { title, subject, questions, inflight } = parsePartialQuiz(partial);
   const drafted = questions.length + (inflight ? 1 : 0);
-  // Show the last 3 completed questions plus the inflight one — gives a
-  // sense of momentum without flooding the view with every question.
-  const recent = questions.slice(-3);
+
+  // Optimistic slot count: prefer the teacher's exact ask if they set
+  // QUESTIONS in the picker, otherwise default to 5. As soon as a real
+  // question shows up we lean on the live data — but the SLOTS stay so
+  // the teacher sees a stable list, not rows popping into existence.
+  const targetCount = Math.max(expectedCount || 5, drafted);
+
+  // Build the row list:
+  //   - Each completed prompt fills its slot with full text.
+  //   - The inflight prompt fills the slot at index = questions.length.
+  //   - Remaining slots show "Drafting question N…" with a shimmer.
+  const rows = [];
+  for (let i = 0; i < targetCount; i++) {
+    if (i < questions.length) {
+      rows.push({ kind: "done", text: questions[i] });
+    } else if (i === questions.length && inflight !== null) {
+      rows.push({ kind: "writing", text: inflight });
+    } else if (i === questions.length && busy) {
+      rows.push({ kind: "next", text: `Drafting question ${i + 1}…` });
+    } else if (busy) {
+      rows.push({ kind: "pending", text: `Question ${i + 1}` });
+    } else {
+      // Streaming finished but model didn't fill this slot — hide it.
+      break;
+    }
+  }
+
+  // Friendly cover header. Falls back to the teacher's prompt if the
+  // model hasn't written the title yet, so the panel always has a
+  // human-readable header instead of "Mudir is structuring your quiz…".
+  const coverTitle = title || (hintPrompt ? truncate(hintPrompt, 60) : null);
 
   return (
     <div className="studio-card-flip-in">
       <p className="font-serif italic text-base text-accent mb-3 inline-flex items-center gap-2">
         <span className="h-1.5 w-1.5 rounded-full bg-accent animate-pulse" />
         {busy ? "Building quiz" : "Done"}
-        {drafted > 0 && (
+        {(drafted > 0 || targetCount > 0) && (
           <span className="text-muted">
-            · <span key={drafted} className="studio-tick text-ink">{drafted}</span> drafted
+            · <span key={drafted} className="studio-tick text-ink">{drafted}</span>
+            {" of "}{targetCount}
           </span>
         )}
       </p>
       <div className="rounded-xl border border-line bg-paper-warm/40 p-5 md:p-6">
-        {/* Title + subject appear as soon as Mudir writes them. Until they
-            land we show the placeholder copy so the panel isn't empty. */}
-        {title ? (
+        <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-1.5">
+          Cover
+        </p>
+        {coverTitle ? (
           <>
-            <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-1.5">
-              Cover
-            </p>
             <h3 className="font-serif text-xl md:text-2xl font-medium text-ink leading-tight">
-              {title}
+              {coverTitle}
+              {!title && busy && (
+                <span className="inline-block w-1.5 h-5 bg-accent ml-1 animate-pulse align-text-bottom" />
+              )}
             </h3>
-            {subject && (
+            {subject ? (
               <p className="font-serif italic text-sm text-muted mt-1">
                 {subject}
               </p>
-            )}
+            ) : busy ? (
+              <p className="font-serif italic text-sm text-muted/70 mt-1">
+                Picking subject, grade, marks…
+              </p>
+            ) : null}
           </>
         ) : (
-          <>
-            <p className="font-serif text-lg text-ink leading-snug">
-              Mudir is structuring your quiz<span className="italic text-accent">…</span>
-            </p>
-            <p className="text-sm text-muted mt-1.5">
-              Picking question types, writing prompts, building the answer key.
-            </p>
-          </>
+          <h3 className="font-serif text-xl md:text-2xl font-medium text-muted/80 leading-tight italic">
+            Mudir is structuring your quiz
+            <span className="inline-block w-1.5 h-5 bg-accent ml-1 animate-pulse align-text-bottom" />
+          </h3>
         )}
 
-        {/* Live question list — completed prompts plus the one being typed. */}
-        {(recent.length > 0 || inflight) && (
-          <ul className="mt-4 space-y-2.5 border-t border-line/60 pt-4">
-            {recent.map((q, i) => {
-              const number = questions.length - recent.length + i + 1;
-              return (
-                <li
-                  key={`done-${number}`}
-                  className="studio-section-fade-in flex items-start gap-3"
-                >
-                  <span className="flex-shrink-0 mt-0.5 h-5 w-5 rounded-md font-mono text-[10px] bg-ink text-paper-cool flex items-center justify-center">
-                    {number}
-                  </span>
+        <ul className="mt-4 space-y-2.5 border-t border-line/60 pt-4">
+          {rows.map((row, i) => {
+            const number = i + 1;
+            const isWriting = row.kind === "writing";
+            const isDone = row.kind === "done";
+            const isNext = row.kind === "next";
+            const badgeClass = isDone
+              ? "bg-ink text-paper-cool"
+              : isWriting
+                ? "bg-accent text-paper-cool animate-pulse"
+                : isNext
+                  ? "bg-paper-warm text-ink border border-accent/50"
+                  : "bg-paper-warm text-muted border border-line";
+            return (
+              <li
+                key={`row-${number}`}
+                className="studio-section-fade-in flex items-start gap-3"
+              >
+                <span className={`flex-shrink-0 mt-0.5 h-5 w-5 rounded-md font-mono text-[10px] flex items-center justify-center ${badgeClass}`}>
+                  {number}
+                </span>
+                {isDone && (
                   <span className="text-sm text-ink-soft leading-snug line-clamp-2">
-                    {q}
+                    {row.text}
                   </span>
-                </li>
-              );
-            })}
-            {inflight !== null && (
-              <li className="studio-section-fade-in flex items-start gap-3">
-                <span className="flex-shrink-0 mt-0.5 h-5 w-5 rounded-md font-mono text-[10px] bg-accent text-paper-cool flex items-center justify-center animate-pulse">
-                  {questions.length + 1}
-                </span>
-                <span className="text-sm text-ink leading-snug">
-                  {inflight}
-                  <span className="inline-block w-1.5 h-3 bg-accent ml-1 animate-pulse align-text-bottom" />
-                </span>
+                )}
+                {isWriting && (
+                  <span className="text-sm text-ink leading-snug">
+                    {row.text}
+                    <span className="inline-block w-1.5 h-3 bg-accent ml-1 animate-pulse align-text-bottom" />
+                  </span>
+                )}
+                {isNext && (
+                  <span className="text-sm text-ink-soft italic leading-snug inline-flex items-center gap-2">
+                    {row.text}
+                    <span className="inline-block w-1.5 h-3 bg-accent animate-pulse align-text-bottom" />
+                  </span>
+                )}
+                {row.kind === "pending" && (
+                  <span className="text-sm text-muted/70 italic leading-snug">
+                    {row.text}
+                  </span>
+                )}
               </li>
-            )}
-          </ul>
-        )}
-
-        {drafted === 0 && (
-          <p className="mt-4 font-serif italic text-sm text-muted inline-flex items-center gap-2">
-            Warming up
-            {busy && (
-              <span className="inline-block w-1.5 h-3 bg-accent animate-pulse align-text-bottom" />
-            )}
-          </p>
-        )}
+            );
+          })}
+        </ul>
       </div>
     </div>
   );
+}
+
+// Trim a string to N chars, breaking on a word boundary if possible.
+function truncate(s, n) {
+  if (!s || s.length <= n) return s;
+  const cut = s.slice(0, n);
+  const space = cut.lastIndexOf(" ");
+  return (space > n * 0.6 ? cut.slice(0, space) : cut) + "…";
 }
 
 // Heuristics to spot the most common chip mix-ups. Each function takes

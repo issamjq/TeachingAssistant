@@ -475,13 +475,25 @@ router.post("/quiz", async (req, res) => {
     res.flushHeaders?.();
 
     const send = (event) => res.write(`data: ${JSON.stringify(event)}\n\n`);
-    req.on("close", () => stream.abort?.());
+    // Heartbeat: write an SSE comment every 800ms so reverse proxies
+    // (Render's edge) don't buffer the stream waiting for their flush
+    // threshold. Comments are ignored by the EventSource spec on the
+    // client but they keep the bytes moving over the wire.
+    const heartbeat = setInterval(() => {
+      try { res.write(`: ping\n\n`); } catch { /* connection closed */ }
+    }, 800);
+    req.on("close", () => { clearInterval(heartbeat); stream.abort?.(); });
 
     try {
+      // Kick off with a no-op event so the EventSource sees data on the
+      // wire immediately — the frontend then renders the streaming
+      // placeholder with all its optimistic question slots even before
+      // the model has emitted any tool input.
+      send({ type: "started" });
       // Stream raw partial JSON (input_json_delta) so the frontend can show
-      // the user that bytes are arriving. The frontend doesn't try to parse
-      // the partial — it just shows a progress signal — and waits for the
-      // final `done` event below for the typed quiz.
+      // the user that bytes are arriving. The frontend parses what it can
+      // out of the partial — title, completed prompts, the in-flight one —
+      // and waits for the final `done` event below for the typed quiz.
       for await (const ev of stream) {
         if (
           ev.type === "content_block_delta" &&
@@ -490,6 +502,7 @@ router.post("/quiz", async (req, res) => {
           send({ type: "json_delta", partial: ev.delta.partial_json });
         }
       }
+      clearInterval(heartbeat);
       const message = await stream.finalMessage();
       const toolBlock = (message.content || []).find(
         (b) => b.type === "tool_use" && b.name === "submit_quiz"
@@ -511,8 +524,10 @@ router.post("/quiz", async (req, res) => {
         },
       });
     } catch (e) {
+      clearInterval(heartbeat);
       send({ type: "error", message: e.message });
     }
+    clearInterval(heartbeat);
     res.end();
   } catch (err) {
     handleErr(res, "POST /api/studio/quiz", err);
