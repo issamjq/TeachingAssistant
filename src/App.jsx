@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { ChevronRight, X } from "lucide-react";
+import { ChevronRight, X, Sparkles, ArrowUpRight } from "lucide-react";
 import Dashboard from "./views/Dashboard";
 import TemplatesLibrary from "./views/TemplatesLibrary";
 import NewTemplate from "./views/NewTemplate";
@@ -24,12 +24,11 @@ import { api } from "./views/_shared";
 import { useRoute, navigate, replace } from "./lib/route";
 
 const TEACHER_NAV = [
-  {
-    section: "Workspace",
-    items: [
-      { key: "studio",    label: "Studio",    icon: "+" },
-    ],
-  },
+  // Studio used to sit under Workspace as a small nav row — it's been
+  // promoted into its own hero launcher (StudioLauncher below) so the
+  // most-used surface in the app reads as the centerpiece, not a list
+  // entry. The Workspace section is empty for now so we drop it from
+  // the rail entirely until a second workspace tool exists.
   {
     section: "Teaching",
     items: [
@@ -329,7 +328,7 @@ export default function StudioApp({ onClose }) {
             land. */}
         <button
           onClick={() => navigate([DEFAULT_ROUTE[role]])}
-          className="mudir-sidebar-brand flex items-center gap-3 px-5 py-6 text-left"
+          className="mudir-sidebar-brand flex items-center gap-3 px-5 pt-6 pb-4 text-left"
           aria-label="Go home"
         >
           <span className="mudir-sidebar-brand-mark" aria-hidden>
@@ -339,6 +338,39 @@ export default function StudioApp({ onClose }) {
             Mudir
           </span>
         </button>
+
+        {/* Studio launcher — the hero CTA of the app, lifted out of the
+            nav list. Dark ink card with an accent-red bolt circle on the
+            left, big serif title, italic subtitle. Same vocabulary as the
+            "Activate Pro" pill in the design handoff, in Mudir's palette
+            and on a vertical card form factor so it fits the sidebar.
+            Hover lifts -2px, accent halo brightens, chevron slides 4px. */}
+        {role === "teacher" && (
+          <button
+            type="button"
+            onClick={() => navigate(["studio"])}
+            className={`mudir-studio-launcher ${section === "studio" ? "mudir-studio-launcher-active" : ""}`}
+            aria-label="Open AI studio"
+            aria-current={section === "studio" ? "page" : undefined}
+          >
+            <span className="mudir-studio-launcher-icon" aria-hidden>
+              <Sparkles size={18} strokeWidth={2} />
+            </span>
+            <span className="mudir-studio-launcher-text">
+              <span className="mudir-studio-launcher-title">
+                Studio
+              </span>
+              <span className="mudir-studio-launcher-subtitle">
+                AI co-pilot · everything starts here
+              </span>
+            </span>
+            <ArrowUpRight
+              size={16}
+              strokeWidth={2}
+              className="mudir-studio-launcher-arrow"
+            />
+          </button>
+        )}
 
         <nav className="px-2 flex-1 overflow-y-auto pb-3" aria-label="Primary">
           {/* Items get a per-item stagger via inline --mi (mount index).
