@@ -14,7 +14,6 @@ import QuizBuilder from "./views/QuizBuilder";
 import Homework from "./views/Homework";
 import Presentations from "./views/Presentations";
 import Activities from "./views/Activities";
-import Library from "./views/Library";
 import Reports from "./views/Reports";
 import Studio from "./views/Studio";
 import AdminConsole from "./views/AdminConsole";
@@ -30,7 +29,6 @@ const TEACHER_NAV = [
     items: [
       { key: "dashboard", label: "Dashboard", icon: "◇" },
       { key: "studio",    label: "Studio",    icon: "+" },
-      { key: "library",   label: "Library",   icon: "≡" },
     ],
   },
   {
@@ -73,7 +71,7 @@ const DEFAULT_ROUTE = { teacher: "dashboard", admin: "admin-console", dev: "dev-
 // `#/quizzes` from rendering for an admin who switched roles.
 const SECTIONS_BY_ROLE = {
   teacher: new Set([
-    "dashboard", "studio", "library",
+    "dashboard", "studio",
     "lesson-plans", "schedule", "quizzes", "homework", "presentations", "activities",
     "database", "reports",
     "account",
@@ -166,8 +164,6 @@ export default function StudioApp({ onClose }) {
     mainContent = <Presentations />;
   } else if (section === "activities") {
     mainContent = <Activities />;
-  } else if (section === "library") {
-    mainContent = <Library />;
   } else if (section === "studio") {
     mainContent = <Studio onJump={handleNavClick} />;
   } else if (section === "reports") {
