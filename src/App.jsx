@@ -27,30 +27,25 @@ const TEACHER_NAV = [
   {
     section: "Workspace",
     items: [
-      { key: "dashboard", label: "Dashboard", icon: "◇" },
       { key: "studio",    label: "Studio",    icon: "+" },
     ],
   },
   {
     section: "Teaching",
     items: [
-      { key: "lesson-plans",  label: "Lesson Plans",     letter: "L" },
-      { key: "schedule",      label: "Schedule",         letter: "S" },
-      { key: "quizzes",       label: "Quizzes & Exams",  letter: "Q" },
-      { key: "homework",      label: "Homework",         letter: "H" },
-      { key: "presentations", label: "Presentations",    letter: "P" },
-      { key: "activities",    label: "Activities",       letter: "A" },
+      { key: "lesson-plans",  label: "Lesson Plans",  letter: "L" },
+      { key: "schedule",      label: "Schedule",      letter: "S" },
+      { key: "quizzes",       label: "Quizzes",       letter: "Q" },
+      { key: "homework",      label: "Homework",      letter: "H" },
+      { key: "presentations", label: "Presentations", letter: "P" },
+      { key: "activities",    label: "Activities",    letter: "A" },
     ],
   },
   {
     section: "Data",
     items: [
-      { key: "database", label: "Class roster", letter: "C" },
+      { key: "database", label: "My students", letter: "C" },
     ],
-  },
-  {
-    section: "Account",
-    items: [{ key: "reports", label: "Reports", letter: "R" }],
   },
 ];
 
@@ -64,7 +59,7 @@ const DEV_NAV = [
 
 const NAV_BY_ROLE = { teacher: TEACHER_NAV, admin: ADMIN_NAV, dev: DEV_NAV };
 
-const DEFAULT_ROUTE = { teacher: "dashboard", admin: "admin-console", dev: "dev-console" };
+const DEFAULT_ROUTE = { teacher: "studio", admin: "admin-console", dev: "dev-console" };
 
 // Sections legitimately reachable from the URL bar for each role. Anything
 // outside this list bounces back to the role's default — keeps a stale
@@ -171,7 +166,7 @@ export default function StudioApp({ onClose }) {
   } else if (section === "quizzes") {
     if (sub === "new" || sub === "edit") {
       crumbs = [
-        { label: "Quizzes & Exams", onClick: () => navigate(["quizzes"]) },
+        { label: "Quizzes", onClick: () => navigate(["quizzes"]) },
         { label: sub === "edit" ? "Edit quiz" : "New quiz" },
       ];
       mainContent = (

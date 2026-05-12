@@ -133,6 +133,7 @@ const QUIZ_PARAMS_DEFAULTS = {
   duration: "",    // from QUIZ_DURATIONS (minutes)
   difficulty: "",  // from QUIZ_DIFFICULTIES
   types: "",       // from QUIZ_QUESTION_MIXES — which question types to include
+  scheduled_for: "", // YYYY-MM-DD — when this quiz should run (cover-only meta)
 };
 
 // "Or try" pool — directive prompts. Expanded so we can shuffle 3 random
@@ -614,7 +615,14 @@ export default function Studio() {
               // originalQuiz is a frozen snapshot of what the AI produced,
               // used at save-time to diff which correct_answers the teacher
               // edited and surface a "Are you sure?" confirmation.
-              const aiQuiz = payload.quiz;
+              // Merge the picker's scheduled_for onto the AI's quiz before
+              // we commit. The AI doesn't generate this field — it's purely
+              // a planning value the teacher set on the picker — but it has
+              // to ride along on result.quiz so the save payload picks it up.
+              const aiQuiz = {
+                ...payload.quiz,
+                ...(quizParams.scheduled_for ? { scheduled_for: quizParams.scheduled_for } : {}),
+              };
               setResult({
                 kind: "quiz",
                 quiz: aiQuiz,
@@ -777,7 +785,10 @@ export default function Studio() {
     };
   }, [busy, streamingText, result, sections.length, savedDraftId, isDirty]);
 
-  const makeAnother = () => {
+  // Internal — the actual reset. Wrapped by makeAnother() below which
+  // checks for unsaved work first and surfaces the leave-confirm modal
+  // instead of silently dropping the draft.
+  const resetForNewDraft = () => {
     abortRef.current?.abort();
     regenAbortsRef.current.forEach((c) => c.abort?.());
     regenAbortsRef.current.clear();
@@ -788,6 +799,22 @@ export default function Studio() {
     setSavedDraftId(null);
     setError(null);
     setTweak("");
+  };
+
+  // Clicking "New" used to drop the current draft on the floor — even
+  // if the teacher had unsaved edits or generation in flight. Route it
+  // through the same leave-confirm modal we use for navigating away so
+  // the teacher gets a chance to save first.
+  const makeAnother = () => {
+    const hasInflight = busy || !!streamingText;
+    const hasUnsavedContent = !!result
+      ? !savedDraftId || isDirty
+      : sections.length > 0;
+    if (hasInflight || hasUnsavedContent) {
+      setPendingLeave({ proceed: resetForNewDraft });
+      return;
+    }
+    resetForNewDraft();
   };
 
   // --- per-section editing -------------------------------------------------
@@ -1146,7 +1173,7 @@ export default function Studio() {
       .length;
 
     return (
-      <div className="max-w-6xl mx-auto pb-20">
+      <div className="max-w-6xl mx-auto pb-4">
         {/* Top bar: brand + crumb + actions */}
         <div className="flex items-center justify-between gap-4 mb-5 print:hidden flex-wrap">
           <div className="flex items-center gap-4 min-w-0">
@@ -1342,13 +1369,45 @@ export default function Studio() {
                   )
                 ) : (
                   <>
-                    <p className="font-serif italic text-base text-accent mb-2">
-                      Part {currentLetter} · {active?.label}
+                    {/* Eyebrow row now hosts the prev/next chevrons too —
+                        they used to sit below the card and forced the
+                        whole right pane to be taller than the viewport.
+                        Pinning them to the top means the card sits
+                        flush above the refine bar with no whitespace
+                        regardless of how short or tall a section is. */}
+                    <div className="flex items-center justify-between gap-3 mb-2">
+                      <p className="font-serif italic text-base text-accent">
+                        Part {currentLetter} · {active?.label}
+                        {sections.length > 1 && (
+                          <span className="text-muted ml-2">· {sectionIndex + 1} of {sections.length}</span>
+                        )}
+                        {items > 0 && <span className="text-muted ml-2">· {items} item{items === 1 ? "" : "s"}</span>}
+                      </p>
                       {sections.length > 1 && (
-                        <span className="text-muted ml-2">· {sectionIndex + 1} of {sections.length}</span>
+                        <div className="inline-flex items-center gap-1.5 flex-shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => setSectionIndex((i) => Math.max(0, i - 1))}
+                            disabled={sectionIndex <= 0 || quizScopeBusy}
+                            aria-label="Previous section"
+                            title="Previous section (←)"
+                            className="h-7 w-7 rounded border border-line bg-paper-cool hover:border-ink hover:bg-paper-warm disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center transition-colors duration-150"
+                          >
+                            <span className="font-mono text-[11px] leading-none">←</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setSectionIndex((i) => Math.min(sections.length - 1, i + 1))}
+                            disabled={sectionIndex >= sections.length - 1 || quizScopeBusy}
+                            aria-label="Next section"
+                            title="Next section (→)"
+                            className="h-7 w-7 rounded border border-line bg-paper-cool hover:border-ink hover:bg-paper-warm disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center transition-colors duration-150"
+                          >
+                            <span className="font-mono text-[11px] leading-none">→</span>
+                          </button>
+                        </div>
                       )}
-                      {items > 0 && <span className="text-muted ml-2">· {items} item{items === 1 ? "" : "s"}</span>}
-                    </p>
+                    </div>
                     <h3 className="font-serif text-2xl md:text-3xl font-medium text-ink mb-5 leading-tight">
                       {currentSection?.title}
                     </h3>
@@ -1371,7 +1430,7 @@ export default function Studio() {
                       key={`${sectionIndex}-${currentSection?.id}`}
                       className="studio-card-flip-in relative"
                     >
-                      <div className="h-[55vh] overflow-y-auto rounded-md">
+                      <div className="max-h-[55vh] overflow-y-auto rounded-md">
                         {currentSection?.kind === "quiz_meta" ? (
                           <QuizMetaCard
                             quiz={result?.quiz}
@@ -1442,35 +1501,6 @@ export default function Studio() {
                       </div>
                     )}
 
-                    {/* Section nav — real clickable prev/next buttons.
-                        Same arrows the keyboard handler responds to;
-                        teachers without keyboard discoverability can
-                        just click. Disabled at boundaries. */}
-                    {sections.length > 1 && (
-                      <div className="mt-5 inline-flex items-center gap-1.5 text-[11px] text-muted">
-                        <button
-                          type="button"
-                          onClick={() => setSectionIndex((i) => Math.max(0, i - 1))}
-                          disabled={sectionIndex <= 0 || quizScopeBusy}
-                          aria-label="Previous section"
-                          className="h-6 w-6 rounded border border-line bg-paper-cool hover:border-ink hover:bg-paper-warm disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center transition-colors duration-150"
-                        >
-                          <span className="font-mono text-[10px] leading-none">←</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setSectionIndex((i) => Math.min(sections.length - 1, i + 1))}
-                          disabled={sectionIndex >= sections.length - 1 || quizScopeBusy}
-                          aria-label="Next section"
-                          className="h-6 w-6 rounded border border-line bg-paper-cool hover:border-ink hover:bg-paper-warm disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center transition-colors duration-150"
-                        >
-                          <span className="font-mono text-[10px] leading-none">→</span>
-                        </button>
-                        <span className="font-serif italic text-sm text-muted ml-1">
-                          previous / next section
-                        </span>
-                      </div>
-                    )}
                   </>
                 )}
               </div>
@@ -1489,7 +1519,7 @@ export default function Studio() {
             scope (auto-defaulted to whole-quiz when the cover is open).
             Frosted-glass paper so content underneath stays subtly readable
             as you scroll. */}
-        <div className="sticky bottom-2 md:bottom-3 z-20 mt-5 print:hidden">
+        <div className="sticky bottom-2 md:bottom-3 z-20 mt-3 print:hidden">
           {/* Two-line header above the input doubles as a teaching label so a
               teacher who's never used the bar before knows what it does, and
               an example line under it shows what kind of instructions land.
@@ -2200,7 +2230,7 @@ function QuizParamsPanel({ params, onChange, gradeOptions, majorOptions, languag
           label="Grade"
           slot="grade"
           emptyHint="Any grade"
-          help="Which year group the quiz is for. The list shows the grades you teach (set in Class Roster → Teaching profile). Type to add a one-off."
+          help="Which year group the quiz is for. The list shows the grades you teach (set in My students → Teaching profile). Type to add a one-off."
           value={params.grade}
           options={gradeOptions}
           onChange={(v) => set({ grade: v })}
@@ -2212,7 +2242,7 @@ function QuizParamsPanel({ params, onChange, gradeOptions, majorOptions, languag
           label="Major"
           slot="major"
           emptyHint="Any major"
-          help="The school subject the quiz tests. The list shows the majors you teach (set in Class Roster → Teaching profile). Type to add a one-off."
+          help="The school subject the quiz tests. The list shows the majors you teach (set in My students → Teaching profile). Type to add a one-off."
           value={params.major}
           options={majorOptions}
           onChange={(v) => set({ major: v })}
@@ -2224,7 +2254,7 @@ function QuizParamsPanel({ params, onChange, gradeOptions, majorOptions, languag
           label="Language"
           slot="language"
           emptyHint="Auto"
-          help="The language the quiz will be written in (questions, choices, answer key). The list shows the languages you teach (set in Class Roster → Teaching profile). Type to add a one-off."
+          help="The language the quiz will be written in (questions, choices, answer key). The list shows the languages you teach (set in My students → Teaching profile). Type to add a one-off."
           value={params.language}
           options={languageOptions}
           onChange={(v) => set({ language: v })}
@@ -2234,7 +2264,7 @@ function QuizParamsPanel({ params, onChange, gradeOptions, majorOptions, languag
           label="Section"
           slot="section"
           emptyHint="All sections"
-          help="Which class section(s) the quiz is for. Pick one OR several (Grade 6 A AND B for the same quiz). The list shows the sections you teach (Class Roster → Teaching profile). Type to add a one-off."
+          help="Which class section(s) the quiz is for. Pick one OR several (Grade 6 A AND B for the same quiz). The list shows the sections you teach (My students → Teaching profile). Type to add a one-off."
           value={params.section}
           options={sectionOptions}
           onChange={(v) => set({ section: v })}
@@ -2298,6 +2328,51 @@ function QuizParamsPanel({ params, onChange, gradeOptions, majorOptions, languag
           onChange={(v) => set({ types: v })}
         />
       </div>
+
+      {/* Scheduled date — separate from the chips because it's a date
+          picker, not a list. Persists straight onto the saved quiz row
+          so the Schedule view and Quizzes & Exams list pick it up. */}
+      <ScheduledDateRow
+        value={params.scheduled_for}
+        onChange={(v) => set({ scheduled_for: v })}
+      />
+    </div>
+  );
+}
+
+function ScheduledDateRow({ value, onChange }) {
+  const todayISO = new Date().toISOString().slice(0, 10);
+  return (
+    <div className="mt-2 flex flex-wrap items-center gap-2 px-1">
+      <span className="inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.16em] text-muted">
+        <Calendar size={11} strokeWidth={1.75} />
+        Schedule for
+        <HelpTip text="When students should sit this quiz. Saved with the quiz so it shows up in Schedule and Quizzes & Exams. Leave blank to decide later." />
+      </span>
+      <input
+        type="date"
+        value={value ? String(value).slice(0, 10) : ""}
+        min={todayISO}
+        onChange={(e) => onChange(e.target.value || "")}
+        className="bg-paper-cool border border-line rounded-md px-2.5 py-1 text-sm text-ink outline-none focus:border-ink transition-colors duration-150"
+      />
+      {value ? (
+        <button
+          type="button"
+          onClick={() => onChange("")}
+          className="font-serif italic text-xs text-muted hover:text-accent transition-colors duration-150"
+        >
+          Clear
+        </button>
+      ) : (
+        <button
+          type="button"
+          onClick={() => onChange(todayISO)}
+          className="font-serif italic text-xs text-muted hover:text-accent transition-colors duration-150"
+        >
+          Today
+        </button>
+      )}
     </div>
   );
 }
@@ -2322,6 +2397,17 @@ function QuizParamsPanel({ params, onChange, gradeOptions, majorOptions, languag
 const splitMulti = (s) =>
   String(s || "").split(",").map((t) => t.trim()).filter(Boolean);
 const joinMulti = (arr) => arr.filter(Boolean).join(", ");
+
+// Render an ISO date (YYYY-MM-DD or a full timestamp) as a short, human
+// label for the cover. Locale-aware; falls back to the raw value if parse
+// fails so we never show an empty cell for a malformed date.
+const formatScheduledDate = (iso) => {
+  if (!iso) return null;
+  const ymd = String(iso).slice(0, 10);
+  const d = new Date(`${ymd}T00:00:00`);
+  if (Number.isNaN(d.getTime())) return ymd;
+  return d.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+};
 
 function DropdownChip({
   icon: Icon, label, emptyHint, help, value, options, onChange,
@@ -2836,11 +2922,9 @@ function QuizMetaCard({ quiz, onUpdate, disabled = false }) {
   if (!quiz) return null;
   const totalQ = (quiz.questions || []).length;
   // The meta chips (Subject, Grade, Language, Section, Difficulty, Duration)
-  // were set on the picker view before generation — re-editing them mid-draft
-  // makes no sense (the body of the quiz wouldn't match) so they render as
-  // read-only here. Title, instructions, and the scheduled date stay editable
-  // because they are pure planning fields the teacher controls.
-  const todayISO = new Date().toISOString().slice(0, 10);
+  // and the scheduled date were all set on the picker view before generation.
+  // Re-editing them mid-draft makes no sense (the body wouldn't match) so
+  // they render read-only here. Only title and instructions stay editable.
   return (
     <div className="rounded-xl border border-line bg-paper-cool p-5 md:p-6">
       <p className="font-serif italic text-base text-muted mb-2">Cover</p>
@@ -2862,43 +2946,13 @@ function QuizMetaCard({ quiz, onUpdate, disabled = false }) {
           value={quiz.duration_minutes}
           suffix={quiz.duration_minutes ? "min" : null}
         />
+        <ReadOnlyMeta
+          label="Scheduled"
+          value={quiz.scheduled_for ? formatScheduledDate(quiz.scheduled_for) : null}
+        />
         <span className="font-serif italic text-muted">
           · {totalQ} question{totalQ === 1 ? "" : "s"} · <span className="text-ink not-italic font-medium">{quiz.total_marks ?? 0} marks</span>
         </span>
-      </div>
-
-      {/* Scheduled date — when this quiz should run. Optional. Persisted
-          to quizzes.scheduled_for at save time so it shows up on the
-          Quizzes & Exams list and feeds the Schedule view. */}
-      <div className="mb-5">
-        <p className="font-serif italic text-base text-muted mb-1.5">Scheduled date</p>
-        <div className="flex flex-wrap items-center gap-2">
-          <input
-            type="date"
-            value={quiz.scheduled_for ? String(quiz.scheduled_for).slice(0, 10) : ""}
-            min={todayISO}
-            disabled={disabled}
-            onChange={(e) => onUpdate({ scheduled_for: e.target.value || null })}
-            className="bg-paper border border-line rounded-md px-2.5 py-1.5 text-sm text-ink outline-none focus:border-ink focus:bg-paper-cool transition-colors duration-150 disabled:opacity-60"
-          />
-          {quiz.scheduled_for ? (
-            <button
-              type="button"
-              onClick={() => onUpdate({ scheduled_for: null })}
-              className="font-serif italic text-xs text-muted hover:text-accent transition-colors duration-150"
-            >
-              Clear
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={() => onUpdate({ scheduled_for: todayISO })}
-              className="font-serif italic text-xs text-muted hover:text-accent transition-colors duration-150"
-            >
-              Today
-            </button>
-          )}
-        </div>
       </div>
 
       <div>
