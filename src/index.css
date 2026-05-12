@@ -18,15 +18,114 @@
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
 }
 
-/* AI Studio — per-section flip-in: fires every time the visible section
-   changes in the result view (sidebar click or ←/→ arrow key). */
+/* AI Studio — per-section morph-in: fires every time the visible section
+   changes (sidebar click or ←/→ arrow key). Quantro-style scale + blur
+   release with a soft cubic-out curve. The previous flip felt mechanical;
+   this reads as a single surface rising into focus. */
 .studio-card-flip-in {
-  animation: studio-card-flip-in 420ms cubic-bezier(0.4, 0, 0.2, 1) both;
-  transform-origin: center center;
+  animation: studio-card-morph-in 520ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  transform-origin: 50% 58%;
+  will-change: transform, opacity, filter;
 }
-@keyframes studio-card-flip-in {
-  from { opacity: 0; transform: perspective(900px) rotateY(14deg) translateX(18px); }
-  to   { opacity: 1; transform: perspective(900px) rotateY(0)     translateX(0); }
+@keyframes studio-card-morph-in {
+  from {
+    opacity: 0;
+    transform: scale(0.94);
+    filter: blur(6px);
+  }
+  60% {
+    filter: blur(0);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+    filter: blur(0);
+  }
+}
+
+/* Inner-content stagger: each direct child of .studio-card-stagger fades
+   up after the card body has settled. nth-child cap keeps long question
+   cards (mcq with 4 choices) from cascading too far down the timeline —
+   anything past row 5 lands on the same beat. */
+.studio-card-stagger > * {
+  animation: studio-stagger-up 460ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: 320ms;
+}
+.studio-card-stagger > *:nth-child(1) { animation-delay: 140ms; }
+.studio-card-stagger > *:nth-child(2) { animation-delay: 200ms; }
+.studio-card-stagger > *:nth-child(3) { animation-delay: 250ms; }
+.studio-card-stagger > *:nth-child(4) { animation-delay: 290ms; }
+.studio-card-stagger > *:nth-child(5) { animation-delay: 320ms; }
+@keyframes studio-stagger-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Pagination dots — small ink circles, with the active one extending into
+   a wider pill (Quantro pattern). Sits centered under the section header
+   so the teacher always sees position-in-quiz at a glance. */
+.studio-pagedots {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.studio-pagedots button {
+  height: 6px;
+  width: 6px;
+  border-radius: 999px;
+  background: var(--color-line);
+  transition: width 280ms cubic-bezier(0.22, 1, 0.36, 1),
+              background-color 200ms ease,
+              transform 200ms ease;
+  cursor: pointer;
+  border: 0;
+  padding: 0;
+}
+.studio-pagedots button:hover {
+  background: var(--color-ink-soft);
+}
+.studio-pagedots button[aria-current="true"] {
+  width: 22px;
+  background: var(--color-accent);
+}
+.studio-pagedots button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+/* Section sidebar — active badge gets a subtle accent halo that breathes
+   once when activated. Reuses the same accent the page already uses so we
+   stay inside the palette. */
+.studio-section-active-halo {
+  animation: studio-section-halo 700ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes studio-section-halo {
+  0%   { box-shadow: 0 0 0 0 rgba(200, 71, 43, 0.0); }
+  35%  { box-shadow: 0 0 0 6px rgba(200, 71, 43, 0.18); }
+  100% { box-shadow: 0 0 0 0 rgba(200, 71, 43, 0); }
+}
+
+/* Refine bar — slides up the first time it mounts so it doesn't appear
+   to teleport in once a quiz finishes streaming. One-shot, then static. */
+.studio-refine-rise {
+  animation: studio-refine-rise 520ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: 80ms;
+}
+@keyframes studio-refine-rise {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Number tick — when a live counter changes (cost, marks, total) the new
+   value rises into place while the old slides up and out. Wrap the
+   number in a span with .studio-tick keyed on the value. */
+.studio-tick {
+  animation: studio-tick 360ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  display: inline-block;
+}
+@keyframes studio-tick {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
 /* Inline kind-popover entrance + the kind-button confirm pulse. */
@@ -68,6 +167,27 @@
   0%   { transform: scale(1);    box-shadow: 0 0 0 0 rgba(200, 71, 43, 0.45); }
   35%  { transform: scale(1.04); box-shadow: 0 0 0 8px rgba(200, 71, 43, 0); }
   100% { transform: scale(1);    box-shadow: 0 0 0 0 rgba(200, 71, 43, 0); }
+}
+
+/* Accessibility — teachers who've turned on Reduce Motion in macOS / iOS
+   shouldn't get the full Quantro-style entrance. Collapse the keyframes
+   to a near-zero fade so the studio still feels deliberate, not jittery. */
+@media (prefers-reduced-motion: reduce) {
+  .studio-card-flip-in,
+  .studio-card-stagger > *,
+  .studio-section-active-halo,
+  .studio-refine-rise,
+  .studio-tick,
+  .studio-menu-rise,
+  .studio-section-fade-in,
+  .studio-helptip,
+  .studio-kind-pulse {
+    animation-duration: 1ms !important;
+    animation-delay: 0ms !important;
+  }
+  .studio-pagedots button {
+    transition-duration: 1ms !important;
+  }
 }
 
 /* When the user uses the browser's "Save as PDF" / Print, drop the

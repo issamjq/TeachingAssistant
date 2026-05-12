@@ -1376,35 +1376,60 @@ export default function Studio() {
                         flush above the refine bar with no whitespace
                         regardless of how short or tall a section is. */}
                     <div className="flex items-center justify-between gap-3 mb-2">
-                      <p className="font-serif italic text-base text-accent">
-                        Part {currentLetter} · {active?.label}
+                      <p className="font-serif italic text-base text-accent inline-flex items-baseline gap-2">
+                        <span>Part {currentLetter} · {active?.label}</span>
                         {sections.length > 1 && (
-                          <span className="text-muted ml-2">· {sectionIndex + 1} of {sections.length}</span>
+                          <span className="text-muted">
+                            · <span key={sectionIndex} className="studio-tick">{sectionIndex + 1}</span> of {sections.length}
+                          </span>
                         )}
-                        {items > 0 && <span className="text-muted ml-2">· {items} item{items === 1 ? "" : "s"}</span>}
+                        {items > 0 && <span className="text-muted">· {items} item{items === 1 ? "" : "s"}</span>}
                       </p>
                       {sections.length > 1 && (
-                        <div className="inline-flex items-center gap-1.5 flex-shrink-0">
-                          <button
-                            type="button"
-                            onClick={() => setSectionIndex((i) => Math.max(0, i - 1))}
-                            disabled={sectionIndex <= 0 || quizScopeBusy}
-                            aria-label="Previous section"
-                            title="Previous section (←)"
-                            className="h-7 w-7 rounded border border-line bg-paper-cool hover:border-ink hover:bg-paper-warm disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center transition-colors duration-150"
+                        <div className="inline-flex items-center gap-3 flex-shrink-0">
+                          {/* Pagination dots — Quantro-style. Tap-target = the
+                              parent button which is small but pad-extended via
+                              padding on the wrapper. Active dot extends into a
+                              pill via the CSS rule keyed on aria-current. */}
+                          <div
+                            className="studio-pagedots"
+                            role="tablist"
+                            aria-label="Section pages"
                           >
-                            <span className="font-mono text-[11px] leading-none">←</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setSectionIndex((i) => Math.min(sections.length - 1, i + 1))}
-                            disabled={sectionIndex >= sections.length - 1 || quizScopeBusy}
-                            aria-label="Next section"
-                            title="Next section (→)"
-                            className="h-7 w-7 rounded border border-line bg-paper-cool hover:border-ink hover:bg-paper-warm disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center transition-colors duration-150"
-                          >
-                            <span className="font-mono text-[11px] leading-none">→</span>
-                          </button>
+                            {sections.map((s, i) => (
+                              <button
+                                key={s.id}
+                                type="button"
+                                role="tab"
+                                aria-label={`Go to ${s.title || `section ${i + 1}`}`}
+                                aria-current={i === sectionIndex}
+                                disabled={quizScopeBusy}
+                                onClick={() => setSectionIndex(i)}
+                              />
+                            ))}
+                          </div>
+                          <div className="inline-flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => setSectionIndex((i) => Math.max(0, i - 1))}
+                              disabled={sectionIndex <= 0 || quizScopeBusy}
+                              aria-label="Previous section"
+                              title="Previous section (←)"
+                              className="h-7 w-7 rounded border border-line bg-paper-cool hover:border-ink hover:bg-paper-warm disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center transition-all duration-150 hover:-translate-y-px"
+                            >
+                              <span className="font-mono text-[11px] leading-none">←</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setSectionIndex((i) => Math.min(sections.length - 1, i + 1))}
+                              disabled={sectionIndex >= sections.length - 1 || quizScopeBusy}
+                              aria-label="Next section"
+                              title="Next section (→)"
+                              className="h-7 w-7 rounded border border-line bg-paper-cool hover:border-ink hover:bg-paper-warm disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center transition-all duration-150 hover:-translate-y-px"
+                            >
+                              <span className="font-mono text-[11px] leading-none">→</span>
+                            </button>
+                          </div>
                         </div>
                       )}
                     </div>
@@ -1519,7 +1544,7 @@ export default function Studio() {
             scope (auto-defaulted to whole-quiz when the cover is open).
             Frosted-glass paper so content underneath stays subtly readable
             as you scroll. */}
-        <div className="sticky bottom-2 md:bottom-3 z-20 mt-3 print:hidden">
+        <div className="sticky bottom-2 md:bottom-3 z-20 mt-3 print:hidden studio-refine-rise">
           {/* Two-line header above the input doubles as a teaching label so a
               teacher who's never used the bar before knows what it does, and
               an example line under it shows what kind of instructions land.
@@ -2926,7 +2951,7 @@ function QuizMetaCard({ quiz, onUpdate, disabled = false }) {
   // Re-editing them mid-draft makes no sense (the body wouldn't match) so
   // they render read-only here. Only title and instructions stay editable.
   return (
-    <div className="rounded-xl border border-line bg-paper-cool p-5 md:p-6">
+    <div className="rounded-xl border border-line bg-paper-cool p-5 md:p-6 studio-card-stagger">
       <p className="font-serif italic text-base text-muted mb-2">Cover</p>
       <EditableText
         value={quiz.title || ""}
@@ -2989,7 +3014,7 @@ function QuizQuestionCard({ question, index, onUpdate, disabled = false }) {
   const safeUpdate = (patch) => { if (!disabled) onUpdate(patch); };
 
   return (
-    <div className="rounded-xl border border-line bg-paper-cool p-5 md:p-6">
+    <div className="rounded-xl border border-line bg-paper-cool p-5 md:p-6 studio-card-stagger">
       <div className="flex items-center justify-between gap-3 mb-3">
         <span className="font-serif italic text-base text-muted">
           Question {question.position ?? index + 1}
