@@ -75,14 +75,13 @@ const SECTIONS_BY_ROLE = {
   dev: new Set(["dev-console", "account"]),
 };
 
-function NavBadge({ letter, icon, active }) {
-  const base =
-    "h-7 w-7 rounded-md flex items-center justify-center font-mono text-[11px] font-medium tracking-wider flex-shrink-0";
-  const colors = active ? "bg-white/20 text-white" : "bg-white/10 text-white/75";
+function NavBadge({ letter, icon }) {
+  // Letters fall back to the legible mono glyph; icons (◇, +, etc.) need
+  // the line-height reset so the stroke sits centered in the badge.
   if (icon) {
-    return <span className={`${base} ${colors} text-base leading-none`}>{icon}</span>;
+    return <span className="mudir-sidebar-badge text-base leading-none">{icon}</span>;
   }
-  return <span className={`${base} ${colors}`}>{letter}</span>;
+  return <span className="mudir-sidebar-badge">{letter}</span>;
 }
 
 export default function StudioApp({ onClose }) {
@@ -323,61 +322,72 @@ export default function StudioApp({ onClose }) {
 
   return (
     <div className="h-screen bg-paper flex text-ink font-sans overflow-hidden">
-      <aside className="w-64 flex-col flex-shrink-0 hidden md:flex h-full print:hidden" style={{ backgroundColor: "#1a1814" }}>
-        <div className="px-6 py-7">
-          <div className="font-serif italic font-semibold text-2xl text-white">
-            <span className="text-accent not-italic mr-1.5">◈</span>Mudir
-          </div>
-        </div>
+      <aside className="mudir-sidebar w-64 flex-col flex-shrink-0 hidden md:flex h-full print:hidden">
+        {/* Brand block — accent-square mark + Fraunces wordmark. The
+            mark plays a one-shot halo on mount and a subtle hover-rotate
+            so the sidebar has a small piece of life the moment you
+            land. */}
+        <button
+          onClick={() => navigate([DEFAULT_ROUTE[role]])}
+          className="mudir-sidebar-brand flex items-center gap-3 px-5 py-6 text-left"
+          aria-label="Go home"
+        >
+          <span className="mudir-sidebar-brand-mark" aria-hidden>
+            M
+          </span>
+          <span className="font-serif text-[1.4rem] font-medium text-ink leading-none">
+            Mudir
+          </span>
+        </button>
 
-        <nav className="px-3 flex-1 overflow-y-auto pb-4">
-          {nav.map((s) => (
-            <div key={s.section} className="mb-5">
-              <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-white/40 mb-2 px-3">
-                {s.section}
-              </p>
-              <div className="space-y-0.5">
-                {s.items.map((item) => {
-                  const isActive = sidebarActive === item.key;
-                  return (
-                    <button
-                      key={item.key}
-                      onClick={() => handleNavClick(item.key)}
-                      className={`w-full flex items-center gap-2.5 px-2 py-1.5 rounded-lg text-sm transition ${
-                        isActive ? "bg-accent text-white font-medium" : "text-white/85 hover:bg-white/5"
-                      }`}
-                    >
-                      <NavBadge letter={item.letter} icon={item.icon} active={isActive} />
-                      <span className="truncate">{item.label}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
+        <nav className="px-2 flex-1 overflow-y-auto pb-3" aria-label="Primary">
+          {/* Items get a per-item stagger via inline --mi (mount index).
+              Index is global across the whole nav so sections cascade in
+              one after another, not in parallel. */}
+          {(() => {
+            let mi = 0;
+            return nav.map((s) => (
+              <section key={s.section} className="mudir-sidebar-section">
+                <p className="mudir-sidebar-section-label">{s.section}</p>
+                <div className="space-y-0.5 px-1">
+                  {s.items.map((item) => {
+                    const isActive = sidebarActive === item.key;
+                    const myIndex = mi++;
+                    return (
+                      <button
+                        key={item.key}
+                        onClick={() => handleNavClick(item.key)}
+                        style={{ "--mi": myIndex }}
+                        className={`mudir-sidebar-item ${isActive ? "mudir-sidebar-item-active" : ""}`}
+                        aria-current={isActive ? "page" : undefined}
+                      >
+                        <NavBadge letter={item.letter} icon={item.icon} />
+                        <span className="truncate flex-1">{item.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </section>
+            ));
+          })()}
         </nav>
 
-        <div className="p-3 border-t border-white/10">
-          <button
-            onClick={() => navigate(["account"])}
-            title="Open account"
-            className={`w-full flex items-center gap-3 p-2 rounded-lg text-left transition ${
-              section === "account" ? "bg-white/10" : "hover:bg-white/5"
-            }`}
-          >
-            <div className="h-9 w-9 rounded-full bg-white/10 text-white flex items-center justify-center font-mono text-[11px] tracking-wider font-semibold flex-shrink-0">
-              SA
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium leading-tight truncate text-white">
-                Sara Al-Mansoori
-              </p>
-              <p className="font-mono text-[10px] uppercase tracking-wider text-white/50 mt-0.5">
-                {ROLE_LABELS[role]}
-              </p>
-            </div>
-          </button>
-        </div>
+        <button
+          onClick={() => navigate(["account"])}
+          title="Open account"
+          className={`mudir-sidebar-account ${section === "account" ? "mudir-sidebar-account-active" : ""}`}
+        >
+          <span className="mudir-sidebar-account-avatar">SA</span>
+          <div className="flex-1 min-w-0 text-left">
+            <p className="text-sm font-medium leading-tight truncate text-ink">
+              Sara Al-Mansoori
+            </p>
+            <p className="font-serif italic text-[11px] text-muted mt-0.5">
+              {ROLE_LABELS[role]}
+            </p>
+          </div>
+          <ChevronRight size={14} className="text-muted flex-shrink-0" />
+        </button>
       </aside>
 
       <main className="flex-1 flex flex-col min-w-0 h-full">

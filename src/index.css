@@ -169,6 +169,233 @@
   100% { transform: scale(1);    box-shadow: 0 0 0 0 rgba(200, 71, 43, 0); }
 }
 
+/* Premium sidebar — light, cream-paper surface that reads as a
+   continuation of the main area, not a dark console.
+
+   Motion language borrowed from the dashboard-animation handoff
+   (Quantro-style choreography), translated into Mudir's palette:
+     - items fade + slide-up in a 40ms stagger on mount
+     - an absolute "rail" tracks the active item with a smooth
+       cubic-bezier transition between positions
+     - the brand mark gets a single-shot accent halo on mount and a
+       soft scale on hover */
+.mudir-sidebar {
+  background:
+    linear-gradient(180deg, var(--color-paper-warm) 0%, var(--color-paper) 100%);
+  border-right: 1px solid var(--color-line);
+}
+
+.mudir-sidebar-brand {
+  position: relative;
+  animation: mudir-sidebar-brand-in 700ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes mudir-sidebar-brand-in {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.mudir-sidebar-brand-mark {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 28px;
+  width: 28px;
+  border-radius: 8px;
+  background: var(--color-accent);
+  color: var(--color-paper-cool);
+  font-family: var(--font-serif);
+  font-weight: 600;
+  font-size: 14px;
+  transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1),
+              box-shadow 220ms ease;
+  animation: mudir-sidebar-brand-halo 1400ms cubic-bezier(0.22, 1, 0.36, 1) 200ms both;
+}
+.mudir-sidebar-brand:hover .mudir-sidebar-brand-mark {
+  transform: rotate(-4deg) scale(1.04);
+  box-shadow: 0 6px 18px rgba(200, 71, 43, 0.28);
+}
+@keyframes mudir-sidebar-brand-halo {
+  0%   { box-shadow: 0 0 0 0 rgba(200, 71, 43, 0.0); }
+  35%  { box-shadow: 0 0 0 8px rgba(200, 71, 43, 0.22); }
+  100% { box-shadow: 0 0 0 0 rgba(200, 71, 43, 0); }
+}
+
+.mudir-sidebar-section {
+  position: relative;
+}
+.mudir-sidebar-section + .mudir-sidebar-section {
+  margin-top: 18px;
+}
+
+.mudir-sidebar-section-label {
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: 13px;
+  color: var(--color-muted);
+  padding: 0 14px 6px;
+  letter-spacing: 0.005em;
+}
+
+/* Each nav button. Hover lifts -0.5px and slides text 2px right so the
+   row feels picked-up rather than swapped. Active state gets paper-cool
+   bg + ink text, plus an accent rail handled separately below. */
+.mudir-sidebar-item {
+  position: relative;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px 8px 16px;
+  border-radius: 10px;
+  font-size: 13.5px;
+  color: var(--color-ink-soft);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  text-align: left;
+  transition: background-color 200ms ease,
+              color 200ms ease,
+              transform 200ms cubic-bezier(0.22, 1, 0.36, 1);
+  opacity: 0;
+  animation: mudir-sidebar-item-in 460ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: calc(var(--mi, 0) * 40ms + 120ms);
+}
+@keyframes mudir-sidebar-item-in {
+  from { opacity: 0; transform: translateX(-6px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+.mudir-sidebar-item:hover {
+  background: rgba(255, 255, 255, 0.6);
+  color: var(--color-ink);
+  transform: translateX(2px);
+}
+.mudir-sidebar-item-active {
+  background: var(--color-paper-cool);
+  color: var(--color-ink);
+  font-weight: 500;
+  box-shadow: 0 1px 0 0 var(--color-line),
+              0 8px 18px -10px rgba(15, 20, 16, 0.18);
+}
+.mudir-sidebar-item-active:hover {
+  background: var(--color-paper-cool);
+  transform: translateX(0);
+}
+
+/* The accent rail. A 3px stripe pinned to the left of the active item.
+   We render it as a pseudo-element on every item but only show it on
+   the active one — and animate the scale-y from 0 to 1 on activation so
+   it grows into place. */
+.mudir-sidebar-item::before {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 6px;
+  bottom: 6px;
+  width: 3px;
+  border-radius: 999px;
+  background: var(--color-accent);
+  transform: scaleY(0);
+  transform-origin: center;
+  opacity: 0;
+  transition: transform 320ms cubic-bezier(0.22, 1, 0.36, 1),
+              opacity 200ms ease;
+}
+.mudir-sidebar-item-active::before {
+  transform: scaleY(1);
+  opacity: 1;
+}
+
+/* Letter/icon badge inside an item. Small rounded square with the
+   item's letter or icon. Active state flips to accent fill. */
+.mudir-sidebar-badge {
+  flex-shrink: 0;
+  height: 26px;
+  width: 26px;
+  border-radius: 7px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-paper-cool);
+  color: var(--color-ink-soft);
+  border: 1px solid var(--color-line);
+  transition: background-color 200ms ease,
+              color 200ms ease,
+              border-color 200ms ease,
+              transform 200ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.mudir-sidebar-item:hover .mudir-sidebar-badge {
+  border-color: var(--color-ink-soft);
+}
+.mudir-sidebar-item-active .mudir-sidebar-badge {
+  background: var(--color-ink);
+  color: var(--color-paper-cool);
+  border-color: var(--color-ink);
+  transform: rotate(-3deg);
+}
+
+/* The footer account card. Same paper-cool surface as the active nav
+   item so it reads as one of the family. Hover lifts the avatar
+   slightly for affordance. */
+.mudir-sidebar-account {
+  margin: 0 8px 8px;
+  padding: 10px;
+  border-radius: 14px;
+  background: var(--color-paper-cool);
+  border: 1px solid var(--color-line);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: calc(100% - 16px);
+  cursor: pointer;
+  transition: background-color 200ms ease,
+              border-color 200ms ease,
+              transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
+  animation: mudir-sidebar-item-in 520ms cubic-bezier(0.22, 1, 0.36, 1) 360ms both;
+}
+.mudir-sidebar-account:hover {
+  border-color: var(--color-ink-soft);
+}
+.mudir-sidebar-account-avatar {
+  flex-shrink: 0;
+  height: 34px;
+  width: 34px;
+  border-radius: 999px;
+  background: var(--color-ink);
+  color: var(--color-paper-cool);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 240ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.mudir-sidebar-account:hover .mudir-sidebar-account-avatar {
+  transform: scale(1.05);
+}
+.mudir-sidebar-account-active {
+  background: var(--color-paper);
+  border-color: var(--color-accent);
+}
+
+/* Reduced-motion override for the new sidebar animations. */
+@media (prefers-reduced-motion: reduce) {
+  .mudir-sidebar-brand,
+  .mudir-sidebar-brand-mark,
+  .mudir-sidebar-item,
+  .mudir-sidebar-account,
+  .mudir-sidebar-item::before {
+    animation-duration: 1ms !important;
+    animation-delay: 0ms !important;
+    transition-duration: 1ms !important;
+  }
+}
+
 /* Accessibility — teachers who've turned on Reduce Motion in macOS / iOS
    shouldn't get the full Quantro-style entrance. Collapse the keyframes
    to a near-zero fade so the studio still feels deliberate, not jittery. */
