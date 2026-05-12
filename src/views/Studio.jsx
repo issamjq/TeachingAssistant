@@ -2013,10 +2013,11 @@ function QuizParamsPanel({ params, onChange, gradeOptions, majorOptions, languag
           label="Section"
           slot="section"
           emptyHint="All sections"
-          help="Which class section the quiz is for (e.g. Grade 6 'A'). The list shows the sections you teach (set in Class Roster → Teaching profile). Type to add a one-off. Mainly used for the cover page — doesn't shift difficulty."
+          help="Which class section(s) the quiz is for. Pick one OR several (Grade 6 A AND B for the same quiz). The list shows the sections you teach (Class Roster → Teaching profile). Type to add a one-off."
           value={params.section}
           options={sectionOptions}
           onChange={(v) => set({ section: v })}
+          multi
         />
         <DropdownChip
           icon={Gauge}
@@ -2085,7 +2086,20 @@ function QuizParamsPanel({ params, onChange, gradeOptions, majorOptions, languag
 // Open: focus ring, input replaces the value display, menu drops below.
 // numeric: input forwards inputMode="numeric"; non-numeric typed values
 //          are coerced or ignored on commit.
-function DropdownChip({ icon: Icon, label, emptyHint, help, value, options, onChange, suffix, numeric, warning, onMoveTo }) {
+// Split a multi-select chip's value (joined comma-separated string) into
+// its component selections. Empty / null safe.
+const splitMulti = (s) =>
+  String(s || "").split(",").map((t) => t.trim()).filter(Boolean);
+const joinMulti = (arr) => arr.filter(Boolean).join(", ");
+
+function DropdownChip({
+  icon: Icon, label, emptyHint, help, value, options, onChange,
+  suffix, numeric, warning, onMoveTo,
+  // multi=true → chip stores a comma-separated string of picks.
+  // Clicking an option TOGGLES it (menu stays open). Custom typed
+  // values get appended. Click-outside / Done closes.
+  multi = false,
+}) {
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState(value == null ? "" : String(value));
   const inputRef = useRef(null);
@@ -2096,14 +2110,17 @@ function DropdownChip({ icon: Icon, label, emptyHint, help, value, options, onCh
   }, [value, open]);
 
   // Focus + select the input as soon as it appears so typing just works.
+  // For multi mode we start the draft empty so typing filters/adds new
+  // values rather than re-editing the already-picked joined string.
   useEffect(() => {
     if (!open) return;
+    if (multi) setDraft("");
     const id = setTimeout(() => {
       inputRef.current?.focus();
-      inputRef.current?.select();
+      if (!multi) inputRef.current?.select();
     }, 0);
     return () => clearTimeout(id);
-  }, [open]);
+  }, [open, multi]);
 
   const openMenu = () => {
     setDraft(value == null ? "" : String(value));
@@ -2120,6 +2137,31 @@ function DropdownChip({ icon: Icon, label, emptyHint, help, value, options, onCh
     }
     onChange(numeric ? (v === "" ? "" : Number(v)) : v);
     setOpen(false);
+  };
+
+  // Multi-select handlers: toggle an option in the joined list without
+  // closing the menu, and add a typed custom value to the list.
+  const currentMulti = multi ? splitMulti(value) : [];
+  const toggleMulti = (opt) => {
+    const next = currentMulti.includes(opt)
+      ? currentMulti.filter((x) => x !== opt)
+      : [...currentMulti, opt];
+    onChange(joinMulti(next));
+    setDraft(""); // ready to filter / add the next
+  };
+  const clearMulti = () => {
+    onChange("");
+    setDraft("");
+  };
+  const addCustomMulti = (raw) => {
+    const v = String(raw || "").trim();
+    if (!v) return;
+    if (currentMulti.some((x) => x.toLowerCase() === v.toLowerCase())) {
+      setDraft("");
+      return;
+    }
+    onChange(joinMulti([...currentMulti, v]));
+    setDraft("");
   };
 
   const filteredOptions = useMemo(() => {
@@ -2202,6 +2244,13 @@ function DropdownChip({ icon: Icon, label, emptyHint, help, value, options, onCh
       ) : (
         <div className={cardClass}>
           {header}
+          {/* Multi mode: show the joined picks above the input as a
+              hint so the teacher always sees what's selected. */}
+          {multi && currentMulti.length > 0 && (
+            <div className="text-sm text-ink font-medium leading-tight truncate mb-1">
+              {joinMulti(currentMulti)}
+            </div>
+          )}
           <input
             ref={inputRef}
             type="text"
@@ -2209,11 +2258,21 @@ function DropdownChip({ icon: Icon, label, emptyHint, help, value, options, onCh
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === "Enter") { e.preventDefault(); commit(draft); }
-              else if (e.key === "Escape") { e.preventDefault(); setOpen(false); }
+              if (e.key === "Enter") {
+                e.preventDefault();
+                if (multi) addCustomMulti(draft);
+                else commit(draft);
+              } else if (e.key === "Escape") {
+                e.preventDefault();
+                setOpen(false);
+              }
             }}
-            placeholder={emptyHint || "Type or pick…"}
-            className="w-full bg-transparent outline-none text-sm text-ink font-medium leading-tight placeholder:text-muted placeholder:italic placeholder:font-normal"
+            placeholder={
+              multi
+                ? currentMulti.length > 0 ? "Add another…" : (emptyHint || "Pick or type…")
+                : (emptyHint || "Pick or type…")
+            }
+            className="w-full bg-transparent outline-none text-sm text-ink leading-tight placeholder:text-muted placeholder:italic placeholder:font-normal"
           />
         </div>
       )}
@@ -2225,8 +2284,13 @@ function DropdownChip({ icon: Icon, label, emptyHint, help, value, options, onCh
           options={filteredOptions}
           allOptions={options}
           suffix={suffix}
+          multi={multi}
+          currentMulti={currentMulti}
           onPick={commit}
-          onClose={() => commit(draft)}
+          onToggle={toggleMulti}
+          onClear={clearMulti}
+          onAddCustom={addCustomMulti}
+          onClose={() => (multi ? setOpen(false) : commit(draft))}
         />
       )}
     </span>
@@ -2234,15 +2298,28 @@ function DropdownChip({ icon: Icon, label, emptyHint, help, value, options, onCh
 }
 
 // Filtered menu that opens under a DropdownChip. Shows three regions:
-//   1. "Use \"<draft>\" (custom)" — only when the draft text doesn't
-//      match any preset; lets the teacher commit a free-form value.
+//   1. "Use \"<draft>\" (custom)" — when the draft text doesn't match
+//      any preset; lets the teacher commit (single) or append (multi)
+//      a free-form value.
 //   2. "Any — let Mudir choose" — clears the field.
 //   3. The filtered preset options.
-function ComboboxMenu({ value, draft, options, allOptions, suffix, onPick, onClose }) {
+// In multi mode, clicking an option toggles it in the joined value
+// without closing the menu; "Done" at the bottom closes.
+function ComboboxMenu({
+  value, draft, options, allOptions, suffix,
+  onPick, onClose,
+  multi, currentMulti = [], onToggle, onClear, onAddCustom,
+}) {
   const trimmed = String(draft || "").trim();
   const isCustom =
     trimmed.length > 0 &&
     !allOptions.some((o) => String(o).toLowerCase() === trimmed.toLowerCase());
+  const isSelected = (opt) =>
+    multi
+      ? currentMulti.some((x) => String(x).toLowerCase() === String(opt).toLowerCase())
+      : String(opt) === String(value);
+  const noneSelected = multi ? currentMulti.length === 0 : !value;
+
   return (
     <>
       <button
@@ -2262,11 +2339,12 @@ function ComboboxMenu({ value, draft, options, allOptions, suffix, onPick, onClo
               <li>
                 <button
                   type="button"
-                  onClick={() => onPick(trimmed)}
+                  onClick={() => multi ? onAddCustom(trimmed) : onPick(trimmed)}
                   className="w-full flex items-center justify-between gap-3 px-3 py-2 text-left text-sm text-ink hover:bg-paper-warm/60"
                 >
                   <span className="truncate">
-                    Use <span className="font-medium">&ldquo;{trimmed}&rdquo;</span>
+                    {multi ? "Add " : "Use "}
+                    <span className="font-medium">&ldquo;{trimmed}&rdquo;</span>
                     <span className="text-muted ml-1.5 text-[11px] italic">custom</span>
                   </span>
                   <Plus size={13} className="text-accent flex-shrink-0" />
@@ -2279,15 +2357,17 @@ function ComboboxMenu({ value, draft, options, allOptions, suffix, onPick, onClo
           <li>
             <button
               type="button"
-              onClick={() => onPick("")}
+              onClick={() => multi ? onClear() : onPick("")}
               className={`w-full flex items-center justify-between gap-3 px-3 py-2 text-left text-sm transition-colors duration-100 ${
-                !value
+                noneSelected
                   ? "bg-paper-warm text-ink font-medium"
                   : "text-ink-soft hover:bg-paper-warm/60"
               }`}
             >
-              <span className="italic">Any — let Mudir choose</span>
-              {!value && <Check size={13} className="text-accent" />}
+              <span className="italic">
+                {multi ? "Clear all — let Mudir choose" : "Any — let Mudir choose"}
+              </span>
+              {noneSelected && <Check size={13} className="text-accent" />}
             </button>
           </li>
           <li className="border-t border-line/60 my-1" />
@@ -2297,30 +2377,57 @@ function ComboboxMenu({ value, draft, options, allOptions, suffix, onPick, onClo
           )}
 
           {options.map((opt) => {
-            const isActive = String(opt) === String(value);
+            const isActive = isSelected(opt);
             return (
               <li key={opt}>
                 <button
                   type="button"
                   role="option"
                   aria-selected={isActive}
-                  onClick={() => onPick(opt)}
+                  onClick={() => (multi ? onToggle(opt) : onPick(opt))}
                   className={`w-full flex items-center justify-between gap-3 px-3 py-2 text-left text-sm transition-colors duration-100 ${
                     isActive
                       ? "bg-paper-warm text-ink font-medium"
                       : "text-ink hover:bg-paper-warm/60"
                   }`}
                 >
-                  <span>
-                    {opt}
-                    {suffix && <span className="text-muted ml-1">{suffix}</span>}
+                  <span className="inline-flex items-center gap-2">
+                    {multi && (
+                      <span className={`inline-flex items-center justify-center h-4 w-4 rounded border ${
+                        isActive
+                          ? "bg-accent border-accent text-paper-cool"
+                          : "border-line bg-paper"
+                      }`}>
+                        {isActive && <Check size={10} strokeWidth={3} />}
+                      </span>
+                    )}
+                    <span>
+                      {opt}
+                      {suffix && <span className="text-muted ml-1">{suffix}</span>}
+                    </span>
                   </span>
-                  {isActive && <Check size={13} className="text-accent" />}
+                  {!multi && isActive && <Check size={13} className="text-accent" />}
                 </button>
               </li>
             );
           })}
         </ul>
+        {multi && (
+          <div className="border-t border-line/60 px-2 py-2 flex items-center justify-between gap-2 bg-paper">
+            <span className="font-serif italic text-xs text-muted px-1">
+              {currentMulti.length === 0
+                ? "Click to pick — multiple allowed"
+                : `${currentMulti.length} selected`}
+            </span>
+            <button
+              type="button"
+              onClick={onClose}
+              className="font-mono text-[10px] uppercase tracking-[0.12em] text-ink hover:text-accent px-2 py-1"
+            >
+              Done
+            </button>
+          </div>
+        )}
       </div>
     </>
   );
