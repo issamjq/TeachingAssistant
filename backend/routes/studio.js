@@ -6,6 +6,52 @@ import { loadCurrentTeacher } from "../lib/currentTeacher.js";
 
 const router = Router();
 
+// Build the user-turn `content` array. If the request includes an
+// attachment, prepend an Anthropic image or document block so the model
+// can see/read it; otherwise we send a plain string (cheaper, identical
+// caching behaviour).
+//
+// `attachment` shape from the frontend:
+//   { name, mediaType: "image/png" | "application/pdf" | …, dataBase64 }
+//
+// Hard caps here (in addition to express.json's 10mb gate):
+//   - allowed media types: image/png, image/jpeg, image/webp, image/gif,
+//     application/pdf
+//   - base64 payload <= 7,500,000 chars (~5.5 MB after decode)
+const ALLOWED_ATTACHMENT_TYPES = new Set([
+  "image/png", "image/jpeg", "image/webp", "image/gif",
+  "application/pdf",
+]);
+
+const buildUserContent = (text, attachment) => {
+  if (!attachment || !attachment.dataBase64) return text;
+  if (!ALLOWED_ATTACHMENT_TYPES.has(attachment.mediaType)) {
+    throw Object.assign(
+      new Error(`Attachment type "${attachment.mediaType}" isn't supported.`),
+      { code: "ATTACHMENT_TYPE" }
+    );
+  }
+  if (attachment.dataBase64.length > 7_500_000) {
+    throw Object.assign(
+      new Error("Attachment is too large. Max ~5.5 MB after upload."),
+      { code: "ATTACHMENT_SIZE" }
+    );
+  }
+  const block = attachment.mediaType === "application/pdf"
+    ? {
+        type: "document",
+        source: { type: "base64", media_type: "application/pdf", data: attachment.dataBase64 },
+      }
+    : {
+        type: "image",
+        source: { type: "base64", media_type: attachment.mediaType, data: attachment.dataBase64 },
+      };
+  return [
+    block,
+    { type: "text", text },
+  ];
+};
+
 // Single, stable system prompt across every generation kind. Stable bytes →
 // the Anthropic prompt-cache prefix matches across calls (subject to the
 // model's minimum-prefix size). The user message carries the variable parts
@@ -135,7 +181,7 @@ router.post("/generate", async (req, res) => {
       });
     }
 
-    const { prompt, kind } = req.body || {};
+    const { prompt, kind, attachment } = req.body || {};
     if (!prompt || !String(prompt).trim()) {
       return res.status(400).json({ error: "Prompt is required" });
     }
@@ -150,7 +196,15 @@ router.post("/generate", async (req, res) => {
     const userMessage =
       `KIND: ${k.toUpperCase()}\n` +
       `TEACHER CONTEXT: ${cur ? `id=${cur.id}, grades=${(cur.grade_levels || []).join(", ")}` : "none"}\n` +
+      `${attachment ? `\nNOTE: An attachment has been provided. Treat it as primary source material — base the output on what's in it.\n` : ""}` +
       `\nPROMPT:\n${String(prompt).trim()}`;
+
+    let userContent;
+    try {
+      userContent = buildUserContent(userMessage, attachment);
+    } catch (e) {
+      return res.status(400).json({ error: e.message });
+    }
 
     const client = new Anthropic();
 
@@ -166,7 +220,7 @@ router.post("/generate", async (req, res) => {
       system: [
         { type: "text", text: SYSTEM_PROMPT, cache_control: { type: "ephemeral" } },
       ],
-      messages: [{ role: "user", content: userMessage }],
+      messages: [{ role: "user", content: userContent }],
     });
 
     res.setHeader("Content-Type", "text/event-stream; charset=utf-8");
@@ -297,7 +351,7 @@ router.post("/quiz", async (req, res) => {
       });
     }
 
-    const { prompt, params } = req.body || {};
+    const { prompt, params, attachment } = req.body || {};
     if (!prompt || !String(prompt).trim()) {
       return res.status(400).json({ error: "Prompt is required" });
     }
@@ -347,8 +401,16 @@ router.post("/quiz", async (req, res) => {
       `KIND: QUIZ\n` +
       `TEACHER CONTEXT: ${cur ? `id=${cur.id}, grades=${(cur.grade_levels || []).join(", ")}` : "none"}\n\n` +
       settingsBlock +
+      `${attachment ? `ATTACHMENT: A file is provided. Base the quiz questions on the content of the attachment (textbook page, worksheet, exam paper, etc.). Use the prompt as additional guidance.\n\n` : ""}` +
       `PROMPT:\n${String(prompt).trim()}\n\n` +
       `Use the submit_quiz tool. Do not return prose.`;
+
+    let userContent;
+    try {
+      userContent = buildUserContent(userMessage, attachment);
+    } catch (e) {
+      return res.status(400).json({ error: e.message });
+    }
 
     const client = new Anthropic();
 
@@ -361,7 +423,7 @@ router.post("/quiz", async (req, res) => {
       ],
       tools: [QUIZ_TOOL],
       tool_choice: { type: "tool", name: "submit_quiz" },
-      messages: [{ role: "user", content: userMessage }],
+      messages: [{ role: "user", content: userContent }],
     });
 
     res.setHeader("Content-Type", "text/event-stream; charset=utf-8");

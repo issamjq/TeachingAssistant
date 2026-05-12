@@ -39,7 +39,10 @@ export function buildApp() {
     })
   );
 
-  app.use(express.json({ limit: "1mb" }));
+  // 10mb fits ~7mb of base64-encoded payload (the inflation factor is
+  // ~1.33×), enough for a quiz prompt + a single image or short PDF
+  // attachment. Larger uploads are rejected at the route level.
+  app.use(express.json({ limit: "10mb" }));
 
   app.get("/healthz", (_req, res) => res.json({ ok: true }));
 

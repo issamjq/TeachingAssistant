@@ -247,6 +247,13 @@ export default function Studio() {
   // Every field is optional — left as "" / null the AI infers from prose.
   // Only surfaced when kind === "quiz".
   const [quizParams, setQuizParams] = useState(QUIZ_PARAMS_DEFAULTS);
+  // Optional file attachment (image or PDF) — base64-encoded, sent
+  // alongside the prompt so the AI can read a textbook page, photo of
+  // the board, scanned exam, etc., and base the output on it.
+  //   shape: { name, mediaType, dataBase64, sizeBytes }  | null
+  const [attachment, setAttachment] = useState(null);
+  const [attachError, setAttachError] = useState(null);
+  const fileInputRef = useRef(null);
   const [result, setResult] = useState(null);
   // Sections are the editable per-card breakdown of the result. They start
   // as the parsed structure of streamingText and are then mutated as the
@@ -378,12 +385,61 @@ export default function Studio() {
     setStreamingText("");
     setQuizPartial("");
     setQuizParams(QUIZ_PARAMS_DEFAULTS);
+    setAttachment(null);
+    setAttachError(null);
     setResult(null);
     setSections([]);
     setError(null);
     setSavedDraftId(null);
     setPendingAnswerConfirm(null);
     setTweak("");
+  };
+
+  // Read a selected file into base64 and stash it in `attachment`. Capped
+  // at 4 MB before encoding so the resulting JSON stays under the 10 MB
+  // express body limit.
+  const ALLOWED_ATTACH_MIME = new Set([
+    "image/png", "image/jpeg", "image/webp", "image/gif",
+    "application/pdf",
+  ]);
+  const MAX_ATTACH_BYTES = 4 * 1024 * 1024;
+
+  const onPickFile = (e) => {
+    setAttachError(null);
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!ALLOWED_ATTACH_MIME.has(file.type)) {
+      setAttachError(`Type "${file.type || "unknown"}" isn't supported. Use a PNG, JPEG, WebP, GIF, or PDF.`);
+      e.target.value = "";
+      return;
+    }
+    if (file.size > MAX_ATTACH_BYTES) {
+      setAttachError(`That file is ${(file.size / 1024 / 1024).toFixed(1)} MB. Cap is 4 MB for now.`);
+      e.target.value = "";
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = String(reader.result || "");
+      const comma = result.indexOf(",");
+      const dataBase64 = comma >= 0 ? result.slice(comma + 1) : "";
+      setAttachment({
+        name: file.name,
+        mediaType: file.type,
+        sizeBytes: file.size,
+        dataBase64,
+      });
+    };
+    reader.onerror = () => {
+      setAttachError("Could not read that file.");
+    };
+    reader.readAsDataURL(file);
+    e.target.value = ""; // allow re-selecting the same file later
+  };
+
+  const clearAttachment = () => {
+    setAttachment(null);
+    setAttachError(null);
   };
 
   // Consume the SSE stream from the studio endpoint. For kind=quiz we hit
@@ -400,8 +456,8 @@ export default function Studio() {
     const isQuiz = kind === "quiz";
     try {
       const body = isQuiz
-        ? { kind, prompt: prompt.trim(), params: quizParams }
-        : { kind, prompt: prompt.trim() };
+        ? { kind, prompt: prompt.trim(), params: quizParams, attachment }
+        : { kind, prompt: prompt.trim(), attachment };
       const res = await fetch(API_BASE + (isQuiz ? "/api/studio/quiz" : "/api/studio/generate"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1147,6 +1203,10 @@ export default function Studio() {
           </div>
         </Card>
 
+        {result?.usage && (
+          <CostFooter usage={result.usage} hadAttachment={Boolean(attachment)} />
+        )}
+
         {/* Tweak input bar — sticky at the bottom of the viewport so the
             teacher always sees it once generation starts. Hidden for
             structured quizzes (post-save editing happens in the QuizBuilder).
@@ -1306,14 +1366,34 @@ export default function Studio() {
         />
         <div className="border-t border-line px-3 py-2.5 flex items-center justify-between gap-3 flex-wrap">
           <div className="flex items-center gap-2 flex-wrap">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/png,image/jpeg,image/webp,image/gif,application/pdf"
+              onChange={onPickFile}
+              className="hidden"
+            />
             <button
               type="button"
-              title="Attach file (coming soon)"
-              className="h-8 w-8 rounded-full border border-line bg-paper-cool hover:border-ink hover:bg-paper-warm flex items-center justify-center text-ink-soft transition-colors duration-200"
+              onClick={() => fileInputRef.current?.click()}
+              title="Attach an image or PDF — Mudir will base the output on it"
+              className={`h-8 w-8 rounded-full border flex items-center justify-center transition-colors duration-200 ${
+                attachment
+                  ? "border-accent bg-accent/[0.06] text-accent"
+                  : "border-line bg-paper-cool hover:border-ink hover:bg-paper-warm text-ink-soft"
+              }`}
             >
               <Paperclip size={14} />
             </button>
-            {kind !== "quiz" && <ParamChip>{active?.oneliner}</ParamChip>}
+            {attachment && (
+              <AttachmentChip
+                file={attachment}
+                onRemove={clearAttachment}
+              />
+            )}
+            {!attachment && kind !== "quiz" && (
+              <ParamChip>{active?.oneliner}</ParamChip>
+            )}
           </div>
           <div className="flex items-center gap-3">
             <p className="hidden sm:block text-xs text-muted italic">Mudir will fill the rest</p>
@@ -1329,6 +1409,12 @@ export default function Studio() {
           </div>
         </div>
       </div>
+
+      {attachError && (
+        <p className="mt-2 text-[11px] text-accent leading-relaxed">
+          {attachError}
+        </p>
+      )}
 
       {/* Suggestions */}
       {suggestions.length > 0 && (
@@ -1379,6 +1465,75 @@ function ActionChip({ children, onClick, disabled, title }) {
     >
       {children}
     </button>
+  );
+}
+
+// Tiny cost-summary line shown under the result card after a generation
+// completes. Prices below are claude-haiku-4-5 list rates ($1/M input,
+// $5/M output) and ignore prompt-caching discounts — so this is the
+// upper-bound retail cost per generation. Cache hits make it cheaper.
+const HAIKU_INPUT_PER_MTOK_USD = 1.0;
+const HAIKU_OUTPUT_PER_MTOK_USD = 5.0;
+
+function CostFooter({ usage, hadAttachment }) {
+  const inTok = usage.input_tokens ?? 0;
+  const outTok = usage.output_tokens ?? 0;
+  const cachedIn = usage.cache_read_input_tokens ?? 0;
+  const cost =
+    (inTok * HAIKU_INPUT_PER_MTOK_USD + outTok * HAIKU_OUTPUT_PER_MTOK_USD) / 1_000_000;
+  const fmtUsd = (x) => x < 0.01 ? "<$0.01" : `$${x.toFixed(3)}`;
+  const fmtTok = (n) => n.toLocaleString();
+  return (
+    <div className="mt-3 flex items-center justify-end gap-2.5 text-[11px] text-muted flex-wrap print:hidden">
+      <span className="font-mono uppercase tracking-[0.14em] text-muted/80">Cost</span>
+      <span className="text-line">·</span>
+      <span><span className="text-ink">{fmtTok(inTok)}</span> in</span>
+      <span className="text-line">·</span>
+      <span><span className="text-ink">{fmtTok(outTok)}</span> out</span>
+      {cachedIn > 0 && (
+        <>
+          <span className="text-line">·</span>
+          <span className="text-sage">{fmtTok(cachedIn)} cached</span>
+        </>
+      )}
+      {hadAttachment && (
+        <>
+          <span className="text-line">·</span>
+          <span className="text-accent">w/ attachment</span>
+        </>
+      )}
+      <span className="text-line">·</span>
+      <span className="text-ink font-medium">{fmtUsd(cost)}</span>
+    </div>
+  );
+}
+
+// Small chip showing the currently-attached file (image or PDF) next to
+// the paperclip. Click × to clear. Sized to one line, truncates the
+// filename if it's long. The file goes to the AI as base64; the chip
+// is the only visual cue that an attachment is included in the request.
+function AttachmentChip({ file, onRemove }) {
+  const sizeKb = Math.max(1, Math.round(file.sizeBytes / 1024));
+  const sizeLabel = sizeKb >= 1024
+    ? `${(sizeKb / 1024).toFixed(1)} MB`
+    : `${sizeKb} KB`;
+  const isPdf = file.mediaType === "application/pdf";
+  return (
+    <span className="inline-flex items-center gap-1.5 max-w-[18rem] px-2.5 py-1 rounded-full border border-accent/40 bg-accent/[0.06] text-[11px] text-ink">
+      {isPdf
+        ? <FileText size={12} className="flex-shrink-0 text-accent" />
+        : <Paperclip size={11} className="flex-shrink-0 text-accent" />}
+      <span className="truncate font-medium" title={file.name}>{file.name}</span>
+      <span className="flex-shrink-0 text-muted">· {sizeLabel}</span>
+      <button
+        type="button"
+        onClick={onRemove}
+        title="Remove attachment"
+        className="flex-shrink-0 ml-0.5 h-4 w-4 inline-flex items-center justify-center rounded-full hover:bg-accent/15 text-accent"
+      >
+        <X size={11} strokeWidth={2} />
+      </button>
+    </span>
   );
 }
 
