@@ -233,9 +233,7 @@
   margin: 0 12px 18px;
   padding: 14px 14px 14px 14px;
   border-radius: 18px;
-  background:
-    radial-gradient(ellipse at top right, rgba(200, 71, 43, 0.18), transparent 65%),
-    var(--color-ink);
+  background: var(--color-ink);
   color: var(--color-paper-cool);
   display: flex;
   align-items: center;
@@ -246,12 +244,59 @@
   text-align: left;
   position: relative;
   overflow: hidden;
+  isolation: isolate;
   box-shadow:
     0 12px 28px rgba(15, 20, 16, 0.20),
     0 2px 6px rgba(15, 20, 16, 0.10);
   transition: transform 280ms cubic-bezier(0.22, 1, 0.36, 1),
               box-shadow 280ms ease;
   animation: mudir-studio-launcher-in 640ms cubic-bezier(0.16, 1, 0.3, 1) 220ms both;
+}
+
+/* Animated aurora layer behind the content. Three soft accent blobs in
+   Mudir's warm palette (accent red, accent-soft, gold) drift, scale,
+   and rotate together on a 14s loop. The whole layer sits at z-index 0
+   while the content children stack above naturally; isolation: isolate
+   on the parent keeps the blur from leaking into the rest of the
+   sidebar. */
+.mudir-studio-launcher::before {
+  content: "";
+  position: absolute;
+  inset: -20%;
+  z-index: 0;
+  background:
+    radial-gradient(circle at 22% 28%, rgba(200, 71, 43, 0.55), transparent 32%),
+    radial-gradient(circle at 78% 70%, rgba(184, 137, 61, 0.40), transparent 36%),
+    radial-gradient(circle at 50% 95%, rgba(232, 122, 85, 0.30), transparent 32%);
+  filter: blur(14px);
+  pointer-events: none;
+  animation: mudir-studio-aurora 14s ease-in-out infinite;
+}
+.mudir-studio-launcher:hover::before {
+  animation-duration: 9s;
+}
+
+@keyframes mudir-studio-aurora {
+  0%, 100% {
+    transform: translate(0, 0) scale(1) rotate(0deg);
+  }
+  25% {
+    transform: translate(-6%, 4%) scale(1.08) rotate(6deg);
+  }
+  50% {
+    transform: translate(4%, -3%) scale(1.04) rotate(-4deg);
+  }
+  75% {
+    transform: translate(6%, 3%) scale(0.96) rotate(8deg);
+  }
+}
+
+/* Make sure the inner pieces float above the aurora. */
+.mudir-studio-launcher-icon,
+.mudir-studio-launcher-text,
+.mudir-studio-launcher-arrow {
+  position: relative;
+  z-index: 2;
 }
 .mudir-studio-launcher:hover {
   transform: translateY(-2px);
@@ -271,17 +316,19 @@
   to   { opacity: 1; transform: translateY(0) scale(1); }
 }
 
-/* Tiny ambient sheen sweeping across the card — only on hover, slow,
-   so it reads as "alive" rather than glittery. */
+/* Sheen sweep — sits between the aurora (z-index 0) and the content
+   (z-index 2). On hover it sweeps left → right over the card so the
+   teacher gets clear feedback that the button responded. */
 .mudir-studio-launcher::after {
   content: "";
   position: absolute;
   top: 0; bottom: 0; left: -40%;
   width: 40%;
+  z-index: 1;
   background: linear-gradient(
     100deg,
     transparent 0%,
-    rgba(255, 255, 255, 0.06) 50%,
+    rgba(255, 255, 255, 0.08) 50%,
     transparent 100%
   );
   transform: skewX(-12deg);
@@ -520,6 +567,7 @@
   .mudir-sidebar-account,
   .mudir-sidebar-item::before,
   .mudir-studio-launcher,
+  .mudir-studio-launcher::before,
   .mudir-studio-launcher::after,
   .mudir-studio-launcher-icon,
   .mudir-studio-launcher-arrow {
