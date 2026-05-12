@@ -408,20 +408,27 @@ router.post("/quiz", async (req, res) => {
       if (params.types) {
         // "Identification" is the teacher-facing word for short-answer
         // recall — translate it to the underlying type code so the model
-        // doesn't get confused. Hard constraint, not a suggestion.
+        // doesn't get confused. Hard constraint, not a suggestion. Essay
+        // is never used by these presets; only mcq / short / tf.
         const mix = String(params.types);
-        let rule;
-        if (mix === "MCQ only") {
-          rule = `Every question MUST use type="mcq" (4 choices A–D, one correct letter). No other types are allowed.`;
-        } else if (mix === "Identification only") {
-          rule = `Every question MUST use type="short" (short-answer / identification — one or two word expected answer). No multiple choice, no True/False, no essays.`;
-        } else if (mix === "MCQ + Identification") {
-          rule = `Use ONLY type="mcq" and type="short". Mix them roughly evenly. No True/False, no essays.`;
-        } else if (mix === "Mixed (incl. True/False)") {
-          rule = `Mix question types freely — mcq, short, tf, and (sparingly) essay. Aim for variety: don't put more than 3 of the same type in a row.`;
-        } else {
-          rule = `Teacher requested: "${mix}". Honour it as a constraint on which question types to produce.`;
-        }
+        const MIX_RULES = {
+          "MCQ only":
+            `Every question MUST use type="mcq" (4 choices A–D, one correct letter). No other types are allowed.`,
+          "Identification only":
+            `Every question MUST use type="short" (short-answer / identification — one or two word expected answer). No multiple choice, no True/False, no essays.`,
+          "True/False only":
+            `Every question MUST use type="tf" with choices=["True","False"] and a boolean correct_answer. No other types are allowed.`,
+          "MCQ + Identification":
+            `Use ONLY type="mcq" and type="short". Mix them roughly evenly across the quiz. No True/False, no essays.`,
+          "MCQ + True/False":
+            `Use ONLY type="mcq" and type="tf". Mix them roughly evenly across the quiz. No identification / short answer, no essays.`,
+          "Identification + True/False":
+            `Use ONLY type="short" and type="tf". Mix them roughly evenly across the quiz. No multiple choice, no essays.`,
+          "All three (MCQ + Identification + True/False)":
+            `Use mcq, short, AND tf — each type must appear at least once. Distribute them so no type dominates. Do not use essays.`,
+        };
+        const rule = MIX_RULES[mix]
+          || `Teacher requested: "${mix}". Honour it as a constraint on which question types to produce.`;
         settingsLines.push(`- Question types: ${mix}. ${rule}`);
       }
     }
