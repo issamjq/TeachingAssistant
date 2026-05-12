@@ -405,6 +405,25 @@ router.post("/quiz", async (req, res) => {
       if (params.difficulty) {
         settingsLines.push(`- Difficulty: ${params.difficulty}`);
       }
+      if (params.types) {
+        // "Identification" is the teacher-facing word for short-answer
+        // recall — translate it to the underlying type code so the model
+        // doesn't get confused. Hard constraint, not a suggestion.
+        const mix = String(params.types);
+        let rule;
+        if (mix === "MCQ only") {
+          rule = `Every question MUST use type="mcq" (4 choices A–D, one correct letter). No other types are allowed.`;
+        } else if (mix === "Identification only") {
+          rule = `Every question MUST use type="short" (short-answer / identification — one or two word expected answer). No multiple choice, no True/False, no essays.`;
+        } else if (mix === "MCQ + Identification") {
+          rule = `Use ONLY type="mcq" and type="short". Mix them roughly evenly. No True/False, no essays.`;
+        } else if (mix === "Mixed (incl. True/False)") {
+          rule = `Mix question types freely — mcq, short, tf, and (sparingly) essay. Aim for variety: don't put more than 3 of the same type in a row.`;
+        } else {
+          rule = `Teacher requested: "${mix}". Honour it as a constraint on which question types to produce.`;
+        }
+        settingsLines.push(`- Question types: ${mix}. ${rule}`);
+      }
     }
     const settingsBlock = settingsLines.length
       ? `SETTINGS (teacher pre-set — honour these):\n${settingsLines.join("\n")}\n\n` +

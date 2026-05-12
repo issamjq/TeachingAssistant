@@ -40,6 +40,18 @@ export const QUIZ_DURATIONS = [10, 15, 20, 30, 45, 60, 90];
 
 export const QUIZ_DIFFICULTIES = ["Easy", "Medium", "Hard"];
 
+// Question-type mix for the AI to honour. "Auto" lets Mudir choose; the
+// others are hard constraints (e.g. "MCQ only" → every question must be
+// multiple choice). "Identification" is the everyday name for short-answer
+// recall questions — we keep that wording in the UI but the AI prompt
+// translates it to the underlying type code (short/mcq/tf/essay).
+export const QUIZ_QUESTION_MIXES = [
+  "MCQ only",
+  "Identification only",
+  "MCQ + Identification",
+  "Mixed (incl. True/False)",
+];
+
 // Output language for the generated quiz. The AI returns the full quiz —
 // title, prompts, choices, answer key — in this language. English head,
 // regional languages first, then other commonly-taught languages. Teachers

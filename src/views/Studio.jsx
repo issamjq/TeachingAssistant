@@ -4,7 +4,7 @@ import {
   Sparkles, FileText, ClipboardList, GraduationCap,
   Layers, Users, Calendar, Save, Copy, Check, X, RotateCcw, FileDown,
   Send, Paperclip, Plus, Wand2, RefreshCw, Zap, Dices, ChevronDown,
-  BookOpen, Gauge, Hash, Clock, Globe, HelpCircle,
+  BookOpen, Gauge, Hash, Clock, Globe, HelpCircle, ListChecks,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -14,7 +14,7 @@ import StudioCard from "./StudioCard";
 import {
   GRADE_LEVELS, MAJORS,
   QUIZ_QUESTION_COUNTS, QUIZ_DURATIONS, QUIZ_DIFFICULTIES,
-  QUIZ_LANGUAGES, QUIZ_SECTIONS,
+  QUIZ_LANGUAGES, QUIZ_SECTIONS, QUIZ_QUESTION_MIXES,
 } from "../lib/enums";
 
 // Same base URL the rest of the app uses (Vercel rewrites /api → Render in
@@ -132,6 +132,7 @@ const QUIZ_PARAMS_DEFAULTS = {
   questions: "",   // from QUIZ_QUESTION_COUNTS
   duration: "",    // from QUIZ_DURATIONS (minutes)
   difficulty: "",  // from QUIZ_DIFFICULTIES
+  types: "",       // from QUIZ_QUESTION_MIXES — which question types to include
 };
 
 // "Or try" pool — directive prompts. Expanded so we can shuffle 3 random
@@ -374,6 +375,13 @@ export default function Studio() {
   const currentSection = sections[sectionIndex];
   const currentLetter = sectionIndex >= 0 ? String.fromCharCode(65 + sectionIndex) : "";
   const tweakBusy = !!currentSection?.regenerating;
+  // True while ANY section is being tweaked — including a "whole quiz"
+  // rewrite where every section is flagged at once, OR a "this question"
+  // rewrite when the teacher has navigated away from the busy section.
+  // We use this to lock down sidebar nav, prev/next, and inline edits so
+  // the teacher can't race the AI mid-stream.
+  const quizScopeBusy =
+    result?.kind === "quiz" && sections.some((s) => s.regenerating);
 
   // First H1/H2 in the joined doc — used as the result-view subtitle.
   // For the quiz path the title is a typed field; prefer that over any
@@ -696,9 +704,13 @@ export default function Studio() {
         }
         return;
       }
-      if (e.key === "ArrowLeft" && !inField && sections.length > 1) {
+      // Lock arrow nav while a tweak is in flight so the teacher can't race
+      // a question rewrite by skipping past it.
+      const navLocked =
+        result?.kind === "quiz" && sections.some((s) => s.regenerating);
+      if (e.key === "ArrowLeft" && !inField && sections.length > 1 && !navLocked) {
         setSectionIndex((i) => Math.max(0, i - 1));
-      } else if (e.key === "ArrowRight" && !inField && sections.length > 1) {
+      } else if (e.key === "ArrowRight" && !inField && sections.length > 1 && !navLocked) {
         setSectionIndex((i) => Math.min(sections.length - 1, i + 1));
       } else if ((e.key === "k" || e.key === "K") && !inField && sections.length === 0 && !busy) {
         e.preventDefault();
@@ -707,7 +719,7 @@ export default function Studio() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [sections.length, pickerOpen, busy, cursor, kind]);
+  }, [sections, sections.length, pickerOpen, busy, cursor, kind, result?.kind]);
 
   // Reset / clamp the visible section index whenever sections change.
   useEffect(() => {
@@ -1246,12 +1258,17 @@ export default function Studio() {
                         <button
                           key={s.id}
                           onClick={() => setSectionIndex(i)}
-                          title={s.title}
+                          title={
+                            quizScopeBusy
+                              ? "Mudir is rewriting — please wait."
+                              : s.title
+                          }
+                          disabled={quizScopeBusy}
                           className={`group flex-shrink-0 md:flex-shrink md:w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg border text-left transition-all duration-200 ${
                             isActive
                               ? "border-ink bg-paper-cool shadow-sm"
                               : "border-transparent hover:border-line hover:bg-paper-cool/60"
-                          }`}
+                          } ${quizScopeBusy && !isActive ? "opacity-50 cursor-not-allowed" : ""}`}
                         >
                           <span
                             className={`flex-shrink-0 h-7 w-7 rounded-md font-mono text-[11px] uppercase tracking-wider flex items-center justify-center transition-colors duration-200 ${
@@ -1267,7 +1284,9 @@ export default function Studio() {
                               {s.title || `Part ${letter}`}
                             </span>
                           </span>
-                          {s.kind === "quiz_question" && s.question?.marks ? (
+                          {s.regenerating ? (
+                            <span className="h-1.5 w-1.5 rounded-full bg-accent animate-pulse flex-shrink-0" aria-label="Rewriting" />
+                          ) : s.kind === "quiz_question" && s.question?.marks ? (
                             <span className="hidden md:inline-block text-[11px] text-muted font-mono">
                               {s.question.marks}m
                             </span>
@@ -1350,19 +1369,21 @@ export default function Studio() {
 
                     <div
                       key={`${sectionIndex}-${currentSection?.id}`}
-                      className="studio-card-flip-in"
+                      className="studio-card-flip-in relative"
                     >
                       <div className="h-[55vh] overflow-y-auto rounded-md">
                         {currentSection?.kind === "quiz_meta" ? (
                           <QuizMetaCard
                             quiz={result?.quiz}
                             onUpdate={updateQuiz}
+                            disabled={quizScopeBusy}
                           />
                         ) : currentSection?.kind === "quiz_question" ? (
                           <QuizQuestionCard
                             question={currentSection.question}
                             index={sectionIndex - 1}
                             onUpdate={(patch) => updateQuestion(sectionIndex - 1, patch)}
+                            disabled={quizScopeBusy}
                           />
                         ) : (
                           <StudioCard
@@ -1374,6 +1395,21 @@ export default function Studio() {
                           />
                         )}
                       </div>
+                      {quizScopeBusy && (
+                        <div
+                          className="absolute inset-0 rounded-md bg-paper-cool/55 backdrop-blur-[1.5px] flex items-center justify-center z-10 cursor-wait"
+                          aria-live="polite"
+                        >
+                          <div className="bg-paper-cool/95 border border-line shadow-lg rounded-full px-4 py-2 inline-flex items-center gap-2">
+                            <span className="h-1.5 w-1.5 rounded-full bg-accent animate-pulse" />
+                            <span className="font-serif italic text-sm text-ink">
+                              {currentSection?.regenerating
+                                ? "Mudir is rewriting this question…"
+                                : "Mudir is rewriting the quiz…"}
+                            </span>
+                          </div>
+                        </div>
+                      )}
                     </div>
 
                     {/* Section action chips — markdown path only. Editing
@@ -1415,7 +1451,7 @@ export default function Studio() {
                         <button
                           type="button"
                           onClick={() => setSectionIndex((i) => Math.max(0, i - 1))}
-                          disabled={sectionIndex <= 0}
+                          disabled={sectionIndex <= 0 || quizScopeBusy}
                           aria-label="Previous section"
                           className="h-6 w-6 rounded border border-line bg-paper-cool hover:border-ink hover:bg-paper-warm disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center transition-colors duration-150"
                         >
@@ -1424,7 +1460,7 @@ export default function Studio() {
                         <button
                           type="button"
                           onClick={() => setSectionIndex((i) => Math.min(sections.length - 1, i + 1))}
-                          disabled={sectionIndex >= sections.length - 1}
+                          disabled={sectionIndex >= sections.length - 1 || quizScopeBusy}
                           aria-label="Next section"
                           className="h-6 w-6 rounded border border-line bg-paper-cool hover:border-ink hover:bg-paper-warm disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center transition-colors duration-150"
                         >
@@ -1454,6 +1490,29 @@ export default function Studio() {
             Frosted-glass paper so content underneath stays subtly readable
             as you scroll. */}
         <div className="sticky bottom-2 md:bottom-3 z-20 mt-5 print:hidden">
+          {/* Two-line header above the input doubles as a teaching label so a
+              teacher who's never used the bar before knows what it does, and
+              an example line under it shows what kind of instructions land.
+              Without this, the bar reads as a search box. */}
+          <div className="flex items-end justify-between gap-3 px-1 mb-1.5">
+            <div>
+              <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-accent inline-flex items-center gap-1.5">
+                <Sparkles size={11} strokeWidth={1.75} /> Refine with Mudir
+                <HelpTip text="Type a plain-English instruction and Mudir will rewrite. Examples: 'make this harder', 'replace with a word problem', 'translate the whole quiz to Arabic'. Pick This question or Whole quiz on the left to choose the scope." />
+              </p>
+              <p className="font-serif italic text-[11.5px] text-muted leading-tight mt-0.5">
+                {result?.kind === "quiz"
+                  ? "Edit by chatting — Mudir applies your instruction to the picked scope."
+                  : "Edit by chatting — Mudir applies your instruction to the open section."}
+              </p>
+            </div>
+            {quizScopeBusy && (
+              <p className="font-serif italic text-[11.5px] text-accent inline-flex items-center gap-1.5 flex-shrink-0">
+                <span className="h-1.5 w-1.5 rounded-full bg-accent animate-pulse" />
+                Working — please wait
+              </p>
+            )}
+          </div>
           <div
             className={`bg-paper-cool/95 backdrop-blur-md border rounded-2xl pl-4 pr-2 py-2 flex items-center gap-3 shadow-lg transition-all duration-200 ${
               tweak.trim() ? "border-ink" : "border-line"
@@ -1544,8 +1603,8 @@ export default function Studio() {
   // ----- picker view -------------------------------------------------------
 
   return (
-    <div className="max-w-3xl mx-auto pb-8 px-1 sm:px-0">
-      <div className="mb-5 sm:mb-6 md:mb-7">
+    <div className="max-w-3xl mx-auto pb-4 sm:pb-6 px-1 sm:px-0">
+      <div className="mb-3 sm:mb-4">
         <h2 className="font-serif text-3xl sm:text-4xl md:text-5xl font-medium text-ink leading-[1.05] tracking-tight">
           AI <em className="italic font-light text-accent">studio</em>
         </h2>
@@ -1555,7 +1614,7 @@ export default function Studio() {
           itself the picker. Teachers read the sentence, see one phrase
           styled like a tappable mini-card with an icon + chevron, and
           click it to swap the kind. No "spin" jargon needed. */}
-      <div className="flex items-start gap-3 sm:gap-4 mb-6 sm:mb-7">
+      <div className="flex items-start gap-3 sm:gap-4 mb-4 sm:mb-5">
         <div className="flex-shrink-0 h-9 w-9 sm:h-11 sm:w-11 rounded-lg bg-ink text-paper-cool font-serif italic text-base sm:text-lg flex items-center justify-center shadow-sm">
           M
         </div>
@@ -1588,7 +1647,7 @@ export default function Studio() {
           prompts (or quiz titles) for this kind. Clicking restores the
           full prompt into the textarea. */}
       {recents.length > 0 && (
-        <div className="mb-4 flex items-center gap-3 flex-wrap">
+        <div className="mb-3 flex items-center gap-3 flex-wrap">
           <p className="font-serif italic text-base text-muted flex-shrink-0">Recent</p>
           <div className="flex flex-wrap gap-1.5">
             {recents.slice(0, 4).map((r) => (
@@ -1623,7 +1682,7 @@ export default function Studio() {
       {/* Big input card */}
       <div className="bg-paper-cool rounded-2xl border border-line shadow-sm overflow-hidden focus-within:border-ink transition-colors duration-200">
         <textarea
-          rows={4}
+          rows={3}
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
           onKeyDown={(e) => {
@@ -1637,7 +1696,7 @@ export default function Studio() {
               ? "Optional focus — e.g. \"only the formulas\" or \"skip the diagrams\". Leave blank to use the whole file."
               : active?.sample
           }
-          className="w-full bg-transparent outline-none px-5 py-4 text-base text-ink placeholder:text-muted resize-none"
+          className="w-full bg-transparent outline-none px-5 py-3 text-base text-ink placeholder:text-muted resize-none"
         />
         <div className="border-t border-line px-3 py-2.5 flex items-center justify-between gap-3 flex-wrap">
           <div className="flex items-center gap-2 flex-wrap">
@@ -1697,7 +1756,7 @@ export default function Studio() {
 
       {/* Suggestions */}
       {suggestions.length > 0 && (
-        <div className="mt-4 flex items-center gap-3 flex-wrap">
+        <div className="mt-3 flex items-center gap-3 flex-wrap">
           <p className="font-serif italic text-base text-muted flex-shrink-0">
             {attachment ? "Do this with it" : "Or try"}
           </p>
@@ -2103,7 +2162,7 @@ function QuizParamsPanel({ params, onChange, gradeOptions, majorOptions, languag
   const set = (patch) => onChange((prev) => ({ ...prev, ...patch }));
   const setCount = [
     params.grade, params.major, params.language, params.section,
-    params.difficulty, params.questions, params.duration,
+    params.difficulty, params.questions, params.duration, params.types,
   ].filter((v) => v !== "" && v != null).length;
 
   // Move this chip's current value into `targetSlot` and clear ours.
@@ -2118,8 +2177,8 @@ function QuizParamsPanel({ params, onChange, gradeOptions, majorOptions, languag
   };
 
   return (
-    <div className="mb-4 rounded-2xl border border-line bg-paper-warm/40 px-3 sm:px-4 md:px-5 py-3.5 sm:py-4">
-      <div className="flex items-end justify-between gap-3 mb-3">
+    <div className="mb-3 rounded-2xl border border-line bg-paper-warm/40 px-3 sm:px-4 md:px-5 py-2.5 sm:py-3">
+      <div className="flex items-end justify-between gap-3 mb-2.5">
         <div>
           <p className="font-serif italic text-base text-muted mb-0.5">
             Quiz settings
@@ -2130,7 +2189,7 @@ function QuizParamsPanel({ params, onChange, gradeOptions, majorOptions, languag
         </div>
         {setCount > 0 && (
           <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-accent flex-shrink-0">
-            {setCount} of 7 set
+            {setCount} of 8 set
           </p>
         )}
       </div>
@@ -2227,6 +2286,16 @@ function QuizParamsPanel({ params, onChange, gradeOptions, majorOptions, languag
           onMoveTo={(target) => moveTo("duration", target)}
           suffix="min"
           numeric
+        />
+        <DropdownChip
+          icon={ListChecks}
+          label="Types"
+          slot="types"
+          emptyHint="Mudir picks"
+          help="Which question formats Mudir is allowed to use. 'MCQ only' = every question is multiple choice. 'Identification only' = every question is short recall. 'MCQ + Identification' = mix those two. 'Mixed' = anything goes, including True/False."
+          value={params.types}
+          options={QUIZ_QUESTION_MIXES}
+          onChange={(v) => set({ types: v })}
         />
       </div>
     </div>
@@ -2763,7 +2832,7 @@ function LeaveStudioConfirm({ busy, isDirty, savedDraftId, onStay, onLeave }) {
   );
 }
 
-function QuizMetaCard({ quiz, onUpdate }) {
+function QuizMetaCard({ quiz, onUpdate, disabled = false }) {
   if (!quiz) return null;
   const totalQ = (quiz.questions || []).length;
   // The meta chips (Subject, Grade, Language, Section, Difficulty, Duration)
@@ -2779,6 +2848,7 @@ function QuizMetaCard({ quiz, onUpdate }) {
         value={quiz.title || ""}
         onChange={(v) => onUpdate({ title: v })}
         placeholder="Quiz title"
+        disabled={disabled}
         className="font-serif text-2xl md:text-3xl font-medium text-ink leading-tight mb-4 w-full"
       />
       <div className="flex flex-wrap items-baseline gap-x-4 gap-y-2 text-sm text-ink-soft mb-5">
@@ -2807,8 +2877,9 @@ function QuizMetaCard({ quiz, onUpdate }) {
             type="date"
             value={quiz.scheduled_for ? String(quiz.scheduled_for).slice(0, 10) : ""}
             min={todayISO}
+            disabled={disabled}
             onChange={(e) => onUpdate({ scheduled_for: e.target.value || null })}
-            className="bg-paper border border-line rounded-md px-2.5 py-1.5 text-sm text-ink outline-none focus:border-ink focus:bg-paper-cool transition-colors duration-150"
+            className="bg-paper border border-line rounded-md px-2.5 py-1.5 text-sm text-ink outline-none focus:border-ink focus:bg-paper-cool transition-colors duration-150 disabled:opacity-60"
           />
           {quiz.scheduled_for ? (
             <button
@@ -2837,6 +2908,7 @@ function QuizMetaCard({ quiz, onUpdate }) {
           onChange={(v) => onUpdate({ instructions: v })}
           placeholder="Add instructions for students…"
           rows={2}
+          disabled={disabled}
           className="text-sm text-ink-soft leading-relaxed w-full"
         />
       </div>
@@ -2844,7 +2916,7 @@ function QuizMetaCard({ quiz, onUpdate }) {
   );
 }
 
-function QuizQuestionCard({ question, index, onUpdate }) {
+function QuizQuestionCard({ question, index, onUpdate, disabled = false }) {
   const [showAnswer, setShowAnswer] = useState(false);
   if (!question) return null;
   const typeLabel = QUIZ_TYPE_LABELS[question.type] || question.type;
@@ -2855,10 +2927,12 @@ function QuizQuestionCard({ question, index, onUpdate }) {
       : null;
 
   const updateChoice = (i, text) => {
+    if (disabled) return;
     const next = choices.slice();
     next[i] = text;
     onUpdate({ choices: next });
   };
+  const safeUpdate = (patch) => { if (!disabled) onUpdate(patch); };
 
   return (
     <div className="rounded-xl border border-line bg-paper-cool p-5 md:p-6">
@@ -2873,8 +2947,9 @@ function QuizQuestionCard({ question, index, onUpdate }) {
           <span className="font-mono text-[11px] text-muted inline-flex items-center gap-1">
             <EditableNumber
               value={question.marks ?? 1}
-              onChange={(v) => onUpdate({ marks: Math.max(1, Number(v) || 1) })}
+              onChange={(v) => safeUpdate({ marks: Math.max(1, Number(v) || 1) })}
               min={1}
+              disabled={disabled}
               className="w-8 text-right"
             />
             <span>mark{question.marks === 1 ? "" : "s"}</span>
@@ -2884,9 +2959,10 @@ function QuizQuestionCard({ question, index, onUpdate }) {
 
       <EditableTextarea
         value={question.prompt || ""}
-        onChange={(v) => onUpdate({ prompt: v })}
+        onChange={(v) => safeUpdate({ prompt: v })}
         placeholder="Question prompt"
         rows={2}
+        disabled={disabled}
         className="font-serif text-lg md:text-xl text-ink leading-snug mb-4 w-full"
       />
 
@@ -2907,9 +2983,10 @@ function QuizQuestionCard({ question, index, onUpdate }) {
               >
                 <button
                   type="button"
-                  onClick={() => onUpdate({ correct_answer: letter })}
+                  onClick={() => safeUpdate({ correct_answer: letter })}
+                  disabled={disabled}
                   title={isCorrect ? "This is the correct answer" : "Mark as correct"}
-                  className={`flex-shrink-0 h-6 w-6 rounded-md font-mono text-[11px] flex items-center justify-center transition-colors duration-200 ${
+                  className={`flex-shrink-0 h-6 w-6 rounded-md font-mono text-[11px] flex items-center justify-center transition-colors duration-200 disabled:cursor-not-allowed ${
                     isCorrect
                       ? "bg-accent text-paper-cool"
                       : "bg-paper-warm text-ink-soft hover:bg-paper-warm/80 hover:text-ink"
@@ -2921,6 +2998,7 @@ function QuizQuestionCard({ question, index, onUpdate }) {
                   value={c}
                   onChange={(v) => updateChoice(i, v)}
                   placeholder={`Option ${letter}`}
+                  disabled={disabled}
                   className="flex-1 text-sm text-ink leading-snug"
                 />
                 {showHighlight && <Check size={14} className="text-accent flex-shrink-0 mt-0.5" />}
@@ -2942,8 +3020,9 @@ function QuizQuestionCard({ question, index, onUpdate }) {
               <button
                 key={label}
                 type="button"
-                onClick={() => onUpdate({ correct_answer: value })}
-                className={`px-3 py-1.5 rounded-lg border text-sm transition-colors duration-200 ${
+                onClick={() => safeUpdate({ correct_answer: value })}
+                disabled={disabled}
+                className={`px-3 py-1.5 rounded-lg border text-sm transition-colors duration-200 disabled:cursor-not-allowed ${
                   isCorrect
                     ? showHighlight
                       ? "border-accent bg-accent/[0.06] text-accent font-medium"
@@ -2970,13 +3049,14 @@ function QuizQuestionCard({ question, index, onUpdate }) {
                 ? question.correct_answer
                 : ""
             }
-            onChange={(v) => onUpdate({ correct_answer: v })}
+            onChange={(v) => safeUpdate({ correct_answer: v })}
             placeholder={
               question.type === "essay"
                 ? "1–2 sentences describing what a strong response covers."
                 : "Expected answer text."
             }
             rows={2}
+            disabled={disabled}
             className="text-sm text-ink-soft leading-relaxed w-full"
           />
         </div>
@@ -3106,7 +3186,7 @@ function HelpTip({ text }) {
   );
 }
 
-function EditableText({ value, onChange, placeholder, className = "" }) {
+function EditableText({ value, onChange, placeholder, disabled = false, className = "" }) {
   // The native `size` attribute lets the input auto-fit its current value
   // width-wise (in ch units). Useful for inline meta fields like
   // Subject/Grade. Any explicit width class (e.g. w-full) wins over it.
@@ -3118,12 +3198,13 @@ function EditableText({ value, onChange, placeholder, className = "" }) {
       value={value}
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
-      className={`bg-transparent outline-none border-b border-transparent hover:border-line/60 focus:border-ink focus:bg-paper transition-colors duration-150 placeholder:text-muted ${className}`}
+      disabled={disabled}
+      className={`bg-transparent outline-none border-b border-transparent hover:border-line/60 focus:border-ink focus:bg-paper transition-colors duration-150 placeholder:text-muted disabled:cursor-not-allowed disabled:hover:border-transparent ${className}`}
     />
   );
 }
 
-function EditableTextarea({ value, onChange, placeholder, rows = 2, className = "" }) {
+function EditableTextarea({ value, onChange, placeholder, rows = 2, disabled = false, className = "" }) {
   // Auto-grow to fit content so long question prompts don't get clipped and
   // the teacher never has to drag the resize handle. We measure on each
   // value change by zeroing the height then snapping back to scrollHeight.
@@ -3142,19 +3223,21 @@ function EditableTextarea({ value, onChange, placeholder, rows = 2, className = 
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
       rows={rows}
-      className={`bg-transparent outline-none rounded-md p-2 -m-2 border border-transparent hover:border-line/60 focus:border-ink focus:bg-paper resize-none overflow-hidden transition-colors duration-150 placeholder:text-muted whitespace-pre-wrap ${className}`}
+      disabled={disabled}
+      className={`bg-transparent outline-none rounded-md p-2 -m-2 border border-transparent hover:border-line/60 focus:border-ink focus:bg-paper resize-none overflow-hidden transition-colors duration-150 placeholder:text-muted whitespace-pre-wrap disabled:cursor-not-allowed disabled:hover:border-transparent ${className}`}
     />
   );
 }
 
-function EditableNumber({ value, onChange, min = 0, className = "" }) {
+function EditableNumber({ value, onChange, min = 0, disabled = false, className = "" }) {
   return (
     <input
       type="number"
       value={value}
       onChange={(e) => onChange(e.target.value)}
       min={min}
-      className={`bg-transparent outline-none border-b border-transparent hover:border-line/60 focus:border-ink focus:bg-paper transition-colors duration-150 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${className}`}
+      disabled={disabled}
+      className={`bg-transparent outline-none border-b border-transparent hover:border-line/60 focus:border-ink focus:bg-paper transition-colors duration-150 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none disabled:cursor-not-allowed disabled:hover:border-transparent ${className}`}
     />
   );
 }
