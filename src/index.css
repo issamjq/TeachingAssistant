@@ -848,28 +848,97 @@
   background: var(--color-paper-cool);
 }
 
-/* Planner hero card — soft warm-cream gradient panel with a faint
-   accent blob bleeding in from the top-right edge. Cleaner than the
-   previous dot-grid version; matches the preview spec. */
+/* Planner hero card — warm-cream gradient with three layered effects:
+     1. A faint gold dot-grid texture on the base (background-image).
+     2. A big accent blob that drifts on a 14s loop (::before).
+     3. A diagonal shimmer line that sweeps left → right every 8s
+        (::after).
+   isolation: isolate so the blur from the blob doesn't leak into the
+   page. Content children get z-index 2 to sit above all of it. */
 .planner-hero {
   background:
+    radial-gradient(circle at 1px 1px, rgba(184, 137, 61, 0.18) 1px, transparent 1.6px),
     linear-gradient(135deg, #fff7f1 0%, #f8ede4 100%);
+  background-size: 18px 18px, 100% 100%;
   border: 1px solid #f0e3d6;
   box-shadow: 0 18px 44px -22px rgba(15, 20, 16, 0.16);
   position: relative;
   overflow: hidden;
+  isolation: isolate;
 }
+
+/* Drifting accent blob — anchored to the top-right corner; translates
+   + scales + rotates together so it never lands in the same spot. */
 .planner-hero::before {
   content: "";
   position: absolute;
-  right: -100px;
-  top: -80px;
-  width: 280px;
-  height: 280px;
+  top: -55%;
+  right: -25%;
+  width: 65%;
+  height: 220%;
   border-radius: 999px;
-  background: rgba(232, 122, 85, 0.34);
-  filter: blur(60px);
+  background:
+    radial-gradient(circle,
+      rgba(232, 122, 85, 0.55) 0%,
+      rgba(200, 71, 43, 0.22) 40%,
+      transparent 72%);
+  filter: blur(50px);
   pointer-events: none;
+  z-index: 0;
+  animation: planner-hero-blob 14s ease-in-out infinite;
+}
+@keyframes planner-hero-blob {
+  0%, 100% {
+    transform: translate(0, 0) scale(1) rotate(0deg);
+    opacity: 0.85;
+  }
+  33% {
+    transform: translate(-7%, 4%) scale(1.10) rotate(7deg);
+    opacity: 1;
+  }
+  66% {
+    transform: translate(5%, -3%) scale(0.94) rotate(-6deg);
+    opacity: 0.75;
+  }
+}
+
+/* Diagonal shimmer — soft white line sweeps across the card from
+   left to right every 8s. Quiet for the first 70% of the loop so it
+   reads as a glint, not a strobe. */
+.planner-hero::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -30%;
+  width: 30%;
+  background: linear-gradient(
+    100deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.55) 50%,
+    transparent 100%
+  );
+  transform: skewX(-14deg);
+  pointer-events: none;
+  z-index: 1;
+  animation: planner-hero-shimmer 8s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+@keyframes planner-hero-shimmer {
+  0%, 65% { left: -30%; opacity: 0; }
+  72%     { opacity: 1; }
+  100%    { left: 130%; opacity: 0; }
+}
+
+.planner-hero > * {
+  position: relative;
+  z-index: 2;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .planner-hero::before,
+  .planner-hero::after {
+    animation: none;
+  }
 }
 
 .planner-hero-chip {
