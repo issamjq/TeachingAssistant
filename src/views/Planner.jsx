@@ -17,6 +17,7 @@ import {
   ChevronLeft, ChevronRight, Plus, BookOpen, CalendarDays,
   GraduationCap, ClipboardList, Presentation, Sparkles, ArrowRight,
   MoreHorizontal, MessageCircle, BarChart3, FileText, Layout,
+  Users,
 } from "lucide-react";
 import { navigate } from "../lib/route";
 
@@ -395,49 +396,51 @@ export default function Planner() {
 // pre-selects the kind in a later wire-up).
 // ───────────────────────────────────────────────────────────────────────
 function StudioHeroCard() {
+  // verb + noun two-line label, with a per-chip icon palette color so
+  // the row reads as six distinct tools instead of one repeated chip.
   const chips = [
-    { key: "lesson",       icon: BookOpen,      label: "Lesson Plan" },
-    { key: "quiz",         icon: GraduationCap, label: "Quiz" },
-    { key: "presentation", icon: Layout,        label: "Presentation" },
-    { key: "weekly",       icon: CalendarDays,  label: "Weekly Plan" },
-    { key: "insights",     icon: BarChart3,     label: "Student Insights" },
-    { key: "ask",          icon: MessageCircle, label: "Ask Studio" },
+    { key: "lesson",       icon: BookOpen,      verb: "Generate", noun: "Lesson Plan",     color: "accent" },
+    { key: "quiz",         icon: GraduationCap, verb: "Create",   noun: "Quiz",            color: "sage" },
+    { key: "presentation", icon: Layout,        verb: "Build",    noun: "Presentation",    color: "accent-soft" },
+    { key: "weekly",       icon: CalendarDays,  verb: "Plan",     noun: "Weekly Schedule", color: "ink" },
+    { key: "insights",     icon: Users,         verb: "Analyze",  noun: "Students",        color: "gold" },
+    { key: "ask",          icon: MessageCircle, verb: "Ask",      noun: "Anything",        color: "muted" },
   ];
   return (
     <div className="planner-hero rounded-2xl p-3 md:p-4 relative overflow-hidden h-full flex flex-col justify-center">
-      <div className="relative z-10 grid grid-cols-1 lg:grid-cols-[1fr_auto] gap-2 lg:gap-5 items-center">
-        <div>
-          <p className="inline-flex items-center gap-1.5 rounded-full bg-accent/[0.10] px-2 py-0.5 text-[10.5px] font-medium text-accent mb-1.5">
-            <Sparkles size={10} strokeWidth={2} /> Studio AI
-          </p>
-          <h2 className="font-serif text-lg md:text-xl text-ink leading-[1.15] font-medium">
-            What would you like to{" "}
-            <em className="italic font-light text-accent">create</em> today?
-          </h2>
-          <p className="text-[12px] text-muted mt-0.5 max-w-md leading-snug">
-            Your AI teaching co-pilot — plan faster, generate content, save hours.
-          </p>
-        </div>
-        <div className="grid grid-cols-3 lg:grid-cols-6 gap-1.5 lg:flex-shrink-0">
-          {chips.map((c) => {
-            const Icon = c.icon;
-            return (
-              <button
-                key={c.key}
-                type="button"
-                onClick={() => navigate(["studio"])}
-                className="planner-hero-chip group"
-              >
-                <span className="planner-hero-chip-icon">
-                  <Icon size={12} strokeWidth={1.75} />
-                </span>
-                <span className="text-[10.5px] font-medium text-ink leading-tight text-center">
-                  {c.label}
-                </span>
-              </button>
-            );
-          })}
-        </div>
+      <div className="relative z-10">
+        <p className="inline-flex items-center gap-1.5 rounded-full bg-accent/[0.10] px-2.5 py-1 text-[11px] font-semibold text-accent mb-2.5">
+          <Sparkles size={11} strokeWidth={2.25} /> Studio AI
+        </p>
+        <h2 className="font-serif text-2xl md:text-[1.55rem] text-ink leading-[1.1] font-semibold tracking-tight">
+          What would you like to{" "}
+          <span className="italic font-medium text-accent">create</span> today?
+        </h2>
+        <p className="text-[12.5px] text-muted mt-1.5 max-w-xl leading-snug">
+          Your AI co-pilot that helps you plan, save time, and make every class amazing.
+        </p>
+      </div>
+
+      <div className="relative z-10 mt-3 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2">
+        {chips.map((c) => {
+          const Icon = c.icon;
+          return (
+            <button
+              key={c.key}
+              type="button"
+              onClick={() => navigate(["studio"])}
+              className="planner-hero-chip group"
+            >
+              <span className={`planner-hero-chip-icon planner-hero-chip-icon-${c.color}`}>
+                <Icon size={14} strokeWidth={2} />
+              </span>
+              <span className="flex flex-col min-w-0 text-left leading-tight">
+                <span className="text-[10px] text-muted truncate">{c.verb}</span>
+                <span className="text-[12px] font-medium text-ink truncate">{c.noun}</span>
+              </span>
+            </button>
+          );
+        })}
       </div>
     </div>
   );

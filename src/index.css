@@ -956,16 +956,16 @@
 
 .planner-hero-chip {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
-  gap: 4px;
-  padding: 7px 6px;
-  border-radius: 10px;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 12px;
   background: #ffffff;
   border: 1px solid var(--color-line);
   cursor: pointer;
-  text-align: center;
-  min-width: 70px;
+  text-align: left;
+  min-width: 0;
   box-shadow: 0 1px 0 rgba(15, 20, 16, 0.02);
   transition:
     box-shadow 220ms ease,
@@ -974,24 +974,32 @@
 }
 .planner-hero-chip:hover {
   transform: translateY(-1px);
-  box-shadow: 0 6px 14px -8px rgba(15, 20, 16, 0.14);
-  border-color: var(--color-accent);
+  box-shadow: 0 8px 16px -8px rgba(15, 20, 16, 0.16);
+  border-color: var(--color-line);
 }
+
+/* Per-chip icon palette so the row reads as six distinct tools. The
+   icon glyph is paper-cool against a saturated colored square. */
 .planner-hero-chip-icon {
   flex-shrink: 0;
-  height: 22px;
-  width: 22px;
-  border-radius: 7px;
-  background: rgba(200, 71, 43, 0.10);
-  color: var(--color-accent);
+  height: 30px;
+  width: 30px;
+  border-radius: 9px;
+  color: var(--color-paper-cool);
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  transition: background-color 200ms ease;
+  transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 200ms ease;
 }
 .planner-hero-chip:hover .planner-hero-chip-icon {
-  background: rgba(200, 71, 43, 0.16);
+  transform: scale(1.06) rotate(-3deg);
 }
+.planner-hero-chip-icon-accent      { background: var(--color-accent); }
+.planner-hero-chip-icon-accent-soft { background: var(--color-accent-soft); }
+.planner-hero-chip-icon-gold        { background: var(--color-gold); }
+.planner-hero-chip-icon-sage        { background: var(--color-sage); }
+.planner-hero-chip-icon-ink         { background: var(--color-ink); }
+.planner-hero-chip-icon-muted       { background: var(--color-muted); }
 
 /* Planner — monthly calendar grid. Each cell fades up on mount with a
    short stagger by column position so the grid assembles itself rather
