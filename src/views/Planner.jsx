@@ -177,40 +177,39 @@ export default function Planner() {
   };
 
   return (
-    <div className="planner-view max-w-[1400px] mx-auto pb-6">
+    <div className="planner-view max-w-[1400px] mx-auto pb-2">
 
-      {/* ── Month hero — uppercase eyebrow, huge serif "May 2026"
-          headline with the year in italic accent, friendly sub-line,
-          and the concentric-ring orb floating on the right edge. */}
-      <div className="planner-month-hero relative mb-6">
-        <p className="font-sans text-[11px] uppercase tracking-[0.30em] text-accent-soft mb-3">
+      {/* ── Month hero — compact eyebrow + headline + caption, orb on
+          the right edge. Sized down so the whole page fits one screen. */}
+      <div className="planner-month-hero relative mb-3">
+        <p className="font-sans text-[10px] uppercase tracking-[0.30em] text-accent-soft mb-1.5">
           Planner
         </p>
-        <h1 className="font-serif text-5xl md:text-6xl lg:text-7xl font-medium text-ink leading-[1.02]">
+        <h1 className="font-serif text-3xl md:text-4xl lg:text-5xl font-medium text-ink leading-[1.02]">
           <span key={monthLabel} className="studio-tick">
             {MONTH_LABELS[anchor.getMonth()]}
           </span>{" "}
           <em className="italic font-light text-accent">{anchor.getFullYear()}</em>
         </h1>
-        <p className="font-serif text-base md:text-lg text-muted mt-4 max-w-2xl leading-relaxed">
-          Lesson plans, schedules, quizzes and activities — all in one beautiful workspace.
+        <p className="text-sm text-muted mt-2 max-w-xl leading-relaxed">
+          Lesson plans, schedules, quizzes and activities — all in one workspace.
         </p>
         <div className="planner-orb hidden md:flex" aria-hidden>
           <span className="planner-orb-ring planner-orb-ring-outer" />
           <span className="planner-orb-ring planner-orb-ring-inner" />
           <span className="planner-orb-halo" />
           <span className="planner-orb-sphere">
-            <Sparkles size={28} strokeWidth={2} className="text-paper-cool relative z-10" />
+            <Sparkles size={18} strokeWidth={2} className="text-paper-cool relative z-10" />
           </span>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-5">
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-3">
         <div>
 
       {/* ── Filter chip row — All + one per category. All is ink-filled
           when active; specifics use their category color. */}
-      <div className="flex flex-wrap items-center gap-2 mb-4">
+      <div className="flex flex-wrap items-center gap-1.5 mb-2">
         <button
           type="button"
           onClick={toggleAll}
@@ -252,7 +251,7 @@ export default function Planner() {
 
       {/* ── Calendar header — small calendar icon + Today button +
           prev/next, right-aligned above the grid. */}
-      <div className="flex items-center justify-end gap-2 mb-3">
+      <div className="flex items-center justify-end gap-1.5 mb-2">
         <button
           type="button"
           onClick={goToday}
@@ -304,12 +303,12 @@ export default function Planner() {
             const inMonth = d.getMonth() === anchor.getMonth();
             const isToday = sameYMD(d, today);
             const dayEvents = eventsByDate.get(isoKey(d)) || [];
-            const shown = dayEvents.slice(0, 3);
+            const shown = dayEvents.slice(0, 2);
             const overflow = dayEvents.length - shown.length;
             return (
               <div
                 key={i}
-                className={`planner-cell border-b border-r border-line/70 px-2 pt-2 pb-1.5 min-h-[120px] flex flex-col gap-1.5 transition-colors duration-150 ${
+                className={`planner-cell border-b border-r border-line/70 px-1.5 pt-1.5 pb-1 min-h-[76px] flex flex-col gap-1 transition-colors duration-150 ${
                   inMonth ? "bg-paper-cool" : "bg-paper-warm/40 text-muted/60"
                 } hover:bg-paper-warm/50 ${
                   isToday ? "planner-cell-today" : ""
@@ -370,9 +369,9 @@ export default function Planner() {
 
         {/* Right rail — This Month Overview / Upcoming / Quick Actions.
             Stacks under the calendar on small screens. */}
-        <aside className="flex flex-col gap-4">
+        <aside className="flex flex-col gap-3">
           <ThisMonthOverviewCard />
-          <UpcomingCard events={events.slice(0, 4)} />
+          <UpcomingCard events={events.slice(0, 3)} />
           <QuickActionsCard />
         </aside>
       </div>
@@ -395,39 +394,40 @@ function StudioHeroCard() {
     { key: "ask",          icon: MessageCircle, label: "Ask Studio" },
   ];
   return (
-    <div className="planner-hero rounded-[36px] p-7 md:p-8 mb-6 relative overflow-hidden">
-      <div className="relative z-10">
-        <p className="inline-flex items-center gap-2 rounded-full bg-accent/[0.10] px-3.5 py-1.5 text-[12.5px] font-medium text-accent mb-5">
-          <Sparkles size={13} strokeWidth={2} /> Studio AI
-        </p>
-        <h2 className="font-serif text-3xl md:text-4xl lg:text-5xl text-ink leading-[1.1] font-medium max-w-3xl">
-          What would you like to{" "}
-          <em className="italic font-light text-accent">create</em> today?
-        </h2>
-        <p className="text-base md:text-lg text-muted mt-3 max-w-2xl leading-relaxed">
-          Your AI teaching co-pilot that helps you plan faster, generate content and save hours every week.
-        </p>
-      </div>
-
-      <div className="relative z-10 mt-7 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-        {chips.map((c) => {
-          const Icon = c.icon;
-          return (
-            <button
-              key={c.key}
-              type="button"
-              onClick={() => navigate(["studio"])}
-              className="planner-hero-chip group"
-            >
-              <span className="planner-hero-chip-icon">
-                <Icon size={18} strokeWidth={1.75} />
-              </span>
-              <span className="text-[13.5px] font-medium text-ink leading-tight">
-                {c.label}
-              </span>
-            </button>
-          );
-        })}
+    <div className="planner-hero rounded-3xl p-4 md:p-5 mb-3 relative overflow-hidden">
+      <div className="relative z-10 grid grid-cols-1 lg:grid-cols-[1fr_auto] gap-3 lg:gap-6 items-center">
+        <div>
+          <p className="inline-flex items-center gap-1.5 rounded-full bg-accent/[0.10] px-2.5 py-1 text-[11px] font-medium text-accent mb-2">
+            <Sparkles size={11} strokeWidth={2} /> Studio AI
+          </p>
+          <h2 className="font-serif text-xl md:text-2xl text-ink leading-[1.15] font-medium">
+            What would you like to{" "}
+            <em className="italic font-light text-accent">create</em> today?
+          </h2>
+          <p className="text-[13px] text-muted mt-1 max-w-md leading-snug">
+            Your AI teaching co-pilot that helps you plan faster, generate content and save hours every week.
+          </p>
+        </div>
+        <div className="grid grid-cols-3 lg:grid-cols-6 gap-2 lg:flex-shrink-0">
+          {chips.map((c) => {
+            const Icon = c.icon;
+            return (
+              <button
+                key={c.key}
+                type="button"
+                onClick={() => navigate(["studio"])}
+                className="planner-hero-chip group"
+              >
+                <span className="planner-hero-chip-icon">
+                  <Icon size={14} strokeWidth={1.75} />
+                </span>
+                <span className="text-[11.5px] font-medium text-ink leading-tight text-center">
+                  {c.label}
+                </span>
+              </button>
+            );
+          })}
+        </div>
       </div>
     </div>
   );
@@ -439,18 +439,18 @@ function StudioHeroCard() {
 // ───────────────────────────────────────────────────────────────────────
 function ThisMonthOverviewCard() {
   return (
-    <div className="rounded-3xl border border-line bg-paper-cool p-5 md:p-6">
-      <div className="flex items-center justify-between mb-5">
-        <h3 className="font-serif text-lg font-medium text-ink">AI Insights</h3>
-        <span className="rounded-xl bg-accent/[0.10] p-2">
-          <Sparkles size={14} strokeWidth={2} className="text-accent" />
+    <div className="rounded-2xl border border-line bg-paper-cool p-3.5">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="font-serif text-[15px] font-medium text-ink">AI Insights</h3>
+        <span className="rounded-lg bg-accent/[0.10] p-1.5">
+          <Sparkles size={12} strokeWidth={2} className="text-accent" />
         </span>
       </div>
-      <p className="text-sm text-muted">Your teaching rhythm is</p>
-      <h4 className="font-serif text-3xl font-medium text-sage leading-tight mt-1">
+      <p className="text-[12px] text-muted">Your teaching rhythm is</p>
+      <h4 className="font-serif text-xl font-medium text-sage leading-tight mt-0.5">
         On track
       </h4>
-      <div className="mt-5 relative h-24 rounded-2xl bg-gradient-to-b from-accent/[0.08] to-transparent overflow-hidden">
+      <div className="mt-3 relative h-14 rounded-xl bg-gradient-to-b from-accent/[0.08] to-transparent overflow-hidden">
         <svg viewBox="0 0 320 84" className="absolute inset-0 w-full h-full" preserveAspectRatio="none">
           <defs>
             <linearGradient id="monthChartFill" x1="0" y1="0" x2="0" y2="1">
@@ -469,15 +469,15 @@ function ThisMonthOverviewCard() {
           />
         </svg>
       </div>
-      <div className="grid grid-cols-3 gap-4 mt-6">
+      <div className="grid grid-cols-3 gap-2 mt-3">
         {[
           { n: 28, k: "Planned" },
           { n: 12, k: "Completed" },
           { n: 16, k: "To do" },
         ].map((s) => (
           <div key={s.k}>
-            <p className="font-serif text-2xl font-medium text-ink leading-none">{s.n}</p>
-            <p className="text-sm text-muted mt-1.5">{s.k}</p>
+            <p className="font-serif text-lg font-medium text-ink leading-none">{s.n}</p>
+            <p className="text-[11px] text-muted mt-0.5">{s.k}</p>
           </div>
         ))}
       </div>
@@ -499,28 +499,28 @@ function UpcomingCard({ events }) {
     };
   };
   return (
-    <div className="rounded-3xl border border-line bg-paper-cool p-5 md:p-6">
-      <div className="flex items-center justify-between mb-5">
-        <h3 className="font-serif text-lg font-medium text-ink">Upcoming</h3>
-        <button className="text-sm text-accent hover:text-ink transition">
+    <div className="rounded-2xl border border-line bg-paper-cool p-3.5">
+      <div className="flex items-center justify-between mb-2.5">
+        <h3 className="font-serif text-[15px] font-medium text-ink">Upcoming</h3>
+        <button className="text-xs text-accent hover:text-ink transition">
           View all
         </button>
       </div>
-      <div className="space-y-3">
+      <div className="space-y-1.5">
         {events.map((e) => {
           const { month, day } = fmt(e.date);
           return (
             <div
               key={e.id}
-              className="flex items-center gap-4 rounded-2xl border border-line p-3"
+              className="flex items-center gap-2.5 rounded-xl border border-line p-2"
             >
-              <div className="flex-shrink-0 rounded-2xl bg-paper-warm/60 px-3 py-2 text-center min-w-[52px]">
-                <div className="text-[10px] text-muted tracking-wider uppercase">{month}</div>
-                <div className="text-lg font-medium font-serif text-ink leading-none mt-0.5">{day}</div>
+              <div className="flex-shrink-0 rounded-lg bg-paper-warm/60 px-2 py-1 text-center min-w-[40px]">
+                <div className="text-[9px] text-muted tracking-wider uppercase">{month}</div>
+                <div className="text-sm font-medium font-serif text-ink leading-none mt-0.5">{day}</div>
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-ink leading-tight truncate">{e.title}</p>
-                <p className="text-xs text-muted mt-0.5">{e.time || "All day"}</p>
+                <p className="text-[12.5px] font-medium text-ink leading-tight truncate">{e.title}</p>
+                <p className="text-[10.5px] text-muted mt-0.5">{e.time || "All day"}</p>
               </div>
             </div>
           );
@@ -542,21 +542,21 @@ function QuickActionsCard() {
     { key: "presentation", label: "New Presentation" },
   ];
   return (
-    <div className="rounded-3xl border border-line bg-paper-cool p-5 md:p-6">
-      <h3 className="font-serif text-lg font-medium text-ink mb-5">
+    <div className="rounded-2xl border border-line bg-paper-cool p-3.5">
+      <h3 className="font-serif text-[15px] font-medium text-ink mb-2.5">
         Quick Actions
       </h3>
-      <div className="space-y-3">
+      <div className="space-y-1.5">
         {actions.map((a) => (
           <button
             key={a.key}
             type="button"
             onClick={() => navigate(["studio"])}
-            className="w-full flex items-center justify-between px-4 py-3 rounded-2xl border border-line bg-paper hover:shadow-md transition-shadow duration-150"
+            className="w-full flex items-center justify-between px-3 py-2 rounded-xl border border-line bg-paper hover:shadow-md transition-shadow duration-150"
           >
-            <span className="text-sm font-medium text-ink">{a.label}</span>
-            <span className="rounded-xl bg-accent/[0.10] p-1.5">
-              <Plus size={14} strokeWidth={2} className="text-accent" />
+            <span className="text-[12.5px] font-medium text-ink">{a.label}</span>
+            <span className="rounded-lg bg-accent/[0.10] p-1">
+              <Plus size={12} strokeWidth={2} className="text-accent" />
             </span>
           </button>
         ))}
