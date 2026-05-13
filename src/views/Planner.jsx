@@ -177,7 +177,7 @@ export default function Planner() {
   };
 
   return (
-    <div className="planner-view max-w-[1400px] mx-auto pb-2">
+    <div className="planner-view max-w-[1400px] mx-auto pb-2 h-full flex flex-col">
 
       {/* ── Month hero — eyebrow + tight headline + one-line caption.
           The orb is gone; we save the room for the calendar grid. */}
@@ -198,8 +198,8 @@ export default function Planner() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-3">
-        <div>
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-3 items-stretch flex-1 min-h-0">
+        <div className="flex flex-col min-w-0 min-h-0">
 
       {/* ── Filter chip row — All + one per category. All is ink-filled
           when active; specifics use their category color. */}
@@ -281,8 +281,8 @@ export default function Planner() {
 
       {/* The grid. paper-cool surface, rounded-2xl, soft shadow. Day
           headers in mono-uppercase, body cells in a 7-column grid. */}
-      <div className="planner-grid rounded-2xl border border-line bg-paper-cool overflow-hidden shadow-sm">
-        <div className="grid grid-cols-7 border-b border-line bg-paper-warm/30">
+      <div className="planner-grid rounded-2xl border border-line bg-paper-cool overflow-hidden shadow-sm flex-1 flex flex-col min-h-0">
+        <div className="grid grid-cols-7 border-b border-line bg-paper-warm/30 flex-shrink-0">
           {DAY_LABELS.map((d) => (
             <div
               key={d}
@@ -292,7 +292,7 @@ export default function Planner() {
             </div>
           ))}
         </div>
-        <div className="grid grid-cols-7">
+        <div className="grid grid-cols-7 grid-rows-6 flex-1 auto-rows-fr">
           {grid.map((d, i) => {
             const inMonth = d.getMonth() === anchor.getMonth();
             const isToday = sameYMD(d, today);
@@ -302,7 +302,7 @@ export default function Planner() {
             return (
               <div
                 key={i}
-                className={`planner-cell border-b border-r border-line/70 px-1.5 pt-1 pb-1 min-h-[62px] flex flex-col gap-0.5 transition-colors duration-150 ${
+                className={`planner-cell border-b border-r border-line/70 px-1.5 pt-1 pb-1 min-h-[60px] flex flex-col gap-0.5 transition-colors duration-150 ${
                   inMonth ? "bg-paper-cool" : "bg-paper-warm/40 text-muted/60"
                 } hover:bg-paper-warm/50 ${
                   isToday ? "planner-cell-today" : ""
