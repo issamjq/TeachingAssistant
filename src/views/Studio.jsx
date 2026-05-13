@@ -2118,74 +2118,144 @@ const QUIZ_TYPE_LABELS = {
 };
 
 // Pull what we can out of the in-flight JSON. The model writes the quiz
-// tool input top-down: meta first, then questions one at a time, so we
-// can pluck the title once its closing quote arrives and stream each
-// question's prompt as the bytes come in. We're lenient on parsing —
-// the last prompt is usually mid-write (no closing quote yet) so we
-// surface it as the "in-progress" line.
+// tool input top-down. We now parse each question's WHOLE body — prompt,
+// type, choices, correct_answer, marks — as bytes arrive, so the
+// streaming preview reads like a real quiz unfolding live instead of a
+// list of titles.
 function parsePartialQuiz(partial) {
-  if (!partial) return { title: null, subject: null, questions: [], inflight: null };
-  const grab = (key) => {
+  if (!partial) return { title: null, subject: null, questions: [] };
+
+  const grabStr = (key, src = partial) => {
     const re = new RegExp(`"${key}"\\s*:\\s*"((?:[^"\\\\]|\\\\.)*)"`);
-    const m = partial.match(re);
+    const m = src.match(re);
     return m ? m[1] : null;
   };
-  const title = grab("title");
-  const subject = grab("subject");
+  const grabNum = (key, src = partial) => {
+    const re = new RegExp(`"${key}"\\s*:\\s*(-?\\d+(?:\\.\\d+)?)`);
+    const m = src.match(re);
+    return m ? Number(m[1]) : null;
+  };
+  // Boolean grab (for correct_answer on true/false questions).
+  const grabBool = (key, src = partial) => {
+    const re = new RegExp(`"${key}"\\s*:\\s*(true|false)\\b`);
+    const m = src.match(re);
+    return m ? m[1] === "true" : null;
+  };
 
-  // Every COMPLETED prompt: "prompt":"...". Track them in order.
-  const closedRe = /"prompt"\s*:\s*"((?:[^"\\]|\\.)*)"/g;
-  const questions = [];
-  let m;
-  while ((m = closedRe.exec(partial)) !== null) {
-    questions.push(m[1]);
+  const title = grabStr("title");
+  const subject = grabStr("subject");
+
+  // Find the questions array and slice each balanced {…} object out of
+  // it. The last one may be unclosed (in flight); we keep it anyway so
+  // its partial fields can render with carets.
+  const qStart = partial.indexOf('"questions"');
+  if (qStart < 0) return { title, subject, questions: [] };
+  const arrayStart = partial.indexOf("[", qStart);
+  if (arrayStart < 0) return { title, subject, questions: [] };
+  const body = partial.slice(arrayStart + 1);
+
+  const chunks = [];
+  let depth = 0, start = -1, inStr = false, esc = false;
+  for (let i = 0; i < body.length; i++) {
+    const c = body[i];
+    if (esc) { esc = false; continue; }
+    if (inStr) {
+      if (c === "\\") esc = true;
+      else if (c === '"') inStr = false;
+      continue;
+    }
+    if (c === '"') { inStr = true; continue; }
+    if (c === "{") {
+      if (depth === 0) start = i;
+      depth++;
+    } else if (c === "}") {
+      depth--;
+      if (depth === 0 && start >= 0) {
+        chunks.push({ text: body.slice(start, i + 1), complete: true });
+        start = -1;
+      }
+    }
+  }
+  if (depth > 0 && start >= 0) {
+    chunks.push({ text: body.slice(start), complete: false });
   }
 
-  // If the very last `"prompt": "...` in the stream has no closing
-  // quote yet, that's the question Mudir is writing right now.
-  const tail = partial.slice(partial.lastIndexOf('"prompt"'));
-  const open = tail.match(/^"prompt"\s*:\s*"((?:[^"\\]|\\.)*)$/);
-  let inflight = null;
-  if (open) {
-    const closed = tail.match(/^"prompt"\s*:\s*"((?:[^"\\]|\\.)*)"/);
-    if (!closed) inflight = open[1];
-  }
-  return { title, subject, questions, inflight };
+  // For each chunk, extract whatever fields have arrived. Prompts and
+  // choice strings may be unclosed — we surface those as in-progress.
+  const parseQuestion = (chunk, defaultPosition) => {
+    const text = chunk.text;
+    // Prompt — closed or open.
+    const closedPrompt = text.match(/"prompt"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+    const openPrompt = !closedPrompt
+      ? text.match(/"prompt"\s*:\s*"((?:[^"\\]|\\.)*)$/)
+      : null;
+    const prompt = closedPrompt ? closedPrompt[1] : openPrompt ? openPrompt[1] : null;
+    const promptInflight = !!openPrompt && !closedPrompt;
+
+    // Choices array — extract every closed string between `[` and `]`
+    // (or end of buffer). Track whether the array itself has closed so
+    // we can show "still listing options…" affordance otherwise.
+    let choices = null;
+    let choicesClosed = false;
+    const arr = text.match(/"choices"\s*:\s*\[([\s\S]*?)(\]|$)/);
+    if (arr) {
+      choicesClosed = arr[2] === "]";
+      const inside = arr[1];
+      const items = [];
+      const sRe = /"((?:[^"\\]|\\.)*)"/g;
+      let mm;
+      while ((mm = sRe.exec(inside)) !== null) items.push(mm[1]);
+      // Detect an unfinished trailing string (no closing quote yet)
+      const tail = inside.slice(inside.lastIndexOf('"') >= 0
+        ? inside.lastIndexOf('"') + 1 : 0);
+      // Simple heuristic: if there's an odd count of unescaped quotes,
+      // the last "..." is open.
+      const quoteCount = (inside.match(/(?<!\\)"/g) || []).length;
+      const openTail =
+        quoteCount % 2 === 1 ? inside.slice(inside.lastIndexOf('"') + 1) : null;
+      if (openTail && openTail.trim().length > 0) items.push(openTail);
+      choices = items;
+    }
+
+    // Correct answer — string ("A", "True"-as-string, or short answer) OR
+    // boolean. Try string first; fall back to bool.
+    const correctStr = grabStr("correct_answer", text);
+    const correctBool = correctStr === null ? grabBool("correct_answer", text) : null;
+    const correct_answer = correctStr !== null ? correctStr : correctBool;
+
+    return {
+      position: grabNum("position", text) ?? defaultPosition,
+      type: grabStr("type", text),
+      prompt,
+      promptInflight,
+      choices,
+      choicesClosed,
+      correct_answer,
+      marks: grabNum("marks", text),
+      complete: chunk.complete,
+    };
+  };
+
+  const questions = chunks.map((c, i) => parseQuestion(c, i + 1));
+  return { title, subject, questions };
 }
 
 function QuizStreamingPlaceholder({ partial, busy, expectedCount, hintPrompt }) {
-  const { title, subject, questions, inflight } = parsePartialQuiz(partial);
-  const drafted = questions.length + (inflight ? 1 : 0);
-
-  // Optimistic slot count: prefer the teacher's exact ask if they set
-  // QUESTIONS in the picker, otherwise default to 5. As soon as a real
-  // question shows up we lean on the live data — but the SLOTS stay so
-  // the teacher sees a stable list, not rows popping into existence.
+  const { title, subject, questions } = parsePartialQuiz(partial);
+  const drafted = questions.length;
   const targetCount = Math.max(expectedCount || 5, drafted);
 
-  // Build the row list:
-  //   - Each completed prompt fills its slot with full text.
-  //   - The inflight prompt fills the slot at index = questions.length.
-  //   - Remaining slots show "Drafting question N…" with a shimmer.
-  const rows = [];
-  for (let i = 0; i < targetCount; i++) {
-    if (i < questions.length) {
-      rows.push({ kind: "done", text: questions[i] });
-    } else if (i === questions.length && inflight !== null) {
-      rows.push({ kind: "writing", text: inflight });
-    } else if (i === questions.length && busy) {
-      rows.push({ kind: "next", text: `Drafting question ${i + 1}…` });
-    } else if (busy) {
-      rows.push({ kind: "pending", text: `Question ${i + 1}` });
-    } else {
-      // Streaming finished but model didn't fill this slot — hide it.
-      break;
-    }
-  }
+  // Anything past the last 2 completed questions collapses to a one-liner
+  // so the panel doesn't grow unbounded on a 30-question quiz. The two
+  // most recent + the in-flight one render in FULL — prompt, choices,
+  // correct answer — so the teacher watches the quiz unfold live.
+  const fullStart = Math.max(0, questions.length - 3);
+  const compact = questions.slice(0, fullStart);
+  const full = questions.slice(fullStart);
+  const pendingCount = busy ? Math.max(0, targetCount - drafted - (full.length > 0 && !full[full.length - 1].complete ? 0 : (busy ? 1 : 0))) : 0;
+  const showDraftingPlaceholder = busy
+    && (full.length === 0 || full[full.length - 1].complete);
 
-  // Friendly cover header. Falls back to the teacher's prompt if the
-  // model hasn't written the title yet, so the panel always has a
-  // human-readable header instead of "Mudir is structuring your quiz…".
   const coverTitle = title || (hintPrompt ? truncate(hintPrompt, 60) : null);
 
   return (
@@ -2201,87 +2271,230 @@ function QuizStreamingPlaceholder({ partial, busy, expectedCount, hintPrompt }) 
         )}
       </p>
       <div className="rounded-2xl border border-line bg-paper-warm/40 p-5 md:p-6 grid grid-cols-1 md:grid-cols-[1fr_auto] gap-4 items-start">
-        <div>
-        <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-1.5">
-          Cover
-        </p>
-        {coverTitle ? (
-          <>
-            <h3 className="font-serif text-xl md:text-2xl font-medium text-ink leading-tight">
-              {coverTitle}
-              {!title && busy && (
-                <span className="inline-block w-1.5 h-5 bg-accent ml-1 animate-pulse align-text-bottom" />
-              )}
+        <div className="min-w-0">
+          {/* Cover header — title (or fallback to the teacher's prompt) +
+              subject. Carets while still streaming. */}
+          <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-1.5">
+            Cover
+          </p>
+          {coverTitle ? (
+            <>
+              <h3 className="font-serif text-xl md:text-2xl font-medium text-ink leading-tight">
+                {coverTitle}
+                {!title && busy && (
+                  <span className="inline-block w-1.5 h-5 bg-accent ml-1 animate-pulse align-text-bottom" />
+                )}
+              </h3>
+              {subject ? (
+                <p className="font-serif italic text-sm text-muted mt-1">
+                  {subject}
+                </p>
+              ) : busy ? (
+                <p className="font-serif italic text-sm text-muted/70 mt-1">
+                  Picking subject, grade, marks…
+                </p>
+              ) : null}
+            </>
+          ) : (
+            <h3 className="font-serif text-xl md:text-2xl font-medium text-muted/80 leading-tight italic">
+              Mudir is structuring your quiz
+              <span className="inline-block w-1.5 h-5 bg-accent ml-1 animate-pulse align-text-bottom" />
             </h3>
-            {subject ? (
-              <p className="font-serif italic text-sm text-muted mt-1">
-                {subject}
-              </p>
-            ) : busy ? (
-              <p className="font-serif italic text-sm text-muted/70 mt-1">
-                Picking subject, grade, marks…
-              </p>
-            ) : null}
-          </>
-        ) : (
-          <h3 className="font-serif text-xl md:text-2xl font-medium text-muted/80 leading-tight italic">
-            Mudir is structuring your quiz
-            <span className="inline-block w-1.5 h-5 bg-accent ml-1 animate-pulse align-text-bottom" />
-          </h3>
-        )}
+          )}
 
-        <ul className="mt-4 space-y-2.5 border-t border-line/60 pt-4">
-          {rows.map((row, i) => {
-            const number = i + 1;
-            const isWriting = row.kind === "writing";
-            const isDone = row.kind === "done";
-            const isNext = row.kind === "next";
-            const badgeClass = isDone
-              ? "bg-ink text-paper-cool"
-              : isWriting
-                ? "bg-accent text-paper-cool animate-pulse"
-                : isNext
-                  ? "bg-paper-warm text-ink border border-accent/50"
-                  : "bg-paper-warm text-muted border border-line";
-            return (
-              <li
-                key={`row-${number}`}
-                className="studio-section-fade-in flex items-start gap-3"
-              >
-                <span className={`flex-shrink-0 mt-0.5 h-5 w-5 rounded-md font-mono text-[10px] flex items-center justify-center ${badgeClass}`}>
-                  {number}
-                </span>
-                {isDone && (
-                  <span className="text-sm text-ink-soft leading-snug line-clamp-2">
-                    {row.text}
-                  </span>
-                )}
-                {isWriting && (
-                  <span className="text-sm text-ink leading-snug">
-                    {row.text}
-                    <span className="inline-block w-1.5 h-3 bg-accent ml-1 animate-pulse align-text-bottom" />
-                  </span>
-                )}
-                {isNext && (
-                  <span className="text-sm text-ink-soft italic leading-snug inline-flex items-center gap-2">
-                    {row.text}
-                    <span className="inline-block w-1.5 h-3 bg-accent animate-pulse align-text-bottom" />
-                  </span>
-                )}
-                {row.kind === "pending" && (
-                  <span className="text-sm text-muted/70 italic leading-snug">
-                    {row.text}
-                  </span>
-                )}
-              </li>
-            );
-          })}
-        </ul>
+          <div className="mt-4 border-t border-line/60 pt-4 space-y-3">
+            {/* Older completed questions collapsed to a compact summary
+                row so the panel stays scannable on long quizzes. */}
+            {compact.map((q) => (
+              <CompactQuestionRow key={`c-${q.position}`} q={q} />
+            ))}
+
+            {/* The most recent ~3 questions, rendered in full so the
+                teacher can read what was just written. */}
+            {full.map((q) => (
+              <LiveQuestionCard key={`f-${q.position}`} q={q} busy={busy} />
+            ))}
+
+            {/* Optimistic placeholders for slots the model hasn't reached
+                yet. Stays in place until the actual question lands. */}
+            {showDraftingPlaceholder && (
+              <DraftingPlaceholder position={drafted + 1} />
+            )}
+            {Array.from({ length: Math.max(0, pendingCount - (showDraftingPlaceholder ? 1 : 0)) }).map((_, i) => (
+              <PendingPlaceholder
+                key={`p-${drafted + (showDraftingPlaceholder ? 2 : 1) + i}`}
+                position={drafted + (showDraftingPlaceholder ? 2 : 1) + i}
+              />
+            ))}
+          </div>
         </div>
         <div className="hidden md:flex justify-end items-start pt-2">
           <MudirMascot size={120} />
         </div>
       </div>
+    </div>
+  );
+}
+
+// One-line summary for older completed questions — keeps the panel
+// scannable on 20+ question quizzes without losing the "I see what was
+// written" feeling.
+function CompactQuestionRow({ q }) {
+  return (
+    <div className="flex items-start gap-2.5">
+      <span className="flex-shrink-0 mt-0.5 h-5 w-5 rounded-md font-mono text-[10px] bg-ink text-paper-cool flex items-center justify-center">
+        {q.position}
+      </span>
+      <span className="text-sm text-ink-soft leading-snug line-clamp-1 min-w-0 flex-1">
+        {q.prompt || "(question)"}
+      </span>
+      {q.marks != null && (
+        <span className="font-mono text-[10px] text-muted flex-shrink-0">
+          {q.marks}m
+        </span>
+      )}
+    </div>
+  );
+}
+
+// Live mini-card showing the WHOLE question body as it streams in.
+// Prompt, type, marks, choices, and correct answer all light up as the
+// JSON arrives. The in-flight one gets a soft accent ring so the teacher
+// knows where Mudir is writing right now.
+function LiveQuestionCard({ q, busy }) {
+  const inflight = !q.complete && busy;
+  const typeLabel = QUIZ_TYPE_LABELS[q.type] || (q.type ? q.type : null);
+  const correctLetter =
+    typeof q.correct_answer === "string" && q.correct_answer.length === 1
+      ? q.correct_answer.toUpperCase()
+      : null;
+  return (
+    <div
+      className={`rounded-xl border bg-paper-cool px-4 py-3 transition-colors duration-200 ${
+        inflight ? "border-accent/60 shadow-[0_0_0_3px_rgba(200,71,43,0.08)]" : "border-line"
+      }`}
+    >
+      <div className="flex items-center justify-between gap-2 mb-2">
+        <span className="inline-flex items-center gap-2">
+          <span className={`flex-shrink-0 h-5 w-5 rounded-md font-mono text-[10px] flex items-center justify-center ${
+            inflight ? "bg-accent text-paper-cool animate-pulse" : "bg-ink text-paper-cool"
+          }`}>
+            {q.position}
+          </span>
+          {typeLabel && (
+            <span className="text-[10.5px] uppercase tracking-[0.14em] text-muted font-mono">
+              {typeLabel}
+            </span>
+          )}
+        </span>
+        {q.marks != null && (
+          <span className="font-mono text-[10px] text-muted">
+            {q.marks} mark{q.marks === 1 ? "" : "s"}
+          </span>
+        )}
+      </div>
+
+      {q.prompt !== null ? (
+        <p className="font-serif text-[15px] text-ink leading-snug mb-2">
+          {q.prompt}
+          {q.promptInflight && (
+            <span className="inline-block w-1.5 h-4 bg-accent ml-1 animate-pulse align-text-bottom" />
+          )}
+        </p>
+      ) : (
+        <p className="font-serif italic text-[13px] text-muted mb-2">
+          writing prompt…
+          <span className="inline-block w-1.5 h-3 bg-accent ml-1 animate-pulse align-text-bottom" />
+        </p>
+      )}
+
+      {/* Choices — MCQ shows A-D rows, TF shows True/False pills, short
+          and essay show their expected-answer text directly below. */}
+      {q.type === "mcq" && Array.isArray(q.choices) && q.choices.length > 0 && (
+        <ol className="space-y-1 mb-1">
+          {q.choices.map((c, i) => {
+            const letter = String.fromCharCode(65 + i);
+            const isCorrect = correctLetter === letter;
+            return (
+              <li
+                key={i}
+                className={`flex items-start gap-2 px-2 py-1 rounded-md text-[12.5px] ${
+                  isCorrect ? "bg-accent/[0.08] text-accent" : "text-ink-soft"
+                }`}
+              >
+                <span className={`flex-shrink-0 h-4 w-4 rounded font-mono text-[9px] flex items-center justify-center ${
+                  isCorrect ? "bg-accent text-paper-cool" : "bg-paper-warm text-muted"
+                }`}>
+                  {letter}
+                </span>
+                <span className="leading-snug flex-1 min-w-0">{c}</span>
+              </li>
+            );
+          })}
+        </ol>
+      )}
+
+      {q.type === "tf" && (
+        <div className="flex gap-1.5 mb-1">
+          {[true, false].map((v) => {
+            const label = v ? "True" : "False";
+            const isCorrect = q.correct_answer === v
+              || (typeof q.correct_answer === "string"
+                  && q.correct_answer.toLowerCase() === label.toLowerCase());
+            return (
+              <span
+                key={label}
+                className={`px-2 py-0.5 rounded-md text-[11px] border ${
+                  isCorrect
+                    ? "bg-accent/[0.08] border-accent/40 text-accent"
+                    : "bg-paper-warm border-line text-ink-soft"
+                }`}
+              >
+                {label}
+              </span>
+            );
+          })}
+        </div>
+      )}
+
+      {(q.type === "short" || q.type === "essay") && q.correct_answer && (
+        <p className="text-[12.5px] text-ink-soft leading-snug mt-1 pl-1 border-l-2 border-accent/40">
+          <span className="font-serif italic text-muted mr-1.5">
+            {q.type === "essay" ? "Rubric:" : "Answer:"}
+          </span>
+          {typeof q.correct_answer === "string" ? q.correct_answer : ""}
+        </p>
+      )}
+    </div>
+  );
+}
+
+// "Drafting question N…" placeholder — shown for the slot just past
+// what's been parsed, while busy.
+function DraftingPlaceholder({ position }) {
+  return (
+    <div className="rounded-xl border border-dashed border-accent/40 bg-paper-cool/50 px-4 py-3 flex items-center gap-2.5">
+      <span className="h-5 w-5 rounded-md font-mono text-[10px] bg-accent/[0.10] border border-accent/30 text-accent flex items-center justify-center">
+        {position}
+      </span>
+      <span className="font-serif italic text-[13px] text-ink-soft">
+        Drafting question {position}
+        <span className="inline-block w-1.5 h-3 bg-accent ml-1 animate-pulse align-text-bottom" />
+      </span>
+    </div>
+  );
+}
+
+// Distant pending slot — quieter than DraftingPlaceholder.
+function PendingPlaceholder({ position }) {
+  return (
+    <div className="px-4 py-2 flex items-center gap-2.5 opacity-60">
+      <span className="h-5 w-5 rounded-md font-mono text-[10px] bg-paper-warm border border-line text-muted flex items-center justify-center">
+        {position}
+      </span>
+      <span className="font-serif italic text-[12.5px] text-muted">
+        Question {position}
+      </span>
     </div>
   );
 }
