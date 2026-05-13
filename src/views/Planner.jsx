@@ -15,8 +15,10 @@
 import React, { useMemo, useState } from "react";
 import {
   ChevronLeft, ChevronRight, Plus, BookOpen, CalendarDays,
-  GraduationCap, ClipboardList, Presentation, Sparkles,
+  GraduationCap, ClipboardList, Presentation, Sparkles, ArrowRight,
+  MoreHorizontal, MessageCircle, BarChart3, FileText, Layout,
 } from "lucide-react";
+import { navigate } from "../lib/route";
 
 // Categories the calendar can show. Each maps to one of the existing
 // teaching surfaces, with a Mudir-palette color so the day cells stay
@@ -168,13 +170,16 @@ export default function Planner() {
   }, [events]);
 
   return (
-    <div className="planner-view max-w-6xl mx-auto pb-12">
+    <div className="planner-view max-w-[1400px] mx-auto pb-6">
+      {/* Hero — Studio AI prompt card with quick-action chips. Sits above
+          the calendar like the 2026 mockup; routes to /studio. */}
+      <StudioHeroCard />
+
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-5">
+        <div>
       {/* Header — month/year, prev/next chevrons, Today button. */}
       <div className="flex items-end justify-between gap-4 mb-5 flex-wrap">
         <div>
-          <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-2 inline-flex items-center gap-2.5">
-            <span className="w-6 h-px bg-accent" /> Planner
-          </p>
           <h1 className="font-serif text-3xl md:text-4xl font-medium text-ink leading-tight">
             <span key={monthLabel} className="studio-tick">
               {MONTH_LABELS[anchor.getMonth()]}
@@ -362,10 +367,226 @@ export default function Planner() {
           </ul>
         )}
       </div>
+        </div>
 
-      <p className="mt-5 text-center font-serif italic text-xs text-muted/80">
-        Scaffolding · Mudir will pull real items from each teaching surface in a later build.
+        {/* Right rail — AI Insights, Upcoming, Quick Actions. Stacks under
+            the calendar on small screens. */}
+        <aside className="flex flex-col gap-4">
+          <AIInsightsCard />
+          <UpcomingCard events={events.slice(0, 4)} />
+          <QuickActionsCard />
+        </aside>
+      </div>
+
+      <p className="mt-6 text-center font-serif italic text-xs text-muted">
+        Made with <span className="text-accent not-italic">♥</span> by Mudir Team
       </p>
+    </div>
+  );
+}
+
+// ───────────────────────────────────────────────────────────────────────
+// Hero card — Studio AI prompt panel above the calendar. Headline +
+// 6 quick-action chips. Each chip routes to /studio (the picker
+// pre-selects the kind in a later wire-up).
+// ───────────────────────────────────────────────────────────────────────
+function StudioHeroCard() {
+  const chips = [
+    { key: "lesson",       icon: BookOpen,      title: "Lesson Plan",      subtitle: "Generate in seconds" },
+    { key: "quiz",         icon: GraduationCap, title: "Quiz",             subtitle: "From any topic" },
+    { key: "presentation", icon: Layout,        title: "Presentation",     subtitle: "AI slides maker" },
+    { key: "weekly",       icon: CalendarDays,  title: "Weekly Plan",      subtitle: "Smart schedule" },
+    { key: "insights",     icon: BarChart3,     title: "Student Insights", subtitle: "Analyze progress" },
+    { key: "ask",          icon: MessageCircle, title: "Ask Studio",       subtitle: "Anything you need" },
+  ];
+  return (
+    <div className="planner-hero rounded-3xl p-6 md:p-8 mb-5 relative overflow-hidden">
+      <div className="relative z-10 grid grid-cols-1 md:grid-cols-[1fr_auto] gap-6 items-center">
+        <div>
+          <p className="font-mono text-[10px] uppercase tracking-[0.20em] text-accent mb-2.5 inline-flex items-center gap-2">
+            <Sparkles size={11} strokeWidth={2} /> Studio AI
+          </p>
+          <h2 className="font-serif text-2xl md:text-3xl lg:text-4xl text-ink leading-tight font-medium">
+            What would you like to{" "}
+            <em className="italic font-light text-accent">create</em> today?{" "}
+            <Sparkles size={20} strokeWidth={2} className="inline align-baseline text-accent" />
+          </h2>
+          <p className="font-serif italic text-sm md:text-base text-muted mt-2 max-w-xl">
+            Your AI co-pilot that helps you plan, create and save hours every week.
+          </p>
+        </div>
+        <div className="planner-hero-orb hidden md:block" aria-hidden />
+      </div>
+
+      <div className="relative z-10 mt-5 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2.5">
+        {chips.map((c) => {
+          const Icon = c.icon;
+          return (
+            <button
+              key={c.key}
+              type="button"
+              onClick={() => navigate(["studio"])}
+              className="planner-hero-chip group"
+            >
+              <span className="planner-hero-chip-icon">
+                <Icon size={14} strokeWidth={1.75} />
+              </span>
+              <span className="flex flex-col items-start min-w-0 text-left">
+                <span className="text-[12.5px] font-medium text-ink truncate">
+                  {c.title}
+                </span>
+                <span className="font-serif italic text-[10.5px] text-muted truncate">
+                  {c.subtitle}
+                </span>
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ───────────────────────────────────────────────────────────────────────
+// AI Insights — small dashboard tile. Placeholder line chart in sage,
+// "On track" headline, 3-stat row.
+// ───────────────────────────────────────────────────────────────────────
+function AIInsightsCard() {
+  return (
+    <div className="rounded-2xl border border-line bg-paper-cool p-4 md:p-5">
+      <div className="flex items-center justify-between mb-3">
+        <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent inline-flex items-center gap-1.5">
+          <Sparkles size={11} strokeWidth={2} /> AI Insights
+        </p>
+        <button className="text-muted hover:text-ink transition" aria-label="More">
+          <MoreHorizontal size={14} />
+        </button>
+      </div>
+      <p className="font-serif italic text-sm text-muted">Your teaching rhythm is</p>
+      <p className="font-serif text-2xl text-ink font-medium leading-tight">On track</p>
+      <div className="my-3">
+        <svg viewBox="0 0 280 56" className="w-full h-12" preserveAspectRatio="none">
+          <defs>
+            <linearGradient id="insightsFill" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="var(--color-sage)" stopOpacity="0.30" />
+              <stop offset="100%" stopColor="var(--color-sage)" stopOpacity="0" />
+            </linearGradient>
+          </defs>
+          <path
+            d="M0 42 L30 36 L60 38 L90 28 L120 32 L150 22 L180 26 L210 14 L240 18 L280 8 L280 56 L0 56 Z"
+            fill="url(#insightsFill)"
+          />
+          <path
+            d="M0 42 L30 36 L60 38 L90 28 L120 32 L150 22 L180 26 L210 14 L240 18 L280 8"
+            stroke="var(--color-sage)" strokeWidth="1.75" fill="none"
+            strokeLinecap="round" strokeLinejoin="round"
+          />
+        </svg>
+        <p className="font-mono text-[10px] tracking-[0.14em] uppercase text-sage mt-1">
+          +12% vs last month
+        </p>
+      </div>
+      <div className="grid grid-cols-3 gap-2 pt-3 border-t border-line/70">
+        {[
+          { n: 28, k: "Planned" },
+          { n: 12, k: "Completed" },
+          { n: 16, k: "To do" },
+        ].map((s) => (
+          <div key={s.k}>
+            <p className="font-serif text-xl font-medium text-ink leading-none">{s.n}</p>
+            <p className="font-serif italic text-[11px] text-muted mt-1">{s.k}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ───────────────────────────────────────────────────────────────────────
+// Upcoming — next 4 items pulled from the same placeholder data the
+// calendar uses, so the rail and grid stay in sync until the real API
+// lands.
+// ───────────────────────────────────────────────────────────────────────
+function UpcomingCard({ events }) {
+  const fmt = (iso) => {
+    const d = new Date(`${iso}T00:00:00`);
+    return {
+      month: d.toLocaleDateString(undefined, { month: "short" }).toUpperCase(),
+      day: d.getDate(),
+    };
+  };
+  return (
+    <div className="rounded-2xl border border-line bg-paper-cool p-4 md:p-5">
+      <div className="flex items-center justify-between mb-3">
+        <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted">Upcoming</p>
+        <button className="font-serif italic text-xs text-accent hover:text-ink transition">
+          View all
+        </button>
+      </div>
+      <ul className="space-y-3">
+        {events.map((e) => {
+          const { month, day } = fmt(e.date);
+          return (
+            <li key={e.id} className="flex items-start gap-3">
+              <div className="flex-shrink-0 text-center">
+                <p className="font-mono text-[9px] tracking-wider uppercase text-accent">{month}</p>
+                <p className="font-serif text-lg font-medium text-ink leading-none">{day}</p>
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[13px] font-medium text-ink leading-tight truncate">{e.title}</p>
+                <p className="font-mono text-[10px] text-muted mt-1">{e.time || "All day"}</p>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
+// ───────────────────────────────────────────────────────────────────────
+// Quick Actions — four shortcut buttons that route to the studio with
+// the kind pre-selected (deferred wiring — for now they go to /studio).
+// ───────────────────────────────────────────────────────────────────────
+function QuickActionsCard() {
+  const actions = [
+    { key: "lesson",       icon: BookOpen,      label: "Add Lesson Plan",   color: "ink" },
+    { key: "quiz",         icon: GraduationCap, label: "Create Quiz",       color: "accent" },
+    { key: "homework",     icon: ClipboardList, label: "New Homework",      color: "gold" },
+    { key: "presentation", icon: Presentation,  label: "New Presentation",  color: "accent-soft" },
+  ];
+  const bg = {
+    "ink":         "bg-ink",
+    "accent":      "bg-accent",
+    "gold":        "bg-gold",
+    "accent-soft": "bg-accent-soft",
+  };
+  return (
+    <div className="rounded-2xl border border-line bg-paper-cool p-4 md:p-5">
+      <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-3">
+        Quick Actions
+      </p>
+      <div className="space-y-2">
+        {actions.map((a) => {
+          const Icon = a.icon;
+          return (
+            <button
+              key={a.key}
+              type="button"
+              onClick={() => navigate(["studio"])}
+              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border border-line bg-paper hover:border-ink/30 hover:bg-paper-warm/40 transition-all duration-150 group"
+            >
+              <span className={`h-8 w-8 rounded-lg ${bg[a.color]} text-paper-cool flex items-center justify-center flex-shrink-0`}>
+                <Icon size={14} strokeWidth={1.75} />
+              </span>
+              <span className="flex-1 min-w-0 text-left text-[13px] font-medium text-ink truncate">
+                {a.label}
+              </span>
+              <Plus size={14} className="text-muted group-hover:text-accent group-hover:translate-x-0.5 transition-all duration-150 flex-shrink-0" />
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }

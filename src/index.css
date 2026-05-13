@@ -220,24 +220,20 @@
   100% { box-shadow: 0 0 0 0 rgba(200, 71, 43, 0); }
 }
 
-/* Studio launcher — the hero CTA, lifted out of the nav list. Same
-   vocabulary as the design handoff's "Activate Pro" pill (dark surface
-   + accent-color icon circle + headline + subtitle + arrow), in Mudir's
-   palette and on a vertical card form factor so it fits the sidebar.
-
-   The whole card breathes: a soft accent-red halo pulses behind the
-   icon circle on a 2.4s loop. Hover lifts -2px, the halo brightens
-   to a stronger shadow, and the trailing arrow slides 4px diagonally
-   to signal action. */
+/* Studio launcher — vertical hero card matching the 2026 mockup. Three
+   stacked rows: a header with a sparkle square + "AI" pill, a body
+   with the Studio title + subtitle, and a full-width cream CTA at the
+   bottom. The dark ink surface is painted by an animated 3-blob aurora
+   (see ::before below) so the surface never reads as flat. */
 .mudir-studio-launcher {
   margin: 0 12px 18px;
-  padding: 14px 14px 14px 14px;
-  border-radius: 18px;
+  padding: 16px 16px 14px;
+  border-radius: 20px;
   background: var(--color-ink);
   color: var(--color-paper-cool);
   display: flex;
-  align-items: center;
-  gap: 12px;
+  flex-direction: column;
+  gap: 14px;
   width: calc(100% - 24px);
   cursor: pointer;
   border: 0;
@@ -246,7 +242,7 @@
   overflow: hidden;
   isolation: isolate;
   box-shadow:
-    0 12px 28px rgba(15, 20, 16, 0.20),
+    0 14px 32px rgba(15, 20, 16, 0.22),
     0 2px 6px rgba(15, 20, 16, 0.10);
   transition: transform 280ms cubic-bezier(0.22, 1, 0.36, 1),
               box-shadow 280ms ease;
@@ -339,61 +335,200 @@
   left: 110%;
 }
 
+/* Row 1 — small sparkle square + "AI" pill. */
+.mudir-studio-launcher-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: relative;
+  z-index: 2;
+}
 .mudir-studio-launcher-icon {
-  flex-shrink: 0;
-  height: 38px;
-  width: 38px;
-  border-radius: 12px;
+  height: 26px;
+  width: 26px;
+  border-radius: 8px;
   background: var(--color-accent);
   color: var(--color-paper-cool);
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 6px 16px rgba(200, 71, 43, 0.34);
+  box-shadow: 0 4px 12px rgba(200, 71, 43, 0.42);
   animation: mudir-studio-launcher-pulse 2400ms ease-in-out infinite;
-  position: relative;
   transition: transform 280ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 .mudir-studio-launcher:hover .mudir-studio-launcher-icon {
-  transform: rotate(-6deg);
+  transform: rotate(-6deg) scale(1.04);
 }
 @keyframes mudir-studio-launcher-pulse {
-  0%, 100% { box-shadow: 0 6px 16px rgba(200, 71, 43, 0.34); }
-  50%      { box-shadow: 0 8px 22px rgba(200, 71, 43, 0.50); }
+  0%, 100% { box-shadow: 0 4px 12px rgba(200, 71, 43, 0.42); }
+  50%      { box-shadow: 0 6px 18px rgba(200, 71, 43, 0.58); }
+}
+.mudir-studio-launcher-pill {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.16em;
+  padding: 2.5px 8px;
+  border-radius: 999px;
+  background: rgba(250, 246, 236, 0.16);
+  color: var(--color-paper-cool);
+  border: 1px solid rgba(250, 246, 236, 0.18);
 }
 
-.mudir-studio-launcher-text {
-  flex: 1;
-  min-width: 0;
+/* Row 2 — Studio title (big serif) + italic subtitle. */
+.mudir-studio-launcher-body {
+  position: relative;
+  z-index: 2;
   display: flex;
   flex-direction: column;
+  gap: 3px;
 }
 .mudir-studio-launcher-title {
   font-family: var(--font-serif);
-  font-size: 17px;
+  font-size: 26px;
   font-weight: 500;
-  letter-spacing: -0.005em;
+  letter-spacing: -0.015em;
   color: var(--color-paper-cool);
-  line-height: 1.1;
+  line-height: 1;
 }
 .mudir-studio-launcher-subtitle {
   font-family: var(--font-serif);
   font-style: italic;
-  font-size: 11px;
-  color: rgba(250, 246, 236, 0.62);
-  margin-top: 3px;
+  font-size: 12px;
+  color: rgba(250, 246, 236, 0.68);
   letter-spacing: -0.005em;
-  line-height: 1.2;
+  line-height: 1.25;
 }
-.mudir-studio-launcher-arrow {
-  flex-shrink: 0;
-  color: rgba(250, 246, 236, 0.55);
-  transition: transform 280ms cubic-bezier(0.22, 1, 0.36, 1),
-              color 220ms ease;
+
+/* Row 3 — full-width cream CTA at the bottom. */
+.mudir-studio-launcher-cta {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 9px 12px;
+  border-radius: 11px;
+  background: var(--color-paper-cool);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: -0.005em;
+  box-shadow:
+    0 2px 0 rgba(0, 0, 0, 0.05),
+    0 6px 14px rgba(15, 20, 16, 0.20);
+  transition: background-color 200ms ease, transform 200ms ease;
 }
-.mudir-studio-launcher:hover .mudir-studio-launcher-arrow {
-  transform: translate(3px, -3px);
+.mudir-studio-launcher:hover .mudir-studio-launcher-cta {
+  background: #ffffff;
+}
+.mudir-studio-launcher-cta-arrow {
+  transition: transform 240ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.mudir-studio-launcher:hover .mudir-studio-launcher-cta-arrow {
+  transform: translateX(3px);
+}
+
+/* Mudir Premium upgrade card — bottom of the sidebar. Cream paper-cool
+   surface with a tiny crown badge, body copy, and a cream-on-accent
+   CTA. Echoes the Studio launcher's structure at a smaller scale so
+   the two read as a pair without competing. */
+.mudir-premium-card {
+  margin: 0 12px 12px;
+  padding: 14px 14px 12px;
+  border-radius: 16px;
+  background: var(--color-paper-cool);
+  border: 1px solid var(--color-line);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  animation: mudir-sidebar-item-in 560ms cubic-bezier(0.22, 1, 0.36, 1) 420ms both;
+}
+.mudir-premium-card-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.mudir-premium-card-icon {
+  height: 22px;
+  width: 22px;
+  border-radius: 7px;
+  background: var(--color-gold);
   color: var(--color-paper-cool);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 3px 8px rgba(184, 137, 61, 0.30);
+}
+.mudir-premium-card-title {
+  font-family: var(--font-serif);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-ink);
+  letter-spacing: -0.005em;
+}
+.mudir-premium-card-body {
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: 11.5px;
+  color: var(--color-muted);
+  line-height: 1.4;
+}
+.mudir-premium-card-cta {
+  margin-top: 2px;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--color-accent);
+  font-family: var(--font-sans);
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: transform 200ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.mudir-premium-card-cta:hover {
+  transform: translateX(2px);
+}
+
+/* Header user button — avatar + name + role, replaces the standalone
+   SA circle in the top right. Hover gently lightens the surface. */
+.mudir-header-user {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 10px 4px 4px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  background: transparent;
+  cursor: pointer;
+  transition: background-color 200ms ease, border-color 200ms ease;
+}
+.mudir-header-user:hover {
+  background: var(--color-paper);
+  border-color: var(--color-line);
+}
+.mudir-header-user-avatar {
+  height: 34px;
+  width: 34px;
+  border-radius: 999px;
+  background: var(--color-ink);
+  color: var(--color-paper-cool);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background-color 220ms ease;
+}
+.mudir-header-user:hover .mudir-header-user-avatar {
+  background: var(--color-accent);
 }
 
 .mudir-sidebar-section {
@@ -576,6 +711,109 @@
     animation-delay: 0ms !important;
     transition-duration: 1ms !important;
   }
+}
+
+/* Planner hero card — the "Studio AI" prompt panel that sits above the
+   calendar. Cream paper-warm surface with a soft accent-red aurora
+   washed across the right edge, faint dot-grid overlay for texture,
+   and a glassy orb on the right that pulses on a slow loop. */
+.planner-hero {
+  background:
+    radial-gradient(ellipse 70% 80% at 100% 50%, rgba(200, 71, 43, 0.10), transparent 60%),
+    radial-gradient(ellipse 50% 60% at 0% 0%, rgba(184, 137, 61, 0.05), transparent 50%),
+    var(--color-paper-cool);
+  border: 1px solid var(--color-line);
+  box-shadow: 0 1px 0 rgba(15, 20, 16, 0.02), 0 12px 28px -18px rgba(15, 20, 16, 0.12);
+  position: relative;
+}
+.planner-hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image:
+    radial-gradient(circle, rgba(212, 201, 179, 0.45) 1px, transparent 1px);
+  background-size: 18px 18px;
+  background-position: 0 0;
+  opacity: 0.4;
+  pointer-events: none;
+  mask-image: radial-gradient(ellipse at right, rgba(0,0,0,0.7), transparent 70%);
+  -webkit-mask-image: radial-gradient(ellipse at right, rgba(0,0,0,0.7), transparent 70%);
+}
+
+/* Glassy orb — pure CSS, no SVG. Two stacked radial gradients form a
+   soft sphere; the highlight rotates slowly to give it life. */
+.planner-hero-orb {
+  width: 130px;
+  height: 130px;
+  border-radius: 999px;
+  background:
+    radial-gradient(circle at 35% 30%, rgba(255, 255, 255, 0.85), rgba(255, 255, 255, 0) 35%),
+    radial-gradient(circle at 60% 60%, var(--color-accent-soft) 0%, var(--color-accent) 60%, var(--color-ink) 110%);
+  box-shadow:
+    0 16px 40px -10px rgba(200, 71, 43, 0.35),
+    inset 0 -8px 22px rgba(15, 20, 16, 0.45),
+    inset 0 6px 16px rgba(255, 255, 255, 0.25);
+  position: relative;
+  animation: planner-hero-orb-breath 6s ease-in-out infinite;
+}
+.planner-hero-orb::before, .planner-hero-orb::after {
+  content: "";
+  position: absolute;
+  border-radius: 999px;
+  background: #ffffff;
+}
+.planner-hero-orb::before {
+  width: 12px; height: 4px;
+  top: 50%; left: 30%;
+  transform: translate(-50%, -50%);
+  box-shadow: 36px 0 0 #ffffff;
+  opacity: 0.95;
+}
+.planner-hero-orb::after {
+  width: 4px; height: 4px;
+  top: 30%; right: 22%;
+  opacity: 0.6;
+  filter: blur(1px);
+}
+@keyframes planner-hero-orb-breath {
+  0%, 100% { transform: scale(1) translateY(0); }
+  50%      { transform: scale(1.05) translateY(-4px); }
+}
+
+.planner-hero-chip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: var(--color-paper);
+  border: 1px solid var(--color-line);
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 200ms ease, transform 200ms cubic-bezier(0.22, 1, 0.36, 1), background-color 200ms ease;
+}
+.planner-hero-chip:hover {
+  border-color: var(--color-accent);
+  transform: translateY(-2px);
+  background: var(--color-paper-cool);
+}
+.planner-hero-chip-icon {
+  flex-shrink: 0;
+  height: 28px;
+  width: 28px;
+  border-radius: 8px;
+  background: var(--color-paper-cool);
+  color: var(--color-ink-soft);
+  border: 1px solid var(--color-line);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 200ms ease, color 200ms ease, border-color 200ms ease;
+}
+.planner-hero-chip:hover .planner-hero-chip-icon {
+  background: var(--color-accent);
+  color: var(--color-paper-cool);
+  border-color: var(--color-accent);
 }
 
 /* Planner — monthly calendar grid. Each cell fades up on mount with a

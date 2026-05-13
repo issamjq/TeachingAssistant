@@ -1,5 +1,9 @@
 import React, { useEffect, useState } from "react";
-import { ChevronRight, X, Sparkles, ArrowUpRight } from "lucide-react";
+import {
+  ChevronRight, X, Sparkles, ArrowUpRight, ArrowRight, Crown,
+  Calendar as CalendarIcon, GraduationCap, Users, ClipboardList,
+  ClipboardCheck, FolderOpen, BarChart3, Settings as SettingsIcon,
+} from "lucide-react";
 import Dashboard from "./views/Dashboard";
 import TemplatesLibrary from "./views/TemplatesLibrary";
 import NewTemplate from "./views/NewTemplate";
@@ -24,36 +28,22 @@ import { getRole, onRoleChange, ROLE_LABELS } from "./lib/role";
 import { api } from "./views/_shared";
 import { useRoute, navigate, replace } from "./lib/route";
 
+// Single-section nav, lucide-icon driven, matches the 2026 mockup. Every
+// label points to an existing route — Schedule and Presentations are
+// still reachable by URL or from inside the Teaching surface, just not
+// pinned to the rail at this size.
 const TEACHER_NAV = [
-  // Studio used to sit under Workspace as a small nav row — it's been
-  // promoted into its own hero launcher (StudioLauncher below) so the
-  // most-used surface in the app reads as the centerpiece, not a list
-  // entry. The Workspace section is empty for now so we drop it from
-  // the rail entirely until a second workspace tool exists.
-  // Planner is its own surface — a calendar that aggregates every
-  // teaching row underneath it. Keeping it in its own section so it
-  // reads as "the overview", not as a sibling lesson tool.
   {
-    section: "Planning",
+    section: null, // no section header — flat list per the mockup
     items: [
-      { key: "planner", label: "Planner", icon: "▦" },
-    ],
-  },
-  {
-    section: "Teaching",
-    items: [
-      { key: "lesson-plans",  label: "Lesson Plans",  letter: "L" },
-      { key: "schedule",      label: "Schedule",      letter: "S" },
-      { key: "quizzes",       label: "Quizzes",       letter: "Q" },
-      { key: "homework",      label: "Homework",      letter: "H" },
-      { key: "presentations", label: "Presentations", letter: "P" },
-      { key: "activities",    label: "Activities",    letter: "A" },
-    ],
-  },
-  {
-    section: "Data",
-    items: [
-      { key: "database", label: "My students", letter: "C" },
+      { key: "planner",      label: "Planner",      lucide: CalendarIcon },
+      { key: "lesson-plans", label: "Teaching",     lucide: GraduationCap },
+      { key: "database",     label: "Students",     lucide: Users },
+      { key: "homework",     label: "Homework",     lucide: ClipboardList },
+      { key: "quizzes",      label: "Assessments",  lucide: ClipboardCheck },
+      { key: "activities",   label: "Resources",    lucide: FolderOpen },
+      { key: "reports",      label: "Analytics",    lucide: BarChart3 },
+      { key: "account",      label: "Settings",     lucide: SettingsIcon },
     ],
   },
 ];
@@ -84,9 +74,17 @@ const SECTIONS_BY_ROLE = {
   dev: new Set(["dev-console", "account"]),
 };
 
-function NavBadge({ letter, icon }) {
-  // Letters fall back to the legible mono glyph; icons (◇, +, etc.) need
-  // the line-height reset so the stroke sits centered in the badge.
+function NavBadge({ letter, icon, lucide: Lucide }) {
+  // Three modes: a lucide React icon (current 2026 mockup), a unicode
+  // glyph ("◇", "+"), or a fallback mono letter. Lucide wins, then
+  // glyph, then letter — first-defined wins.
+  if (Lucide) {
+    return (
+      <span className="mudir-sidebar-badge">
+        <Lucide size={15} strokeWidth={1.75} />
+      </span>
+    );
+  }
   if (icon) {
     return <span className="mudir-sidebar-badge text-base leading-none">{icon}</span>;
   }
@@ -365,22 +363,24 @@ export default function StudioApp({ onClose }) {
             aria-label="Open AI studio"
             aria-current={section === "studio" ? "page" : undefined}
           >
-            <span className="mudir-studio-launcher-icon" aria-hidden>
-              <Sparkles size={18} strokeWidth={2} />
-            </span>
-            <span className="mudir-studio-launcher-text">
-              <span className="mudir-studio-launcher-title">
-                Studio
+            <span className="mudir-studio-launcher-head">
+              <span className="mudir-studio-launcher-icon" aria-hidden>
+                <Sparkles size={14} strokeWidth={2} />
               </span>
+              <span className="mudir-studio-launcher-pill">AI</span>
+            </span>
+
+            <span className="mudir-studio-launcher-body">
+              <span className="mudir-studio-launcher-title">Studio</span>
               <span className="mudir-studio-launcher-subtitle">
-                AI co-pilot · everything starts here
+                Your AI teaching co-pilot
               </span>
             </span>
-            <ArrowUpRight
-              size={16}
-              strokeWidth={2}
-              className="mudir-studio-launcher-arrow"
-            />
+
+            <span className="mudir-studio-launcher-cta">
+              <span>Open Studio</span>
+              <ArrowRight size={14} strokeWidth={2} className="mudir-studio-launcher-cta-arrow" />
+            </span>
           </button>
         )}
 
@@ -390,9 +390,11 @@ export default function StudioApp({ onClose }) {
               one after another, not in parallel. */}
           {(() => {
             let mi = 0;
-            return nav.map((s) => (
-              <section key={s.section} className="mudir-sidebar-section">
-                <p className="mudir-sidebar-section-label">{s.section}</p>
+            return nav.map((s, sectionIdx) => (
+              <section key={s.section || `sec-${sectionIdx}`} className="mudir-sidebar-section">
+                {s.section && (
+                  <p className="mudir-sidebar-section-label">{s.section}</p>
+                )}
                 <div className="space-y-0.5 px-1">
                   {s.items.map((item) => {
                     const isActive = sidebarActive === item.key;
@@ -405,7 +407,7 @@ export default function StudioApp({ onClose }) {
                         className={`mudir-sidebar-item ${isActive ? "mudir-sidebar-item-active" : ""}`}
                         aria-current={isActive ? "page" : undefined}
                       >
-                        <NavBadge letter={item.letter} icon={item.icon} />
+                        <NavBadge letter={item.letter} icon={item.icon} lucide={item.lucide} />
                         <span className="truncate flex-1">{item.label}</span>
                       </button>
                     );
@@ -416,22 +418,25 @@ export default function StudioApp({ onClose }) {
           })()}
         </nav>
 
-        <button
-          onClick={() => navigate(["account"])}
-          title="Open account"
-          className={`mudir-sidebar-account ${section === "account" ? "mudir-sidebar-account-active" : ""}`}
-        >
-          <span className="mudir-sidebar-account-avatar">SA</span>
-          <div className="flex-1 min-w-0 text-left">
-            <p className="text-sm font-medium leading-tight truncate text-ink">
-              Sara Al-Mansoori
-            </p>
-            <p className="font-serif italic text-[11px] text-muted mt-0.5">
-              {ROLE_LABELS[role]}
-            </p>
+        <div className="mudir-premium-card">
+          <div className="mudir-premium-card-head">
+            <span className="mudir-premium-card-icon" aria-hidden>
+              <Crown size={14} strokeWidth={2} />
+            </span>
+            <span className="mudir-premium-card-title">Mudir Premium</span>
           </div>
-          <ChevronRight size={14} className="text-muted flex-shrink-0" />
-        </button>
+          <p className="mudir-premium-card-body">
+            Unlock advanced AI features, unlimited generation and more.
+          </p>
+          <button
+            type="button"
+            className="mudir-premium-card-cta"
+            onClick={() => navigate(["account"])}
+          >
+            Upgrade now
+            <ArrowRight size={13} strokeWidth={2} />
+          </button>
+        </div>
       </aside>
 
       <main className="flex-1 flex flex-col min-w-0 h-full">
@@ -455,9 +460,15 @@ export default function StudioApp({ onClose }) {
             <button
               onClick={() => navigate(["account"])}
               title="Open account"
-              className="h-9 w-9 rounded-full bg-ink text-paper-cool flex items-center justify-center font-mono text-[11px] tracking-wider font-semibold hover:bg-accent transition"
+              className="mudir-header-user group"
             >
-              SA
+              <span className="mudir-header-user-avatar">SA</span>
+              <span className="hidden md:flex flex-col items-start leading-tight">
+                <span className="text-sm font-medium text-ink">Sara Al-Mansoori</span>
+                <span className="font-serif italic text-[11px] text-muted">
+                  {ROLE_LABELS[role]}
+                </span>
+              </span>
             </button>
             {onClose && (
               <button
