@@ -179,28 +179,22 @@ export default function Planner() {
   return (
     <div className="planner-view max-w-[1400px] mx-auto pb-2">
 
-      {/* ── Month hero — compact eyebrow + headline + caption, orb on
-          the right edge. Sized down so the whole page fits one screen. */}
-      <div className="planner-month-hero relative mb-3">
-        <p className="font-sans text-[10px] uppercase tracking-[0.30em] text-accent-soft mb-1.5">
+      {/* ── Month hero — eyebrow + tight headline + one-line caption.
+          The orb is gone; we save the room for the calendar grid. */}
+      <div className="mb-2">
+        <p className="font-sans text-[10px] uppercase tracking-[0.30em] text-accent-soft mb-1">
           Planner
         </p>
-        <h1 className="font-serif text-3xl md:text-4xl lg:text-5xl font-medium text-ink leading-[1.02]">
-          <span key={monthLabel} className="studio-tick">
-            {MONTH_LABELS[anchor.getMonth()]}
-          </span>{" "}
-          <em className="italic font-light text-accent">{anchor.getFullYear()}</em>
-        </h1>
-        <p className="text-sm text-muted mt-2 max-w-xl leading-relaxed">
-          Lesson plans, schedules, quizzes and activities — all in one workspace.
-        </p>
-        <div className="planner-orb hidden md:flex" aria-hidden>
-          <span className="planner-orb-ring planner-orb-ring-outer" />
-          <span className="planner-orb-ring planner-orb-ring-inner" />
-          <span className="planner-orb-halo" />
-          <span className="planner-orb-sphere">
-            <Sparkles size={18} strokeWidth={2} className="text-paper-cool relative z-10" />
-          </span>
+        <div className="flex items-baseline gap-3 flex-wrap">
+          <h1 className="font-serif text-2xl md:text-3xl font-medium text-ink leading-none">
+            <span key={monthLabel} className="studio-tick">
+              {MONTH_LABELS[anchor.getMonth()]}
+            </span>{" "}
+            <em className="italic font-light text-accent">{anchor.getFullYear()}</em>
+          </h1>
+          <p className="text-[12.5px] text-muted leading-snug">
+            Lesson plans, schedules, quizzes and activities — all in one workspace.
+          </p>
         </div>
       </div>
 
@@ -213,7 +207,7 @@ export default function Planner() {
         <button
           type="button"
           onClick={toggleAll}
-          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-[12.5px] font-medium transition-all duration-200 ${
+          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[11.5px] font-medium transition-all duration-200 ${
             allOn
               ? "bg-ink text-paper-cool border-ink shadow-sm"
               : "bg-paper-cool text-ink border-line hover:border-ink"
@@ -233,7 +227,7 @@ export default function Planner() {
               key={c.key}
               type="button"
               onClick={() => toggleCategory(c.key)}
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-[12.5px] transition-all duration-200 ${
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[11.5px] transition-all duration-200 ${
                 on
                   ? `${s.chipBg} ${s.chipText} border-transparent`
                   : "bg-paper-cool text-muted border-line hover:border-ink/40"
@@ -256,14 +250,14 @@ export default function Planner() {
           type="button"
           onClick={goToday}
           aria-label="Jump to today"
-          className="h-9 w-9 rounded-lg border border-line bg-paper-cool hover:border-ink hover:bg-paper-warm flex items-center justify-center transition-all duration-150"
+          className="h-7 w-7 rounded-lg border border-line bg-paper-cool hover:border-ink hover:bg-paper-warm flex items-center justify-center transition-all duration-150"
         >
           <CalendarDays size={14} strokeWidth={1.75} />
         </button>
         <button
           type="button"
           onClick={goToday}
-          className="px-3.5 py-1.5 rounded-lg border border-line bg-paper-cool hover:border-ink hover:bg-paper-warm font-serif italic text-sm text-ink transition-all duration-150"
+          className="px-2.5 py-1 rounded-lg border border-line bg-paper-cool hover:border-ink hover:bg-paper-warm font-serif italic text-xs text-ink transition-all duration-150"
         >
           Today
         </button>
@@ -271,7 +265,7 @@ export default function Planner() {
           type="button"
           onClick={goPrev}
           aria-label="Previous month"
-          className="h-9 w-9 rounded-lg border border-line bg-paper-cool hover:border-ink hover:bg-paper-warm flex items-center justify-center transition-all duration-150"
+          className="h-7 w-7 rounded-lg border border-line bg-paper-cool hover:border-ink hover:bg-paper-warm flex items-center justify-center transition-all duration-150"
         >
           <ChevronLeft size={15} />
         </button>
@@ -279,7 +273,7 @@ export default function Planner() {
           type="button"
           onClick={goNext}
           aria-label="Next month"
-          className="h-9 w-9 rounded-lg border border-line bg-paper-cool hover:border-ink hover:bg-paper-warm flex items-center justify-center transition-all duration-150"
+          className="h-7 w-7 rounded-lg border border-line bg-paper-cool hover:border-ink hover:bg-paper-warm flex items-center justify-center transition-all duration-150"
         >
           <ChevronRight size={15} />
         </button>
@@ -292,7 +286,7 @@ export default function Planner() {
           {DAY_LABELS.map((d) => (
             <div
               key={d}
-              className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted px-3 py-2.5 text-center"
+              className="font-mono text-[9.5px] uppercase tracking-[0.18em] text-muted px-2 py-1.5 text-center"
             >
               {d}
             </div>
@@ -308,7 +302,7 @@ export default function Planner() {
             return (
               <div
                 key={i}
-                className={`planner-cell border-b border-r border-line/70 px-1.5 pt-1.5 pb-1 min-h-[76px] flex flex-col gap-1 transition-colors duration-150 ${
+                className={`planner-cell border-b border-r border-line/70 px-1.5 pt-1 pb-1 min-h-[62px] flex flex-col gap-0.5 transition-colors duration-150 ${
                   inMonth ? "bg-paper-cool" : "bg-paper-warm/40 text-muted/60"
                 } hover:bg-paper-warm/50 ${
                   isToday ? "planner-cell-today" : ""
@@ -394,21 +388,21 @@ function StudioHeroCard() {
     { key: "ask",          icon: MessageCircle, label: "Ask Studio" },
   ];
   return (
-    <div className="planner-hero rounded-3xl p-4 md:p-5 mb-3 relative overflow-hidden">
-      <div className="relative z-10 grid grid-cols-1 lg:grid-cols-[1fr_auto] gap-3 lg:gap-6 items-center">
+    <div className="planner-hero rounded-2xl p-3 md:p-4 mb-2 relative overflow-hidden">
+      <div className="relative z-10 grid grid-cols-1 lg:grid-cols-[1fr_auto] gap-2 lg:gap-5 items-center">
         <div>
-          <p className="inline-flex items-center gap-1.5 rounded-full bg-accent/[0.10] px-2.5 py-1 text-[11px] font-medium text-accent mb-2">
-            <Sparkles size={11} strokeWidth={2} /> Studio AI
+          <p className="inline-flex items-center gap-1.5 rounded-full bg-accent/[0.10] px-2 py-0.5 text-[10.5px] font-medium text-accent mb-1.5">
+            <Sparkles size={10} strokeWidth={2} /> Studio AI
           </p>
-          <h2 className="font-serif text-xl md:text-2xl text-ink leading-[1.15] font-medium">
+          <h2 className="font-serif text-lg md:text-xl text-ink leading-[1.15] font-medium">
             What would you like to{" "}
             <em className="italic font-light text-accent">create</em> today?
           </h2>
-          <p className="text-[13px] text-muted mt-1 max-w-md leading-snug">
-            Your AI teaching co-pilot that helps you plan faster, generate content and save hours every week.
+          <p className="text-[12px] text-muted mt-0.5 max-w-md leading-snug">
+            Your AI teaching co-pilot — plan faster, generate content, save hours.
           </p>
         </div>
-        <div className="grid grid-cols-3 lg:grid-cols-6 gap-2 lg:flex-shrink-0">
+        <div className="grid grid-cols-3 lg:grid-cols-6 gap-1.5 lg:flex-shrink-0">
           {chips.map((c) => {
             const Icon = c.icon;
             return (
@@ -419,9 +413,9 @@ function StudioHeroCard() {
                 className="planner-hero-chip group"
               >
                 <span className="planner-hero-chip-icon">
-                  <Icon size={14} strokeWidth={1.75} />
+                  <Icon size={12} strokeWidth={1.75} />
                 </span>
-                <span className="text-[11.5px] font-medium text-ink leading-tight text-center">
+                <span className="text-[10.5px] font-medium text-ink leading-tight text-center">
                   {c.label}
                 </span>
               </button>
