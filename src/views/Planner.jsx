@@ -198,12 +198,18 @@ export default function Planner() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-3 items-stretch flex-1 min-h-0">
-        <div className="flex flex-col min-w-0 min-h-0">
+      {/* 2-row grid:
+            Row 1: top blocks (Studio AI hero on the left, AI Insights on
+                   the right) — both stretch to the same height via
+                   items-stretch + grid-rows-[auto_1fr].
+            Row 2: calendar (left, flex-1 to fill) + Upcoming +
+                   QuickActions stack (right, also flex-1).
+          The filter chip row + small calendar header live ABOVE the
+          grid so they don't break the column alignment. */}
 
-      {/* ── Filter chip row — All + one per category. All is ink-filled
-          when active; specifics use their category color. */}
-      <div className="flex flex-wrap items-center gap-1.5 mb-2">
+      {/* ── Filter chip row — All + one per category. Sits above the
+          grid so both columns inside the grid start at the same Y. */}
+      <div className="flex flex-wrap items-center gap-1.5 mb-2 shrink-0">
         <button
           type="button"
           onClick={toggleAll}
@@ -238,14 +244,9 @@ export default function Planner() {
             </button>
           );
         })}
-      </div>
-
-      {/* ── Studio AI card — sits between filters and the grid. */}
-      <StudioHeroCard />
-
-      {/* ── Calendar header — small calendar icon + Today button +
-          prev/next, right-aligned above the grid. */}
-      <div className="flex items-center justify-end gap-1.5 mb-2">
+        <span className="flex-1" />
+        {/* Calendar nav — Today + prev/next inline on the same row so
+            the grid below starts flush. */}
         <button
           type="button"
           onClick={goToday}
@@ -278,6 +279,20 @@ export default function Planner() {
           <ChevronRight size={15} />
         </button>
       </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] grid-rows-[auto_1fr] gap-x-3 gap-y-3 items-stretch flex-1 min-h-0">
+        {/* Row 1: Studio AI hero (left) + AI Insights (right), heights
+            match via items-stretch. */}
+        <div className="min-w-0">
+          <StudioHeroCard />
+        </div>
+        <div className="min-w-0">
+          <ThisMonthOverviewCard />
+        </div>
+
+        {/* Row 2: Calendar (left, fills remaining height) + Upcoming +
+            QuickActions stack (right, also fills). */}
+        <div className="min-w-0 min-h-0 flex flex-col">
 
       {/* The grid. paper-cool surface, rounded-2xl, soft shadow. Day
           headers in mono-uppercase, body cells in a 7-column grid. */}
@@ -358,16 +373,14 @@ export default function Planner() {
           })}
         </div>
       </div>
-
         </div>
 
-        {/* Right rail — This Month Overview / Upcoming / Quick Actions.
-            Stacks under the calendar on small screens. */}
-        <aside className="flex flex-col gap-3">
-          <ThisMonthOverviewCard />
+        {/* Row 2 right: Upcoming + Quick Actions stack, fills the same
+            vertical space as the calendar to its left. */}
+        <div className="min-w-0 min-h-0 flex flex-col gap-3">
           <UpcomingCard events={events.slice(0, 3)} />
           <QuickActionsCard />
-        </aside>
+        </div>
       </div>
     </div>
   );
