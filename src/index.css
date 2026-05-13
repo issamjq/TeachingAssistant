@@ -15,7 +15,11 @@
 
   --font-sans: "Inter Tight", ui-sans-serif, system-ui, sans-serif;
   --font-serif: "Fraunces", Georgia, serif;
-  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+  /* No more JetBrains Mono. Every `font-mono` utility now renders in
+     Inter Tight — eyebrows keep their uppercase + tracking styling,
+     but they share the same face as body copy so the whole project
+     reads as one type system instead of three. */
+  --font-mono: "Inter Tight", ui-sans-serif, system-ui, sans-serif;
 }
 
 /* AI Studio — per-section morph-in: fires every time the visible section

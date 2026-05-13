@@ -2024,7 +2024,7 @@ function KindMenu({ activeValue, cursor, onPick, onClose, onCursor }) {
         role="listbox"
         aria-label="What Mudir makes"
         onClick={(e) => e.stopPropagation()}
-        className="studio-menu-rise absolute left-0 top-full mt-2 z-50 w-[26rem] sm:w-[28rem] max-w-[calc(100vw-2rem)] origin-top-left rounded-xl border border-line bg-paper-cool shadow-xl ring-1 ring-ink/5 overflow-hidden"
+        className="studio-menu-rise absolute left-0 top-full mt-2 z-50 w-[26rem] sm:w-[28rem] max-w-[calc(100vw-2rem)] origin-top-left rounded-2xl border border-line bg-paper-cool shadow-xl ring-1 ring-ink/5 overflow-hidden"
       >
         <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted px-4 pt-3.5 pb-2">
           Switch to
@@ -2824,7 +2824,7 @@ function ComboboxMenu({
       <div
         role="listbox"
         onClick={(e) => e.stopPropagation()}
-        className="studio-menu-rise absolute left-0 top-full mt-1.5 z-50 min-w-[14rem] max-h-[60vh] overflow-y-auto origin-top-left rounded-xl border border-line bg-paper-cool shadow-xl ring-1 ring-ink/5"
+        className="studio-menu-rise absolute left-0 top-full mt-1.5 z-50 min-w-[14rem] max-h-[60vh] overflow-y-auto origin-top-left rounded-2xl border border-line bg-paper-cool shadow-xl ring-1 ring-ink/5"
       >
         <ul className="py-1">
           {isCustom && (
@@ -3097,7 +3097,7 @@ function QuizMetaCard({ quiz, onUpdate, disabled = false }) {
   // Re-editing them mid-draft makes no sense (the body wouldn't match) so
   // they render read-only here. Only title and instructions stay editable.
   return (
-    <div className="rounded-xl border border-line bg-paper-cool p-5 md:p-6 studio-card-stagger">
+    <div className="rounded-2xl border border-line bg-paper-cool p-5 md:p-6 studio-card-stagger">
       <p className="font-serif italic text-base text-muted mb-2">Cover</p>
       <EditableText
         value={quiz.title || ""}
@@ -3160,7 +3160,7 @@ function QuizQuestionCard({ question, index, onUpdate, disabled = false }) {
   const safeUpdate = (patch) => { if (!disabled) onUpdate(patch); };
 
   return (
-    <div className="rounded-xl border border-line bg-paper-cool p-5 md:p-6 studio-card-stagger">
+    <div className="rounded-2xl border border-line bg-paper-cool p-5 md:p-6 studio-card-stagger">
       <div className="flex items-center justify-between gap-3 mb-3">
         <span className="font-serif italic text-base text-muted">
           Question {question.position ?? index + 1}
