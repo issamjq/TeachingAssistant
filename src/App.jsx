@@ -30,12 +30,18 @@ const TEACHER_NAV = [
   // most-used surface in the app reads as the centerpiece, not a list
   // entry. The Workspace section is empty for now so we drop it from
   // the rail entirely until a second workspace tool exists.
+  // Planner is its own surface — a calendar that aggregates every
+  // teaching row underneath it. Keeping it in its own section so it
+  // reads as "the overview", not as a sibling lesson tool.
+  {
+    section: "Planning",
+    items: [
+      { key: "planner", label: "Planner", icon: "▦" },
+    ],
+  },
   {
     section: "Teaching",
     items: [
-      // Planner sits first because every other Teaching row feeds into
-      // its calendar — it's the "where am I this month" hub view.
-      { key: "planner",       label: "Planner",       icon: "▦" },
       { key: "lesson-plans",  label: "Lesson Plans",  letter: "L" },
       { key: "schedule",      label: "Schedule",      letter: "S" },
       { key: "quizzes",       label: "Quizzes",       letter: "Q" },
