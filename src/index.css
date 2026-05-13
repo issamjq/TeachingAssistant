@@ -749,80 +749,72 @@
 }
 
 /* Planner month-hero — big "May 2026" headline + caption on the left,
-   ringed planet orb floating on the right. */
+   concentric-ring orb with central sphere on the right. */
 .planner-month-hero {
   padding: 8px 8px 0;
   margin-bottom: 6px;
-  min-height: 140px;
+  min-height: 200px;
 }
 .planner-orb {
   position: absolute;
-  right: 6%;
-  top: -16px;
-  width: 180px;
-  height: 180px;
+  right: 4%;
+  top: 0;
+  width: 200px;
+  height: 200px;
   pointer-events: none;
+  align-items: center;
+  justify-content: center;
   animation: planner-orb-float 7s ease-in-out infinite;
 }
 @keyframes planner-orb-float {
   0%, 100% { transform: translateY(0); }
   50%      { transform: translateY(-6px); }
 }
-/* Sphere — soft gradient ball, accent → ink. */
-.planner-orb-sphere {
-  position: absolute;
-  inset: 24px;
-  border-radius: 999px;
-  background:
-    radial-gradient(circle at 32% 28%, rgba(255, 255, 255, 0.78), rgba(255, 255, 255, 0) 36%),
-    radial-gradient(circle at 65% 65%, var(--color-accent-soft) 0%, var(--color-accent) 55%, #4a1a10 110%);
-  box-shadow:
-    0 14px 36px -8px rgba(200, 71, 43, 0.45),
-    inset 0 -10px 26px rgba(15, 20, 16, 0.45),
-    inset 0 8px 18px rgba(255, 255, 255, 0.18);
-}
-/* Saturn-style ring — tilted ellipse around the sphere. Built with two
-   stacked ellipses so the back half of the ring sits behind the planet. */
+
+/* Two concentric ring borders. Outer larger, inner smaller. */
 .planner-orb-ring {
   position: absolute;
-  inset: 0;
-  border-radius: 50%;
-  transform: rotate(-22deg);
-}
-.planner-orb-ring::before, .planner-orb-ring::after {
-  content: "";
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  width: 180px;
-  height: 38px;
   border-radius: 999px;
-  transform: translate(-50%, -50%);
-  border: 1.5px solid rgba(200, 71, 43, 0.55);
-  border-color: rgba(200, 71, 43, 0.55) transparent rgba(200, 71, 43, 0.55) transparent;
+  border: 1px solid;
+  pointer-events: none;
 }
-.planner-orb-ring::after {
-  width: 200px;
-  height: 44px;
-  border: 1px solid rgba(184, 137, 61, 0.35);
-  border-color: rgba(184, 137, 61, 0.35) transparent rgba(184, 137, 61, 0.35) transparent;
+.planner-orb-ring-outer {
+  width: 220px;
+  height: 220px;
+  border-color: rgba(232, 122, 85, 0.30);
 }
-/* Sparkle pinned to the upper-right of the ring system. */
-.planner-orb-spark {
+.planner-orb-ring-inner {
+  width: 170px;
+  height: 170px;
+  border-color: rgba(232, 122, 85, 0.45);
+}
+
+/* Soft accent halo glowing behind the sphere. */
+.planner-orb-halo {
   position: absolute;
-  top: 22%;
-  right: 14%;
-  width: 14px;
-  height: 14px;
-  background:
-    linear-gradient(transparent 45%, var(--color-paper-cool) 45%, var(--color-paper-cool) 55%, transparent 55%),
-    linear-gradient(90deg, transparent 45%, var(--color-paper-cool) 45%, var(--color-paper-cool) 55%, transparent 55%);
-  filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.6));
-  animation: planner-orb-spark 2.4s ease-in-out infinite;
+  width: 130px;
+  height: 130px;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgba(232, 122, 85, 0.55), rgba(232, 122, 85, 0) 70%);
+  filter: blur(8px);
 }
-@keyframes planner-orb-spark {
-  0%, 100% { transform: scale(1) rotate(0deg); opacity: 0.85; }
-  50%      { transform: scale(1.25) rotate(45deg); opacity: 1; }
+
+/* Central sphere — warm gradient ball with a Sparkles glyph inside. */
+.planner-orb-sphere {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 110px;
+  height: 110px;
+  border-radius: 999px;
+  background:
+    radial-gradient(circle at 32% 30%, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0) 38%),
+    radial-gradient(circle at 65% 65%, var(--color-accent-soft) 0%, var(--color-accent) 65%, #6b2918 110%);
+  box-shadow:
+    0 16px 50px rgba(200, 71, 43, 0.42),
+    inset 0 -10px 22px rgba(15, 20, 16, 0.40),
+    inset 0 8px 16px rgba(255, 255, 255, 0.20);
 }
 
 /* Today-cell sparkle — pinned to bottom-right of the today cell as a
@@ -856,107 +848,66 @@
   background: var(--color-paper-cool);
 }
 
-/* Planner hero card — the "Studio AI" prompt panel that sits above the
-   calendar. Cream paper-warm surface with a soft accent-red aurora
-   washed across the right edge, faint dot-grid overlay for texture,
-   and a glassy orb on the right that pulses on a slow loop. */
+/* Planner hero card — soft warm-cream gradient panel with a faint
+   accent blob bleeding in from the top-right edge. Cleaner than the
+   previous dot-grid version; matches the preview spec. */
 .planner-hero {
   background:
-    radial-gradient(ellipse 70% 80% at 100% 50%, rgba(200, 71, 43, 0.10), transparent 60%),
-    radial-gradient(ellipse 50% 60% at 0% 0%, rgba(184, 137, 61, 0.05), transparent 50%),
-    var(--color-paper-cool);
-  border: 1px solid var(--color-line);
-  box-shadow: 0 1px 0 rgba(15, 20, 16, 0.02), 0 12px 28px -18px rgba(15, 20, 16, 0.12);
+    linear-gradient(135deg, #fff7f1 0%, #f8ede4 100%);
+  border: 1px solid #f0e3d6;
+  box-shadow: 0 18px 44px -22px rgba(15, 20, 16, 0.16);
   position: relative;
+  overflow: hidden;
 }
 .planner-hero::before {
   content: "";
   position: absolute;
-  inset: 0;
-  background-image:
-    radial-gradient(circle, rgba(212, 201, 179, 0.45) 1px, transparent 1px);
-  background-size: 18px 18px;
-  background-position: 0 0;
-  opacity: 0.4;
+  right: -100px;
+  top: -80px;
+  width: 280px;
+  height: 280px;
+  border-radius: 999px;
+  background: rgba(232, 122, 85, 0.34);
+  filter: blur(60px);
   pointer-events: none;
-  mask-image: radial-gradient(ellipse at right, rgba(0,0,0,0.7), transparent 70%);
-  -webkit-mask-image: radial-gradient(ellipse at right, rgba(0,0,0,0.7), transparent 70%);
-}
-
-/* Glassy orb — pure CSS, no SVG. Two stacked radial gradients form a
-   soft sphere; the highlight rotates slowly to give it life. */
-.planner-hero-orb {
-  width: 130px;
-  height: 130px;
-  border-radius: 999px;
-  background:
-    radial-gradient(circle at 35% 30%, rgba(255, 255, 255, 0.85), rgba(255, 255, 255, 0) 35%),
-    radial-gradient(circle at 60% 60%, var(--color-accent-soft) 0%, var(--color-accent) 60%, var(--color-ink) 110%);
-  box-shadow:
-    0 16px 40px -10px rgba(200, 71, 43, 0.35),
-    inset 0 -8px 22px rgba(15, 20, 16, 0.45),
-    inset 0 6px 16px rgba(255, 255, 255, 0.25);
-  position: relative;
-  animation: planner-hero-orb-breath 6s ease-in-out infinite;
-}
-.planner-hero-orb::before, .planner-hero-orb::after {
-  content: "";
-  position: absolute;
-  border-radius: 999px;
-  background: #ffffff;
-}
-.planner-hero-orb::before {
-  width: 12px; height: 4px;
-  top: 50%; left: 30%;
-  transform: translate(-50%, -50%);
-  box-shadow: 36px 0 0 #ffffff;
-  opacity: 0.95;
-}
-.planner-hero-orb::after {
-  width: 4px; height: 4px;
-  top: 30%; right: 22%;
-  opacity: 0.6;
-  filter: blur(1px);
-}
-@keyframes planner-hero-orb-breath {
-  0%, 100% { transform: scale(1) translateY(0); }
-  50%      { transform: scale(1.05) translateY(-4px); }
 }
 
 .planner-hero-chip {
   display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
-  border-radius: 14px;
-  background: var(--color-paper);
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 18px 16px;
+  border-radius: 18px;
+  background: #ffffff;
   border: 1px solid var(--color-line);
   cursor: pointer;
   text-align: left;
-  transition: border-color 200ms ease, transform 200ms cubic-bezier(0.22, 1, 0.36, 1), background-color 200ms ease;
+  box-shadow: 0 1px 0 rgba(15, 20, 16, 0.02);
+  transition:
+    box-shadow 220ms ease,
+    transform 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 200ms ease;
 }
 .planner-hero-chip:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 12px 28px -10px rgba(15, 20, 16, 0.14);
   border-color: var(--color-accent);
-  transform: translateY(-2px);
-  background: var(--color-paper-cool);
 }
 .planner-hero-chip-icon {
   flex-shrink: 0;
-  height: 28px;
-  width: 28px;
-  border-radius: 8px;
-  background: var(--color-paper-cool);
-  color: var(--color-ink-soft);
-  border: 1px solid var(--color-line);
+  height: 42px;
+  width: 42px;
+  border-radius: 14px;
+  background: rgba(200, 71, 43, 0.10);
+  color: var(--color-accent);
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  transition: background-color 200ms ease, color 200ms ease, border-color 200ms ease;
+  transition: background-color 200ms ease;
 }
 .planner-hero-chip:hover .planner-hero-chip-icon {
-  background: var(--color-accent);
-  color: var(--color-paper-cool);
-  border-color: var(--color-accent);
+  background: rgba(200, 71, 43, 0.16);
 }
 
 /* Planner — monthly calendar grid. Each cell fades up on mount with a

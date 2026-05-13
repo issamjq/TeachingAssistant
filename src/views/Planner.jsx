@@ -179,22 +179,29 @@ export default function Planner() {
   return (
     <div className="planner-view max-w-[1400px] mx-auto pb-6">
 
-      {/* ── Month hero — big serif "May 2026" + caption + the ringed
-          planet orb floating on the right edge. */}
-      <div className="planner-month-hero relative mb-4">
-        <h1 className="font-serif text-4xl md:text-5xl font-medium text-ink leading-tight">
+      {/* ── Month hero — uppercase eyebrow, huge serif "May 2026"
+          headline with the year in italic accent, friendly sub-line,
+          and the concentric-ring orb floating on the right edge. */}
+      <div className="planner-month-hero relative mb-6">
+        <p className="font-sans text-[11px] uppercase tracking-[0.30em] text-accent-soft mb-3">
+          Planner
+        </p>
+        <h1 className="font-serif text-5xl md:text-6xl lg:text-7xl font-medium text-ink leading-[1.02]">
           <span key={monthLabel} className="studio-tick">
             {MONTH_LABELS[anchor.getMonth()]}
           </span>{" "}
           <em className="italic font-light text-accent">{anchor.getFullYear()}</em>
         </h1>
-        <p className="font-serif italic text-sm md:text-base text-muted mt-2 max-w-2xl leading-relaxed">
-          Lesson plans, schedule, quizzes, homework, presentations, and activities — all on one grid.
+        <p className="font-serif text-base md:text-lg text-muted mt-4 max-w-2xl leading-relaxed">
+          Lesson plans, schedules, quizzes and activities — all in one beautiful workspace.
         </p>
-        <div className="planner-orb hidden md:block" aria-hidden>
-          <span className="planner-orb-ring" />
-          <span className="planner-orb-sphere" />
-          <span className="planner-orb-spark" />
+        <div className="planner-orb hidden md:flex" aria-hidden>
+          <span className="planner-orb-ring planner-orb-ring-outer" />
+          <span className="planner-orb-ring planner-orb-ring-inner" />
+          <span className="planner-orb-halo" />
+          <span className="planner-orb-sphere">
+            <Sparkles size={28} strokeWidth={2} className="text-paper-cool relative z-10" />
+          </span>
         </div>
       </div>
 
@@ -380,29 +387,29 @@ export default function Planner() {
 // ───────────────────────────────────────────────────────────────────────
 function StudioHeroCard() {
   const chips = [
-    { key: "lesson",       icon: BookOpen,      verb: "Generate", noun: "Lesson Plan" },
-    { key: "quiz",         icon: GraduationCap, verb: "Create",   noun: "Quiz" },
-    { key: "presentation", icon: Layout,        verb: "Build",    noun: "Presentation" },
-    { key: "weekly",       icon: CalendarDays,  verb: "Plan",     noun: "Weekly Schedule" },
-    { key: "insights",     icon: BarChart3,     verb: "Analyze",  noun: "Students" },
-    { key: "ask",          icon: MessageCircle, verb: "Ask",      noun: "Anything" },
+    { key: "lesson",       icon: BookOpen,      label: "Lesson Plan" },
+    { key: "quiz",         icon: GraduationCap, label: "Quiz" },
+    { key: "presentation", icon: Layout,        label: "Presentation" },
+    { key: "weekly",       icon: CalendarDays,  label: "Weekly Plan" },
+    { key: "insights",     icon: BarChart3,     label: "Student Insights" },
+    { key: "ask",          icon: MessageCircle, label: "Ask Studio" },
   ];
   return (
-    <div className="planner-hero rounded-3xl p-6 md:p-7 mb-4 relative overflow-hidden">
+    <div className="planner-hero rounded-[36px] p-7 md:p-8 mb-6 relative overflow-hidden">
       <div className="relative z-10">
-        <p className="font-mono text-[10px] uppercase tracking-[0.20em] text-accent mb-2.5 inline-flex items-center gap-2">
-          <Sparkles size={11} strokeWidth={2} /> Studio AI
+        <p className="inline-flex items-center gap-2 rounded-full bg-accent/[0.10] px-3.5 py-1.5 text-[12.5px] font-medium text-accent mb-5">
+          <Sparkles size={13} strokeWidth={2} /> Studio AI
         </p>
-        <h2 className="font-serif text-xl md:text-2xl lg:text-[1.7rem] text-ink leading-tight font-medium">
+        <h2 className="font-serif text-3xl md:text-4xl lg:text-5xl text-ink leading-[1.1] font-medium max-w-3xl">
           What would you like to{" "}
           <em className="italic font-light text-accent">create</em> today?
         </h2>
-        <p className="font-serif italic text-[13px] md:text-sm text-muted mt-1.5 max-w-xl">
-          Your AI co-pilot that helps you plan, save time, and make every class amazing.
+        <p className="text-base md:text-lg text-muted mt-3 max-w-2xl leading-relaxed">
+          Your AI teaching co-pilot that helps you plan faster, generate content and save hours every week.
         </p>
       </div>
 
-      <div className="relative z-10 mt-5 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2">
+      <div className="relative z-10 mt-7 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
         {chips.map((c) => {
           const Icon = c.icon;
           return (
@@ -413,15 +420,10 @@ function StudioHeroCard() {
               className="planner-hero-chip group"
             >
               <span className="planner-hero-chip-icon">
-                <Icon size={14} strokeWidth={1.75} />
+                <Icon size={18} strokeWidth={1.75} />
               </span>
-              <span className="flex flex-col items-start min-w-0 text-left">
-                <span className="text-[12px] font-medium text-ink truncate">
-                  {c.verb}
-                </span>
-                <span className="font-serif italic text-[10.5px] text-muted truncate">
-                  {c.noun}
-                </span>
+              <span className="text-[13.5px] font-medium text-ink leading-tight">
+                {c.label}
               </span>
             </button>
           );
@@ -432,22 +434,27 @@ function StudioHeroCard() {
 }
 
 // ───────────────────────────────────────────────────────────────────────
-// This Month Overview — big accent-red line chart up top, 3-stat row
-// underneath. No "vs last month" pill; the chart is the story.
+// AI Insights — big "On track" headline in sage green, soft chart
+// glow below, 3-stat row underneath.
 // ───────────────────────────────────────────────────────────────────────
 function ThisMonthOverviewCard() {
   return (
-    <div className="rounded-2xl border border-line bg-paper-cool p-4 md:p-5">
-      <div className="flex items-center justify-between mb-3">
-        <p className="font-serif italic text-[15px] text-ink font-medium">
-          This Month Overview
-        </p>
+    <div className="rounded-3xl border border-line bg-paper-cool p-5 md:p-6">
+      <div className="flex items-center justify-between mb-5">
+        <h3 className="font-serif text-lg font-medium text-ink">AI Insights</h3>
+        <span className="rounded-xl bg-accent/[0.10] p-2">
+          <Sparkles size={14} strokeWidth={2} className="text-accent" />
+        </span>
       </div>
-      <div className="-mx-1">
-        <svg viewBox="0 0 320 84" className="w-full h-20" preserveAspectRatio="none">
+      <p className="text-sm text-muted">Your teaching rhythm is</p>
+      <h4 className="font-serif text-3xl font-medium text-sage leading-tight mt-1">
+        On track
+      </h4>
+      <div className="mt-5 relative h-24 rounded-2xl bg-gradient-to-b from-accent/[0.08] to-transparent overflow-hidden">
+        <svg viewBox="0 0 320 84" className="absolute inset-0 w-full h-full" preserveAspectRatio="none">
           <defs>
             <linearGradient id="monthChartFill" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="var(--color-accent)" stopOpacity="0.34" />
+              <stop offset="0%" stopColor="var(--color-accent)" stopOpacity="0.28" />
               <stop offset="100%" stopColor="var(--color-accent)" stopOpacity="0" />
             </linearGradient>
           </defs>
@@ -462,15 +469,15 @@ function ThisMonthOverviewCard() {
           />
         </svg>
       </div>
-      <div className="grid grid-cols-3 gap-2 mt-3 pt-3 border-t border-line/70">
+      <div className="grid grid-cols-3 gap-4 mt-6">
         {[
           { n: 28, k: "Planned" },
           { n: 12, k: "Completed" },
           { n: 16, k: "To do" },
         ].map((s) => (
           <div key={s.k}>
-            <p className="font-serif text-xl font-medium text-ink leading-none">{s.n}</p>
-            <p className="font-serif italic text-[11px] text-muted mt-1">{s.k}</p>
+            <p className="font-serif text-2xl font-medium text-ink leading-none">{s.n}</p>
+            <p className="text-sm text-muted mt-1.5">{s.k}</p>
           </div>
         ))}
       </div>
@@ -492,30 +499,33 @@ function UpcomingCard({ events }) {
     };
   };
   return (
-    <div className="rounded-2xl border border-line bg-paper-cool p-4 md:p-5">
-      <div className="flex items-center justify-between mb-3">
-        <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted">Upcoming</p>
-        <button className="font-serif italic text-xs text-accent hover:text-ink transition">
+    <div className="rounded-3xl border border-line bg-paper-cool p-5 md:p-6">
+      <div className="flex items-center justify-between mb-5">
+        <h3 className="font-serif text-lg font-medium text-ink">Upcoming</h3>
+        <button className="text-sm text-accent hover:text-ink transition">
           View all
         </button>
       </div>
-      <ul className="space-y-3">
+      <div className="space-y-3">
         {events.map((e) => {
           const { month, day } = fmt(e.date);
           return (
-            <li key={e.id} className="flex items-start gap-3">
-              <div className="flex-shrink-0 text-center">
-                <p className="font-mono text-[9px] tracking-wider uppercase text-accent">{month}</p>
-                <p className="font-serif text-lg font-medium text-ink leading-none">{day}</p>
+            <div
+              key={e.id}
+              className="flex items-center gap-4 rounded-2xl border border-line p-3"
+            >
+              <div className="flex-shrink-0 rounded-2xl bg-paper-warm/60 px-3 py-2 text-center min-w-[52px]">
+                <div className="text-[10px] text-muted tracking-wider uppercase">{month}</div>
+                <div className="text-lg font-medium font-serif text-ink leading-none mt-0.5">{day}</div>
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-[13px] font-medium text-ink leading-tight truncate">{e.title}</p>
-                <p className="font-mono text-[10px] text-muted mt-1">{e.time || "All day"}</p>
+                <p className="text-sm font-medium text-ink leading-tight truncate">{e.title}</p>
+                <p className="text-xs text-muted mt-0.5">{e.time || "All day"}</p>
               </div>
-            </li>
+            </div>
           );
         })}
-      </ul>
+      </div>
     </div>
   );
 }
@@ -526,42 +536,30 @@ function UpcomingCard({ events }) {
 // ───────────────────────────────────────────────────────────────────────
 function QuickActionsCard() {
   const actions = [
-    { key: "lesson",       icon: BookOpen,      label: "New Lesson Plan",  color: "ink" },
-    { key: "quiz",         icon: GraduationCap, label: "New Quiz",         color: "gold" },
-    { key: "homework",     icon: ClipboardList, label: "New Homework",     color: "accent" },
-    { key: "presentation", icon: Presentation,  label: "New Presentation", color: "accent-soft" },
+    { key: "lesson",       label: "New Lesson Plan" },
+    { key: "quiz",         label: "New Quiz" },
+    { key: "homework",     label: "New Homework" },
+    { key: "presentation", label: "New Presentation" },
   ];
-  const bg = {
-    "ink":         "bg-ink",
-    "accent":      "bg-accent",
-    "gold":        "bg-gold",
-    "accent-soft": "bg-accent-soft",
-  };
   return (
-    <div className="rounded-2xl border border-line bg-paper-cool p-4 md:p-5">
-      <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-3">
+    <div className="rounded-3xl border border-line bg-paper-cool p-5 md:p-6">
+      <h3 className="font-serif text-lg font-medium text-ink mb-5">
         Quick Actions
-      </p>
-      <div className="space-y-2">
-        {actions.map((a) => {
-          const Icon = a.icon;
-          return (
-            <button
-              key={a.key}
-              type="button"
-              onClick={() => navigate(["studio"])}
-              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border border-line bg-paper hover:border-ink/30 hover:bg-paper-warm/40 transition-all duration-150 group"
-            >
-              <span className={`h-8 w-8 rounded-lg ${bg[a.color]} text-paper-cool flex items-center justify-center flex-shrink-0`}>
-                <Icon size={14} strokeWidth={1.75} />
-              </span>
-              <span className="flex-1 min-w-0 text-left text-[13px] font-medium text-ink truncate">
-                {a.label}
-              </span>
-              <Plus size={14} className="text-muted group-hover:text-accent group-hover:translate-x-0.5 transition-all duration-150 flex-shrink-0" />
-            </button>
-          );
-        })}
+      </h3>
+      <div className="space-y-3">
+        {actions.map((a) => (
+          <button
+            key={a.key}
+            type="button"
+            onClick={() => navigate(["studio"])}
+            className="w-full flex items-center justify-between px-4 py-3 rounded-2xl border border-line bg-paper hover:shadow-md transition-shadow duration-150"
+          >
+            <span className="text-sm font-medium text-ink">{a.label}</span>
+            <span className="rounded-xl bg-accent/[0.10] p-1.5">
+              <Plus size={14} strokeWidth={2} className="text-accent" />
+            </span>
+          </button>
+        ))}
       </div>
     </div>
   );
