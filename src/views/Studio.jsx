@@ -760,6 +760,49 @@ export default function Studio() {
     setSections(next);
   }, [result]);
 
+  // Stream quiz sections into the sidebar AS they're being written, the
+  // same way the markdown path's parseSections() does it. The result
+  // useEffect above takes over the moment the final tool-use payload
+  // lands — until then this derives a live section list from
+  // quizPartial so the teacher sees A/B/C/D rows filling up in real
+  // time, not a single placeholder card.
+  useEffect(() => {
+    if (kind !== "quiz") return;
+    if (!busy && !quizPartial) return;
+    if (result?.quiz) return; // settled — the other effect owns it
+    if (!quizPartial) return;
+    const parsed = parsePartialQuiz(quizPartial);
+    const next = [
+      {
+        id: "meta",
+        title: parsed.title || "Cover",
+        kind: "quiz_meta",
+        streamingMeta: parsed,
+        streaming: !parsed.title,
+      },
+      ...parsed.questions.map((q) => ({
+        id: `q-${q.position}`,
+        title:
+          (q.prompt || "").trim().slice(0, 50) || `Question ${q.position}`,
+        kind: "quiz_question",
+        question: q,
+        streaming: !q.complete,
+      })),
+    ];
+    setSections(next);
+  }, [quizPartial, busy, kind, result]);
+
+  // While quiz generation is in flight, keep the focus pointer on the
+  // section Mudir is writing right now — otherwise the teacher sits
+  // looking at the Cover the whole time. Don't force-advance once
+  // they've manually clicked away (busy ends and result lands).
+  useEffect(() => {
+    if (kind !== "quiz" || !busy) return;
+    if (sections.length === 0) return;
+    setSectionIndex(sections.length - 1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sections.length, busy, kind]);
+
   // Warn before the user discards an in-flight or freshly-generated draft.
   // We skip the warning for a saved-and-clean quiz — there's nothing to lose
   // there and the modal would just be friction.
@@ -1312,8 +1355,8 @@ export default function Studio() {
                               {s.title || `Part ${letter}`}
                             </span>
                           </span>
-                          {s.regenerating ? (
-                            <span className="h-1.5 w-1.5 rounded-full bg-accent animate-pulse flex-shrink-0" aria-label="Rewriting" />
+                          {s.regenerating || s.streaming ? (
+                            <span className="h-1.5 w-1.5 rounded-full bg-accent animate-pulse flex-shrink-0" aria-label="Drafting" />
                           ) : s.kind === "quiz_question" && s.question?.marks ? (
                             <span className="hidden md:inline-block text-[11px] text-muted font-mono">
                               {s.question.marks}m
@@ -1326,6 +1369,21 @@ export default function Studio() {
                         </button>
                       );
                     })}
+                    {/* "Drafting…" row — appended to the sidebar while
+                        the AI is still emitting more sections. Mirrors
+                        the placeholder lessson-plan/markdown path shows
+                        when sections.length === 0, but pinned to the
+                        bottom of the existing list so the teacher sees
+                        where the next item will land. */}
+                    {busy && (!sections[sections.length - 1]?.streaming) && (
+                      <div className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg opacity-60">
+                        <span className="flex-shrink-0 h-7 w-7 rounded-md bg-line/60 animate-pulse" />
+                        <span className="flex-1 min-w-0 text-xs text-muted inline-flex items-center gap-2">
+                          <span className="h-1.5 w-1.5 rounded-full bg-accent animate-pulse" />
+                          Drafting…
+                        </span>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -1465,18 +1523,37 @@ export default function Studio() {
                     >
                       <div className="max-h-[55vh] overflow-y-auto rounded-md">
                         {currentSection?.kind === "quiz_meta" ? (
-                          <QuizMetaCard
-                            quiz={result?.quiz}
-                            onUpdate={updateQuiz}
-                            disabled={quizScopeBusy}
-                          />
+                          // While streaming and no quiz settled yet, the
+                          // meta section shows a live cover preview that
+                          // mirrors the AI's title/subject as they land —
+                          // no editable inputs (nothing to commit to yet).
+                          currentSection.streamingMeta && !result?.quiz ? (
+                            <StreamingCoverCard
+                              meta={currentSection.streamingMeta}
+                              busy={busy}
+                              hintPrompt={prompt}
+                            />
+                          ) : (
+                            <QuizMetaCard
+                              quiz={result?.quiz}
+                              onUpdate={updateQuiz}
+                              disabled={quizScopeBusy}
+                            />
+                          )
                         ) : currentSection?.kind === "quiz_question" ? (
-                          <QuizQuestionCard
-                            question={currentSection.question}
-                            index={sectionIndex - 1}
-                            onUpdate={(patch) => updateQuestion(sectionIndex - 1, patch)}
-                            disabled={quizScopeBusy}
-                          />
+                          // Streaming question: read-only LiveQuestionCard
+                          // (prompt + choices + answer fill in live).
+                          // Settled question: the editable card.
+                          currentSection.streaming ? (
+                            <LiveQuestionCard q={currentSection.question} busy={busy} />
+                          ) : (
+                            <QuizQuestionCard
+                              question={currentSection.question}
+                              index={sectionIndex - 1}
+                              onUpdate={(patch) => updateQuestion(sectionIndex - 1, patch)}
+                              disabled={quizScopeBusy}
+                            />
+                          )
                         ) : (
                           <StudioCard
                             section={currentSection}
@@ -2361,6 +2438,65 @@ function CompactQuestionRow({ q }) {
 // Prompt, type, marks, choices, and correct answer all light up as the
 // JSON arrives. The in-flight one gets a soft accent ring so the teacher
 // knows where Mudir is writing right now.
+// Read-only cover card shown while the quiz is still streaming and no
+// final result has landed yet. Mirrors QuizMetaCard's visual chrome but
+// with carets where the model hasn't finished writing.
+function StreamingCoverCard({ meta, busy, hintPrompt }) {
+  const title = meta?.title || (hintPrompt ? truncate(hintPrompt, 80) : null);
+  const subject = meta?.subject;
+  const questions = meta?.questions || [];
+  const totalQ = questions.length;
+  const totalMarks = questions.reduce((acc, q) => acc + (q.marks || 0), 0);
+
+  return (
+    <div className="rounded-2xl border border-line bg-paper-cool p-5 md:p-6 studio-card-stagger">
+      <p className="font-serif italic text-base text-muted mb-2">Cover</p>
+      {title ? (
+        <h3 className="font-serif text-2xl md:text-3xl font-medium text-ink leading-tight mb-2">
+          {title}
+          {!meta?.title && busy && (
+            <span className="inline-block w-1.5 h-6 bg-accent ml-1 animate-pulse align-text-bottom" />
+          )}
+        </h3>
+      ) : (
+        <h3 className="font-serif text-2xl md:text-3xl font-medium text-muted/80 italic leading-tight mb-2">
+          Mudir is structuring your quiz
+          <span className="inline-block w-1.5 h-6 bg-accent ml-1 animate-pulse align-text-bottom" />
+        </h3>
+      )}
+
+      <div className="flex flex-wrap items-baseline gap-x-4 gap-y-2 text-sm text-ink-soft mb-1">
+        {subject ? (
+          <span className="inline-flex items-baseline gap-1.5">
+            <span className="font-serif italic text-sm text-muted">Subject</span>
+            <span className="text-sm text-ink font-medium">{subject}</span>
+          </span>
+        ) : busy ? (
+          <span className="font-serif italic text-sm text-muted/70 inline-flex items-baseline gap-1">
+            Picking subject, grade, marks…
+            <span className="inline-block w-1.5 h-3 bg-accent ml-1 animate-pulse align-text-bottom" />
+          </span>
+        ) : null}
+        {totalQ > 0 && (
+          <span className="font-serif italic text-muted">
+            · {totalQ} question{totalQ === 1 ? "" : "s"}
+            {totalMarks > 0 && (
+              <>
+                {" · "}
+                <span className="text-ink not-italic font-medium">{totalMarks} marks</span>
+              </>
+            )}
+          </span>
+        )}
+      </div>
+
+      <p className="font-serif italic text-sm text-muted mt-4">
+        Mudir is drafting the rest — flip through the sidebar to watch each question land.
+      </p>
+    </div>
+  );
+}
+
 function LiveQuestionCard({ q, busy }) {
   const inflight = !q.complete && busy;
   const typeLabel = QUIZ_TYPE_LABELS[q.type] || (q.type ? q.type : null);
