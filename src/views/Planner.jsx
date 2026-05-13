@@ -376,9 +376,12 @@ export default function Planner() {
         </div>
 
         {/* Row 2 right: Upcoming + Quick Actions stack, fills the same
-            vertical space as the calendar to its left. */}
+            vertical space as the calendar to its left. Upcoming takes
+            flex-1 so any extra height grows the list, and Quick Actions
+            stays pinned to the bottom edge — keeping its bottom flush
+            with the calendar's bottom. */}
         <div className="min-w-0 min-h-0 flex flex-col gap-3">
-          <UpcomingCard events={events.slice(0, 3)} />
+          <UpcomingCard events={events.slice(0, 3)} className="flex-1 min-h-0" />
           <QuickActionsCard />
         </div>
       </div>
@@ -401,7 +404,7 @@ function StudioHeroCard() {
     { key: "ask",          icon: MessageCircle, label: "Ask Studio" },
   ];
   return (
-    <div className="planner-hero rounded-2xl p-3 md:p-4 mb-2 relative overflow-hidden">
+    <div className="planner-hero rounded-2xl p-3 md:p-4 relative overflow-hidden h-full flex flex-col justify-center">
       <div className="relative z-10 grid grid-cols-1 lg:grid-cols-[1fr_auto] gap-2 lg:gap-5 items-center">
         <div>
           <p className="inline-flex items-center gap-1.5 rounded-full bg-accent/[0.10] px-2 py-0.5 text-[10.5px] font-medium text-accent mb-1.5">
@@ -446,18 +449,18 @@ function StudioHeroCard() {
 // ───────────────────────────────────────────────────────────────────────
 function ThisMonthOverviewCard() {
   return (
-    <div className="rounded-2xl border border-line bg-paper-cool p-3.5">
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="font-serif text-[15px] font-medium text-ink">AI Insights</h3>
+    <div className="rounded-2xl border border-line bg-paper-cool p-3.5 h-full flex flex-col">
+      <div className="flex items-center justify-between mb-2">
+        <h3 className="font-serif text-[14px] font-medium text-ink">AI Insights</h3>
         <span className="rounded-lg bg-accent/[0.10] p-1.5">
           <Sparkles size={12} strokeWidth={2} className="text-accent" />
         </span>
       </div>
-      <p className="text-[12px] text-muted">Your teaching rhythm is</p>
-      <h4 className="font-serif text-xl font-medium text-sage leading-tight mt-0.5">
+      <p className="text-[11px] text-muted">Your teaching rhythm is</p>
+      <h4 className="font-serif text-lg font-medium text-sage leading-tight mt-0.5">
         On track
       </h4>
-      <div className="mt-3 relative h-14 rounded-xl bg-gradient-to-b from-accent/[0.08] to-transparent overflow-hidden">
+      <div className="mt-2 relative flex-1 min-h-[28px] rounded-lg bg-gradient-to-b from-accent/[0.08] to-transparent overflow-hidden">
         <svg viewBox="0 0 320 84" className="absolute inset-0 w-full h-full" preserveAspectRatio="none">
           <defs>
             <linearGradient id="monthChartFill" x1="0" y1="0" x2="0" y2="1">
@@ -476,15 +479,15 @@ function ThisMonthOverviewCard() {
           />
         </svg>
       </div>
-      <div className="grid grid-cols-3 gap-2 mt-3">
+      <div className="grid grid-cols-3 gap-2 mt-2">
         {[
           { n: 28, k: "Planned" },
           { n: 12, k: "Completed" },
           { n: 16, k: "To do" },
         ].map((s) => (
           <div key={s.k}>
-            <p className="font-serif text-lg font-medium text-ink leading-none">{s.n}</p>
-            <p className="text-[11px] text-muted mt-0.5">{s.k}</p>
+            <p className="font-serif text-base font-medium text-ink leading-none">{s.n}</p>
+            <p className="text-[10px] text-muted mt-0.5">{s.k}</p>
           </div>
         ))}
       </div>
@@ -497,7 +500,7 @@ function ThisMonthOverviewCard() {
 // calendar uses, so the rail and grid stay in sync until the real API
 // lands.
 // ───────────────────────────────────────────────────────────────────────
-function UpcomingCard({ events }) {
+function UpcomingCard({ events, className = "" }) {
   const fmt = (iso) => {
     const d = new Date(`${iso}T00:00:00`);
     return {
@@ -506,7 +509,7 @@ function UpcomingCard({ events }) {
     };
   };
   return (
-    <div className="rounded-2xl border border-line bg-paper-cool p-3.5">
+    <div className={`rounded-2xl border border-line bg-paper-cool p-3.5 flex flex-col overflow-hidden ${className}`}>
       <div className="flex items-center justify-between mb-2.5">
         <h3 className="font-serif text-[15px] font-medium text-ink">Upcoming</h3>
         <button className="text-xs text-accent hover:text-ink transition">
