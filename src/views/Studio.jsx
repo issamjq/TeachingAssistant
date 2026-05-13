@@ -760,18 +760,30 @@ export default function Studio() {
     setSections(next);
   }, [result]);
 
-  // Stream quiz sections into the sidebar AS they're being written, the
-  // same way the markdown path's parseSections() does it. The result
-  // useEffect above takes over the moment the final tool-use payload
-  // lands — until then this derives a live section list from
-  // quizPartial so the teacher sees A/B/C/D rows filling up in real
-  // time, not a single placeholder card.
+  // Stream quiz sections into the sidebar AS they're being written. The
+  // markdown path adds sections one heading at a time (parseSections),
+  // but the quiz path knows the expected question count upfront — so we
+  // pre-create N+1 sidebar rows the instant the user hits Make it and
+  // fill in each row's data as the JSON streams. Result: the teacher
+  // sees every row from t=0 and watches them light up one by one, even
+  // if the model emits the questions in a tight burst.
   useEffect(() => {
     if (kind !== "quiz") return;
-    if (!busy && !quizPartial) return;
     if (result?.quiz) return; // settled — the other effect owns it
-    if (!quizPartial) return;
+    if (!busy && !quizPartial) return;
+
     const parsed = parsePartialQuiz(quizPartial);
+
+    // Slot count: respect the teacher's QUESTIONS picker if they set one,
+    // otherwise fall back to whatever we've parsed so far (clamped to 5
+    // so a 0-question pre-state still shows a reasonable rail).
+    const declared = Number(quizParams.questions);
+    const slotCount = Math.max(
+      Number.isFinite(declared) && declared > 0 ? declared : 0,
+      parsed.questions.length,
+      5
+    );
+
     const next = [
       {
         id: "meta",
@@ -780,28 +792,51 @@ export default function Studio() {
         streamingMeta: parsed,
         streaming: !parsed.title,
       },
-      ...parsed.questions.map((q) => ({
-        id: `q-${q.position}`,
-        title:
-          (q.prompt || "").trim().slice(0, 50) || `Question ${q.position}`,
-        kind: "quiz_question",
-        question: q,
-        streaming: !q.complete,
-      })),
     ];
+    for (let i = 0; i < slotCount; i++) {
+      const q = parsed.questions[i];
+      next.push({
+        id: `q-${i + 1}`,
+        title:
+          q && q.prompt
+            ? q.prompt.trim().slice(0, 50)
+            : `Question ${i + 1}`,
+        kind: "quiz_question",
+        // Placeholder shape so LiveQuestionCard can render a "drafting"
+        // affordance even before any of the question's bytes arrive.
+        question: q || {
+          position: i + 1,
+          type: null,
+          prompt: null,
+          promptInflight: false,
+          choices: null,
+          choicesClosed: false,
+          correct_answer: null,
+          marks: null,
+          complete: false,
+        },
+        streaming: !q || !q.complete,
+      });
+    }
     setSections(next);
-  }, [quizPartial, busy, kind, result]);
 
-  // While quiz generation is in flight, keep the focus pointer on the
-  // section Mudir is writing right now — otherwise the teacher sits
-  // looking at the Cover the whole time. Don't force-advance once
-  // they've manually clicked away (busy ends and result lands).
-  useEffect(() => {
-    if (kind !== "quiz" || !busy) return;
-    if (sections.length === 0) return;
-    setSectionIndex(sections.length - 1);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sections.length, busy, kind]);
+    // Auto-advance: stay on whatever section is being written right now.
+    // - 0 questions seen → Cover (index 0)
+    // - last question is in flight → that question's slot
+    // - last question complete but more to come → next placeholder slot
+    if (busy) {
+      const last = parsed.questions[parsed.questions.length - 1];
+      let activeIdx;
+      if (parsed.questions.length === 0) {
+        activeIdx = 0;
+      } else if (last && !last.complete) {
+        activeIdx = parsed.questions.length; // q-{N} slot in [meta, q-1, …]
+      } else {
+        activeIdx = Math.min(parsed.questions.length + 1, next.length - 1);
+      }
+      setSectionIndex(activeIdx);
+    }
+  }, [quizPartial, busy, kind, result, quizParams.questions]);
 
   // Warn before the user discards an in-flight or freshly-generated draft.
   // We skip the warning for a saved-and-clean quiz — there's nothing to lose
