@@ -9,6 +9,7 @@ import EditDraft from "./views/EditDraft";
 import Database from "./views/Database";
 import AccountProfile from "./views/AccountProfile";
 import Schedule from "./views/Schedule";
+import Planner from "./views/Planner";
 import Quizzes from "./views/Quizzes";
 import QuizBuilder from "./views/QuizBuilder";
 import Homework from "./views/Homework";
@@ -32,6 +33,9 @@ const TEACHER_NAV = [
   {
     section: "Teaching",
     items: [
+      // Planner sits first because every other Teaching row feeds into
+      // its calendar — it's the "where am I this month" hub view.
+      { key: "planner",       label: "Planner",       icon: "▦" },
       { key: "lesson-plans",  label: "Lesson Plans",  letter: "L" },
       { key: "schedule",      label: "Schedule",      letter: "S" },
       { key: "quizzes",       label: "Quizzes",       letter: "Q" },
@@ -65,7 +69,7 @@ const DEFAULT_ROUTE = { teacher: "studio", admin: "admin-console", dev: "dev-con
 // `#/quizzes` from rendering for an admin who switched roles.
 const SECTIONS_BY_ROLE = {
   teacher: new Set([
-    "dashboard", "studio",
+    "dashboard", "studio", "planner",
     "lesson-plans", "schedule", "quizzes", "homework", "presentations", "activities",
     "database", "reports",
     "account",
@@ -151,6 +155,8 @@ export default function StudioApp({ onClose }) {
     mainContent = <Database sub={sub || "profile"} />;
   } else if (section === "schedule") {
     mainContent = <Schedule />;
+  } else if (section === "planner") {
+    mainContent = <Planner />;
   } else if (section === "homework") {
     mainContent = <Homework />;
   } else if (section === "presentations") {

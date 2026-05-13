@@ -578,6 +578,50 @@
   }
 }
 
+/* Planner — monthly calendar grid. Each cell fades up on mount with a
+   short stagger by column position so the grid assembles itself rather
+   than appearing flat. Today's cell carries an inner accent halo and a
+   subtle ring so it pops at any zoom level. */
+.planner-view {
+  animation: planner-view-in 460ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes planner-view-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.planner-grid {
+  animation: planner-grid-in 560ms cubic-bezier(0.16, 1, 0.3, 1) 80ms both;
+}
+@keyframes planner-grid-in {
+  from { opacity: 0; transform: scale(0.985); filter: blur(4px); }
+  to   { opacity: 1; transform: scale(1); filter: blur(0); }
+}
+
+.planner-cell {
+  animation: planner-cell-in 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes planner-cell-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.planner-cell-today {
+  position: relative;
+  box-shadow: inset 0 0 0 1.5px var(--color-accent);
+  background:
+    radial-gradient(ellipse at top, rgba(200, 71, 43, 0.06), transparent 70%),
+    var(--color-paper-cool) !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .planner-view,
+  .planner-grid,
+  .planner-cell {
+    animation: none !important;
+  }
+}
+
 /* Accessibility — teachers who've turned on Reduce Motion in macOS / iOS
    shouldn't get the full Quantro-style entrance. Collapse the keyframes
    to a near-zero fade so the studio still feels deliberate, not jittery. */
