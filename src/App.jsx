@@ -68,7 +68,7 @@ const DEV_NAV = [
 
 const NAV_BY_ROLE = { teacher: TEACHER_NAV, admin: ADMIN_NAV, dev: DEV_NAV };
 
-const DEFAULT_ROUTE = { teacher: "studio", admin: "admin-console", dev: "dev-console" };
+const DEFAULT_ROUTE = { teacher: "planner", admin: "admin-console", dev: "dev-console" };
 
 // Sections legitimately reachable from the URL bar for each role. Anything
 // outside this list bounces back to the role's default — keeps a stale
