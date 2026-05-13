@@ -372,14 +372,16 @@ export default function StudioApp({ onClose }) {
             aria-current={section === "studio" ? "page" : undefined}
           >
             <span className="mudir-studio-launcher-head">
-              <span className="mudir-studio-launcher-icon" aria-hidden>
-                <Sparkles size={14} strokeWidth={2} />
+              <span className="mudir-studio-launcher-brand">
+                <span className="mudir-studio-launcher-icon" aria-hidden>
+                  <Sparkles size={15} strokeWidth={2.25} />
+                </span>
+                <span className="mudir-studio-launcher-title">Studio</span>
               </span>
               <span className="mudir-studio-launcher-pill">AI</span>
             </span>
 
             <span className="mudir-studio-launcher-body">
-              <span className="mudir-studio-launcher-title">Studio</span>
               <span className="mudir-studio-launcher-subtitle">
                 Your AI co-pilot for teaching
               </span>
@@ -390,7 +392,7 @@ export default function StudioApp({ onClose }) {
 
             <span className="mudir-studio-launcher-cta">
               <span>Open Studio</span>
-              <ArrowRight size={14} strokeWidth={2} className="mudir-studio-launcher-cta-arrow" />
+              <ArrowRight size={14} strokeWidth={2.25} className="mudir-studio-launcher-cta-arrow" />
             </span>
           </button>
         )}

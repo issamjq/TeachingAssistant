@@ -249,17 +249,20 @@
    (see ::before below) so the surface never reads as flat. */
 .mudir-studio-launcher {
   margin: 0 10px 14px;
-  padding: 12px 12px 10px;
-  border-radius: 16px;
+  padding: 14px;
+  border-radius: 18px;
   background:
-    linear-gradient(135deg,
-      var(--color-accent) 0%,
-      var(--color-accent-soft) 55%,
-      var(--color-gold) 100%);
+    radial-gradient(circle at 1px 1px, rgba(250, 246, 236, 0.05) 1px, transparent 1.6px),
+    radial-gradient(circle at 85% 15%,
+      rgba(200, 71, 43, 0.55) 0%,
+      rgba(200, 71, 43, 0.18) 35%,
+      transparent 70%),
+    linear-gradient(160deg, #2f1810 0%, #1a0c08 100%);
+  background-size: 14px 14px, 100% 100%, 100% 100%;
   color: var(--color-paper-cool);
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
   width: calc(100% - 20px);
   cursor: pointer;
   border: 0;
@@ -268,8 +271,8 @@
   overflow: hidden;
   isolation: isolate;
   box-shadow:
-    0 10px 22px rgba(200, 71, 43, 0.28),
-    0 2px 5px rgba(15, 20, 16, 0.08);
+    0 12px 28px rgba(40, 18, 10, 0.45),
+    0 2px 6px rgba(15, 20, 16, 0.20);
   transition: transform 280ms cubic-bezier(0.22, 1, 0.36, 1),
               box-shadow 280ms ease;
   animation: mudir-studio-launcher-in 640ms cubic-bezier(0.16, 1, 0.3, 1) 220ms both;
@@ -361,7 +364,7 @@
   left: 110%;
 }
 
-/* Row 1 — small sparkle square + "AI" pill. */
+/* Row 1 — icon + "Studio" title on the left, "AI" pill on the right. */
 .mudir-studio-launcher-head {
   display: flex;
   align-items: center;
@@ -369,16 +372,23 @@
   position: relative;
   z-index: 2;
 }
+.mudir-studio-launcher-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+}
 .mudir-studio-launcher-icon {
-  height: 22px;
-  width: 22px;
-  border-radius: 7px;
-  background: rgba(250, 246, 236, 0.22);
-  color: var(--color-paper-cool);
+  height: 30px;
+  width: 30px;
+  border-radius: 9px;
+  background: var(--color-paper-cool);
+  color: var(--color-accent);
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  box-shadow: inset 0 0 0 1px rgba(250, 246, 236, 0.25);
+  box-shadow:
+    0 4px 12px rgba(200, 71, 43, 0.35),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.6);
   animation: mudir-studio-launcher-pulse 2400ms ease-in-out infinite;
   transition: transform 280ms cubic-bezier(0.22, 1, 0.36, 1);
 }
@@ -386,21 +396,32 @@
   transform: rotate(-6deg) scale(1.04);
 }
 @keyframes mudir-studio-launcher-pulse {
-  0%, 100% { box-shadow: 0 4px 12px rgba(200, 71, 43, 0.42); }
-  50%      { box-shadow: 0 6px 18px rgba(200, 71, 43, 0.58); }
+  0%, 100% { box-shadow: 0 4px 12px rgba(200, 71, 43, 0.35),
+                          inset 0 0 0 1px rgba(255, 255, 255, 0.6); }
+  50%      { box-shadow: 0 6px 18px rgba(200, 71, 43, 0.55),
+                          inset 0 0 0 1px rgba(255, 255, 255, 0.8); }
+}
+.mudir-studio-launcher-title {
+  font-family: var(--font-serif);
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  color: var(--color-paper-cool);
+  line-height: 1;
 }
 .mudir-studio-launcher-pill {
-  font-family: var(--font-mono);
-  font-size: 9px;
-  letter-spacing: 0.16em;
-  padding: 2px 7px;
+  font-family: var(--font-sans);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  padding: 3px 9px;
   border-radius: 999px;
-  background: rgba(250, 246, 236, 0.16);
+  background: rgba(250, 246, 236, 0.12);
   color: var(--color-paper-cool);
-  border: 1px solid rgba(250, 246, 236, 0.18);
+  border: 1px solid rgba(250, 246, 236, 0.30);
 }
 
-/* Row 2 — Studio title (big serif) + italic subtitle. */
+/* Row 2 — subtitle + small tagline. */
 .mudir-studio-launcher-body {
   position: relative;
   z-index: 2;
@@ -408,32 +429,23 @@
   flex-direction: column;
   gap: 2px;
 }
-.mudir-studio-launcher-title {
-  font-family: var(--font-serif);
-  font-size: 20px;
-  font-weight: 500;
-  letter-spacing: -0.015em;
-  color: var(--color-paper-cool);
-  line-height: 1;
-}
 .mudir-studio-launcher-subtitle {
-  font-family: var(--font-serif);
-  font-style: italic;
-  font-size: 11px;
-  color: rgba(250, 246, 236, 0.78);
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 400;
+  color: rgba(250, 246, 236, 0.85);
   letter-spacing: -0.005em;
-  line-height: 1.25;
+  line-height: 1.3;
 }
 .mudir-studio-launcher-tagline {
-  font-family: var(--font-mono);
-  font-size: 8.5px;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
+  font-family: var(--font-sans);
+  font-size: 11px;
   color: rgba(250, 246, 236, 0.55);
-  margin-top: 2px;
+  letter-spacing: 0.005em;
+  line-height: 1.3;
 }
 
-/* Row 3 — full-width cream CTA at the bottom. */
+/* Row 3 — full-width white CTA at the bottom with arrow on the right. */
 .mudir-studio-launcher-cta {
   position: relative;
   z-index: 2;
@@ -441,17 +453,18 @@
   align-items: center;
   justify-content: space-between;
   gap: 6px;
-  padding: 7px 10px;
-  border-radius: 9px;
+  padding: 10px 14px;
+  margin-top: 2px;
+  border-radius: 12px;
   background: var(--color-paper-cool);
   color: var(--color-ink);
   font-family: var(--font-sans);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 500;
   letter-spacing: -0.005em;
   box-shadow:
-    0 1px 0 rgba(0, 0, 0, 0.05),
-    0 4px 10px rgba(15, 20, 16, 0.18);
+    0 2px 0 rgba(0, 0, 0, 0.04),
+    0 6px 14px rgba(40, 18, 10, 0.30);
   transition: background-color 200ms ease, transform 200ms ease;
 }
 .mudir-studio-launcher:hover .mudir-studio-launcher-cta {
