@@ -867,15 +867,27 @@ export default function Studio() {
   // Internal — the actual reset. Wrapped by makeAnother() below which
   // checks for unsaved work first and surfaces the leave-confirm modal
   // instead of silently dropping the draft.
+  //
+  // CRITICAL: clear quizPartial too. Otherwise the streaming useEffect
+  // sees `busy=false AND quizPartial!=""` and re-derives sections from
+  // the stale buffer on the very next render — the teacher clicks "New",
+  // confirms "Leave studio", and the old result snaps right back. Took
+  // a second click of "New" before the page actually emptied. Resetting
+  // every transient flag below leaves the picker view clean on the
+  // first click.
   const resetForNewDraft = () => {
     abortRef.current?.abort();
     regenAbortsRef.current.forEach((c) => c.abort?.());
     regenAbortsRef.current.clear();
     setBusy(false);
     setStreamingText("");
+    setQuizPartial("");
     setResult(null);
     setSections([]);
+    setSectionIndex(0);
     setSavedDraftId(null);
+    setIsDirty(false);
+    setPendingAnswerConfirm(null);
     setError(null);
     setTweak("");
   };
