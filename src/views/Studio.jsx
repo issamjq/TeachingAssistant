@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { api } from "./_shared";
 import { parseSections, joinSections, renderMarkdown } from "../lib/markdown";
 import StudioCard from "./StudioCard";
+import MudirMascot from "../components/MudirMascot";
 import {
   GRADE_LEVELS, MAJORS,
   QUIZ_QUESTION_COUNTS, QUIZ_DURATIONS, QUIZ_DIFFICULTIES,
@@ -1367,7 +1368,9 @@ export default function Studio() {
                           )}
                         </>
                       ) : (
-                        <p className="text-sm text-muted italic">Mudir is thinking…</p>
+                        <div className="flex flex-col items-center justify-center py-6">
+                          <MudirMascot size={140} label="Mudir is thinking…" />
+                        </div>
                       )}
                     </div>
                   </div>
@@ -2197,7 +2200,8 @@ function QuizStreamingPlaceholder({ partial, busy, expectedCount, hintPrompt }) 
           </span>
         )}
       </p>
-      <div className="rounded-xl border border-line bg-paper-warm/40 p-5 md:p-6">
+      <div className="rounded-2xl border border-line bg-paper-warm/40 p-5 md:p-6 grid grid-cols-1 md:grid-cols-[1fr_auto] gap-4 items-start">
+        <div>
         <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-1.5">
           Cover
         </p>
@@ -2273,6 +2277,10 @@ function QuizStreamingPlaceholder({ partial, busy, expectedCount, hintPrompt }) 
             );
           })}
         </ul>
+        </div>
+        <div className="hidden md:flex justify-end items-start pt-2">
+          <MudirMascot size={120} />
+        </div>
       </div>
     </div>
   );
