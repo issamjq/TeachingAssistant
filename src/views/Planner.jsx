@@ -169,59 +169,55 @@ export default function Planner() {
     return events.filter((e) => e.date === key);
   }, [events]);
 
+  // "All" filter — true when every category is visible.
+  const allOn = visible.size === CATEGORIES.length;
+  const toggleAll = () => {
+    if (allOn) setVisible(new Set());
+    else setVisible(new Set(CATEGORIES.map((c) => c.key)));
+  };
+
   return (
     <div className="planner-view max-w-[1400px] mx-auto pb-6">
-      {/* Hero — Studio AI prompt card with quick-action chips. Sits above
-          the calendar like the 2026 mockup; routes to /studio. */}
-      <StudioHeroCard />
 
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-5">
-        <div>
-      {/* Header — month/year, prev/next chevrons, Today button. */}
-      <div className="flex items-end justify-between gap-4 mb-5 flex-wrap">
-        <div>
-          <h1 className="font-serif text-3xl md:text-4xl font-medium text-ink leading-tight">
-            <span key={monthLabel} className="studio-tick">
-              {MONTH_LABELS[anchor.getMonth()]}
-            </span>{" "}
-            <em className="italic font-light text-accent">{anchor.getFullYear()}</em>
-          </h1>
-          <p className="font-serif italic text-sm text-muted mt-1.5 max-w-xl leading-relaxed">
-            Lesson plans, schedule, quizzes, homework, presentations, and activities — all on one grid.
-          </p>
-        </div>
-        <div className="inline-flex items-center gap-2">
-          <button
-            type="button"
-            onClick={goPrev}
-            aria-label="Previous month"
-            className="h-9 w-9 rounded-lg border border-line bg-paper-cool hover:border-ink hover:bg-paper-warm flex items-center justify-center transition-all duration-150 hover:-translate-y-px"
-          >
-            <ChevronLeft size={15} />
-          </button>
-          <button
-            type="button"
-            onClick={goToday}
-            className="px-3.5 py-1.5 rounded-lg border border-line bg-paper-cool hover:border-ink hover:bg-paper-warm font-serif italic text-sm text-ink transition-all duration-150 hover:-translate-y-px"
-          >
-            Today
-          </button>
-          <button
-            type="button"
-            onClick={goNext}
-            aria-label="Next month"
-            className="h-9 w-9 rounded-lg border border-line bg-paper-cool hover:border-ink hover:bg-paper-warm flex items-center justify-center transition-all duration-150 hover:-translate-y-px"
-          >
-            <ChevronRight size={15} />
-          </button>
+      {/* ── Month hero — big serif "May 2026" + caption + the ringed
+          planet orb floating on the right edge. */}
+      <div className="planner-month-hero relative mb-4">
+        <h1 className="font-serif text-4xl md:text-5xl font-medium text-ink leading-tight">
+          <span key={monthLabel} className="studio-tick">
+            {MONTH_LABELS[anchor.getMonth()]}
+          </span>{" "}
+          <em className="italic font-light text-accent">{anchor.getFullYear()}</em>
+        </h1>
+        <p className="font-serif italic text-sm md:text-base text-muted mt-2 max-w-2xl leading-relaxed">
+          Lesson plans, schedule, quizzes, homework, presentations, and activities — all on one grid.
+        </p>
+        <div className="planner-orb hidden md:block" aria-hidden>
+          <span className="planner-orb-ring" />
+          <span className="planner-orb-sphere" />
+          <span className="planner-orb-spark" />
         </div>
       </div>
 
-      {/* Category filter row — pill chips, one per teaching surface.
-          Click toggles visibility. Active chips show full color; off
-          ones go monochrome. */}
-      <div className="flex flex-wrap items-center gap-1.5 mb-4">
-        <span className="font-serif italic text-sm text-muted mr-1.5">Showing</span>
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-5">
+        <div>
+
+      {/* ── Filter chip row — All + one per category. All is ink-filled
+          when active; specifics use their category color. */}
+      <div className="flex flex-wrap items-center gap-2 mb-4">
+        <button
+          type="button"
+          onClick={toggleAll}
+          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-[12.5px] font-medium transition-all duration-200 ${
+            allOn
+              ? "bg-ink text-paper-cool border-ink shadow-sm"
+              : "bg-paper-cool text-ink border-line hover:border-ink"
+          }`}
+        >
+          <span className={`inline-flex h-3.5 w-3.5 rounded items-center justify-center text-[8px] ${
+            allOn ? "bg-paper-cool/20" : "bg-ink/10"
+          }`}>▦</span>
+          All
+        </button>
         {CATEGORIES.map((c) => {
           const Icon = c.icon;
           const on = visible.has(c.key);
@@ -231,18 +227,56 @@ export default function Planner() {
               key={c.key}
               type="button"
               onClick={() => toggleCategory(c.key)}
-              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[12px] transition-all duration-200 ${
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-[12.5px] transition-all duration-200 ${
                 on
                   ? `${s.chipBg} ${s.chipText} border-transparent`
-                  : "bg-paper-cool/60 text-muted border-line hover:border-ink/40"
+                  : "bg-paper-cool text-muted border-line hover:border-ink/40"
               }`}
             >
-              <span className={`h-1.5 w-1.5 rounded-full ${on ? s.dot : "bg-muted/50"}`} />
-              <Icon size={11} strokeWidth={1.75} />
+              <Icon size={12} strokeWidth={1.75} />
               {c.label}
             </button>
           );
         })}
+      </div>
+
+      {/* ── Studio AI card — sits between filters and the grid. */}
+      <StudioHeroCard />
+
+      {/* ── Calendar header — small calendar icon + Today button +
+          prev/next, right-aligned above the grid. */}
+      <div className="flex items-center justify-end gap-2 mb-3">
+        <button
+          type="button"
+          onClick={goToday}
+          aria-label="Jump to today"
+          className="h-9 w-9 rounded-lg border border-line bg-paper-cool hover:border-ink hover:bg-paper-warm flex items-center justify-center transition-all duration-150"
+        >
+          <CalendarDays size={14} strokeWidth={1.75} />
+        </button>
+        <button
+          type="button"
+          onClick={goToday}
+          className="px-3.5 py-1.5 rounded-lg border border-line bg-paper-cool hover:border-ink hover:bg-paper-warm font-serif italic text-sm text-ink transition-all duration-150"
+        >
+          Today
+        </button>
+        <button
+          type="button"
+          onClick={goPrev}
+          aria-label="Previous month"
+          className="h-9 w-9 rounded-lg border border-line bg-paper-cool hover:border-ink hover:bg-paper-warm flex items-center justify-center transition-all duration-150"
+        >
+          <ChevronLeft size={15} />
+        </button>
+        <button
+          type="button"
+          onClick={goNext}
+          aria-label="Next month"
+          className="h-9 w-9 rounded-lg border border-line bg-paper-cool hover:border-ink hover:bg-paper-warm flex items-center justify-center transition-all duration-150"
+        >
+          <ChevronRight size={15} />
+        </button>
       </div>
 
       {/* The grid. paper-cool surface, rounded-2xl, soft shadow. Day
@@ -275,11 +309,11 @@ export default function Planner() {
                 } ${(i + 1) % 7 === 0 ? "border-r-0" : ""} ${i >= 35 ? "border-b-0" : ""}`}
                 style={{ animationDelay: `${(i % 14) * 18}ms` }}
               >
-                <div className="flex items-center justify-between gap-1">
+                <div className="flex items-start justify-between gap-1">
                   <span
                     className={`font-mono text-[11px] leading-none ${
                       isToday
-                        ? "h-5 w-5 rounded-full bg-accent text-paper-cool flex items-center justify-center font-medium"
+                        ? "h-6 w-6 rounded-full bg-accent text-paper-cool flex items-center justify-center font-medium text-[11.5px]"
                         : inMonth
                           ? "text-ink-soft"
                           : "text-muted/60"
@@ -288,7 +322,7 @@ export default function Planner() {
                     {d.getDate()}
                   </span>
                   {dayEvents.length > 0 && (
-                    <span className="font-mono text-[9px] text-muted uppercase tracking-wider">
+                    <span className="font-mono text-[10px] text-muted">
                       {dayEvents.length}
                     </span>
                   )}
@@ -314,73 +348,27 @@ export default function Planner() {
                     </span>
                   )}
                 </div>
+                {isToday && (
+                  <span className="planner-cell-today-spark" aria-hidden>
+                    <Sparkles size={11} strokeWidth={2} />
+                  </span>
+                )}
               </div>
             );
           })}
         </div>
       </div>
 
-      {/* Today panel — pulled out below the grid so it's always glanceable
-          regardless of which month the teacher is browsing. */}
-      <div className="mt-5 rounded-2xl border border-line bg-paper-cool p-5 md:p-6">
-        <div className="flex items-baseline justify-between gap-3 mb-3">
-          <h2 className="font-serif italic text-lg text-ink">
-            Today —{" "}
-            <span className="not-italic font-medium">
-              {today.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" })}
-            </span>
-          </h2>
-          <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted">
-            {todaysEvents.length} item{todaysEvents.length === 1 ? "" : "s"}
-          </span>
-        </div>
-        {todaysEvents.length === 0 ? (
-          <p className="font-serif italic text-sm text-muted">
-            Nothing scheduled. A clear day.
-          </p>
-        ) : (
-          <ul className="space-y-2">
-            {todaysEvents.map((e) => {
-              const cat = CATEGORIES.find((c) => c.key === e.kind);
-              const s = COLOR_STYLES[cat?.color || "ink"];
-              const Icon = cat?.icon || BookOpen;
-              return (
-                <li
-                  key={e.id}
-                  className="flex items-center gap-3 px-3 py-2 rounded-lg border border-line bg-paper hover:border-ink/40 transition-colors duration-150"
-                >
-                  <span className={`h-7 w-7 rounded-md ${s.chipBg} ${s.chipText} flex items-center justify-center flex-shrink-0`}>
-                    <Icon size={13} strokeWidth={1.75} />
-                  </span>
-                  <span className="flex-1 min-w-0">
-                    <span className="block text-sm text-ink font-medium truncate">{e.title}</span>
-                    <span className="block font-serif italic text-[11px] text-muted">{cat?.label}</span>
-                  </span>
-                  {e.time && (
-                    <span className="font-mono text-[11px] text-ink-soft flex-shrink-0">
-                      {e.time}
-                    </span>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </div>
         </div>
 
-        {/* Right rail — AI Insights, Upcoming, Quick Actions. Stacks under
-            the calendar on small screens. */}
+        {/* Right rail — This Month Overview / Upcoming / Quick Actions.
+            Stacks under the calendar on small screens. */}
         <aside className="flex flex-col gap-4">
-          <AIInsightsCard />
+          <ThisMonthOverviewCard />
           <UpcomingCard events={events.slice(0, 4)} />
           <QuickActionsCard />
         </aside>
       </div>
-
-      <p className="mt-6 text-center font-serif italic text-xs text-muted">
-        Made with <span className="text-accent not-italic">♥</span> by Mudir Team
-      </p>
     </div>
   );
 }
@@ -392,33 +380,29 @@ export default function Planner() {
 // ───────────────────────────────────────────────────────────────────────
 function StudioHeroCard() {
   const chips = [
-    { key: "lesson",       icon: BookOpen,      title: "Lesson Plan",      subtitle: "Generate in seconds" },
-    { key: "quiz",         icon: GraduationCap, title: "Quiz",             subtitle: "From any topic" },
-    { key: "presentation", icon: Layout,        title: "Presentation",     subtitle: "AI slides maker" },
-    { key: "weekly",       icon: CalendarDays,  title: "Weekly Plan",      subtitle: "Smart schedule" },
-    { key: "insights",     icon: BarChart3,     title: "Student Insights", subtitle: "Analyze progress" },
-    { key: "ask",          icon: MessageCircle, title: "Ask Studio",       subtitle: "Anything you need" },
+    { key: "lesson",       icon: BookOpen,      verb: "Generate", noun: "Lesson Plan" },
+    { key: "quiz",         icon: GraduationCap, verb: "Create",   noun: "Quiz" },
+    { key: "presentation", icon: Layout,        verb: "Build",    noun: "Presentation" },
+    { key: "weekly",       icon: CalendarDays,  verb: "Plan",     noun: "Weekly Schedule" },
+    { key: "insights",     icon: BarChart3,     verb: "Analyze",  noun: "Students" },
+    { key: "ask",          icon: MessageCircle, verb: "Ask",      noun: "Anything" },
   ];
   return (
-    <div className="planner-hero rounded-3xl p-6 md:p-8 mb-5 relative overflow-hidden">
-      <div className="relative z-10 grid grid-cols-1 md:grid-cols-[1fr_auto] gap-6 items-center">
-        <div>
-          <p className="font-mono text-[10px] uppercase tracking-[0.20em] text-accent mb-2.5 inline-flex items-center gap-2">
-            <Sparkles size={11} strokeWidth={2} /> Studio AI
-          </p>
-          <h2 className="font-serif text-2xl md:text-3xl lg:text-4xl text-ink leading-tight font-medium">
-            What would you like to{" "}
-            <em className="italic font-light text-accent">create</em> today?{" "}
-            <Sparkles size={20} strokeWidth={2} className="inline align-baseline text-accent" />
-          </h2>
-          <p className="font-serif italic text-sm md:text-base text-muted mt-2 max-w-xl">
-            Your AI co-pilot that helps you plan, create and save hours every week.
-          </p>
-        </div>
-        <div className="planner-hero-orb hidden md:block" aria-hidden />
+    <div className="planner-hero rounded-3xl p-6 md:p-7 mb-4 relative overflow-hidden">
+      <div className="relative z-10">
+        <p className="font-mono text-[10px] uppercase tracking-[0.20em] text-accent mb-2.5 inline-flex items-center gap-2">
+          <Sparkles size={11} strokeWidth={2} /> Studio AI
+        </p>
+        <h2 className="font-serif text-xl md:text-2xl lg:text-[1.7rem] text-ink leading-tight font-medium">
+          What would you like to{" "}
+          <em className="italic font-light text-accent">create</em> today?
+        </h2>
+        <p className="font-serif italic text-[13px] md:text-sm text-muted mt-1.5 max-w-xl">
+          Your AI co-pilot that helps you plan, save time, and make every class amazing.
+        </p>
       </div>
 
-      <div className="relative z-10 mt-5 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2.5">
+      <div className="relative z-10 mt-5 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2">
         {chips.map((c) => {
           const Icon = c.icon;
           return (
@@ -432,11 +416,11 @@ function StudioHeroCard() {
                 <Icon size={14} strokeWidth={1.75} />
               </span>
               <span className="flex flex-col items-start min-w-0 text-left">
-                <span className="text-[12.5px] font-medium text-ink truncate">
-                  {c.title}
+                <span className="text-[12px] font-medium text-ink truncate">
+                  {c.verb}
                 </span>
                 <span className="font-serif italic text-[10.5px] text-muted truncate">
-                  {c.subtitle}
+                  {c.noun}
                 </span>
               </span>
             </button>
@@ -448,45 +432,37 @@ function StudioHeroCard() {
 }
 
 // ───────────────────────────────────────────────────────────────────────
-// AI Insights — small dashboard tile. Placeholder line chart in sage,
-// "On track" headline, 3-stat row.
+// This Month Overview — big accent-red line chart up top, 3-stat row
+// underneath. No "vs last month" pill; the chart is the story.
 // ───────────────────────────────────────────────────────────────────────
-function AIInsightsCard() {
+function ThisMonthOverviewCard() {
   return (
     <div className="rounded-2xl border border-line bg-paper-cool p-4 md:p-5">
       <div className="flex items-center justify-between mb-3">
-        <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent inline-flex items-center gap-1.5">
-          <Sparkles size={11} strokeWidth={2} /> AI Insights
+        <p className="font-serif italic text-[15px] text-ink font-medium">
+          This Month Overview
         </p>
-        <button className="text-muted hover:text-ink transition" aria-label="More">
-          <MoreHorizontal size={14} />
-        </button>
       </div>
-      <p className="font-serif italic text-sm text-muted">Your teaching rhythm is</p>
-      <p className="font-serif text-2xl text-ink font-medium leading-tight">On track</p>
-      <div className="my-3">
-        <svg viewBox="0 0 280 56" className="w-full h-12" preserveAspectRatio="none">
+      <div className="-mx-1">
+        <svg viewBox="0 0 320 84" className="w-full h-20" preserveAspectRatio="none">
           <defs>
-            <linearGradient id="insightsFill" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="var(--color-sage)" stopOpacity="0.30" />
-              <stop offset="100%" stopColor="var(--color-sage)" stopOpacity="0" />
+            <linearGradient id="monthChartFill" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="var(--color-accent)" stopOpacity="0.34" />
+              <stop offset="100%" stopColor="var(--color-accent)" stopOpacity="0" />
             </linearGradient>
           </defs>
           <path
-            d="M0 42 L30 36 L60 38 L90 28 L120 32 L150 22 L180 26 L210 14 L240 18 L280 8 L280 56 L0 56 Z"
-            fill="url(#insightsFill)"
+            d="M0 60 C30 56 50 48 80 50 C110 52 130 32 160 30 C190 28 210 20 240 18 C270 16 290 24 320 22 L320 84 L0 84 Z"
+            fill="url(#monthChartFill)"
           />
           <path
-            d="M0 42 L30 36 L60 38 L90 28 L120 32 L150 22 L180 26 L210 14 L240 18 L280 8"
-            stroke="var(--color-sage)" strokeWidth="1.75" fill="none"
+            d="M0 60 C30 56 50 48 80 50 C110 52 130 32 160 30 C190 28 210 20 240 18 C270 16 290 24 320 22"
+            stroke="var(--color-accent)" strokeWidth="2" fill="none"
             strokeLinecap="round" strokeLinejoin="round"
           />
         </svg>
-        <p className="font-mono text-[10px] tracking-[0.14em] uppercase text-sage mt-1">
-          +12% vs last month
-        </p>
       </div>
-      <div className="grid grid-cols-3 gap-2 pt-3 border-t border-line/70">
+      <div className="grid grid-cols-3 gap-2 mt-3 pt-3 border-t border-line/70">
         {[
           { n: 28, k: "Planned" },
           { n: 12, k: "Completed" },
@@ -550,10 +526,10 @@ function UpcomingCard({ events }) {
 // ───────────────────────────────────────────────────────────────────────
 function QuickActionsCard() {
   const actions = [
-    { key: "lesson",       icon: BookOpen,      label: "Add Lesson Plan",   color: "ink" },
-    { key: "quiz",         icon: GraduationCap, label: "Create Quiz",       color: "accent" },
-    { key: "homework",     icon: ClipboardList, label: "New Homework",      color: "gold" },
-    { key: "presentation", icon: Presentation,  label: "New Presentation",  color: "accent-soft" },
+    { key: "lesson",       icon: BookOpen,      label: "New Lesson Plan",  color: "ink" },
+    { key: "quiz",         icon: GraduationCap, label: "New Quiz",         color: "gold" },
+    { key: "homework",     icon: ClipboardList, label: "New Homework",     color: "accent" },
+    { key: "presentation", icon: Presentation,  label: "New Presentation", color: "accent-soft" },
   ];
   const bg = {
     "ink":         "bg-ink",

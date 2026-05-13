@@ -1,8 +1,7 @@
 import React, { useEffect, useState } from "react";
 import {
-  ChevronRight, X, Sparkles, ArrowUpRight, ArrowRight, Crown,
-  Calendar as CalendarIcon, GraduationCap, Users, ClipboardList,
-  ClipboardCheck, FolderOpen, BarChart3, Settings as SettingsIcon,
+  ChevronRight, ChevronDown, X, Sparkles, ArrowUpRight, ArrowRight, Crown,
+  Search,
 } from "lucide-react";
 import Dashboard from "./views/Dashboard";
 import TemplatesLibrary from "./views/TemplatesLibrary";
@@ -28,22 +27,31 @@ import { getRole, onRoleChange, ROLE_LABELS } from "./lib/role";
 import { api } from "./views/_shared";
 import { useRoute, navigate, replace } from "./lib/route";
 
-// Single-section nav, lucide-icon driven, matches the 2026 mockup. Every
-// label points to an existing route — Schedule and Presentations are
-// still reachable by URL or from inside the Teaching surface, just not
-// pinned to the rail at this size.
+// Sectioned nav matching the 2026 mockup — italic Fraunces section
+// headers + small letter/icon badges next to each label. All routes
+// preserved.
 const TEACHER_NAV = [
   {
-    section: null, // no section header — flat list per the mockup
+    section: "Planning",
     items: [
-      { key: "planner",      label: "Planner",      lucide: CalendarIcon },
-      { key: "lesson-plans", label: "Teaching",     lucide: GraduationCap },
-      { key: "database",     label: "Students",     lucide: Users },
-      { key: "homework",     label: "Homework",     lucide: ClipboardList },
-      { key: "quizzes",      label: "Assessments",  lucide: ClipboardCheck },
-      { key: "activities",   label: "Resources",    lucide: FolderOpen },
-      { key: "reports",      label: "Analytics",    lucide: BarChart3 },
-      { key: "account",      label: "Settings",     lucide: SettingsIcon },
+      { key: "planner", label: "Planner", icon: "▦" },
+    ],
+  },
+  {
+    section: "Teaching",
+    items: [
+      { key: "lesson-plans",  label: "Lesson Plans",  letter: "L" },
+      { key: "schedule",      label: "Schedule",      letter: "S" },
+      { key: "quizzes",       label: "Quizzes",       letter: "Q" },
+      { key: "homework",      label: "Homework",      letter: "H" },
+      { key: "presentations", label: "Presentations", letter: "P" },
+      { key: "activities",    label: "Activities",    letter: "A" },
+    ],
+  },
+  {
+    section: "Data",
+    items: [
+      { key: "database", label: "My students", letter: "C" },
     ],
   },
 ];
@@ -373,7 +381,10 @@ export default function StudioApp({ onClose }) {
             <span className="mudir-studio-launcher-body">
               <span className="mudir-studio-launcher-title">Studio</span>
               <span className="mudir-studio-launcher-subtitle">
-                Your AI teaching co-pilot
+                Your AI co-pilot for teaching
+              </span>
+              <span className="mudir-studio-launcher-tagline">
+                Create &middot; Plan &middot; Inspire
               </span>
             </span>
 
@@ -418,30 +429,27 @@ export default function StudioApp({ onClose }) {
           })()}
         </nav>
 
-        <div className="mudir-premium-card">
-          <div className="mudir-premium-card-head">
-            <span className="mudir-premium-card-icon" aria-hidden>
-              <Crown size={14} strokeWidth={2} />
-            </span>
-            <span className="mudir-premium-card-title">Mudir Premium</span>
+        <button
+          onClick={() => navigate(["account"])}
+          title="Open account"
+          className={`mudir-sidebar-account ${section === "account" ? "mudir-sidebar-account-active" : ""}`}
+        >
+          <span className="mudir-sidebar-account-avatar">SA</span>
+          <div className="flex-1 min-w-0 text-left">
+            <p className="text-sm font-medium leading-tight truncate text-ink">
+              Sara Al-Mansoori
+            </p>
+            <p className="font-serif italic text-[11px] text-muted mt-0.5">
+              {ROLE_LABELS[role]}
+            </p>
           </div>
-          <p className="mudir-premium-card-body">
-            Unlock advanced AI features, unlimited generation and more.
-          </p>
-          <button
-            type="button"
-            className="mudir-premium-card-cta"
-            onClick={() => navigate(["account"])}
-          >
-            Upgrade now
-            <ArrowRight size={13} strokeWidth={2} />
-          </button>
-        </div>
+          <ChevronRight size={14} className="text-muted flex-shrink-0" />
+        </button>
       </aside>
 
       <main className="flex-1 flex flex-col min-w-0 h-full">
-        <header className="border-b border-line bg-paper-cool px-8 py-4 flex items-center justify-between flex-shrink-0 print:hidden">
-          <nav className="text-sm flex items-center gap-2 flex-wrap text-muted">
+        <header className="border-b border-line bg-paper-cool px-8 py-4 flex items-center gap-6 flex-shrink-0 print:hidden">
+          <nav className="text-sm flex items-center gap-2 flex-wrap text-muted flex-shrink-0">
             {crumbs.map((c, i) => (
               <React.Fragment key={i}>
                 {i > 0 && <ChevronRight size={14} className="text-line" />}
@@ -455,7 +463,22 @@ export default function StudioApp({ onClose }) {
               </React.Fragment>
             ))}
           </nav>
-          <div className="flex items-center gap-3">
+
+          {/* Global search — center of the header. Placeholder for now;
+              wires to a Cmd-K omnibox in a later build. */}
+          <div className="mudir-search flex-1 max-w-xl mx-auto hidden md:flex">
+            <Search size={14} strokeWidth={2} className="text-muted flex-shrink-0" />
+            <input
+              type="text"
+              placeholder="Search anything…"
+              className="flex-1 bg-transparent outline-none text-sm text-ink placeholder:text-muted/80"
+            />
+            <kbd className="font-mono text-[10px] tracking-wider text-muted bg-paper border border-line rounded px-1.5 py-0.5 flex-shrink-0">
+              ⌘ K
+            </kbd>
+          </div>
+
+          <div className="flex items-center gap-3 flex-shrink-0 ml-auto">
             {role === "teacher" && <NotificationsBell />}
             <button
               onClick={() => navigate(["account"])}
@@ -463,12 +486,7 @@ export default function StudioApp({ onClose }) {
               className="mudir-header-user group"
             >
               <span className="mudir-header-user-avatar">SA</span>
-              <span className="hidden md:flex flex-col items-start leading-tight">
-                <span className="text-sm font-medium text-ink">Sara Al-Mansoori</span>
-                <span className="font-serif italic text-[11px] text-muted">
-                  {ROLE_LABELS[role]}
-                </span>
-              </span>
+              <ChevronDown size={14} className="text-muted group-hover:text-ink transition" />
             </button>
             {onClose && (
               <button
