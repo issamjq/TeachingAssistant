@@ -26,10 +26,8 @@ export default function QuizBuilder({ quiz, onClose }) {
   });
   const [quizId, setQuizId] = useState(quiz?.id || null);
   const [questions, setQuestions] = useState([]);
-  const [scores, setScores] = useState([]);
   const [savingMeta, setSavingMeta] = useState(false);
   const [err, setErr] = useState(null);
-  const [tab, setTab] = useState("questions");
 
   // Load existing meta + questions + scores when editing. Callers may pass
   // just `{ id }` (e.g. the Quizzes list hands us a stub by route), so we
@@ -53,7 +51,6 @@ export default function QuizBuilder({ quiz, onClose }) {
       });
     }).catch(() => {});
     api(`/api/quizzes/${quizId}/questions`).then(setQuestions).catch(() => {});
-    api(`/api/quizzes/${quizId}/scores`).then(setScores).catch(() => {});
   }, [quizId]);
 
   const setMetaField = (k, v) => setMeta((m) => ({ ...m, [k]: v }));
@@ -99,14 +96,6 @@ export default function QuizBuilder({ quiz, onClose }) {
   const removeQuestion = async (q) => {
     await api(`/api/quizzes/${quizId}/questions/${q.id}`, { method: "DELETE" });
     setQuestions((qs) => qs.filter((x) => x.id !== q.id));
-  };
-
-  const recordScore = async (sid, score, maxScore) => {
-    await api(`/api/quizzes/${quizId}/scores/${sid}`, {
-      method: "PUT",
-      body: { score: score === "" ? null : Number(score), max_score: maxScore || meta.total_marks || null },
-    });
-    api(`/api/quizzes/${quizId}/scores`).then(setScores);
   };
 
   return (
@@ -184,100 +173,37 @@ export default function QuizBuilder({ quiz, onClose }) {
 
       {!quizId ? (
         <p className="font-mono text-[10px] uppercase tracking-wider text-muted mt-6">
-          Save the quiz first to add questions and record scores.
+          Save the quiz first to add questions.
         </p>
       ) : (
-        <>
-          <div className="flex items-center gap-2 border-b border-line mt-8 mb-6">
-            {[
-              ["questions", "Questions"],
-              ["scores", "Scores"],
-            ].map(([key, label]) => (
-              <button
-                key={key}
-                onClick={() => setTab(key)}
-                className={`px-4 py-2 font-mono text-[11px] uppercase tracking-[0.15em] border-b-2 transition ${
-                  tab === key ? "border-accent text-ink" : "border-transparent text-muted hover:text-ink"
-                }`}
-              >
-                {label}
-              </button>
-            ))}
+        <div className="mt-8">
+          <div className="flex items-center justify-between mb-4">
+            <p className="font-mono text-[10px] uppercase tracking-wider text-muted">
+              {questions.length} question{questions.length === 1 ? "" : "s"}
+            </p>
+            <Button onClick={addQuestion}>
+              <Plus size={14} className="mr-2" /> Add question
+            </Button>
           </div>
-
-          {tab === "questions" ? (
-            <>
-              <div className="flex items-center justify-between mb-4">
-                <p className="font-mono text-[10px] uppercase tracking-wider text-muted">
-                  {questions.length} question{questions.length === 1 ? "" : "s"}
-                </p>
-                <Button onClick={addQuestion}>
-                  <Plus size={14} className="mr-2" /> Add question
-                </Button>
-              </div>
-              <div className="space-y-4">
-                {questions.map((q, i) => (
-                  <QuestionCard
-                    key={q.id}
-                    index={i + 1}
-                    q={q}
-                    onChange={(patch) => updateQuestion(q, patch)}
-                    onRemove={() => removeQuestion(q)}
-                  />
-                ))}
-                {questions.length === 0 && (
-                  <Card>
-                    <CardContent className="p-6 text-center text-muted text-sm">
-                      No questions yet. Add one to get started.
-                    </CardContent>
-                  </Card>
-                )}
-              </div>
-            </>
-          ) : (
-            <Card>
-              <CardContent>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted border-b border-line">
-                        <th className="text-left py-3 px-5 font-medium">Student</th>
-                        <th className="text-left py-3 font-medium">Score</th>
-                        <th className="text-left py-3 font-medium">Out of</th>
-                        <th className="text-left py-3 px-5 font-medium">Recorded</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {scores.map((s) => (
-                        <tr key={s.student_id} className="border-b border-line/60 last:border-0">
-                          <td className="py-3 px-5 text-ink">
-                            {s.first_name} {s.last_name}
-                            <span className="font-mono text-[10px] text-muted ml-2">{s.code}</span>
-                          </td>
-                          <td className="py-3">
-                            <input
-                              type="number"
-                              defaultValue={s.score ?? ""}
-                              onBlur={(e) => recordScore(s.student_id, e.target.value, s.max_score)}
-                              className="w-20 rounded-md border border-line bg-paper px-2 py-1 text-sm"
-                            />
-                          </td>
-                          <td className="py-3 text-muted">{s.max_score ?? meta.total_marks ?? "—"}</td>
-                          <td className="py-3 px-5 text-muted text-xs">
-                            {s.recorded_at ? new Date(s.recorded_at).toLocaleString() : "—"}
-                          </td>
-                        </tr>
-                      ))}
-                      {scores.length === 0 && (
-                        <tr><td colSpan={4} className="py-8 text-center text-muted">No students in your roster yet.</td></tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-        </>
+          <div className="space-y-4">
+            {questions.map((q, i) => (
+              <QuestionCard
+                key={q.id}
+                index={i + 1}
+                q={q}
+                onChange={(patch) => updateQuestion(q, patch)}
+                onRemove={() => removeQuestion(q)}
+              />
+            ))}
+            {questions.length === 0 && (
+              <Card>
+                <CardContent className="p-6 text-center text-muted text-sm">
+                  No questions yet. Add one to get started.
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        </div>
       )}
     </div>
   );
@@ -426,7 +352,7 @@ function QuestionCard({ index, q, onChange, onRemove }) {
           </div>
         )}
         {local.type === "essay" && (
-          <p className="mt-3 text-xs text-muted">Essays are graded manually under the Scores tab.</p>
+          <p className="mt-3 text-xs text-muted">Essays are graded manually after the quiz is taken.</p>
         )}
       </CardContent>
     </Card>
