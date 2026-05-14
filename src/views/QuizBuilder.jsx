@@ -2,8 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { GRADE_LEVELS } from "../lib/enums";
-import { Field, inputClasses, selectClasses, api } from "./_shared";
+import { Field, inputClasses, selectClasses, api, useTeacherClasses } from "./_shared";
 
 const QUESTION_TYPES = [
   { value: "mcq",   label: "Multiple choice" },
@@ -13,6 +12,7 @@ const QUESTION_TYPES = [
 ];
 
 export default function QuizBuilder({ quiz, onClose }) {
+  const { grades: teacherGrades, sections: teacherSections } = useTeacherClasses();
   const [meta, setMeta] = useState({
     title: quiz?.title || "",
     subject: quiz?.subject || "",
@@ -137,12 +137,21 @@ export default function QuizBuilder({ quiz, onClose }) {
             </Field>
             <Field label="Grade">
               <select className={selectClasses} value={meta.grade} onChange={(e) => setMetaField("grade", e.target.value)}>
-                <option value="">—</option>
-                {GRADE_LEVELS.map((g) => <option key={g} value={g}>{g}</option>)}
+                <option value="">{teacherGrades.length ? "—" : "No grades on your profile"}</option>
+                {teacherGrades.map((g) => <option key={g} value={g}>{g}</option>)}
+                {meta.grade && !teacherGrades.includes(meta.grade) && (
+                  <option value={meta.grade}>{meta.grade}</option>
+                )}
               </select>
             </Field>
             <Field label="Section">
-              <input className={inputClasses} value={meta.section} onChange={(e) => setMetaField("section", e.target.value)} />
+              <select className={selectClasses} value={meta.section} onChange={(e) => setMetaField("section", e.target.value)}>
+                <option value="">{teacherSections.length ? "—" : "No sections on your profile"}</option>
+                {teacherSections.map((s) => <option key={s} value={s}>{s}</option>)}
+                {meta.section && !teacherSections.includes(meta.section) && (
+                  <option value={meta.section}>{meta.section}</option>
+                )}
+              </select>
             </Field>
             <Field label="Status">
               <select className={selectClasses} value={meta.status} onChange={(e) => setMetaField("status", e.target.value)}>

@@ -2,10 +2,10 @@ import React, { useEffect, useState } from "react";
 import { Play, Pencil, Trash2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { GRADE_LEVELS } from "../lib/enums";
 import {
   Field, Modal, ConfirmDelete,
   inputClasses, selectClasses, api, timeAgo,
+  useTeacherClasses,
 } from "./_shared";
 import {
   DataPageHeader, DataCard, CardsGrid, useViewMode,
@@ -203,10 +203,12 @@ export default function Presentations() {
 
 function PresentationModal({ initial, onClose, onSaved }) {
   const isNew = !initial;
+  const { grades: teacherGrades, sections: teacherSections } = useTeacherClasses();
   const [form, setForm] = useState(() => ({
     title: initial?.title || "",
     subject: initial?.subject || "",
     grade: initial?.grade || "",
+    section: initial?.section || "",
     status: initial?.status || "Draft",
     scheduled_for: initial?.scheduled_for ? String(initial.scheduled_for).slice(0, 10) : "",
     slides: initial?.slides || [],
@@ -260,8 +262,20 @@ function PresentationModal({ initial, onClose, onSaved }) {
         </Field>
         <Field label="Grade">
           <select className={selectClasses} value={form.grade} onChange={(e) => setForm((f) => ({ ...f, grade: e.target.value }))}>
-            <option value="">—</option>
-            {GRADE_LEVELS.map((g) => <option key={g} value={g}>{g}</option>)}
+            <option value="">{teacherGrades.length ? "—" : "No grades on your profile"}</option>
+            {teacherGrades.map((g) => <option key={g} value={g}>{g}</option>)}
+            {form.grade && !teacherGrades.includes(form.grade) && (
+              <option value={form.grade}>{form.grade}</option>
+            )}
+          </select>
+        </Field>
+        <Field label="Section">
+          <select className={selectClasses} value={form.section} onChange={(e) => setForm((f) => ({ ...f, section: e.target.value }))}>
+            <option value="">{teacherSections.length ? "—" : "No sections on your profile"}</option>
+            {teacherSections.map((s) => <option key={s} value={s}>{s}</option>)}
+            {form.section && !teacherSections.includes(form.section) && (
+              <option value={form.section}>{form.section}</option>
+            )}
           </select>
         </Field>
         <Field label="Status">

@@ -435,6 +435,28 @@ export function ChipMultiSelect({ value = [], onChange, options, allowCustom = f
 // /api/* call will be redirected there.
 const API_BASE = (import.meta.env.VITE_API_URL || "").replace(/\/$/, "");
 
+// Pulls the signed-in teacher's classes (grade_levels + sections) so
+// every new-entry form (Quizzes / Homework / Presentations / Schedule)
+// only offers what THIS teacher actually teaches — set in My students
+// → Teaching profile. Returns empty arrays while loading or on error.
+export function useTeacherClasses() {
+  const [data, setData] = useState({ grades: [], sections: [] });
+  useEffect(() => {
+    let alive = true;
+    api("/api/me")
+      .then((me) => {
+        if (!alive) return;
+        setData({
+          grades: Array.isArray(me?.grade_levels) ? me.grade_levels : [],
+          sections: Array.isArray(me?.sections) ? me.sections : [],
+        });
+      })
+      .catch(() => { /* silent — dropdowns just show their fallback */ });
+    return () => { alive = false; };
+  }, []);
+  return data;
+}
+
 export async function api(path, { method = "GET", body } = {}) {
   const res = await fetch(API_BASE + path, {
     method,

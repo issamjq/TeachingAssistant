@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from "react";
 import { Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { GRADE_LEVELS } from "../lib/enums";
 import {
   Field, Modal, ConfirmDelete, SortHeader, useSortable,
   AttachmentsList, inputClasses, selectClasses, api,
+  useTeacherClasses,
 } from "./_shared";
 import {
   DataPageHeader, DataCard, CardsGrid, useViewMode,
@@ -233,6 +233,7 @@ const EMPTY = {
 };
 
 function HomeworkModal({ initial, onClose, onSaved }) {
+  const { grades: teacherGrades, sections: teacherSections } = useTeacherClasses();
   const isNew = !initial;
   const [form, setForm] = useState(() => initial
     ? {
@@ -286,12 +287,21 @@ function HomeworkModal({ initial, onClose, onSaved }) {
         </Field>
         <Field label="Grade">
           <select className={selectClasses} value={form.grade} onChange={(e) => set("grade", e.target.value)}>
-            <option value="">—</option>
-            {GRADE_LEVELS.map((g) => <option key={g} value={g}>{g}</option>)}
+            <option value="">{teacherGrades.length ? "—" : "No grades on your profile"}</option>
+            {teacherGrades.map((g) => <option key={g} value={g}>{g}</option>)}
+            {form.grade && !teacherGrades.includes(form.grade) && (
+              <option value={form.grade}>{form.grade}</option>
+            )}
           </select>
         </Field>
         <Field label="Section">
-          <input className={inputClasses} value={form.section} onChange={(e) => set("section", e.target.value)} />
+          <select className={selectClasses} value={form.section} onChange={(e) => set("section", e.target.value)}>
+            <option value="">{teacherSections.length ? "—" : "No sections on your profile"}</option>
+            {teacherSections.map((s) => <option key={s} value={s}>{s}</option>)}
+            {form.section && !teacherSections.includes(form.section) && (
+              <option value={form.section}>{form.section}</option>
+            )}
+          </select>
         </Field>
         <Field label="Due date">
           <input type="date" className={inputClasses} value={form.due_date} onChange={(e) => set("due_date", e.target.value)} />

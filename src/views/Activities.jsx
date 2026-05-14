@@ -2,7 +2,6 @@ import React, { useEffect, useState } from "react";
 import { ListChecks, Pencil, Trash2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { GRADE_LEVELS } from "../lib/enums";
 import {
   Field, Modal, ConfirmDelete,
   inputClasses, selectClasses, api, timeAgo,
@@ -210,7 +209,6 @@ function ActivityModal({ initial, onClose, onSaved }) {
     title: initial?.title || "",
     type: initial?.type || "individual",
     subject: initial?.subject || "",
-    grade: initial?.grade || "",
     duration_minutes: initial?.duration_minutes || 15,
     scheduled_for: initial?.scheduled_for ? String(initial.scheduled_for).slice(0, 10) : "",
     instructions: initial?.instructions || "",
@@ -268,12 +266,6 @@ function ActivityModal({ initial, onClose, onSaved }) {
         </Field>
         <Field label="Subject">
           <input className={inputClasses} value={form.subject} onChange={(e) => set("subject", e.target.value)} />
-        </Field>
-        <Field label="Grade">
-          <select className={selectClasses} value={form.grade} onChange={(e) => set("grade", e.target.value)}>
-            <option value="">—</option>
-            {GRADE_LEVELS.map((g) => <option key={g} value={g}>{g}</option>)}
-          </select>
         </Field>
         <Field label="Scheduled for">
           <input

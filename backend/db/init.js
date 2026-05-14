@@ -142,8 +142,11 @@ ALTER TABLE schedule_entries ALTER COLUMN end_time   DROP NOT NULL;
 // Presentations and Activities didn't carry a scheduled date originally;
 // the calendar rail wants one so every teaching surface can pin a slot
 // the same way quizzes (scheduled_for) and homework (due_date) already do.
+// Presentations also needed a `section` column for the teacher's
+// section dropdown.
 const SCHEMA_PRES_ACT_SCHEDULED = `
 ALTER TABLE presentations ADD COLUMN IF NOT EXISTS scheduled_for DATE;
+ALTER TABLE presentations ADD COLUMN IF NOT EXISTS section TEXT;
 ALTER TABLE activities    ADD COLUMN IF NOT EXISTS scheduled_for DATE;
 `;
 
