@@ -450,7 +450,7 @@ export default function StudioApp({ onClose }) {
       </aside>
 
       <main className="flex-1 flex flex-col min-w-0 h-full">
-        <header className="border-b border-line bg-paper-cool px-8 py-4 flex items-center gap-6 flex-shrink-0 print:hidden">
+        <header className="border-b border-line bg-[#fbf2e6] px-8 py-4 flex items-center gap-6 flex-shrink-0 print:hidden">
           <nav className="text-sm flex items-center gap-2 flex-wrap text-muted flex-shrink-0">
             {crumbs.map((c, i) => (
               <React.Fragment key={i}>
@@ -502,7 +502,7 @@ export default function StudioApp({ onClose }) {
           </div>
         </header>
 
-        <div className="flex-1 p-8 overflow-y-auto bg-paper">{mainContent}</div>
+        <div className="flex-1 p-8 overflow-y-auto bg-[#fbf2e6]">{mainContent}</div>
       </main>
     </div>
   );
