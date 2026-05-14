@@ -1,12 +1,15 @@
 import React, { useEffect, useState } from "react";
-import { Plus, ListChecks } from "lucide-react";
+import { ListChecks, Pencil, Trash2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { GRADE_LEVELS } from "../lib/enums";
 import {
-  Field, Modal, ConfirmDelete, RowActions,
+  Field, Modal, ConfirmDelete,
   inputClasses, selectClasses, api, timeAgo,
 } from "./_shared";
+import {
+  DataPageHeader, DataCard, CardsGrid, useViewMode,
+} from "./_data-view";
 
 export default function Activities() {
   const [items, setItems] = useState([]);
@@ -16,6 +19,7 @@ export default function Activities() {
   const [deleting, setDeleting] = useState(null);
   const [busy, setBusy] = useState(false);
   const [completionsFor, setCompletionsFor] = useState(null);
+  const [viewMode, setViewMode] = useViewMode("mudir.view.activities", "cards");
 
   const reload = () => {
     setLoading(true);
@@ -46,20 +50,15 @@ export default function Activities() {
 
   return (
     <div>
-      <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-8">
-        <div>
-          <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-2 inline-flex items-center gap-2.5">
-            <span className="w-6 h-px bg-accent" /> Activities
-          </p>
-          <h2 className="font-serif text-4xl font-medium text-ink">
-            Classroom <em className="italic font-light text-accent">activities</em>
-          </h2>
-          <p className="text-muted mt-2">Pair-work, group tasks, individual exercises — with materials and timing.</p>
-        </div>
-        <Button onClick={() => setEditing("new")}>
-          <Plus size={15} className="mr-2" /> New activity
-        </Button>
-      </div>
+      <DataPageHeader
+        eyebrow="Activities"
+        title={<>Classroom <em className="italic font-light text-accent">activities</em></>}
+        subtitle="Pair-work, group tasks, individual exercises — with materials and timing."
+        newLabel="New activity"
+        onNewManual={() => setEditing("new")}
+        mode={viewMode}
+        onModeChange={setViewMode}
+      />
 
       {error && (
         <div className="mb-4 bg-paper border border-accent rounded-lg p-4">
@@ -67,53 +66,81 @@ export default function Activities() {
         </div>
       )}
 
-      {loading ? (
-        <p className="font-mono text-[10px] uppercase tracking-wider text-muted">Loading…</p>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+      {loading && <p className="font-mono text-[10px] uppercase tracking-wider text-muted">Loading…</p>}
+
+      {!loading && items.length === 0 && (
+        <div className="rounded-2xl border border-dashed border-line p-12 text-center text-muted">
+          No activities yet — click &ldquo;New activity&rdquo; to create one.
+        </div>
+      )}
+
+      {viewMode === "cards" && items.length > 0 && (
+        <CardsGrid>
           {items.map((a) => (
-            <Card key={a.id} className="hover:border-ink transition">
-              <CardContent className="p-5">
-                <div className="flex items-start justify-between mb-3">
-                  <span className="font-mono text-[10px] uppercase tracking-wider px-2 py-0.5 bg-paper border border-line text-ink-soft rounded">
-                    {a.type || "—"}
-                  </span>
-                  <RowActions
-                    onEdit={() => setEditing(a)}
-                    onDelete={() => setDeleting(a)}
-                  />
-                </div>
-                <h3 className="font-serif text-xl font-medium text-ink mb-1.5">{a.title}</h3>
-                <p className="font-mono text-[10px] uppercase tracking-wider text-muted mb-3">
+            <DataCard
+              key={a.id}
+              onEdit={() => setEditing(a)}
+              onDelete={() => setDeleting(a)}
+            >
+              <div className="pr-16 flex-1 flex flex-col gap-2">
+                <span className="font-mono text-[10px] uppercase tracking-wider px-2 py-0.5 bg-paper border border-line text-ink-soft rounded self-start">
+                  {a.type || "—"}
+                </span>
+                <h3 className="font-serif text-lg font-medium text-ink leading-snug mt-1">{a.title}</h3>
+                <p className="font-mono text-[10px] uppercase tracking-wider text-muted">
                   {a.subject || "—"}{a.grade ? ` · ${a.grade}` : ""}
                   {a.duration_minutes ? ` · ${a.duration_minutes} min` : ""}
                 </p>
                 {a.instructions && (
-                  <p className="text-sm text-ink-soft mb-3 leading-relaxed line-clamp-3">{a.instructions}</p>
+                  <p className="text-sm text-ink-soft mt-1 leading-relaxed line-clamp-3">{a.instructions}</p>
                 )}
-                <div className="pt-3 border-t border-dashed border-line flex items-center justify-between">
-                  <span className="font-mono text-[10px] uppercase tracking-wider text-muted">
-                    Updated {timeAgo(a.updated_at)}
-                  </span>
-                  <button
-                    onClick={() => setCompletionsFor(a)}
-                    className="inline-flex items-center gap-1.5 text-accent hover:text-ink font-serif italic text-sm border-b border-accent hover:border-ink transition"
-                  >
-                    <ListChecks size={13} /> Completions
-                  </button>
-                </div>
-              </CardContent>
-            </Card>
+              </div>
+              <div className="mt-3 pt-3 border-t border-dashed border-line flex items-center justify-between">
+                <span className="font-mono text-[10px] uppercase tracking-wider text-muted">
+                  Updated {timeAgo(a.updated_at)}
+                </span>
+                <button
+                  onClick={() => setCompletionsFor(a)}
+                  className="inline-flex items-center gap-1.5 text-accent hover:text-ink font-serif italic text-sm border-b border-accent hover:border-ink transition"
+                >
+                  <ListChecks size={13} /> Completions
+                </button>
+              </div>
+            </DataCard>
           ))}
-          {items.length === 0 && (
-            <button
-              onClick={() => setEditing("new")}
-              className="border border-dashed border-line bg-paper-cool/50 rounded-xl p-5 flex flex-col items-center justify-center text-muted hover:border-ink hover:text-ink transition min-h-[180px] md:col-span-2"
-            >
-              <Plus size={20} className="mb-3" />
-              <p className="font-medium text-sm">Create your first activity</p>
-            </button>
-          )}
+        </CardsGrid>
+      )}
+
+      {viewMode === "list" && items.length > 0 && (
+        <div className="rounded-2xl border border-line bg-paper-cool overflow-hidden">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted border-b border-line">
+                <th className="text-left py-3 px-5 font-medium">Title</th>
+                <th className="text-left py-3 font-medium">Type</th>
+                <th className="text-left py-3 font-medium">Subject</th>
+                <th className="text-left py-3 font-medium">Grade</th>
+                <th className="text-left py-3 font-medium">Duration</th>
+                <th className="text-left py-3 font-medium">Updated</th>
+                <th className="py-3 px-5"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((a) => (
+                <tr key={a.id} className="border-b border-line/60 last:border-0 hover:bg-paper-warm transition">
+                  <td className="py-4 px-5 text-ink">{a.title}</td>
+                  <td className="py-4 text-muted">{a.type || "—"}</td>
+                  <td className="py-4 text-muted">{a.subject || "—"}</td>
+                  <td className="py-4 text-muted">{a.grade || "—"}</td>
+                  <td className="py-4 text-ink-soft">{a.duration_minutes ? `${a.duration_minutes} min` : "—"}</td>
+                  <td className="py-4 text-ink-soft text-xs">{timeAgo(a.updated_at)}</td>
+                  <td className="py-4 px-5 text-right">
+                    <ListRowActions onEdit={() => setEditing(a)} onDelete={() => setDeleting(a)} />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
 
@@ -289,5 +316,20 @@ function CompletionsModal({ activity, onClose }) {
         </table>
       </div>
     </Modal>
+  );
+}
+
+function ListRowActions({ onEdit, onDelete }) {
+  return (
+    <span className="inline-flex items-center gap-1">
+      <button type="button" onClick={onEdit} aria-label="Edit"
+        className="h-7 w-7 rounded-md border border-line bg-paper-cool hover:bg-paper-warm hover:border-ink flex items-center justify-center transition">
+        <Pencil size={12} strokeWidth={2} className="text-ink-soft" />
+      </button>
+      <button type="button" onClick={onDelete} aria-label="Delete"
+        className="h-7 w-7 rounded-md border border-line bg-paper-cool hover:bg-accent hover:border-accent hover:text-paper-cool text-ink-soft flex items-center justify-center transition">
+        <Trash2 size={12} strokeWidth={2} />
+      </button>
+    </span>
   );
 }

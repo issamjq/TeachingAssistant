@@ -6,8 +6,8 @@ import Dashboard from "./views/Dashboard";
 import TemplatesLibrary from "./views/TemplatesLibrary";
 import NewTemplate from "./views/NewTemplate";
 import ReusableDrafts from "./views/ReusableDrafts";
-import NewDraft from "./views/NewDraft";
 import EditDraft from "./views/EditDraft";
+import TeachingRail from "./views/TeachingRail";
 import Database from "./views/Database";
 import AccountProfile from "./views/AccountProfile";
 import Schedule from "./views/Schedule";
@@ -64,6 +64,12 @@ const DEV_NAV = [
 const NAV_BY_ROLE = { teacher: TEACHER_NAV, admin: ADMIN_NAV, dev: DEV_NAV };
 
 const DEFAULT_ROUTE = { teacher: "planner", admin: "admin-console", dev: "dev-console" };
+
+// Sections that get the Outlook-style right rail (mini-calendar + upcoming
+// days). Planner already has its own calendar so it stays out.
+const TEACHING_RAIL_SECTIONS = new Set([
+  "lesson-plans", "quizzes", "homework", "presentations", "activities",
+]);
 
 // Sections legitimately reachable from the URL bar for each role. Anything
 // outside this list bounces back to the role's default — keeps a stale
@@ -134,7 +140,6 @@ export default function StudioApp({ onClose }) {
 
   const goLessonPlans = (subView = "templates") => navigate(["lesson-plans", subView]);
   const goNewTemplate = () => navigate(["lesson-plans", "newTemplate"]);
-  const goNewDraft   = () => navigate(["lesson-plans", "newDraft"]);
   const goEditDraft  = (draft) => navigate(["lesson-plans", "edit-draft", draft.id]);
   const goQuizBuilder = (quiz) => navigate(["quizzes", quiz?.id ? "edit" : "new", quiz?.id].filter(Boolean));
 
@@ -208,7 +213,7 @@ export default function StudioApp({ onClose }) {
     );
 
     const isTemplatesArea = ["templates", "newTemplate"].includes(view);
-    const isDraftsArea    = ["drafts", "newDraft", "edit-draft"].includes(view);
+    const isDraftsArea    = ["drafts", "edit-draft"].includes(view);
 
     let inner;
     switch (view) {
@@ -273,25 +278,12 @@ export default function StudioApp({ onClose }) {
         );
         break;
       case "drafts":
-        crumbs.push({ label: "Reusable drafts" });
-        inner = <ReusableDrafts onNewDraft={goNewDraft} onEditDraft={goEditDraft} />;
-        break;
-      case "newDraft":
-        crumbs.push(
-          { label: "Reusable drafts", onClick: () => goLessonPlans("drafts") },
-          { label: "New draft" }
-        );
-        inner = (
-          <NewDraft
-            onCancel={() => goLessonPlans("drafts")}
-            onSave={(saved) => saved?.id ? goEditDraft(saved) : goLessonPlans("drafts")}
-            onOpenFull={() => goLessonPlans("drafts")}
-          />
-        );
+        crumbs.push({ label: "Drafts" });
+        inner = <ReusableDrafts onEditDraft={goEditDraft} />;
         break;
       case "edit-draft":
         crumbs.push(
-          { label: "Reusable drafts", onClick: () => goLessonPlans("drafts") },
+          { label: "Drafts", onClick: () => goLessonPlans("drafts") },
           { label: "Edit lesson plan" }
         );
         inner = (
@@ -314,7 +306,7 @@ export default function StudioApp({ onClose }) {
       <div>
         <div className="flex items-center gap-2 border-b border-line mb-8">
           {tab("templates", "Templates library", () => goLessonPlans("templates"), isTemplatesArea)}
-          {tab("drafts", "Reusable drafts", () => goLessonPlans("drafts"), isDraftsArea)}
+          {tab("drafts", "Drafts", () => goLessonPlans("drafts"), isDraftsArea)}
         </div>
         {inner}
       </div>
@@ -457,7 +449,14 @@ export default function StudioApp({ onClose }) {
               <X size={15} />
             </button>
           )}
-          {mainContent}
+          {TEACHING_RAIL_SECTIONS.has(section) ? (
+            <div className="flex gap-6 h-full">
+              <div className="flex-1 min-w-0">{mainContent}</div>
+              <TeachingRail />
+            </div>
+          ) : (
+            mainContent
+          )}
         </div>
       </main>
     </div>

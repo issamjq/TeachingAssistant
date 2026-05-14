@@ -1,12 +1,15 @@
 import React, { useEffect, useState } from "react";
-import { Plus, Play, Trash2 } from "lucide-react";
+import { Play, Pencil, Trash2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { GRADE_LEVELS } from "../lib/enums";
 import {
-  Field, Modal, ConfirmDelete, RowActions,
+  Field, Modal, ConfirmDelete,
   inputClasses, selectClasses, api, timeAgo,
 } from "./_shared";
+import {
+  DataPageHeader, DataCard, CardsGrid, useViewMode,
+} from "./_data-view";
 
 export default function Presentations() {
   const [items, setItems] = useState([]);
@@ -16,6 +19,7 @@ export default function Presentations() {
   const [presenting, setPresenting] = useState(null);
   const [deleting, setDeleting] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [viewMode, setViewMode] = useViewMode("mudir.view.presentations", "cards");
 
   const reload = () => {
     setLoading(true);
@@ -46,20 +50,15 @@ export default function Presentations() {
 
   return (
     <div>
-      <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-8">
-        <div>
-          <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-2 inline-flex items-center gap-2.5">
-            <span className="w-6 h-px bg-accent" /> Presentations
-          </p>
-          <h2 className="font-serif text-4xl font-medium text-ink">
-            Slide <em className="italic font-light text-accent">decks</em>
-          </h2>
-          <p className="text-muted mt-2">Build slide-based presentations linked to your lessons.</p>
-        </div>
-        <Button onClick={() => setEditing("new")}>
-          <Plus size={15} className="mr-2" /> New presentation
-        </Button>
-      </div>
+      <DataPageHeader
+        eyebrow="Presentations"
+        title={<>Slide <em className="italic font-light text-accent">decks</em></>}
+        subtitle="Build slide-based presentations linked to your lessons."
+        newLabel="New presentation"
+        onNewManual={() => setEditing("new")}
+        mode={viewMode}
+        onModeChange={setViewMode}
+      />
 
       {error && (
         <div className="mb-4 bg-paper border border-accent rounded-lg p-4">
@@ -69,25 +68,30 @@ export default function Presentations() {
 
       {loading && <p className="font-mono text-[10px] uppercase tracking-wider text-muted">Loading…</p>}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-        {items.map((p) => (
-          <Card key={p.id} className="hover:border-ink transition flex flex-col">
-            <CardContent className="p-5 flex-1 flex flex-col">
-              <div className="flex items-start justify-between mb-3">
-                <span className="font-mono text-[10px] uppercase tracking-wider px-2 py-0.5 bg-paper border border-line text-ink-soft rounded">
+      {!loading && items.length === 0 && (
+        <div className="rounded-2xl border border-dashed border-line p-12 text-center text-muted">
+          No presentations yet — click &ldquo;New presentation&rdquo; to build one.
+        </div>
+      )}
+
+      {viewMode === "cards" && items.length > 0 && (
+        <CardsGrid>
+          {items.map((p) => (
+            <DataCard
+              key={p.id}
+              onEdit={() => setEditing(p)}
+              onDelete={() => setDeleting(p)}
+            >
+              <div className="pr-16 flex-1 flex flex-col gap-2">
+                <span className="font-mono text-[10px] uppercase tracking-wider px-2 py-0.5 bg-paper border border-line text-ink-soft rounded self-start">
                   {p.status}
                 </span>
-                <RowActions
-                  onEdit={() => setEditing(p)}
-                  onDelete={() => setDeleting(p)}
-                />
+                <h3 className="font-serif text-lg font-medium text-ink leading-snug mt-1">{p.title}</h3>
+                <p className="font-mono text-[10px] uppercase tracking-wider text-muted">
+                  {p.subject || "—"}{p.grade ? ` · ${p.grade}` : ""} · {(p.slides || []).length} slide{(p.slides || []).length === 1 ? "" : "s"}
+                </p>
               </div>
-              <h3 className="font-serif text-xl font-medium text-ink mb-1.5">{p.title}</h3>
-              <p className="font-mono text-[10px] uppercase tracking-wider text-muted mb-3">
-                {p.subject || "—"}{p.grade ? ` · ${p.grade}` : ""} · {(p.slides || []).length} slide{(p.slides || []).length === 1 ? "" : "s"}
-              </p>
-              <div className="flex-1" />
-              <div className="pt-3 border-t border-dashed border-line flex items-center justify-between">
+              <div className="mt-3 pt-3 border-t border-dashed border-line flex items-center justify-between">
                 <span className="font-mono text-[10px] uppercase tracking-wider text-muted">
                   {timeAgo(p.updated_at)}
                 </span>
@@ -98,19 +102,47 @@ export default function Presentations() {
                   <Play size={13} /> Present
                 </button>
               </div>
-            </CardContent>
-          </Card>
-        ))}
-        <button
-          onClick={() => setEditing("new")}
-          className="border border-dashed border-line bg-paper-cool/50 rounded-xl p-5 flex flex-col items-center justify-center text-muted hover:border-ink hover:text-ink transition min-h-[180px]"
-        >
-          <div className="h-10 w-10 rounded-full border border-current flex items-center justify-center mb-3">
-            <Plus size={18} />
-          </div>
-          <p className="font-medium text-sm">New presentation</p>
-        </button>
-      </div>
+            </DataCard>
+          ))}
+        </CardsGrid>
+      )}
+
+      {viewMode === "list" && items.length > 0 && (
+        <div className="rounded-2xl border border-line bg-paper-cool overflow-hidden">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted border-b border-line">
+                <th className="text-left py-3 px-5 font-medium">Title</th>
+                <th className="text-left py-3 font-medium">Subject</th>
+                <th className="text-left py-3 font-medium">Grade</th>
+                <th className="text-left py-3 font-medium">Slides</th>
+                <th className="text-left py-3 font-medium">Status</th>
+                <th className="text-left py-3 font-medium">Updated</th>
+                <th className="py-3 px-5"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((p) => (
+                <tr key={p.id} className="border-b border-line/60 last:border-0 hover:bg-paper-warm transition">
+                  <td className="py-4 px-5 text-ink">{p.title}</td>
+                  <td className="py-4 text-muted">{p.subject || "—"}</td>
+                  <td className="py-4 text-muted">{p.grade || "—"}</td>
+                  <td className="py-4 text-ink-soft">{(p.slides || []).length}</td>
+                  <td className="py-4">
+                    <span className="font-mono text-[10px] uppercase tracking-wider px-2.5 py-1 rounded-full border border-line text-ink-soft bg-paper">
+                      {p.status}
+                    </span>
+                  </td>
+                  <td className="py-4 text-ink-soft text-xs">{timeAgo(p.updated_at)}</td>
+                  <td className="py-4 px-5 text-right">
+                    <ListRowActions onEdit={() => setEditing(p)} onDelete={() => setDeleting(p)} />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {editing && (
         <PresentationModal
@@ -297,5 +329,20 @@ function PresentMode({ presentation, onClose }) {
         </button>
       </div>
     </div>
+  );
+}
+
+function ListRowActions({ onEdit, onDelete }) {
+  return (
+    <span className="inline-flex items-center gap-1">
+      <button type="button" onClick={onEdit} aria-label="Edit"
+        className="h-7 w-7 rounded-md border border-line bg-paper-cool hover:bg-paper-warm hover:border-ink flex items-center justify-center transition">
+        <Pencil size={12} strokeWidth={2} className="text-ink-soft" />
+      </button>
+      <button type="button" onClick={onDelete} aria-label="Delete"
+        className="h-7 w-7 rounded-md border border-line bg-paper-cool hover:bg-accent hover:border-accent hover:text-paper-cool text-ink-soft flex items-center justify-center transition">
+        <Trash2 size={12} strokeWidth={2} />
+      </button>
+    </span>
   );
 }

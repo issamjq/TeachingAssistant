@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from "react";
-import { Search, Plus, AlertTriangle, Info } from "lucide-react";
+import { Search, AlertTriangle, Info } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -13,11 +13,14 @@ import {
   api,
   selectClasses,
 } from "./_shared";
+import {
+  ViewModeToggle, useViewMode, DataCard, CardsGrid,
+} from "./_data-view";
 import { MAJORS } from "../lib/enums";
 
 const STATUSES = ["In progress", "Ready to use", "Blocked", "Paused"];
 
-export default function ReusableDrafts({ onNewDraft, onEditDraft }) {
+export default function ReusableDrafts({ onEditDraft }) {
   const [query, setQuery] = useState("");
   const [subjectFilter, setSubjectFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
@@ -27,6 +30,7 @@ export default function ReusableDrafts({ onNewDraft, onEditDraft }) {
   const [deleting, setDeleting] = useState(null);
   const [busy, setBusy] = useState(false);
   const [bulkOpen, setBulkOpen] = useState(false);
+  const [viewMode, setViewMode] = useViewMode("mudir.view.drafts", "cards");
 
   useEffect(() => {
     api("/api/drafts")
@@ -100,25 +104,23 @@ export default function ReusableDrafts({ onNewDraft, onEditDraft }) {
             <span className="w-6 h-px bg-accent" /> Drafts
           </p>
           <h2 className="font-serif text-4xl font-medium text-ink">
-            Reusable <em className="italic font-light text-accent">drafts</em>
+            Your <em className="italic font-light text-accent">drafts</em>
           </h2>
           <p className="text-muted mt-2">
             Lesson plans you started, paused, or saved to reuse later. Only you can see these.
           </p>
         </div>
-        <div className="flex gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <ViewModeToggle mode={viewMode} onChange={setViewMode} />
           <Button variant="secondary" onClick={() => setBulkOpen(true)} disabled={drafts.length === 0}>
             Clear all drafts
-          </Button>
-          <Button onClick={onNewDraft}>
-            <Plus size={15} className="mr-2" /> New draft
           </Button>
         </div>
       </div>
 
-      <div className="flex flex-col md:flex-row gap-3 mb-6">
-        <div className="flex-1 bg-paper-cool rounded-lg border border-line px-4 py-2.5 flex items-center gap-2">
-          <Search size={15} className="text-muted" />
+      <div className="flex flex-col md:flex-row md:flex-wrap gap-3 mb-6">
+        <div className="flex-1 min-w-[240px] bg-paper-cool rounded-lg border border-line px-4 py-2.5 flex items-center gap-2">
+          <Search size={15} className="text-muted flex-shrink-0" />
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
@@ -163,6 +165,68 @@ export default function ReusableDrafts({ onNewDraft, onEditDraft }) {
         )}
       </p>
 
+      {viewMode === "cards" && (
+        <>
+          {!loading && sorted.length === 0 && (
+            <div className="rounded-2xl border border-dashed border-line p-12 text-center text-muted">
+              No drafts match the current filters.
+            </div>
+          )}
+          {sorted.length > 0 && (
+            <CardsGrid>
+              {sorted.map((d) => (
+                <DataCard
+                  key={d.id}
+                  onEdit={() => onEditDraft(d)}
+                  onDelete={() => setDeleting(d)}
+                >
+                  <div className="pr-16 flex-1 flex flex-col gap-2">
+                    <div className="flex items-center gap-2">
+                      <SubjectBadge subject={d.subject} />
+                      <StatusBadge status={d.status} />
+                    </div>
+                    <h3 className="font-serif text-lg font-medium text-ink leading-snug mt-1">{d.name}</h3>
+                    {d.note && (
+                      <p className="text-xs text-muted line-clamp-2">{d.note}</p>
+                    )}
+                    {d.warning && (
+                      <span className="inline-flex items-center gap-1 self-start px-2 py-0.5 bg-paper-warm border border-gold text-gold font-mono text-[9px] uppercase tracking-wider rounded">
+                        <AlertTriangle size={9} /> {d.warning}
+                      </span>
+                    )}
+                  </div>
+                  <div className="mt-3 pt-3 border-t border-dashed border-line">
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="flex-1 h-1.5 bg-paper-warm rounded-full overflow-hidden border border-line">
+                        <div
+                          className={`h-full ${d.progress === 100 ? "bg-sage" : "bg-ink"}`}
+                          style={{ width: `${d.progress}%` }}
+                        />
+                      </div>
+                      <span className="font-mono text-[10px] uppercase tracking-wider text-muted w-10 text-right">
+                        {d.progress}%
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="font-mono text-[10px] uppercase tracking-wider text-muted">
+                        {timeAgo(d.last_edited)}
+                      </span>
+                      <button
+                        onClick={() => onEditDraft(d)}
+                        className="text-accent hover:text-ink font-serif italic text-sm border-b border-accent hover:border-ink transition"
+                      >
+                        Resume →
+                      </button>
+                    </div>
+                  </div>
+                </DataCard>
+              ))}
+            </CardsGrid>
+          )}
+        </>
+      )}
+
+      {viewMode === "list" && (
       <Card>
         <CardContent>
           <div className="overflow-x-auto">
@@ -241,6 +305,7 @@ export default function ReusableDrafts({ onNewDraft, onEditDraft }) {
           </div>
         </CardContent>
       </Card>
+      )}
 
       <div className="mt-6 bg-paper border border-line rounded-lg p-4 flex gap-3">
         <Info size={18} className="text-accent flex-shrink-0 mt-0.5" />

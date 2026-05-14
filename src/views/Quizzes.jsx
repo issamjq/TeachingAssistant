@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from "react";
-import { Plus } from "lucide-react";
-import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { Pencil, Trash2 } from "lucide-react";
 import {
-  RowActions, ConfirmDelete, SortHeader, useSortable, api,
+  ConfirmDelete, SortHeader, useSortable, api,
 } from "./_shared";
+import {
+  DataPageHeader, DataCard, CardsGrid, useViewMode,
+} from "./_data-view";
 
 export default function Quizzes({ onOpenQuiz }) {
   const [quizzes, setQuizzes] = useState([]);
@@ -12,6 +13,7 @@ export default function Quizzes({ onOpenQuiz }) {
   const [error, setError] = useState(null);
   const [deleting, setDeleting] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [viewMode, setViewMode] = useViewMode("mudir.view.quizzes", "cards");
 
   const reload = () => {
     setLoading(true);
@@ -41,20 +43,15 @@ export default function Quizzes({ onOpenQuiz }) {
 
   return (
     <div>
-      <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-8">
-        <div>
-          <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-2 inline-flex items-center gap-2.5">
-            <span className="w-6 h-px bg-accent" /> Quizzes & exams
-          </p>
-          <h2 className="font-serif text-4xl font-medium text-ink">
-            Quizzes &amp; <em className="italic font-light text-accent">exams</em>
-          </h2>
-          <p className="text-muted mt-2">Build, schedule, and grade. MCQ, true/false, short, and essay.</p>
-        </div>
-        <Button onClick={() => onOpenQuiz?.({})}>
-          <Plus size={15} className="mr-2" /> New quiz
-        </Button>
-      </div>
+      <DataPageHeader
+        eyebrow="Quizzes & exams"
+        title={<>Quizzes &amp; <em className="italic font-light text-accent">exams</em></>}
+        subtitle="Build, schedule, and grade. MCQ, true/false, short, and essay."
+        newLabel="New quiz"
+        onNewManual={() => onOpenQuiz?.({})}
+        mode={viewMode}
+        onModeChange={setViewMode}
+      />
 
       {error && (
         <div className="mb-4 bg-paper border border-accent rounded-lg p-4">
@@ -66,8 +63,49 @@ export default function Quizzes({ onOpenQuiz }) {
         {loading ? "Loading…" : <>Showing <span className="text-ink">{sorted.length}</span> {sorted.length === 1 ? "quiz" : "quizzes"}</>}
       </p>
 
-      <Card>
-        <CardContent>
+      {!loading && sorted.length === 0 && (
+        <div className="rounded-2xl border border-dashed border-line p-12 text-center text-muted">
+          No quizzes yet — click &ldquo;New quiz&rdquo; to build one.
+        </div>
+      )}
+
+      {viewMode === "cards" && sorted.length > 0 && (
+        <CardsGrid>
+          {sorted.map((q) => (
+            <DataCard
+              key={q.id}
+              onEdit={() => onOpenQuiz?.(q)}
+              onDelete={() => setDeleting(q)}
+            >
+              <button
+                type="button"
+                onClick={() => onOpenQuiz?.(q)}
+                className="text-left flex-1 flex flex-col gap-2 pr-16"
+              >
+                <span className="font-mono text-[10px] uppercase tracking-wider px-2 py-0.5 bg-paper border border-line text-ink-soft rounded self-start">
+                  {q.status}
+                </span>
+                <h3 className="font-serif text-lg font-medium text-ink leading-snug mt-1">
+                  {q.title}
+                </h3>
+                <p className="font-mono text-[10px] uppercase tracking-wider text-muted">
+                  {q.subject || "—"}
+                  {q.grade ? ` · ${q.grade}` : ""}
+                  {q.section ? ` · ${q.section}` : ""}
+                </p>
+                <div className="grid grid-cols-3 gap-2 mt-2 pt-3 border-t border-dashed border-line">
+                  <Stat label="Marks" value={q.total_marks ?? "—"} />
+                  <Stat label="Duration" value={q.duration_minutes ? `${q.duration_minutes} min` : "—"} />
+                  <Stat label="Scheduled" value={q.scheduled_for ? new Date(q.scheduled_for).toLocaleDateString() : "—"} />
+                </div>
+              </button>
+            </DataCard>
+          ))}
+        </CardsGrid>
+      )}
+
+      {viewMode === "list" && sorted.length > 0 && (
+        <div className="rounded-2xl border border-line bg-paper-cool overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
@@ -106,26 +144,16 @@ export default function Quizzes({ onOpenQuiz }) {
                         {q.status}
                       </span>
                     </td>
-                    <td className="py-4 px-5" onClick={(e) => e.stopPropagation()}>
-                      <RowActions
-                        onEdit={() => onOpenQuiz?.(q)}
-                        onDelete={() => setDeleting(q)}
-                      />
+                    <td className="py-4 px-5 text-right" onClick={(e) => e.stopPropagation()}>
+                      <ListRowActions onEdit={() => onOpenQuiz?.(q)} onDelete={() => setDeleting(q)} />
                     </td>
                   </tr>
                 ))}
-                {!loading && sorted.length === 0 && (
-                  <tr>
-                    <td colSpan={8} className="py-12 text-center text-muted">
-                      No quizzes yet — click &ldquo;New quiz&rdquo; to build one.
-                    </td>
-                  </tr>
-                )}
               </tbody>
             </table>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      )}
 
       <ConfirmDelete
         open={!!deleting}
@@ -136,5 +164,38 @@ export default function Quizzes({ onOpenQuiz }) {
         message="This quiz, all its questions, and recorded scores will be removed."
       />
     </div>
+  );
+}
+
+function Stat({ label, value }) {
+  return (
+    <div>
+      <p className="font-mono text-[9px] uppercase tracking-wider text-muted">{label}</p>
+      <p className="text-[12px] text-ink mt-0.5 truncate">{value}</p>
+    </div>
+  );
+}
+
+// Same edit/delete affordance as DataCard but inline for list rows.
+function ListRowActions({ onEdit, onDelete }) {
+  return (
+    <span className="inline-flex items-center gap-1">
+      <button
+        type="button"
+        onClick={onEdit}
+        aria-label="Edit"
+        className="h-7 w-7 rounded-md border border-line bg-paper-cool hover:bg-paper-warm hover:border-ink flex items-center justify-center transition"
+      >
+        <Pencil size={12} strokeWidth={2} className="text-ink-soft" />
+      </button>
+      <button
+        type="button"
+        onClick={onDelete}
+        aria-label="Delete"
+        className="h-7 w-7 rounded-md border border-line bg-paper-cool hover:bg-accent hover:border-accent hover:text-paper-cool text-ink-soft flex items-center justify-center transition"
+      >
+        <Trash2 size={12} strokeWidth={2} />
+      </button>
+    </span>
   );
 }

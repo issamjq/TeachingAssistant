@@ -1,21 +1,23 @@
 import React, { useEffect, useState } from "react";
-import { Plus, ListChecks } from "lucide-react";
-import { Card, CardContent } from "@/components/ui/card";
+import { Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { GRADE_LEVELS } from "../lib/enums";
 import {
-  Field, Modal, ConfirmDelete, RowActions, SortHeader, useSortable,
+  Field, Modal, ConfirmDelete, SortHeader, useSortable,
   AttachmentsList, inputClasses, selectClasses, api,
 } from "./_shared";
+import {
+  DataPageHeader, DataCard, CardsGrid, useViewMode,
+} from "./_data-view";
 
 export default function Homework() {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [editing, setEditing] = useState(null);
-  const [submissionsFor, setSubmissionsFor] = useState(null);
   const [deleting, setDeleting] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [viewMode, setViewMode] = useViewMode("mudir.view.homework", "cards");
 
   const reload = () => {
     setLoading(true);
@@ -51,20 +53,15 @@ export default function Homework() {
 
   return (
     <div>
-      <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-8">
-        <div>
-          <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-2 inline-flex items-center gap-2.5">
-            <span className="w-6 h-px bg-accent" /> Homework
-          </p>
-          <h2 className="font-serif text-4xl font-medium text-ink">
-            <em className="italic font-light text-accent">Homework</em> tasks
-          </h2>
-          <p className="text-muted mt-2">Assign work to a class, track who&rsquo;s done it, grade and give feedback.</p>
-        </div>
-        <Button onClick={() => setEditing("new")}>
-          <Plus size={15} className="mr-2" /> New homework
-        </Button>
-      </div>
+      <DataPageHeader
+        eyebrow="Homework"
+        title={<><em className="italic font-light text-accent">Homework</em> tasks</>}
+        subtitle="Assign work to a class, track who's done it, grade and give feedback."
+        newLabel="New homework"
+        onNewManual={() => setEditing("new")}
+        mode={viewMode}
+        onModeChange={setViewMode}
+      />
 
       {error && (
         <div className="mb-4 bg-paper border border-accent rounded-lg p-4">
@@ -76,8 +73,44 @@ export default function Homework() {
         {loading ? "Loading…" : <>Showing <span className="text-ink">{sorted.length}</span> assignments</>}
       </p>
 
-      <Card>
-        <CardContent>
+      {!loading && sorted.length === 0 && (
+        <div className="rounded-2xl border border-dashed border-line p-12 text-center text-muted">
+          No homework yet — click &ldquo;New homework&rdquo; to assign one.
+        </div>
+      )}
+
+      {viewMode === "cards" && sorted.length > 0 && (
+        <CardsGrid>
+          {sorted.map((h) => (
+            <DataCard
+              key={h.id}
+              onEdit={() => setEditing(h)}
+              onDelete={() => setDeleting(h)}
+            >
+              <div className="pr-16 flex-1 flex flex-col gap-2">
+                <span className="font-mono text-[10px] uppercase tracking-wider px-2 py-0.5 bg-paper border border-line text-ink-soft rounded self-start">
+                  {h.status}
+                </span>
+                <h3 className="font-serif text-lg font-medium text-ink leading-snug mt-1">
+                  {h.title}
+                </h3>
+                <p className="font-mono text-[10px] uppercase tracking-wider text-muted">
+                  {h.subject || "—"}
+                  {h.grade ? ` · ${h.grade}` : ""}
+                  {h.section ? ` · ${h.section}` : ""}
+                </p>
+                <div className="grid grid-cols-2 gap-2 mt-2 pt-3 border-t border-dashed border-line">
+                  <Stat label="Due" value={h.due_date ? new Date(h.due_date).toLocaleDateString() : "—"} />
+                  <Stat label="Section" value={h.section || "—"} />
+                </div>
+              </div>
+            </DataCard>
+          ))}
+        </CardsGrid>
+      )}
+
+      {viewMode === "list" && sorted.length > 0 && (
+        <div className="rounded-2xl border border-line bg-paper-cool overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
@@ -87,7 +120,6 @@ export default function Homework() {
                   <SortHeader label="Class" sortKey="grade" sort={sort} onToggle={toggle} />
                   <SortHeader label="Due" sortKey="due_date" sort={sort} onToggle={toggle} />
                   <SortHeader label="Status" sortKey="status" sort={sort} onToggle={toggle} />
-                  <th className="text-left py-3 font-medium">Submissions</th>
                   <th className="py-3 px-5"></th>
                 </tr>
               </thead>
@@ -107,31 +139,16 @@ export default function Homework() {
                         {h.status}
                       </span>
                     </td>
-                    <td className="py-4">
-                      <button
-                        onClick={() => setSubmissionsFor(h)}
-                        className="inline-flex items-center gap-1.5 text-accent hover:text-ink font-serif italic text-sm border-b border-accent hover:border-ink transition"
-                      >
-                        <ListChecks size={13} /> Open
-                      </button>
-                    </td>
-                    <td className="py-4 px-5">
-                      <RowActions onEdit={() => setEditing(h)} onDelete={() => setDeleting(h)} />
+                    <td className="py-4 px-5 text-right">
+                      <ListRowActions onEdit={() => setEditing(h)} onDelete={() => setDeleting(h)} />
                     </td>
                   </tr>
                 ))}
-                {!loading && sorted.length === 0 && (
-                  <tr>
-                    <td colSpan={7} className="py-12 text-center text-muted">
-                      No homework yet — click &ldquo;New homework&rdquo; to assign one.
-                    </td>
-                  </tr>
-                )}
               </tbody>
             </table>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      )}
 
       {editing && (
         <HomeworkModal
@@ -141,22 +158,39 @@ export default function Homework() {
         />
       )}
 
-      {submissionsFor && (
-        <SubmissionsModal
-          homework={submissionsFor}
-          onClose={() => setSubmissionsFor(null)}
-        />
-      )}
-
       <ConfirmDelete
         open={!!deleting}
         onClose={() => setDeleting(null)}
         onConfirm={confirmDelete}
         busy={busy}
         title={deleting ? `Delete "${deleting.title}"?` : ""}
-        message="The homework and all submission records will be removed."
+        message="The homework will be removed."
       />
     </div>
+  );
+}
+
+function Stat({ label, value }) {
+  return (
+    <div>
+      <p className="font-mono text-[9px] uppercase tracking-wider text-muted">{label}</p>
+      <p className="text-[12px] text-ink mt-0.5 truncate">{value}</p>
+    </div>
+  );
+}
+
+function ListRowActions({ onEdit, onDelete }) {
+  return (
+    <span className="inline-flex items-center gap-1">
+      <button type="button" onClick={onEdit} aria-label="Edit"
+        className="h-7 w-7 rounded-md border border-line bg-paper-cool hover:bg-paper-warm hover:border-ink flex items-center justify-center transition">
+        <Pencil size={12} strokeWidth={2} className="text-ink-soft" />
+      </button>
+      <button type="button" onClick={onDelete} aria-label="Delete"
+        className="h-7 w-7 rounded-md border border-line bg-paper-cool hover:bg-accent hover:border-accent hover:text-paper-cool text-ink-soft flex items-center justify-center transition">
+        <Trash2 size={12} strokeWidth={2} />
+      </button>
+    </span>
   );
 }
 
@@ -258,69 +292,3 @@ function HomeworkModal({ initial, onClose, onSaved }) {
   );
 }
 
-function SubmissionsModal({ homework, onClose }) {
-  const [rows, setRows] = useState([]);
-  useEffect(() => {
-    api(`/api/homework/${homework.id}/submissions`).then(setRows).catch(() => {});
-  }, [homework.id]);
-
-  const update = async (sid, patch) => {
-    await api(`/api/homework/${homework.id}/submissions/${sid}`, { method: "PUT", body: patch });
-    api(`/api/homework/${homework.id}/submissions`).then(setRows);
-  };
-
-  return (
-    <Modal open onClose={onClose} eyebrow={homework.title} title="Submissions" wide
-      footer={<Button variant="secondary" onClick={onClose}>Close</Button>}
-    >
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted border-b border-line">
-              <th className="text-left py-2 font-medium">Student</th>
-              <th className="text-left py-2 font-medium">Status</th>
-              <th className="text-left py-2 font-medium">Score</th>
-              <th className="text-left py-2 font-medium">Feedback</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r) => (
-              <tr key={r.student_id} className="border-b border-line/60 last:border-0">
-                <td className="py-2 text-ink">
-                  {r.first_name} {r.last_name} <span className="font-mono text-[10px] text-muted ml-1">{r.code}</span>
-                </td>
-                <td className="py-2">
-                  <select
-                    defaultValue={r.status || "Pending"}
-                    onChange={(e) => update(r.student_id, { status: e.target.value })}
-                    className="rounded-md border border-line bg-paper px-2 py-1 text-xs"
-                  >
-                    {["Pending", "Submitted", "Late", "Missing"].map((s) => <option key={s}>{s}</option>)}
-                  </select>
-                </td>
-                <td className="py-2">
-                  <input
-                    type="number"
-                    defaultValue={r.score ?? ""}
-                    onBlur={(e) => update(r.student_id, { score: e.target.value === "" ? null : Number(e.target.value) })}
-                    className="w-20 rounded-md border border-line bg-paper px-2 py-1 text-xs"
-                  />
-                </td>
-                <td className="py-2">
-                  <input
-                    defaultValue={r.feedback ?? ""}
-                    onBlur={(e) => update(r.student_id, { feedback: e.target.value || null })}
-                    className="rounded-md border border-line bg-paper px-2 py-1 text-xs w-full"
-                  />
-                </td>
-              </tr>
-            ))}
-            {rows.length === 0 && (
-              <tr><td colSpan={4} className="py-6 text-center text-muted">No students in your roster.</td></tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-    </Modal>
-  );
-}

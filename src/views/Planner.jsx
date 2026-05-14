@@ -17,7 +17,6 @@ import {
 } from "lucide-react";
 import { navigate } from "../lib/route";
 import { api, inputClasses, selectClasses } from "./_shared";
-import { GRADE_LEVELS } from "../lib/enums";
 
 // Categories the calendar can show. Each maps to one of the existing
 // teaching surfaces, with a Mudir-palette color so the day cells stay
@@ -89,26 +88,25 @@ export default function Planner() {
   const [visible, setVisible] = useState(
     () => new Set(CATEGORIES.map((c) => c.key))
   );
-  // Day-action flow: click a calendar cell → DayPickerPopup with two
-  // cards (New / View). Picking "View" swaps into DayListPopup, which
-  // lists that day's entries; clicking one of those opens the
-  // SchedulePopup in edit mode. Picking "New" opens SchedulePopup in
-  // create mode with the date pre-filled.
+  // Day-action flow: click a calendar cell → DayListPopup that lists
+  // that day's entries with a "+ New entry" button in the header.
+  // Clicking an entry opens SchedulePopup in edit mode; clicking
+  // "New entry" opens it in create mode with the date pre-filled.
   const [showSchedule, setShowSchedule] = useState(false);
   const [editingEntry, setEditingEntry] = useState(null);
   const [formDefaultDate, setFormDefaultDate] = useState(null);
-  const [dayContext, setDayContext] = useState(null); // { date: "YYYY-MM-DD", mode: "picker" | "list" }
+  const [dayListDate, setDayListDate] = useState(null); // ISO date string
   const today = new Date();
 
   const openNewForDay = (iso) => {
     setFormDefaultDate(iso);
     setEditingEntry(null);
-    setDayContext(null);
+    setDayListDate(null);
     setShowSchedule(true);
   };
   const openEditEntry = (entry) => {
     setEditingEntry(entry);
-    setDayContext(null);
+    setDayListDate(null);
     setShowSchedule(true);
   };
 
@@ -132,6 +130,19 @@ export default function Planner() {
   // Live events from /api/schedule (only the schedule domain is wired
   // so far). reloadEvents is exposed to the Schedule popup so a saved
   // entry shows up in the calendar immediately.
+  // Teaching profile — used to scope the Grade + Section dropdowns in
+  // the schedule form to what this teacher actually teaches.
+  const [teacherGrades, setTeacherGrades] = useState([]);
+  const [teacherSections, setTeacherSections] = useState([]);
+  useEffect(() => {
+    api("/api/me")
+      .then((me) => {
+        setTeacherGrades(Array.isArray(me?.grade_levels) ? me.grade_levels : []);
+        setTeacherSections(Array.isArray(me?.sections) ? me.sections : []);
+      })
+      .catch(() => { /* silent; the popup just shows an empty list */ });
+  }, []);
+
   const [events, setEvents] = useState([]);
   const reloadEvents = useCallback(() => {
     api("/api/schedule")
@@ -332,11 +343,11 @@ export default function Planner() {
                 key={i}
                 role="button"
                 tabIndex={0}
-                onClick={() => setDayContext({ date: isoKey(d), mode: "picker" })}
+                onClick={() => setDayListDate(isoKey(d))}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" || e.key === " ") {
                     e.preventDefault();
-                    setDayContext({ date: isoKey(d), mode: "picker" });
+                    setDayListDate(isoKey(d));
                   }
                 }}
                 className={`planner-cell border-b border-r border-line/70 px-1.5 pt-1 pb-1 min-h-[60px] flex flex-col gap-0.5 cursor-pointer transition-colors duration-150 ${
@@ -414,23 +425,13 @@ export default function Planner() {
         </div>
       </div>
 
-      {dayContext?.mode === "picker" && (
-        <DayPickerPopup
-          date={dayContext.date}
-          dayEvents={eventsByDate.get(dayContext.date) || []}
-          onClose={() => setDayContext(null)}
-          onNew={() => openNewForDay(dayContext.date)}
-          onView={() => setDayContext({ date: dayContext.date, mode: "list" })}
-        />
-      )}
-
-      {dayContext?.mode === "list" && (
+      {dayListDate && (
         <DayListPopup
-          date={dayContext.date}
-          dayEvents={eventsByDate.get(dayContext.date) || []}
-          onClose={() => setDayContext(null)}
+          date={dayListDate}
+          dayEvents={eventsByDate.get(dayListDate) || []}
+          onClose={() => setDayListDate(null)}
           onSelect={openEditEntry}
-          onNew={() => openNewForDay(dayContext.date)}
+          onNew={() => openNewForDay(dayListDate)}
         />
       )}
 
@@ -438,6 +439,8 @@ export default function Planner() {
         <SchedulePopup
           initial={editingEntry}
           defaultDate={formDefaultDate}
+          teacherGrades={teacherGrades}
+          teacherSections={teacherSections}
           onClose={() => {
             setShowSchedule(false);
             setEditingEntry(null);
@@ -454,7 +457,7 @@ export default function Planner() {
 // Schedule popup — full-bleed blurred backdrop with the Schedule view
 // inside a centered panel. ESC and backdrop-click both dismiss.
 // ───────────────────────────────────────────────────────────────────────
-function SchedulePopup({ initial, defaultDate, onClose, onSaved }) {
+function SchedulePopup({ initial, defaultDate, teacherGrades = [], teacherSections = [], onClose, onSaved }) {
   const isEdit = !!initial;
   // Snapshot the initial form once — used to detect dirty state for the
   // discard-changes guard. Lazy init so it doesn't reshuffle each render.
@@ -505,11 +508,18 @@ function SchedulePopup({ initial, defaultDate, onClose, onSaved }) {
   const submit = async () => {
     setSaving(true);
     setErr(null);
+    // Empty strings for TIME columns trip Postgres' type cast; turn them
+    // into nulls so the schedule entry can be saved without a slot.
+    const payload = {
+      ...form,
+      start_time: form.start_time || null,
+      end_time: form.end_time || null,
+    };
     try {
       if (isEdit) {
-        await api(`/api/schedule/${initial.id}`, { method: "PATCH", body: form });
+        await api(`/api/schedule/${initial.id}`, { method: "PATCH", body: payload });
       } else {
-        await api("/api/schedule", { method: "POST", body: form });
+        await api("/api/schedule", { method: "POST", body: payload });
       }
       onSaved?.();
       onClose();
@@ -541,7 +551,12 @@ function SchedulePopup({ initial, defaultDate, onClose, onSaved }) {
     try {
       await api(`/api/schedule/${initial.id}`, {
         method: "PATCH",
-        body: { ...form, status: "done" },
+        body: {
+          ...form,
+          status: "done",
+          start_time: form.start_time || null,
+          end_time: form.end_time || null,
+        },
       });
       onSaved?.();
       onClose();
@@ -596,13 +611,32 @@ function SchedulePopup({ initial, defaultDate, onClose, onSaved }) {
               <input className={inputClasses} value={form.subject} onChange={(e) => set("subject", e.target.value)} />
             </SerifField>
             <SerifField label="Grade">
-              <select className={selectClasses} value={form.grade} onChange={(e) => set("grade", e.target.value)}>
-                <option value="">—</option>
-                {GRADE_LEVELS.map((g) => <option key={g} value={g}>{g}</option>)}
+              <select
+                className={selectClasses}
+                value={form.grade}
+                onChange={(e) => set("grade", e.target.value)}
+              >
+                <option value="">{teacherGrades.length ? "—" : "No grades on your profile"}</option>
+                {teacherGrades.map((g) => <option key={g} value={g}>{g}</option>)}
+                {/* If editing an entry whose grade isn't in the teacher's
+                    current list, keep it selectable so save doesn't lose it. */}
+                {form.grade && !teacherGrades.includes(form.grade) && (
+                  <option value={form.grade}>{form.grade}</option>
+                )}
               </select>
             </SerifField>
             <SerifField label="Section">
-              <input className={inputClasses} value={form.section} onChange={(e) => set("section", e.target.value)} />
+              <select
+                className={selectClasses}
+                value={form.section}
+                onChange={(e) => set("section", e.target.value)}
+              >
+                <option value="">{teacherSections.length ? "—" : "No sections on your profile"}</option>
+                {teacherSections.map((s) => <option key={s} value={s}>{s}</option>)}
+                {form.section && !teacherSections.includes(form.section) && (
+                  <option value={form.section}>{form.section}</option>
+                )}
+              </select>
             </SerifField>
             <SerifField label="Date">
               <input type="date" className={inputClasses} value={form.date} onChange={(e) => set("date", e.target.value)} />
@@ -712,9 +746,11 @@ function SerifField({ label, wide = false, children }) {
 }
 
 // ───────────────────────────────────────────────────────────────────────
-// DayPickerPopup — first thing the user sees when clicking a calendar
-// cell. Two cards: create a new entry for the day, or view what's
-// already on it. "View" is disabled when the day is empty.
+// DayListPopup — opens when the user clicks any calendar cell. Lists
+// that day's entries (click one to edit) and has a "+ New entry"
+// button in the header for creating a fresh entry pre-filled to that
+// date. The intermediate two-card picker is gone — this is the single
+// entry point for everything a teacher does on a day.
 // ───────────────────────────────────────────────────────────────────────
 function dayHeaderParts(iso) {
   const d = new Date(`${iso}T00:00:00`);
@@ -737,84 +773,6 @@ function useModalChrome(onClose) {
   }, [onClose]);
 }
 
-function DayPickerPopup({ date, dayEvents, onClose, onNew, onView }) {
-  useModalChrome(onClose);
-  const { weekday, full } = dayHeaderParts(date);
-  const hasEvents = dayEvents.length > 0;
-  return createPortal(
-    <div
-      className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-ink/45 backdrop-blur-lg backdrop-saturate-150 animate-[fadeIn_180ms_ease-out]"
-      onClick={onClose}
-    >
-      <div
-        className="relative bg-paper-cool rounded-2xl border border-line shadow-[0_30px_80px_-20px_rgba(15,20,16,0.45)] w-full max-w-[640px] animate-[popIn_220ms_cubic-bezier(0.22,1,0.36,1)] flex flex-col"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label="Close"
-          className="absolute top-4 right-4 z-10 h-9 w-9 rounded-lg border border-line bg-paper-cool hover:bg-paper-warm hover:border-ink flex items-center justify-center transition-all"
-        >
-          <X size={16} strokeWidth={1.75} />
-        </button>
-
-        <div className="px-7 pt-6 pb-5 border-b border-line">
-          <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-1.5 inline-flex items-center gap-2.5">
-            <span className="w-6 h-px bg-accent" /> Day options
-          </p>
-          <h2 className="font-serif text-2xl font-medium text-ink leading-tight">
-            {weekday}, <em className="italic font-medium text-accent">{full}</em>
-          </h2>
-        </div>
-
-        <div className="grid grid-cols-2 gap-3 p-6">
-          <button
-            type="button"
-            onClick={onNew}
-            className="planner-nav-btn flex flex-col items-start gap-2 text-left p-4 rounded-xl border border-line bg-[#fdf8ee] hover:border-accent/40"
-          >
-            <span className="inline-flex h-9 w-9 rounded-lg bg-accent/[0.12] text-accent items-center justify-center">
-              <Plus size={16} strokeWidth={2.25} />
-            </span>
-            <span className="font-serif text-[15px] font-medium text-ink leading-tight">
-              New schedule
-            </span>
-            <span className="text-[11.5px] text-muted leading-snug">
-              Add a fresh entry for this day.
-            </span>
-          </button>
-
-          <button
-            type="button"
-            onClick={onView}
-            disabled={!hasEvents}
-            className="planner-nav-btn flex flex-col items-start gap-2 text-left p-4 rounded-xl border border-line bg-[#fdf8ee] hover:border-sage/50 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:transform-none"
-          >
-            <span className="inline-flex h-9 w-9 rounded-lg bg-sage/[0.14] text-sage items-center justify-center">
-              <ClipboardList size={16} strokeWidth={2.25} />
-            </span>
-            <span className="font-serif text-[15px] font-medium text-ink leading-tight">
-              View entries
-            </span>
-            <span className="text-[11.5px] text-muted leading-snug">
-              {hasEvents
-                ? `${dayEvents.length} item${dayEvents.length > 1 ? "s" : ""} scheduled · open to edit, delete, or mark done.`
-                : "Nothing scheduled yet."}
-            </span>
-          </button>
-        </div>
-      </div>
-    </div>,
-    document.body
-  );
-}
-
-// ───────────────────────────────────────────────────────────────────────
-// DayListPopup — chosen from the picker's "View entries" card. Lists
-// the day's entries; clicking one passes its raw row up so the parent
-// can open the SchedulePopup in edit mode.
-// ───────────────────────────────────────────────────────────────────────
 function DayListPopup({ date, dayEvents, onClose, onSelect, onNew }) {
   useModalChrome(onClose);
   const { weekday, full } = dayHeaderParts(date);

@@ -10,6 +10,7 @@ import {
   api,
   selectClasses,
 } from "./_shared";
+import { ViewModeToggle, useViewMode, NewKindPopup } from "./_data-view";
 import { MAJORS } from "../lib/enums";
 
 // Lazy-load mammoth only when the user actually clicks Import .docx, so the
@@ -65,6 +66,8 @@ export default function TemplatesLibrary({ onNewTemplate, onUseTemplate, onEditT
   const [deleting, setDeleting] = useState(null);
   const [busy, setBusy] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [viewMode, setViewMode] = useViewMode("mudir.view.templates", "cards");
+  const [newPopupOpen, setNewPopupOpen] = useState(false);
   const fileInputRef = useRef(null);
 
   const handleImport = async (e) => {
@@ -178,15 +181,23 @@ export default function TemplatesLibrary({ onNewTemplate, onUseTemplate, onEditT
             <Upload size={15} className="mr-2" />
             {importing ? "Importing…" : "Import .docx"}
           </Button>
-          <Button onClick={onNewTemplate}>
+          <ViewModeToggle mode={viewMode} onChange={setViewMode} />
+          <Button onClick={() => setNewPopupOpen(true)}>
             <Plus size={15} className="mr-2" /> New template
           </Button>
         </div>
       </div>
+      {newPopupOpen && (
+        <NewKindPopup
+          kind="New template"
+          onClose={() => setNewPopupOpen(false)}
+          onManual={() => { setNewPopupOpen(false); onNewTemplate?.(); }}
+        />
+      )}
 
-      <div className="flex flex-col md:flex-row gap-3 mb-6">
-        <div className="flex-1 bg-paper-cool rounded-lg border border-line px-4 py-2.5 flex items-center gap-2">
-          <Search size={15} className="text-muted" />
+      <div className="flex flex-col md:flex-row md:flex-wrap gap-3 mb-6">
+        <div className="flex-1 min-w-[240px] bg-paper-cool rounded-lg border border-line px-4 py-2.5 flex items-center gap-2">
+          <Search size={15} className="text-muted flex-shrink-0" />
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
@@ -240,66 +251,111 @@ export default function TemplatesLibrary({ onNewTemplate, onUseTemplate, onEditT
         )}
       </p>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-        {filtered.map((t) => (
-          <Card key={t.id} className="hover:border-ink transition flex flex-col">
-            <CardContent className="p-5 flex-1 flex flex-col">
-              <div className="flex items-start justify-between mb-4">
-                <SubjectBadge subject={t.subject} />
-                <div className="flex items-center gap-2">
-                  <div className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-wider text-muted">
-                    {t.starred && <Star size={13} className="text-accent fill-accent" />}
-                    used {t.used_count}×
+      {viewMode === "cards" && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+          {filtered.map((t) => (
+            <Card key={t.id} className="hover:border-ink transition flex flex-col">
+              <CardContent className="p-5 flex-1 flex flex-col">
+                <div className="flex items-start justify-between mb-4">
+                  <SubjectBadge subject={t.subject} />
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-wider text-muted">
+                      {t.starred && <Star size={13} className="text-accent fill-accent" />}
+                      used {t.used_count}×
+                    </div>
+                    <RowActions
+                      onEdit={onEditTemplate ? () => onEditTemplate(t) : undefined}
+                      onDelete={() => setDeleting(t)}
+                    />
                   </div>
-                  <RowActions
-                    onEdit={onEditTemplate ? () => onEditTemplate(t) : undefined}
-                    onDelete={() => setDeleting(t)}
-                  />
                 </div>
-              </div>
-              <h3 className="font-serif text-xl font-medium text-ink mb-1.5">{t.name}</h3>
-              <p className="font-mono text-[10px] uppercase tracking-wider text-muted mb-3">
-                {t.subject} · {t.duration} min · grade {t.grade}
-              </p>
-              <p className="text-sm text-ink-soft mb-4 leading-relaxed flex-1">{t.flow}</p>
-              <div className="flex flex-wrap gap-1.5 mb-4">
-                {(t.tags || []).map((tag) => (
-                  <span
-                    key={tag}
-                    className="px-2 py-0.5 bg-paper border border-line text-ink-soft font-mono text-[9px] uppercase tracking-wider rounded"
-                  >
-                    {tag}
+                <h3 className="font-serif text-xl font-medium text-ink mb-1.5">{t.name}</h3>
+                <p className="font-mono text-[10px] uppercase tracking-wider text-muted mb-3">
+                  {t.subject} · {t.duration} min · grade {t.grade}
+                </p>
+                <p className="text-sm text-ink-soft mb-4 leading-relaxed flex-1">{t.flow}</p>
+                <div className="flex flex-wrap gap-1.5 mb-4">
+                  {(t.tags || []).map((tag) => (
+                    <span
+                      key={tag}
+                      className="px-2 py-0.5 bg-paper border border-line text-ink-soft font-mono text-[9px] uppercase tracking-wider rounded"
+                    >
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+                <div className="pt-3 border-t border-dashed border-line flex items-center justify-between">
+                  <span className="font-mono text-[10px] uppercase tracking-wider text-muted">
+                    Updated {timeAgo(t.updated_at)}
                   </span>
-                ))}
-              </div>
-              <div className="pt-3 border-t border-dashed border-line flex items-center justify-between">
-                <span className="font-mono text-[10px] uppercase tracking-wider text-muted">
-                  Updated {timeAgo(t.updated_at)}
-                </span>
-                <button
-                  onClick={() => onUseTemplate(t)}
-                  className="text-accent hover:text-ink font-serif italic text-sm border-b border-accent hover:border-ink transition"
-                >
-                  Use template →
-                </button>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+                  <button
+                    onClick={() => onUseTemplate(t)}
+                    className="text-accent hover:text-ink font-serif italic text-sm border-b border-accent hover:border-ink transition"
+                  >
+                    Use template →
+                  </button>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
 
-        <button
-          onClick={onNewTemplate}
-          className="border border-dashed border-line bg-paper-cool/50 rounded-xl p-5 flex flex-col items-center justify-center text-muted hover:border-ink hover:text-ink transition min-h-[260px]"
-        >
-          <div className="h-10 w-10 rounded-full border border-current flex items-center justify-center mb-3">
-            <Plus size={18} />
-          </div>
-          <p className="font-medium text-sm">Create blank template</p>
-          <p className="font-mono text-[10px] uppercase tracking-wider mt-1.5">
-            Or import from .docx / .pdf
-          </p>
-        </button>
-      </div>
+          <button
+            onClick={() => setNewPopupOpen(true)}
+            className="border border-dashed border-line bg-paper-cool/50 rounded-xl p-5 flex flex-col items-center justify-center text-muted hover:border-ink hover:text-ink transition min-h-[260px]"
+          >
+            <div className="h-10 w-10 rounded-full border border-current flex items-center justify-center mb-3">
+              <Plus size={18} />
+            </div>
+            <p className="font-medium text-sm">Create blank template</p>
+            <p className="font-mono text-[10px] uppercase tracking-wider mt-1.5">
+              Or import from .docx / .pdf
+            </p>
+          </button>
+        </div>
+      )}
+
+      {viewMode === "list" && (
+        <div className="rounded-2xl border border-line bg-paper-cool overflow-hidden">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted border-b border-line">
+                <th className="text-left py-3 px-5 font-medium">Name</th>
+                <th className="text-left py-3 font-medium">Subject</th>
+                <th className="text-left py-3 font-medium">Grade</th>
+                <th className="text-left py-3 font-medium">Duration</th>
+                <th className="text-left py-3 font-medium">Used</th>
+                <th className="text-left py-3 font-medium">Updated</th>
+                <th className="py-3 px-5"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((t) => (
+                <tr key={t.id} className="border-b border-line/60 last:border-0 hover:bg-paper-warm transition cursor-pointer" onClick={() => onUseTemplate(t)}>
+                  <td className="py-4 px-5 text-ink">{t.name}</td>
+                  <td className="py-4 text-muted">{t.subject || "—"}</td>
+                  <td className="py-4 text-muted">{t.grade || "—"}</td>
+                  <td className="py-4 text-ink-soft">{t.duration ? `${t.duration} min` : "—"}</td>
+                  <td className="py-4 text-ink-soft">{t.used_count || 0}×</td>
+                  <td className="py-4 text-ink-soft text-xs">{timeAgo(t.updated_at)}</td>
+                  <td className="py-4 px-5 text-right" onClick={(e) => e.stopPropagation()}>
+                    <RowActions
+                      onEdit={onEditTemplate ? () => onEditTemplate(t) : undefined}
+                      onDelete={() => setDeleting(t)}
+                    />
+                  </td>
+                </tr>
+              ))}
+              {filtered.length === 0 && (
+                <tr>
+                  <td colSpan={7} className="py-12 text-center text-muted">
+                    No templates match your filters.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       <ConfirmDelete
         open={!!deleting}

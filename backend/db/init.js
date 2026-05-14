@@ -130,6 +130,15 @@ ALTER TABLE templates ADD COLUMN IF NOT EXISTS objectives JSONB DEFAULT '[]'::js
 ALTER TABLE templates ADD COLUMN IF NOT EXISTS stages     JSONB DEFAULT '[]'::jsonb;
 `;
 
+// Schedule entries: start_time / end_time used to be required; we now
+// allow undated drop-ins where the teacher hasn't committed a slot
+// yet, so both columns are nullable. Runs AFTER SCHEMA_NEW so the
+// table exists. Idempotent — safe to re-run.
+const SCHEMA_SCHEDULE_TIMES_NULLABLE = `
+ALTER TABLE schedule_entries ALTER COLUMN start_time DROP NOT NULL;
+ALTER TABLE schedule_entries ALTER COLUMN end_time   DROP NOT NULL;
+`;
+
 // =============================================================================
 // SCHEMA — new tables
 // =============================================================================
@@ -143,8 +152,8 @@ CREATE TABLE IF NOT EXISTS schedule_entries (
   grade TEXT,
   section TEXT,
   date DATE NOT NULL,
-  start_time TIME NOT NULL,
-  end_time TIME NOT NULL,
+  start_time TIME,
+  end_time TIME,
   location TEXT,
   notes TEXT,
   status TEXT NOT NULL DEFAULT 'planned',
@@ -463,6 +472,9 @@ export async function runInit() {
 
   console.log("Creating new feature tables...");
   await pool.query(SCHEMA_NEW);
+
+  console.log("Relaxing schedule_entries time NOT NULLs...");
+  await pool.query(SCHEMA_SCHEDULE_TIMES_NULLABLE);
 
   console.log("Normalizing legacy values...");
   await pool.query(NORMALIZE);
