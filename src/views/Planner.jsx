@@ -396,18 +396,18 @@ export default function Planner() {
 // pre-selects the kind in a later wire-up).
 // ───────────────────────────────────────────────────────────────────────
 function StudioHeroCard() {
-  // verb + noun two-line label, with a per-chip icon palette color so
+  // verb + noun two-line label, with a per-chip soft-tinted icon tile so
   // the row reads as six distinct tools instead of one repeated chip.
   const chips = [
     { key: "lesson",       icon: BookOpen,      verb: "Generate", noun: "Lesson Plan",     color: "accent" },
     { key: "quiz",         icon: GraduationCap, verb: "Create",   noun: "Quiz",            color: "sage" },
     { key: "presentation", icon: Layout,        verb: "Build",    noun: "Presentation",    color: "accent-soft" },
-    { key: "weekly",       icon: CalendarDays,  verb: "Plan",     noun: "Weekly Schedule", color: "ink" },
-    { key: "insights",     icon: Users,         verb: "Analyze",  noun: "Students",        color: "gold" },
-    { key: "ask",          icon: MessageCircle, verb: "Ask",      noun: "Anything",        color: "muted" },
+    { key: "weekly",       icon: CalendarDays,  verb: "Plan",     noun: "Weekly Schedule", color: "indigo" },
+    { key: "insights",     icon: Users,         verb: "Analyze",  noun: "Students",        color: "moss" },
+    { key: "ask",          icon: MessageCircle, verb: "Ask",      noun: "Anything",        color: "violet" },
   ];
   return (
-    <div className="planner-hero rounded-2xl p-3 md:p-4 relative overflow-hidden h-full flex flex-col justify-center">
+    <div className="planner-hero rounded-2xl p-4 md:p-5 relative overflow-hidden h-full flex flex-col justify-center">
       <div className="relative z-10">
         <p className="inline-flex items-center gap-1.5 rounded-full bg-accent/[0.10] px-2.5 py-1 text-[11px] font-semibold text-accent mb-2.5">
           <Sparkles size={11} strokeWidth={2.25} /> Studio AI
@@ -421,7 +421,7 @@ function StudioHeroCard() {
         </p>
       </div>
 
-      <div className="relative z-10 mt-3 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2">
+      <div className="relative z-10 mt-4 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2.5">
         {chips.map((c) => {
           const Icon = c.icon;
           return (
@@ -432,11 +432,11 @@ function StudioHeroCard() {
               className="planner-hero-chip group"
             >
               <span className={`planner-hero-chip-icon planner-hero-chip-icon-${c.color}`}>
-                <Icon size={14} strokeWidth={2} />
+                <Icon size={18} strokeWidth={2} />
               </span>
               <span className="flex flex-col min-w-0 text-left leading-tight">
-                <span className="text-[10px] text-muted truncate">{c.verb}</span>
-                <span className="text-[12px] font-medium text-ink truncate">{c.noun}</span>
+                <span className="text-[13px] font-semibold text-ink truncate">{c.verb}</span>
+                <span className="text-[11px] text-muted truncate">{c.noun}</span>
               </span>
             </button>
           );
