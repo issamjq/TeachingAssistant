@@ -278,7 +278,7 @@ export default function TeachingRail() {
                 onClick={() => onPickDay(d)}
                 aria-label={d.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric", year: "numeric" })}
                 aria-pressed={isSelected}
-                className="aspect-square flex flex-col items-center justify-center rounded-md transition-colors hover:bg-paper-warm/50 focus:outline-none focus:ring-1 focus:ring-accent/40"
+                className="aspect-square flex flex-col items-center justify-center focus:outline-none"
               >
                 <span
                   className={`flex items-center justify-center h-6 w-6 rounded-full font-mono text-[11px] transition-colors ${
