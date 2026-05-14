@@ -955,14 +955,17 @@
 }
 
 .planner-hero-chip {
+  position: relative;
+  z-index: 3;
   display: flex;
   flex-direction: row;
   align-items: center;
   gap: 10px;
   padding: 12px 14px;
   border-radius: 14px;
-  background: #ffffff;
-  border: 1px solid #efe6d8;
+  background-color: #ffffff;
+  background-image: none;
+  border: 1px solid #f1e7d6;
   cursor: pointer;
   text-align: left;
   min-width: 0;
