@@ -41,7 +41,6 @@ const TEACHER_NAV = [
     section: "Teaching",
     items: [
       { key: "lesson-plans",  label: "Lesson Plans",  letter: "L" },
-      { key: "schedule",      label: "Schedule",      letter: "S" },
       { key: "quizzes",       label: "Quizzes",       letter: "Q" },
       { key: "homework",      label: "Homework",      letter: "H" },
       { key: "presentations", label: "Presentations", letter: "P" },

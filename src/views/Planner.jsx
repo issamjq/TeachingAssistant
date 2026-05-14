@@ -17,9 +17,10 @@ import {
   ChevronLeft, ChevronRight, Plus, BookOpen, CalendarDays,
   GraduationCap, ClipboardList, Presentation, Sparkles, ArrowRight,
   MoreHorizontal, MessageCircle, BarChart3, FileText, Layout,
-  Users,
+  Users, Clock, X,
 } from "lucide-react";
 import { navigate } from "../lib/route";
+import Schedule from "./Schedule";
 
 // Categories the calendar can show. Each maps to one of the existing
 // teaching surfaces, with a Mudir-palette color so the day cells stay
@@ -128,6 +129,8 @@ export default function Planner() {
   const [visible, setVisible] = useState(
     () => new Set(CATEGORIES.map((c) => c.key))
   );
+  // Schedule popup state — opens as a blurred-backdrop modal over Planner.
+  const [showSchedule, setShowSchedule] = useState(false);
   const today = new Date();
 
   // Toggle a category on/off. Shift-click would isolate one in a fuller
@@ -180,19 +183,9 @@ export default function Planner() {
   return (
     <div className="planner-view relative max-w-[1400px] mx-auto pb-2 h-full flex flex-col">
 
-      {/* Decorative orb floating over the gap between the main column
-          and the sidebar — sits to the right of the filter chips, not
-          all the way in the corner. */}
-      <img
-        src="/sphere.png"
-        alt=""
-        aria-hidden="true"
-        className="pointer-events-none select-none absolute -top-6 right-[180px] md:right-[220px] w-[220px] md:w-[260px] z-0"
-      />
-
       {/* ── Month hero — eyebrow + tight headline + one-line caption.
           The orb is gone; we save the room for the calendar grid. */}
-      <div className="mb-2 relative z-10">
+      <div className="mb-2">
         <p className="font-sans text-[10px] uppercase tracking-[0.30em] text-accent-soft mb-1">
           Planner
         </p>
@@ -220,7 +213,7 @@ export default function Planner() {
 
       {/* ── Filter chip row — All + one per category. Sits above the
           grid so both columns inside the grid start at the same Y. */}
-      <div className="relative z-10 flex flex-wrap items-center gap-1.5 mb-2 shrink-0">
+      <div className="flex flex-wrap items-center gap-1.5 mb-2 shrink-0">
         <button
           type="button"
           onClick={toggleAll}
@@ -256,8 +249,17 @@ export default function Planner() {
           );
         })}
         <span className="flex-1" />
-        {/* Calendar nav — Today + prev/next inline on the same row so
-            the grid below starts flush. */}
+        {/* Calendar nav — Schedule + Today + prev/next inline on the same
+            row so the grid below starts flush. Schedule opens a blurred
+            modal over the Planner. */}
+        <button
+          type="button"
+          onClick={() => setShowSchedule(true)}
+          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-line bg-paper-cool hover:border-ink hover:bg-paper-warm text-[11.5px] text-ink transition-all duration-150"
+        >
+          <Clock size={12} strokeWidth={1.75} />
+          Schedule
+        </button>
         <button
           type="button"
           onClick={goToday}
@@ -394,6 +396,50 @@ export default function Planner() {
         <div className="min-w-0 min-h-0 flex flex-col gap-3">
           <UpcomingCard events={events.slice(0, 3)} className="flex-1 min-h-0" />
           <QuickActionsCard />
+        </div>
+      </div>
+
+      {showSchedule && (
+        <SchedulePopup onClose={() => setShowSchedule(false)} />
+      )}
+    </div>
+  );
+}
+
+// ───────────────────────────────────────────────────────────────────────
+// Schedule popup — full-bleed blurred backdrop with the Schedule view
+// inside a centered panel. ESC and backdrop-click both dismiss.
+// ───────────────────────────────────────────────────────────────────────
+function SchedulePopup({ onClose }) {
+  React.useEffect(() => {
+    const onKey = (e) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [onClose]);
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-ink/30 backdrop-blur-md"
+      onClick={onClose}
+    >
+      <div
+        className="relative bg-paper-cool rounded-2xl border border-line shadow-2xl w-full max-w-[1200px] max-h-[90vh] overflow-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close schedule"
+          className="absolute top-3 right-3 z-10 h-8 w-8 rounded-lg border border-line bg-paper-cool hover:bg-paper-warm hover:border-ink flex items-center justify-center transition-all"
+        >
+          <X size={16} strokeWidth={1.75} />
+        </button>
+        <div className="p-6 md:p-8">
+          <Schedule />
         </div>
       </div>
     </div>

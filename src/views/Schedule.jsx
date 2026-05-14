@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Plus, Clock, MapPin, ChevronLeft, ChevronRight } from "lucide-react";
+import { Plus, Clock, ChevronLeft, ChevronRight } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { GRADE_LEVELS } from "../lib/enums";
@@ -199,7 +199,6 @@ export default function Schedule() {
                     <th className="text-left py-3 font-medium">Lesson</th>
                     <th className="text-left py-3 font-medium">Subject</th>
                     <th className="text-left py-3 font-medium">Class</th>
-                    <th className="text-left py-3 font-medium">Where</th>
                     <th className="py-3 px-5"></th>
                   </tr>
                 </thead>
@@ -216,7 +215,6 @@ export default function Schedule() {
                       <td className="py-3 text-ink">{it.title}</td>
                       <td className="py-3 text-muted">{it.subject || "—"}</td>
                       <td className="py-3 text-muted">{it.section || it.grade || "—"}</td>
-                      <td className="py-3 text-muted">{it.location || "—"}</td>
                       <td className="py-3 px-5">
                         <RowActions onEdit={() => setEditing(it)} onDelete={() => setDeleting(it)} />
                       </td>
@@ -224,7 +222,7 @@ export default function Schedule() {
                   ))}
                   {items.length === 0 && (
                     <tr>
-                      <td colSpan={7} className="py-12 text-center text-muted">
+                      <td colSpan={6} className="py-12 text-center text-muted">
                         No schedule entries yet — click &ldquo;New entry&rdquo; to create one.
                       </td>
                     </tr>
@@ -264,7 +262,6 @@ const EMPTY = {
   date: "",
   start_time: "",
   end_time: "",
-  location: "",
   notes: "",
   status: "planned",
   draft_id: null,
@@ -372,9 +369,6 @@ function ScheduleModal({ initial, onClose, onSaved }) {
         </Field>
         <Field label="Section">
           <input className={inputClasses} value={form.section} onChange={(e) => set("section", e.target.value)} />
-        </Field>
-        <Field label="Location">
-          <input className={inputClasses} value={form.location} onChange={(e) => set("location", e.target.value)} />
         </Field>
         <Field label="Date">
           <input type="date" className={inputClasses} value={form.date} onChange={(e) => set("date", e.target.value)} />
