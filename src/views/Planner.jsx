@@ -89,12 +89,28 @@ export default function Planner() {
   const [visible, setVisible] = useState(
     () => new Set(CATEGORIES.map((c) => c.key))
   );
-  // Schedule popup state — opens as a blurred-backdrop modal over
-  // Planner. `editingEntry` carries the raw row when the user clicks
-  // an existing chip; otherwise null = create mode.
+  // Day-action flow: click a calendar cell → DayPickerPopup with two
+  // cards (New / View). Picking "View" swaps into DayListPopup, which
+  // lists that day's entries; clicking one of those opens the
+  // SchedulePopup in edit mode. Picking "New" opens SchedulePopup in
+  // create mode with the date pre-filled.
   const [showSchedule, setShowSchedule] = useState(false);
   const [editingEntry, setEditingEntry] = useState(null);
+  const [formDefaultDate, setFormDefaultDate] = useState(null);
+  const [dayContext, setDayContext] = useState(null); // { date: "YYYY-MM-DD", mode: "picker" | "list" }
   const today = new Date();
+
+  const openNewForDay = (iso) => {
+    setFormDefaultDate(iso);
+    setEditingEntry(null);
+    setDayContext(null);
+    setShowSchedule(true);
+  };
+  const openEditEntry = (entry) => {
+    setEditingEntry(entry);
+    setDayContext(null);
+    setShowSchedule(true);
+  };
 
   // Toggle a category on/off. Shift-click would isolate one in a fuller
   // build; the simple version below is fine for the scaffold.
@@ -314,9 +330,18 @@ export default function Planner() {
             return (
               <div
                 key={i}
-                className={`planner-cell border-b border-r border-line/70 px-1.5 pt-1 pb-1 min-h-[60px] flex flex-col gap-0.5 transition-colors duration-150 ${
+                role="button"
+                tabIndex={0}
+                onClick={() => setDayContext({ date: isoKey(d), mode: "picker" })}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    setDayContext({ date: isoKey(d), mode: "picker" });
+                  }
+                }}
+                className={`planner-cell border-b border-r border-line/70 px-1.5 pt-1 pb-1 min-h-[60px] flex flex-col gap-0.5 cursor-pointer transition-colors duration-150 ${
                   inMonth ? "bg-paper-cool" : "bg-paper-warm/40 text-muted/60"
-                } hover:bg-paper-warm/50 ${
+                } hover:bg-paper-warm/50 focus:outline-none focus:ring-2 focus:ring-accent/40 focus:ring-inset ${
                   isToday ? "planner-cell-today" : ""
                 } ${(i + 1) % 7 === 0 ? "border-r-0" : ""} ${i >= lastRowStart ? "border-b-0" : ""}`}
                 style={{ animationDelay: `${(i % 14) * 18}ms` }}
@@ -344,21 +369,14 @@ export default function Planner() {
                     const cat = CATEGORIES.find((c) => c.key === e.kind);
                     const s = COLOR_STYLES[cat?.color || "ink"];
                     return (
-                      <button
+                      <span
                         key={e.id}
-                        type="button"
-                        onClick={() => {
-                          if (e.raw) {
-                            setEditingEntry(e.raw);
-                            setShowSchedule(true);
-                          }
-                        }}
                         title={`${cat?.label || e.kind} · ${e.title}${e.time ? ` · ${e.time}` : ""}`}
-                        className={`group inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md ${s.chipBg} ${s.chipText} text-[10.5px] leading-tight text-left cursor-pointer hover:translate-x-px transition-transform duration-150`}
+                        className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md ${s.chipBg} ${s.chipText} text-[10.5px] leading-tight pointer-events-none`}
                       >
                         <span className={`h-1 w-1 flex-shrink-0 rounded-full ${s.dot}`} />
                         <span className="truncate">{e.title}</span>
-                      </button>
+                      </span>
                     );
                   })}
                   {overflow > 0 && (
@@ -396,10 +414,35 @@ export default function Planner() {
         </div>
       </div>
 
+      {dayContext?.mode === "picker" && (
+        <DayPickerPopup
+          date={dayContext.date}
+          dayEvents={eventsByDate.get(dayContext.date) || []}
+          onClose={() => setDayContext(null)}
+          onNew={() => openNewForDay(dayContext.date)}
+          onView={() => setDayContext({ date: dayContext.date, mode: "list" })}
+        />
+      )}
+
+      {dayContext?.mode === "list" && (
+        <DayListPopup
+          date={dayContext.date}
+          dayEvents={eventsByDate.get(dayContext.date) || []}
+          onClose={() => setDayContext(null)}
+          onSelect={openEditEntry}
+          onNew={() => openNewForDay(dayContext.date)}
+        />
+      )}
+
       {showSchedule && (
         <SchedulePopup
           initial={editingEntry}
-          onClose={() => { setShowSchedule(false); setEditingEntry(null); }}
+          defaultDate={formDefaultDate}
+          onClose={() => {
+            setShowSchedule(false);
+            setEditingEntry(null);
+            setFormDefaultDate(null);
+          }}
           onSaved={reloadEvents}
         />
       )}
@@ -411,14 +454,14 @@ export default function Planner() {
 // Schedule popup — full-bleed blurred backdrop with the Schedule view
 // inside a centered panel. ESC and backdrop-click both dismiss.
 // ───────────────────────────────────────────────────────────────────────
-function SchedulePopup({ initial, onClose, onSaved }) {
+function SchedulePopup({ initial, defaultDate, onClose, onSaved }) {
   const isEdit = !!initial;
   const today = new Date().toISOString().slice(0, 10);
   const [form, setForm] = useState(() => {
     if (!initial) {
       return {
         title: "", subject: "", grade: "", section: "",
-        date: today, status: "planned",
+        date: defaultDate || today, status: "planned",
         start_time: "", end_time: "", notes: "",
       };
     }
@@ -626,6 +669,183 @@ function SerifField({ label, wide = false, children }) {
       </span>
       {children}
     </label>
+  );
+}
+
+// ───────────────────────────────────────────────────────────────────────
+// DayPickerPopup — first thing the user sees when clicking a calendar
+// cell. Two cards: create a new entry for the day, or view what's
+// already on it. "View" is disabled when the day is empty.
+// ───────────────────────────────────────────────────────────────────────
+function dayHeaderParts(iso) {
+  const d = new Date(`${iso}T00:00:00`);
+  return {
+    weekday: d.toLocaleDateString(undefined, { weekday: "long" }),
+    full: d.toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" }),
+  };
+}
+
+function useModalChrome(onClose) {
+  React.useEffect(() => {
+    const onKey = (e) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [onClose]);
+}
+
+function DayPickerPopup({ date, dayEvents, onClose, onNew, onView }) {
+  useModalChrome(onClose);
+  const { weekday, full } = dayHeaderParts(date);
+  const hasEvents = dayEvents.length > 0;
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-ink/45 backdrop-blur-lg backdrop-saturate-150 animate-[fadeIn_180ms_ease-out]"
+      onClick={onClose}
+    >
+      <div
+        className="relative bg-paper-cool rounded-2xl border border-line shadow-[0_30px_80px_-20px_rgba(15,20,16,0.45)] w-full max-w-[640px] animate-[popIn_220ms_cubic-bezier(0.22,1,0.36,1)] flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close"
+          className="absolute top-4 right-4 z-10 h-9 w-9 rounded-lg border border-line bg-paper-cool hover:bg-paper-warm hover:border-ink flex items-center justify-center transition-all"
+        >
+          <X size={16} strokeWidth={1.75} />
+        </button>
+
+        <div className="px-7 pt-6 pb-5 border-b border-line">
+          <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-1.5 inline-flex items-center gap-2.5">
+            <span className="w-6 h-px bg-accent" /> Day options
+          </p>
+          <h2 className="font-serif text-2xl font-medium text-ink leading-tight">
+            {weekday}, <em className="italic font-medium text-accent">{full}</em>
+          </h2>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3 p-6">
+          <button
+            type="button"
+            onClick={onNew}
+            className="planner-nav-btn flex flex-col items-start gap-2 text-left p-4 rounded-xl border border-line bg-[#fdf8ee] hover:border-accent/40"
+          >
+            <span className="inline-flex h-9 w-9 rounded-lg bg-accent/[0.12] text-accent items-center justify-center">
+              <Plus size={16} strokeWidth={2.25} />
+            </span>
+            <span className="font-serif text-[15px] font-medium text-ink leading-tight">
+              New schedule
+            </span>
+            <span className="text-[11.5px] text-muted leading-snug">
+              Add a fresh entry for this day.
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={onView}
+            disabled={!hasEvents}
+            className="planner-nav-btn flex flex-col items-start gap-2 text-left p-4 rounded-xl border border-line bg-[#fdf8ee] hover:border-sage/50 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:transform-none"
+          >
+            <span className="inline-flex h-9 w-9 rounded-lg bg-sage/[0.14] text-sage items-center justify-center">
+              <ClipboardList size={16} strokeWidth={2.25} />
+            </span>
+            <span className="font-serif text-[15px] font-medium text-ink leading-tight">
+              View entries
+            </span>
+            <span className="text-[11.5px] text-muted leading-snug">
+              {hasEvents
+                ? `${dayEvents.length} item${dayEvents.length > 1 ? "s" : ""} scheduled · open to edit, delete, or mark done.`
+                : "Nothing scheduled yet."}
+            </span>
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
+// ───────────────────────────────────────────────────────────────────────
+// DayListPopup — chosen from the picker's "View entries" card. Lists
+// the day's entries; clicking one passes its raw row up so the parent
+// can open the SchedulePopup in edit mode.
+// ───────────────────────────────────────────────────────────────────────
+function DayListPopup({ date, dayEvents, onClose, onSelect, onNew }) {
+  useModalChrome(onClose);
+  const { weekday, full } = dayHeaderParts(date);
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-ink/45 backdrop-blur-lg backdrop-saturate-150 animate-[fadeIn_180ms_ease-out]"
+      onClick={onClose}
+    >
+      <div
+        className="relative bg-paper-cool rounded-2xl border border-line shadow-[0_30px_80px_-20px_rgba(15,20,16,0.45)] w-full max-w-[640px] animate-[popIn_220ms_cubic-bezier(0.22,1,0.36,1)] flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close"
+          className="absolute top-4 right-4 z-10 h-9 w-9 rounded-lg border border-line bg-paper-cool hover:bg-paper-warm hover:border-ink flex items-center justify-center transition-all"
+        >
+          <X size={16} strokeWidth={1.75} />
+        </button>
+
+        <div className="px-7 pt-6 pb-5 border-b border-line flex items-start justify-between gap-3 pr-14">
+          <div>
+            <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-1.5 inline-flex items-center gap-2.5">
+              <span className="w-6 h-px bg-accent" /> This day
+            </p>
+            <h2 className="font-serif text-2xl font-medium text-ink leading-tight">
+              {weekday}, <em className="italic font-medium text-accent">{full}</em>
+            </h2>
+          </div>
+          <button
+            type="button"
+            onClick={onNew}
+            className="planner-nav-btn shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-accent/30 bg-accent/[0.10] hover:bg-accent/[0.18] hover:border-accent/50 text-accent text-[11.5px] font-semibold shadow-sm self-center"
+          >
+            <Plus size={13} strokeWidth={2.5} />
+            New entry
+          </button>
+        </div>
+
+        <div className="px-6 py-5 max-h-[60vh] overflow-auto">
+          {dayEvents.length === 0 ? (
+            <p className="text-center text-muted text-sm py-8">No entries yet on this day.</p>
+          ) : (
+            <div className="flex flex-col gap-2">
+              {dayEvents.map((e) => (
+                <button
+                  key={e.id}
+                  type="button"
+                  onClick={() => e.raw && onSelect(e.raw)}
+                  className="planner-nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border border-line bg-[#fdf8ee] hover:border-ink/30 text-left"
+                >
+                  <span className="h-2 w-2 rounded-full bg-sage flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[13px] font-medium text-ink leading-tight truncate">{e.title}</p>
+                    <p className="text-[11px] text-muted mt-0.5">
+                      {e.time || "All day"}
+                      {e.raw?.subject ? ` · ${e.raw.subject}` : ""}
+                      {e.raw?.section ? ` · ${e.raw.section}` : ""}
+                    </p>
+                  </div>
+                  <ChevronRight size={14} className="text-muted flex-shrink-0" />
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>,
+    document.body
   );
 }
 
