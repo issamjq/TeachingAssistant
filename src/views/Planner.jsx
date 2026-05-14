@@ -180,13 +180,14 @@ export default function Planner() {
   return (
     <div className="planner-view relative max-w-[1400px] mx-auto pb-2 h-full flex flex-col">
 
-      {/* Decorative orb anchored to the top-right; bleeds over the
-          filter row and month hero on the right side of the page. */}
+      {/* Decorative orb floating over the gap between the main column
+          and the sidebar — sits to the right of the filter chips, not
+          all the way in the corner. */}
       <img
         src="/sphere.png"
         alt=""
         aria-hidden="true"
-        className="pointer-events-none select-none absolute -top-4 right-0 w-[220px] md:w-[260px] z-0"
+        className="pointer-events-none select-none absolute -top-6 right-[180px] md:right-[220px] w-[220px] md:w-[260px] z-0"
       />
 
       {/* ── Month hero — eyebrow + tight headline + one-line caption.
