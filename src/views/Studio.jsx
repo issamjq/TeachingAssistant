@@ -2097,7 +2097,7 @@ function InlineKindPicker({
         aria-haspopup="listbox"
         aria-expanded={open}
         title="Tap to choose what Mudir makes — or press K"
-        className={`studio-kind-pulse group inline-flex items-center gap-2 px-3.5 py-1 mx-1 rounded-full border focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/20 transition-all duration-200 align-middle whitespace-nowrap text-[0.72em] font-sans font-medium tracking-normal cursor-pointer ${
+        className={`studio-kind-pulse group inline-flex items-center gap-2 px-3.5 py-1 mx-1 rounded-full border focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/20 transition-all duration-200 align-middle -translate-y-[0.12em] whitespace-nowrap text-[0.72em] font-sans font-medium tracking-normal cursor-pointer ${
           open
             ? "bg-ink border-ink text-paper-cool shadow-[0_0_0_4px_rgba(28,26,22,0.06)]"
             : "bg-paper-cool border-line/70 hover:border-ink hover:bg-paper-warm"
