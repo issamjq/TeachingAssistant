@@ -20,7 +20,7 @@ function Root() {
   if (inStudio) {
     return <StudioApp onClose={() => clearRoute()} />;
   }
-  return <Landing onOpenStudio={() => navigate(["dashboard"])} />;
+  return <Landing onOpenStudio={() => navigate(["planner"])} />;
 }
 
 createRoot(document.getElementById("root")).render(

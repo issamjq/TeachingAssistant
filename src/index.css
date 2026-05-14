@@ -861,11 +861,50 @@
   background: var(--color-paper-cool);
 }
 
+/* Schedule popup — backdrop fades + panel pops on open. Paired with
+   ReactDOM portal so the blur covers the sidebar too. */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes popIn {
+  from { opacity: 0; transform: translateY(8px) scale(0.985); }
+  to   { opacity: 1; transform: translateY(0)   scale(1); }
+}
+
+/* Shared hover lift for the Planner toolbar buttons (filter chips,
+   Schedule, Today, prev/next). Same easing + travel as the Studio AI
+   chips so every clickable in the row reacts the same way. */
+.planner-nav-btn {
+  transition:
+    transform 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 220ms ease,
+    background-color 200ms ease,
+    border-color 200ms ease,
+    color 200ms ease;
+}
+.planner-nav-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 16px -10px rgba(15, 20, 16, 0.18);
+}
+.planner-nav-btn:active {
+  transform: translateY(0);
+}
+
+/* Shared frame: subtle warm-gray border + soft drop shadow. Used by
+   the Studio AI hero, AI Insights card, and the calendar grid so the
+   three primary surfaces feel like the same "object". Upcoming and
+   Quick Actions intentionally keep the plainer border-line look. */
+.planner-card-frame {
+  border: 1px solid #e6dccb;
+  box-shadow: 0 18px 44px -22px rgba(15, 20, 16, 0.14);
+}
+
 /* Planner hero card — single PNG background, no overlays. */
 .planner-hero {
   background: url("/planner-hero-bg.png") center/cover no-repeat;
-  border: 1px solid #f0e3d6;
-  box-shadow: 0 18px 44px -22px rgba(15, 20, 16, 0.16);
+  border: 1px solid #e6dccb;
+  box-shadow: 0 18px 44px -22px rgba(15, 20, 16, 0.14);
   position: relative;
   overflow: hidden;
   isolation: isolate;

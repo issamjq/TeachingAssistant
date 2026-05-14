@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from "react";
 import {
-  ChevronRight, ChevronDown, X, Sparkles, ArrowUpRight, ArrowRight, Crown,
-  Search,
+  ChevronRight, X, Sparkles, ArrowUpRight, ArrowRight, Crown,
 } from "lucide-react";
 import Dashboard from "./views/Dashboard";
 import TemplatesLibrary from "./views/TemplatesLibrary";
@@ -22,7 +21,6 @@ import Reports from "./views/Reports";
 import Studio from "./views/Studio";
 import AdminConsole from "./views/AdminConsole";
 import DevConsole from "./views/DevConsole";
-import NotificationsBell from "./views/NotificationsBell";
 import { getRole, onRoleChange, ROLE_LABELS } from "./lib/role";
 import { api } from "./views/_shared";
 import { useRoute, navigate, replace } from "./lib/route";
@@ -449,59 +447,18 @@ export default function StudioApp({ onClose }) {
       </aside>
 
       <main className="flex-1 flex flex-col min-w-0 h-full">
-        <header className="border-b border-line bg-[#fbf2e6] px-8 py-4 flex items-center gap-6 flex-shrink-0 print:hidden">
-          <nav className="text-sm flex items-center gap-2 flex-wrap text-muted flex-shrink-0">
-            {crumbs.map((c, i) => (
-              <React.Fragment key={i}>
-                {i > 0 && <ChevronRight size={14} className="text-line" />}
-                {c.onClick ? (
-                  <button onClick={c.onClick} className="hover:text-ink transition">
-                    {c.label}
-                  </button>
-                ) : (
-                  <span className="text-ink font-medium">{c.label}</span>
-                )}
-              </React.Fragment>
-            ))}
-          </nav>
-
-          {/* Global search — center of the header. Placeholder for now;
-              wires to a Cmd-K omnibox in a later build. */}
-          <div className="mudir-search flex-1 max-w-xl mx-auto hidden md:flex">
-            <Search size={14} strokeWidth={2} className="text-muted flex-shrink-0" />
-            <input
-              type="text"
-              placeholder="Search anything…"
-              className="flex-1 bg-transparent outline-none text-sm text-ink placeholder:text-muted/80"
-            />
-            <kbd className="font-mono text-[10px] tracking-wider text-muted bg-paper border border-line rounded px-1.5 py-0.5 flex-shrink-0">
-              ⌘ K
-            </kbd>
-          </div>
-
-          <div className="flex items-center gap-3 flex-shrink-0 ml-auto">
-            {role === "teacher" && <NotificationsBell />}
+        <div className="relative flex-1 px-8 pt-3 pb-2 overflow-y-auto bg-[#fbf2e6]">
+          {onClose && (
             <button
-              onClick={() => navigate(["account"])}
-              title="Open account"
-              className="mudir-header-user group"
+              onClick={onClose}
+              title="Back to landing page"
+              className="absolute top-3 right-8 z-20 h-9 w-9 rounded-md border border-line hover:bg-accent hover:text-paper-cool hover:border-accent text-ink-soft flex items-center justify-center transition print:hidden"
             >
-              <span className="mudir-header-user-avatar">SA</span>
-              <ChevronDown size={14} className="text-muted group-hover:text-ink transition" />
+              <X size={15} />
             </button>
-            {onClose && (
-              <button
-                onClick={onClose}
-                title="Back to landing page"
-                className="h-9 w-9 rounded-md border border-line hover:bg-accent hover:text-paper-cool hover:border-accent text-ink-soft flex items-center justify-center transition"
-              >
-                <X size={15} />
-              </button>
-            )}
-          </div>
-        </header>
-
-        <div className="flex-1 p-8 overflow-y-auto bg-[#fbf2e6]">{mainContent}</div>
+          )}
+          {mainContent}
+        </div>
       </main>
     </div>
   );

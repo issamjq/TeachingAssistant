@@ -3,24 +3,21 @@
 // activities) onto one grid. Designed as the "where am I this month"
 // hub.
 //
-// IMPORTANT: this view is wired to placeholder data only right now. The
-// real API integration (pulling actual scheduled rows from /api/quizzes,
-// /api/homework, /api/schedule, /api/drafts, etc.) is intentionally
-// deferred — the user wants the scaffolding in place first.
-//
-// When we hook it up later, replace `PLACEHOLDER_EVENTS` with a
-// `useEffect` that fans out into each domain's GET endpoint and merges
-// the results into the same shape:
+// Right now only /api/schedule is wired. The remaining domains
+// (/api/quizzes, /api/homework, /api/drafts, etc.) will be merged into
+// the same event shape later:
 //   { id, date: YYYY-MM-DD, kind, title, time? }
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useCallback } from "react";
+import { createPortal } from "react-dom";
 import {
   ChevronLeft, ChevronRight, Plus, BookOpen, CalendarDays,
   GraduationCap, ClipboardList, Presentation, Sparkles, ArrowRight,
   MoreHorizontal, MessageCircle, BarChart3, FileText, Layout,
-  Users, Clock, X,
+  Users, X, CheckCircle2, Clock, TrendingUp,
 } from "lucide-react";
 import { navigate } from "../lib/route";
-import Schedule from "./Schedule";
+import { api, inputClasses, selectClasses } from "./_shared";
+import { GRADE_LEVELS } from "../lib/enums";
 
 // Categories the calendar can show. Each maps to one of the existing
 // teaching surfaces, with a Mudir-palette color so the day cells stay
@@ -47,48 +44,6 @@ const COLOR_STYLES = {
   "muted":       { dot: "bg-muted",       chipBg: "bg-muted/[0.10]",       chipText: "text-muted",   ring: "ring-muted/40" },
 };
 
-// Build a synthetic month of events so the empty calendar isn't a sea
-// of blank cells. Anchored to the current month so it always feels
-// "this month". Wire-up swaps this for real API data.
-function buildPlaceholderEvents(anchor) {
-  const y = anchor.getFullYear();
-  const m = anchor.getMonth();
-  const at = (d, kind, title, time) => ({
-    id: `${kind}-${d}-${title}`,
-    date: `${y}-${String(m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`,
-    kind,
-    title,
-    time,
-  });
-  // Spread a believable teacher's month across the grid so every chip
-  // type shows up at least twice.
-  return [
-    at(2,  "schedule",      "Period 1 · Algebra",        "08:00"),
-    at(2,  "lesson-plans",  "Linear equations · intro"),
-    at(3,  "quizzes",       "Diagnostic · Section A",     "10:30"),
-    at(5,  "homework",      "Word problems · Lesson 3"),
-    at(7,  "presentations", "Cell biology slides"),
-    at(8,  "schedule",      "Period 3 · Geometry",        "11:15"),
-    at(10, "lesson-plans",  "Quadratics worked examples"),
-    at(10, "activities",    "Pair-and-share warm-up"),
-    at(12, "quizzes",       "Mid-term review · 7B",       "09:00"),
-    at(14, "homework",      "Reading · Ch. 4"),
-    at(14, "presentations", "Photosynthesis"),
-    at(15, "lesson-plans",  "Statistics: mean & median"),
-    at(16, "activities",    "Outdoor measurement task"),
-    at(17, "schedule",      "Period 5 · Algebra",         "13:45"),
-    at(18, "quizzes",       "Pop quiz · Lesson 5",        "10:00"),
-    at(20, "homework",      "Practice set · Geometry"),
-    at(21, "lesson-plans",  "Linear equations · review"),
-    at(22, "schedule",      "Period 2 · Geometry",        "09:15"),
-    at(24, "activities",    "Group challenge: bridges"),
-    at(25, "quizzes",       "Unit test · 8A",             "11:30"),
-    at(27, "homework",      "Word problems · Lesson 6"),
-    at(28, "presentations", "Linear systems"),
-    at(29, "lesson-plans",  "Geometry: angles"),
-  ];
-}
-
 // Calendar maths — return a 6×7 grid of Date objects for the month
 // containing `anchor`, padded with leading days from the previous month
 // and trailing days from the next so the grid is always rectangular.
@@ -98,11 +53,16 @@ function monthGrid(anchor, weekStart = 1 /* Mon */) {
   const firstOfMonth = new Date(y, m, 1);
   const offset = (firstOfMonth.getDay() - weekStart + 7) % 7;
   const start = new Date(y, m, 1 - offset);
-  return Array.from({ length: 42 }, (_, i) => {
+  const days = Array.from({ length: 42 }, (_, i) => {
     const d = new Date(start);
     d.setDate(start.getDate() + i);
     return d;
   });
+  // Drop the 6th week when it's entirely next-month — keeps the grid
+  // free of "padding days" that don't belong to the displayed month,
+  // and lets the remaining 5 rows flex-fill the same vertical space
+  // so each cell reads bigger.
+  return days[35].getMonth() !== m ? days.slice(0, 35) : days;
 }
 
 const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -150,8 +110,32 @@ export default function Planner() {
   const goToday = () =>
     setAnchor(new Date(today.getFullYear(), today.getMonth(), 1));
 
+  // Live events from /api/schedule (only the schedule domain is wired
+  // so far). reloadEvents is exposed to the Schedule popup so a saved
+  // entry shows up in the calendar immediately.
+  const [events, setEvents] = useState([]);
+  const reloadEvents = useCallback(() => {
+    api("/api/schedule")
+      .then((rows) => {
+        const mapped = (rows || []).map((r) => {
+          const iso = typeof r.date === "string"
+            ? r.date.slice(0, 10)
+            : new Date(r.date).toISOString().slice(0, 10);
+          return {
+            id: `schedule-${r.id}`,
+            date: iso,
+            kind: "schedule",
+            title: r.title,
+            time: r.start_time ? String(r.start_time).slice(0, 5) : undefined,
+          };
+        });
+        setEvents(mapped);
+      })
+      .catch(() => setEvents([]));
+  }, []);
+  useEffect(() => { reloadEvents(); }, [reloadEvents]);
+
   // Bucket events by ISO date for O(1) lookup per cell.
-  const events = useMemo(() => buildPlaceholderEvents(anchor), [anchor]);
   const eventsByDate = useMemo(() => {
     const map = new Map();
     for (const e of events) {
@@ -181,25 +165,21 @@ export default function Planner() {
   };
 
   return (
-    <div className="planner-view relative max-w-[1400px] mx-auto pb-2 h-full flex flex-col">
+    <div className="planner-view relative max-w-[1400px] mx-auto pb-0 h-full flex flex-col">
 
-      {/* ── Month hero — eyebrow + tight headline + one-line caption.
-          The orb is gone; we save the room for the calendar grid. */}
-      <div className="mb-2">
-        <p className="font-sans text-[10px] uppercase tracking-[0.30em] text-accent-soft mb-1">
-          Planner
+      {/* ── Month hero — stacked headline + italic editorial caption.
+          No eyebrow; the page header (sidebar nav) already says where
+          you are. */}
+      <div className="mb-3">
+        <h1 className="font-serif text-3xl md:text-4xl font-semibold text-ink leading-none tracking-tight">
+          <span key={monthLabel} className="studio-tick">
+            {MONTH_LABELS[anchor.getMonth()]}
+          </span>{" "}
+          <em className="italic font-medium text-accent">{anchor.getFullYear()}</em>
+        </h1>
+        <p className="font-serif italic text-[13px] text-muted leading-snug mt-1.5">
+          Lesson plans, schedule, quizzes, homework, presentations, and activities — all on one grid.
         </p>
-        <div className="flex items-baseline gap-3 flex-wrap">
-          <h1 className="font-serif text-2xl md:text-3xl font-medium text-ink leading-none">
-            <span key={monthLabel} className="studio-tick">
-              {MONTH_LABELS[anchor.getMonth()]}
-            </span>{" "}
-            <em className="italic font-light text-accent">{anchor.getFullYear()}</em>
-          </h1>
-          <p className="text-[12.5px] text-muted leading-snug">
-            Lesson plans, schedules, quizzes and activities — all in one workspace.
-          </p>
-        </div>
       </div>
 
       {/* 2-row grid:
@@ -217,7 +197,7 @@ export default function Planner() {
         <button
           type="button"
           onClick={toggleAll}
-          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[11.5px] font-medium transition-all duration-200 ${
+          className={`planner-nav-btn inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[11.5px] font-medium ${
             allOn
               ? "bg-ink text-paper-cool border-ink shadow-sm"
               : "bg-paper-cool text-ink border-line hover:border-ink"
@@ -237,7 +217,7 @@ export default function Planner() {
               key={c.key}
               type="button"
               onClick={() => toggleCategory(c.key)}
-              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[11.5px] transition-all duration-200 ${
+              className={`planner-nav-btn inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[11.5px] ${
                 on
                   ? `${s.chipBg} ${s.chipText} border-transparent`
                   : "bg-paper-cool text-muted border-line hover:border-ink/40"
@@ -255,23 +235,15 @@ export default function Planner() {
         <button
           type="button"
           onClick={() => setShowSchedule(true)}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-accent/30 bg-accent/[0.10] hover:bg-accent/[0.18] hover:border-accent/50 text-accent text-[11.5px] font-semibold shadow-sm transition-all duration-150"
+          className="planner-nav-btn inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-accent/30 bg-accent/[0.10] hover:bg-accent/[0.18] hover:border-accent/50 text-accent text-[11.5px] font-semibold shadow-sm"
         >
-          <Clock size={13} strokeWidth={2.25} />
+          <Plus size={13} strokeWidth={2.5} />
           Schedule
         </button>
         <button
           type="button"
           onClick={goToday}
-          aria-label="Jump to today"
-          className="h-7 w-7 rounded-lg border border-line bg-paper-cool hover:border-ink hover:bg-paper-warm flex items-center justify-center transition-all duration-150"
-        >
-          <CalendarDays size={14} strokeWidth={1.75} />
-        </button>
-        <button
-          type="button"
-          onClick={goToday}
-          className="px-2.5 py-1 rounded-lg border border-line bg-paper-cool hover:border-ink hover:bg-paper-warm font-serif italic text-xs text-ink transition-all duration-150"
+          className="planner-nav-btn px-2.5 py-1 rounded-lg border border-line bg-paper-cool hover:border-ink hover:bg-paper-warm font-serif italic text-xs text-ink"
         >
           Today
         </button>
@@ -279,7 +251,7 @@ export default function Planner() {
           type="button"
           onClick={goPrev}
           aria-label="Previous month"
-          className="h-7 w-7 rounded-lg border border-line bg-paper-cool hover:border-ink hover:bg-paper-warm flex items-center justify-center transition-all duration-150"
+          className="planner-nav-btn h-7 w-7 rounded-lg border border-line bg-paper-cool hover:border-ink hover:bg-paper-warm flex items-center justify-center"
         >
           <ChevronLeft size={15} />
         </button>
@@ -287,13 +259,13 @@ export default function Planner() {
           type="button"
           onClick={goNext}
           aria-label="Next month"
-          className="h-7 w-7 rounded-lg border border-line bg-paper-cool hover:border-ink hover:bg-paper-warm flex items-center justify-center transition-all duration-150"
+          className="planner-nav-btn h-7 w-7 rounded-lg border border-line bg-paper-cool hover:border-ink hover:bg-paper-warm flex items-center justify-center"
         >
           <ChevronRight size={15} />
         </button>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] grid-rows-[auto_1fr] gap-x-3 gap-y-3 items-stretch flex-1 min-h-0">
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] grid-rows-[auto_1fr] gap-x-6 gap-y-3 items-stretch flex-1 min-h-0">
         {/* Row 1: Studio AI hero (left) + AI Insights (right), heights
             match via items-stretch. */}
         <div className="min-w-0">
@@ -309,7 +281,7 @@ export default function Planner() {
 
       {/* The grid. paper-cool surface, rounded-2xl, soft shadow. Day
           headers in mono-uppercase, body cells in a 7-column grid. */}
-      <div className="planner-grid rounded-2xl border border-line bg-paper-cool overflow-hidden shadow-sm flex-1 flex flex-col min-h-0">
+      <div className="planner-grid planner-card-frame rounded-2xl bg-paper-cool overflow-hidden flex-1 flex flex-col min-h-0">
         <div className="grid grid-cols-7 border-b border-line bg-[#fffdf6] flex-shrink-0">
           {DAY_LABELS.map((d) => (
             <div
@@ -320,13 +292,17 @@ export default function Planner() {
             </div>
           ))}
         </div>
-        <div className="grid grid-cols-7 grid-rows-6 flex-1 auto-rows-fr">
+        <div
+          className="grid grid-cols-7 flex-1 auto-rows-fr"
+          style={{ gridTemplateRows: `repeat(${grid.length / 7}, 1fr)` }}
+        >
           {grid.map((d, i) => {
             const inMonth = d.getMonth() === anchor.getMonth();
             const isToday = sameYMD(d, today);
             const dayEvents = eventsByDate.get(isoKey(d)) || [];
             const shown = dayEvents.slice(0, 2);
             const overflow = dayEvents.length - shown.length;
+            const lastRowStart = grid.length - 7;
             return (
               <div
                 key={i}
@@ -334,7 +310,7 @@ export default function Planner() {
                   inMonth ? "bg-paper-cool" : "bg-paper-warm/40 text-muted/60"
                 } hover:bg-paper-warm/50 ${
                   isToday ? "planner-cell-today" : ""
-                } ${(i + 1) % 7 === 0 ? "border-r-0" : ""} ${i >= 35 ? "border-b-0" : ""}`}
+                } ${(i + 1) % 7 === 0 ? "border-r-0" : ""} ${i >= lastRowStart ? "border-b-0" : ""}`}
                 style={{ animationDelay: `${(i % 14) * 18}ms` }}
               >
                 <div className="flex items-start justify-between gap-1">
@@ -394,13 +370,22 @@ export default function Planner() {
             stays pinned to the bottom edge — keeping its bottom flush
             with the calendar's bottom. */}
         <div className="min-w-0 min-h-0 flex flex-col gap-3">
-          <UpcomingCard events={events.slice(0, 3)} className="flex-1 min-h-0" />
+          <UpcomingCard
+            events={events
+              .filter((e) => e.date >= isoKey(today))
+              .sort((a, b) => (a.date + (a.time || "")).localeCompare(b.date + (b.time || "")))
+              .slice(0, 4)}
+            className="flex-1 min-h-0"
+          />
           <QuickActionsCard />
         </div>
       </div>
 
       {showSchedule && (
-        <SchedulePopup onClose={() => setShowSchedule(false)} />
+        <SchedulePopup
+          onClose={() => setShowSchedule(false)}
+          onSaved={reloadEvents}
+        />
       )}
     </div>
   );
@@ -410,7 +395,17 @@ export default function Planner() {
 // Schedule popup — full-bleed blurred backdrop with the Schedule view
 // inside a centered panel. ESC and backdrop-click both dismiss.
 // ───────────────────────────────────────────────────────────────────────
-function SchedulePopup({ onClose }) {
+function SchedulePopup({ onClose, onSaved }) {
+  const today = new Date().toISOString().slice(0, 10);
+  const [form, setForm] = useState({
+    title: "", subject: "", grade: "", section: "",
+    date: today, status: "planned",
+    start_time: "", end_time: "", notes: "",
+  });
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState(null);
+  const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+
   React.useEffect(() => {
     const onKey = (e) => { if (e.key === "Escape") onClose(); };
     window.addEventListener("keydown", onKey);
@@ -421,28 +416,127 @@ function SchedulePopup({ onClose }) {
       document.body.style.overflow = prevOverflow;
     };
   }, [onClose]);
-  return (
+
+  const submit = async () => {
+    setSaving(true);
+    setErr(null);
+    try {
+      await api("/api/schedule", { method: "POST", body: form });
+      onSaved?.();
+      onClose();
+    } catch (e) {
+      setErr(e.message);
+      setSaving(false);
+    }
+  };
+
+  // Portal to document.body so the blurred backdrop escapes any
+  // ancestor with `transform` (e.g. animated planner-view) — otherwise
+  // `fixed inset-0` is clipped to the planner column and the sidebar
+  // stays sharp behind the dialog.
+  return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-ink/30 backdrop-blur-md"
+      className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-ink/45 backdrop-blur-lg backdrop-saturate-150 animate-[fadeIn_180ms_ease-out]"
       onClick={onClose}
     >
       <div
-        className="relative bg-paper-cool rounded-2xl border border-line shadow-2xl w-full max-w-[1200px] max-h-[90vh] overflow-auto"
+        className="relative bg-paper-cool rounded-2xl border border-line shadow-[0_30px_80px_-20px_rgba(15,20,16,0.45)] w-full max-w-[820px] animate-[popIn_220ms_cubic-bezier(0.22,1,0.36,1)] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         <button
           type="button"
           onClick={onClose}
-          aria-label="Close schedule"
-          className="absolute top-3 right-3 z-10 h-8 w-8 rounded-lg border border-line bg-paper-cool hover:bg-paper-warm hover:border-ink flex items-center justify-center transition-all"
+          aria-label="Close"
+          className="absolute top-4 right-4 z-10 h-9 w-9 rounded-lg border border-line bg-paper-cool hover:bg-paper-warm hover:border-ink flex items-center justify-center transition-all"
         >
           <X size={16} strokeWidth={1.75} />
         </button>
-        <div className="p-6 md:p-8">
-          <Schedule />
+
+        <div className="px-7 pt-6 pb-4 border-b border-line">
+          <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-1.5 inline-flex items-center gap-2.5">
+            <span className="w-6 h-px bg-accent" /> New entry
+          </p>
+          <h2 className="font-serif text-2xl font-medium text-ink leading-none">
+            Add a schedule entry
+          </h2>
+        </div>
+
+        <div className="px-7 py-5">
+          {err && (
+            <div className="mb-3 bg-paper border border-accent rounded-lg p-2.5">
+              <p className="text-sm text-accent">{err}</p>
+            </div>
+          )}
+          <div className="grid grid-cols-2 gap-x-4 gap-y-3">
+            <SerifField label="Title" wide>
+              <input className={inputClasses} value={form.title} onChange={(e) => set("title", e.target.value)} />
+            </SerifField>
+            <SerifField label="Subject">
+              <input className={inputClasses} value={form.subject} onChange={(e) => set("subject", e.target.value)} />
+            </SerifField>
+            <SerifField label="Grade">
+              <select className={selectClasses} value={form.grade} onChange={(e) => set("grade", e.target.value)}>
+                <option value="">—</option>
+                {GRADE_LEVELS.map((g) => <option key={g} value={g}>{g}</option>)}
+              </select>
+            </SerifField>
+            <SerifField label="Section">
+              <input className={inputClasses} value={form.section} onChange={(e) => set("section", e.target.value)} />
+            </SerifField>
+            <SerifField label="Date">
+              <input type="date" className={inputClasses} value={form.date} onChange={(e) => set("date", e.target.value)} />
+            </SerifField>
+            <SerifField label="Start time">
+              <input type="time" className={inputClasses} value={form.start_time} onChange={(e) => set("start_time", e.target.value)} />
+            </SerifField>
+            <SerifField label="End time">
+              <input type="time" className={inputClasses} value={form.end_time} onChange={(e) => set("end_time", e.target.value)} />
+            </SerifField>
+            <SerifField label="Status" wide>
+              <select className={selectClasses} value={form.status} onChange={(e) => set("status", e.target.value)}>
+                <option value="planned">Planned</option>
+                <option value="done">Done</option>
+                <option value="cancelled">Cancelled</option>
+              </select>
+            </SerifField>
+            <SerifField label="Notes" wide>
+              <textarea rows={2} className={inputClasses} value={form.notes} onChange={(e) => set("notes", e.target.value)} />
+            </SerifField>
+          </div>
+        </div>
+
+        <div className="px-7 py-4 border-t border-line flex justify-end gap-3 bg-paper">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={saving}
+            className="planner-nav-btn px-4 py-2 rounded-lg border border-line bg-paper-cool hover:border-ink hover:bg-paper-warm text-sm text-ink"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={submit}
+            disabled={saving || !form.title}
+            className="planner-nav-btn px-4 py-2 rounded-lg bg-ink text-paper-cool text-sm font-medium hover:bg-ink-soft disabled:opacity-50"
+          >
+            {saving ? "Saving…" : "Save"}
+          </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
+  );
+}
+
+function SerifField({ label, wide = false, children }) {
+  return (
+    <label className={`block ${wide ? "col-span-2" : ""}`}>
+      <span className="font-serif text-[13px] font-medium text-ink block mb-1.5">
+        {label}
+      </span>
+      {children}
+    </label>
   );
 }
 
@@ -507,57 +601,68 @@ function StudioHeroCard() {
 // glow below, 3-stat row underneath.
 // ───────────────────────────────────────────────────────────────────────
 function ThisMonthOverviewCard() {
+  const planned = 28;
+  const completed = 12;
+  const todo = 16;
+  const pct = Math.round((completed / planned) * 100);
+  const stats = [
+    { n: planned,   k: "Planned",   icon: CalendarDays,  tint: "ink",    iconBg: "bg-ink/[0.08]",    iconText: "text-ink" },
+    { n: completed, k: "Completed", icon: CheckCircle2,  tint: "sage",   iconBg: "bg-sage/[0.14]",   iconText: "text-sage" },
+    { n: todo,      k: "To do",     icon: Clock,         tint: "accent", iconBg: "bg-accent/[0.12]", iconText: "text-accent" },
+  ];
   return (
-    <div className="rounded-2xl border border-line bg-paper-cool p-3.5 h-full flex flex-col">
-      <div className="flex items-center justify-between mb-2">
-        <h3 className="font-serif text-[14px] font-medium text-ink">AI Insights</h3>
-        <span className="rounded-lg bg-accent/[0.10] p-1.5">
-          <Sparkles size={12} strokeWidth={2} className="text-accent" />
+    <div className="h-full flex flex-col rounded-2xl border border-line/60 bg-[#fffdf6] p-4 shadow-[0_8px_24px_-16px_rgba(15,20,16,0.18)]">
+      <div className="flex items-start justify-between gap-2 mb-3">
+        <h3 className="font-serif text-[15px] font-medium text-ink leading-tight">
+          This Month Overview
+        </h3>
+        <span className="font-mono text-[9.5px] uppercase tracking-[0.18em] text-muted mt-1 whitespace-nowrap">
+          May 2026
         </span>
       </div>
-      <p className="text-[11px] text-muted">Your teaching rhythm is</p>
-      <h4 className="font-serif text-lg font-medium text-sage leading-tight mt-0.5">
-        On track
-      </h4>
-      <div className="mt-2 relative flex-1 min-h-[28px] rounded-lg bg-gradient-to-b from-accent/[0.08] to-transparent overflow-hidden">
-        <svg viewBox="0 0 320 84" className="absolute inset-0 w-full h-full" preserveAspectRatio="none">
-          <defs>
-            <linearGradient id="monthChartFill" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="var(--color-accent)" stopOpacity="0.28" />
-              <stop offset="100%" stopColor="var(--color-accent)" stopOpacity="0" />
-            </linearGradient>
-          </defs>
-          <path
-            d="M0 60 C30 56 50 48 80 50 C110 52 130 32 160 30 C190 28 210 20 240 18 C270 16 290 24 320 22 L320 84 L0 84 Z"
-            fill="url(#monthChartFill)"
-          />
-          <path
-            d="M0 60 C30 56 50 48 80 50 C110 52 130 32 160 30 C190 28 210 20 240 18 C270 16 290 24 320 22"
-            stroke="var(--color-accent)" strokeWidth="2" fill="none"
-            strokeLinecap="round" strokeLinejoin="round"
-          />
-        </svg>
+
+      <div className="h-px bg-line/40 mb-3" />
+
+      <div className="grid grid-cols-3 gap-3">
+        {stats.map((s) => {
+          const Icon = s.icon;
+          return (
+            <div key={s.k}>
+              <span className={`inline-flex h-6 w-6 rounded-md items-center justify-center ${s.iconBg} ${s.iconText} mb-2`}>
+                <Icon size={12} strokeWidth={2.25} />
+              </span>
+              <p className="font-serif text-2xl font-medium text-ink leading-none">{s.n}</p>
+              <p className="text-[11px] text-muted mt-1.5">{s.k}</p>
+            </div>
+          );
+        })}
       </div>
-      <div className="grid grid-cols-3 gap-2 mt-2">
-        {[
-          { n: 28, k: "Planned" },
-          { n: 12, k: "Completed" },
-          { n: 16, k: "To do" },
-        ].map((s) => (
-          <div key={s.k}>
-            <p className="font-serif text-base font-medium text-ink leading-none">{s.n}</p>
-            <p className="text-[10px] text-muted mt-0.5">{s.k}</p>
-          </div>
-        ))}
+
+      <div className="mt-auto pt-4">
+        <div className="flex items-center justify-between mb-1.5">
+          <span className="font-mono text-[9.5px] uppercase tracking-[0.18em] text-muted">
+            Progress
+          </span>
+          <span className="inline-flex items-center gap-1 text-[11px] font-medium text-sage">
+            <TrendingUp size={11} strokeWidth={2.25} />
+            {pct}%
+          </span>
+        </div>
+        <div className="h-1.5 rounded-full bg-line/40 overflow-hidden">
+          <div
+            className="h-full rounded-full bg-gradient-to-r from-sage to-sage/70"
+            style={{ width: `${pct}%` }}
+          />
+        </div>
       </div>
     </div>
   );
 }
 
 // ───────────────────────────────────────────────────────────────────────
-// Upcoming — next 4 items pulled from the same placeholder data the
-// calendar uses, so the rail and grid stay in sync until the real API
-// lands.
+// Upcoming — next 4 items from the same live events the calendar
+// shows; until more domains are wired, that's whatever rows live in
+// /api/schedule.
 // ───────────────────────────────────────────────────────────────────────
 function UpcomingCard({ events, className = "" }) {
   const fmt = (iso) => {
@@ -568,22 +673,19 @@ function UpcomingCard({ events, className = "" }) {
     };
   };
   return (
-    <div className={`rounded-2xl border border-line bg-paper-cool p-3.5 flex flex-col overflow-hidden ${className}`}>
+    <div className={`flex flex-col overflow-hidden ${className}`}>
       <div className="flex items-center justify-between mb-2.5">
         <h3 className="font-serif text-[15px] font-medium text-ink">Upcoming</h3>
         <button className="text-xs text-accent hover:text-ink transition">
           View all
         </button>
       </div>
-      <div className="space-y-1.5">
+      <div className="flex flex-col gap-2.5">
         {events.map((e) => {
           const { month, day } = fmt(e.date);
           return (
-            <div
-              key={e.id}
-              className="flex items-center gap-2.5 rounded-xl border border-line p-2"
-            >
-              <div className="flex-shrink-0 rounded-lg bg-paper-warm/60 px-2 py-1 text-center min-w-[40px]">
+            <div key={e.id} className="flex items-center gap-2.5">
+              <div className="flex-shrink-0 rounded-lg bg-paper-warm/60 px-2 py-1 text-center min-w-[44px]">
                 <div className="text-[9px] text-muted tracking-wider uppercase">{month}</div>
                 <div className="text-sm font-medium font-serif text-ink leading-none mt-0.5">{day}</div>
               </div>
@@ -605,30 +707,40 @@ function UpcomingCard({ events, className = "" }) {
 // ───────────────────────────────────────────────────────────────────────
 function QuickActionsCard() {
   const actions = [
-    { key: "lesson",       label: "New Lesson Plan" },
-    { key: "quiz",         label: "New Quiz" },
-    { key: "homework",     label: "New Homework" },
-    { key: "presentation", label: "New Presentation" },
+    { key: "lesson",       label: "New Lesson Plan",  icon: BookOpen,       tone: "accent"      },
+    { key: "quiz",         label: "New Quiz",         icon: ClipboardList,  tone: "accent-soft" },
+    { key: "homework",     label: "New Homework",     icon: GraduationCap,  tone: "sage"        },
+    { key: "presentation", label: "New Presentation", icon: Presentation,   tone: "gold"        },
   ];
+  const toneToBg = {
+    accent:        "bg-[rgba(200,71,43,0.12)] text-accent",
+    "accent-soft": "bg-[rgba(232,122,85,0.14)] text-accent",
+    sage:          "bg-[rgba(107,127,90,0.14)] text-sage",
+    gold:          "bg-[rgba(184,137,61,0.15)] text-gold",
+  };
   return (
-    <div className="rounded-2xl border border-line bg-paper-cool p-3.5">
+    <div>
       <h3 className="font-serif text-[15px] font-medium text-ink mb-2.5">
         Quick Actions
       </h3>
-      <div className="space-y-1.5">
-        {actions.map((a) => (
-          <button
-            key={a.key}
-            type="button"
-            onClick={() => navigate(["studio"])}
-            className="w-full flex items-center justify-between px-3 py-2 rounded-xl border border-line bg-paper hover:shadow-md transition-shadow duration-150"
-          >
-            <span className="text-[12.5px] font-medium text-ink">{a.label}</span>
-            <span className="rounded-lg bg-accent/[0.10] p-1">
-              <Plus size={12} strokeWidth={2} className="text-accent" />
-            </span>
-          </button>
-        ))}
+      <div className="flex flex-col gap-2">
+        {actions.map((a) => {
+          const Icon = a.icon;
+          return (
+            <button
+              key={a.key}
+              type="button"
+              onClick={() => navigate(["studio"])}
+              className="planner-nav-btn w-full flex items-center gap-2.5 px-3 py-2 rounded-xl border border-line/70 bg-paper-cool hover:border-ink/30"
+            >
+              <span className={`flex-shrink-0 inline-flex h-7 w-7 rounded-lg items-center justify-center ${toneToBg[a.tone]}`}>
+                <Icon size={13} strokeWidth={2} />
+              </span>
+              <span className="flex-1 text-left text-[12.5px] font-medium text-ink">{a.label}</span>
+              <Plus size={13} strokeWidth={2} className="text-muted flex-shrink-0" />
+            </button>
+          );
+        })}
       </div>
     </div>
   );
