@@ -439,7 +439,11 @@ export default function StudioApp({ onClose }) {
       </aside>
 
       <main className="flex-1 flex flex-col min-w-0 h-full">
-        <div className="relative flex-1 px-8 pt-3 pb-2 overflow-y-auto bg-[#fbf2e6]">
+        <div
+          className={`relative flex-1 pl-8 pt-3 pb-2 overflow-y-auto bg-[#fbf2e6] ${
+            onClose ? "pr-20" : "pr-8"
+          }`}
+        >
           {onClose && (
             <button
               onClick={onClose}
