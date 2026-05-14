@@ -178,11 +178,20 @@ export default function Planner() {
   };
 
   return (
-    <div className="planner-view max-w-[1400px] mx-auto pb-2 h-full flex flex-col">
+    <div className="planner-view relative max-w-[1400px] mx-auto pb-2 h-full flex flex-col">
+
+      {/* Decorative orb anchored to the top-right; bleeds over the
+          filter row and month hero on the right side of the page. */}
+      <img
+        src="/sphere.png"
+        alt=""
+        aria-hidden="true"
+        className="pointer-events-none select-none absolute -top-4 right-0 w-[220px] md:w-[260px] z-0"
+      />
 
       {/* ── Month hero — eyebrow + tight headline + one-line caption.
           The orb is gone; we save the room for the calendar grid. */}
-      <div className="mb-2">
+      <div className="mb-2 relative z-10">
         <p className="font-sans text-[10px] uppercase tracking-[0.30em] text-accent-soft mb-1">
           Planner
         </p>
@@ -210,7 +219,7 @@ export default function Planner() {
 
       {/* ── Filter chip row — All + one per category. Sits above the
           grid so both columns inside the grid start at the same Y. */}
-      <div className="flex flex-wrap items-center gap-1.5 mb-2 shrink-0">
+      <div className="relative z-10 flex flex-wrap items-center gap-1.5 mb-2 shrink-0">
         <button
           type="button"
           onClick={toggleAll}
