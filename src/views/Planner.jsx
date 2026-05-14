@@ -456,8 +456,10 @@ export default function Planner() {
 // ───────────────────────────────────────────────────────────────────────
 function SchedulePopup({ initial, defaultDate, onClose, onSaved }) {
   const isEdit = !!initial;
-  const today = new Date().toISOString().slice(0, 10);
-  const [form, setForm] = useState(() => {
+  // Snapshot the initial form once — used to detect dirty state for the
+  // discard-changes guard. Lazy init so it doesn't reshuffle each render.
+  const [initialForm] = useState(() => {
+    const today = new Date().toISOString().slice(0, 10);
     if (!initial) {
       return {
         title: "", subject: "", grade: "", section: "",
@@ -477,12 +479,20 @@ function SchedulePopup({ initial, defaultDate, onClose, onSaved }) {
       notes: initial.notes || "",
     };
   });
+  const [form, setForm] = useState(initialForm);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState(null);
+  const [showDiscard, setShowDiscard] = useState(false);
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
 
+  const isDirty = JSON.stringify(form) !== JSON.stringify(initialForm);
+  const attemptClose = useCallback(() => {
+    if (isDirty) setShowDiscard(true);
+    else onClose();
+  }, [isDirty, onClose]);
+
   React.useEffect(() => {
-    const onKey = (e) => { if (e.key === "Escape") onClose(); };
+    const onKey = (e) => { if (e.key === "Escape") attemptClose(); };
     window.addEventListener("keydown", onKey);
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -490,7 +500,7 @@ function SchedulePopup({ initial, defaultDate, onClose, onSaved }) {
       window.removeEventListener("keydown", onKey);
       document.body.style.overflow = prevOverflow;
     };
-  }, [onClose]);
+  }, [attemptClose]);
 
   const submit = async () => {
     setSaving(true);
@@ -548,7 +558,7 @@ function SchedulePopup({ initial, defaultDate, onClose, onSaved }) {
   return createPortal(
     <div
       className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-ink/45 backdrop-blur-lg backdrop-saturate-150 animate-[fadeIn_180ms_ease-out]"
-      onClick={onClose}
+      onClick={attemptClose}
     >
       <div
         className="relative bg-paper-cool rounded-2xl border border-line shadow-[0_30px_80px_-20px_rgba(15,20,16,0.45)] w-full max-w-[820px] animate-[popIn_220ms_cubic-bezier(0.22,1,0.36,1)] flex flex-col"
@@ -556,7 +566,7 @@ function SchedulePopup({ initial, defaultDate, onClose, onSaved }) {
       >
         <button
           type="button"
-          onClick={onClose}
+          onClick={attemptClose}
           aria-label="Close"
           className="absolute top-4 right-4 z-10 h-9 w-9 rounded-lg border border-line bg-paper-cool hover:bg-paper-warm hover:border-ink flex items-center justify-center transition-all"
         >
@@ -640,7 +650,7 @@ function SchedulePopup({ initial, defaultDate, onClose, onSaved }) {
           <div className="flex-1" />
           <button
             type="button"
-            onClick={onClose}
+            onClick={attemptClose}
             disabled={saving}
             className="planner-nav-btn px-4 py-2 rounded-lg border border-line bg-paper-cool hover:border-ink hover:bg-paper-warm text-sm text-ink"
           >
@@ -655,6 +665,35 @@ function SchedulePopup({ initial, defaultDate, onClose, onSaved }) {
             {saving ? "Saving…" : "Save"}
           </button>
         </div>
+
+        {showDiscard && (
+          <div className="absolute inset-0 z-20 flex items-center justify-center bg-ink/40 backdrop-blur-sm rounded-2xl animate-[fadeIn_140ms_ease-out]">
+            <div className="bg-paper-cool border border-line rounded-xl shadow-[0_18px_44px_-18px_rgba(15,20,16,0.35)] p-5 max-w-[360px] mx-4">
+              <h4 className="font-serif text-lg font-medium text-ink leading-tight mb-1">
+                Discard changes?
+              </h4>
+              <p className="text-[12.5px] text-muted mb-4 leading-snug">
+                You have unsaved edits on this entry. Closing now will lose them.
+              </p>
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowDiscard(false)}
+                  className="planner-nav-btn px-3.5 py-2 rounded-lg border border-line bg-paper-cool hover:border-ink hover:bg-paper-warm text-[13px] text-ink"
+                >
+                  Keep editing
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setShowDiscard(false); onClose(); }}
+                  className="planner-nav-btn px-3.5 py-2 rounded-lg bg-accent text-paper-cool text-[13px] font-medium hover:bg-accent/90"
+                >
+                  Discard
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>,
     document.body
