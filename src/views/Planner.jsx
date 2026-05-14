@@ -444,9 +444,9 @@ function StudioHeroCard() {
               <span className={`planner-hero-chip-icon planner-hero-chip-icon-${c.color}`}>
                 <Icon size={18} strokeWidth={2} />
               </span>
-              <span className="flex flex-col min-w-0 text-left leading-tight">
-                <span className="text-[13px] font-semibold text-ink truncate">{c.verb}</span>
-                <span className="text-[11px] text-muted truncate">{c.noun}</span>
+              <span className="flex flex-col min-w-0 text-left leading-[1.15]">
+                <span className="text-[13px] font-semibold text-ink whitespace-normal">{c.verb}</span>
+                <span className="text-[11px] text-muted whitespace-normal">{c.noun}</span>
               </span>
             </button>
           );
