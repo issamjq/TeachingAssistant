@@ -626,7 +626,7 @@ function ThisMonthOverviewCard() {
     { n: todo,      k: "To do",     icon: Clock,         tint: "accent", iconBg: "bg-accent/[0.12]", iconText: "text-accent" },
   ];
   return (
-    <div className="h-full flex flex-col rounded-2xl border border-line/60 bg-[#fffdf6] p-4 shadow-[0_8px_24px_-16px_rgba(15,20,16,0.18)]">
+    <div className="h-full flex flex-col rounded-2xl border border-[#e6dccb] bg-[#fffdf6] p-4 shadow-[0_18px_44px_-22px_rgba(15,20,16,0.14)]">
       <div className="flex items-start justify-between gap-2 mb-3">
         <h3 className="font-serif text-[15px] font-medium text-ink leading-tight">
           This Month Overview

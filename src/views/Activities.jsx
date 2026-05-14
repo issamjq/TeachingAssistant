@@ -56,6 +56,7 @@ export default function Activities() {
         subtitle="Pair-work, group tasks, individual exercises — with materials and timing."
         newLabel="New activity"
         onNewManual={() => setEditing("new")}
+        aiKind="activity"
         mode={viewMode}
         onModeChange={setViewMode}
       />

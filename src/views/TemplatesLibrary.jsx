@@ -190,6 +190,7 @@ export default function TemplatesLibrary({ onNewTemplate, onUseTemplate, onEditT
       {newPopupOpen && (
         <NewKindPopup
           kind="New template"
+          aiKind="lesson_plan"
           onClose={() => setNewPopupOpen(false)}
           onManual={() => { setNewPopupOpen(false); onNewTemplate?.(); }}
         />

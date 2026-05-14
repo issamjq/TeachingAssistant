@@ -271,8 +271,13 @@ const pickAttachmentSuggestions = (kind, seed) => {
   return order.slice(0, 3).map((x) => x.s);
 };
 
-export default function Studio() {
-  const [kind, setKind] = useState("lesson_plan");
+export default function Studio({ initialKind } = {}) {
+  // initialKind comes from the URL (#/studio/<kind>) so the Teaching
+  // surfaces can deep-link straight to "Make a quiz", "Make a
+  // homework", etc. Falls back to lesson_plan when the route is bare
+  // or the value isn't one of the recognised kinds.
+  const validKind = KINDS.some((k) => k.value === initialKind) ? initialKind : "lesson_plan";
+  const [kind, setKind] = useState(validKind);
   const [prompt, setPrompt] = useState("");
   // The signed-in teacher's profile (majors / grade_levels / languages),
   // fetched once on mount. Used to scope the studio dropdowns down to

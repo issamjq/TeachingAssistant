@@ -178,7 +178,7 @@ export default function StudioApp({ onClose }) {
   } else if (section === "activities") {
     mainContent = <Activities />;
   } else if (section === "studio") {
-    mainContent = <Studio onJump={handleNavClick} />;
+    mainContent = <Studio onJump={handleNavClick} initialKind={sub} />;
   } else if (section === "reports") {
     mainContent = <Reports />;
   } else if (section === "quizzes") {

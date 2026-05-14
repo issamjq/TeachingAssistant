@@ -59,6 +59,7 @@ export default function Homework() {
         subtitle="Assign work to a class, track who's done it, grade and give feedback."
         newLabel="New homework"
         onNewManual={() => setEditing("new")}
+        aiKind="homework"
         mode={viewMode}
         onModeChange={setViewMode}
       />

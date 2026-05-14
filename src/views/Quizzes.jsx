@@ -49,6 +49,7 @@ export default function Quizzes({ onOpenQuiz }) {
         subtitle="Build, schedule, and grade. MCQ, true/false, short, and essay."
         newLabel="New quiz"
         onNewManual={() => onOpenQuiz?.({})}
+        aiKind="quiz"
         mode={viewMode}
         onModeChange={setViewMode}
       />

@@ -56,6 +56,7 @@ export default function Presentations() {
         subtitle="Build slide-based presentations linked to your lessons."
         newLabel="New presentation"
         onNewManual={() => setEditing("new")}
+        aiKind="presentation"
         mode={viewMode}
         onModeChange={setViewMode}
       />

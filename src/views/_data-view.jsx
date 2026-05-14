@@ -68,6 +68,7 @@ export function DataPageHeader({
   subtitle,
   newLabel,           // e.g., "New quiz"
   onNewManual,        // () => void; called when the user picks "Manually"
+  aiKind,             // Studio kind to pre-select when picking "With Studio AI"
   mode,               // "cards" | "list"
   onModeChange,       // (m) => void
   extraActions,       // ReactNode — sits to the left of the New button
@@ -105,6 +106,7 @@ export function DataPageHeader({
       {popupOpen && (
         <NewKindPopup
           kind={newLabel}
+          aiKind={aiKind}
           onClose={() => setPopupOpen(false)}
           onManual={() => { setPopupOpen(false); onNewManual?.(); }}
         />
@@ -116,7 +118,7 @@ export function DataPageHeader({
 // ──────────────────────────────────────────────────────────────────
 // "How do you want to create this?" popup
 // ──────────────────────────────────────────────────────────────────
-export function NewKindPopup({ kind, onClose, onManual }) {
+export function NewKindPopup({ kind, aiKind, onClose, onManual }) {
   useEffect(() => {
     const onKey = (e) => { if (e.key === "Escape") onClose(); };
     window.addEventListener("keydown", onKey);
@@ -130,7 +132,7 @@ export function NewKindPopup({ kind, onClose, onManual }) {
 
   const onAi = () => {
     onClose();
-    navigate(["studio"]);
+    navigate(aiKind ? ["studio", aiKind] : ["studio"]);
   };
 
   return createPortal(
@@ -205,7 +207,7 @@ export function NewKindPopup({ kind, onClose, onManual }) {
 export function DataCard({ onEdit, onDelete, className = "", children }) {
   return (
     <div
-      className={`relative rounded-2xl border border-line bg-paper-cool hover:border-ink/30 hover:shadow-[0_12px_28px_-18px_rgba(15,20,16,0.22)] transition-all duration-200 p-5 flex flex-col ${className}`}
+      className={`relative rounded-2xl border border-[#e6dccb] bg-paper-cool shadow-[0_18px_44px_-22px_rgba(15,20,16,0.14)] hover:border-ink/30 hover:shadow-[0_22px_50px_-22px_rgba(15,20,16,0.22)] transition-all duration-200 p-5 flex flex-col ${className}`}
     >
       <div className="absolute top-3 right-3 flex items-center gap-1">
         {onEdit && (
