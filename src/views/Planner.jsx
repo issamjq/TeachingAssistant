@@ -89,8 +89,11 @@ export default function Planner() {
   const [visible, setVisible] = useState(
     () => new Set(CATEGORIES.map((c) => c.key))
   );
-  // Schedule popup state — opens as a blurred-backdrop modal over Planner.
+  // Schedule popup state — opens as a blurred-backdrop modal over
+  // Planner. `editingEntry` carries the raw row when the user clicks
+  // an existing chip; otherwise null = create mode.
   const [showSchedule, setShowSchedule] = useState(false);
+  const [editingEntry, setEditingEntry] = useState(null);
   const today = new Date();
 
   // Toggle a category on/off. Shift-click would isolate one in a fuller
@@ -117,18 +120,23 @@ export default function Planner() {
   const reloadEvents = useCallback(() => {
     api("/api/schedule")
       .then((rows) => {
-        const mapped = (rows || []).map((r) => {
-          const iso = typeof r.date === "string"
-            ? r.date.slice(0, 10)
-            : new Date(r.date).toISOString().slice(0, 10);
-          return {
-            id: `schedule-${r.id}`,
-            date: iso,
-            kind: "schedule",
-            title: r.title,
-            time: r.start_time ? String(r.start_time).slice(0, 5) : undefined,
-          };
-        });
+        const mapped = (rows || [])
+          // "done" entries don't belong on the calendar — they're
+          // counted in the Completed stat instead.
+          .filter((r) => r.status !== "done")
+          .map((r) => {
+            const iso = typeof r.date === "string"
+              ? r.date.slice(0, 10)
+              : new Date(r.date).toISOString().slice(0, 10);
+            return {
+              id: `schedule-${r.id}`,
+              raw: r,
+              date: iso,
+              kind: "schedule",
+              title: r.title,
+              time: r.start_time ? String(r.start_time).slice(0, 5) : undefined,
+            };
+          });
         setEvents(mapped);
       })
       .catch(() => setEvents([]));
@@ -234,7 +242,7 @@ export default function Planner() {
             modal over the Planner. */}
         <button
           type="button"
-          onClick={() => setShowSchedule(true)}
+          onClick={() => { setEditingEntry(null); setShowSchedule(true); }}
           className="planner-nav-btn inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-accent/30 bg-accent/[0.10] hover:bg-accent/[0.18] hover:border-accent/50 text-accent text-[11.5px] font-semibold shadow-sm"
         >
           <Plus size={13} strokeWidth={2.5} />
@@ -336,14 +344,21 @@ export default function Planner() {
                     const cat = CATEGORIES.find((c) => c.key === e.kind);
                     const s = COLOR_STYLES[cat?.color || "ink"];
                     return (
-                      <span
+                      <button
                         key={e.id}
+                        type="button"
+                        onClick={() => {
+                          if (e.raw) {
+                            setEditingEntry(e.raw);
+                            setShowSchedule(true);
+                          }
+                        }}
                         title={`${cat?.label || e.kind} · ${e.title}${e.time ? ` · ${e.time}` : ""}`}
-                        className={`group inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md ${s.chipBg} ${s.chipText} text-[10.5px] leading-tight cursor-pointer hover:translate-x-px transition-transform duration-150`}
+                        className={`group inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md ${s.chipBg} ${s.chipText} text-[10.5px] leading-tight text-left cursor-pointer hover:translate-x-px transition-transform duration-150`}
                       >
                         <span className={`h-1 w-1 flex-shrink-0 rounded-full ${s.dot}`} />
                         <span className="truncate">{e.title}</span>
-                      </span>
+                      </button>
                     );
                   })}
                   {overflow > 0 && (
@@ -383,7 +398,8 @@ export default function Planner() {
 
       {showSchedule && (
         <SchedulePopup
-          onClose={() => setShowSchedule(false)}
+          initial={editingEntry}
+          onClose={() => { setShowSchedule(false); setEditingEntry(null); }}
           onSaved={reloadEvents}
         />
       )}
@@ -395,12 +411,28 @@ export default function Planner() {
 // Schedule popup — full-bleed blurred backdrop with the Schedule view
 // inside a centered panel. ESC and backdrop-click both dismiss.
 // ───────────────────────────────────────────────────────────────────────
-function SchedulePopup({ onClose, onSaved }) {
+function SchedulePopup({ initial, onClose, onSaved }) {
+  const isEdit = !!initial;
   const today = new Date().toISOString().slice(0, 10);
-  const [form, setForm] = useState({
-    title: "", subject: "", grade: "", section: "",
-    date: today, status: "planned",
-    start_time: "", end_time: "", notes: "",
+  const [form, setForm] = useState(() => {
+    if (!initial) {
+      return {
+        title: "", subject: "", grade: "", section: "",
+        date: today, status: "planned",
+        start_time: "", end_time: "", notes: "",
+      };
+    }
+    return {
+      title: initial.title || "",
+      subject: initial.subject || "",
+      grade: initial.grade || "",
+      section: initial.section || "",
+      date: initial.date ? String(initial.date).slice(0, 10) : today,
+      status: initial.status || "planned",
+      start_time: initial.start_time ? String(initial.start_time).slice(0, 5) : "",
+      end_time: initial.end_time ? String(initial.end_time).slice(0, 5) : "",
+      notes: initial.notes || "",
+    };
   });
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState(null);
@@ -421,7 +453,43 @@ function SchedulePopup({ onClose, onSaved }) {
     setSaving(true);
     setErr(null);
     try {
-      await api("/api/schedule", { method: "POST", body: form });
+      if (isEdit) {
+        await api(`/api/schedule/${initial.id}`, { method: "PATCH", body: form });
+      } else {
+        await api("/api/schedule", { method: "POST", body: form });
+      }
+      onSaved?.();
+      onClose();
+    } catch (e) {
+      setErr(e.message);
+      setSaving(false);
+    }
+  };
+
+  const remove = async () => {
+    if (!isEdit) return;
+    if (!window.confirm("Delete this schedule entry? This cannot be undone.")) return;
+    setSaving(true);
+    setErr(null);
+    try {
+      await api(`/api/schedule/${initial.id}`, { method: "DELETE" });
+      onSaved?.();
+      onClose();
+    } catch (e) {
+      setErr(e.message);
+      setSaving(false);
+    }
+  };
+
+  const markDone = async () => {
+    if (!isEdit) return;
+    setSaving(true);
+    setErr(null);
+    try {
+      await api(`/api/schedule/${initial.id}`, {
+        method: "PATCH",
+        body: { ...form, status: "done" },
+      });
       onSaved?.();
       onClose();
     } catch (e) {
@@ -454,10 +522,10 @@ function SchedulePopup({ onClose, onSaved }) {
 
         <div className="px-7 pt-6 pb-4 border-b border-line">
           <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-1.5 inline-flex items-center gap-2.5">
-            <span className="w-6 h-px bg-accent" /> New entry
+            <span className="w-6 h-px bg-accent" /> {isEdit ? "Edit entry" : "New entry"}
           </p>
           <h2 className="font-serif text-2xl font-medium text-ink leading-none">
-            Add a schedule entry
+            {isEdit ? "Edit schedule entry" : "Add a schedule entry"}
           </h2>
         </div>
 
@@ -505,7 +573,28 @@ function SchedulePopup({ onClose, onSaved }) {
           </div>
         </div>
 
-        <div className="px-7 py-4 border-t border-line flex justify-end gap-3 bg-paper">
+        <div className="px-7 py-4 border-t border-line flex items-center gap-3 bg-paper">
+          {isEdit && (
+            <>
+              <button
+                type="button"
+                onClick={remove}
+                disabled={saving}
+                className="planner-nav-btn px-4 py-2 rounded-lg border border-accent/40 bg-paper-cool hover:bg-accent hover:text-paper-cool hover:border-accent text-sm text-accent disabled:opacity-50"
+              >
+                Delete
+              </button>
+              <button
+                type="button"
+                onClick={markDone}
+                disabled={saving}
+                className="planner-nav-btn px-4 py-2 rounded-lg border border-sage/40 bg-paper-cool hover:bg-sage hover:text-paper-cool hover:border-sage text-sm text-sage disabled:opacity-50"
+              >
+                Mark done
+              </button>
+            </>
+          )}
+          <div className="flex-1" />
           <button
             type="button"
             onClick={onClose}
