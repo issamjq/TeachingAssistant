@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 500" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <linearGradient id="paper" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fff3e6"/>
+      <stop offset="55%" stop-color="#fbdfc6"/>
+      <stop offset="100%" stop-color="#f4caa8"/>
+    </linearGradient>
+    <radialGradient id="sun" cx="52%" cy="-2%" r="40%" fx="52%" fy="-2%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.85"/>
+      <stop offset="60%" stop-color="#ffffff" stop-opacity="0.18"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="leftGlow" cx="6%" cy="42%" r="32%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.55"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="1600" height="500" fill="url(#paper)"/>
+  <rect width="1600" height="500" fill="url(#sun)"/>
+  <rect width="1600" height="500" fill="url(#leftGlow)"/>
+
+  <!-- Top-right swirl: dense set of curved strokes flowing in from the corner. -->
+  <g fill="none" stroke="#ffffff" stroke-linecap="round">
+    <g stroke-opacity="0.55">
+      <path d="M1620,-30 C1520,90 1420,170 1380,310 C1360,400 1430,470 1620,520" stroke-width="1.2"/>
+      <path d="M1620,10  C1510,120 1400,200 1360,330 C1340,420 1420,490 1620,540" stroke-width="1.1"/>
+      <path d="M1620,50  C1500,150 1380,230 1340,350 C1320,440 1410,510 1620,560" stroke-width="1"/>
+      <path d="M1620,90  C1490,180 1360,260 1320,370 C1300,460 1400,530 1620,580" stroke-width="0.95"/>
+      <path d="M1620,130 C1480,210 1340,290 1300,390 C1280,480 1390,550 1620,600" stroke-width="0.9"/>
+    </g>
+    <g stroke-opacity="0.42">
+      <path d="M1620,170 C1470,240 1320,320 1280,410 C1260,500 1380,570 1620,620" stroke-width="0.85"/>
+      <path d="M1620,210 C1460,270 1300,350 1260,430 C1240,520 1370,590 1620,640" stroke-width="0.8"/>
+      <path d="M1620,250 C1450,300 1280,380 1240,450 C1220,540 1360,610 1620,660" stroke-width="0.75"/>
+      <path d="M1620,290 C1440,330 1260,410 1220,470 C1200,560 1350,630 1620,680" stroke-width="0.7"/>
+    </g>
+    <g stroke-opacity="0.3">
+      <path d="M1620,330 C1430,360 1240,440 1200,490 C1180,580 1340,650 1620,700" stroke-width="0.65"/>
+      <path d="M1620,370 C1420,390 1220,470 1180,510 C1160,600 1330,670 1620,720" stroke-width="0.6"/>
+      <path d="M1620,410 C1410,420 1200,500 1160,530 C1140,620 1320,690 1620,740" stroke-width="0.55"/>
+    </g>
+  </g>
+
+  <!-- Bottom-left swirl: smaller, fainter mirror of the top-right. -->
+  <g fill="none" stroke="#ffffff" stroke-linecap="round">
+    <g stroke-opacity="0.4">
+      <path d="M-20,520 C90,420 200,360 320,360 C420,360 480,420 510,520" stroke-width="1"/>
+      <path d="M-20,490 C80,390 200,330 330,330 C440,330 510,400 540,510" stroke-width="0.95"/>
+      <path d="M-20,460 C70,360 200,300 340,300 C460,300 540,380 570,500" stroke-width="0.9"/>
+      <path d="M-20,430 C60,330 200,270 350,270 C480,270 570,360 600,490" stroke-width="0.85"/>
+    </g>
+    <g stroke-opacity="0.28">
+      <path d="M-20,400 C50,300 200,240 360,240 C500,240 600,340 630,480" stroke-width="0.8"/>
+      <path d="M-20,370 C40,270 200,210 370,210 C520,210 630,320 660,470" stroke-width="0.75"/>
+      <path d="M-20,340 C30,240 200,180 380,180 C540,180 660,300 690,460" stroke-width="0.7"/>
+    </g>
+  </g>
+
+  <!-- Faint dot grid sprinkled over the whole field. -->
+  <g fill="#b8893d" fill-opacity="0.16">
+    <circle cx="40" cy="40" r="0.9"/><circle cx="80" cy="40" r="0.9"/><circle cx="120" cy="40" r="0.9"/><circle cx="160" cy="40" r="0.9"/><circle cx="200" cy="40" r="0.9"/>
+  </g>
+</svg>
