@@ -9,9 +9,9 @@
 //     surface in localStorage.
 //   - DataCard: shared card wrapper with always-visible edit + delete
 //     icons in the top-right corner.
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import { Plus, X, Pencil, Trash2, LayoutGrid, List, Sparkles, RotateCcw } from "lucide-react";
+import { Plus, X, Pencil, Trash2, LayoutGrid, List, Sparkles, RotateCcw, ArrowUpDown, Calendar as CalendarIcon } from "lucide-react";
 import { navigate } from "../lib/route";
 import { api } from "./_shared";
 
@@ -78,9 +78,17 @@ export function DataPageHeader({
   trashEndpoint,      // e.g., "/api/quizzes"
   trashTitleField = "title",  // some tables (drafts/templates) use "name"
   onTrashChange,      // () => void  callback fired after restore/forever
+  // Sort + date-range scope. Both are optional — when omitted, the
+  // controls don't render.
+  sortOptions,        // [{ value, label }] for the sort <select>
+  sortKey,
+  onSortChange,
+  dateScope,          // { mode: "all"|"week"|"month"|"custom", from, to }
+  onDateScopeChange,
 }) {
   const [popupOpen, setPopupOpen] = useState(false);
   const [trashOpen, setTrashOpen] = useState(false);
+  const [scopeOpen, setScopeOpen] = useState(false);
   return (
     <div className="mb-6">
       <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
@@ -96,6 +104,29 @@ export function DataPageHeader({
           {subtitle && <p className="text-muted mt-2">{subtitle}</p>}
         </div>
         <div className="flex flex-wrap items-center gap-3">
+          {sortOptions && onSortChange && (
+            <label className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-line bg-paper-cool text-[12px] text-ink">
+              <ArrowUpDown size={12} strokeWidth={2} className="text-muted" />
+              <select
+                value={sortKey || ""}
+                onChange={(e) => onSortChange(e.target.value)}
+                className="bg-transparent outline-none cursor-pointer pr-2 text-ink"
+              >
+                {sortOptions.map((o) => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+            </label>
+          )}
+          {dateScope && onDateScopeChange && (
+            <DateScopePicker
+              scope={dateScope}
+              onChange={onDateScopeChange}
+              open={scopeOpen}
+              onToggle={() => setScopeOpen((v) => !v)}
+              onClose={() => setScopeOpen(false)}
+            />
+          )}
           {onModeChange && <ViewModeToggle mode={mode} onChange={onModeChange} />}
           {extraActions}
           {trashEndpoint && (
@@ -289,6 +320,126 @@ export function TrashPopup({ endpoint, titleField = "title", onClose, onChange }
     </div>,
     document.body
   );
+}
+
+// ──────────────────────────────────────────────────────────────────
+// Date-scope picker (All / This week / This month / Custom range)
+// ──────────────────────────────────────────────────────────────────
+const SCOPE_LABEL = {
+  all: "All time",
+  week: "This week",
+  month: "This month",
+  custom: "Custom range",
+};
+
+function DateScopePicker({ scope, onChange, open, onToggle, onClose }) {
+  const label = scope.mode === "custom"
+    ? (scope.from && scope.to
+        ? `${scope.from.slice(5)} → ${scope.to.slice(5)}`
+        : "Custom range")
+    : SCOPE_LABEL[scope.mode] || "All time";
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={onToggle}
+        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-line bg-paper-cool hover:border-ink text-[12px] text-ink"
+      >
+        <CalendarIcon size={12} strokeWidth={2} className="text-muted" />
+        {label}
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-30" onClick={onClose} />
+          <div className="absolute right-0 mt-1.5 z-40 w-[260px] rounded-xl border border-line bg-paper-cool shadow-[0_18px_44px_-18px_rgba(15,20,16,0.32)] p-2">
+            {["all", "week", "month", "custom"].map((m) => (
+              <button
+                key={m}
+                type="button"
+                onClick={() => {
+                  onChange({ ...scope, mode: m });
+                  if (m !== "custom") onClose();
+                }}
+                className={`w-full text-left px-2.5 py-1.5 rounded-md text-[12.5px] ${
+                  scope.mode === m ? "bg-accent/[0.10] text-accent" : "text-ink hover:bg-paper-warm"
+                }`}
+              >
+                {SCOPE_LABEL[m]}
+              </button>
+            ))}
+            {scope.mode === "custom" && (
+              <div className="mt-2 pt-2 border-t border-line flex flex-col gap-2">
+                <label className="text-[10px] uppercase tracking-wider text-muted">
+                  From
+                  <input
+                    type="date"
+                    value={scope.from || ""}
+                    onChange={(e) => onChange({ ...scope, from: e.target.value })}
+                    className="block w-full mt-0.5 rounded-md border border-line bg-paper px-2 py-1 text-[12px] text-ink"
+                  />
+                </label>
+                <label className="text-[10px] uppercase tracking-wider text-muted">
+                  To
+                  <input
+                    type="date"
+                    value={scope.to || ""}
+                    onChange={(e) => onChange({ ...scope, to: e.target.value })}
+                    className="block w-full mt-0.5 rounded-md border border-line bg-paper px-2 py-1 text-[12px] text-ink"
+                  />
+                </label>
+              </div>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// Helper — used by every surface to filter items by the chosen date
+// scope. `getDate` returns the item's date string ("YYYY-MM-DD") or
+// null when the item carries no date (those are kept under "all" and
+// hidden under any other scope so a custom window doesn't quietly
+// surface untimed rows).
+export function useDateScope(initial = { mode: "all", from: "", to: "" }) {
+  const [scope, setScope] = useState(initial);
+  const range = useMemo(() => computeScopeRange(scope), [scope]);
+  return [scope, setScope, range];
+}
+
+function computeScopeRange(scope) {
+  if (!scope || scope.mode === "all") return null;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  if (scope.mode === "week") {
+    const day = (today.getDay() + 6) % 7; // Mon = 0
+    const from = new Date(today); from.setDate(today.getDate() - day);
+    const to = new Date(from); to.setDate(from.getDate() + 6);
+    return { from: isoDay(from), to: isoDay(to) };
+  }
+  if (scope.mode === "month") {
+    const from = new Date(today.getFullYear(), today.getMonth(), 1);
+    const to = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+    return { from: isoDay(from), to: isoDay(to) };
+  }
+  if (scope.mode === "custom") {
+    if (!scope.from || !scope.to) return null;
+    return { from: scope.from, to: scope.to };
+  }
+  return null;
+}
+function isoDay(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+export function filterByDateScope(items, range, getDate) {
+  if (!range) return items;
+  return items.filter((it) => {
+    const v = getDate(it);
+    if (!v) return false;
+    const iso = String(v).slice(0, 10);
+    return iso >= range.from && iso <= range.to;
+  });
 }
 
 // ──────────────────────────────────────────────────────────────────

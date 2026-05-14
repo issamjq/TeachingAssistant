@@ -145,29 +145,66 @@ export default function Planner() {
   }, []);
 
   const [events, setEvents] = useState([]);
+  // Pull from every teaching surface that carries a date so the
+  // monthly grid mirrors the right-rail's "what's on" view. Schedule
+  // entries stay clickable (open in SchedulePopup for edit/delete);
+  // other kinds show as read-only chips for now.
   const reloadEvents = useCallback(() => {
-    api("/api/schedule")
-      .then((rows) => {
-        const mapped = (rows || [])
-          // "done" entries don't belong on the calendar — they're
-          // counted in the Completed stat instead.
-          .filter((r) => r.status !== "done")
-          .map((r) => {
-            const iso = typeof r.date === "string"
-              ? r.date.slice(0, 10)
-              : new Date(r.date).toISOString().slice(0, 10);
-            return {
-              id: `schedule-${r.id}`,
-              raw: r,
-              date: iso,
-              kind: "schedule",
-              title: r.title,
-              time: r.start_time ? String(r.start_time).slice(0, 5) : undefined,
-            };
-          });
-        setEvents(mapped);
-      })
-      .catch(() => setEvents([]));
+    const isoOnly = (v) => (typeof v === "string"
+      ? v.slice(0, 10)
+      : new Date(v).toISOString().slice(0, 10));
+    Promise.allSettled([
+      api("/api/schedule"),
+      api("/api/quizzes"),
+      api("/api/homework"),
+      api("/api/presentations"),
+      api("/api/activities"),
+    ]).then((results) => {
+      const get = (i) => (results[i].status === "fulfilled" ? results[i].value || [] : []);
+      const schedule = get(0)
+        .filter((r) => r.status !== "done")
+        .map((r) => ({
+          id: `schedule-${r.id}`,
+          raw: r,
+          date: isoOnly(r.date),
+          kind: "schedule",
+          title: r.title,
+          time: r.start_time ? String(r.start_time).slice(0, 5) : undefined,
+        }));
+      const quizzes = get(1)
+        .filter((q) => q.scheduled_for)
+        .map((q) => ({
+          id: `quiz-${q.id}`,
+          date: isoOnly(q.scheduled_for),
+          kind: "quizzes",
+          title: q.title,
+        }));
+      const homework = get(2)
+        .filter((h) => h.due_date)
+        .map((h) => ({
+          id: `homework-${h.id}`,
+          date: isoOnly(h.due_date),
+          kind: "homework",
+          title: h.title,
+        }));
+      const presentations = get(3)
+        .filter((p) => p.scheduled_for)
+        .map((p) => ({
+          id: `presentation-${p.id}`,
+          date: isoOnly(p.scheduled_for),
+          kind: "presentations",
+          title: p.title,
+        }));
+      const activities = get(4)
+        .filter((a) => a.scheduled_for)
+        .map((a) => ({
+          id: `activity-${a.id}`,
+          date: isoOnly(a.scheduled_for),
+          kind: "activities",
+          title: a.title,
+        }));
+      setEvents([...schedule, ...quizzes, ...homework, ...presentations, ...activities]);
+    });
   }, []);
   useEffect(() => { reloadEvents(); }, [reloadEvents]);
 

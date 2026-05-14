@@ -9,6 +9,7 @@ import {
 } from "./_shared";
 import {
   DataPageHeader, DataCard, CardsGrid, useViewMode,
+  useDateScope, filterByDateScope,
 } from "./_data-view";
 
 export default function Presentations() {
@@ -20,6 +21,22 @@ export default function Presentations() {
   const [deleting, setDeleting] = useState(null);
   const [busy, setBusy] = useState(false);
   const [viewMode, setViewMode] = useViewMode("mudir.view.presentations", "cards");
+  const [sortKey, setSortKey] = useState("updated_at-desc");
+  const [scope, setScope, scopeRange] = useDateScope();
+
+  const sortedItems = React.useMemo(() => {
+    const [k, dir] = sortKey.split("-");
+    const sign = dir === "asc" ? 1 : -1;
+    return [...items].sort((a, b) => {
+      const av = a[k]; const bv = b[k];
+      if (av == null && bv == null) return 0;
+      if (av == null) return 1;
+      if (bv == null) return -1;
+      if (typeof av === "number" && typeof bv === "number") return (av - bv) * sign;
+      return String(av).localeCompare(String(bv), undefined, { numeric: true }) * sign;
+    });
+  }, [items, sortKey]);
+  const visibleItems = filterByDateScope(sortedItems, scopeRange, (p) => p.scheduled_for);
 
   const reload = () => {
     setLoading(true);
@@ -61,6 +78,17 @@ export default function Presentations() {
         onModeChange={setViewMode}
         trashEndpoint="/api/presentations"
         onTrashChange={reload}
+        sortKey={sortKey}
+        onSortChange={setSortKey}
+        sortOptions={[
+          { value: "updated_at-desc",   label: "Recently updated" },
+          { value: "scheduled_for-asc", label: "Scheduled soonest" },
+          { value: "scheduled_for-desc",label: "Scheduled latest" },
+          { value: "title-asc",         label: "Title A → Z" },
+          { value: "title-desc",        label: "Title Z → A" },
+        ]}
+        dateScope={scope}
+        onDateScopeChange={setScope}
       />
 
       {error && (
@@ -71,15 +99,17 @@ export default function Presentations() {
 
       {loading && <p className="font-mono text-[10px] uppercase tracking-wider text-muted">Loading…</p>}
 
-      {!loading && items.length === 0 && (
+      {!loading && visibleItems.length === 0 && (
         <div className="rounded-2xl border border-dashed border-line p-12 text-center text-muted">
-          No presentations yet — click &ldquo;New presentation&rdquo; to build one.
+          {items.length === 0
+            ? "No presentations yet — click “New presentation” to build one."
+            : "Nothing matches the current filters."}
         </div>
       )}
 
-      {viewMode === "cards" && items.length > 0 && (
+      {viewMode === "cards" && visibleItems.length > 0 && (
         <CardsGrid>
-          {items.map((p) => (
+          {visibleItems.map((p) => (
             <DataCard
               key={p.id}
               onEdit={() => setEditing(p)}
@@ -110,7 +140,7 @@ export default function Presentations() {
         </CardsGrid>
       )}
 
-      {viewMode === "list" && items.length > 0 && (
+      {viewMode === "list" && visibleItems.length > 0 && (
         <div className="rounded-2xl border border-line bg-paper-cool overflow-hidden">
           <table className="w-full text-sm">
             <thead>
@@ -125,7 +155,7 @@ export default function Presentations() {
               </tr>
             </thead>
             <tbody>
-              {items.map((p) => (
+              {visibleItems.map((p) => (
                 <tr key={p.id} className="border-b border-line/60 last:border-0 hover:bg-paper-warm transition">
                   <td className="py-4 px-5 text-ink">{p.title}</td>
                   <td className="py-4 text-muted">{p.subject || "—"}</td>

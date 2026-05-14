@@ -1377,6 +1377,25 @@ export default function Studio({ initialKind } = {}) {
                         .split(/\n/)
                         .filter((l) => /^[\-*]|\d+\./.test(l.trim()))
                         .length;
+                      // Quizzes get a friendlier index: "Cover" for the
+                      // meta card, "Q1 / Q2 / ..." for questions with the
+                      // question text shown on two lines (line-clamp-2)
+                      // so "What is the prim..." reads as the full prompt
+                      // before its truncation kicks in.
+                      const isQuiz = s.kind === "quiz_meta" || s.kind === "quiz_question";
+                      const questionNumber = sections
+                        .slice(0, i + 1)
+                        .filter((x) => x.kind === "quiz_question").length;
+                      const badge = !isQuiz
+                        ? letter
+                        : s.kind === "quiz_meta"
+                          ? "★"
+                          : `${questionNumber}`;
+                      const primaryLabel = !isQuiz
+                        ? (s.title || `Part ${letter}`)
+                        : s.kind === "quiz_meta"
+                          ? "Cover"
+                          : (s.question?.prompt || s.title || `Question ${questionNumber}`);
                       return (
                         <button
                           key={s.id}
@@ -1384,37 +1403,42 @@ export default function Studio({ initialKind } = {}) {
                           title={
                             quizScopeBusy
                               ? "Mudir is rewriting — please wait."
-                              : s.title
+                              : (s.question?.prompt || s.title)
                           }
                           disabled={quizScopeBusy}
-                          className={`group flex-shrink-0 md:flex-shrink md:w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg border text-left transition-all duration-200 ${
+                          className={`group flex-shrink-0 md:flex-shrink md:w-full flex items-start gap-2.5 px-2.5 py-2 rounded-lg border text-left transition-all duration-200 ${
                             isActive
                               ? "border-ink bg-paper-cool shadow-sm"
                               : "border-transparent hover:border-line hover:bg-paper-cool/60"
                           } ${quizScopeBusy && !isActive ? "opacity-50 cursor-not-allowed" : ""}`}
                         >
                           <span
-                            className={`flex-shrink-0 h-7 w-7 rounded-md font-mono text-[11px] uppercase tracking-wider flex items-center justify-center transition-colors duration-200 ${
+                            className={`flex-shrink-0 mt-0.5 h-7 w-7 rounded-md font-mono text-[11px] uppercase tracking-wider flex items-center justify-center transition-colors duration-200 ${
                               isActive
                                 ? "bg-accent text-paper-cool"
                                 : "bg-ink text-paper-cool group-hover:bg-ink-soft"
                             }`}
                           >
-                            {letter}
+                            {badge}
                           </span>
                           <span className="flex-1 min-w-0">
-                            <span className="block text-sm font-medium text-ink truncate">
-                              {s.title || `Part ${letter}`}
+                            {isQuiz && s.kind === "quiz_question" && (
+                              <span className="block font-mono text-[9.5px] uppercase tracking-[0.15em] text-muted mb-0.5">
+                                Question {questionNumber}
+                              </span>
+                            )}
+                            <span className={`block text-[12.5px] font-medium text-ink leading-snug ${isQuiz && s.kind === "quiz_question" ? "line-clamp-2" : "truncate"}`}>
+                              {primaryLabel}
                             </span>
                           </span>
                           {s.regenerating || s.streaming ? (
-                            <span className="h-1.5 w-1.5 rounded-full bg-accent animate-pulse flex-shrink-0" aria-label="Drafting" />
+                            <span className="mt-2 h-1.5 w-1.5 rounded-full bg-accent animate-pulse flex-shrink-0" aria-label="Drafting" />
                           ) : s.kind === "quiz_question" && s.question?.marks ? (
-                            <span className="hidden md:inline-block text-[11px] text-muted font-mono">
+                            <span className="hidden md:inline-block mt-1 text-[10px] text-muted font-mono px-1.5 py-0.5 rounded-md bg-paper border border-line">
                               {s.question.marks}m
                             </span>
                           ) : itemCount > 0 ? (
-                            <span className="hidden md:inline-block text-[11px] text-muted font-mono">
+                            <span className="hidden md:inline-block mt-1 text-[10px] text-muted font-mono">
                               {itemCount}q
                             </span>
                           ) : null}
@@ -1563,9 +1587,19 @@ export default function Studio({ initialKind } = {}) {
                         and only on the first section. Teaches the inline-
                         edit affordance without an onboarding tour. */}
                     {result?.kind === "quiz" && sectionIndex === 0 && (
-                      <div className="mb-4 rounded-lg border border-line bg-paper-warm/40 px-4 py-2.5 text-xs text-ink-soft leading-relaxed">
-                        <span className="font-medium text-ink">Tip · </span>
-                        Click any field to edit — the title, marks, choices, even which letter is correct. Changing the correct answer asks for confirmation before saving.
+                      <div className="mb-4 rounded-xl border-2 border-accent/40 bg-accent/[0.08] px-4 py-3 flex items-start gap-3 shadow-[0_4px_12px_-6px_rgba(200,71,43,0.18)]">
+                        <span className="flex-shrink-0 inline-flex h-7 w-7 rounded-lg bg-accent/[0.18] text-accent items-center justify-center font-mono text-xs font-semibold">
+                          !
+                        </span>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-serif text-[14px] font-medium text-accent leading-tight">
+                            Tip · Everything here is editable
+                          </p>
+                          <p className="text-[12.5px] text-ink-soft leading-snug mt-0.5">
+                            Click any field — title, marks, choices, even which letter is correct.
+                            Changing the correct answer asks for confirmation before saving.
+                          </p>
+                        </div>
                       </div>
                     )}
 

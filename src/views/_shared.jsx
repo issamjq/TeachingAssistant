@@ -155,7 +155,7 @@ export function useSortable(rows, { defaultKey = null, defaultDir = "asc", getVa
     });
   }, [rows, sort, getValue]);
 
-  return { sorted, sort, toggle };
+  return { sorted, sort, toggle, setSort };
 }
 
 // Clickable <th> header. Renders the same mono uppercase look as the existing

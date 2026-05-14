@@ -9,6 +9,7 @@ import {
 } from "./_shared";
 import {
   DataPageHeader, DataCard, CardsGrid, useViewMode,
+  useDateScope, filterByDateScope,
 } from "./_data-view";
 
 export default function Activities() {
@@ -20,6 +21,22 @@ export default function Activities() {
   const [busy, setBusy] = useState(false);
   const [completionsFor, setCompletionsFor] = useState(null);
   const [viewMode, setViewMode] = useViewMode("mudir.view.activities", "cards");
+  const [sortKey, setSortKey] = useState("updated_at-desc");
+  const [scope, setScope, scopeRange] = useDateScope();
+
+  const sortedItems = React.useMemo(() => {
+    const [k, dir] = sortKey.split("-");
+    const sign = dir === "asc" ? 1 : -1;
+    return [...items].sort((a, b) => {
+      const av = a[k]; const bv = b[k];
+      if (av == null && bv == null) return 0;
+      if (av == null) return 1;
+      if (bv == null) return -1;
+      if (typeof av === "number" && typeof bv === "number") return (av - bv) * sign;
+      return String(av).localeCompare(String(bv), undefined, { numeric: true }) * sign;
+    });
+  }, [items, sortKey]);
+  const visibleItems = filterByDateScope(sortedItems, scopeRange, (a) => a.scheduled_for);
 
   const reload = () => {
     setLoading(true);
@@ -61,6 +78,17 @@ export default function Activities() {
         onModeChange={setViewMode}
         trashEndpoint="/api/activities"
         onTrashChange={reload}
+        sortKey={sortKey}
+        onSortChange={setSortKey}
+        sortOptions={[
+          { value: "updated_at-desc",   label: "Recently updated" },
+          { value: "scheduled_for-asc", label: "Scheduled soonest" },
+          { value: "scheduled_for-desc",label: "Scheduled latest" },
+          { value: "title-asc",         label: "Title A → Z" },
+          { value: "duration_minutes-desc", label: "Longest duration" },
+        ]}
+        dateScope={scope}
+        onDateScopeChange={setScope}
       />
 
       {error && (
@@ -71,15 +99,17 @@ export default function Activities() {
 
       {loading && <p className="font-mono text-[10px] uppercase tracking-wider text-muted">Loading…</p>}
 
-      {!loading && items.length === 0 && (
+      {!loading && visibleItems.length === 0 && (
         <div className="rounded-2xl border border-dashed border-line p-12 text-center text-muted">
-          No activities yet — click &ldquo;New activity&rdquo; to create one.
+          {items.length === 0
+            ? "No activities yet — click “New activity” to create one."
+            : "Nothing matches the current filters."}
         </div>
       )}
 
-      {viewMode === "cards" && items.length > 0 && (
+      {viewMode === "cards" && visibleItems.length > 0 && (
         <CardsGrid>
-          {items.map((a) => (
+          {visibleItems.map((a) => (
             <DataCard
               key={a.id}
               onEdit={() => setEditing(a)}
@@ -114,7 +144,7 @@ export default function Activities() {
         </CardsGrid>
       )}
 
-      {viewMode === "list" && items.length > 0 && (
+      {viewMode === "list" && visibleItems.length > 0 && (
         <div className="rounded-2xl border border-line bg-paper-cool overflow-hidden">
           <table className="w-full text-sm">
             <thead>
@@ -129,7 +159,7 @@ export default function Activities() {
               </tr>
             </thead>
             <tbody>
-              {items.map((a) => (
+              {visibleItems.map((a) => (
                 <tr key={a.id} className="border-b border-line/60 last:border-0 hover:bg-paper-warm transition">
                   <td className="py-4 px-5 text-ink">{a.title}</td>
                   <td className="py-4 text-muted">{a.type || "—"}</td>

@@ -8,6 +8,7 @@ import {
 } from "./_shared";
 import {
   DataPageHeader, DataCard, CardsGrid, useViewMode,
+  useDateScope, filterByDateScope,
 } from "./_data-view";
 
 export default function Homework() {
@@ -18,6 +19,8 @@ export default function Homework() {
   const [deleting, setDeleting] = useState(null);
   const [busy, setBusy] = useState(false);
   const [viewMode, setViewMode] = useViewMode("mudir.view.homework", "cards");
+  const [sortKey, setSortKey] = useState("due_date-asc");
+  const [scope, setScope, scopeRange] = useDateScope();
 
   const reload = () => {
     setLoading(true);
@@ -27,10 +30,13 @@ export default function Homework() {
   };
   useEffect(reload, []);
 
-  const { sorted, sort, toggle } = useSortable(items, {
-    defaultKey: "due_date",
-    defaultDir: "asc",
+  const [sortField, sortDir] = sortKey.split("-");
+  const { sorted: sortedAll, sort, toggle, setSort } = useSortable(items, {
+    defaultKey: sortField,
+    defaultDir: sortDir,
   });
+  useEffect(() => { setSort({ key: sortField, dir: sortDir }); }, [sortKey, setSort, sortField, sortDir]);
+  const sorted = filterByDateScope(sortedAll, scopeRange, (h) => h.due_date);
 
   const onSaved = (saved, isNew) => {
     if (isNew) setItems((rows) => [saved, ...rows]);
@@ -64,6 +70,17 @@ export default function Homework() {
         onModeChange={setViewMode}
         trashEndpoint="/api/homework"
         onTrashChange={reload}
+        sortKey={sortKey}
+        onSortChange={setSortKey}
+        sortOptions={[
+          { value: "due_date-asc",   label: "Due soonest" },
+          { value: "due_date-desc",  label: "Due latest" },
+          { value: "title-asc",      label: "Title A → Z" },
+          { value: "title-desc",     label: "Title Z → A" },
+          { value: "status-asc",     label: "Status" },
+        ]}
+        dateScope={scope}
+        onDateScopeChange={setScope}
       />
 
       {error && (

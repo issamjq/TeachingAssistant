@@ -5,6 +5,7 @@ import {
 } from "./_shared";
 import {
   DataPageHeader, DataCard, CardsGrid, useViewMode,
+  useDateScope, filterByDateScope,
 } from "./_data-view";
 
 export default function Quizzes({ onOpenQuiz }) {
@@ -14,6 +15,8 @@ export default function Quizzes({ onOpenQuiz }) {
   const [deleting, setDeleting] = useState(null);
   const [busy, setBusy] = useState(false);
   const [viewMode, setViewMode] = useViewMode("mudir.view.quizzes", "cards");
+  const [sortKey, setSortKey] = useState("scheduled_for-desc");
+  const [scope, setScope, scopeRange] = useDateScope();
 
   const reload = () => {
     setLoading(true);
@@ -23,10 +26,15 @@ export default function Quizzes({ onOpenQuiz }) {
   };
   useEffect(reload, []);
 
-  const { sorted, sort, toggle } = useSortable(quizzes, {
-    defaultKey: "scheduled_for",
-    defaultDir: "desc",
+  // Drive the existing useSortable from the dropdown so the card view
+  // can be sorted without clicking column headers.
+  const [sortField, sortDir] = sortKey.split("-");
+  const { sorted: sortedAll, sort, toggle, setSort } = useSortable(quizzes, {
+    defaultKey: sortField,
+    defaultDir: sortDir,
   });
+  useEffect(() => { setSort({ key: sortField, dir: sortDir }); }, [sortKey, setSort, sortField, sortDir]);
+  const sorted = filterByDateScope(sortedAll, scopeRange, (q) => q.scheduled_for);
 
   const confirmDelete = async () => {
     setBusy(true);
@@ -54,6 +62,18 @@ export default function Quizzes({ onOpenQuiz }) {
         onModeChange={setViewMode}
         trashEndpoint="/api/quizzes"
         onTrashChange={reload}
+        sortKey={sortKey}
+        onSortChange={setSortKey}
+        sortOptions={[
+          { value: "scheduled_for-desc", label: "Newest scheduled" },
+          { value: "scheduled_for-asc",  label: "Oldest scheduled" },
+          { value: "title-asc",          label: "Title A → Z" },
+          { value: "title-desc",         label: "Title Z → A" },
+          { value: "total_marks-desc",   label: "Most marks" },
+          { value: "duration_minutes-desc", label: "Longest duration" },
+        ]}
+        dateScope={scope}
+        onDateScopeChange={setScope}
       />
 
       {error && (
