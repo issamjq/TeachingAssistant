@@ -255,9 +255,9 @@ export default function Planner() {
         <button
           type="button"
           onClick={() => setShowSchedule(true)}
-          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-line bg-paper-cool hover:border-ink hover:bg-paper-warm text-[11.5px] text-ink transition-all duration-150"
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-accent/30 bg-accent/[0.10] hover:bg-accent/[0.18] hover:border-accent/50 text-accent text-[11.5px] font-semibold shadow-sm transition-all duration-150"
         >
-          <Clock size={12} strokeWidth={1.75} />
+          <Clock size={13} strokeWidth={2.25} />
           Schedule
         </button>
         <button
@@ -488,11 +488,11 @@ function StudioHeroCard() {
               className="planner-hero-chip group"
             >
               <span className={`planner-hero-chip-icon planner-hero-chip-icon-${c.color}`}>
-                <Icon size={14} strokeWidth={2} />
+                <Icon size={13} strokeWidth={2} />
               </span>
-              <span className="flex flex-col min-w-0 text-left leading-[1.15]">
-                <span className="text-[11.5px] font-semibold text-ink whitespace-normal">{c.verb}</span>
-                <span className="text-[10px] text-muted whitespace-normal">{c.noun}</span>
+              <span className="flex flex-col min-w-0 text-left leading-[1.1]">
+                <span className="text-[10.5px] font-semibold text-ink whitespace-nowrap">{c.verb}</span>
+                <span className="text-[9px] text-muted whitespace-nowrap">{c.noun}</span>
               </span>
             </button>
           );

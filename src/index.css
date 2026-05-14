@@ -882,8 +882,8 @@
   display: flex;
   flex-direction: row;
   align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
+  gap: 9px;
+  padding: 6px 12px;
   border-radius: 12px;
   background-color: #fdf8ee;
   background-image: none;
@@ -908,9 +908,9 @@
    rather than the saturated white-on-color square. */
 .planner-hero-chip-icon {
   flex-shrink: 0;
-  height: 28px;
-  width: 28px;
-  border-radius: 8px;
+  height: 26px;
+  width: 26px;
+  border-radius: 7px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
