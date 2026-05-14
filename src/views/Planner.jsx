@@ -307,8 +307,8 @@ export default function Planner() {
 
       {/* The grid. paper-cool surface, rounded-2xl, soft shadow. Day
           headers in mono-uppercase, body cells in a 7-column grid. */}
-      <div className="planner-grid rounded-2xl border border-line bg-[#fdf8ee] overflow-hidden shadow-sm flex-1 flex flex-col min-h-0">
-        <div className="grid grid-cols-7 border-b border-line bg-[#f7eedb]/60 flex-shrink-0">
+      <div className="planner-grid rounded-2xl border border-line bg-[#fffdf6] overflow-hidden shadow-sm flex-1 flex flex-col min-h-0">
+        <div className="grid grid-cols-7 border-b border-line bg-[#fffdf6] flex-shrink-0">
           {DAY_LABELS.map((d) => (
             <div
               key={d}
@@ -329,8 +329,8 @@ export default function Planner() {
               <div
                 key={i}
                 className={`planner-cell border-b border-r border-line/70 px-1.5 pt-1 pb-1 min-h-[60px] flex flex-col gap-0.5 transition-colors duration-150 ${
-                  inMonth ? "bg-[#fdf8ee]" : "bg-[#f3e8d3]/45 text-muted/60"
-                } hover:bg-[#faefdc]/70 ${
+                  inMonth ? "bg-[#fffdf6]" : "bg-[#f6efe1]/45 text-muted/60"
+                } hover:bg-[#fcf6e6] ${
                   isToday ? "planner-cell-today" : ""
                 } ${(i + 1) % 7 === 0 ? "border-r-0" : ""} ${i >= 35 ? "border-b-0" : ""}`}
                 style={{ animationDelay: `${(i % 14) * 18}ms` }}
