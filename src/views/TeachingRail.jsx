@@ -2,10 +2,13 @@
 // rides on the right edge of the Teaching surfaces (Lesson Plans,
 // Quizzes, Homework, Presentations, Activities). Collapses to a thin
 // strip so the user can reclaim space, and remembers its preferred
-// state in localStorage.
+// state in localStorage. A "+ New entry" button below the list opens
+// the shared SchedulePopup so a teacher can add a slot without
+// leaving whichever surface they're on.
 import React, { useEffect, useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, CalendarDays } from "lucide-react";
+import { ChevronLeft, ChevronRight, CalendarDays, Plus } from "lucide-react";
 import { api } from "./_shared";
+import SchedulePopup from "./_schedule-popup";
 
 const DAY_LABELS = ["M", "T", "W", "T", "F", "S", "S"];
 const MONTH_NAMES = [
@@ -64,7 +67,7 @@ export default function TeachingRail() {
   };
 
   const [events, setEvents] = useState([]);
-  useEffect(() => {
+  const reloadEvents = () => {
     api("/api/schedule")
       .then((rows) => {
         setEvents(
@@ -81,7 +84,25 @@ export default function TeachingRail() {
         );
       })
       .catch(() => setEvents([]));
+  };
+  useEffect(reloadEvents, []);
+
+  // Teacher's grades + sections feed the popup's dropdowns so the
+  // form only offers what this teacher actually teaches.
+  const [teacherGrades, setTeacherGrades] = useState([]);
+  const [teacherSections, setTeacherSections] = useState([]);
+  useEffect(() => {
+    api("/api/me")
+      .then((me) => {
+        setTeacherGrades(Array.isArray(me?.grade_levels) ? me.grade_levels : []);
+        setTeacherSections(Array.isArray(me?.sections) ? me.sections : []);
+      })
+      .catch(() => { /* silent — dropdowns just show their fallback */ });
   }, []);
+
+  // "+ New entry" popup — defaults to the currently selected day so a
+  // teacher who picked Friday in the mini-cal gets Friday pre-filled.
+  const [popupOpen, setPopupOpen] = useState(false);
 
   const eventsByDate = useMemo(() => {
     const map = new Map();
@@ -238,6 +259,19 @@ export default function TeachingRail() {
 
       <div className="h-px bg-line/40" />
 
+      {/* Quick-add — drops a new schedule entry pre-filled to the
+          currently selected day. Same popup the Planner uses. */}
+      <button
+        type="button"
+        onClick={() => setPopupOpen(true)}
+        className="planner-nav-btn inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border border-accent/30 bg-accent/[0.10] hover:bg-accent/[0.18] hover:border-accent/50 text-accent text-[11.5px] font-semibold shadow-sm"
+      >
+        <Plus size={13} strokeWidth={2.5} />
+        New entry
+      </button>
+
+      <div className="h-px bg-line/40" />
+
       {/* Upcoming chronological list */}
       <div className="flex-1 min-h-0 overflow-auto flex flex-col gap-3 pb-2">
         {upcomingDays.map((day) => (
@@ -274,6 +308,16 @@ export default function TeachingRail() {
           </div>
         ))}
       </div>
+
+      {popupOpen && (
+        <SchedulePopup
+          defaultDate={isoKey(selectedDate)}
+          teacherGrades={teacherGrades}
+          teacherSections={teacherSections}
+          onClose={() => setPopupOpen(false)}
+          onSaved={reloadEvents}
+        />
+      )}
     </aside>
   );
 }
