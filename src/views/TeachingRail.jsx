@@ -66,24 +66,71 @@ export default function TeachingRail() {
     }
   };
 
+  // Pull from every teaching surface that carries a date so the rail
+  // is a single source of truth for "what's on" — schedule slots,
+  // quiz dates, homework due dates, presentation + activity dates.
+  // Each row is normalised to { id, date, title, time, kind } so the
+  // rest of the rail doesn't care where it came from.
   const [events, setEvents] = useState([]);
+  const isoOnly = (v) => (typeof v === "string"
+    ? v.slice(0, 10)
+    : new Date(v).toISOString().slice(0, 10));
   const reloadEvents = () => {
-    api("/api/schedule")
-      .then((rows) => {
-        setEvents(
-          (rows || [])
-            .filter((r) => r.status !== "done")
-            .map((r) => ({
-              id: r.id,
-              date: typeof r.date === "string"
-                ? r.date.slice(0, 10)
-                : new Date(r.date).toISOString().slice(0, 10),
-              title: r.title,
-              time: r.start_time ? String(r.start_time).slice(0, 5) : null,
-            }))
-        );
-      })
-      .catch(() => setEvents([]));
+    Promise.allSettled([
+      api("/api/schedule"),
+      api("/api/quizzes"),
+      api("/api/homework"),
+      api("/api/presentations"),
+      api("/api/activities"),
+    ]).then((results) => {
+      const get = (i) => (results[i].status === "fulfilled" ? results[i].value || [] : []);
+      const schedule = get(0)
+        .filter((r) => r.status !== "done")
+        .map((r) => ({
+          id: `schedule-${r.id}`,
+          kind: "schedule",
+          date: isoOnly(r.date),
+          title: r.title,
+          time: r.start_time ? String(r.start_time).slice(0, 5) : null,
+        }));
+      const quizzes = get(1)
+        .filter((q) => q.scheduled_for)
+        .map((q) => ({
+          id: `quiz-${q.id}`,
+          kind: "quiz",
+          date: isoOnly(q.scheduled_for),
+          title: q.title,
+          time: null,
+        }));
+      const homework = get(2)
+        .filter((h) => h.due_date)
+        .map((h) => ({
+          id: `homework-${h.id}`,
+          kind: "homework",
+          date: isoOnly(h.due_date),
+          title: h.title,
+          time: null,
+        }));
+      const presentations = get(3)
+        .filter((p) => p.scheduled_for)
+        .map((p) => ({
+          id: `presentation-${p.id}`,
+          kind: "presentation",
+          date: isoOnly(p.scheduled_for),
+          title: p.title,
+          time: null,
+        }));
+      const activities = get(4)
+        .filter((a) => a.scheduled_for)
+        .map((a) => ({
+          id: `activity-${a.id}`,
+          kind: "activity",
+          date: isoOnly(a.scheduled_for),
+          title: a.title,
+          time: null,
+        }));
+      setEvents([...schedule, ...quizzes, ...homework, ...presentations, ...activities]);
+    });
   };
   useEffect(reloadEvents, []);
 

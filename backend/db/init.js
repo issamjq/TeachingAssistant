@@ -139,6 +139,14 @@ ALTER TABLE schedule_entries ALTER COLUMN start_time DROP NOT NULL;
 ALTER TABLE schedule_entries ALTER COLUMN end_time   DROP NOT NULL;
 `;
 
+// Presentations and Activities didn't carry a scheduled date originally;
+// the calendar rail wants one so every teaching surface can pin a slot
+// the same way quizzes (scheduled_for) and homework (due_date) already do.
+const SCHEMA_PRES_ACT_SCHEDULED = `
+ALTER TABLE presentations ADD COLUMN IF NOT EXISTS scheduled_for DATE;
+ALTER TABLE activities    ADD COLUMN IF NOT EXISTS scheduled_for DATE;
+`;
+
 // =============================================================================
 // SCHEMA — new tables
 // =============================================================================
@@ -475,6 +483,9 @@ export async function runInit() {
 
   console.log("Relaxing schedule_entries time NOT NULLs...");
   await pool.query(SCHEMA_SCHEDULE_TIMES_NULLABLE);
+
+  console.log("Adding scheduled_for to presentations and activities...");
+  await pool.query(SCHEMA_PRES_ACT_SCHEDULED);
 
   console.log("Normalizing legacy values...");
   await pool.query(NORMALIZE);

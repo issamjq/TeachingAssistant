@@ -5,10 +5,10 @@ import { crudRouter } from "../lib/crud.js";
 
 const FIELDS = [
   "draft_id", "title", "type", "subject", "grade",
-  "duration_minutes", "instructions", "materials",
+  "duration_minutes", "instructions", "materials", "scheduled_for",
 ];
 const SELECT = `id, draft_id, title, type, subject, grade,
-                duration_minutes, instructions, materials,
+                duration_minutes, instructions, materials, scheduled_for,
                 created_at, updated_at`;
 
 const router = crudRouter({

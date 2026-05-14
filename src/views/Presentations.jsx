@@ -176,6 +176,7 @@ function PresentationModal({ initial, onClose, onSaved }) {
     subject: initial?.subject || "",
     grade: initial?.grade || "",
     status: initial?.status || "Draft",
+    scheduled_for: initial?.scheduled_for ? String(initial.scheduled_for).slice(0, 10) : "",
     slides: initial?.slides || [],
   }));
   const [saving, setSaving] = useState(false);
@@ -183,10 +184,11 @@ function PresentationModal({ initial, onClose, onSaved }) {
 
   const submit = async () => {
     setSaving(true); setErr(null);
+    const payload = { ...form, scheduled_for: form.scheduled_for || null };
     try {
       const saved = isNew
-        ? await api("/api/presentations", { method: "POST", body: form })
-        : await api(`/api/presentations/${initial.id}`, { method: "PATCH", body: form });
+        ? await api("/api/presentations", { method: "POST", body: payload })
+        : await api(`/api/presentations/${initial.id}`, { method: "PATCH", body: payload });
       onSaved(saved, isNew);
     } catch (e) {
       setErr(e.message);
@@ -237,6 +239,16 @@ function PresentationModal({ initial, onClose, onSaved }) {
             <option>Archived</option>
           </select>
         </Field>
+        <div className="md:col-span-2">
+          <Field label="Scheduled for">
+            <input
+              type="date"
+              className={inputClasses}
+              value={form.scheduled_for}
+              onChange={(e) => setForm((f) => ({ ...f, scheduled_for: e.target.value }))}
+            />
+          </Field>
+        </div>
       </div>
 
       <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-3 mt-6">Slides</p>

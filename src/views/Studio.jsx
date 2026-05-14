@@ -59,10 +59,10 @@ const KINDS = [
     sample: "Group activity for Grade 5 history: students roleplay a town hall debating the construction of the railway.",
   },
   {
-    value: "presentation", label: "Slides",     icon: Layers,
+    value: "presentation", label: "Presentation", icon: Layers,
     oneliner: "Slide-by-slide outline",
     menuBlurb: "Deck for class",
-    verb: "Make", inlineLabel: "slide deck",    suffix: "Tell Mudir what to cover.",
+    verb: "Make", inlineLabel: "presentation",  suffix: "Tell Mudir what to cover.",
     sample: "8-slide intro deck on the water cycle for Grade 4.",
   },
   {

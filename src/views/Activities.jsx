@@ -180,6 +180,7 @@ function ActivityModal({ initial, onClose, onSaved }) {
     subject: initial?.subject || "",
     grade: initial?.grade || "",
     duration_minutes: initial?.duration_minutes || 15,
+    scheduled_for: initial?.scheduled_for ? String(initial.scheduled_for).slice(0, 10) : "",
     instructions: initial?.instructions || "",
     materials: initial?.materials || [],
   }));
@@ -189,10 +190,12 @@ function ActivityModal({ initial, onClose, onSaved }) {
 
   const submit = async () => {
     setSaving(true); setErr(null);
+    // Empty date → null so Postgres doesn't try to cast "" to DATE.
+    const payload = { ...form, scheduled_for: form.scheduled_for || null };
     try {
       const saved = isNew
-        ? await api("/api/activities", { method: "POST", body: form })
-        : await api(`/api/activities/${initial.id}`, { method: "PATCH", body: form });
+        ? await api("/api/activities", { method: "POST", body: payload })
+        : await api(`/api/activities/${initial.id}`, { method: "PATCH", body: payload });
       onSaved(saved, isNew);
     } catch (e) {
       setErr(e.message);
@@ -239,6 +242,14 @@ function ActivityModal({ initial, onClose, onSaved }) {
             <option value="">—</option>
             {GRADE_LEVELS.map((g) => <option key={g} value={g}>{g}</option>)}
           </select>
+        </Field>
+        <Field label="Scheduled for">
+          <input
+            type="date"
+            className={inputClasses}
+            value={form.scheduled_for}
+            onChange={(e) => set("scheduled_for", e.target.value)}
+          />
         </Field>
       </div>
       <div className="mt-4">
