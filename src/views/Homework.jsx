@@ -120,7 +120,7 @@ export default function Homework() {
                   {h.section ? ` · ${h.section}` : ""}
                 </p>
                 <div className="grid grid-cols-2 gap-2 mt-2 pt-3 border-t border-dashed border-line">
-                  <Stat label="Due" value={h.due_date ? new Date(h.due_date).toLocaleDateString() : "—"} />
+                  <Stat label="Due" value={fmtShortDate(h.due_date)} />
                   <Stat label="Section" value={h.section || "—"} />
                 </div>
               </div>
@@ -192,11 +192,18 @@ export default function Homework() {
 
 function Stat({ label, value }) {
   return (
-    <div>
+    <div className="min-w-0">
       <p className="font-mono text-[9px] uppercase tracking-wider text-muted">{label}</p>
-      <p className="text-[12px] text-ink mt-0.5 truncate">{value}</p>
+      <p className="text-[12px] text-ink mt-0.5 leading-tight whitespace-nowrap overflow-hidden text-ellipsis">{value}</p>
     </div>
   );
+}
+
+function fmtShortDate(v) {
+  if (!v) return "—";
+  const d = new Date(v);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
 function ListRowActions({ onEdit, onDelete }) {

@@ -119,7 +119,7 @@ export default function Quizzes({ onOpenQuiz }) {
                 <div className="grid grid-cols-3 gap-2 mt-2 pt-3 border-t border-dashed border-line">
                   <Stat label="Marks" value={q.total_marks ?? "—"} />
                   <Stat label="Duration" value={q.duration_minutes ? `${q.duration_minutes} min` : "—"} />
-                  <Stat label="Scheduled" value={q.scheduled_for ? new Date(q.scheduled_for).toLocaleDateString() : "—"} />
+                  <Stat label="Scheduled" value={fmtShortDate(q.scheduled_for)} />
                 </div>
               </button>
             </DataCard>
@@ -192,11 +192,20 @@ export default function Quizzes({ onOpenQuiz }) {
 
 function Stat({ label, value }) {
   return (
-    <div>
+    <div className="min-w-0">
       <p className="font-mono text-[9px] uppercase tracking-wider text-muted">{label}</p>
-      <p className="text-[12px] text-ink mt-0.5 truncate">{value}</p>
+      <p className="text-[12px] text-ink mt-0.5 leading-tight whitespace-nowrap overflow-hidden text-ellipsis">{value}</p>
     </div>
   );
+}
+
+// Short, calendar-friendly date label — e.g. "May 18". Falls back to
+// an em dash when there is no value, so card stats stay aligned.
+function fmtShortDate(v) {
+  if (!v) return "—";
+  const d = new Date(v);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
 // Same edit/delete affordance as DataCard but inline for list rows.
