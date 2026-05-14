@@ -11,4 +11,5 @@ export default crudRouter({
   timestampOnPatch: "updated_at",
   routeName: "/api/presentations",
   teacherScoped: true,
+  softDelete: true,
 });

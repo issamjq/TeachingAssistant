@@ -20,6 +20,7 @@ const router = crudRouter({
   timestampOnPatch: "updated_at",
   routeName: "/api/quizzes",
   teacherScoped: true,
+  softDelete: true,
 });
 
 const QUESTION_FIELDS = ["position", "type", "prompt", "choices", "correct_answer", "marks"];

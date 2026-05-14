@@ -62,6 +62,8 @@ export default function Homework() {
         aiKind="homework"
         mode={viewMode}
         onModeChange={setViewMode}
+        trashEndpoint="/api/homework"
+        onTrashChange={reload}
       />
 
       {error && (

@@ -59,6 +59,8 @@ export default function Presentations() {
         aiKind="presentation"
         mode={viewMode}
         onModeChange={setViewMode}
+        trashEndpoint="/api/presentations"
+        onTrashChange={reload}
       />
 
       {error && (

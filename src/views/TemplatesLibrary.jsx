@@ -10,7 +10,8 @@ import {
   api,
   selectClasses,
 } from "./_shared";
-import { ViewModeToggle, useViewMode, NewKindPopup } from "./_data-view";
+import { Trash2 } from "lucide-react";
+import { ViewModeToggle, useViewMode, NewKindPopup, TrashPopup } from "./_data-view";
 import { MAJORS } from "../lib/enums";
 
 // Lazy-load mammoth only when the user actually clicks Import .docx, so the
@@ -68,6 +69,7 @@ export default function TemplatesLibrary({ onNewTemplate, onUseTemplate, onEditT
   const [importing, setImporting] = useState(false);
   const [viewMode, setViewMode] = useViewMode("mudir.view.templates", "cards");
   const [newPopupOpen, setNewPopupOpen] = useState(false);
+  const [trashOpen, setTrashOpen] = useState(false);
   const fileInputRef = useRef(null);
 
   const handleImport = async (e) => {
@@ -101,6 +103,12 @@ export default function TemplatesLibrary({ onNewTemplate, onUseTemplate, onEditT
     }
   };
 
+  const reload = () => {
+    setLoading(true);
+    api("/api/templates")
+      .then((data) => { setTemplates(data); setLoading(false); })
+      .catch((e) => { setError(e.message); setLoading(false); });
+  };
   useEffect(() => {
     api("/api/templates")
       .then((data) => {
@@ -182,6 +190,9 @@ export default function TemplatesLibrary({ onNewTemplate, onUseTemplate, onEditT
             {importing ? "Importing…" : "Import .docx"}
           </Button>
           <ViewModeToggle mode={viewMode} onChange={setViewMode} />
+          <Button variant="secondary" className="px-3" onClick={() => setTrashOpen(true)}>
+            <Trash2 size={13} className="mr-1.5" /> Recently deleted
+          </Button>
           <Button onClick={() => setNewPopupOpen(true)}>
             <Plus size={15} className="mr-2" /> New template
           </Button>
@@ -193,6 +204,14 @@ export default function TemplatesLibrary({ onNewTemplate, onUseTemplate, onEditT
           aiKind="lesson_plan"
           onClose={() => setNewPopupOpen(false)}
           onManual={() => { setNewPopupOpen(false); onNewTemplate?.(); }}
+        />
+      )}
+      {trashOpen && (
+        <TrashPopup
+          endpoint="/api/templates"
+          titleField="name"
+          onClose={() => setTrashOpen(false)}
+          onChange={reload}
         />
       )}
 

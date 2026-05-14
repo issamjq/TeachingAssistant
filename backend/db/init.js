@@ -147,6 +147,24 @@ ALTER TABLE presentations ADD COLUMN IF NOT EXISTS scheduled_for DATE;
 ALTER TABLE activities    ADD COLUMN IF NOT EXISTS scheduled_for DATE;
 `;
 
+// Soft-delete columns. Every teaching-surface table gets deleted_at so
+// the trash / recovery UI can list and restore items, and the backend
+// can auto-purge anything older than 30 days. Idempotent.
+const SCHEMA_SOFT_DELETE = `
+ALTER TABLE quizzes       ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
+ALTER TABLE homework      ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
+ALTER TABLE presentations ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
+ALTER TABLE activities    ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
+ALTER TABLE drafts        ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
+ALTER TABLE templates     ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
+CREATE INDEX IF NOT EXISTS quizzes_deleted_at_idx       ON quizzes (deleted_at);
+CREATE INDEX IF NOT EXISTS homework_deleted_at_idx      ON homework (deleted_at);
+CREATE INDEX IF NOT EXISTS presentations_deleted_at_idx ON presentations (deleted_at);
+CREATE INDEX IF NOT EXISTS activities_deleted_at_idx    ON activities (deleted_at);
+CREATE INDEX IF NOT EXISTS drafts_deleted_at_idx        ON drafts (deleted_at);
+CREATE INDEX IF NOT EXISTS templates_deleted_at_idx     ON templates (deleted_at);
+`;
+
 // =============================================================================
 // SCHEMA — new tables
 // =============================================================================
@@ -486,6 +504,9 @@ export async function runInit() {
 
   console.log("Adding scheduled_for to presentations and activities...");
   await pool.query(SCHEMA_PRES_ACT_SCHEDULED);
+
+  console.log("Adding soft-delete columns to teaching surfaces...");
+  await pool.query(SCHEMA_SOFT_DELETE);
 
   console.log("Normalizing legacy values...");
   await pool.query(NORMALIZE);

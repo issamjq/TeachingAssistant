@@ -52,6 +52,8 @@ export default function Quizzes({ onOpenQuiz }) {
         aiKind="quiz"
         mode={viewMode}
         onModeChange={setViewMode}
+        trashEndpoint="/api/quizzes"
+        onTrashChange={reload}
       />
 
       {error && (

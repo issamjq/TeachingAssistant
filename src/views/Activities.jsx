@@ -59,6 +59,8 @@ export default function Activities() {
         aiKind="activity"
         mode={viewMode}
         onModeChange={setViewMode}
+        trashEndpoint="/api/activities"
+        onTrashChange={reload}
       />
 
       {error && (

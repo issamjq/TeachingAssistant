@@ -24,4 +24,5 @@ export default crudRouter({
   timestampOnPatch: "last_edited",
   routeName: "/api/drafts",
   teacherScoped: true,
+  softDelete: true,
 });

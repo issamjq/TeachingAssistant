@@ -11,8 +11,9 @@
 //     icons in the top-right corner.
 import React, { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { Plus, X, Pencil, Trash2, LayoutGrid, List, Sparkles } from "lucide-react";
+import { Plus, X, Pencil, Trash2, LayoutGrid, List, Sparkles, RotateCcw } from "lucide-react";
 import { navigate } from "../lib/route";
+import { api } from "./_shared";
 
 // ──────────────────────────────────────────────────────────────────
 // View mode persistence
@@ -72,8 +73,14 @@ export function DataPageHeader({
   mode,               // "cards" | "list"
   onModeChange,       // (m) => void
   extraActions,       // ReactNode — sits to the left of the New button
+  // Trash / recovery — when an endpoint is provided, the header shows
+  // a "Recently deleted" button that opens TrashPopup.
+  trashEndpoint,      // e.g., "/api/quizzes"
+  trashTitleField = "title",  // some tables (drafts/templates) use "name"
+  onTrashChange,      // () => void  callback fired after restore/forever
 }) {
   const [popupOpen, setPopupOpen] = useState(false);
+  const [trashOpen, setTrashOpen] = useState(false);
   return (
     <div className="mb-6">
       <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
@@ -91,6 +98,17 @@ export function DataPageHeader({
         <div className="flex flex-wrap items-center gap-3">
           {onModeChange && <ViewModeToggle mode={mode} onChange={onModeChange} />}
           {extraActions}
+          {trashEndpoint && (
+            <button
+              type="button"
+              onClick={() => setTrashOpen(true)}
+              title="See items you recently deleted"
+              className="planner-nav-btn inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-line bg-paper-cool hover:bg-paper-warm hover:border-ink text-sm text-ink"
+            >
+              <Trash2 size={13} strokeWidth={2} />
+              Recently deleted
+            </button>
+          )}
           {newLabel && onNewManual && (
             <button
               type="button"
@@ -111,7 +129,165 @@ export function DataPageHeader({
           onManual={() => { setPopupOpen(false); onNewManual?.(); }}
         />
       )}
+      {trashOpen && trashEndpoint && (
+        <TrashPopup
+          endpoint={trashEndpoint}
+          titleField={trashTitleField}
+          onClose={() => setTrashOpen(false)}
+          onChange={onTrashChange}
+        />
+      )}
     </div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────
+// TrashPopup — shows soft-deleted items (last 30 days), with
+// Restore + Delete-forever per row. Endpoint is the resource base
+// (e.g., "/api/quizzes"); we hit /trash, /:id/restore, /:id/forever.
+// ──────────────────────────────────────────────────────────────────
+export function TrashPopup({ endpoint, titleField = "title", onClose, onChange }) {
+  const [rows, setRows] = useState(null);  // null = loading
+  const [err, setErr] = useState(null);
+  const [busyId, setBusyId] = useState(null);
+
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prev;
+    };
+  }, [onClose]);
+
+  const reload = () => {
+    setRows(null);
+    setErr(null);
+    api(`${endpoint}/trash`)
+      .then((data) => setRows(data || []))
+      .catch((e) => { setRows([]); setErr(e.message); });
+  };
+  useEffect(reload, [endpoint]);
+
+  const restore = async (id) => {
+    setBusyId(id);
+    try {
+      await api(`${endpoint}/${id}/restore`, { method: "POST" });
+      setRows((rs) => (rs || []).filter((r) => r.id !== id));
+      onChange?.();
+    } catch (e) {
+      setErr(e.message);
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const forever = async (id) => {
+    if (!window.confirm("Delete forever? This cannot be undone.")) return;
+    setBusyId(id);
+    try {
+      await api(`${endpoint}/${id}/forever`, { method: "DELETE" });
+      setRows((rs) => (rs || []).filter((r) => r.id !== id));
+    } catch (e) {
+      setErr(e.message);
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const daysLeft = (deletedAt) => {
+    const ms = new Date(deletedAt).getTime() + 30 * 86400000 - Date.now();
+    return Math.max(0, Math.ceil(ms / 86400000));
+  };
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-ink/45 backdrop-blur-lg backdrop-saturate-150 animate-[fadeIn_180ms_ease-out]"
+      onClick={onClose}
+    >
+      <div
+        className="relative bg-paper-cool rounded-2xl border border-line shadow-[0_30px_80px_-20px_rgba(15,20,16,0.45)] w-full max-w-[720px] max-h-[85vh] flex flex-col animate-[popIn_220ms_cubic-bezier(0.22,1,0.36,1)]"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close"
+          className="absolute top-4 right-4 z-10 h-9 w-9 rounded-lg border border-line bg-paper-cool hover:bg-paper-warm hover:border-ink flex items-center justify-center transition-all"
+        >
+          <X size={16} strokeWidth={1.75} />
+        </button>
+
+        <div className="px-7 pt-6 pb-5 border-b border-line pr-14">
+          <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-1.5 inline-flex items-center gap-2.5">
+            <span className="w-6 h-px bg-accent" /> Trash
+          </p>
+          <h2 className="font-serif text-2xl font-medium text-ink leading-tight">
+            Recently <em className="italic font-medium text-accent">deleted</em>
+          </h2>
+          <p className="text-[12.5px] text-muted mt-1.5">
+            Items here are auto-purged after 30 days. Restore brings them back; Delete forever clears them now.
+          </p>
+        </div>
+
+        <div className="px-6 py-5 overflow-auto">
+          {err && (
+            <div className="mb-3 bg-paper border border-accent rounded-lg p-2.5">
+              <p className="text-sm text-accent">{err}</p>
+            </div>
+          )}
+
+          {rows === null && (
+            <p className="font-mono text-[10px] uppercase tracking-wider text-muted">Loading…</p>
+          )}
+
+          {rows && rows.length === 0 && !err && (
+            <p className="text-center text-muted text-sm py-8">
+              Nothing in the trash. Items you delete will show up here for 30 days.
+            </p>
+          )}
+
+          {rows && rows.length > 0 && (
+            <div className="flex flex-col gap-2">
+              {rows.map((r) => (
+                <div
+                  key={r.id}
+                  className="flex items-center gap-3 px-3 py-2.5 rounded-xl border border-line bg-[#fdf8ee]"
+                >
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[13px] font-medium text-ink leading-tight truncate">
+                      {r[titleField] || "(untitled)"}
+                    </p>
+                    <p className="text-[11px] text-muted mt-0.5">
+                      Deleted {new Date(r.deleted_at).toLocaleDateString()} · {daysLeft(r.deleted_at)} day{daysLeft(r.deleted_at) === 1 ? "" : "s"} left
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => restore(r.id)}
+                    disabled={busyId === r.id}
+                    className="planner-nav-btn inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-sage/40 bg-paper-cool hover:bg-sage hover:text-paper-cool hover:border-sage text-[12px] text-sage disabled:opacity-50"
+                  >
+                    <RotateCcw size={12} strokeWidth={2} /> Restore
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => forever(r.id)}
+                    disabled={busyId === r.id}
+                    className="planner-nav-btn inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-accent/40 bg-paper-cool hover:bg-accent hover:text-paper-cool hover:border-accent text-[12px] text-accent disabled:opacity-50"
+                  >
+                    <Trash2 size={12} strokeWidth={2} /> Delete forever
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>,
+    document.body
   );
 }
 

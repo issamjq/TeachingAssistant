@@ -19,6 +19,7 @@ const router = crudRouter({
   timestampOnPatch: "updated_at",
   routeName: "/api/activities",
   teacherScoped: true,
+  softDelete: true,
 });
 
 const assertOwns = async (id) => {

@@ -14,6 +14,10 @@ import { loadCurrentTeacher } from "./currentTeacher.js";
 //                    (forbids cross-teacher reads, stamps teacher_id on inserts).
 //   listExtra(req, ctx) : optional, returns { where, params, skip } extending the scope.
 //   afterMutation(row)  : optional callback after each successful POST / PATCH.
+//   softDelete     : if true, DELETE flips a deleted_at timestamp instead
+//                    of removing the row. GETs hide soft-deleted rows.
+//                    Adds /trash, /:id/restore, /:id/forever routes and
+//                    auto-purges anything > 30 days old on /trash access.
 export function crudRouter({
   table,
   fields,
@@ -24,6 +28,7 @@ export function crudRouter({
   teacherScoped = false,
   listExtra = null,
   afterMutation = null,
+  softDelete = false,
 }) {
   const router = Router();
   const tag = routeName || `/api/${table}`;
@@ -38,7 +43,10 @@ export function crudRouter({
   router.get("/", async (req, res) => {
     try {
       const scope = await scopeFor();
-      let where = scope.where ? `WHERE ${scope.where}` : "";
+      const baseConds = [];
+      if (scope.where) baseConds.push(scope.where);
+      if (softDelete) baseConds.push("deleted_at IS NULL");
+      let where = baseConds.length ? `WHERE ${baseConds.join(" AND ")}` : "";
       let params = [...scope.params];
 
       if (listExtra) {
@@ -61,6 +69,78 @@ export function crudRouter({
       handleErr(res, `GET ${tag}`, err);
     }
   });
+
+  if (softDelete) {
+    // GET /trash — items deleted in the last 30 days. Older rows are
+    // hard-deleted opportunistically before the list is returned, so
+    // the user never sees stale "recoverable" entries.
+    router.get("/trash", async (req, res) => {
+      try {
+        const scope = await scopeFor();
+        const conds = [];
+        if (scope.where) conds.push(scope.where);
+        const params = [...scope.params];
+
+        // Purge anything older than 30 days for this teacher.
+        const purgeConds = [...conds, "deleted_at IS NOT NULL", "deleted_at < NOW() - INTERVAL '30 days'"];
+        await pool.query(
+          `DELETE FROM ${table} WHERE ${purgeConds.join(" AND ")}`,
+          params
+        );
+
+        const listConds = [...conds, "deleted_at IS NOT NULL"];
+        const r = await pool.query(
+          `SELECT ${selectCols} FROM ${table} WHERE ${listConds.join(" AND ")}
+             ORDER BY deleted_at DESC`,
+          params
+        );
+        res.json(r.rows);
+      } catch (err) {
+        handleErr(res, `GET ${tag}/trash`, err);
+      }
+    });
+
+    // POST /:id/restore — clear deleted_at so the row resurfaces in
+    // the normal list.
+    router.post("/:id/restore", async (req, res) => {
+      try {
+        const scope = await scopeFor();
+        const params = [req.params.id];
+        const conds = [`id = $1`, `deleted_at IS NOT NULL`];
+        if (scope.where) {
+          params.push(...scope.params);
+          conds.push(`teacher_id = $${params.length}`);
+        }
+        const r = await pool.query(
+          `UPDATE ${table} SET deleted_at = NULL ${timestampOnPatch ? `, ${timestampOnPatch} = NOW()` : ""}
+             WHERE ${conds.join(" AND ")} RETURNING ${selectCols}`,
+          params
+        );
+        if (r.rows.length === 0) return res.status(404).json({ error: "Not found" });
+        res.json(r.rows[0]);
+      } catch (err) {
+        handleErr(res, `POST ${tag}/:id/restore`, err);
+      }
+    });
+
+    // DELETE /:id/forever — hard delete, bypasses the 30-day window.
+    router.delete("/:id/forever", async (req, res) => {
+      try {
+        const scope = await scopeFor();
+        const params = [req.params.id];
+        let where = `WHERE id = $1`;
+        if (scope.where) {
+          params.push(...scope.params);
+          where += ` AND teacher_id = $${params.length}`;
+        }
+        const r = await pool.query(`DELETE FROM ${table} ${where}`, params);
+        if (r.rowCount === 0) return res.status(404).json({ error: "Not found" });
+        res.json({ ok: true });
+      } catch (err) {
+        handleErr(res, `DELETE ${tag}/:id/forever`, err);
+      }
+    });
+  }
 
   router.post("/", async (req, res) => {
     try {
@@ -95,6 +175,7 @@ export function crudRouter({
         params.push(...scope.params);
         where += ` AND teacher_id = $${params.length}`;
       }
+      if (softDelete) where += ` AND deleted_at IS NULL`;
       const r = await pool.query(`SELECT ${selectCols} FROM ${table} ${where}`, params);
       if (r.rows.length === 0) return res.status(404).json({ error: "Not found" });
       res.json(r.rows[0]);
@@ -138,6 +219,16 @@ export function crudRouter({
       if (scope.where) {
         params.push(...scope.params);
         where += ` AND teacher_id = $${params.length}`;
+      }
+      if (softDelete) {
+        // Soft delete: flip deleted_at and leave the row in place so
+        // the user has 30 days to recover from /trash.
+        const r = await pool.query(
+          `UPDATE ${table} SET deleted_at = NOW() ${where} AND deleted_at IS NULL`,
+          params
+        );
+        if (r.rowCount === 0) return res.status(404).json({ error: "Not found" });
+        return res.json({ ok: true, soft: true });
       }
       const r = await pool.query(`DELETE FROM ${table} ${where}`, params);
       if (r.rowCount === 0) return res.status(404).json({ error: "Not found" });

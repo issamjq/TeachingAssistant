@@ -13,8 +13,9 @@ import {
   api,
   selectClasses,
 } from "./_shared";
+import { Trash2 } from "lucide-react";
 import {
-  ViewModeToggle, useViewMode, DataCard, CardsGrid,
+  ViewModeToggle, useViewMode, DataCard, CardsGrid, TrashPopup,
 } from "./_data-view";
 import { MAJORS } from "../lib/enums";
 
@@ -31,18 +32,15 @@ export default function ReusableDrafts({ onEditDraft }) {
   const [busy, setBusy] = useState(false);
   const [bulkOpen, setBulkOpen] = useState(false);
   const [viewMode, setViewMode] = useViewMode("mudir.view.drafts", "cards");
+  const [trashOpen, setTrashOpen] = useState(false);
 
-  useEffect(() => {
+  const reload = () => {
+    setLoading(true);
     api("/api/drafts")
-      .then((data) => {
-        setDrafts(data);
-        setLoading(false);
-      })
-      .catch((err) => {
-        setError(err.message);
-        setLoading(false);
-      });
-  }, []);
+      .then((data) => { setDrafts(data); setLoading(false); })
+      .catch((err) => { setError(err.message); setLoading(false); });
+  };
+  useEffect(reload, []);
 
   const subjectOptions = useMemo(() => {
     const set = new Set([...MAJORS, ...drafts.map((d) => d.subject).filter(Boolean)]);
@@ -112,11 +110,22 @@ export default function ReusableDrafts({ onEditDraft }) {
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <ViewModeToggle mode={viewMode} onChange={setViewMode} />
+          <Button variant="secondary" className="px-3" onClick={() => setTrashOpen(true)}>
+            <Trash2 size={13} className="mr-1.5" /> Recently deleted
+          </Button>
           <Button variant="secondary" onClick={() => setBulkOpen(true)} disabled={drafts.length === 0}>
             Clear all drafts
           </Button>
         </div>
       </div>
+      {trashOpen && (
+        <TrashPopup
+          endpoint="/api/drafts"
+          titleField="name"
+          onClose={() => setTrashOpen(false)}
+          onChange={reload}
+        />
+      )}
 
       <div className="flex flex-col md:flex-row md:flex-wrap gap-3 mb-6">
         <div className="flex-1 min-w-[240px] bg-paper-cool rounded-lg border border-line px-4 py-2.5 flex items-center gap-2">

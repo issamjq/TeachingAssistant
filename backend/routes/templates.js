@@ -15,4 +15,5 @@ export default crudRouter({
   timestampOnPatch: "updated_at",
   routeName: "/api/templates",
   teacherScoped: true,
+  softDelete: true,
 });
