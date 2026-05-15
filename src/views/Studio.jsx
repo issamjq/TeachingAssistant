@@ -151,6 +151,40 @@ const ACTIVITY_PARAMS_DEFAULTS = {
   scheduled_for: "", // YYYY-MM-DD
 };
 
+// Lesson plan pre-prompt panel — Grade + Major + Language + Section +
+// Duration, plus a schedule date. Mirrors the quiz/activity shape.
+const LESSON_DURATIONS = [30, 45, 60, 75, 90];
+const LESSON_PARAMS_DEFAULTS = {
+  grade: "",       // from GRADE_LEVELS / teacher's profile
+  major: "",       // from MAJORS
+  language: "",    // from QUIZ_LANGUAGES
+  section: "",     // from QUIZ_SECTIONS / teacher's profile
+  duration: "",    // from LESSON_DURATIONS (minutes)
+  scheduled_for: "", // YYYY-MM-DD
+};
+
+// Homework pre-prompt panel — Grade + Major + Language + Section, plus
+// a "Schedule for" date that doubles as the due date.
+const HOMEWORK_PARAMS_DEFAULTS = {
+  grade: "",
+  major: "",
+  language: "",
+  section: "",
+  scheduled_for: "", // YYYY-MM-DD (interpreted as the due date)
+};
+
+// Presentation pre-prompt panel — Grade + Major + Language + Section +
+// optional slide count, plus a schedule date.
+const PRESENTATION_SLIDES = [5, 8, 10, 12, 15, 20];
+const PRESENTATION_PARAMS_DEFAULTS = {
+  grade: "",
+  major: "",
+  language: "",
+  section: "",
+  slides: "",       // from PRESENTATION_SLIDES
+  scheduled_for: "",
+};
+
 // "Or try" pool — directive prompts. Expanded so we can shuffle 3 random
 // suggestions per kind on each mount / kind change. Teachers shouldn't
 // see the same three suggestions every time they open the studio.
@@ -330,6 +364,9 @@ export default function Studio({ initialKind } = {}) {
   // Only surfaced when kind === "quiz".
   const [quizParams, setQuizParams] = useState(QUIZ_PARAMS_DEFAULTS);
   const [activityParams, setActivityParams] = useState(ACTIVITY_PARAMS_DEFAULTS);
+  const [lessonParams, setLessonParams] = useState(LESSON_PARAMS_DEFAULTS);
+  const [homeworkParams, setHomeworkParams] = useState(HOMEWORK_PARAMS_DEFAULTS);
+  const [presentationParams, setPresentationParams] = useState(PRESENTATION_PARAMS_DEFAULTS);
   // Optional file attachment (image or PDF) — base64-encoded, sent
   // alongside the prompt so the AI can read a textbook page, photo of
   // the board, scanned exam, etc., and base the output on it.
@@ -497,6 +534,9 @@ export default function Studio({ initialKind } = {}) {
     setQuizPartial("");
     setQuizParams(QUIZ_PARAMS_DEFAULTS);
     setActivityParams(ACTIVITY_PARAMS_DEFAULTS);
+    setLessonParams(LESSON_PARAMS_DEFAULTS);
+    setHomeworkParams(HOMEWORK_PARAMS_DEFAULTS);
+    setPresentationParams(PRESENTATION_PARAMS_DEFAULTS);
     setAttachment(null);
     setAttachError(null);
     setResult(null);
@@ -1933,6 +1973,39 @@ export default function Studio({ initialKind } = {}) {
         />
       )}
 
+      {kind === "lesson_plan" && (
+        <LessonParamsPanel
+          params={lessonParams}
+          onChange={setLessonParams}
+          gradeOptions={gradeOptions}
+          majorOptions={majorOptions}
+          languageOptions={languageOptions}
+          sectionOptions={sectionOptions}
+        />
+      )}
+
+      {kind === "homework" && (
+        <HomeworkParamsPanel
+          params={homeworkParams}
+          onChange={setHomeworkParams}
+          gradeOptions={gradeOptions}
+          majorOptions={majorOptions}
+          languageOptions={languageOptions}
+          sectionOptions={sectionOptions}
+        />
+      )}
+
+      {kind === "presentation" && (
+        <PresentationParamsPanel
+          params={presentationParams}
+          onChange={setPresentationParams}
+          gradeOptions={gradeOptions}
+          majorOptions={majorOptions}
+          languageOptions={languageOptions}
+          sectionOptions={sectionOptions}
+        />
+      )}
+
       {/* Big input card */}
       <div className="bg-paper-cool rounded-2xl border border-line shadow-sm overflow-hidden focus-within:border-ink transition-colors duration-200">
         <textarea
@@ -3055,6 +3128,265 @@ function ActivityParamsPanel({ params, onChange, majorOptions, languageOptions }
           options={ACTIVITY_DURATIONS.map(String)}
           onChange={(v) => set({ duration: v === "" ? "" : Number(v) })}
           suffix="min"
+          numeric
+        />
+      </div>
+
+      <ScheduledDateRow
+        value={params.scheduled_for}
+        onChange={(v) => set({ scheduled_for: v })}
+      />
+    </div>
+  );
+}
+
+// Lesson plan settings — Grade + Major + Language + Section + Duration.
+// Schedule-for date row anchors the lesson on the calendar.
+function LessonParamsPanel({ params, onChange, gradeOptions, majorOptions, languageOptions, sectionOptions }) {
+  const set = (patch) => onChange((prev) => ({ ...prev, ...patch }));
+  const setCount = [
+    params.grade, params.major, params.language, params.section, params.duration,
+  ].filter((v) => v !== "" && v != null).length;
+
+  return (
+    <div className="mb-3 rounded-2xl border border-line bg-paper-warm/40 px-3 sm:px-4 md:px-5 py-2.5 sm:py-3">
+      <div className="flex items-end justify-between gap-3 mb-2.5">
+        <div>
+          <p className="font-serif italic text-base text-muted mb-0.5">Lesson settings</p>
+          <p className="font-serif text-base text-ink leading-snug">
+            Pick the basics first <span className="italic text-muted">— or leave them blank and Mudir will figure it out.</span>
+          </p>
+        </div>
+        {setCount > 0 && (
+          <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-accent flex-shrink-0">
+            {setCount} of 5 set
+          </p>
+        )}
+      </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
+        <DropdownChip
+          icon={GraduationCap}
+          label="Grade"
+          slot="grade"
+          emptyHint="Any grade"
+          help="Which year group this lesson is for. The list shows the grades you teach (set in My students → Teaching profile). Type to add a one-off."
+          value={params.grade}
+          options={gradeOptions}
+          onChange={(v) => set({ grade: v })}
+        />
+        <DropdownChip
+          icon={BookOpen}
+          label="Major"
+          slot="major"
+          emptyHint="Any major"
+          help="The school subject this lesson covers. The list shows the majors you teach (My students → Teaching profile)."
+          value={params.major}
+          options={majorOptions}
+          onChange={(v) => set({ major: v })}
+        />
+        <DropdownChip
+          icon={Globe}
+          label="Language"
+          slot="language"
+          emptyHint="Auto"
+          help="The language the lesson plan will be written in."
+          value={params.language}
+          options={languageOptions}
+          onChange={(v) => set({ language: v })}
+        />
+        <DropdownChip
+          icon={Users}
+          label="Section"
+          slot="section"
+          emptyHint="All sections"
+          help="Which class section(s) this lesson is for. Pick one or several. The list shows the sections you teach."
+          value={params.section}
+          options={sectionOptions}
+          onChange={(v) => set({ section: v })}
+          multi
+        />
+        <DropdownChip
+          icon={Clock}
+          label="Duration"
+          slot="duration"
+          emptyHint="Any length"
+          help="How long, in minutes, the lesson should run. Mudir uses this to pace the warm-up, main activity, and exit ticket."
+          value={
+            params.duration === "" || params.duration == null
+              ? ""
+              : String(params.duration)
+          }
+          options={LESSON_DURATIONS.map(String)}
+          onChange={(v) => set({ duration: v === "" ? "" : Number(v) })}
+          suffix="min"
+          numeric
+        />
+      </div>
+
+      <ScheduledDateRow
+        value={params.scheduled_for}
+        onChange={(v) => set({ scheduled_for: v })}
+      />
+    </div>
+  );
+}
+
+// Homework settings — Grade + Major + Language + Section. The
+// schedule-for date doubles as the due date for the assignment.
+function HomeworkParamsPanel({ params, onChange, gradeOptions, majorOptions, languageOptions, sectionOptions }) {
+  const set = (patch) => onChange((prev) => ({ ...prev, ...patch }));
+  const setCount = [
+    params.grade, params.major, params.language, params.section,
+  ].filter((v) => v !== "" && v != null).length;
+
+  return (
+    <div className="mb-3 rounded-2xl border border-line bg-paper-warm/40 px-3 sm:px-4 md:px-5 py-2.5 sm:py-3">
+      <div className="flex items-end justify-between gap-3 mb-2.5">
+        <div>
+          <p className="font-serif italic text-base text-muted mb-0.5">Homework settings</p>
+          <p className="font-serif text-base text-ink leading-snug">
+            Pick the basics first <span className="italic text-muted">— or leave them blank and Mudir will figure it out.</span>
+          </p>
+        </div>
+        {setCount > 0 && (
+          <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-accent flex-shrink-0">
+            {setCount} of 4 set
+          </p>
+        )}
+      </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        <DropdownChip
+          icon={GraduationCap}
+          label="Grade"
+          slot="grade"
+          emptyHint="Any grade"
+          help="Which year group this homework is for. The list shows the grades you teach (set in My students → Teaching profile)."
+          value={params.grade}
+          options={gradeOptions}
+          onChange={(v) => set({ grade: v })}
+        />
+        <DropdownChip
+          icon={BookOpen}
+          label="Major"
+          slot="major"
+          emptyHint="Any major"
+          help="The school subject this homework covers. The list shows the majors you teach."
+          value={params.major}
+          options={majorOptions}
+          onChange={(v) => set({ major: v })}
+        />
+        <DropdownChip
+          icon={Globe}
+          label="Language"
+          slot="language"
+          emptyHint="Auto"
+          help="The language the homework instructions will be written in."
+          value={params.language}
+          options={languageOptions}
+          onChange={(v) => set({ language: v })}
+        />
+        <DropdownChip
+          icon={Users}
+          label="Section"
+          slot="section"
+          emptyHint="All sections"
+          help="Which class section(s) this homework is for. Pick one or several."
+          value={params.section}
+          options={sectionOptions}
+          onChange={(v) => set({ section: v })}
+          multi
+        />
+      </div>
+
+      <ScheduledDateRow
+        value={params.scheduled_for}
+        onChange={(v) => set({ scheduled_for: v })}
+      />
+    </div>
+  );
+}
+
+// Presentation settings — Grade + Major + Language + Section + Slides.
+// Schedule-for anchors the deck on the calendar.
+function PresentationParamsPanel({ params, onChange, gradeOptions, majorOptions, languageOptions, sectionOptions }) {
+  const set = (patch) => onChange((prev) => ({ ...prev, ...patch }));
+  const setCount = [
+    params.grade, params.major, params.language, params.section, params.slides,
+  ].filter((v) => v !== "" && v != null).length;
+
+  return (
+    <div className="mb-3 rounded-2xl border border-line bg-paper-warm/40 px-3 sm:px-4 md:px-5 py-2.5 sm:py-3">
+      <div className="flex items-end justify-between gap-3 mb-2.5">
+        <div>
+          <p className="font-serif italic text-base text-muted mb-0.5">Presentation settings</p>
+          <p className="font-serif text-base text-ink leading-snug">
+            Pick the basics first <span className="italic text-muted">— or leave them blank and Mudir will figure it out.</span>
+          </p>
+        </div>
+        {setCount > 0 && (
+          <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-accent flex-shrink-0">
+            {setCount} of 5 set
+          </p>
+        )}
+      </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
+        <DropdownChip
+          icon={GraduationCap}
+          label="Grade"
+          slot="grade"
+          emptyHint="Any grade"
+          help="Which year group this deck is for. The list shows the grades you teach."
+          value={params.grade}
+          options={gradeOptions}
+          onChange={(v) => set({ grade: v })}
+        />
+        <DropdownChip
+          icon={BookOpen}
+          label="Major"
+          slot="major"
+          emptyHint="Any major"
+          help="The school subject this deck covers. The list shows the majors you teach."
+          value={params.major}
+          options={majorOptions}
+          onChange={(v) => set({ major: v })}
+        />
+        <DropdownChip
+          icon={Globe}
+          label="Language"
+          slot="language"
+          emptyHint="Auto"
+          help="The language the slides will be written in."
+          value={params.language}
+          options={languageOptions}
+          onChange={(v) => set({ language: v })}
+        />
+        <DropdownChip
+          icon={Users}
+          label="Section"
+          slot="section"
+          emptyHint="All sections"
+          help="Which class section(s) this deck is for. Pick one or several."
+          value={params.section}
+          options={sectionOptions}
+          onChange={(v) => set({ section: v })}
+          multi
+        />
+        <DropdownChip
+          icon={Hash}
+          label="Slides"
+          slot="slides"
+          emptyHint="Mudir picks"
+          help="Roughly how many slides the deck should have. Mudir will fit the scope to this count."
+          value={
+            params.slides === "" || params.slides == null
+              ? ""
+              : String(params.slides)
+          }
+          options={PRESENTATION_SLIDES.map(String)}
+          onChange={(v) => set({ slides: v === "" ? "" : Number(v) })}
           numeric
         />
       </div>
