@@ -3215,9 +3215,15 @@ function DropdownChip({
     // different one without re-opening the chip.
     if (numeric) return options;
     if (!draft) return options;
+    // When the draft is just reflecting the currently-picked value
+    // (chip was just reopened, user hasn't typed yet), show every
+    // option — otherwise re-opening "Biology" would hide Science,
+    // Computer Science, etc., and the teacher couldn't switch.
+    const currentValueStr = String(value == null ? "" : value);
+    if (String(draft) === currentValueStr) return options;
     const q = String(draft).toLowerCase();
     return options.filter((o) => String(o).toLowerCase().includes(q));
-  }, [draft, options, numeric]);
+  }, [draft, options, numeric, value]);
 
   const isSet = Boolean(value) || value === 0;
   const display = isSet
