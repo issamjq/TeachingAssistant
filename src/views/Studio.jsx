@@ -137,6 +137,20 @@ const QUIZ_PARAMS_DEFAULTS = {
   scheduled_for: "", // YYYY-MM-DD — when this quiz should run (cover-only meta)
 };
 
+// Activity pre-prompt panel mirrors the quiz settings layout but with
+// activity-specific labels. Per the chip rules, activities have NO
+// grade or section — only Type, Major, Language, Duration. Same idea:
+// every field is optional, Mudir infers from the prompt when blank.
+const ACTIVITY_TYPES = ["Individual", "Pair", "Group"];
+const ACTIVITY_DURATIONS = [10, 15, 20, 30, 45, 60];
+const ACTIVITY_PARAMS_DEFAULTS = {
+  type: "",        // ACTIVITY_TYPES
+  major: "",       // from MAJORS
+  language: "",    // from QUIZ_LANGUAGES — same list, the output language
+  duration: "",    // from ACTIVITY_DURATIONS (minutes)
+  scheduled_for: "", // YYYY-MM-DD
+};
+
 // "Or try" pool — directive prompts. Expanded so we can shuffle 3 random
 // suggestions per kind on each mount / kind change. Teachers shouldn't
 // see the same three suggestions every time they open the studio.
@@ -315,6 +329,7 @@ export default function Studio({ initialKind } = {}) {
   // Every field is optional — left as "" / null the AI infers from prose.
   // Only surfaced when kind === "quiz".
   const [quizParams, setQuizParams] = useState(QUIZ_PARAMS_DEFAULTS);
+  const [activityParams, setActivityParams] = useState(ACTIVITY_PARAMS_DEFAULTS);
   // Optional file attachment (image or PDF) — base64-encoded, sent
   // alongside the prompt so the AI can read a textbook page, photo of
   // the board, scanned exam, etc., and base the output on it.
@@ -481,6 +496,7 @@ export default function Studio({ initialKind } = {}) {
     setStreamingText("");
     setQuizPartial("");
     setQuizParams(QUIZ_PARAMS_DEFAULTS);
+    setActivityParams(ACTIVITY_PARAMS_DEFAULTS);
     setAttachment(null);
     setAttachError(null);
     setResult(null);
@@ -1905,6 +1921,18 @@ export default function Studio({ initialKind } = {}) {
         />
       )}
 
+      {/* Activity pre-prompt panel — same DropdownChip pattern as
+          quiz, with activity-specific labels (Type / Major / Language /
+          Duration). No grade, no section per chip rules. */}
+      {kind === "activity" && (
+        <ActivityParamsPanel
+          params={activityParams}
+          onChange={setActivityParams}
+          majorOptions={majorOptions}
+          languageOptions={languageOptions}
+        />
+      )}
+
       {/* Big input card */}
       <div className="bg-paper-cool rounded-2xl border border-line shadow-sm overflow-hidden focus-within:border-ink transition-colors duration-200">
         <textarea
@@ -2946,6 +2974,91 @@ function QuizParamsPanel({ params, onChange, gradeOptions, majorOptions, languag
       {/* Scheduled date — separate from the chips because it's a date
           picker, not a list. Persists straight onto the saved quiz row
           so the Schedule view and Quizzes & Exams list pick it up. */}
+      <ScheduledDateRow
+        value={params.scheduled_for}
+        onChange={(v) => set({ scheduled_for: v })}
+      />
+    </div>
+  );
+}
+
+// Activity settings panel — same shape as QuizParamsPanel (eyebrow,
+// chip grid, schedule-for date row) but with activity-specific labels.
+// Per the chip rules, no Grade and no Section. Type sits in the slot
+// Grade would normally occupy so the grid stays balanced.
+function ActivityParamsPanel({ params, onChange, majorOptions, languageOptions }) {
+  const set = (patch) => onChange((prev) => ({ ...prev, ...patch }));
+  const setCount = [
+    params.type, params.major, params.language, params.duration,
+  ].filter((v) => v !== "" && v != null).length;
+
+  return (
+    <div className="mb-3 rounded-2xl border border-line bg-paper-warm/40 px-3 sm:px-4 md:px-5 py-2.5 sm:py-3">
+      <div className="flex items-end justify-between gap-3 mb-2.5">
+        <div>
+          <p className="font-serif italic text-base text-muted mb-0.5">
+            Activity settings
+          </p>
+          <p className="font-serif text-base text-ink leading-snug">
+            Pick the basics first <span className="italic text-muted">— or leave them blank and Mudir will figure it out.</span>
+          </p>
+        </div>
+        {setCount > 0 && (
+          <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-accent flex-shrink-0">
+            {setCount} of 4 set
+          </p>
+        )}
+      </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        <DropdownChip
+          icon={Users}
+          label="Type"
+          slot="type"
+          emptyHint="Mudir picks"
+          help="How students work on this activity — solo, in pairs, or in groups."
+          value={params.type}
+          options={ACTIVITY_TYPES}
+          onChange={(v) => set({ type: v })}
+        />
+        <DropdownChip
+          icon={BookOpen}
+          label="Major"
+          slot="major"
+          emptyHint="Any major"
+          help="The school subject the activity supports. The list shows the majors you teach (set in My students → Teaching profile). Type to add a one-off."
+          value={params.major}
+          options={majorOptions}
+          onChange={(v) => set({ major: v })}
+        />
+        <DropdownChip
+          icon={Globe}
+          label="Language"
+          slot="language"
+          emptyHint="Auto"
+          help="The language the activity instructions will be written in. The list shows the languages you teach (set in My students → Teaching profile). Type to add a one-off."
+          value={params.language}
+          options={languageOptions}
+          onChange={(v) => set({ language: v })}
+        />
+        <DropdownChip
+          icon={Clock}
+          label="Duration"
+          slot="duration"
+          emptyHint="Any length"
+          help="How long, in minutes, the activity should run. Mudir uses this to calibrate the depth and number of stages."
+          value={
+            params.duration === "" || params.duration == null
+              ? ""
+              : String(params.duration)
+          }
+          options={ACTIVITY_DURATIONS.map(String)}
+          onChange={(v) => set({ duration: v === "" ? "" : Number(v) })}
+          suffix="min"
+          numeric
+        />
+      </div>
+
       <ScheduledDateRow
         value={params.scheduled_for}
         onChange={(v) => set({ scheduled_for: v })}
