@@ -135,7 +135,7 @@ export default function DatabaseProfile() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-5 pt-6 border-t border-line">
               <Stat label="Staff ID" value={me.staff_id || "—"} icon={<Hash size={13} />} mono />
               <Stat
-                label="Hire date"
+                label="Registered"
                 value={me.hire_date ? new Date(me.hire_date).toLocaleDateString() : "—"}
                 icon={<Calendar size={13} />}
               />
@@ -265,7 +265,7 @@ function ProfileEditor({ initial, onClose, onSaved }) {
               placeholder="STF-001"
             />
           </Field>
-          <Field label="Hire date">
+          <Field label="Registered">
             <input
               type="date"
               className={inputClasses}

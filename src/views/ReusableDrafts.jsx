@@ -13,9 +13,9 @@ import {
   api,
   selectClasses,
 } from "./_shared";
-import { Trash2 } from "lucide-react";
 import {
-  ViewModeToggle, useViewMode, DataCard, CardsGrid, TrashPopup,
+  DataPageHeader, useViewMode, DataCard, CardsGrid,
+  useDateScope, filterByDateScope,
 } from "./_data-view";
 import { MAJORS } from "../lib/enums";
 
@@ -32,7 +32,8 @@ export default function ReusableDrafts({ onEditDraft }) {
   const [busy, setBusy] = useState(false);
   const [bulkOpen, setBulkOpen] = useState(false);
   const [viewMode, setViewMode] = useViewMode("mudir.view.drafts", "cards");
-  const [trashOpen, setTrashOpen] = useState(false);
+  const [sortKey, setSortKey] = useState("last_edited-desc");
+  const [scope, setScope, scopeRange] = useDateScope();
 
   const reload = () => {
     setLoading(true);
@@ -63,10 +64,13 @@ export default function ReusableDrafts({ onEditDraft }) {
     return rows;
   }, [query, drafts, subjectFilter, statusFilter]);
 
-  const { sorted, sort, toggle } = useSortable(filtered, {
-    defaultKey: "last_edited",
-    defaultDir: "desc",
+  const [sortField, sortDir] = sortKey.split("-");
+  const { sorted: sortedAll, sort, toggle, setSort } = useSortable(filtered, {
+    defaultKey: sortField,
+    defaultDir: sortDir,
   });
+  useEffect(() => { setSort({ key: sortField, dir: sortDir }); }, [sortKey, setSort, sortField, sortDir]);
+  const sorted = filterByDateScope(sortedAll, scopeRange, (d) => d.last_edited);
 
   const confirmDelete = async () => {
     setBusy(true);
@@ -96,36 +100,37 @@ export default function ReusableDrafts({ onEditDraft }) {
 
   return (
     <div>
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
-        <div>
-          <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-2 inline-flex items-center gap-2.5">
-            <span className="w-6 h-px bg-accent" /> Drafts
-          </p>
-          <h2 className="font-serif text-4xl font-medium text-ink">
-            Your <em className="italic font-light text-accent">drafts</em>
-          </h2>
-          <p className="text-muted mt-2">
-            Lesson plans you started, paused, or saved to reuse later. Only you can see these.
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-3">
-          <ViewModeToggle mode={viewMode} onChange={setViewMode} />
-          <Button variant="secondary" className="px-3" onClick={() => setTrashOpen(true)}>
-            <Trash2 size={13} className="mr-1.5" /> Recently deleted
-          </Button>
-          <Button variant="secondary" onClick={() => setBulkOpen(true)} disabled={drafts.length === 0}>
-            Clear all drafts
-          </Button>
-        </div>
-      </div>
-      {trashOpen && (
-        <TrashPopup
-          endpoint="/api/drafts"
-          titleField="name"
-          onClose={() => setTrashOpen(false)}
-          onChange={reload}
-        />
-      )}
+      <DataPageHeader
+        eyebrow="Drafts"
+        title={<>Your <em className="italic font-light text-accent">drafts</em></>}
+        subtitle="Lesson plans you started, paused, or saved to reuse later. Only you can see these."
+        mode={viewMode}
+        onModeChange={setViewMode}
+        trashEndpoint="/api/drafts"
+        trashTitleField="name"
+        onTrashChange={reload}
+        sortKey={sortKey}
+        onSortChange={setSortKey}
+        sortOptions={[
+          { value: "last_edited-desc", label: "Recently edited" },
+          { value: "last_edited-asc",  label: "Oldest first" },
+          { value: "name-asc",         label: "Title A → Z" },
+          { value: "name-desc",        label: "Title Z → A" },
+          { value: "progress-desc",    label: "Most progress" },
+        ]}
+        dateScope={scope}
+        onDateScopeChange={setScope}
+        extraActions={(
+          <button
+            type="button"
+            onClick={() => setBulkOpen(true)}
+            disabled={drafts.length === 0}
+            className="planner-nav-btn h-9 inline-flex items-center gap-1.5 px-3 rounded-lg border border-line bg-paper-cool hover:bg-paper-warm hover:border-ink text-[12px] text-ink leading-none whitespace-nowrap disabled:opacity-50"
+          >
+            Clear all
+          </button>
+        )}
+      />
 
       <div className="flex flex-col md:flex-row md:flex-wrap gap-3 mb-6">
         <div className="flex-1 min-w-[240px] bg-paper-cool rounded-lg border border-line px-4 py-2.5 flex items-center gap-2">

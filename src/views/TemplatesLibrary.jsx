@@ -1,7 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef } from "react";
 import { Search, Star, Upload, Plus } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import {
   SubjectBadge,
   RowActions,
@@ -10,8 +9,7 @@ import {
   api,
   selectClasses,
 } from "./_shared";
-import { Trash2 } from "lucide-react";
-import { ViewModeToggle, useViewMode, NewKindPopup, TrashPopup } from "./_data-view";
+import { DataPageHeader, useViewMode, useDateScope, filterByDateScope } from "./_data-view";
 import { MAJORS } from "../lib/enums";
 
 // Lazy-load mammoth only when the user actually clicks Import .docx, so the
@@ -68,8 +66,7 @@ export default function TemplatesLibrary({ onNewTemplate, onUseTemplate, onEditT
   const [busy, setBusy] = useState(false);
   const [importing, setImporting] = useState(false);
   const [viewMode, setViewMode] = useViewMode("mudir.view.templates", "cards");
-  const [newPopupOpen, setNewPopupOpen] = useState(false);
-  const [trashOpen, setTrashOpen] = useState(false);
+  const [scope, setScope, scopeRange] = useDateScope();
   const fileInputRef = useRef(null);
 
   const handleImport = async (e) => {
@@ -144,8 +141,9 @@ export default function TemplatesLibrary({ onNewTemplate, onUseTemplate, onEditT
           (t.tags || []).some((tag) => tag.toLowerCase().includes(q))
       );
     }
-    return [...rows].sort(SORTS[sortKey].cmp);
-  }, [query, templates, subjectFilter, gradeFilter, sortKey]);
+    const sorted = [...rows].sort(SORTS[sortKey].cmp);
+    return filterByDateScope(sorted, scopeRange, (t) => t.updated_at);
+  }, [query, templates, subjectFilter, gradeFilter, sortKey, scopeRange]);
 
   const confirmDelete = async () => {
     setBusy(true);
@@ -162,58 +160,44 @@ export default function TemplatesLibrary({ onNewTemplate, onUseTemplate, onEditT
 
   return (
     <div>
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
-        <div>
-          <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-2 inline-flex items-center gap-2.5">
-            <span className="w-6 h-px bg-accent" /> Templates
-          </p>
-          <h2 className="font-serif text-4xl font-medium text-ink">
-            Templates <em className="italic font-light text-accent">library</em>
-          </h2>
-          <p className="text-muted mt-2">Pick a starting point. Edit it once, reuse it forever.</p>
-        </div>
-        <div className="flex gap-3">
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".docx"
-            className="hidden"
-            onChange={handleImport}
-          />
-          <Button
-            variant="secondary"
-            className="px-4"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={importing}
-          >
-            <Upload size={15} className="mr-2" />
-            {importing ? "Importing…" : "Import .docx"}
-          </Button>
-          <ViewModeToggle mode={viewMode} onChange={setViewMode} />
-          <Button variant="secondary" className="px-3" onClick={() => setTrashOpen(true)}>
-            <Trash2 size={13} className="mr-1.5" /> Recently deleted
-          </Button>
-          <Button onClick={() => setNewPopupOpen(true)}>
-            <Plus size={15} className="mr-2" /> New template
-          </Button>
-        </div>
-      </div>
-      {newPopupOpen && (
-        <NewKindPopup
-          kind="New template"
-          aiKind="lesson_plan"
-          onClose={() => setNewPopupOpen(false)}
-          onManual={() => { setNewPopupOpen(false); onNewTemplate?.(); }}
-        />
-      )}
-      {trashOpen && (
-        <TrashPopup
-          endpoint="/api/templates"
-          titleField="name"
-          onClose={() => setTrashOpen(false)}
-          onChange={reload}
-        />
-      )}
+      <DataPageHeader
+        eyebrow="Templates"
+        title={<>Templates <em className="italic font-light text-accent">library</em></>}
+        subtitle="Pick a starting point. Edit it once, reuse it forever."
+        newLabel="New template"
+        onNewManual={() => onNewTemplate?.()}
+        aiKind="lesson_plan"
+        mode={viewMode}
+        onModeChange={setViewMode}
+        trashEndpoint="/api/templates"
+        trashTitleField="name"
+        onTrashChange={reload}
+        sortKey={sortKey}
+        onSortChange={setSortKey}
+        sortOptions={Object.entries(SORTS).map(([value, { label }]) => ({ value, label }))}
+        dateScope={scope}
+        onDateScopeChange={setScope}
+        extraActions={(
+          <>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".docx"
+              className="hidden"
+              onChange={handleImport}
+            />
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={importing}
+              className="planner-nav-btn h-9 inline-flex items-center gap-1.5 px-3 rounded-lg border border-line bg-paper-cool hover:bg-paper-warm hover:border-ink text-[12px] text-ink leading-none whitespace-nowrap disabled:opacity-50"
+            >
+              <Upload size={12} strokeWidth={2} />
+              {importing ? "Importing…" : "Import .docx"}
+            </button>
+          </>
+        )}
+      />
 
       <div className="flex flex-col md:flex-row md:flex-wrap gap-3 mb-6">
         <div className="flex-1 min-w-[240px] bg-paper-cool rounded-lg border border-line px-4 py-2.5 flex items-center gap-2">
@@ -240,15 +224,6 @@ export default function TemplatesLibrary({ onNewTemplate, onUseTemplate, onEditT
         >
           <option value="">All subjects</option>
           {subjectOptions.map((s) => <option key={s} value={s}>{s}</option>)}
-        </select>
-        <select
-          value={sortKey}
-          onChange={(e) => setSortKey(e.target.value)}
-          className={selectClasses}
-        >
-          {Object.entries(SORTS).map(([k, { label }]) => (
-            <option key={k} value={k}>Sort: {label.toLowerCase()}</option>
-          ))}
         </select>
       </div>
 

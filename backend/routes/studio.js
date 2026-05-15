@@ -70,33 +70,33 @@ Output format — VERY IMPORTANT:
 - Use headings (\`##\`, \`###\`), bullet lists, and numbered lists. Use a table only when comparing items side-by-side; otherwise prefer lists.
 - Keep total length appropriate for the kind: lesson plans ~400–800 words; quizzes vary by question count; homework ~150–300 words; activities ~150–250 words; presentations ~5–10 slides; feedback ~80–150 words per student.
 
-Per-kind structure:
+Per-kind structure. Each kind's sections MUST mirror the fields the
+teacher would fill in manually for that surface, so the AI output is
+a 1:1 stand-in for the manual form and can be edited in place.
 
-LESSON_PLAN — produce sections in this exact order:
-  ## Title
-  Subject · Grade · Duration
+LESSON_PLAN — mirrors the Lesson Plans → New Template form
+(Template name · Subject · Grade · Section · Duration · Learning
+objectives · Stages · Tags). Produce sections in this exact order:
+  ## Template name
+  *Subject · Grade · Section · Duration*
 
   ## Learning objectives
   3–5 bullet points, each phrased as "Students will be able to…".
 
-  ## Materials
-  Bullet list of physical / digital items needed.
+  ## Stages
+  Numbered list. For each stage, write "**<Stage name>** (<X> min)" on
+  its own line, then a short note (one or two sentences) describing
+  what happens. Total minutes across stages must equal the Duration
+  on the meta line.
 
-  ## Intro (warm-up)
-  One paragraph. Hook + connection to prior knowledge.
-
-  ## Main activity
-  Numbered steps with time estimates in minutes (e.g. "(15 min) …"). Show what the teacher does AND what students do.
-
-  ## Conclusion
-  Brief wrap-up + exit-ticket prompt.
-
-  ## Assessment
-  How the teacher will know objectives were met. One or two concrete strategies.
+  ## Tags
+  3–5 short comma-separated keywords (e.g. "Comprehension, Reading,
+  Pair work"). Use noun phrases that would help filter the template
+  later.
 
 QUIZ — produce:
   ## Title
-  Subject · Grade · Total marks
+  Subject · Grade · Section · Total marks · Duration
 
   ## Instructions to students
   2–3 sentences.
@@ -104,43 +104,54 @@ QUIZ — produce:
   ## Questions
   Numbered list. For each: question stem, then sub-bullet with type (MCQ / TF / Short / Essay), marks, and (for MCQ) the four choices labelled A–D plus the correct letter on a separate line. For Short/Essay, give the expected answer or rubric outline.
 
-HOMEWORK — produce:
+HOMEWORK — mirrors the Homework → New Homework form
+(Title · Subject · Grade · Section · Due date · Status · Instructions):
   ## Title
-  Subject · Grade · Estimated time
+  *Subject · Grade · Section · Due date · Estimated time*
 
-  ## What to do
-  Numbered steps the student follows at home.
+  ## Instructions to students
+  Numbered steps the student follows at home. Be concrete: name the
+  reading, the worksheet, the digital tool. Include estimated minutes
+  per step if helpful.
 
   ## How it will be graded
   2–3 bullet points: criteria + weight if relevant.
 
   ## Submission
-  One sentence: format and where to submit.
+  One sentence: format (PDF / handwritten photo / Google Doc link) and
+  where to submit.
 
-ACTIVITY — produce:
+ACTIVITY — mirrors the Activities → New Activity form
+(Title · Type · Subject · Duration · Scheduled for · Instructions).
+Note: activities do NOT carry Grade or Section per the chip rules.
   ## Title
-  Type (individual / pair / group) · Grade · Duration
-
-  ## Setup
-  What the teacher prepares in advance.
-
-  ## Run-of-show
-  Numbered steps with time estimates.
+  *Type · Subject · Duration · Scheduled for*
 
   ## Materials
-  Bullet list.
+  Bullet list of what the teacher needs ready before class.
+
+  ## Instructions
+  Numbered run-of-show with time estimates in minutes. Show what the
+  teacher does AND what students do at each step.
 
   ## Differentiation
-  One paragraph. How to scale up for fast finishers and scaffold for struggling students.
+  One paragraph. How to scale up for fast finishers and scaffold for
+  struggling students.
 
-PRESENTATION — produce a slide outline:
-  ## Slide 1 — <Title>
+PRESENTATION — mirrors the Presentations → New Presentation form
+(Title · Subject · Grade · Section · Slides · Scheduled for). Produce
+a slide-by-slide outline:
+  ## Title
+  *Subject · Grade · Section · Scheduled for*
+
+  ## Slide 1 — <Slide title>
   - Body bullet 1
   - Body bullet 2
-  ## Slide 2 — <Title>
+  ## Slide 2 — <Slide title>
   - …
 
-  After the last slide, add a short ## Speaker notes section with one or two sentences per slide.
+  After the last slide, add a short ## Speaker notes section with one
+  or two sentences per slide.
 
 FEEDBACK — produce per-student paragraphs in this shape:
   ## <Student name>

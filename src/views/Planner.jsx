@@ -759,10 +759,10 @@ function UpcomingCard({ events, className = "" }) {
 // ───────────────────────────────────────────────────────────────────────
 function QuickActionsCard() {
   const actions = [
-    { key: "lesson",       label: "New Lesson Plan",  icon: BookOpen,       tone: "accent"      },
-    { key: "quiz",         label: "New Quiz",         icon: ClipboardList,  tone: "accent-soft" },
-    { key: "homework",     label: "New Homework",     icon: GraduationCap,  tone: "sage"        },
-    { key: "presentation", label: "New Presentation", icon: Presentation,   tone: "gold"        },
+    { key: "lesson",       label: "New Lesson Plan",  icon: BookOpen,       tone: "accent",      route: ["lesson-plans", "templates"] },
+    { key: "quiz",         label: "New Quiz",         icon: ClipboardList,  tone: "accent-soft", route: ["quizzes"] },
+    { key: "homework",     label: "New Homework",     icon: GraduationCap,  tone: "sage",        route: ["homework"] },
+    { key: "presentation", label: "New Presentation", icon: Presentation,   tone: "gold",        route: ["presentations"] },
   ];
   const toneToBg = {
     accent:        "bg-[rgba(200,71,43,0.12)] text-accent",
@@ -782,7 +782,7 @@ function QuickActionsCard() {
             <button
               key={a.key}
               type="button"
-              onClick={() => navigate(["studio"])}
+              onClick={() => navigate(a.route)}
               className="planner-nav-btn w-full flex items-center gap-2.5 px-3 py-2 rounded-xl border border-line/70 bg-paper-cool hover:border-ink/30"
             >
               <span className={`flex-shrink-0 inline-flex h-7 w-7 rounded-lg items-center justify-center ${toneToBg[a.tone]}`}>

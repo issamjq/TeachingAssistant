@@ -43,7 +43,7 @@ export default function AccountProfile() {
             Personal <em className="italic font-light text-accent">details</em>
           </h2>
           <p className="text-muted mt-2">
-            How the school reaches you. Work details (majors, grades, hire date) live in My students.
+            How the school reaches you. Work details (majors, grades, registered date) live in My students.
           </p>
         </div>
         {me && (

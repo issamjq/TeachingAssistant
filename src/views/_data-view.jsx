@@ -15,6 +15,16 @@ import { Plus, X, Pencil, Trash2, LayoutGrid, List, Sparkles, RotateCcw, ArrowUp
 import { navigate } from "../lib/route";
 import { api } from "./_shared";
 
+// Shared toolbar chip class so every action button in the page header
+// (sort dropdown, date scope, view toggle, recently deleted, +New X,
+// any extraActions) is the same h-9 height + same padding. The "GHOST"
+// variant is the neutral button look; the base TOOLBAR_CHIP can be
+// combined with bg/colour overrides for the primary New button.
+const TOOLBAR_CHIP =
+  "planner-nav-btn h-9 inline-flex items-center gap-1.5 px-3 rounded-lg text-[12px] border leading-none whitespace-nowrap";
+const TOOLBAR_CHIP_GHOST =
+  `${TOOLBAR_CHIP} border-line bg-paper-cool text-ink hover:bg-paper-warm hover:border-ink`;
+
 // ──────────────────────────────────────────────────────────────────
 // View mode persistence
 // ──────────────────────────────────────────────────────────────────
@@ -41,18 +51,18 @@ export function ViewModeToggle({ mode, onChange }) {
       onClick={() => onChange(key)}
       aria-pressed={mode === key}
       title={`${label} view`}
-      className={`planner-nav-btn inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[11.5px] transition ${
+      className={`planner-nav-btn h-7 inline-flex items-center gap-1.5 px-2.5 rounded-md text-[12px] leading-none transition ${
         mode === key
           ? "bg-ink text-paper-cool"
           : "text-ink hover:bg-paper-warm"
       }`}
     >
-      <Icon size={13} strokeWidth={2} />
+      <Icon size={12} strokeWidth={2} />
       {label}
     </button>
   );
   return (
-    <div className="inline-flex items-center gap-1 p-1 rounded-lg border border-line bg-paper-cool">
+    <div className="h-9 inline-flex items-center gap-1 px-1 rounded-lg border border-line bg-paper-cool">
       {btn("cards", "Cards", LayoutGrid)}
       {btn("list",  "List",  List)}
     </div>
@@ -91,66 +101,71 @@ export function DataPageHeader({
   const [scopeOpen, setScopeOpen] = useState(false);
   return (
     <div className="mb-6">
-      <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
-        <div>
-          {eyebrow && (
-            <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-2 inline-flex items-center gap-2.5">
-              <span className="w-6 h-px bg-accent" /> {eyebrow}
-            </p>
-          )}
-          <h2 className="font-serif text-4xl font-medium text-ink leading-tight">
-            {title}
-          </h2>
-          {subtitle && <p className="text-muted mt-2">{subtitle}</p>}
-        </div>
-        <div className="flex flex-wrap items-center gap-3">
-          {sortOptions && onSortChange && (
-            <label className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-line bg-paper-cool text-[12px] text-ink">
-              <ArrowUpDown size={12} strokeWidth={2} className="text-muted" />
-              <select
-                value={sortKey || ""}
-                onChange={(e) => onSortChange(e.target.value)}
-                className="bg-transparent outline-none cursor-pointer pr-2 text-ink"
-              >
-                {sortOptions.map((o) => (
-                  <option key={o.value} value={o.value}>{o.label}</option>
-                ))}
-              </select>
-            </label>
-          )}
-          {dateScope && onDateScopeChange && (
-            <DateScopePicker
-              scope={dateScope}
-              onChange={onDateScopeChange}
-              open={scopeOpen}
-              onToggle={() => setScopeOpen((v) => !v)}
-              onClose={() => setScopeOpen(false)}
-            />
-          )}
-          {onModeChange && <ViewModeToggle mode={mode} onChange={onModeChange} />}
-          {extraActions}
-          {trashEndpoint && (
-            <button
-              type="button"
-              onClick={() => setTrashOpen(true)}
-              title="See items you recently deleted"
-              className="planner-nav-btn inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-line bg-paper-cool hover:bg-paper-warm hover:border-ink text-sm text-ink"
+      {/* Row 1 — eyebrow + serif title + caption. Always its own row
+          so the heading can breathe; action chips drop to row 2 below. */}
+      <div className="mb-4">
+        {eyebrow && (
+          <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-2 inline-flex items-center gap-2.5">
+            <span className="w-6 h-px bg-accent" /> {eyebrow}
+          </p>
+        )}
+        <h2 className="font-serif text-4xl font-medium text-ink leading-tight">
+          {title}
+        </h2>
+        {subtitle && <p className="text-muted mt-2 max-w-2xl">{subtitle}</p>}
+      </div>
+
+      {/* Row 2 — action cluster. Every chip is the same height (h-9)
+          and uses the same padding family so the row reads as one
+          unit. The New X button stays visually distinct via colour
+          (filled ink), not size. */}
+      <div className="flex flex-wrap items-center gap-2">
+        {sortOptions && onSortChange && (
+          <label className={`${TOOLBAR_CHIP_GHOST} cursor-pointer pr-2`}>
+            <ArrowUpDown size={12} strokeWidth={2} className="text-muted" />
+            <select
+              value={sortKey || ""}
+              onChange={(e) => onSortChange(e.target.value)}
+              className="bg-transparent outline-none cursor-pointer text-ink leading-none"
             >
-              <Trash2 size={13} strokeWidth={2} />
-              Recently deleted
-            </button>
-          )}
-          {newLabel && onNewManual && (
-            <button
-              type="button"
-              onClick={() => setPopupOpen(true)}
-              className="planner-nav-btn inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-ink text-paper-cool text-sm font-medium hover:bg-ink-soft"
-            >
-              <Plus size={15} strokeWidth={2.25} />
-              {newLabel}
-            </button>
-          )}
-        </div>
+              {sortOptions.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
+          </label>
+        )}
+        {dateScope && onDateScopeChange && (
+          <DateScopePicker
+            scope={dateScope}
+            onChange={onDateScopeChange}
+            open={scopeOpen}
+            onToggle={() => setScopeOpen((v) => !v)}
+            onClose={() => setScopeOpen(false)}
+          />
+        )}
+        {onModeChange && <ViewModeToggle mode={mode} onChange={onModeChange} />}
+        {extraActions}
+        {trashEndpoint && (
+          <button
+            type="button"
+            onClick={() => setTrashOpen(true)}
+            title="See items you recently deleted"
+            className={TOOLBAR_CHIP_GHOST}
+          >
+            <Trash2 size={12} strokeWidth={2} />
+            Recently deleted
+          </button>
+        )}
+        {newLabel && onNewManual && (
+          <button
+            type="button"
+            onClick={() => setPopupOpen(true)}
+            className={`${TOOLBAR_CHIP} ml-auto bg-ink text-paper-cool font-medium hover:bg-ink-soft border-ink`}
+          >
+            <Plus size={13} strokeWidth={2.25} />
+            {newLabel}
+          </button>
+        )}
       </div>
       {popupOpen && (
         <NewKindPopup
@@ -343,7 +358,7 @@ function DateScopePicker({ scope, onChange, open, onToggle, onClose }) {
       <button
         type="button"
         onClick={onToggle}
-        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-line bg-paper-cool hover:border-ink text-[12px] text-ink"
+        className={TOOLBAR_CHIP_GHOST}
       >
         <CalendarIcon size={12} strokeWidth={2} className="text-muted" />
         {label}

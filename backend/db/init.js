@@ -563,35 +563,8 @@ export async function runInit() {
   const defaultTeacherId = defaultTeacher.rows[0]?.id;
   if (!defaultTeacherId) throw new Error("No STF-001 teacher found — cannot backfill.");
 
-  // --- Templates seed -----------------------------------------------------
-  const t = await pool.query("SELECT COUNT(*)::int AS n FROM templates");
-  if (t.rows[0].n === 0) {
-    console.log(`Seeding ${TEMPLATES.length} templates...`);
-    for (const row of TEMPLATES) {
-      await pool.query(
-        `INSERT INTO templates (name, subject, duration, grade, flow, tags, used_count, starred, teacher_id)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-        [...row, defaultTeacherId]
-      );
-    }
-  } else {
-    console.log(`Templates already populated (${t.rows[0].n} rows). Skipping seed.`);
-  }
-
-  // --- Drafts seed --------------------------------------------------------
-  const d = await pool.query("SELECT COUNT(*)::int AS n FROM drafts");
-  if (d.rows[0].n === 0) {
-    console.log(`Seeding ${DRAFTS.length} drafts...`);
-    for (const [name, note, warning, subject, status, progress, interval] of DRAFTS) {
-      await pool.query(
-        `INSERT INTO drafts (name, note, warning, subject, status, progress, last_edited, teacher_id, objectives, materials)
-         VALUES ($1, $2, $3, $4, $5, $6, NOW() - $7::interval, $8, $9::jsonb, $10::jsonb)`,
-        [name, note, warning, subject, status, progress, interval, defaultTeacherId, '["Identify the main idea"]', '[]']
-      );
-    }
-  } else {
-    console.log(`Drafts already populated (${d.rows[0].n} rows). Skipping seed.`);
-  }
+  // Templates + Drafts no longer seed dummy rows. Teachers start with
+  // an empty Lesson Plans surface and build their own library.
 
   // --- Students seed ------------------------------------------------------
   const stu = await pool.query("SELECT COUNT(*)::int AS n FROM students");
