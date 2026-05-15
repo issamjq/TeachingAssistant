@@ -150,6 +150,16 @@ ALTER TABLE presentations ADD COLUMN IF NOT EXISTS section TEXT;
 ALTER TABLE activities    ADD COLUMN IF NOT EXISTS scheduled_for DATE;
 `;
 
+// Teaching profile gets a hierarchical class_map — array of
+//   { major, grades: [], sections: [] }
+// so a teacher can express "Math for Grades 6 and 8, sections A & B"
+// instead of three flat lists that don't connect. Old flat columns
+// (majors / grade_levels / sections) stay populated as a denormalised
+// union so existing dropdowns keep working.
+const SCHEMA_CLASS_MAP = `
+ALTER TABLE teachers ADD COLUMN IF NOT EXISTS class_map JSONB DEFAULT '[]'::jsonb;
+`;
+
 // Soft-delete columns. Every teaching-surface table gets deleted_at so
 // the trash / recovery UI can list and restore items, and the backend
 // can auto-purge anything older than 30 days. Idempotent.
@@ -507,6 +517,9 @@ export async function runInit() {
 
   console.log("Adding scheduled_for to presentations and activities...");
   await pool.query(SCHEMA_PRES_ACT_SCHEDULED);
+
+  console.log("Adding class_map to teaching profile...");
+  await pool.query(SCHEMA_CLASS_MAP);
 
   console.log("Adding soft-delete columns to teaching surfaces...");
   await pool.query(SCHEMA_SOFT_DELETE);
