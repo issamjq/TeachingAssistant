@@ -2,8 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Save, CheckCircle2, Trash2, Plus } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { GRADE_LEVELS } from "../lib/enums";
-import { Field, AttachmentsList, inputClasses, selectClasses, api } from "./_shared";
+import { Field, AttachmentsList, inputClasses, selectClasses, api, useTeacherClasses } from "./_shared";
 
 const STATUSES = ["In progress", "Ready to use", "Blocked", "Paused"];
 
@@ -20,6 +19,7 @@ const ensureArray = (v) => {
 // id; if no id is present we POST a new one on first save and then track its
 // id for subsequent saves.
 export default function EditDraft({ draft: initial, onClose, onMarkReady }) {
+  const { grades: teacherGrades, sections: teacherSections } = useTeacherClasses();
   const [draftId, setDraftId] = useState(initial?.id || null);
   const [form, setForm] = useState(() => ({
     name: initial?.name || "",
@@ -136,12 +136,21 @@ export default function EditDraft({ draft: initial, onClose, onMarkReady }) {
                 </Field>
                 <Field label="Grade">
                   <select className={selectClasses} value={form.grade || ""} onChange={(e) => set("grade", e.target.value)}>
-                    <option value="">—</option>
-                    {GRADE_LEVELS.map((g) => <option key={g} value={g}>{g}</option>)}
+                    <option value="">{teacherGrades.length ? "—" : "No grades on your profile"}</option>
+                    {teacherGrades.map((g) => <option key={g} value={g}>{g}</option>)}
+                    {form.grade && !teacherGrades.includes(form.grade) && (
+                      <option value={form.grade}>{form.grade}</option>
+                    )}
                   </select>
                 </Field>
                 <Field label="Section">
-                  <input className={inputClasses} value={form.section || ""} onChange={(e) => set("section", e.target.value)} />
+                  <select className={selectClasses} value={form.section || ""} onChange={(e) => set("section", e.target.value)}>
+                    <option value="">{teacherSections.length ? "—" : "No sections on your profile"}</option>
+                    {teacherSections.map((s) => <option key={s} value={s}>{s}</option>)}
+                    {form.section && !teacherSections.includes(form.section) && (
+                      <option value={form.section}>{form.section}</option>
+                    )}
+                  </select>
                 </Field>
                 <Field label="Duration (minutes)">
                   <input type="number" className={inputClasses} value={form.duration_minutes ?? ""} onChange={(e) => set("duration_minutes", e.target.value === "" ? null : Number(e.target.value))} />

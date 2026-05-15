@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { X, Sparkles } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { SubjectBadge, Section, Field, FilePill, inputClasses, selectClasses, api } from "./_shared";
+import { SubjectBadge, Section, Field, FilePill, inputClasses, selectClasses, api, useTeacherClasses } from "./_shared";
 
 const initialStages = [
   { id: 1, name: "Warm-up", duration: 5, note: "Quick recap of last lesson, vocabulary check." },
@@ -12,9 +12,10 @@ const initialStages = [
 ];
 
 export default function NewTemplate({ onCancel, onSave }) {
+  const { grades: teacherGrades } = useTeacherClasses();
   const [name, setName] = useState("Reading comprehension — chapter walkthrough");
   const [subject, setSubject] = useState("English");
-  const [grade, setGrade] = useState("Grade 7");
+  const [grade, setGrade] = useState("");
   const [duration, setDuration] = useState("45 minutes");
   const [mode, setMode] = useState("manual");
   const [objectives, setObjectives] = useState([
@@ -123,9 +124,11 @@ export default function NewTemplate({ onCancel, onSave }) {
               </Field>
               <Field label="Grade level">
                 <select value={grade} onChange={(e) => setGrade(e.target.value)} className={selectClasses}>
-                  {["Grade 6", "Grade 7", "Grade 8", "Grade 9", "Grade 10"].map((g) => (
-                    <option key={g}>{g}</option>
-                  ))}
+                  <option value="">{teacherGrades.length ? "—" : "No grades on your profile"}</option>
+                  {teacherGrades.map((g) => <option key={g} value={g}>{g}</option>)}
+                  {grade && !teacherGrades.includes(grade) && (
+                    <option value={grade}>{grade}</option>
+                  )}
                 </select>
               </Field>
               <Field label="Duration">
