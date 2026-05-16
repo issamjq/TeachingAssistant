@@ -633,10 +633,81 @@ function SlideCanvas({
       style={{ background: theme.bg }}
     >
       {layout === "title" && (
-        <div className="absolute inset-0 flex flex-col justify-center px-12 md:px-16">
-          <div className="max-w-3xl">{titleNode}</div>
-          <div className="mt-3 max-w-2xl">{bulletsNode}</div>
-        </div>
+        hasImage ? (
+          // Hero cover: the photo fills the slide with a readable scrim,
+          // and the title sits large and centered on top. This is what
+          // makes "Cover" distinct from "Full photo" (whose title is a
+          // small bottom caption).
+          <div className="absolute inset-0">
+            <img
+              src={resolveSrc(slide.image.url)}
+              alt={slide.image.alt || ""}
+              className="absolute inset-0 w-full h-full object-cover"
+            />
+            <div className="absolute inset-0 bg-gradient-to-br from-black/75 via-black/50 to-black/35 pointer-events-none" />
+            <div className="absolute inset-0 flex flex-col justify-center px-12 md:px-16">
+              <div className="max-w-3xl">
+                {editable ? (
+                  <textarea
+                    value={slide?.title || ""}
+                    onChange={(e) => onPatch({ title: e.target.value })}
+                    rows={2}
+                    className="w-full font-serif text-4xl md:text-5xl font-semibold bg-transparent outline-none resize-none leading-tight tracking-tight text-white drop-shadow rounded px-1 -mx-1"
+                    placeholder="Slide title"
+                    aria-label="Slide title"
+                  />
+                ) : (
+                  <h2 className="font-serif text-4xl md:text-6xl font-semibold leading-tight tracking-tight text-white drop-shadow">
+                    {slide?.title}
+                  </h2>
+                )}
+              </div>
+              <div className="mt-4 max-w-2xl flex flex-col gap-2">
+                {(slide?.bullets || []).map((b, bi) =>
+                  editable ? (
+                    <div key={bi} className="flex items-start gap-2.5 group">
+                      <span className="mt-2 h-1.5 w-1.5 rounded-full flex-shrink-0 bg-white/80" />
+                      <textarea
+                        value={b}
+                        onChange={(e) => onSetBullet(bi, e.target.value)}
+                        rows={1}
+                        placeholder="Type a point…"
+                        className="flex-1 text-[15px] md:text-base bg-transparent outline-none resize-none leading-snug rounded px-1 -mx-1 text-white/90 placeholder:text-white/50"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => onRemoveBullet(bi)}
+                        aria-label="Remove point"
+                        className="opacity-0 group-hover:opacity-100 transition mt-1 h-5 w-5 rounded flex items-center justify-center flex-shrink-0 text-white/70"
+                      >
+                        <Trash2 size={11} />
+                      </button>
+                    </div>
+                  ) : b ? (
+                    <div key={bi} className="flex items-start gap-3">
+                      <span className="mt-2.5 h-1.5 w-1.5 rounded-full flex-shrink-0 bg-white/80" />
+                      <span className="text-base md:text-xl leading-snug text-white/90 drop-shadow">{b}</span>
+                    </div>
+                  ) : null
+                )}
+                {editable && (
+                  <button
+                    type="button"
+                    onClick={onAddBullet}
+                    className="self-start inline-flex items-center gap-1.5 text-[12px] font-serif italic mt-1 text-white/80 hover:text-white"
+                  >
+                    <Plus size={12} /> Add a point
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="absolute inset-0 flex flex-col justify-center px-12 md:px-16">
+            <div className="max-w-3xl">{titleNode}</div>
+            <div className="mt-3 max-w-2xl">{bulletsNode}</div>
+          </div>
+        )
       )}
       {layout === "text" && (
         <div className="absolute inset-0 flex flex-col p-10 md:p-12">
