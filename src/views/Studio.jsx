@@ -1578,7 +1578,16 @@ export default function Studio({ initialKind } = {}) {
               </div>
 
               <div className="print:hidden">
-                {sections.length === 0 ? (
+                {/* While a quiz is still streaming, keep the live
+                    QuizStreamingPlaceholder up for the WHOLE duration —
+                    the streaming effect populates `sections` almost
+                    immediately (Cover + N slots), and without this the
+                    UI would flip to the one-card-at-a-time editable
+                    view a split second in, so the teacher never sees
+                    the quiz "build up" the way prose kinds do. Only
+                    fall through to the sectioned editable view once
+                    generation has settled (result.quiz set / !busy). */}
+                {(sections.length === 0 || (kind === "quiz" && busy && !result?.quiz)) ? (
                   // Pre-parse — for the markdown path render the streaming
                   // markdown live so the teacher sees real headings; for
                   // the structured-quiz path show a structured progress
