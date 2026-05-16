@@ -610,10 +610,20 @@ export default function Studio({ initialKind } = {}) {
     setSections([]);
 
     const isQuiz = kind === "quiz";
+    // Pick the right params bag for this kind so the backend can pass
+    // counts/scope into the system prompt as hard constraints. Quiz
+    // has its own structured route; everyone else now goes through
+    // /generate with their kind-specific params.
+    const paramsForKind =
+      kind === "lesson_plan"   ? lessonParams       :
+      kind === "homework"      ? homeworkParams     :
+      kind === "activity"      ? activityParams     :
+      kind === "presentation"  ? presentationParams :
+      null;
     try {
       const body = isQuiz
         ? { kind, prompt: prompt.trim(), params: quizParams, attachment }
-        : { kind, prompt: prompt.trim(), attachment };
+        : { kind, prompt: prompt.trim(), params: paramsForKind, attachment };
       const res = await fetch(API_BASE + (isQuiz ? "/api/studio/quiz" : "/api/studio/generate"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1399,16 +1409,31 @@ export default function Studio({ initialKind } = {}) {
                     <div className="space-y-1.5">
                       {previewSections.map((s, i) => {
                         const letter = String.fromCharCode(65 + i);
+                        const slideMatch = kind === "presentation"
+                          ? (s.title || "").match(/^Slide\s+(\d+)\s*[—:\-]?\s*(.*)$/i)
+                          : null;
+                        const isSlide = Boolean(slideMatch);
+                        const badge = isSlide ? slideMatch[1] : letter;
+                        const label = isSlide
+                          ? (slideMatch[2].trim() || `Slide ${slideMatch[1]}`)
+                          : (s.title || `Part ${letter}`);
                         return (
                           <div
                             key={s.id || i}
-                            className="studio-section-fade-in flex items-center gap-2.5 px-2.5 py-2 rounded-lg"
+                            className="studio-section-fade-in flex items-start gap-2.5 px-2.5 py-2 rounded-lg"
                           >
-                            <span className="flex-shrink-0 h-7 w-7 rounded-md font-mono text-[11px] uppercase tracking-wider bg-ink text-paper-cool flex items-center justify-center">
-                              {letter}
+                            <span className="flex-shrink-0 mt-0.5 h-7 w-7 rounded-md font-mono text-[11px] uppercase tracking-wider bg-ink text-paper-cool flex items-center justify-center">
+                              {badge}
                             </span>
-                            <span className="flex-1 min-w-0 text-sm text-ink-soft truncate">
-                              {s.title || `Part ${letter}`}
+                            <span className="flex-1 min-w-0">
+                              {isSlide && (
+                                <span className="block font-mono text-[9.5px] uppercase tracking-[0.15em] text-muted mb-0.5">
+                                  Slide {slideMatch[1]}
+                                </span>
+                              )}
+                              <span className={`block text-sm text-ink-soft ${isSlide ? "line-clamp-2" : "truncate"}`}>
+                                {label}
+                              </span>
                             </span>
                           </div>
                         );
@@ -1442,16 +1467,31 @@ export default function Studio({ initialKind } = {}) {
                       const questionNumber = sections
                         .slice(0, i + 1)
                         .filter((x) => x.kind === "quiz_question").length;
-                      const badge = !isQuiz
-                        ? letter
-                        : s.kind === "quiz_meta"
-                          ? "★"
-                          : `${questionNumber}`;
-                      const primaryLabel = !isQuiz
-                        ? (s.title || `Part ${letter}`)
-                        : s.kind === "quiz_meta"
-                          ? "Cover"
-                          : (s.question?.prompt || s.title || `Question ${questionNumber}`);
+                      // Presentations come back as "## Slide N — Title"
+                      // blocks. Strip the "Slide N — " prefix so the
+                      // sidebar shows the slide TITLE prominently and
+                      // puts the number in the badge, mirroring how
+                      // quizzes show "Q1, Q2…".
+                      const slideMatch = kind === "presentation"
+                        ? (s.title || "").match(/^Slide\s+(\d+)\s*[—:\-]?\s*(.*)$/i)
+                        : null;
+                      const isSlide = Boolean(slideMatch);
+                      const slideNumber = slideMatch ? slideMatch[1] : null;
+                      const slideTitle = slideMatch ? slideMatch[2].trim() : null;
+                      const badge =
+                        isQuiz
+                          ? (s.kind === "quiz_meta" ? "★" : `${questionNumber}`)
+                          : isSlide
+                            ? slideNumber
+                            : letter;
+                      const primaryLabel =
+                        isQuiz
+                          ? (s.kind === "quiz_meta"
+                              ? "Cover"
+                              : (s.question?.prompt || s.title || `Question ${questionNumber}`))
+                          : isSlide
+                            ? (slideTitle || `Slide ${slideNumber}`)
+                            : (s.title || `Part ${letter}`);
                       return (
                         <button
                           key={s.id}
@@ -1483,7 +1523,14 @@ export default function Studio({ initialKind } = {}) {
                                 Question {questionNumber}
                               </span>
                             )}
-                            <span className={`block text-[12.5px] font-medium text-ink leading-snug ${isQuiz && s.kind === "quiz_question" ? "line-clamp-2" : "truncate"}`}>
+                            {isSlide && (
+                              <span className="block font-mono text-[9.5px] uppercase tracking-[0.15em] text-muted mb-0.5">
+                                Slide {slideNumber}
+                              </span>
+                            )}
+                            <span className={`block text-[12.5px] font-medium text-ink leading-snug ${
+                              (isQuiz && s.kind === "quiz_question") || isSlide ? "line-clamp-2" : "truncate"
+                            }`}>
                               {primaryLabel}
                             </span>
                           </span>

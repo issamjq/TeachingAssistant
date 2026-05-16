@@ -52,6 +52,62 @@ const buildUserContent = (text, attachment) => {
   ];
 };
 
+// Flatten the kind-specific params bag the frontend sends into a
+// single human-readable line we append to the user message. The AI
+// reads it as a list of constraints, so the slide count, grade,
+// language etc. become hard requirements instead of free-floating
+// hints the model can ignore. Returns "" when params is empty/null.
+function renderParamsLine(kind, params) {
+  if (!params || typeof params !== "object") return "";
+  const bits = [];
+  const push = (label, value, suffix = "") => {
+    if (value === "" || value == null) return;
+    bits.push(`${label}: ${value}${suffix}`);
+  };
+  if (kind === "lesson_plan") {
+    push("Grade", params.grade);
+    push("Major", params.major);
+    push("Language", params.language);
+    if (Array.isArray(params.section)) push("Section(s)", params.section.join(", "));
+    else push("Section", params.section);
+    push("Duration", params.duration, " minutes (sum across stages must equal this)");
+  } else if (kind === "homework") {
+    push("Grade", params.grade);
+    push("Major", params.major);
+    push("Language", params.language);
+    if (Array.isArray(params.section)) push("Section(s)", params.section.join(", "));
+    else push("Section", params.section);
+  } else if (kind === "activity") {
+    push("Type", params.type);
+    push("Major", params.major);
+    push("Language", params.language);
+    push("Duration", params.duration, " minutes");
+  } else if (kind === "presentation") {
+    push("Grade", params.grade);
+    push("Major", params.major);
+    push("Language", params.language);
+    if (Array.isArray(params.section)) push("Section(s)", params.section.join(", "));
+    else push("Section", params.section);
+    if (params.slides) {
+      // Slide count is a HARD constraint — emphasise it so the model
+      // doesn't drift to 6 when the teacher picked 5.
+      bits.push(`Slides: produce EXACTLY ${params.slides} "## Slide N — …" blocks (do not count the Title meta line or Speaker notes section as slides)`);
+    }
+  } else if (kind === "quiz") {
+    push("Grade", params.grade);
+    push("Major", params.major);
+    push("Language", params.language);
+    if (Array.isArray(params.section)) push("Section(s)", params.section.join(", "));
+    else push("Section", params.section);
+    push("Difficulty", params.difficulty);
+    if (params.questions) bits.push(`Questions: produce EXACTLY ${params.questions}`);
+    push("Duration", params.duration, " minutes");
+    push("Types", params.types);
+  }
+  if (params.scheduled_for) push("Scheduled for", params.scheduled_for);
+  return bits.join(" · ");
+}
+
 // Single, stable system prompt across every generation kind. Stable bytes →
 // the Anthropic prompt-cache prefix matches across calls (subject to the
 // model's minimum-prefix size). The user message carries the variable parts
@@ -153,6 +209,13 @@ a slide-by-slide outline:
   After the last slide, add a short ## Speaker notes section with one
   or two sentences per slide.
 
+  IMPORTANT — when the user's CONSTRAINTS line specifies a slide
+  count, produce EXACTLY that many "## Slide N — …" blocks. The
+  "## Title" meta header and the trailing "## Speaker notes" section
+  do NOT count toward the slide total. If the teacher asked for 5
+  slides, the document must contain "## Slide 1 — …" through
+  "## Slide 5 — …" and nothing more in the slide range.
+
 FEEDBACK — produce per-student paragraphs in this shape:
   ## <Student name>
   One paragraph. Lead with a specific strength, then a specific area to improve, then a concrete suggested next step. Avoid vague praise like "great job".
@@ -192,7 +255,7 @@ router.post("/generate", async (req, res) => {
       });
     }
 
-    const { prompt, kind, attachment } = req.body || {};
+    const { prompt, kind, attachment, params } = req.body || {};
     const promptText = String(prompt || "").trim();
     // An attachment alone is a valid signal — "make a quiz from this
     // worksheet" doesn't need extra prose. Require ONE of the two.
@@ -204,12 +267,19 @@ router.post("/generate", async (req, res) => {
     ]);
     const k = allowedKinds.has(kind) ? kind : "lesson_plan";
 
+    // Render the kind's params chips into plain English the AI can use
+    // as hard constraints (e.g., "produce exactly 5 slides"). Only the
+    // keys present in `params` are emitted, so the line stays clean
+    // when the teacher leaves everything blank.
+    const paramsLine = renderParamsLine(k, params);
+
     const cur = await loadCurrentTeacher();
     // Pass teacher context inside the user message so the system prompt stays
     // byte-stable across calls (and therefore cache-eligible).
     const userMessage =
       `KIND: ${k.toUpperCase()}\n` +
       `TEACHER CONTEXT: ${cur ? `id=${cur.id}, grades=${(cur.grade_levels || []).join(", ")}` : "none"}\n` +
+      `${paramsLine ? `CONSTRAINTS (treat numeric counts as exact): ${paramsLine}\n` : ""}` +
       `${attachment ? `\nNOTE: An attachment has been provided. Treat it as primary source material — base the output on what's in it.\n` : ""}` +
       `\nPROMPT:\n${promptText || "(no extra guidance — use the attached file as the full source)"}`;
 
