@@ -178,6 +178,21 @@ CREATE INDEX IF NOT EXISTS drafts_deleted_at_idx        ON drafts (deleted_at);
 CREATE INDEX IF NOT EXISTS templates_deleted_at_idx     ON templates (deleted_at);
 `;
 
+// Teacher-uploaded images for the slide builder. Stored as base64 text
+// (no data: prefix) + mime so it survives Render's ephemeral filesystem
+// without an external object store. Served by GET /api/images/:id.
+// Idempotent.
+const SCHEMA_IMAGES = `
+CREATE TABLE IF NOT EXISTS uploaded_images (
+  id          SERIAL PRIMARY KEY,
+  teacher_id  INT REFERENCES teachers(id) ON DELETE CASCADE,
+  mime        TEXT NOT NULL,
+  data        TEXT NOT NULL,
+  created_at  TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS uploaded_images_teacher_idx ON uploaded_images (teacher_id);
+`;
+
 // =============================================================================
 // SCHEMA — new tables
 // =============================================================================
@@ -523,6 +538,9 @@ export async function runInit() {
 
   console.log("Adding soft-delete columns to teaching surfaces...");
   await pool.query(SCHEMA_SOFT_DELETE);
+
+  console.log("Creating uploaded_images table...");
+  await pool.query(SCHEMA_IMAGES);
 
   console.log("Normalizing legacy values...");
   await pool.query(NORMALIZE);

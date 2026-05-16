@@ -203,8 +203,19 @@ a slide-by-slide outline:
   ## Slide 1 — <Slide title>
   - Body bullet 1
   - Body bullet 2
+  Image: <2–4 word literal photo search query for a REAL stock photo that
+  fits this slide, e.g. "rain falling on leaves" or "students in classroom".
+  Describe a concrete scene, never abstract concepts or text/diagrams.>
+  Layout: <one of: text-image | image-text | full-image | text | title>
   ## Slide 2 — <Slide title>
   - …
+
+  Every slide MUST end with its own "Image:" line then "Layout:" line
+  (exactly those labels). Make slide 1 a "title" layout (cover). Use
+  "full-image" sparingly for high-impact slides; prefer "text-image" or
+  "image-text" for content slides; use "text" only when a photo would
+  not help. The Image query must be a real photographable scene so a
+  stock-photo search returns a good match.
 
   After the last slide, add a short ## Speaker notes section with one
   or two sentences per slide.
