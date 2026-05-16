@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { api } from "./_shared";
 import { parseSections, joinSections, renderMarkdown } from "../lib/markdown";
 import StudioCard from "./StudioCard";
+import SlideBuilder from "./SlideBuilder";
 import MudirMascot from "../components/MudirMascot";
 import {
   GRADE_LEVELS, MAJORS,
@@ -354,11 +355,11 @@ export default function Studio({ initialKind } = {}) {
   const sectionOptions = teacherSections.length ? teacherSections : QUIZ_SECTIONS;
 
   const [busy, setBusy] = useState(false);
+  // Quizzes now stream as markdown text just like every other kind, so
+  // the teacher watches each question get written live. The structured
+  // quiz object arrives in the final `done` event (backend restructures
+  // the finished markdown) and drives the editable cards.
   const [streamingText, setStreamingText] = useState("");
-  // Structured-quiz path: while the model is calling submit_quiz, the
-  // backend streams raw partial-JSON chunks. We accumulate them only to
-  // estimate progress (count "position": occurrences) — never parsed.
-  const [quizPartial, setQuizPartial] = useState("");
   // Pre-prompt knobs the teacher can lock in before generating a quiz.
   // Every field is optional — left as "" / null the AI infers from prose.
   // Only surfaced when kind === "quiz".
@@ -531,7 +532,6 @@ export default function Studio({ initialKind } = {}) {
     setPrompt("");
     setBusy(false);
     setStreamingText("");
-    setQuizPartial("");
     setQuizParams(QUIZ_PARAMS_DEFAULTS);
     setActivityParams(ACTIVITY_PARAMS_DEFAULTS);
     setLessonParams(LESSON_PARAMS_DEFAULTS);
@@ -606,7 +606,7 @@ export default function Studio({ initialKind } = {}) {
     abortRef.current?.abort();
     abortRef.current = new AbortController();
     setBusy(true); setError(null); setResult(null);
-    setStreamingText(""); setQuizPartial(""); setSavedDraftId(null);
+    setStreamingText(""); setSavedDraftId(null);
     setSections([]);
 
     const isQuiz = kind === "quiz";
@@ -659,10 +659,6 @@ export default function Studio({ initialKind } = {}) {
           if (payload.type === "delta") {
             acc += payload.text;
             setStreamingText(acc);
-          } else if (payload.type === "json_delta") {
-            // Quiz path — keep accumulating the partial JSON only as a
-            // progress signal; final structured object arrives in `done`.
-            setQuizPartial((prev) => prev + (payload.partial || ""));
           } else if (payload.type === "done") {
             // Persist whatever the teacher just generated to the recents
             // list for this kind. Prefer the quiz title when available
@@ -831,84 +827,6 @@ export default function Studio({ initialKind } = {}) {
     setSections(next);
   }, [result]);
 
-  // Stream quiz sections into the sidebar AS they're being written. The
-  // markdown path adds sections one heading at a time (parseSections),
-  // but the quiz path knows the expected question count upfront — so we
-  // pre-create N+1 sidebar rows the instant the user hits Make it and
-  // fill in each row's data as the JSON streams. Result: the teacher
-  // sees every row from t=0 and watches them light up one by one, even
-  // if the model emits the questions in a tight burst.
-  useEffect(() => {
-    if (kind !== "quiz") return;
-    if (result?.quiz) return; // settled — the other effect owns it
-    if (!busy && !quizPartial) return;
-
-    const parsed = parsePartialQuiz(quizPartial);
-
-    // Slot count: respect the teacher's QUESTIONS picker if they set one,
-    // otherwise fall back to whatever we've parsed so far (clamped to 5
-    // so a 0-question pre-state still shows a reasonable rail).
-    const declared = Number(quizParams.questions);
-    const slotCount = Math.max(
-      Number.isFinite(declared) && declared > 0 ? declared : 0,
-      parsed.questions.length,
-      5
-    );
-
-    const next = [
-      {
-        id: "meta",
-        title: parsed.title || "Cover",
-        kind: "quiz_meta",
-        streamingMeta: parsed,
-        streaming: !parsed.title,
-      },
-    ];
-    for (let i = 0; i < slotCount; i++) {
-      const q = parsed.questions[i];
-      next.push({
-        id: `q-${i + 1}`,
-        title:
-          q && q.prompt
-            ? q.prompt.trim().slice(0, 50)
-            : `Question ${i + 1}`,
-        kind: "quiz_question",
-        // Placeholder shape so LiveQuestionCard can render a "drafting"
-        // affordance even before any of the question's bytes arrive.
-        question: q || {
-          position: i + 1,
-          type: null,
-          prompt: null,
-          promptInflight: false,
-          choices: null,
-          choicesClosed: false,
-          correct_answer: null,
-          marks: null,
-          complete: false,
-        },
-        streaming: !q || !q.complete,
-      });
-    }
-    setSections(next);
-
-    // Auto-advance: stay on whatever section is being written right now.
-    // - 0 questions seen → Cover (index 0)
-    // - last question is in flight → that question's slot
-    // - last question complete but more to come → next placeholder slot
-    if (busy) {
-      const last = parsed.questions[parsed.questions.length - 1];
-      let activeIdx;
-      if (parsed.questions.length === 0) {
-        activeIdx = 0;
-      } else if (last && !last.complete) {
-        activeIdx = parsed.questions.length; // q-{N} slot in [meta, q-1, …]
-      } else {
-        activeIdx = Math.min(parsed.questions.length + 1, next.length - 1);
-      }
-      setSectionIndex(activeIdx);
-    }
-  }, [quizPartial, busy, kind, result, quizParams.questions]);
-
   // Warn before the user discards an in-flight or freshly-generated draft.
   // We skip the warning for a saved-and-clean quiz — there's nothing to lose
   // there and the modal would just be friction.
@@ -938,21 +856,12 @@ export default function Studio({ initialKind } = {}) {
   // Internal — the actual reset. Wrapped by makeAnother() below which
   // checks for unsaved work first and surfaces the leave-confirm modal
   // instead of silently dropping the draft.
-  //
-  // CRITICAL: clear quizPartial too. Otherwise the streaming useEffect
-  // sees `busy=false AND quizPartial!=""` and re-derives sections from
-  // the stale buffer on the very next render — the teacher clicks "New",
-  // confirms "Leave studio", and the old result snaps right back. Took
-  // a second click of "New" before the page actually emptied. Resetting
-  // every transient flag below leaves the picker view clean on the
-  // first click.
   const resetForNewDraft = () => {
     abortRef.current?.abort();
     regenAbortsRef.current.forEach((c) => c.abort?.());
     regenAbortsRef.current.clear();
     setBusy(false);
     setStreamingText("");
-    setQuizPartial("");
     setResult(null);
     setSections([]);
     setSectionIndex(0);
@@ -1334,6 +1243,11 @@ export default function Studio({ initialKind } = {}) {
       .filter((l) => /^[\-*]|\d+\./.test(l.trim()))
       .length;
 
+    // Once a presentation finishes generating, hand the markdown to the
+    // Canva-style SlideBuilder — the teacher edits the deck on the slides
+    // themselves instead of through the section/refine flow.
+    const presentationDeck = kind === "presentation" && !!result && !busy;
+
     return (
       <div className="max-w-6xl mx-auto pb-4">
         {/* Top bar: brand + crumb + actions */}
@@ -1397,6 +1311,18 @@ export default function Studio({ initialKind } = {}) {
           </div>
         </div>
 
+        {presentationDeck ? (
+          <Card className="studio-result-card shadow-sm overflow-hidden">
+            <div className="p-5 md:p-7">
+              <SlideBuilder
+                markdown={result.text}
+                presentationParams={presentationParams}
+                onSaved={(saved) => { setSavedDraftId(saved.id); setIsDirty(false); }}
+              />
+            </div>
+          </Card>
+        ) : (
+        <>
         {/* Two-column card: sidebar + right pane */}
         <Card className="studio-result-card shadow-sm overflow-hidden">
           <div className="grid grid-cols-1 md:grid-cols-[200px_1fr] lg:grid-cols-[240px_1fr]">
@@ -1578,55 +1504,32 @@ export default function Studio({ initialKind } = {}) {
               </div>
 
               <div className="print:hidden">
-                {/* While a quiz is still streaming, hold the live prose
-                    view up for the WHOLE duration — the streaming effect
-                    populates `sections` almost immediately (Cover + N
-                    slots), and without this the UI would flip to the
-                    one-card-at-a-time editable view a split second in, so
-                    the teacher never sees the quiz "build up" the way
-                    prose kinds do. Only fall through to the sectioned
-                    editable view once generation has settled (result.quiz
-                    set / !busy). */}
-                {(sections.length === 0 || (kind === "quiz" && busy && !result?.quiz)) ? (
-                  // Pre-parse — render the streaming text live so the
-                  // teacher watches real headings and questions appear
-                  // word by word, identical for quiz and prose kinds.
-                  (() => {
-                    // Quiz streams structured tool-JSON; every other kind
-                    // streams markdown text. Render BOTH the same way —
-                    // readable prose growing under a blinking caret — so
-                    // the teacher watches the quiz get written exactly
-                    // like a lesson plan instead of staring at a "drafting
-                    // question 1" placeholder until it pops in finished.
-                    const liveText =
-                      kind === "quiz"
-                        ? quizPartial
-                          ? streamingQuizMarkdown(quizPartial, prompt.trim())
-                          : ""
-                        : streamingText;
-                    return (
-                      <div>
-                        <p className="font-serif italic text-base text-accent mb-3 inline-flex items-center gap-2">
-                          <span className="h-1.5 w-1.5 rounded-full bg-accent animate-pulse" />
-                          {busy ? "Generating" : "Done"}
-                        </p>
-                        <div className="max-h-[60vh] overflow-y-auto pr-1 studio-stream">
-                          {liveText ? (
-                            <>
-                              {renderMarkdown(liveText)}
-                              {busy && (
-                                <span className="inline-block w-1.5 h-4 bg-accent ml-0.5 animate-pulse align-text-bottom" />
-                              )}
-                            </>
-                          ) : (
-                            <div className="flex flex-col items-center justify-center py-6">
-                              <MudirMascot size={140} label="Mudir is thinking…" />
-                            </div>
+                {/* While generating, every kind — quiz included — streams
+                    its markdown token-by-token under a blinking caret, so
+                    the teacher watches real headings and questions appear
+                    word by word. Once it settles (sections built from the
+                    result) we flip to the sectioned editable view. */}
+                {sections.length === 0 ? (
+                  <div>
+                    <p className="font-serif italic text-base text-accent mb-3 inline-flex items-center gap-2">
+                      <span className="h-1.5 w-1.5 rounded-full bg-accent animate-pulse" />
+                      {busy ? "Generating" : "Done"}
+                    </p>
+                    <div className="max-h-[60vh] overflow-y-auto pr-1 studio-stream">
+                      {streamingText ? (
+                        <>
+                          {renderMarkdown(streamingText)}
+                          {busy && (
+                            <span className="inline-block w-1.5 h-4 bg-accent ml-0.5 animate-pulse align-text-bottom" />
                           )}
+                        </>
+                      ) : (
+                        <div className="flex flex-col items-center justify-center py-6">
+                          <MudirMascot size={140} label="Mudir is thinking…" />
                         </div>
-                      </div>
-                    );
-                  })()
+                      )}
+                    </div>
+                  </div>
                 ) : (
                   <>
                     {/* Eyebrow row now hosts the prev/next chevrons too —
@@ -1821,6 +1724,8 @@ export default function Studio({ initialKind } = {}) {
             </div>
           </div>
         </Card>
+        </>
+        )}
 
         {result?.usage && (
           <CostFooter usage={result.usage} hadAttachment={Boolean(attachment)} />
@@ -1831,8 +1736,9 @@ export default function Studio({ initialKind } = {}) {
             artefacts it regenerates the current section. For structured
             quizzes a small "this question / whole quiz" toggle picks the
             scope (auto-defaulted to whole-quiz when the cover is open).
-            Frosted-glass paper so content underneath stays subtly readable
-            as you scroll. */}
+            Hidden for a finished presentation — the SlideBuilder is the
+            editor there, no section/refine flow. */}
+        {!presentationDeck && (
         <div className="sticky bottom-2 md:bottom-3 z-20 mt-3 print:hidden studio-refine-rise">
           {/* Two-line header above the input doubles as a teaching label so a
               teacher who's never used the bar before knows what it does, and
@@ -1901,6 +1807,7 @@ export default function Studio({ initialKind } = {}) {
             </Button>
           </div>
         </div>
+        )}
 
         {error && (
           <div className="mt-4 bg-paper border border-accent rounded-lg p-4 shadow-sm">
@@ -2443,195 +2350,7 @@ const QUIZ_TYPE_LABELS = {
   essay: "Essay",
 };
 
-// Pull what we can out of the in-flight JSON. The model writes the quiz
-// tool input top-down. We now parse each question's WHOLE body — prompt,
-// type, choices, correct_answer, marks — as bytes arrive, so the
-// streaming preview reads like a real quiz unfolding live instead of a
-// list of titles.
-function parsePartialQuiz(partial) {
-  if (!partial) return { title: null, subject: null, questions: [] };
-
-  const grabStr = (key, src = partial) => {
-    const re = new RegExp(`"${key}"\\s*:\\s*"((?:[^"\\\\]|\\\\.)*)"`);
-    const m = src.match(re);
-    return m ? m[1] : null;
-  };
-  const grabNum = (key, src = partial) => {
-    const re = new RegExp(`"${key}"\\s*:\\s*(-?\\d+(?:\\.\\d+)?)`);
-    const m = src.match(re);
-    return m ? Number(m[1]) : null;
-  };
-  // Boolean grab (for correct_answer on true/false questions).
-  const grabBool = (key, src = partial) => {
-    const re = new RegExp(`"${key}"\\s*:\\s*(true|false)\\b`);
-    const m = src.match(re);
-    return m ? m[1] === "true" : null;
-  };
-
-  const title = grabStr("title");
-  const subject = grabStr("subject");
-
-  // Find the questions array and slice each balanced {…} object out of
-  // it. The last one may be unclosed (in flight); we keep it anyway so
-  // its partial fields can render with carets.
-  const qStart = partial.indexOf('"questions"');
-  if (qStart < 0) return { title, subject, questions: [] };
-  const arrayStart = partial.indexOf("[", qStart);
-  if (arrayStart < 0) return { title, subject, questions: [] };
-  const body = partial.slice(arrayStart + 1);
-
-  const chunks = [];
-  let depth = 0, start = -1, inStr = false, esc = false;
-  for (let i = 0; i < body.length; i++) {
-    const c = body[i];
-    if (esc) { esc = false; continue; }
-    if (inStr) {
-      if (c === "\\") esc = true;
-      else if (c === '"') inStr = false;
-      continue;
-    }
-    if (c === '"') { inStr = true; continue; }
-    if (c === "{") {
-      if (depth === 0) start = i;
-      depth++;
-    } else if (c === "}") {
-      depth--;
-      if (depth === 0 && start >= 0) {
-        chunks.push({ text: body.slice(start, i + 1), complete: true });
-        start = -1;
-      }
-    }
-  }
-  if (depth > 0 && start >= 0) {
-    chunks.push({ text: body.slice(start), complete: false });
-  }
-
-  // For each chunk, extract whatever fields have arrived. Prompts and
-  // choice strings may be unclosed — we surface those as in-progress.
-  const parseQuestion = (chunk, defaultPosition) => {
-    const text = chunk.text;
-    // Prompt — closed or open.
-    const closedPrompt = text.match(/"prompt"\s*:\s*"((?:[^"\\]|\\.)*)"/);
-    const openPrompt = !closedPrompt
-      ? text.match(/"prompt"\s*:\s*"((?:[^"\\]|\\.)*)$/)
-      : null;
-    const prompt = closedPrompt ? closedPrompt[1] : openPrompt ? openPrompt[1] : null;
-    const promptInflight = !!openPrompt && !closedPrompt;
-
-    // Choices array — extract every closed string between `[` and `]`
-    // (or end of buffer). Track whether the array itself has closed so
-    // we can show "still listing options…" affordance otherwise.
-    let choices = null;
-    let choicesClosed = false;
-    const arr = text.match(/"choices"\s*:\s*\[([\s\S]*?)(\]|$)/);
-    if (arr) {
-      choicesClosed = arr[2] === "]";
-      const inside = arr[1];
-      const items = [];
-      const sRe = /"((?:[^"\\]|\\.)*)"/g;
-      let mm;
-      while ((mm = sRe.exec(inside)) !== null) items.push(mm[1]);
-      // Detect an unfinished trailing string (no closing quote yet)
-      const tail = inside.slice(inside.lastIndexOf('"') >= 0
-        ? inside.lastIndexOf('"') + 1 : 0);
-      // Simple heuristic: if there's an odd count of unescaped quotes,
-      // the last "..." is open.
-      const quoteCount = (inside.match(/(?<!\\)"/g) || []).length;
-      const openTail =
-        quoteCount % 2 === 1 ? inside.slice(inside.lastIndexOf('"') + 1) : null;
-      if (openTail && openTail.trim().length > 0) items.push(openTail);
-      choices = items;
-    }
-
-    // Correct answer — string ("A", "True"-as-string, or short answer) OR
-    // boolean. Try string first; fall back to bool.
-    const correctStr = grabStr("correct_answer", text);
-    const correctBool = correctStr === null ? grabBool("correct_answer", text) : null;
-    const correct_answer = correctStr !== null ? correctStr : correctBool;
-
-    return {
-      position: grabNum("position", text) ?? defaultPosition,
-      type: grabStr("type", text),
-      prompt,
-      promptInflight,
-      choices,
-      choicesClosed,
-      correct_answer,
-      marks: grabNum("marks", text),
-      complete: chunk.complete,
-    };
-  };
-
-  const questions = chunks.map((c, i) => parseQuestion(c, i + 1));
-  return { title, subject, questions };
-}
-
-// Turn the in-flight quiz tool JSON into readable markdown so the quiz
-// streams in word-by-word EXACTLY like the prose kinds (lesson, homework
-// …) instead of popping in as finished structured cards. Unclosed
-// strings are surfaced too, so the title and each prompt grow letter by
-// letter under the same blinking caret the lesson path uses.
-function streamingQuizMarkdown(partial, hintPrompt) {
-  if (!partial) return "";
-
-  // Open- OR closed-string grab for top-level scalars so the value types
-  // out as bytes arrive rather than popping in whole once its quote closes.
-  const liveStr = (key) => {
-    const closed = partial.match(
-      new RegExp(`"${key}"\\s*:\\s*"((?:[^"\\\\]|\\\\.)*)"`)
-    );
-    if (closed) return closed[1];
-    const open = partial.match(
-      new RegExp(`"${key}"\\s*:\\s*"((?:[^"\\\\]|\\\\.)*)$`)
-    );
-    return open ? open[1] : null;
-  };
-
-  const { questions } = parsePartialQuiz(partial);
-  const title = liveStr("title");
-  const subject = liveStr("subject");
-
-  const lines = [];
-  lines.push(
-    `## ${title || (hintPrompt ? truncate(hintPrompt, 70) : "Building your quiz")}`
-  );
-  if (subject) lines.push(`*${subject}*`);
-  lines.push("");
-
-  questions.forEach((q) => {
-    const pos = q.position ?? "";
-    const promptText = q.prompt != null && q.prompt !== "" ? q.prompt : "…";
-    lines.push(`**Q${pos}.** ${promptText}`);
-    if (q.type === "mcq" && Array.isArray(q.choices)) {
-      q.choices.forEach((c, idx) => {
-        lines.push(`- ${String.fromCharCode(65 + idx)}. ${c}`);
-      });
-    } else if (q.type === "tf") {
-      lines.push(`- True   ·   False`);
-    }
-    if (q.correct_answer != null && q.correct_answer !== "") {
-      const ans =
-        typeof q.correct_answer === "boolean"
-          ? q.correct_answer
-            ? "True"
-            : "False"
-          : q.correct_answer;
-      lines.push("");
-      lines.push(`*Answer: ${ans}*`);
-    }
-    lines.push("");
-  });
-
-  return lines.join("\n");
-}
-
-// Live mini-card showing the WHOLE question body as it streams in.
-// Prompt, type, marks, choices, and correct answer all light up as the
-// JSON arrives. The in-flight one gets a soft accent ring so the teacher
-// knows where Mudir is writing right now.
-// Read-only cover card shown while the quiz is still streaming and no
-// final result has landed yet. Mirrors QuizMetaCard's visual chrome but
-// with carets where the model hasn't finished writing.
+// Read-only cover card — kept for the structured quiz result view.
 function StreamingCoverCard({ meta, busy, hintPrompt }) {
   const title = meta?.title || (hintPrompt ? truncate(hintPrompt, 80) : null);
   const subject = meta?.subject;

@@ -520,13 +520,39 @@ router.post("/quiz", async (req, res) => {
       : "";
 
     const cur = await loadCurrentTeacher();
+    // The quiz streams as MARKDOWN text (same token-by-token path as
+    // lesson plans) so the teacher watches every question get written
+    // live — forced tool_use streamed in coarse bursts and felt like
+    // "nothing then boom done". A strict template keeps the markdown
+    // both human-readable AND trivial to restructure afterwards.
     const userMessage =
       `KIND: QUIZ\n` +
       `TEACHER CONTEXT: ${cur ? `id=${cur.id}, grades=${(cur.grade_levels || []).join(", ")}` : "none"}\n\n` +
       settingsBlock +
       `${attachment ? `ATTACHMENT: A file is provided. Base the quiz questions on the content of the attachment (textbook page, worksheet, exam paper, etc.). Use the prompt as additional guidance.\n\n` : ""}` +
       `PROMPT:\n${promptText || "(no extra guidance — base every question on the attached file)"}\n\n` +
-      `Use the submit_quiz tool. Do not return prose.`;
+      `Write the quiz as Markdown in EXACTLY this template — no preamble, no extra prose:\n\n` +
+      `## <Quiz title>\n` +
+      `*<Subject> · <Grade> · <Section or "All sections"> · <Total marks> marks · <Duration> min*\n\n` +
+      `**Instructions:** <2–3 sentences for students>\n\n` +
+      `### Question 1 · MCQ · <marks> marks\n` +
+      `<question stem>\n` +
+      `- A) <option A>\n- B) <option B>\n- C) <option C>\n- D) <option D>\n` +
+      `**Answer:** <A|B|C|D>\n\n` +
+      `### Question 2 · True/False · <marks> marks\n` +
+      `<statement>\n` +
+      `**Answer:** <True|False>\n\n` +
+      `### Question 3 · Short answer · <marks> marks\n` +
+      `<question stem>\n` +
+      `**Answer:** <expected answer>\n\n` +
+      `### Question 4 · Essay · <marks> marks\n` +
+      `<question stem>\n` +
+      `**Answer:** <1–2 sentence rubric>\n\n` +
+      `Rules: number questions sequentially starting at 1. Use only the ` +
+      `question types the SETTINGS allow. Every "### Question N · <Type> · ` +
+      `<marks> marks" header line must be exact (that middle separator is ` +
+      `" · "). MCQ always has exactly four options A–D. Keep the same ` +
+      `language throughout.`;
 
     let userContent;
     try {
@@ -544,8 +570,6 @@ router.post("/quiz", async (req, res) => {
       system: [
         { type: "text", text: SYSTEM_PROMPT, cache_control: { type: "ephemeral" } },
       ],
-      tools: [QUIZ_TOOL],
-      tool_choice: { type: "tool", name: "submit_quiz" },
       messages: [{ role: "user", content: userContent }],
     });
 
@@ -566,30 +590,52 @@ router.post("/quiz", async (req, res) => {
     req.on("close", () => { clearInterval(heartbeat); stream.abort?.(); });
 
     try {
-      // Kick off with a no-op event so the EventSource sees data on the
-      // wire immediately — the frontend then renders the streaming
-      // placeholder with all its optimistic question slots even before
-      // the model has emitted any tool input.
-      send({ type: "started" });
-      // Stream raw partial JSON (input_json_delta) so the frontend can show
-      // the user that bytes are arriving. The frontend parses what it can
-      // out of the partial — title, completed prompts, the in-flight one —
-      // and waits for the final `done` event below for the typed quiz.
+      // Stream the markdown token-by-token, exactly like /generate.
       for await (const ev of stream) {
-        if (
-          ev.type === "content_block_delta" &&
-          ev.delta?.type === "input_json_delta"
-        ) {
-          send({ type: "json_delta", partial: ev.delta.partial_json });
+        if (ev.type === "content_block_delta" && ev.delta.type === "text_delta") {
+          send({ type: "delta", text: ev.delta.text });
         }
       }
-      clearInterval(heartbeat);
       const message = await stream.finalMessage();
-      const toolBlock = (message.content || []).find(
+      const markdown = (message.content || [])
+        .filter((b) => b.type === "text")
+        .map((b) => b.text)
+        .join("");
+
+      // Restructure the finished markdown into the typed quiz shape with a
+      // single fast non-streaming tool call. The model only reformats —
+      // it does not regenerate — so this is deterministic and cheap.
+      const restructure = await client.messages.create({
+        model: "claude-haiku-4-5",
+        max_tokens: 4096,
+        thinking: { type: "disabled" },
+        system: [
+          { type: "text", text: SYSTEM_PROMPT, cache_control: { type: "ephemeral" } },
+        ],
+        tools: [QUIZ_TOOL],
+        tool_choice: { type: "tool", name: "submit_quiz" },
+        messages: [{
+          role: "user",
+          content:
+            `Convert the quiz below into the submit_quiz tool. Copy every ` +
+            `title, instruction, question stem, choice, and answer EXACTLY ` +
+            `as written — do not rephrase, add, remove, reorder, or ` +
+            `renumber anything. Map types: MCQ→"mcq", True/False→"tf", ` +
+            `Short answer→"short", Essay→"essay". For mcq, correct_answer ` +
+            `is the letter "A"|"B"|"C"|"D" and choices is the four option ` +
+            `texts (no "A)" prefixes). For tf, correct_answer is boolean ` +
+            `true/false and choices is ["True","False"]. For short/essay, ` +
+            `correct_answer is the answer/rubric text and choices is null.\n\n` +
+            `QUIZ:\n"""\n${markdown}\n"""`,
+        }],
+      });
+      clearInterval(heartbeat);
+
+      const toolBlock = (restructure.content || []).find(
         (b) => b.type === "tool_use" && b.name === "submit_quiz"
       );
       if (!toolBlock) {
-        send({ type: "error", message: "Model did not call submit_quiz." });
+        send({ type: "error", message: "Could not structure the quiz. Try again." });
         return res.end();
       }
       send({
@@ -598,10 +644,16 @@ router.post("/quiz", async (req, res) => {
         quiz: toolBlock.input,
         stop_reason: message.stop_reason,
         usage: {
-          input_tokens: message.usage.input_tokens,
-          output_tokens: message.usage.output_tokens,
-          cache_read_input_tokens: message.usage.cache_read_input_tokens ?? 0,
-          cache_creation_input_tokens: message.usage.cache_creation_input_tokens ?? 0,
+          input_tokens:
+            (message.usage.input_tokens || 0) + (restructure.usage.input_tokens || 0),
+          output_tokens:
+            (message.usage.output_tokens || 0) + (restructure.usage.output_tokens || 0),
+          cache_read_input_tokens:
+            (message.usage.cache_read_input_tokens ?? 0) +
+            (restructure.usage.cache_read_input_tokens ?? 0),
+          cache_creation_input_tokens:
+            (message.usage.cache_creation_input_tokens ?? 0) +
+            (restructure.usage.cache_creation_input_tokens ?? 0),
         },
       });
     } catch (e) {
