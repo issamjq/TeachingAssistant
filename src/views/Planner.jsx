@@ -98,6 +98,10 @@ export default function Planner() {
   const [formDefaultDate, setFormDefaultDate] = useState(null);
   const [dayListDate, setDayListDate] = useState(null); // ISO date string
   const today = new Date();
+  // Midnight today — past calendar cells (before this) are visually
+  // receded the way Google/Outlook do, but stay clickable so teachers
+  // can still backfill past entries.
+  const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
 
   const openNewForDay = (iso) => {
     setFormDefaultDate(iso);
@@ -372,6 +376,7 @@ export default function Planner() {
           {grid.map((d, i) => {
             const inMonth = d.getMonth() === anchor.getMonth();
             const isToday = sameYMD(d, today);
+            const isPast = !isToday && d < todayStart;
             const dayEvents = eventsByDate.get(isoKey(d)) || [];
             const shown = dayEvents.slice(0, 2);
             const overflow = dayEvents.length - shown.length;
@@ -389,7 +394,11 @@ export default function Planner() {
                   }
                 }}
                 className={`planner-cell border-b border-r border-line/70 px-1.5 pt-1 pb-1 min-h-[60px] flex flex-col gap-0.5 cursor-pointer transition-colors duration-150 ${
-                  inMonth ? "bg-paper-cool" : "bg-paper-warm/40 text-muted/60"
+                  inMonth
+                    ? isPast
+                      ? "bg-paper-cool/50"
+                      : "bg-paper-cool"
+                    : "bg-paper-warm/40 text-muted/60"
                 } hover:bg-paper-warm/50 focus:outline-none focus:ring-2 focus:ring-accent/40 focus:ring-inset ${
                   isToday ? "planner-cell-today" : ""
                 } ${(i + 1) % 7 === 0 ? "border-r-0" : ""} ${i >= lastRowStart ? "border-b-0" : ""}`}
@@ -401,7 +410,9 @@ export default function Planner() {
                       isToday
                         ? "h-6 w-6 rounded-full bg-accent text-paper-cool flex items-center justify-center font-medium text-[11.5px]"
                         : inMonth
-                          ? "text-ink-soft"
+                          ? isPast
+                            ? "text-muted/70"
+                            : "text-ink-soft"
                           : "text-muted/60"
                     }`}
                   >
@@ -413,7 +424,7 @@ export default function Planner() {
                     </span>
                   )}
                 </div>
-                <div className="flex-1 flex flex-col gap-1 min-h-0">
+                <div className={`flex-1 flex flex-col gap-1 min-h-0 ${isPast ? "opacity-60" : ""}`}>
                   {shown.map((e) => {
                     const cat = CATEGORIES.find((c) => c.key === e.kind);
                     const s = COLOR_STYLES[cat?.color || "ink"];
@@ -600,13 +611,16 @@ function DayListPopup({ date, dayEvents, onClose, onSelect, onNew }) {
 function StudioHeroCard() {
   // verb + noun two-line label, with a per-chip soft-tinted icon tile so
   // the row reads as six distinct tools instead of one repeated chip.
+  // studioKind = the Studio kind to deep-link to (#/studio/<kind>).
+  // null → land on Studio with its default picker (no kind to preset
+  // for Analyze / Ask).
   const chips = [
-    { key: "lesson",       icon: BookOpen,      verb: "Generate", noun: "Lesson Plan",     color: "accent" },
-    { key: "quiz",         icon: GraduationCap, verb: "Create",   noun: "Quiz",            color: "sage" },
-    { key: "presentation", icon: Layout,        verb: "Build",    noun: "Presentation",    color: "accent-soft" },
-    { key: "weekly",       icon: CalendarDays,  verb: "Plan",     noun: "Weekly Schedule", color: "indigo" },
-    { key: "insights",     icon: Users,         verb: "Analyze",  noun: "Students",        color: "moss" },
-    { key: "ask",          icon: MessageCircle, verb: "Ask",      noun: "Anything",        color: "violet" },
+    { key: "lesson",       icon: BookOpen,      verb: "Generate", noun: "Lesson Plan",     color: "accent",      studioKind: "lesson_plan" },
+    { key: "quiz",         icon: GraduationCap, verb: "Create",   noun: "Quiz",            color: "sage",        studioKind: "quiz" },
+    { key: "presentation", icon: Layout,        verb: "Build",    noun: "Presentation",    color: "accent-soft", studioKind: "presentation" },
+    { key: "weekly",       icon: CalendarDays,  verb: "Plan",     noun: "Weekly Schedule", color: "indigo",      studioKind: "schedule" },
+    { key: "insights",     icon: Users,         verb: "Analyze",  noun: "Students",        color: "moss",        studioKind: null },
+    { key: "ask",          icon: MessageCircle, verb: "Ask",      noun: "Anything",        color: "violet",      studioKind: null },
   ];
   return (
     <div className="planner-hero rounded-2xl p-4 md:p-5 relative overflow-hidden h-full flex flex-col justify-center">
@@ -630,7 +644,7 @@ function StudioHeroCard() {
             <button
               key={c.key}
               type="button"
-              onClick={() => navigate(["studio"])}
+              onClick={() => navigate(c.studioKind ? ["studio", c.studioKind] : ["studio"])}
               className="planner-hero-chip group"
             >
               <span className={`planner-hero-chip-icon planner-hero-chip-icon-${c.color}`}>
