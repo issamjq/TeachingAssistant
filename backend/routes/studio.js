@@ -207,15 +207,22 @@ a slide-by-slide outline:
   fits this slide, e.g. "rain falling on leaves" or "students in classroom".
   Describe a concrete scene, never abstract concepts or text/diagrams.>
   Layout: <one of: text-image | image-text | full-image | text | title>
+  Bg: <one of: paper | white | sand | ink | sage | clay | sky | ocean |
+  plum | honey | forest | rose>
   ## Slide 2 — <Slide title>
   - …
 
-  Every slide MUST end with its own "Image:" line then "Layout:" line
-  (exactly those labels). Make slide 1 a "title" layout (cover). Use
+  Every slide MUST end with its own "Image:" line, then "Layout:" line,
+  then "Bg:" line (exactly those labels). Make slide 1 a "title" layout
+  on a bold dark background ("ink", "ocean", "forest" or "plum"). Use
   "full-image" sparingly for high-impact slides; prefer "text-image" or
   "image-text" for content slides; use "text" only when a photo would
-  not help. The Image query must be a real photographable scene so a
-  stock-photo search returns a good match.
+  not help. Vary the Bg across slides so the deck feels designed — pick
+  a background whose mood matches the slide's topic (e.g. "sky"/"ocean"
+  for water, "forest"/"sage" for nature, "honey"/"sand" for warmth),
+  and never use the same Bg on three slides in a row. The Image query
+  must be a real photographable scene so a stock-photo search returns a
+  good match.
 
   After the last slide, add a short ## Speaker notes section with one
   or two sentences per slide.

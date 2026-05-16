@@ -1,19 +1,20 @@
-// SlideBuilder — a "smart deck" editor (Gamma/Pitch style). Studio hands
-// it the AI's presentation markdown; it parses that into slides, each
-// with a layout preset, a background theme, and a real-photo slot. The
-// teacher edits text on the slide, swaps layouts/backgrounds, and picks
-// real photos (Pexels search or their own upload) — then saves straight
-// to /api/presentations. Mudir editorial theme throughout.
-import React, { useMemo, useState, useEffect, useRef } from "react";
+// SlideBuilder — a "smart deck" editor (Gamma/Pitch style) plus a
+// read-only presenter. Used in two places:
+//   • Studio  — pass `markdown` (the AI output) to author a fresh deck.
+//   • Presentations chip — pass `deck` + `presentationId` + `meta` to
+//     re-open a saved deck for editing; `PresentDeck` renders it full
+//     screen for teaching.
+// Photos are always real (Pexels search or the teacher's own upload),
+// never AI. Mudir editorial theme throughout.
+import React, { useMemo, useState, useEffect, useRef, useCallback } from "react";
 import {
   Plus, Trash2, ChevronUp, ChevronDown, Check, Image as ImageIcon,
   Search, Upload, X, Sparkles, Presentation as DeckIcon, Loader2,
+  ChevronLeft, ChevronRight,
 } from "lucide-react";
 import { api } from "./_shared";
 
 const API_BASE = (import.meta.env.VITE_API_URL || "").replace(/\/$/, "");
-// Pexels gives absolute CDN urls; our own uploads are relative
-// (/api/images/:id) and need the API base prefixed at render time.
 const resolveSrc = (u) =>
   !u ? "" : /^https?:\/\//.test(u) ? u : API_BASE + u;
 
@@ -25,6 +26,12 @@ const THEMES = {
   ink:    { name: "Ink",    bg: "#1f1b16", text: "#f7f1e3", soft: "#bcae97", dot: "#e0a04a" },
   sage:   { name: "Sage",   bg: "#5f7256", text: "#f8f5ec", soft: "#dde3d2", dot: "#f0d9a8" },
   clay:   { name: "Clay",   bg: "#b3442b", text: "#fdeee6", soft: "#f2cebe", dot: "#ffe6d2" },
+  sky:    { name: "Sky",    bg: "#dce8ee", text: "#1c2a32", soft: "#4a5d68", dot: "#2f7d95" },
+  ocean:  { name: "Ocean",  bg: "#1e3a44", text: "#eaf3f4", soft: "#a8c4c8", dot: "#7fc6c0" },
+  plum:   { name: "Plum",   bg: "#3a2740", text: "#f3e9f0", soft: "#c4abc6", dot: "#d39bd0" },
+  honey:  { name: "Honey",  bg: "#f0d79a", text: "#3a2c12", soft: "#7a6230", dot: "#b3442b" },
+  forest: { name: "Forest", bg: "#243027", text: "#e9f0e6", soft: "#aebfa9", dot: "#9bc48a" },
+  rose:   { name: "Rose",   bg: "#f3dde0", text: "#3a2226", soft: "#7a5158", dot: "#c8472b" },
 };
 const THEME_KEYS = Object.keys(THEMES);
 
@@ -38,11 +45,6 @@ const LAYOUTS = [
 const LAYOUT_KEYS = LAYOUTS.map((l) => l.key);
 
 // ── Markdown → structured deck ────────────────────────────────────
-// AI output per slide:
-//   ## Slide 1 — <title>
-//   - bullet
-//   Image: rain falling on leaves
-//   Layout: text-image
 export function parsePresentation(markdown) {
   const lines = String(markdown || "").split(/\r?\n/);
   let deckTitle = "";
@@ -55,12 +57,7 @@ export function parsePresentation(markdown) {
   const flush = () => { if (cur) { slides.push(cur); cur = null; } };
   const newSlide = (title) => ({
     title: title || `Slide ${slides.length + 1}`,
-    bullets: [],
-    notes: "",
-    imageQuery: "",
-    image: null,
-    layout: "",
-    bg: "paper",
+    bullets: [], notes: "", imageQuery: "", image: null, layout: "", bg: "",
   });
 
   for (const raw of lines) {
@@ -70,20 +67,12 @@ export function parsePresentation(markdown) {
       const heading = h2[1].trim();
       const slideMatch = heading.match(/^slide\s+\d+\s*[—:\-]?\s*(.*)$/i);
       if (/^speaker notes$/i.test(heading)) { flush(); mode = "notes"; continue; }
-      if (slideMatch) {
-        flush();
-        cur = newSlide(slideMatch[1].trim());
-        mode = "slide";
-        continue;
-      }
+      if (slideMatch) { flush(); cur = newSlide(slideMatch[1].trim()); mode = "slide"; continue; }
       if (mode === "preamble" && !deckTitle) {
         deckTitle = heading.replace(/^title$/i, "").trim();
         continue;
       }
-      flush();
-      cur = newSlide(heading);
-      mode = "slide";
-      continue;
+      flush(); cur = newSlide(heading); mode = "slide"; continue;
     }
 
     if (mode === "preamble") {
@@ -99,6 +88,12 @@ export function parsePresentation(markdown) {
       if (lay) {
         const v = lay[1].toLowerCase();
         if (LAYOUT_KEYS.includes(v)) cur.layout = v;
+        continue;
+      }
+      const bgm = line.match(/^(?:bg|background):\s*([a-z]+)/i);
+      if (bgm) {
+        const v = bgm[1].toLowerCase();
+        if (THEME_KEYS.includes(v)) cur.bg = v;
         continue;
       }
       const b = line.match(/^[-*]\s+(.*)$/);
@@ -120,16 +115,47 @@ export function parsePresentation(markdown) {
     }
   }
 
-  if (slides.length === 0) {
-    slides.push(newSlide(deckTitle || "Slide 1"));
-  }
-  // Sensible default layouts: slide 1 is a cover; the rest get a photo
-  // layout if the AI suggested an image, otherwise plain text.
+  if (slides.length === 0) slides.push(newSlide(deckTitle || "Slide 1"));
+
+  // Defaults: slide 1 = cover; rotate backgrounds so a deck never comes
+  // out as a wall of identical white slides if the AI didn't pick one.
+  const ROTATE = ["paper", "sand", "sky", "sage", "honey", "rose"];
   slides.forEach((s, i) => {
     if (!s.layout) s.layout = i === 0 ? "title" : s.imageQuery ? "text-image" : "text";
+    if (!s.bg) s.bg = i === 0 ? "ink" : ROTATE[i % ROTATE.length];
   });
 
   return { deckTitle: deckTitle || "Untitled presentation", metaLine, slides };
+}
+
+// Saved presentation row → builder deck. Handles both the rich shape we
+// now save and the legacy { title, body, image_url } shape.
+export function deckFromPresentation(p) {
+  const slides = (p?.slides || []).map((s, i) => {
+    const bullets =
+      Array.isArray(s.bullets) && s.bullets.length
+        ? s.bullets
+        : String(s.body || "")
+            .split(/\n+/)
+            .map((l) => l.replace(/^[•\-*]\s*/, "").trim())
+            .filter(Boolean);
+    let image = s.image || null;
+    if (!image && s.image_url) image = { url: s.image_url, thumb: s.image_url };
+    return {
+      title: s.title || `Slide ${i + 1}`,
+      bullets,
+      notes: s.notes || "",
+      imageQuery: s.imageQuery || "",
+      image,
+      layout: LAYOUT_KEYS.includes(s.layout) ? s.layout : (image ? "text-image" : (i === 0 ? "title" : "text")),
+      bg: THEME_KEYS.includes(s.bg) ? s.bg : (i === 0 ? "ink" : "paper"),
+    };
+  });
+  return {
+    deckTitle: p?.title || "Untitled presentation",
+    metaLine: "",
+    slides: slides.length ? slides : [{ title: "Slide 1", bullets: [], notes: "", imageQuery: "", image: null, layout: "title", bg: "ink" }],
+  };
 }
 
 function fieldsFromMeta(metaLine) {
@@ -138,29 +164,53 @@ function fieldsFromMeta(metaLine) {
   parts.forEach((p) => {
     if (/grade/i.test(p)) out.grade = p;
     else if (/section/i.test(p)) out.section = p;
-    else if (/scheduled/i.test(p)) { /* teacher sets date elsewhere */ }
+    else if (/scheduled/i.test(p)) { /* set elsewhere */ }
     else if (!out.subject) out.subject = p;
   });
   return out;
 }
 
-export default function SlideBuilder({ markdown, presentationParams, onSaved }) {
-  const initial = useMemo(() => parsePresentation(markdown), [markdown]);
+// Slides → the persisted shape (keeps legacy { title, body } for old
+// readers; rich keys ride alongside).
+function slidesForSave(slides) {
+  return slides.map((s) => ({
+    title: s.title,
+    body: (s.bullets || []).filter(Boolean).map((b) => `• ${b}`).join("\n"),
+    bullets: (s.bullets || []).filter(Boolean),
+    notes: s.notes || "",
+    image: s.image || null,
+    layout: s.layout || "text",
+    bg: s.bg || "paper",
+  }));
+}
+
+export default function SlideBuilder({
+  markdown, deck, presentationId, meta, presentationParams, onSaved, onClose,
+}) {
+  const initial = useMemo(
+    () => (deck ? deck : parsePresentation(markdown)),
+    [deck, markdown]
+  );
   const [deckTitle, setDeckTitle] = useState(initial.deckTitle);
   const [slides, setSlides] = useState(initial.slides);
   const [active, setActive] = useState(0);
   const [saving, setSaving] = useState(false);
-  const [savedId, setSavedId] = useState(null);
+  const [savedId, setSavedId] = useState(presentationId || null);
   const [err, setErr] = useState(null);
-  const [picker, setPicker] = useState(false);     // image picker open
-  const [autoBusy, setAutoBusy] = useState(false);  // auto-fill photos
+  const [picker, setPicker] = useState(false);
+  const [autoBusy, setAutoBusy] = useState(false);
+  // Editable metadata (only surfaced when editing a saved deck).
+  const [status, setStatus] = useState(meta?.status || "Draft");
+  const [scheduledFor, setScheduledFor] = useState(
+    meta?.scheduled_for ? String(meta.scheduled_for).slice(0, 10) : ""
+  );
 
   useEffect(() => {
     setDeckTitle(initial.deckTitle);
     setSlides(initial.slides);
     setActive(0);
-    setSavedId(null);
-  }, [initial]);
+    setSavedId(presentationId || null);
+  }, [initial, presentationId]);
 
   const cur = slides[active] || slides[0];
   const theme = THEMES[cur?.bg] || THEMES.paper;
@@ -168,7 +218,6 @@ export default function SlideBuilder({ markdown, presentationParams, onSaved }) 
   const patchSlide = (i, patch) =>
     setSlides((s) => s.map((sl, idx) => (idx === i ? { ...sl, ...patch } : sl)));
   const patchActive = (patch) => patchSlide(active, patch);
-
   const setBullet = (bi, val) =>
     patchActive({ bullets: cur.bullets.map((b, i) => (i === bi ? val : b)) });
   const addBullet = () => patchActive({ bullets: [...(cur.bullets || []), ""] });
@@ -198,8 +247,6 @@ export default function SlideBuilder({ markdown, presentationParams, onSaved }) 
     setActive(j);
   };
 
-  // One-click: fetch the AI-suggested photo for every slide that has a
-  // query but no image yet. One search per slide, first result wins.
   const autoFillPhotos = async () => {
     setAutoBusy(true);
     setErr(null);
@@ -215,9 +262,7 @@ export default function SlideBuilder({ markdown, presentationParams, onSaved }) 
             return p
               ? { ...s, image: { url: p.full, thumb: p.thumb, alt: p.alt, credit: p.credit } }
               : s;
-          } catch {
-            return s;
-          }
+          } catch { return s; }
         })
       );
       setSlides(updated);
@@ -232,33 +277,24 @@ export default function SlideBuilder({ markdown, presentationParams, onSaved }) 
     setSaving(true);
     setErr(null);
     try {
-      const meta = fieldsFromMeta(initial.metaLine);
+      const mFromLine = fieldsFromMeta(initial.metaLine);
       const body = {
         title: deckTitle || "Untitled presentation",
-        subject: meta.subject || presentationParams?.major || "",
-        grade: presentationParams?.grade || "",
-        section: Array.isArray(presentationParams?.section)
-          ? presentationParams.section.join(", ")
-          : (presentationParams?.section || ""),
-        status: "Draft",
-        scheduled_for: presentationParams?.scheduled_for || null,
-        slides: slides.map((s) => ({
-          title: s.title,
-          // Keep the manual modal's { title, body } shape for back-compat;
-          // the richer keys ride along (ignored by older readers).
-          body: (s.bullets || []).filter(Boolean).map((b) => `• ${b}`).join("\n"),
-          bullets: (s.bullets || []).filter(Boolean),
-          notes: s.notes || "",
-          image: s.image || null,
-          layout: s.layout || "text",
-          bg: s.bg || "paper",
-        })),
+        subject: meta?.subject || mFromLine.subject || presentationParams?.major || "",
+        grade: meta?.grade || presentationParams?.grade || "",
+        section: meta?.section ||
+          (Array.isArray(presentationParams?.section)
+            ? presentationParams.section.join(", ")
+            : (presentationParams?.section || "")),
+        status: status || "Draft",
+        scheduled_for: scheduledFor || presentationParams?.scheduled_for || null,
+        slides: slidesForSave(slides),
       };
       const saved = savedId
         ? await api(`/api/presentations/${savedId}`, { method: "PATCH", body })
         : await api("/api/presentations", { method: "POST", body });
       setSavedId(saved.id);
-      onSaved?.(saved);
+      onSaved?.(saved, !presentationId && !savedId);
     } catch (e) {
       setErr(e.message);
     } finally {
@@ -267,6 +303,7 @@ export default function SlideBuilder({ markdown, presentationParams, onSaved }) 
   };
 
   const anySuggested = slides.some((s) => s.imageQuery && !s.image);
+  const editingExisting = Boolean(meta || presentationId);
 
   return (
     <div>
@@ -292,9 +329,7 @@ export default function SlideBuilder({ markdown, presentationParams, onSaved }) 
               className="planner-nav-btn inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-line bg-paper-cool hover:border-ink text-ink-soft text-sm disabled:opacity-50"
               title="Fetch the AI-suggested real photo for every slide"
             >
-              {autoBusy
-                ? <Loader2 size={14} className="animate-spin" />
-                : <Sparkles size={14} className="text-accent" />}
+              {autoBusy ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} className="text-accent" />}
               {autoBusy ? "Finding photos…" : "Auto-fill photos"}
             </button>
           )}
@@ -311,8 +346,42 @@ export default function SlideBuilder({ markdown, presentationParams, onSaved }) 
           >
             {saving ? "Saving…" : savedId ? "Save changes" : "Save to Presentations"}
           </button>
+          {onClose && (
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Close editor"
+              className="h-9 w-9 rounded-lg border border-line bg-paper-cool hover:bg-paper-warm hover:border-ink flex items-center justify-center"
+            >
+              <X size={16} />
+            </button>
+          )}
         </div>
       </div>
+
+      {editingExisting && (
+        <div className="flex flex-wrap items-end gap-4 mb-4 px-1">
+          <label className="text-[12px]">
+            <span className="block font-mono text-[9.5px] uppercase tracking-[0.15em] text-muted mb-1">Status</span>
+            <select
+              value={status}
+              onChange={(e) => setStatus(e.target.value)}
+              className="rounded-lg border border-line bg-paper-cool px-3 py-1.5 text-sm outline-none focus:border-ink"
+            >
+              <option>Draft</option><option>Ready</option><option>Archived</option>
+            </select>
+          </label>
+          <label className="text-[12px]">
+            <span className="block font-mono text-[9.5px] uppercase tracking-[0.15em] text-muted mb-1">Scheduled for</span>
+            <input
+              type="date"
+              value={scheduledFor}
+              onChange={(e) => setScheduledFor(e.target.value)}
+              className="rounded-lg border border-line bg-paper-cool px-3 py-1.5 text-sm outline-none focus:border-ink"
+            />
+          </label>
+        </div>
+      )}
 
       {err && (
         <div className="mb-3 bg-paper border border-accent rounded-lg p-2.5">
@@ -331,23 +400,15 @@ export default function SlideBuilder({ markdown, presentationParams, onSaved }) 
                 type="button"
                 onClick={() => setActive(i)}
                 className={`group relative flex-shrink-0 w-[160px] lg:w-full aspect-[16/9] rounded-lg border text-left overflow-hidden transition-all ${
-                  i === active
-                    ? "border-accent shadow-[0_0_0_3px_rgba(200,71,43,0.12)]"
-                    : "border-line hover:border-ink/40"
+                  i === active ? "border-accent shadow-[0_0_0_3px_rgba(200,71,43,0.12)]" : "border-line hover:border-ink/40"
                 }`}
                 style={{ background: t.bg }}
               >
                 {s.image && (
-                  <img
-                    src={resolveSrc(s.image.thumb || s.image.url)}
-                    alt=""
-                    className="absolute inset-0 w-full h-full object-cover opacity-40"
-                  />
+                  <img src={resolveSrc(s.image.thumb || s.image.url)} alt="" className="absolute inset-0 w-full h-full object-cover opacity-40" />
                 )}
                 <div className="absolute inset-0 p-2">
-                  <span className="font-mono text-[9px] absolute top-1.5 right-2" style={{ color: t.soft }}>
-                    {i + 1}
-                  </span>
+                  <span className="font-mono text-[9px] absolute top-1.5 right-2" style={{ color: t.soft }}>{i + 1}</span>
                   <p className="font-serif text-[11px] font-medium leading-tight line-clamp-2 pr-4" style={{ color: t.text }}>
                     {s.title || "Untitled"}
                   </p>
@@ -370,7 +431,6 @@ export default function SlideBuilder({ markdown, presentationParams, onSaved }) 
 
         {/* Editor column */}
         <div>
-          {/* Controls row */}
           <div className="flex items-center justify-between gap-3 mb-2 flex-wrap">
             <p className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted">
               Slide {active + 1} of {slides.length}
@@ -391,56 +451,41 @@ export default function SlideBuilder({ markdown, presentationParams, onSaved }) 
             </div>
           </div>
 
-          {/* Layout + background + photo toolbar */}
           <div className="flex flex-wrap items-center gap-x-5 gap-y-2 mb-3 px-1">
             <div className="flex items-center gap-1.5">
               <span className="font-mono text-[9.5px] uppercase tracking-[0.15em] text-muted mr-1">Layout</span>
               {LAYOUTS.map((l) => (
-                <button
-                  key={l.key}
-                  type="button"
-                  onClick={() => patchActive({ layout: l.key })}
+                <button key={l.key} type="button" onClick={() => patchActive({ layout: l.key })}
                   className={`px-2.5 py-1 rounded-md text-[11px] border transition ${
-                    cur?.layout === l.key
-                      ? "bg-ink text-paper-cool border-ink"
-                      : "bg-paper-cool text-ink-soft border-line hover:border-ink"
-                  }`}
-                >
+                    cur?.layout === l.key ? "bg-ink text-paper-cool border-ink" : "bg-paper-cool text-ink-soft border-line hover:border-ink"
+                  }`}>
                   {l.label}
                 </button>
               ))}
             </div>
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1.5 flex-wrap">
               <span className="font-mono text-[9.5px] uppercase tracking-[0.15em] text-muted mr-1">Background</span>
               {THEME_KEYS.map((k) => (
-                <button
-                  key={k}
-                  type="button"
-                  onClick={() => patchActive({ bg: k })}
-                  title={THEMES[k].name}
-                  aria-label={THEMES[k].name}
+                <button key={k} type="button" onClick={() => patchActive({ bg: k })}
+                  title={THEMES[k].name} aria-label={THEMES[k].name}
                   className={`h-6 w-6 rounded-full border-2 transition ${
                     cur?.bg === k ? "border-accent scale-110" : "border-line hover:border-ink"
                   }`}
-                  style={{ background: THEMES[k].bg }}
-                />
+                  style={{ background: THEMES[k].bg }} />
               ))}
             </div>
-            <button
-              type="button"
-              onClick={() => setPicker(true)}
-              className="planner-nav-btn inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-line bg-paper-cool hover:border-ink text-ink-soft text-[12px]"
-            >
+            <button type="button" onClick={() => setPicker(true)}
+              className="planner-nav-btn inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-line bg-paper-cool hover:border-ink text-ink-soft text-[12px]">
               <ImageIcon size={13} /> {cur?.image ? "Change photo" : "Add photo"}
             </button>
           </div>
 
-          {/* The slide canvas */}
           <SlideCanvas
             slide={cur}
             theme={theme}
             index={active}
             total={slides.length}
+            editable
             onPatch={patchActive}
             onSetBullet={setBullet}
             onAddBullet={addBullet}
@@ -448,11 +493,8 @@ export default function SlideBuilder({ markdown, presentationParams, onSaved }) 
             onOpenPicker={() => setPicker(true)}
           />
 
-          {/* Speaker notes */}
           <div className="mt-3">
-            <p className="font-mono text-[9.5px] uppercase tracking-[0.18em] text-muted mb-1.5">
-              Speaker notes
-            </p>
+            <p className="font-mono text-[9.5px] uppercase tracking-[0.18em] text-muted mb-1.5">Speaker notes</p>
             <textarea
               value={cur?.notes || ""}
               onChange={(e) => patchActive({ notes: e.target.value })}
@@ -475,14 +517,16 @@ export default function SlideBuilder({ markdown, presentationParams, onSaved }) 
   );
 }
 
-// ── The slide canvas — renders the chosen layout, text inline-editable ──
+// ── The slide canvas — renders the chosen layout. Editable in the
+// builder, static in the presenter. ──────────────────────────────
 function SlideCanvas({
-  slide, theme, index, total, onPatch, onSetBullet, onAddBullet, onRemoveBullet, onOpenPicker,
+  slide, theme, index, total, editable = false,
+  onPatch, onSetBullet, onAddBullet, onRemoveBullet, onOpenPicker,
 }) {
   const layout = slide?.layout || "text";
   const hasImage = Boolean(slide?.image);
 
-  const TitleInput = (
+  const titleNode = editable ? (
     <textarea
       value={slide?.title || ""}
       onChange={(e) => onPatch({ title: e.target.value })}
@@ -494,83 +538,94 @@ function SlideCanvas({
       placeholder="Slide title"
       aria-label="Slide title"
     />
+  ) : (
+    <h2
+      className={`font-serif font-semibold leading-tight tracking-tight ${
+        layout === "title" ? "text-4xl md:text-6xl" : "text-2xl md:text-4xl"
+      }`}
+      style={{ color: theme.text }}
+    >
+      {slide?.title}
+    </h2>
   );
 
-  const Bullets = (
+  const bulletsNode = (
     <div className="mt-4 flex flex-col gap-2">
-      {(slide?.bullets || []).map((b, bi) => (
-        <div key={bi} className="flex items-start gap-2.5 group">
-          <span className="mt-2 h-1.5 w-1.5 rounded-full flex-shrink-0" style={{ background: theme.dot }} />
-          <textarea
-            value={b}
-            onChange={(e) => onSetBullet(bi, e.target.value)}
-            rows={1}
-            placeholder="Type a point…"
-            className="flex-1 text-[15px] md:text-base bg-transparent outline-none resize-none leading-snug rounded px-1 -mx-1"
-            style={{ color: theme.soft }}
-          />
-          <button
-            type="button"
-            onClick={() => onRemoveBullet(bi)}
-            aria-label="Remove point"
-            className="opacity-0 group-hover:opacity-100 transition mt-1 h-5 w-5 rounded flex items-center justify-center flex-shrink-0"
-            style={{ color: theme.soft }}
-          >
-            <Trash2 size={11} />
-          </button>
-        </div>
-      ))}
-      <button
-        type="button"
-        onClick={onAddBullet}
-        className="self-start inline-flex items-center gap-1.5 text-[12px] font-serif italic mt-1 opacity-80 hover:opacity-100"
-        style={{ color: theme.dot }}
-      >
-        <Plus size={12} /> Add a point
-      </button>
+      {(slide?.bullets || []).map((b, bi) =>
+        editable ? (
+          <div key={bi} className="flex items-start gap-2.5 group">
+            <span className="mt-2 h-1.5 w-1.5 rounded-full flex-shrink-0" style={{ background: theme.dot }} />
+            <textarea
+              value={b}
+              onChange={(e) => onSetBullet(bi, e.target.value)}
+              rows={1}
+              placeholder="Type a point…"
+              className="flex-1 text-[15px] md:text-base bg-transparent outline-none resize-none leading-snug rounded px-1 -mx-1"
+              style={{ color: theme.soft }}
+            />
+            <button
+              type="button"
+              onClick={() => onRemoveBullet(bi)}
+              aria-label="Remove point"
+              className="opacity-0 group-hover:opacity-100 transition mt-1 h-5 w-5 rounded flex items-center justify-center flex-shrink-0"
+              style={{ color: theme.soft }}
+            >
+              <Trash2 size={11} />
+            </button>
+          </div>
+        ) : b ? (
+          <div key={bi} className="flex items-start gap-3">
+            <span className="mt-2.5 h-1.5 w-1.5 rounded-full flex-shrink-0" style={{ background: theme.dot }} />
+            <span className="text-base md:text-xl leading-snug" style={{ color: theme.soft }}>{b}</span>
+          </div>
+        ) : null
+      )}
+      {editable && (
+        <button
+          type="button"
+          onClick={onAddBullet}
+          className="self-start inline-flex items-center gap-1.5 text-[12px] font-serif italic mt-1 opacity-80 hover:opacity-100"
+          style={{ color: theme.dot }}
+        >
+          <Plus size={12} /> Add a point
+        </button>
+      )}
     </div>
   );
 
-  const Photo = ({ className = "" }) => (
-    <button
-      type="button"
-      onClick={onOpenPicker}
-      className={`relative overflow-hidden rounded-xl group ${className}`}
-      style={{ background: "rgba(0,0,0,0.04)" }}
-    >
-      {hasImage ? (
-        <>
-          <img
-            src={resolveSrc(slide.image.url)}
-            alt={slide.image.alt || ""}
-            className="w-full h-full object-cover"
-          />
-          <span className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition flex items-center justify-center">
-            <span className="opacity-0 group-hover:opacity-100 transition text-white text-xs font-medium inline-flex items-center gap-1.5 bg-black/45 px-3 py-1.5 rounded-full">
-              <ImageIcon size={13} /> Change photo
+  const Photo = ({ className = "" }) =>
+    editable ? (
+      <button
+        type="button"
+        onClick={onOpenPicker}
+        className={`relative overflow-hidden rounded-xl group ${className}`}
+        style={{ background: "rgba(0,0,0,0.04)" }}
+      >
+        {hasImage ? (
+          <>
+            <img src={resolveSrc(slide.image.url)} alt={slide.image.alt || ""} className="w-full h-full object-cover" />
+            <span className="absolute inset-0 group-hover:bg-black/20 transition flex items-center justify-center">
+              <span className="opacity-0 group-hover:opacity-100 transition text-white text-xs font-medium inline-flex items-center gap-1.5 bg-black/45 px-3 py-1.5 rounded-full">
+                <ImageIcon size={13} /> Change photo
+              </span>
             </span>
+          </>
+        ) : (
+          <span className="absolute inset-0 flex flex-col items-center justify-center gap-2 border-2 border-dashed rounded-xl"
+            style={{ borderColor: "rgba(0,0,0,0.14)", color: theme.soft }}>
+            <ImageIcon size={22} />
+            <span className="text-[12px] font-medium">Add a photo</span>
+            {slide?.imageQuery && (
+              <span className="text-[10.5px] italic opacity-70 px-3 text-center">suggested: “{slide.imageQuery}”</span>
+            )}
           </span>
-        </>
-      ) : (
-        <span className="absolute inset-0 flex flex-col items-center justify-center gap-2 border-2 border-dashed rounded-xl"
-          style={{ borderColor: "rgba(0,0,0,0.14)", color: theme.soft }}>
-          <ImageIcon size={22} />
-          <span className="text-[12px] font-medium">Add a photo</span>
-          {slide?.imageQuery && (
-            <span className="text-[10.5px] italic opacity-70 px-3 text-center">
-              suggested: “{slide.imageQuery}”
-            </span>
-          )}
-        </span>
-      )}
-    </button>
-  );
-
-  const pageNo = (
-    <span className="absolute bottom-4 right-5 font-mono text-[10px]" style={{ color: theme.soft }}>
-      {index + 1} / {total}
-    </span>
-  );
+        )}
+      </button>
+    ) : (
+      <div className={`relative overflow-hidden rounded-xl ${className}`} style={{ background: "rgba(0,0,0,0.04)" }}>
+        {hasImage && <img src={resolveSrc(slide.image.url)} alt={slide.image.alt || ""} className="w-full h-full object-cover" />}
+      </div>
+    );
 
   return (
     <div
@@ -579,58 +634,56 @@ function SlideCanvas({
     >
       {layout === "title" && (
         <div className="absolute inset-0 flex flex-col justify-center px-12 md:px-16">
-          <div className="max-w-3xl">{TitleInput}</div>
-          <div className="mt-3 max-w-2xl">{Bullets}</div>
+          <div className="max-w-3xl">{titleNode}</div>
+          <div className="mt-3 max-w-2xl">{bulletsNode}</div>
         </div>
       )}
-
       {layout === "text" && (
         <div className="absolute inset-0 flex flex-col p-10 md:p-12">
-          {TitleInput}
-          {Bullets}
+          {titleNode}
+          {bulletsNode}
         </div>
       )}
-
       {layout === "text-image" && (
         <div className="absolute inset-0 grid grid-cols-2">
           <div className="flex flex-col p-9 md:p-11 overflow-auto">
-            {TitleInput}
-            {Bullets}
+            {titleNode}
+            {bulletsNode}
           </div>
-          <div className="p-4">
-            <Photo className="w-full h-full" />
-          </div>
+          <div className="p-4"><Photo className="w-full h-full" /></div>
         </div>
       )}
-
       {layout === "image-text" && (
         <div className="absolute inset-0 grid grid-cols-2">
-          <div className="p-4">
-            <Photo className="w-full h-full" />
-          </div>
+          <div className="p-4"><Photo className="w-full h-full" /></div>
           <div className="flex flex-col p-9 md:p-11 overflow-auto">
-            {TitleInput}
-            {Bullets}
+            {titleNode}
+            {bulletsNode}
           </div>
         </div>
       )}
-
       {layout === "full-image" && (
         <div className="absolute inset-0">
           <Photo className="absolute inset-0 w-full h-full" />
           <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/25 to-transparent pointer-events-none" />
           <div className="absolute inset-x-0 bottom-0 p-10 md:p-12">
-            <textarea
-              value={slide?.title || ""}
-              onChange={(e) => onPatch({ title: e.target.value })}
-              rows={2}
-              className="w-full font-serif text-3xl md:text-4xl font-semibold bg-transparent outline-none resize-none leading-tight text-white drop-shadow rounded px-1 -mx-1"
-              placeholder="Slide title"
-              aria-label="Slide title"
-            />
+            {editable ? (
+              <textarea
+                value={slide?.title || ""}
+                onChange={(e) => onPatch({ title: e.target.value })}
+                rows={2}
+                className="w-full font-serif text-3xl md:text-4xl font-semibold bg-transparent outline-none resize-none leading-tight text-white drop-shadow rounded px-1 -mx-1"
+                placeholder="Slide title"
+                aria-label="Slide title"
+              />
+            ) : (
+              <h2 className="font-serif text-3xl md:text-5xl font-semibold leading-tight text-white drop-shadow">
+                {slide?.title}
+              </h2>
+            )}
             <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1">
               {(slide?.bullets || []).filter(Boolean).map((b, i) => (
-                <span key={i} className="text-white/90 text-sm inline-flex items-center gap-2">
+                <span key={i} className="text-white/90 text-sm md:text-base inline-flex items-center gap-2">
                   <span className="h-1 w-1 rounded-full bg-white/80" /> {b}
                 </span>
               ))}
@@ -638,8 +691,69 @@ function SlideCanvas({
           </div>
         </div>
       )}
+      <span className="absolute bottom-4 right-5 font-mono text-[10px]" style={{ color: theme.soft }}>
+        {index + 1} / {total}
+      </span>
+    </div>
+  );
+}
 
-      {pageNo}
+// ── Full-screen presenter (read-only) ─────────────────────────────
+export function PresentDeck({ presentation, onClose }) {
+  const deck = useMemo(() => deckFromPresentation(presentation), [presentation]);
+  const slides = deck.slides;
+  const [idx, setIdx] = useState(0);
+  const cur = slides[idx];
+  const theme = THEMES[cur?.bg] || THEMES.paper;
+
+  const go = useCallback(
+    (d) => setIdx((i) => Math.max(0, Math.min(slides.length - 1, i + d))),
+    [slides.length]
+  );
+
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key === "ArrowRight" || e.key === " " || e.key === "PageDown") { e.preventDefault(); go(1); }
+      else if (e.key === "ArrowLeft" || e.key === "PageUp") { e.preventDefault(); go(-1); }
+      else if (e.key === "Escape") onClose?.();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [go, onClose]);
+
+  return (
+    <div className="fixed inset-0 z-[90] bg-black flex flex-col">
+      <div className="flex items-center justify-between px-5 py-2.5 text-paper-cool/70">
+        <p className="font-mono text-[10px] uppercase tracking-wider">
+          {presentation.title} · {idx + 1} / {slides.length}
+        </p>
+        <button onClick={onClose} className="font-mono text-[11px] uppercase tracking-wider hover:text-paper-cool inline-flex items-center gap-1.5">
+          <X size={13} /> Exit
+        </button>
+      </div>
+      <div className="flex-1 flex items-center justify-center px-6 pb-6 min-h-0">
+        <div className="w-full max-w-[min(96vw,calc(82vh*16/9))]">
+          <SlideCanvas slide={cur} theme={theme} index={idx} total={slides.length} />
+        </div>
+      </div>
+      <button
+        type="button"
+        onClick={() => go(-1)}
+        disabled={idx === 0}
+        aria-label="Previous slide"
+        className="absolute left-3 top-1/2 -translate-y-1/2 h-11 w-11 rounded-full bg-white/10 hover:bg-white/20 text-paper-cool flex items-center justify-center disabled:opacity-25"
+      >
+        <ChevronLeft size={20} />
+      </button>
+      <button
+        type="button"
+        onClick={() => go(1)}
+        disabled={idx >= slides.length - 1}
+        aria-label="Next slide"
+        className="absolute right-3 top-1/2 -translate-y-1/2 h-11 w-11 rounded-full bg-white/10 hover:bg-white/20 text-paper-cool flex items-center justify-center disabled:opacity-25"
+      >
+        <ChevronRight size={20} />
+      </button>
     </div>
   );
 }
@@ -679,8 +793,6 @@ function ImagePicker({ suggestedQuery, onClose, onPick }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Downscale before upload so payloads stay small and within the
-  // server's JSON limit. Longest edge → 1600px, JPEG q0.85.
   const handleFile = (file) => {
     if (!file || !file.type.startsWith("image/")) {
       setError("Please choose an image file.");
@@ -705,10 +817,7 @@ function ImagePicker({ suggestedQuery, onClose, onPick }) {
           canvas.height = height;
           canvas.getContext("2d").drawImage(img, 0, 0, width, height);
           const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
-          const { url } = await api("/api/images/upload", {
-            method: "POST",
-            body: { dataUrl },
-          });
+          const { url } = await api("/api/images/upload", { method: "POST", body: { dataUrl } });
           onPick({ url, thumb: url, alt: file.name, credit: "Uploaded" });
         } catch (e) {
           setError(e.message);
@@ -723,10 +832,7 @@ function ImagePicker({ suggestedQuery, onClose, onPick }) {
   };
 
   return (
-    <div
-      className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
-      onClick={onClose}
-    >
+    <div className="fixed inset-0 z-[95] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" onClick={onClose}>
       <div
         className="w-full max-w-3xl max-h-[85vh] flex flex-col rounded-2xl border border-line bg-paper-cool shadow-2xl overflow-hidden"
         onClick={(e) => e.stopPropagation()}
@@ -734,25 +840,16 @@ function ImagePicker({ suggestedQuery, onClose, onPick }) {
         <div className="flex items-center justify-between gap-3 px-5 py-3.5 border-b border-line">
           <div className="flex items-center gap-1.5">
             {["search", "upload"].map((t) => (
-              <button
-                key={t}
-                type="button"
-                onClick={() => setTab(t)}
+              <button key={t} type="button" onClick={() => setTab(t)}
                 className={`px-3 py-1.5 rounded-lg text-sm font-medium inline-flex items-center gap-1.5 transition ${
                   tab === t ? "bg-ink text-paper-cool" : "text-ink-soft hover:bg-paper-warm"
-                }`}
-              >
+                }`}>
                 {t === "search" ? <Search size={13} /> : <Upload size={13} />}
                 {t === "search" ? "Search photos" : "Upload"}
               </button>
             ))}
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="h-8 w-8 rounded-lg border border-line bg-paper-cool hover:bg-paper-warm flex items-center justify-center"
-            aria-label="Close"
-          >
+          <button type="button" onClick={onClose} className="h-8 w-8 rounded-lg border border-line bg-paper-cool hover:bg-paper-warm flex items-center justify-center" aria-label="Close">
             <X size={15} />
           </button>
         </div>
@@ -766,42 +863,28 @@ function ImagePicker({ suggestedQuery, onClose, onPick }) {
 
           {tab === "search" ? (
             <>
-              <form
-                onSubmit={(e) => { e.preventDefault(); runSearch(); }}
-                className="flex items-center gap-2 mb-4"
-              >
+              <form onSubmit={(e) => { e.preventDefault(); runSearch(); }} className="flex items-center gap-2 mb-4">
                 <input
                   value={q}
                   onChange={(e) => setQ(e.target.value)}
                   placeholder="Search real photos — e.g. 'rain on leaves'…"
                   className="flex-1 rounded-lg border border-line bg-paper px-3 py-2 text-sm outline-none focus:border-ink"
                 />
-                <button
-                  type="submit"
-                  disabled={busy || !q.trim()}
-                  className="planner-nav-btn px-4 py-2 rounded-lg bg-ink text-paper-cool text-sm font-medium disabled:opacity-50 inline-flex items-center gap-1.5"
-                >
-                  {busy ? <Loader2 size={14} className="animate-spin" /> : <Search size={14} />}
-                  Search
+                <button type="submit" disabled={busy || !q.trim()}
+                  className="planner-nav-btn px-4 py-2 rounded-lg bg-ink text-paper-cool text-sm font-medium disabled:opacity-50 inline-flex items-center gap-1.5">
+                  {busy ? <Loader2 size={14} className="animate-spin" /> : <Search size={14} />} Search
                 </button>
               </form>
               {busy ? (
                 <p className="text-center text-muted text-sm py-10">Searching photos…</p>
               ) : results.length === 0 ? (
-                <p className="text-center text-muted text-sm py-10">
-                  Search for a subject to see real stock photos.
-                </p>
+                <p className="text-center text-muted text-sm py-10">Search for a subject to see real stock photos.</p>
               ) : (
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
                   {results.map((p) => (
-                    <button
-                      key={p.id}
-                      type="button"
-                      onClick={() =>
-                        onPick({ url: p.full, thumb: p.thumb, alt: p.alt, credit: p.credit })
-                      }
-                      className="group relative aspect-[4/3] rounded-lg overflow-hidden border border-line hover:border-accent"
-                    >
+                    <button key={p.id} type="button"
+                      onClick={() => onPick({ url: p.full, thumb: p.thumb, alt: p.alt, credit: p.credit })}
+                      className="group relative aspect-[4/3] rounded-lg overflow-hidden border border-line hover:border-accent">
                       <img src={p.thumb} alt={p.alt} className="w-full h-full object-cover" loading="lazy" />
                       <span className="absolute bottom-0 inset-x-0 bg-black/45 text-white text-[9px] px-1.5 py-0.5 truncate opacity-0 group-hover:opacity-100 transition">
                         {p.credit}
@@ -818,25 +901,14 @@ function ImagePicker({ suggestedQuery, onClose, onPick }) {
               className="border-2 border-dashed border-line rounded-2xl p-10 text-center"
             >
               <Upload size={26} className="mx-auto text-muted mb-3" />
-              <p className="text-sm text-ink-soft mb-1">
-                Drag an image here, or
-              </p>
-              <button
-                type="button"
-                onClick={() => fileRef.current?.click()}
-                disabled={uploadBusy}
-                className="planner-nav-btn px-4 py-2 rounded-lg bg-ink text-paper-cool text-sm font-medium disabled:opacity-50 inline-flex items-center gap-1.5 mt-1"
-              >
+              <p className="text-sm text-ink-soft mb-1">Drag an image here, or</p>
+              <button type="button" onClick={() => fileRef.current?.click()} disabled={uploadBusy}
+                className="planner-nav-btn px-4 py-2 rounded-lg bg-ink text-paper-cool text-sm font-medium disabled:opacity-50 inline-flex items-center gap-1.5 mt-1">
                 {uploadBusy ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
                 {uploadBusy ? "Uploading…" : "Choose a file"}
               </button>
-              <input
-                ref={fileRef}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={(e) => handleFile(e.target.files?.[0])}
-              />
+              <input ref={fileRef} type="file" accept="image/*" className="hidden"
+                onChange={(e) => handleFile(e.target.files?.[0])} />
               <p className="text-xs text-muted mt-3">
                 Your own photos (classroom, school logo…). Stored with this presentation.
               </p>

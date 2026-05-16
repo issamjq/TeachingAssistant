@@ -1,16 +1,20 @@
 import React, { useEffect, useState } from "react";
 import { Play, Pencil, Trash2 } from "lucide-react";
-import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import {
-  Field, Modal, ConfirmDelete,
-  inputClasses, selectClasses, api, timeAgo,
-  useTeacherClasses,
-} from "./_shared";
+import { ConfirmDelete, api, timeAgo } from "./_shared";
 import {
   DataPageHeader, DataCard, CardsGrid, useViewMode,
   useDateScope, filterByDateScope,
 } from "./_data-view";
+import SlideBuilder, { PresentDeck, deckFromPresentation } from "./SlideBuilder";
+
+// Blank deck for a brand-new presentation created from this page.
+const BLANK_DECK = {
+  deckTitle: "Untitled presentation",
+  metaLine: "",
+  slides: [
+    { title: "Title slide", bullets: [""], notes: "", imageQuery: "", image: null, layout: "title", bg: "ink" },
+  ],
+};
 
 export default function Presentations() {
   const [items, setItems] = useState([]);
@@ -46,10 +50,14 @@ export default function Presentations() {
   };
   useEffect(reload, []);
 
-  const onSaved = (saved, isNew) => {
-    if (isNew) setItems((rows) => [saved, ...rows]);
-    else setItems((rows) => rows.map((r) => (r.id === saved.id ? saved : r)));
-    setEditing(null);
+  // Keep the editor open after a save (teacher may keep tweaking); just
+  // reflect the change in the list. Closing is via the editor's X.
+  const onSaved = (saved) => {
+    setItems((rows) =>
+      rows.some((r) => r.id === saved.id)
+        ? rows.map((r) => (r.id === saved.id ? saved : r))
+        : [saved, ...rows]
+    );
   };
 
   const confirmDelete = async () => {
@@ -178,15 +186,32 @@ export default function Presentations() {
       )}
 
       {editing && (
-        <PresentationModal
-          initial={editing === "new" ? null : editing}
-          onClose={() => setEditing(null)}
-          onSaved={onSaved}
-        />
+        <div className="fixed inset-0 z-[70] bg-paper overflow-y-auto">
+          <div className="max-w-6xl mx-auto px-5 md:px-8 py-6">
+            <SlideBuilder
+              key={editing === "new" ? "new" : editing.id}
+              deck={editing === "new" ? BLANK_DECK : deckFromPresentation(editing)}
+              presentationId={editing === "new" ? null : editing.id}
+              meta={
+                editing === "new"
+                  ? { status: "Draft" }
+                  : {
+                      subject: editing.subject,
+                      grade: editing.grade,
+                      section: editing.section,
+                      status: editing.status,
+                      scheduled_for: editing.scheduled_for,
+                    }
+              }
+              onSaved={onSaved}
+              onClose={() => { setEditing(null); reload(); }}
+            />
+          </div>
+        </div>
       )}
 
       {presenting && (
-        <PresentMode presentation={presenting} onClose={() => setPresenting(null)} />
+        <PresentDeck presentation={presenting} onClose={() => setPresenting(null)} />
       )}
 
       <ConfirmDelete
@@ -197,196 +222,6 @@ export default function Presentations() {
         title={deleting ? `Delete "${deleting.title}"?` : ""}
         message="This presentation and its slides will be removed permanently."
       />
-    </div>
-  );
-}
-
-function PresentationModal({ initial, onClose, onSaved }) {
-  const isNew = !initial;
-  const { grades: teacherGrades, sections: teacherSections } = useTeacherClasses();
-  const [form, setForm] = useState(() => ({
-    title: initial?.title || "",
-    subject: initial?.subject || "",
-    grade: initial?.grade || "",
-    section: initial?.section || "",
-    status: initial?.status || "Draft",
-    scheduled_for: initial?.scheduled_for ? String(initial.scheduled_for).slice(0, 10) : "",
-    slides: initial?.slides || [],
-  }));
-  const [saving, setSaving] = useState(false);
-  const [err, setErr] = useState(null);
-
-  const submit = async () => {
-    setSaving(true); setErr(null);
-    const payload = { ...form, scheduled_for: form.scheduled_for || null };
-    try {
-      const saved = isNew
-        ? await api("/api/presentations", { method: "POST", body: payload })
-        : await api(`/api/presentations/${initial.id}`, { method: "PATCH", body: payload });
-      onSaved(saved, isNew);
-    } catch (e) {
-      setErr(e.message);
-      setSaving(false);
-    }
-  };
-
-  const updateSlide = (i, patch) => {
-    setForm((f) => ({ ...f, slides: f.slides.map((s, idx) => idx === i ? { ...s, ...patch } : s) }));
-  };
-  const addSlide = () => setForm((f) => ({ ...f, slides: [...(f.slides || []), { title: "New slide", body: "" }] }));
-  const removeSlide = (i) => setForm((f) => ({ ...f, slides: f.slides.filter((_, idx) => idx !== i) }));
-
-  return (
-    <Modal
-      open
-      onClose={onClose}
-      eyebrow={isNew ? "New presentation" : "Edit presentation"}
-      title={isNew ? "Build a presentation" : `Edit "${initial.title}"`}
-      wide
-      footer={
-        <>
-          <Button variant="secondary" onClick={onClose} disabled={saving}>Cancel</Button>
-          <Button onClick={submit} disabled={saving}>{saving ? "Saving…" : "Save"}</Button>
-        </>
-      }
-    >
-      {err && <div className="mb-4 bg-paper border border-accent rounded-lg p-3"><p className="text-sm text-accent">{err}</p></div>}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="md:col-span-2">
-          <Field label="Title">
-            <input className={inputClasses} value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} />
-          </Field>
-        </div>
-        <Field label="Subject">
-          <input className={inputClasses} value={form.subject} onChange={(e) => setForm((f) => ({ ...f, subject: e.target.value }))} />
-        </Field>
-        <Field label="Grade">
-          <select className={selectClasses} value={form.grade} onChange={(e) => setForm((f) => ({ ...f, grade: e.target.value }))}>
-            <option value="">{teacherGrades.length ? "—" : "No grades on your profile"}</option>
-            {teacherGrades.map((g) => <option key={g} value={g}>{g}</option>)}
-            {form.grade && !teacherGrades.includes(form.grade) && (
-              <option value={form.grade}>{form.grade}</option>
-            )}
-          </select>
-        </Field>
-        <Field label="Section">
-          <select className={selectClasses} value={form.section} onChange={(e) => setForm((f) => ({ ...f, section: e.target.value }))}>
-            <option value="">{teacherSections.length ? "—" : "No sections on your profile"}</option>
-            {teacherSections.map((s) => <option key={s} value={s}>{s}</option>)}
-            {form.section && !teacherSections.includes(form.section) && (
-              <option value={form.section}>{form.section}</option>
-            )}
-          </select>
-        </Field>
-        <Field label="Status">
-          <select className={selectClasses} value={form.status} onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}>
-            <option>Draft</option>
-            <option>Ready</option>
-            <option>Archived</option>
-          </select>
-        </Field>
-        <div className="md:col-span-2">
-          <Field label="Scheduled for">
-            <input
-              type="date"
-              className={inputClasses}
-              value={form.scheduled_for}
-              onChange={(e) => setForm((f) => ({ ...f, scheduled_for: e.target.value }))}
-            />
-          </Field>
-        </div>
-      </div>
-
-      <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-3 mt-6">Slides</p>
-      <div className="space-y-3">
-        {(form.slides || []).map((s, i) => (
-          <div key={i} className="bg-paper border border-line rounded-lg p-3">
-            <div className="flex items-center justify-between mb-2">
-              <p className="font-mono text-[10px] uppercase tracking-wider text-muted">Slide {i + 1}</p>
-              <button onClick={() => removeSlide(i)} className="text-muted hover:text-accent">
-                <Trash2 size={13} />
-              </button>
-            </div>
-            <input
-              className={inputClasses + " mb-2"}
-              placeholder="Slide title"
-              value={s.title || ""}
-              onChange={(e) => updateSlide(i, { title: e.target.value })}
-            />
-            <textarea
-              rows={3}
-              className={inputClasses + " mb-2"}
-              placeholder="Content"
-              value={s.body || ""}
-              onChange={(e) => updateSlide(i, { body: e.target.value })}
-            />
-            <input
-              className={inputClasses}
-              placeholder="Image URL (optional)"
-              value={s.image_url || ""}
-              onChange={(e) => updateSlide(i, { image_url: e.target.value })}
-            />
-          </div>
-        ))}
-        <button
-          onClick={addSlide}
-          className="text-accent hover:text-ink font-serif italic text-sm border-b border-accent hover:border-ink transition"
-        >
-          + Add slide
-        </button>
-      </div>
-    </Modal>
-  );
-}
-
-function PresentMode({ presentation, onClose }) {
-  const [idx, setIdx] = useState(0);
-  const slides = presentation.slides || [];
-  const cur = slides[idx];
-
-  return (
-    <div className="fixed inset-0 z-50 bg-ink text-paper-cool flex flex-col">
-      <div className="flex items-center justify-between px-6 py-3 border-b border-white/10">
-        <p className="font-mono text-[10px] uppercase tracking-wider text-paper-cool/60">
-          {presentation.title} · slide {idx + 1} of {slides.length || 0}
-        </p>
-        <button onClick={onClose} className="font-mono text-[11px] uppercase tracking-wider hover:text-accent">
-          Exit
-        </button>
-      </div>
-      <div className="flex-1 flex items-center justify-center p-12">
-        {cur ? (
-          <div className="max-w-4xl w-full text-center">
-            <h2 className="font-serif text-6xl mb-8">{cur.title}</h2>
-            {cur.image_url && (
-              <img
-                src={cur.image_url}
-                alt=""
-                className="max-h-[40vh] mx-auto mb-6 rounded-lg border border-white/10 object-contain"
-              />
-            )}
-            <p className="text-2xl leading-relaxed text-paper-cool/80 whitespace-pre-line">{cur.body}</p>
-          </div>
-        ) : (
-          <p className="text-paper-cool/60">No slides yet.</p>
-        )}
-      </div>
-      <div className="flex items-center justify-between px-6 py-4 border-t border-white/10">
-        <button
-          onClick={() => setIdx((i) => Math.max(0, i - 1))}
-          disabled={idx === 0}
-          className="font-mono text-[11px] uppercase tracking-wider hover:text-accent disabled:opacity-30"
-        >
-          ← Prev
-        </button>
-        <button
-          onClick={() => setIdx((i) => Math.min(slides.length - 1, i + 1))}
-          disabled={idx >= slides.length - 1}
-          className="font-mono text-[11px] uppercase tracking-wider hover:text-accent disabled:opacity-30"
-        >
-          Next →
-        </button>
-      </div>
     </div>
   );
 }
