@@ -74,14 +74,19 @@ export default function Presentations() {
   };
   useEffect(reload, []);
 
-  // Keep the editor open after a save (teacher may keep tweaking); just
-  // reflect the change in the list. Closing is via the editor's X.
+  // Keep the editor open after a save (teacher may keep tweaking) but
+  // also re-pull from the DB so the list — and any later reopen — is
+  // the saved truth, never a stale snapshot. `editing` keeps its old
+  // object ref so the open editor isn't reset by the refresh.
   const onSaved = (saved) => {
     setItems((rows) =>
       rows.some((r) => r.id === saved.id)
         ? rows.map((r) => (r.id === saved.id ? saved : r))
         : [saved, ...rows]
     );
+    api("/api/presentations")
+      .then((data) => setItems(data))
+      .catch(() => { /* keep optimistic update */ });
   };
 
   const confirmDelete = async () => {

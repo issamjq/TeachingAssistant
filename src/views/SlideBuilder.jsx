@@ -91,6 +91,20 @@ const FONTS = {
 const FONT_KEYS = Object.keys(FONTS);
 const fontOf = (k) => FONTS[k] || FONTS.editorial;
 
+// Per-line formatting: { color?, font?, b?, i?, u? }. Stored alongside
+// the plain text (title/bullets stay strings, so AI parsing, copy and
+// save are untouched) and merged over the slide's base style here.
+function lineStyle(fmt, base, kind) {
+  const s = { ...base };
+  if (!fmt) return s;
+  if (isHex(fmt.color)) s.color = fmt.color;
+  if (fmt.font && FONTS[fmt.font]) s.fontFamily = FONTS[fmt.font][kind === "title" ? "title" : "body"];
+  if (fmt.b) s.fontWeight = 800;
+  if (fmt.i) s.fontStyle = "italic";
+  if (fmt.u) s.textDecoration = "underline";
+  return s;
+}
+
 // Per-slide photo dim/brighten. v ∈ [-60, 60]: <0 darkens (black wash),
 // >0 brightens (white wash). Returns an overlay style or null.
 function dimStyle(v) {
@@ -116,6 +130,7 @@ export function parsePresentation(markdown) {
     title: title || `Slide ${slides.length + 1}`,
     bullets: [], notes: "", imageQuery: "", image: null, layout: "", bg: "",
     imgAdjust: 0, font: "editorial", textColor: "",
+    titleFmt: {}, bulletFmts: [],
   });
 
   for (const raw of lines) {
@@ -210,12 +225,14 @@ export function deckFromPresentation(p) {
       imgAdjust: Number(s.imgAdjust) || 0,
       font: FONT_KEYS.includes(s.font) ? s.font : "editorial",
       textColor: isHex(s.textColor) ? s.textColor : "",
+      titleFmt: s.titleFmt && typeof s.titleFmt === "object" ? s.titleFmt : {},
+      bulletFmts: Array.isArray(s.bulletFmts) ? s.bulletFmts : [],
     };
   });
   return {
     deckTitle: p?.title || "Untitled presentation",
     metaLine: "",
-    slides: slides.length ? slides : [{ title: "Slide 1", bullets: [], notes: "", imageQuery: "", image: null, layout: "title", bg: "ink", imgAdjust: 0, font: "editorial", textColor: "" }],
+    slides: slides.length ? slides : [{ title: "Slide 1", bullets: [], notes: "", imageQuery: "", image: null, layout: "title", bg: "ink", imgAdjust: 0, font: "editorial", textColor: "", titleFmt: {}, bulletFmts: [] }],
   };
 }
 
@@ -245,6 +262,8 @@ function slidesForSave(slides) {
     imgAdjust: Number(s.imgAdjust) || 0,
     font: s.font || "editorial",
     textColor: isHex(s.textColor) ? s.textColor : "",
+    titleFmt: s.titleFmt && typeof s.titleFmt === "object" ? s.titleFmt : {},
+    bulletFmts: Array.isArray(s.bulletFmts) ? s.bulletFmts : [],
   }));
 }
 
@@ -286,14 +305,18 @@ export default function SlideBuilder({
     patchActive({ bullets: cur.bullets.map((b, i) => (i === bi ? val : b)) });
   const addBullet = () => patchActive({ bullets: [...(cur.bullets || []), ""] });
   const removeBullet = (bi) =>
-    patchActive({ bullets: cur.bullets.filter((_, i) => i !== bi) });
+    patchActive({
+      bullets: cur.bullets.filter((_, i) => i !== bi),
+      // Keep per-line formatting aligned with the remaining bullets.
+      bulletFmts: (cur.bulletFmts || []).filter((_, i) => i !== bi),
+    });
   // Apply one property to every slide ("Apply to all slides").
   const applyAll = (patch) => setSlides((s) => s.map((sl) => ({ ...sl, ...patch })));
 
   const addSlide = () => {
     const next = [
       ...slides,
-      { title: "New slide", bullets: [""], notes: "", imageQuery: "", image: null, layout: "text", bg: cur?.bg || "paper", imgAdjust: 0, font: cur?.font || "editorial", textColor: cur?.textColor || "" },
+      { title: "New slide", bullets: [""], notes: "", imageQuery: "", image: null, layout: "text", bg: cur?.bg || "paper", imgAdjust: 0, font: cur?.font || "editorial", textColor: cur?.textColor || "", titleFmt: {}, bulletFmts: [] },
     ];
     setSlides(next);
     setActive(next.length - 1);
@@ -450,8 +473,9 @@ export default function SlideBuilder({
       )}
 
       {err && (
-        <div className="mb-3 bg-paper border border-accent rounded-lg p-2.5">
-          <p className="text-sm text-accent">{err}</p>
+        <div className="mb-3 bg-accent/[0.08] border-2 border-accent rounded-lg p-3 shadow-[0_6px_18px_-8px_rgba(200,71,43,0.3)]">
+          <p className="font-mono text-[10px] uppercase tracking-[0.15em] text-accent mb-0.5">Save failed — nothing was stored</p>
+          <p className="text-sm text-ink-soft">{err}</p>
         </div>
       )}
 
@@ -662,15 +686,33 @@ function SlideCanvas({
   const onPhoto = hasTxt ? slide.textColor : "#ffffff";
   const onPhotoSoft = hasTxt ? hexToRgba(slide.textColor, 0.88) : "rgba(255,255,255,0.9)";
 
+  // Which line the format toolbar acts on: "title" or a bullet index.
+  const [activeLine, setActiveLine] = useState(null);
+  const titleFmt = slide?.titleFmt || {};
+  const bulletFmts = slide?.bulletFmts || [];
+  const setTitleFmt = (patch) => onPatch({ titleFmt: { ...titleFmt, ...patch } });
+  const setBulletFmt = (idx, patch) => {
+    const arr = Array.isArray(bulletFmts) ? [...bulletFmts] : [];
+    arr[idx] = { ...(arr[idx] || {}), ...patch };
+    onPatch({ bulletFmts: arr });
+  };
+  const activeFmt = activeLine === "title" ? titleFmt
+    : typeof activeLine === "number" ? (bulletFmts[activeLine] || {}) : null;
+  const applyActiveFmt = (patch) => {
+    if (activeLine === "title") setTitleFmt(patch);
+    else if (typeof activeLine === "number") setBulletFmt(activeLine, patch);
+  };
+
   const titleNode = editable ? (
     <textarea
       value={slide?.title || ""}
       onChange={(e) => onPatch({ title: e.target.value })}
+      onFocus={() => setActiveLine("title")}
       rows={layout === "title" ? 2 : 1}
       className={`w-full font-semibold bg-transparent outline-none resize-none leading-tight tracking-tight rounded px-1 -mx-1 ${
         layout === "title" ? "text-4xl md:text-5xl" : "text-2xl md:text-3xl"
       }`}
-      style={{ color: txt, fontFamily: f.title }}
+      style={lineStyle(titleFmt, { color: txt, fontFamily: f.title }, "title")}
       placeholder="Slide title"
       aria-label="Slide title"
     />
@@ -679,7 +721,7 @@ function SlideCanvas({
       className={`font-semibold leading-tight tracking-tight ${
         layout === "title" ? "text-4xl md:text-6xl" : "text-2xl md:text-4xl"
       }`}
-      style={{ color: txt, fontFamily: f.title }}
+      style={lineStyle(titleFmt, { color: txt, fontFamily: f.title }, "title")}
     >
       {slide?.title}
     </h2>
@@ -694,10 +736,11 @@ function SlideCanvas({
             <textarea
               value={b}
               onChange={(e) => onSetBullet(bi, e.target.value)}
+              onFocus={() => setActiveLine(bi)}
               rows={1}
               placeholder="Type a point…"
               className="flex-1 text-[15px] md:text-base bg-transparent outline-none resize-none leading-snug rounded px-1 -mx-1"
-              style={{ color: txtSoft, fontFamily: f.body }}
+              style={lineStyle(bulletFmts[bi], { color: txtSoft, fontFamily: f.body }, "body")}
             />
             <button
               type="button"
@@ -712,7 +755,7 @@ function SlideCanvas({
         ) : b ? (
           <div key={bi} className="flex items-start gap-3">
             <span className="mt-2.5 h-1.5 w-1.5 rounded-full flex-shrink-0" style={{ background: theme.dot }} />
-            <span className="text-base md:text-xl leading-snug" style={{ color: txtSoft, fontFamily: f.body }}>{b}</span>
+            <span className="text-base md:text-xl leading-snug" style={lineStyle(bulletFmts[bi], { color: txtSoft, fontFamily: f.body }, "body")}>{b}</span>
           </div>
         ) : null
       )}
@@ -774,6 +817,14 @@ function SlideCanvas({
       className="aspect-[16/9] rounded-xl border border-[#e6dccb] shadow-[0_18px_44px_-22px_rgba(15,20,16,0.18)] relative overflow-hidden"
       style={{ background: theme.bg }}
     >
+      {editable && activeLine !== null && (
+        <LineFormatBar
+          label={activeLine === "title" ? "Title" : `Line ${Number(activeLine) + 1}`}
+          fmt={activeFmt || {}}
+          onChange={applyActiveFmt}
+          onClose={() => setActiveLine(null)}
+        />
+      )}
       {layout === "title" && (
         hasImage ? (
           // Cover = a centred TITLE CARD: photo stays clearly visible
@@ -799,15 +850,16 @@ function SlideCanvas({
                 <textarea
                   value={slide?.title || ""}
                   onChange={(e) => onPatch({ title: e.target.value })}
+                  onFocus={() => setActiveLine("title")}
                   rows={2}
                   className="w-full max-w-4xl text-center text-5xl md:text-7xl font-semibold bg-transparent outline-none resize-none leading-[1.05] tracking-tight drop-shadow-lg rounded px-1"
-                  style={{ color: onPhoto, fontFamily: f.title }}
+                  style={lineStyle(titleFmt, { color: onPhoto, fontFamily: f.title }, "title")}
                   placeholder="Presentation title"
                   aria-label="Slide title"
                 />
               ) : (
                 <h2 className="max-w-4xl text-5xl md:text-7xl font-semibold leading-[1.05] tracking-tight drop-shadow-lg"
-                  style={{ color: onPhoto, fontFamily: f.title }}>
+                  style={lineStyle(titleFmt, { color: onPhoto, fontFamily: f.title }, "title")}>
                   {slide?.title}
                 </h2>
               )}
@@ -818,10 +870,11 @@ function SlideCanvas({
                       <textarea
                         value={b}
                         onChange={(e) => onSetBullet(bi, e.target.value)}
+                        onFocus={() => setActiveLine(bi)}
                         rows={1}
                         placeholder="Subtitle line…"
                         className="flex-1 text-center text-base md:text-xl bg-transparent outline-none resize-none leading-snug rounded px-1 placeholder:text-white/45"
-                        style={{ color: onPhotoSoft, fontFamily: f.body }}
+                        style={lineStyle(bulletFmts[bi], { color: onPhotoSoft, fontFamily: f.body }, "body")}
                       />
                       <button
                         type="button"
@@ -892,15 +945,16 @@ function SlideCanvas({
               <textarea
                 value={slide?.title || ""}
                 onChange={(e) => onPatch({ title: e.target.value })}
+                onFocus={() => setActiveLine("title")}
                 rows={2}
                 className="w-full text-3xl md:text-4xl font-semibold bg-transparent outline-none resize-none leading-tight drop-shadow rounded px-1 -mx-1"
-                style={{ color: onPhoto, fontFamily: f.title }}
+                style={lineStyle(titleFmt, { color: onPhoto, fontFamily: f.title }, "title")}
                 placeholder="Slide title"
                 aria-label="Slide title"
               />
             ) : (
               <h2 className="text-3xl md:text-5xl font-semibold leading-tight drop-shadow"
-                style={{ color: onPhoto, fontFamily: f.title }}>
+                style={lineStyle(titleFmt, { color: onPhoto, fontFamily: f.title }, "title")}>
                 {slide?.title}
               </h2>
             )}
@@ -912,10 +966,11 @@ function SlideCanvas({
                     <textarea
                       value={b}
                       onChange={(e) => onSetBullet(bi, e.target.value)}
+                      onFocus={() => setActiveLine(bi)}
                       rows={1}
                       placeholder="Type a point…"
                       className="flex-1 text-[15px] md:text-base bg-transparent outline-none resize-none leading-snug rounded px-1 -mx-1 placeholder:text-white/50 drop-shadow"
-                      style={{ color: onPhotoSoft, fontFamily: f.body }}
+                      style={lineStyle(bulletFmts[bi], { color: onPhotoSoft, fontFamily: f.body }, "body")}
                     />
                     <button
                       type="button"
@@ -937,12 +992,12 @@ function SlideCanvas({
               </div>
             ) : (
               <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1">
-                {(slide?.bullets || []).filter(Boolean).map((b, i) => (
+                {(slide?.bullets || []).map((b, i) => b ? (
                   <span key={i} className="text-sm md:text-base inline-flex items-center gap-2"
-                    style={{ color: onPhotoSoft, fontFamily: f.body }}>
+                    style={lineStyle(bulletFmts[i], { color: onPhotoSoft, fontFamily: f.body }, "body")}>
                     <span className="h-1 w-1 rounded-full bg-white/80" /> {b}
                   </span>
-                ))}
+                ) : null)}
               </div>
             )}
           </div>
@@ -1010,6 +1065,65 @@ export function PresentDeck({ presentation, onClose }) {
         className="absolute right-3 top-1/2 -translate-y-1/2 h-11 w-11 rounded-full bg-white/10 hover:bg-white/20 text-paper-cool flex items-center justify-center disabled:opacity-25"
       >
         <ChevronRight size={20} />
+      </button>
+    </div>
+  );
+}
+
+// Floating per-line toolbar (bold / italic / underline / font / colour)
+// for whichever title or bullet line is focused. Sits at the top of the
+// slide canvas, like a paint toolbar.
+function LineFormatBar({ label, fmt, onChange, onClose }) {
+  const toggle = (k) => onChange({ [k]: !fmt[k] });
+  const Btn = ({ k, children, title }) => (
+    <button
+      type="button"
+      title={title}
+      // Keep the focused textarea's selection — don't steal focus.
+      onMouseDown={(e) => e.preventDefault()}
+      onClick={() => toggle(k)}
+      className={`h-7 w-7 rounded-md border text-sm flex items-center justify-center transition ${
+        fmt[k] ? "bg-ink text-paper-cool border-ink" : "bg-paper-cool text-ink-soft border-line hover:border-ink"
+      }`}
+    >
+      {children}
+    </button>
+  );
+  return (
+    <div className="absolute z-30 top-2.5 left-1/2 -translate-x-1/2 inline-flex items-center gap-1.5 rounded-xl border border-line bg-paper-cool/95 backdrop-blur-md shadow-lg px-2 py-1.5">
+      <span className="font-mono text-[9px] uppercase tracking-[0.14em] text-muted px-1 hidden sm:inline">{label}</span>
+      <Btn k="b" title="Bold"><span className="font-bold">B</span></Btn>
+      <Btn k="i" title="Italic"><span className="italic font-serif">I</span></Btn>
+      <Btn k="u" title="Underline"><span className="underline">U</span></Btn>
+      <span className="w-px h-5 bg-line mx-0.5" />
+      <select
+        value={fmt.font || ""}
+        onMouseDown={(e) => e.stopPropagation()}
+        onChange={(e) => onChange({ font: e.target.value })}
+        className="rounded-md border border-line bg-paper px-1.5 py-1 text-[11px] outline-none focus:border-ink cursor-pointer"
+        aria-label="Line font"
+        title="Font for this line"
+      >
+        <option value="">Font: deck</option>
+        {FONT_KEYS.map((k) => <option key={k} value={k}>{FONTS[k].name}</option>)}
+      </select>
+      <ColorControl
+        value={fmt.color}
+        onChange={(c) => onChange({ color: c })}
+        onClear={() => onChange({ color: "" })}
+        label="Line colour"
+        seedDefault="#1a1814"
+        triggerKind="text"
+      />
+      <span className="w-px h-5 bg-line mx-0.5" />
+      <button
+        type="button"
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={onClose}
+        title="Done"
+        className="h-7 w-7 rounded-md border border-line bg-paper-cool hover:border-ink text-ink-soft flex items-center justify-center"
+      >
+        <X size={13} />
       </button>
     </div>
   );
@@ -1137,13 +1251,15 @@ function ColorControl({
               </div>
             </>
           )}
-          <button
-            type="button"
-            onClick={() => { if (isHex(hex)) { onApplyAll(hex); remember(hex); setOpen(false); } }}
-            className="w-full text-center text-[12px] py-2 rounded-lg border border-line bg-paper hover:border-ink text-ink-soft"
-          >
-            Apply to all slides
-          </button>
+          {onApplyAll && (
+            <button
+              type="button"
+              onClick={() => { if (isHex(hex)) { onApplyAll(hex); remember(hex); setOpen(false); } }}
+              className="w-full text-center text-[12px] py-2 rounded-lg border border-line bg-paper hover:border-ink text-ink-soft"
+            >
+              Apply to all slides
+            </button>
+          )}
         </div>
       )}
     </div>
