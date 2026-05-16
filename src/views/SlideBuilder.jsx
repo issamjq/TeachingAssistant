@@ -749,13 +749,45 @@ function SlideCanvas({
                 {slide?.title}
               </h2>
             )}
-            <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1">
-              {(slide?.bullets || []).filter(Boolean).map((b, i) => (
-                <span key={i} className="text-white/90 text-sm md:text-base inline-flex items-center gap-2">
-                  <span className="h-1 w-1 rounded-full bg-white/80" /> {b}
-                </span>
-              ))}
-            </div>
+            {editable ? (
+              <div className="mt-3 flex flex-col gap-1.5 max-w-3xl">
+                {(slide?.bullets || []).map((b, bi) => (
+                  <div key={bi} className="flex items-start gap-2.5 group">
+                    <span className="mt-2 h-1.5 w-1.5 rounded-full flex-shrink-0 bg-white/80" />
+                    <textarea
+                      value={b}
+                      onChange={(e) => onSetBullet(bi, e.target.value)}
+                      rows={1}
+                      placeholder="Type a point…"
+                      className="flex-1 text-[15px] md:text-base bg-transparent outline-none resize-none leading-snug rounded px-1 -mx-1 text-white/90 placeholder:text-white/50 drop-shadow"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => onRemoveBullet(bi)}
+                      aria-label="Remove point"
+                      className="opacity-0 group-hover:opacity-100 transition mt-1 h-5 w-5 rounded flex items-center justify-center flex-shrink-0 text-white/70"
+                    >
+                      <Trash2 size={11} />
+                    </button>
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={onAddBullet}
+                  className="self-start inline-flex items-center gap-1.5 text-[12px] font-serif italic mt-1 text-white/80 hover:text-white"
+                >
+                  <Plus size={12} /> Add a point
+                </button>
+              </div>
+            ) : (
+              <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1">
+                {(slide?.bullets || []).filter(Boolean).map((b, i) => (
+                  <span key={i} className="text-white/90 text-sm md:text-base inline-flex items-center gap-2">
+                    <span className="h-1 w-1 rounded-full bg-white/80" /> {b}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}
