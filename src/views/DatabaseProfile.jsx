@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { Calendar, Hash, Pencil, Plus, Trash2 } from "lucide-react";
+import { Calendar, Hash, Pencil, Plus, Trash2, ChevronDown } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { MAJORS, GRADE_LEVELS, QUIZ_LANGUAGES, QUIZ_SECTIONS } from "../lib/enums";
-import { Field, ChipMultiSelect, inputClasses, api } from "./_shared";
+import { Field, ChipMultiSelect, inputClasses, selectClasses, api } from "./_shared";
 
 const initials = (first, last) =>
   `${(first || "")[0] || ""}${(last || "")[0] || ""}`.toUpperCase();
@@ -183,13 +183,25 @@ function ProfileEditor({ initial, onClose, onSaved }) {
   const [classMap, setClassMap] = useState(() => buildInitialClassMap(initial));
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState(null);
+  // Accordion: only one major row is expanded at a time so the chip
+  // palettes aren't repeated down the whole page. null = all collapsed.
+  const [openIdx, setOpenIdx] = useState(null);
 
   const flat = useMemo(() => flattenClassMap(classMap), [classMap]);
 
-  const addMajor = () => setClassMap((m) => [...m, { major: "", grades: [], sections: [] }]);
-  const removeMajor = (idx) => setClassMap((m) => m.filter((_, i) => i !== idx));
+  const addMajor = () => {
+    setClassMap((m) => {
+      setOpenIdx(m.length); // expand the freshly added row
+      return [...m, { major: "", grades: [], sections: [] }];
+    });
+  };
+  const removeMajor = (idx) => {
+    setClassMap((m) => m.filter((_, i) => i !== idx));
+    setOpenIdx((o) => (o === idx ? null : o != null && o > idx ? o - 1 : o));
+  };
   const updateMajor = (idx, patch) =>
     setClassMap((m) => m.map((row, i) => (i === idx ? { ...row, ...patch } : row)));
+  const toggleOpen = (idx) => setOpenIdx((o) => (o === idx ? null : idx));
 
   // Track all custom (non-enum) values so the chip lists keep them
   // available even after they've been picked.
@@ -309,11 +321,13 @@ function ProfileEditor({ initial, onClose, onSaved }) {
               No majors yet — click "Add a major" to start.
             </div>
           ) : (
-            <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-2">
               {classMap.map((row, i) => (
                 <MajorCard
                   key={i}
                   row={row}
+                  open={openIdx === i}
+                  onToggle={() => toggleOpen(i)}
                   majorOptions={allKnownMajors}
                   gradeOptions={allKnownGrades}
                   sectionOptions={allKnownSections}
@@ -337,25 +351,43 @@ function ProfileEditor({ initial, onClose, onSaved }) {
   );
 }
 
-// One major + the grades + sections it covers. Uses the same warm-gray
-// border + soft shadow as the planner cards so it reads as part of
-// the same family.
-function MajorCard({ row, majorOptions, gradeOptions, sectionOptions, onChange, onRemove }) {
+// One major row: a compact summary line that expands (accordion) into
+// the major / grades / sections editors. Collapsing keeps the chip
+// palettes from repeating down the page for every major.
+function MajorCard({ row, open, onToggle, majorOptions, gradeOptions, sectionOptions, onChange, onRemove }) {
+  const [draftMajor, setDraftMajor] = useState("");
+  const grades = row.grades || [];
+  const sections = row.sections || [];
+  const summary = [
+    grades.length ? grades.join(", ") : "No grades",
+    sections.length ? sections.join(", ") : "No sections",
+  ].join("  ·  ");
+
   return (
-    <div className="rounded-2xl border border-[#e6dccb] bg-[#fdf8ee] shadow-[0_8px_20px_-14px_rgba(15,20,16,0.18)] p-4">
-      <div className="flex items-start justify-between gap-3 mb-3">
-        <div className="flex-1 min-w-0">
-          <p className="font-mono text-[9.5px] uppercase tracking-[0.18em] text-muted mb-1.5">
-            Major
-          </p>
-          <ChipMultiSelect
-            value={row.major ? [row.major] : []}
-            onChange={(v) => onChange({ major: v[v.length - 1] || "" })}
-            options={majorOptions}
-            allowCustom
-            customPlaceholder="Add a major (e.g. Robotics)…"
+    <div className="rounded-2xl border border-[#e6dccb] bg-[#fdf8ee] shadow-[0_8px_20px_-14px_rgba(15,20,16,0.18)] overflow-hidden">
+      {/* Collapsed summary header — click to expand. Keeps the long chip
+          palettes out of sight so multiple majors read as a tidy list. */}
+      <div className="flex items-center gap-3 p-4">
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-expanded={open}
+          className="flex-1 min-w-0 flex items-center gap-3 text-left"
+        >
+          <ChevronDown
+            size={16}
+            strokeWidth={2}
+            className={`flex-shrink-0 text-muted transition-transform duration-200 ${open ? "rotate-180" : ""}`}
           />
-        </div>
+          <span className="min-w-0">
+            <span className="font-serif text-lg text-ink">
+              {row.major || <em className="italic font-light text-muted">Choose a major</em>}
+            </span>
+            {!open && (
+              <span className="block text-xs text-muted truncate mt-0.5">{summary}</span>
+            )}
+          </span>
+        </button>
         <button
           type="button"
           onClick={onRemove}
@@ -366,31 +398,77 @@ function MajorCard({ row, majorOptions, gradeOptions, sectionOptions, onChange, 
         </button>
       </div>
 
-      <div className="mt-4">
-        <p className="font-mono text-[9.5px] uppercase tracking-[0.18em] text-muted mb-1.5">
-          Grades for this major
-        </p>
-        <ChipMultiSelect
-          value={row.grades || []}
-          onChange={(v) => onChange({ grades: v })}
-          options={gradeOptions}
-          allowCustom
-          customPlaceholder="Add a grade (e.g. KG 1)…"
-        />
-      </div>
+      {open && (
+        <div className="px-4 pb-4 pt-1 border-t border-line/70">
+          <div className="mt-3">
+            <p className="font-mono text-[9.5px] uppercase tracking-[0.18em] text-muted mb-1.5">
+              Major
+            </p>
+            <select
+              className={selectClasses}
+              value={majorOptions.includes(row.major) ? row.major : ""}
+              onChange={(e) => onChange({ major: e.target.value })}
+            >
+              <option value="">Choose a major…</option>
+              {majorOptions.map((m) => (
+                <option key={m} value={m}>{m}</option>
+              ))}
+            </select>
+            <div className="mt-2 flex items-center gap-2 max-w-xs">
+              <input
+                className={inputClasses}
+                value={draftMajor}
+                onChange={(e) => setDraftMajor(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && draftMajor.trim()) {
+                    e.preventDefault();
+                    onChange({ major: draftMajor.trim() });
+                    setDraftMajor("");
+                  }
+                }}
+                placeholder="Add a major not listed…"
+              />
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  if (draftMajor.trim()) {
+                    onChange({ major: draftMajor.trim() });
+                    setDraftMajor("");
+                  }
+                }}
+              >
+                Add
+              </Button>
+            </div>
+          </div>
 
-      <div className="mt-4">
-        <p className="font-mono text-[9.5px] uppercase tracking-[0.18em] text-muted mb-1.5">
-          Sections for this major
-        </p>
-        <ChipMultiSelect
-          value={row.sections || []}
-          onChange={(v) => onChange({ sections: v })}
-          options={sectionOptions}
-          allowCustom
-          customPlaceholder="Add a section (e.g. 8A)…"
-        />
-      </div>
+          <div className="mt-4">
+            <p className="font-mono text-[9.5px] uppercase tracking-[0.18em] text-muted mb-1.5">
+              Grades for this major
+            </p>
+            <ChipMultiSelect
+              value={grades}
+              onChange={(v) => onChange({ grades: v })}
+              options={gradeOptions}
+              allowCustom
+              customPlaceholder="Add a grade (e.g. KG 1)…"
+            />
+          </div>
+
+          <div className="mt-4">
+            <p className="font-mono text-[9.5px] uppercase tracking-[0.18em] text-muted mb-1.5">
+              Sections for this major
+            </p>
+            <ChipMultiSelect
+              value={sections}
+              onChange={(v) => onChange({ sections: v })}
+              options={sectionOptions}
+              allowCustom
+              customPlaceholder="Add a section (e.g. 8A)…"
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
