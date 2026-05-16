@@ -44,6 +44,42 @@ const LAYOUTS = [
 ];
 const LAYOUT_KEYS = LAYOUTS.map((l) => l.key);
 
+const isHex = (v) => typeof v === "string" && /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(v);
+
+// WCAG relative luminance, 0 (black) → 1 (white).
+function hexLuminance(hex) {
+  let h = hex.replace("#", "");
+  if (h.length === 3) h = h.split("").map((c) => c + c).join("");
+  const ch = (i) => {
+    const c = parseInt(h.slice(i, i + 2), 16) / 255;
+    return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+  };
+  return 0.2126 * ch(0) + 0.7152 * ch(2) + 0.0722 * ch(4);
+}
+
+// A slide's bg is either a curated theme key OR a custom hex. For hex we
+// synthesize a theme, auto-picking light/dark text so it stays readable.
+function resolveTheme(bg) {
+  if (bg && THEMES[bg]) return THEMES[bg];
+  if (isHex(bg)) {
+    const dark = hexLuminance(bg) < 0.5;
+    return dark
+      ? { name: "Custom", bg, text: "#f7f1e3", soft: "rgba(247,241,227,0.78)", dot: "#e8b06a" }
+      : { name: "Custom", bg, text: "#1f1b16", soft: "rgba(31,27,22,0.64)", dot: "#c8472b" };
+  }
+  return THEMES.paper;
+}
+
+// Per-slide photo dim/brighten. v ∈ [-60, 60]: <0 darkens (black wash),
+// >0 brightens (white wash). Returns an overlay style or null.
+function dimStyle(v) {
+  const n = Number(v) || 0;
+  if (!n) return null;
+  return n < 0
+    ? { background: `rgba(0,0,0,${Math.min(0.72, -n / 100)})` }
+    : { background: `rgba(255,255,255,${Math.min(0.72, n / 100)})` };
+}
+
 // ── Markdown → structured deck ────────────────────────────────────
 export function parsePresentation(markdown) {
   const lines = String(markdown || "").split(/\r?\n/);
@@ -148,13 +184,14 @@ export function deckFromPresentation(p) {
       imageQuery: s.imageQuery || "",
       image,
       layout: LAYOUT_KEYS.includes(s.layout) ? s.layout : (image ? "text-image" : (i === 0 ? "title" : "text")),
-      bg: THEME_KEYS.includes(s.bg) ? s.bg : (i === 0 ? "ink" : "paper"),
+      bg: THEME_KEYS.includes(s.bg) || isHex(s.bg) ? s.bg : (i === 0 ? "ink" : "paper"),
+      imgAdjust: Number(s.imgAdjust) || 0,
     };
   });
   return {
     deckTitle: p?.title || "Untitled presentation",
     metaLine: "",
-    slides: slides.length ? slides : [{ title: "Slide 1", bullets: [], notes: "", imageQuery: "", image: null, layout: "title", bg: "ink" }],
+    slides: slides.length ? slides : [{ title: "Slide 1", bullets: [], notes: "", imageQuery: "", image: null, layout: "title", bg: "ink", imgAdjust: 0 }],
   };
 }
 
@@ -181,6 +218,7 @@ function slidesForSave(slides) {
     image: s.image || null,
     layout: s.layout || "text",
     bg: s.bg || "paper",
+    imgAdjust: Number(s.imgAdjust) || 0,
   }));
 }
 
@@ -213,7 +251,7 @@ export default function SlideBuilder({
   }, [initial, presentationId]);
 
   const cur = slides[active] || slides[0];
-  const theme = THEMES[cur?.bg] || THEMES.paper;
+  const theme = resolveTheme(cur?.bg);
 
   const patchSlide = (i, patch) =>
     setSlides((s) => s.map((sl, idx) => (idx === i ? { ...sl, ...patch } : sl)));
@@ -223,11 +261,13 @@ export default function SlideBuilder({
   const addBullet = () => patchActive({ bullets: [...(cur.bullets || []), ""] });
   const removeBullet = (bi) =>
     patchActive({ bullets: cur.bullets.filter((_, i) => i !== bi) });
+  // Apply one property to every slide ("Apply to all slides").
+  const applyAll = (patch) => setSlides((s) => s.map((sl) => ({ ...sl, ...patch })));
 
   const addSlide = () => {
     const next = [
       ...slides,
-      { title: "New slide", bullets: [""], notes: "", imageQuery: "", image: null, layout: "text", bg: cur?.bg || "paper" },
+      { title: "New slide", bullets: [""], notes: "", imageQuery: "", image: null, layout: "text", bg: cur?.bg || "paper", imgAdjust: 0 },
     ];
     setSlides(next);
     setActive(next.length - 1);
@@ -393,7 +433,7 @@ export default function SlideBuilder({
         {/* Thumbnail rail */}
         <div className="flex lg:flex-col gap-2 overflow-x-auto lg:overflow-visible pb-1">
           {slides.map((s, i) => {
-            const t = THEMES[s.bg] || THEMES.paper;
+            const t = resolveTheme(s.bg);
             return (
               <button
                 key={i}
@@ -473,11 +513,41 @@ export default function SlideBuilder({
                   }`}
                   style={{ background: THEMES[k].bg }} />
               ))}
+              <ColorControl
+                value={cur?.bg}
+                onChange={(bg) => patchActive({ bg })}
+                onApplyAll={(bg) => applyAll({ bg })}
+              />
             </div>
             <button type="button" onClick={() => setPicker(true)}
               className="planner-nav-btn inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-line bg-paper-cool hover:border-ink text-ink-soft text-[12px]">
               <ImageIcon size={13} /> {cur?.image ? "Change photo" : "Add photo"}
             </button>
+            {cur?.image && (
+              <div className="flex items-center gap-2">
+                <span className="font-mono text-[9.5px] uppercase tracking-[0.15em] text-muted">Photo</span>
+                <span className="text-[10px] text-muted">Dim</span>
+                <input
+                  type="range"
+                  min={-60}
+                  max={60}
+                  step={5}
+                  value={cur?.imgAdjust || 0}
+                  onChange={(e) => patchActive({ imgAdjust: Number(e.target.value) })}
+                  className="w-28 accent-accent cursor-pointer"
+                  aria-label="Photo dim or brighten"
+                />
+                <span className="text-[10px] text-muted">Bright</span>
+                {(cur?.imgAdjust || 0) !== 0 && (
+                  <button type="button" onClick={() => patchActive({ imgAdjust: 0 })}
+                    className="text-[10px] text-muted hover:text-ink underline">reset</button>
+                )}
+                <button type="button" onClick={() => applyAll({ imgAdjust: cur?.imgAdjust || 0 })}
+                  className="text-[10.5px] text-accent hover:text-ink font-serif italic">
+                  Apply to all
+                </button>
+              </div>
+            )}
           </div>
 
           <SlideCanvas
@@ -604,6 +674,9 @@ function SlideCanvas({
         {hasImage ? (
           <>
             <img src={resolveSrc(slide.image.url)} alt={slide.image.alt || ""} className="w-full h-full object-cover" />
+            {dimStyle(slide?.imgAdjust) && (
+              <span className="absolute inset-0 pointer-events-none" style={dimStyle(slide.imgAdjust)} />
+            )}
             <span className="absolute inset-0 group-hover:bg-black/20 transition flex items-center justify-center">
               <span className="opacity-0 group-hover:opacity-100 transition text-white text-xs font-medium inline-flex items-center gap-1.5 bg-black/45 px-3 py-1.5 rounded-full">
                 <ImageIcon size={13} /> Change photo
@@ -624,6 +697,9 @@ function SlideCanvas({
     ) : (
       <div className={`relative overflow-hidden rounded-xl ${className}`} style={{ background: "rgba(0,0,0,0.04)" }}>
         {hasImage && <img src={resolveSrc(slide.image.url)} alt={slide.image.alt || ""} className="w-full h-full object-cover" />}
+        {hasImage && dimStyle(slide?.imgAdjust) && (
+          <span className="absolute inset-0 pointer-events-none" style={dimStyle(slide.imgAdjust)} />
+        )}
       </div>
     );
 
@@ -645,6 +721,9 @@ function SlideCanvas({
               alt={slide.image.alt || ""}
               className="absolute inset-0 w-full h-full object-cover"
             />
+            {dimStyle(slide?.imgAdjust) && (
+              <div className="absolute inset-0 pointer-events-none" style={dimStyle(slide.imgAdjust)} />
+            )}
             <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/25 to-black/40 pointer-events-none" />
             <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-12 md:px-20">
               {editable ? (
@@ -804,7 +883,7 @@ export function PresentDeck({ presentation, onClose }) {
   const slides = deck.slides;
   const [idx, setIdx] = useState(0);
   const cur = slides[idx];
-  const theme = THEMES[cur?.bg] || THEMES.paper;
+  const theme = resolveTheme(cur?.bg);
 
   const go = useCallback(
     (d) => setIdx((i) => Math.max(0, Math.min(slides.length - 1, i + d))),
@@ -854,6 +933,123 @@ export function PresentDeck({ presentation, onClose }) {
       >
         <ChevronRight size={20} />
       </button>
+    </div>
+  );
+}
+
+// ── Custom background colour — presets row gets a "+" that opens this.
+// Any colour is allowed; text auto-contrasts via resolveTheme(). ──────
+const RECENTS_KEY = "mudir.slidebg.recents";
+function ColorControl({ value, onChange, onApplyAll }) {
+  const [open, setOpen] = useState(false);
+  const [recents, setRecents] = useState([]);
+  const wrapRef = useRef(null);
+  const active = isHex(value);
+  const seed = active ? value : (THEMES[value]?.bg || "#1f1b16");
+  const [hex, setHex] = useState(seed);
+
+  useEffect(() => { setHex(seed); }, [seed]);
+
+  useEffect(() => {
+    try {
+      const r = JSON.parse(localStorage.getItem(RECENTS_KEY) || "[]");
+      if (Array.isArray(r)) setRecents(r);
+    } catch { /* ignore */ }
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e) => { if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false); };
+    const onEsc = (e) => { if (e.key === "Escape") setOpen(false); };
+    document.addEventListener("mousedown", onDoc);
+    document.addEventListener("keydown", onEsc);
+    return () => { document.removeEventListener("mousedown", onDoc); document.removeEventListener("keydown", onEsc); };
+  }, [open]);
+
+  const remember = (v) => {
+    const next = [v, ...recents.filter((x) => x.toLowerCase() !== v.toLowerCase())].slice(0, 8);
+    setRecents(next);
+    try { localStorage.setItem(RECENTS_KEY, JSON.stringify(next)); } catch { /* ignore */ }
+  };
+  const commit = (v) => {
+    if (!isHex(v)) return;
+    onChange(v);
+    remember(v);
+  };
+  const eyedrop = async () => {
+    if (!window.EyeDropper) return;
+    try {
+      const res = await new window.EyeDropper().open();
+      if (res?.sRGBHex) { setHex(res.sRGBHex); commit(res.sRGBHex); }
+    } catch { /* cancelled */ }
+  };
+
+  return (
+    <div ref={wrapRef} className="relative inline-flex">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        title="Custom colour"
+        aria-label="Custom background colour"
+        className={`h-6 w-6 rounded-full border-2 flex items-center justify-center transition ${
+          active ? "border-accent scale-110" : "border-line hover:border-ink"
+        }`}
+        style={active
+          ? { background: value }
+          : { background: "conic-gradient(#c8472b,#e0a04a,#6b7f5a,#2f7d95,#3a2740,#c8472b)" }}
+      >
+        {!active && <Plus size={11} className="text-white drop-shadow" strokeWidth={3} />}
+      </button>
+
+      {open && (
+        <div className="absolute z-50 top-8 right-0 w-60 rounded-xl border border-line bg-paper-cool shadow-xl p-3">
+          <p className="font-mono text-[9.5px] uppercase tracking-[0.15em] text-muted mb-2">Custom colour</p>
+          <div className="flex items-center gap-2 mb-2">
+            <input
+              type="color"
+              value={isHex(hex) ? hex : "#1f1b16"}
+              onChange={(e) => { setHex(e.target.value); commit(e.target.value); }}
+              className="h-9 w-10 rounded border border-line bg-transparent cursor-pointer p-0"
+              aria-label="Pick a colour"
+            />
+            <span className="text-muted text-sm">#</span>
+            <input
+              value={hex.replace(/^#/, "")}
+              onChange={(e) => setHex("#" + e.target.value.replace(/[^0-9a-fA-F]/g, "").slice(0, 6))}
+              onKeyDown={(e) => { if (e.key === "Enter") commit(hex); }}
+              onBlur={() => commit(hex)}
+              placeholder="2f7d95"
+              className="flex-1 min-w-0 rounded-lg border border-line bg-paper px-2 py-1.5 text-sm outline-none focus:border-ink font-mono"
+            />
+            {typeof window !== "undefined" && window.EyeDropper && (
+              <button type="button" onClick={eyedrop} title="Pick from screen"
+                className="h-9 w-9 rounded-lg border border-line bg-paper hover:border-ink flex items-center justify-center text-ink-soft">
+                <Search size={13} />
+              </button>
+            )}
+          </div>
+          {recents.length > 0 && (
+            <>
+              <p className="font-mono text-[9px] uppercase tracking-[0.15em] text-muted mb-1.5">Recent</p>
+              <div className="flex flex-wrap gap-1.5 mb-3">
+                {recents.map((c) => (
+                  <button key={c} type="button" onClick={() => { setHex(c); commit(c); }}
+                    title={c} aria-label={c}
+                    className="h-6 w-6 rounded-full border-2 border-line hover:border-ink transition"
+                    style={{ background: c }} />
+                ))}
+              </div>
+            </>
+          )}
+          <button
+            type="button"
+            onClick={() => { if (isHex(hex)) { onApplyAll(hex); remember(hex); setOpen(false); } }}
+            className="w-full text-center text-[12px] py-2 rounded-lg border border-line bg-paper hover:border-ink text-ink-soft"
+          >
+            Apply to all slides
+          </button>
+        </div>
+      )}
     </div>
   );
 }
