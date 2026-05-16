@@ -634,78 +634,75 @@ function SlideCanvas({
     >
       {layout === "title" && (
         hasImage ? (
-          // Hero cover: the photo fills the slide with a readable scrim,
-          // and the title sits large and centered on top. This is what
-          // makes "Cover" distinct from "Full photo" (whose title is a
-          // small bottom caption).
+          // Cover = a centred TITLE CARD: photo stays clearly visible
+          // under a light wash, the title is huge and dead-centre, and
+          // the points collapse into one centred tagline. Distinct from
+          // Full photo, where the photo dominates and the text is a
+          // small bottom-left caption.
           <div className="absolute inset-0">
             <img
               src={resolveSrc(slide.image.url)}
               alt={slide.image.alt || ""}
               className="absolute inset-0 w-full h-full object-cover"
             />
-            <div className="absolute inset-0 bg-gradient-to-br from-black/75 via-black/50 to-black/35 pointer-events-none" />
-            <div className="absolute inset-0 flex flex-col justify-center px-12 md:px-16">
-              <div className="max-w-3xl">
-                {editable ? (
-                  <textarea
-                    value={slide?.title || ""}
-                    onChange={(e) => onPatch({ title: e.target.value })}
-                    rows={2}
-                    className="w-full font-serif text-4xl md:text-5xl font-semibold bg-transparent outline-none resize-none leading-tight tracking-tight text-white drop-shadow rounded px-1 -mx-1"
-                    placeholder="Slide title"
-                    aria-label="Slide title"
-                  />
-                ) : (
-                  <h2 className="font-serif text-4xl md:text-6xl font-semibold leading-tight tracking-tight text-white drop-shadow">
-                    {slide?.title}
-                  </h2>
-                )}
-              </div>
-              <div className="mt-4 max-w-2xl flex flex-col gap-2">
-                {(slide?.bullets || []).map((b, bi) =>
-                  editable ? (
-                    <div key={bi} className="flex items-start gap-2.5 group">
-                      <span className="mt-2 h-1.5 w-1.5 rounded-full flex-shrink-0 bg-white/80" />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/25 to-black/40 pointer-events-none" />
+            <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-12 md:px-20">
+              {editable ? (
+                <textarea
+                  value={slide?.title || ""}
+                  onChange={(e) => onPatch({ title: e.target.value })}
+                  rows={2}
+                  className="w-full max-w-4xl text-center font-serif text-5xl md:text-7xl font-semibold bg-transparent outline-none resize-none leading-[1.05] tracking-tight text-white drop-shadow-lg rounded px-1"
+                  placeholder="Presentation title"
+                  aria-label="Slide title"
+                />
+              ) : (
+                <h2 className="max-w-4xl font-serif text-5xl md:text-7xl font-semibold leading-[1.05] tracking-tight text-white drop-shadow-lg">
+                  {slide?.title}
+                </h2>
+              )}
+              {editable ? (
+                <div className="mt-6 w-full max-w-2xl flex flex-col items-center gap-1.5">
+                  {(slide?.bullets || []).map((b, bi) => (
+                    <div key={bi} className="w-full flex items-center justify-center gap-2 group">
                       <textarea
                         value={b}
                         onChange={(e) => onSetBullet(bi, e.target.value)}
                         rows={1}
-                        placeholder="Type a point…"
-                        className="flex-1 text-[15px] md:text-base bg-transparent outline-none resize-none leading-snug rounded px-1 -mx-1 text-white/90 placeholder:text-white/50"
+                        placeholder="Subtitle line…"
+                        className="flex-1 text-center text-base md:text-xl bg-transparent outline-none resize-none leading-snug rounded px-1 text-white/85 placeholder:text-white/45"
                       />
                       <button
                         type="button"
                         onClick={() => onRemoveBullet(bi)}
-                        aria-label="Remove point"
-                        className="opacity-0 group-hover:opacity-100 transition mt-1 h-5 w-5 rounded flex items-center justify-center flex-shrink-0 text-white/70"
+                        aria-label="Remove line"
+                        className="opacity-0 group-hover:opacity-100 transition h-5 w-5 rounded flex items-center justify-center flex-shrink-0 text-white/60"
                       >
                         <Trash2 size={11} />
                       </button>
                     </div>
-                  ) : b ? (
-                    <div key={bi} className="flex items-start gap-3">
-                      <span className="mt-2.5 h-1.5 w-1.5 rounded-full flex-shrink-0 bg-white/80" />
-                      <span className="text-base md:text-xl leading-snug text-white/90 drop-shadow">{b}</span>
-                    </div>
-                  ) : null
-                )}
-                {editable && (
+                  ))}
                   <button
                     type="button"
                     onClick={onAddBullet}
-                    className="self-start inline-flex items-center gap-1.5 text-[12px] font-serif italic mt-1 text-white/80 hover:text-white"
+                    className="inline-flex items-center gap-1.5 text-[12px] font-serif italic mt-1 text-white/75 hover:text-white"
                   >
-                    <Plus size={12} /> Add a point
+                    <Plus size={12} /> Add a subtitle line
                   </button>
-                )}
-              </div>
+                </div>
+              ) : (
+                (slide?.bullets || []).filter(Boolean).length > 0 && (
+                  <p className="mt-6 max-w-2xl text-lg md:text-2xl text-white/85 drop-shadow leading-snug">
+                    {(slide.bullets || []).filter(Boolean).join("  ·  ")}
+                  </p>
+                )
+              )}
             </div>
           </div>
         ) : (
-          <div className="absolute inset-0 flex flex-col justify-center px-12 md:px-16">
-            <div className="max-w-3xl">{titleNode}</div>
-            <div className="mt-3 max-w-2xl">{bulletsNode}</div>
+          <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-12 md:px-20">
+            <div className="max-w-4xl">{titleNode}</div>
+            <div className="mt-4 max-w-2xl">{bulletsNode}</div>
           </div>
         )
       )}
