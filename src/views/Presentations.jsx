@@ -42,6 +42,30 @@ export default function Presentations() {
   }, [items, sortKey]);
   const visibleItems = filterByDateScope(sortedItems, scopeRange, (p) => p.scheduled_for);
 
+  // Derive the editor deck/meta ONCE per opened presentation. If we built
+  // these inline in JSX they'd be new objects every render, and the save
+  // (which re-renders this page) would make SlideBuilder reload the deck
+  // and wipe the teacher's in-progress edits (e.g. a slide reorder).
+  const editorDeck = React.useMemo(
+    () => (!editing ? null : editing === "new" ? BLANK_DECK : deckFromPresentation(editing)),
+    [editing]
+  );
+  const editorMeta = React.useMemo(
+    () =>
+      editing === "new"
+        ? { status: "Draft" }
+        : editing
+          ? {
+              subject: editing.subject,
+              grade: editing.grade,
+              section: editing.section,
+              status: editing.status,
+              scheduled_for: editing.scheduled_for,
+            }
+          : null,
+    [editing]
+  );
+
   const reload = () => {
     setLoading(true);
     api("/api/presentations")
@@ -190,19 +214,9 @@ export default function Presentations() {
           <div className="max-w-6xl mx-auto px-5 md:px-8 py-6">
             <SlideBuilder
               key={editing === "new" ? "new" : editing.id}
-              deck={editing === "new" ? BLANK_DECK : deckFromPresentation(editing)}
+              deck={editorDeck}
               presentationId={editing === "new" ? null : editing.id}
-              meta={
-                editing === "new"
-                  ? { status: "Draft" }
-                  : {
-                      subject: editing.subject,
-                      grade: editing.grade,
-                      section: editing.section,
-                      status: editing.status,
-                      scheduled_for: editing.scheduled_for,
-                    }
-              }
+              meta={editorMeta}
               onSaved={onSaved}
               onClose={() => { setEditing(null); reload(); }}
             />
