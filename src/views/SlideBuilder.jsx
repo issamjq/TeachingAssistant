@@ -70,6 +70,27 @@ function resolveTheme(bg) {
   return THEMES.paper;
 }
 
+function hexToRgba(hex, a) {
+  let h = String(hex || "").replace("#", "");
+  if (h.length === 3) h = h.split("").map((c) => c + c).join("");
+  if (h.length !== 6) return `rgba(0,0,0,${a})`;
+  const r = parseInt(h.slice(0, 2), 16);
+  const g = parseInt(h.slice(2, 4), 16);
+  const b = parseInt(h.slice(4, 6), 16);
+  return `rgba(${r},${g},${b},${a})`;
+}
+
+// Font pairings (only fonts the app already loads: Fraunces, Inter
+// Tight, Amiri). Each gives a title + body family.
+const FONTS = {
+  editorial: { name: "Editorial", title: "'Fraunces', Georgia, serif",            body: "'Inter Tight', system-ui, sans-serif" },
+  modern:    { name: "Modern",    title: "'Inter Tight', system-ui, sans-serif",   body: "'Inter Tight', system-ui, sans-serif" },
+  classic:   { name: "Classic",   title: "'Fraunces', Georgia, serif",            body: "'Fraunces', Georgia, serif" },
+  amiri:     { name: "Amiri",     title: "'Amiri', 'Times New Roman', serif",      body: "'Amiri', 'Times New Roman', serif" },
+};
+const FONT_KEYS = Object.keys(FONTS);
+const fontOf = (k) => FONTS[k] || FONTS.editorial;
+
 // Per-slide photo dim/brighten. v ∈ [-60, 60]: <0 darkens (black wash),
 // >0 brightens (white wash). Returns an overlay style or null.
 function dimStyle(v) {
@@ -94,6 +115,7 @@ export function parsePresentation(markdown) {
   const newSlide = (title) => ({
     title: title || `Slide ${slides.length + 1}`,
     bullets: [], notes: "", imageQuery: "", image: null, layout: "", bg: "",
+    imgAdjust: 0, font: "editorial", textColor: "",
   });
 
   for (const raw of lines) {
@@ -186,12 +208,14 @@ export function deckFromPresentation(p) {
       layout: LAYOUT_KEYS.includes(s.layout) ? s.layout : (image ? "text-image" : (i === 0 ? "title" : "text")),
       bg: THEME_KEYS.includes(s.bg) || isHex(s.bg) ? s.bg : (i === 0 ? "ink" : "paper"),
       imgAdjust: Number(s.imgAdjust) || 0,
+      font: FONT_KEYS.includes(s.font) ? s.font : "editorial",
+      textColor: isHex(s.textColor) ? s.textColor : "",
     };
   });
   return {
     deckTitle: p?.title || "Untitled presentation",
     metaLine: "",
-    slides: slides.length ? slides : [{ title: "Slide 1", bullets: [], notes: "", imageQuery: "", image: null, layout: "title", bg: "ink", imgAdjust: 0 }],
+    slides: slides.length ? slides : [{ title: "Slide 1", bullets: [], notes: "", imageQuery: "", image: null, layout: "title", bg: "ink", imgAdjust: 0, font: "editorial", textColor: "" }],
   };
 }
 
@@ -219,6 +243,8 @@ function slidesForSave(slides) {
     layout: s.layout || "text",
     bg: s.bg || "paper",
     imgAdjust: Number(s.imgAdjust) || 0,
+    font: s.font || "editorial",
+    textColor: isHex(s.textColor) ? s.textColor : "",
   }));
 }
 
@@ -267,7 +293,7 @@ export default function SlideBuilder({
   const addSlide = () => {
     const next = [
       ...slides,
-      { title: "New slide", bullets: [""], notes: "", imageQuery: "", image: null, layout: "text", bg: cur?.bg || "paper", imgAdjust: 0 },
+      { title: "New slide", bullets: [""], notes: "", imageQuery: "", image: null, layout: "text", bg: cur?.bg || "paper", imgAdjust: 0, font: cur?.font || "editorial", textColor: cur?.textColor || "" },
     ];
     setSlides(next);
     setActive(next.length - 1);
@@ -517,7 +543,37 @@ export default function SlideBuilder({
                 value={cur?.bg}
                 onChange={(bg) => patchActive({ bg })}
                 onApplyAll={(bg) => applyAll({ bg })}
+                label="Custom background"
               />
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="font-mono text-[9.5px] uppercase tracking-[0.15em] text-muted mr-1">Text</span>
+              <ColorControl
+                value={cur?.textColor}
+                onChange={(c) => patchActive({ textColor: c })}
+                onApplyAll={(c) => applyAll({ textColor: c })}
+                onClear={() => patchActive({ textColor: "" })}
+                label="Text colour"
+                seedDefault="#1a1814"
+                triggerKind="text"
+              />
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="font-mono text-[9.5px] uppercase tracking-[0.15em] text-muted mr-1">Font</span>
+              <select
+                value={cur?.font || "editorial"}
+                onChange={(e) => patchActive({ font: e.target.value })}
+                className="rounded-lg border border-line bg-paper-cool px-2.5 py-1 text-[12px] outline-none focus:border-ink cursor-pointer"
+                aria-label="Font style"
+              >
+                {FONT_KEYS.map((k) => (
+                  <option key={k} value={k}>{FONTS[k].name}</option>
+                ))}
+              </select>
+              <button type="button" onClick={() => applyAll({ font: cur?.font || "editorial" })}
+                className="text-[10.5px] text-accent hover:text-ink font-serif italic">
+                Apply to all
+              </button>
             </div>
             <button type="button" onClick={() => setPicker(true)}
               className="planner-nav-btn inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-line bg-paper-cool hover:border-ink text-ink-soft text-[12px]">
@@ -596,24 +652,34 @@ function SlideCanvas({
   const layout = slide?.layout || "text";
   const hasImage = Boolean(slide?.image);
 
+  // Per-slide typography + text colour. textColor (when set) overrides
+  // the theme's auto-contrast colour; fonts come from the chosen pairing.
+  const f = fontOf(slide?.font);
+  const hasTxt = isHex(slide?.textColor);
+  const txt = hasTxt ? slide.textColor : theme.text;
+  const txtSoft = hasTxt ? hexToRgba(slide.textColor, 0.74) : theme.soft;
+  // On photo-covering layouts text is white unless explicitly overridden.
+  const onPhoto = hasTxt ? slide.textColor : "#ffffff";
+  const onPhotoSoft = hasTxt ? hexToRgba(slide.textColor, 0.88) : "rgba(255,255,255,0.9)";
+
   const titleNode = editable ? (
     <textarea
       value={slide?.title || ""}
       onChange={(e) => onPatch({ title: e.target.value })}
       rows={layout === "title" ? 2 : 1}
-      className={`w-full font-serif font-semibold bg-transparent outline-none resize-none leading-tight tracking-tight rounded px-1 -mx-1 ${
+      className={`w-full font-semibold bg-transparent outline-none resize-none leading-tight tracking-tight rounded px-1 -mx-1 ${
         layout === "title" ? "text-4xl md:text-5xl" : "text-2xl md:text-3xl"
       }`}
-      style={{ color: theme.text }}
+      style={{ color: txt, fontFamily: f.title }}
       placeholder="Slide title"
       aria-label="Slide title"
     />
   ) : (
     <h2
-      className={`font-serif font-semibold leading-tight tracking-tight ${
+      className={`font-semibold leading-tight tracking-tight ${
         layout === "title" ? "text-4xl md:text-6xl" : "text-2xl md:text-4xl"
       }`}
-      style={{ color: theme.text }}
+      style={{ color: txt, fontFamily: f.title }}
     >
       {slide?.title}
     </h2>
@@ -631,14 +697,14 @@ function SlideCanvas({
               rows={1}
               placeholder="Type a point…"
               className="flex-1 text-[15px] md:text-base bg-transparent outline-none resize-none leading-snug rounded px-1 -mx-1"
-              style={{ color: theme.soft }}
+              style={{ color: txtSoft, fontFamily: f.body }}
             />
             <button
               type="button"
               onClick={() => onRemoveBullet(bi)}
               aria-label="Remove point"
               className="opacity-0 group-hover:opacity-100 transition mt-1 h-5 w-5 rounded flex items-center justify-center flex-shrink-0"
-              style={{ color: theme.soft }}
+              style={{ color: txtSoft }}
             >
               <Trash2 size={11} />
             </button>
@@ -646,7 +712,7 @@ function SlideCanvas({
         ) : b ? (
           <div key={bi} className="flex items-start gap-3">
             <span className="mt-2.5 h-1.5 w-1.5 rounded-full flex-shrink-0" style={{ background: theme.dot }} />
-            <span className="text-base md:text-xl leading-snug" style={{ color: theme.soft }}>{b}</span>
+            <span className="text-base md:text-xl leading-snug" style={{ color: txtSoft, fontFamily: f.body }}>{b}</span>
           </div>
         ) : null
       )}
@@ -724,19 +790,24 @@ function SlideCanvas({
             {dimStyle(slide?.imgAdjust) && (
               <div className="absolute inset-0 pointer-events-none" style={dimStyle(slide.imgAdjust)} />
             )}
-            <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/25 to-black/40 pointer-events-none" />
+            {/* The slide's background colour tints the photo — that's what
+                "colour" means once a photo covers the slide. */}
+            <div className="absolute inset-0 pointer-events-none mix-blend-multiply" style={{ background: resolveTheme(slide?.bg).bg, opacity: 0.38 }} />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/20 to-black/35 pointer-events-none" />
             <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-12 md:px-20">
               {editable ? (
                 <textarea
                   value={slide?.title || ""}
                   onChange={(e) => onPatch({ title: e.target.value })}
                   rows={2}
-                  className="w-full max-w-4xl text-center font-serif text-5xl md:text-7xl font-semibold bg-transparent outline-none resize-none leading-[1.05] tracking-tight text-white drop-shadow-lg rounded px-1"
+                  className="w-full max-w-4xl text-center text-5xl md:text-7xl font-semibold bg-transparent outline-none resize-none leading-[1.05] tracking-tight drop-shadow-lg rounded px-1"
+                  style={{ color: onPhoto, fontFamily: f.title }}
                   placeholder="Presentation title"
                   aria-label="Slide title"
                 />
               ) : (
-                <h2 className="max-w-4xl font-serif text-5xl md:text-7xl font-semibold leading-[1.05] tracking-tight text-white drop-shadow-lg">
+                <h2 className="max-w-4xl text-5xl md:text-7xl font-semibold leading-[1.05] tracking-tight drop-shadow-lg"
+                  style={{ color: onPhoto, fontFamily: f.title }}>
                   {slide?.title}
                 </h2>
               )}
@@ -749,7 +820,8 @@ function SlideCanvas({
                         onChange={(e) => onSetBullet(bi, e.target.value)}
                         rows={1}
                         placeholder="Subtitle line…"
-                        className="flex-1 text-center text-base md:text-xl bg-transparent outline-none resize-none leading-snug rounded px-1 text-white/85 placeholder:text-white/45"
+                        className="flex-1 text-center text-base md:text-xl bg-transparent outline-none resize-none leading-snug rounded px-1 placeholder:text-white/45"
+                        style={{ color: onPhotoSoft, fontFamily: f.body }}
                       />
                       <button
                         type="button"
@@ -771,7 +843,8 @@ function SlideCanvas({
                 </div>
               ) : (
                 (slide?.bullets || []).filter(Boolean).length > 0 && (
-                  <p className="mt-6 max-w-2xl text-lg md:text-2xl text-white/85 drop-shadow leading-snug">
+                  <p className="mt-6 max-w-2xl text-lg md:text-2xl drop-shadow leading-snug"
+                    style={{ color: onPhotoSoft, fontFamily: f.body }}>
                     {(slide.bullets || []).filter(Boolean).join("  ·  ")}
                   </p>
                 )
@@ -812,6 +885,7 @@ function SlideCanvas({
       {layout === "full-image" && (
         <div className="absolute inset-0">
           <Photo className="absolute inset-0 w-full h-full" />
+          <div className="absolute inset-0 pointer-events-none mix-blend-multiply" style={{ background: resolveTheme(slide?.bg).bg, opacity: 0.32 }} />
           <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/25 to-transparent pointer-events-none" />
           <div className="absolute inset-x-0 bottom-0 p-10 md:p-12">
             {editable ? (
@@ -819,12 +893,14 @@ function SlideCanvas({
                 value={slide?.title || ""}
                 onChange={(e) => onPatch({ title: e.target.value })}
                 rows={2}
-                className="w-full font-serif text-3xl md:text-4xl font-semibold bg-transparent outline-none resize-none leading-tight text-white drop-shadow rounded px-1 -mx-1"
+                className="w-full text-3xl md:text-4xl font-semibold bg-transparent outline-none resize-none leading-tight drop-shadow rounded px-1 -mx-1"
+                style={{ color: onPhoto, fontFamily: f.title }}
                 placeholder="Slide title"
                 aria-label="Slide title"
               />
             ) : (
-              <h2 className="font-serif text-3xl md:text-5xl font-semibold leading-tight text-white drop-shadow">
+              <h2 className="text-3xl md:text-5xl font-semibold leading-tight drop-shadow"
+                style={{ color: onPhoto, fontFamily: f.title }}>
                 {slide?.title}
               </h2>
             )}
@@ -838,7 +914,8 @@ function SlideCanvas({
                       onChange={(e) => onSetBullet(bi, e.target.value)}
                       rows={1}
                       placeholder="Type a point…"
-                      className="flex-1 text-[15px] md:text-base bg-transparent outline-none resize-none leading-snug rounded px-1 -mx-1 text-white/90 placeholder:text-white/50 drop-shadow"
+                      className="flex-1 text-[15px] md:text-base bg-transparent outline-none resize-none leading-snug rounded px-1 -mx-1 placeholder:text-white/50 drop-shadow"
+                      style={{ color: onPhotoSoft, fontFamily: f.body }}
                     />
                     <button
                       type="button"
@@ -861,7 +938,8 @@ function SlideCanvas({
             ) : (
               <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1">
                 {(slide?.bullets || []).filter(Boolean).map((b, i) => (
-                  <span key={i} className="text-white/90 text-sm md:text-base inline-flex items-center gap-2">
+                  <span key={i} className="text-sm md:text-base inline-flex items-center gap-2"
+                    style={{ color: onPhotoSoft, fontFamily: f.body }}>
                     <span className="h-1 w-1 rounded-full bg-white/80" /> {b}
                   </span>
                 ))}
@@ -940,12 +1018,15 @@ export function PresentDeck({ presentation, onClose }) {
 // ── Custom background colour — presets row gets a "+" that opens this.
 // Any colour is allowed; text auto-contrasts via resolveTheme(). ──────
 const RECENTS_KEY = "mudir.slidebg.recents";
-function ColorControl({ value, onChange, onApplyAll }) {
+function ColorControl({
+  value, onChange, onApplyAll, onClear,
+  label = "Custom colour", seedDefault = "#1f1b16", triggerKind = "bg",
+}) {
   const [open, setOpen] = useState(false);
   const [recents, setRecents] = useState([]);
   const wrapRef = useRef(null);
   const active = isHex(value);
-  const seed = active ? value : (THEMES[value]?.bg || "#1f1b16");
+  const seed = active ? value : (THEMES[value]?.bg || seedDefault);
   const [hex, setHex] = useState(seed);
 
   useEffect(() => { setHex(seed); }, [seed]);
@@ -989,21 +1070,36 @@ function ColorControl({ value, onChange, onApplyAll }) {
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        title="Custom colour"
-        aria-label="Custom background colour"
+        title={label}
+        aria-label={label}
         className={`h-6 w-6 rounded-full border-2 flex items-center justify-center transition ${
           active ? "border-accent scale-110" : "border-line hover:border-ink"
         }`}
-        style={active
-          ? { background: value }
-          : { background: "conic-gradient(#c8472b,#e0a04a,#6b7f5a,#2f7d95,#3a2740,#c8472b)" }}
+        style={
+          triggerKind === "text"
+            ? { background: active ? value : "#ffffff" }
+            : active
+              ? { background: value }
+              : { background: "conic-gradient(#c8472b,#e0a04a,#6b7f5a,#2f7d95,#3a2740,#c8472b)" }
+        }
       >
-        {!active && <Plus size={11} className="text-white drop-shadow" strokeWidth={3} />}
+        {triggerKind === "text"
+          ? <span className="font-serif text-[12px] leading-none" style={{ color: active ? "#fff" : "#1a1814", mixBlendMode: "difference" }}>A</span>
+          : !active && <Plus size={11} className="text-white drop-shadow" strokeWidth={3} />}
       </button>
 
       {open && (
         <div className="absolute z-50 top-8 right-0 w-60 rounded-xl border border-line bg-paper-cool shadow-xl p-3">
-          <p className="font-mono text-[9.5px] uppercase tracking-[0.15em] text-muted mb-2">Custom colour</p>
+          <div className="flex items-center justify-between mb-2">
+            <p className="font-mono text-[9.5px] uppercase tracking-[0.15em] text-muted">{label}</p>
+            {onClear && (
+              <button type="button"
+                onClick={() => { onClear(); setOpen(false); }}
+                className="text-[10px] text-muted hover:text-ink underline">
+                Auto
+              </button>
+            )}
+          </div>
           <div className="flex items-center gap-2 mb-2">
             <input
               type="color"
