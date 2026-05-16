@@ -829,8 +829,11 @@ export default function Studio({ initialKind } = {}) {
 
   // Warn before the user discards an in-flight or freshly-generated draft.
   // We skip the warning for a saved-and-clean quiz — there's nothing to lose
-  // there and the modal would just be friction.
+  // there and the modal would just be friction. Presentations are exempt
+  // entirely: the SlideBuilder owns its own save + "Saved" state, so the
+  // studio guard (with its quiz-worded copy) is just noise there.
   useEffect(() => {
+    if (kind === "presentation") return;
     const hasInflight = busy || !!streamingText;
     const hasUnsavedContent = !!result
       ? !savedDraftId || isDirty
@@ -851,7 +854,7 @@ export default function Studio({ initialKind } = {}) {
       cleanupGuard();
       window.removeEventListener("beforeunload", onBeforeUnload);
     };
-  }, [busy, streamingText, result, sections.length, savedDraftId, isDirty]);
+  }, [busy, streamingText, result, sections.length, savedDraftId, isDirty, kind]);
 
   // Internal — the actual reset. Wrapped by makeAnother() below which
   // checks for unsaved work first and surfaces the leave-confirm modal
@@ -881,7 +884,8 @@ export default function Studio({ initialKind } = {}) {
     const hasUnsavedContent = !!result
       ? !savedDraftId || isDirty
       : sections.length > 0;
-    if (hasInflight || hasUnsavedContent) {
+    // Presentations: SlideBuilder owns its own save — no studio confirm.
+    if (kind !== "presentation" && (hasInflight || hasUnsavedContent)) {
       setPendingLeave({ proceed: resetForNewDraft });
       return;
     }
