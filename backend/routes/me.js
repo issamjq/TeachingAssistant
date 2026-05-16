@@ -31,7 +31,20 @@ router.patch("/", async (req, res) => {
     const cur = await loadCurrentTeacher();
     if (!cur) return res.status(404).json({ error: "Current teacher not found in DB" });
 
-    const { sets, params } = buildPatch(req.body || {}, ME_FIELDS);
+    // class_map is jsonb — node-postgres turns a JS array into a Postgres
+    // ARRAY literal which jsonb rejects ("invalid input syntax for type
+    // json"), so stringify it. majors/grade_levels/languages/sections are
+    // TEXT[] and must stay as arrays, so they are left untouched.
+    const body = { ...(req.body || {}) };
+    if (
+      Object.prototype.hasOwnProperty.call(body, "class_map") &&
+      body.class_map !== null &&
+      typeof body.class_map !== "string"
+    ) {
+      body.class_map = JSON.stringify(body.class_map);
+    }
+
+    const { sets, params } = buildPatch(body, ME_FIELDS);
     if (sets.length === 0) {
       const r = await pool.query(`SELECT ${ME_SELECT} FROM teachers WHERE id = $1`, [cur.id]);
       return res.json(r.rows[0]);

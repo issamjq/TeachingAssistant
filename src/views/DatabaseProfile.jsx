@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { Calendar, Hash, Pencil, Plus, Trash2, X } from "lucide-react";
+import { Calendar, Hash, Pencil, Plus, Trash2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { MAJORS, GRADE_LEVELS, QUIZ_LANGUAGES, QUIZ_SECTIONS } from "../lib/enums";
@@ -106,46 +106,52 @@ export default function DatabaseProfile() {
       {me && (
         <Card>
           <CardContent className="p-8">
-            <div className="flex items-start gap-5 mb-6">
-              <div className="h-16 w-16 rounded-full bg-paper-warm border border-line flex items-center justify-center font-mono text-base tracking-wider text-ink-soft flex-shrink-0">
-                {initials(me.first_name, me.last_name)}
-              </div>
-              <div className="min-w-0 flex-1">
-                <h3 className="font-serif text-3xl text-ink leading-tight">
-                  {me.first_name} {me.last_name}
-                </h3>
-                <p className="font-mono text-[11px] uppercase tracking-wider text-muted mt-1.5">
-                  {(me.majors || []).join(" · ") || "No majors set"}
-                </p>
-                <p className="font-mono text-[11px] uppercase tracking-wider text-muted mt-1">
-                  {(me.grade_levels || []).join(" · ") || "No grades set"}
-                </p>
-                <p className="font-mono text-[11px] uppercase tracking-wider text-muted mt-1">
-                  {(me.languages || []).join(" · ") || "No languages set"}
-                </p>
-                <p className="font-mono text-[11px] uppercase tracking-wider text-muted mt-1">
-                  {(me.sections || []).join(" · ") || "No sections set"}
-                </p>
-                {me.bio && (
-                  <p className="text-sm text-ink-soft mt-3 max-w-2xl leading-relaxed">{me.bio}</p>
-                )}
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-5 pt-6 border-t border-line">
-              <Stat label="Staff ID" value={me.staff_id || "—"} icon={<Hash size={13} />} mono />
-              <Stat
-                label="Registered"
-                value={me.hire_date ? new Date(me.hire_date).toLocaleDateString() : "—"}
-                icon={<Calendar size={13} />}
+            {editing ? (
+              <ProfileEditor
+                initial={me}
+                onClose={() => setEditing(false)}
+                onSaved={onSaved}
               />
-            </div>
+            ) : (
+              <>
+                <div className="flex items-start gap-5 mb-6">
+                  <div className="h-16 w-16 rounded-full bg-paper-warm border border-line flex items-center justify-center font-mono text-base tracking-wider text-ink-soft flex-shrink-0">
+                    {initials(me.first_name, me.last_name)}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <h3 className="font-serif text-3xl text-ink leading-tight">
+                      {me.first_name} {me.last_name}
+                    </h3>
+                    <p className="font-mono text-[11px] uppercase tracking-wider text-muted mt-1.5">
+                      {(me.majors || []).join(" · ") || "No majors set"}
+                    </p>
+                    <p className="font-mono text-[11px] uppercase tracking-wider text-muted mt-1">
+                      {(me.grade_levels || []).join(" · ") || "No grades set"}
+                    </p>
+                    <p className="font-mono text-[11px] uppercase tracking-wider text-muted mt-1">
+                      {(me.languages || []).join(" · ") || "No languages set"}
+                    </p>
+                    <p className="font-mono text-[11px] uppercase tracking-wider text-muted mt-1">
+                      {(me.sections || []).join(" · ") || "No sections set"}
+                    </p>
+                    {me.bio && (
+                      <p className="text-sm text-ink-soft mt-3 max-w-2xl leading-relaxed">{me.bio}</p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-5 pt-6 border-t border-line">
+                  <Stat label="Staff ID" value={me.staff_id || "—"} icon={<Hash size={13} />} mono />
+                  <Stat
+                    label="Registered"
+                    value={me.hire_date ? new Date(me.hire_date).toLocaleDateString() : "—"}
+                    icon={<Calendar size={13} />}
+                  />
+                </div>
+              </>
+            )}
           </CardContent>
         </Card>
-      )}
-
-      {me && editing && (
-        <ProfileEditor initial={me} onClose={() => setEditing(false)} onSaved={onSaved} />
       )}
     </div>
   );
@@ -227,29 +233,7 @@ function ProfileEditor({ initial, onClose, onSaved }) {
   };
 
   return (
-    <div className="mt-6 rounded-2xl border border-[#e6dccb] bg-paper-cool shadow-[0_18px_44px_-22px_rgba(15,20,16,0.14)] overflow-hidden">
-      <div className="px-7 pt-6 pb-4 border-b border-line">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-1.5 inline-flex items-center gap-2.5">
-              <span className="w-6 h-px bg-accent" /> Edit teaching profile
-            </p>
-            <h3 className="font-serif text-2xl font-medium text-ink leading-tight">
-              Update your <em className="italic font-light text-accent">teaching details</em>
-            </h3>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close editor"
-            className="h-9 w-9 rounded-lg border border-line bg-paper-cool hover:bg-paper-warm hover:border-ink flex items-center justify-center transition"
-          >
-            <X size={16} strokeWidth={1.75} />
-          </button>
-        </div>
-      </div>
-
-      <div className="px-7 py-6">
+    <div>
         {err && (
           <div className="mb-4 bg-paper border border-accent rounded-lg p-3">
             <p className="text-sm text-accent">{err}</p>
@@ -340,9 +324,8 @@ function ProfileEditor({ initial, onClose, onSaved }) {
             </div>
           )}
         </div>
-      </div>
 
-      <div className="px-7 py-4 border-t border-line flex items-center justify-end gap-3 bg-paper">
+      <div className="mt-8 pt-5 border-t border-line flex items-center justify-end gap-3">
         <Button variant="secondary" onClick={onClose} disabled={saving}>
           Cancel
         </Button>
