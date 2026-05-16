@@ -20,6 +20,7 @@ const router = crudRouter({
   routeName: "/api/activities",
   teacherScoped: true,
   softDelete: true,
+  jsonFields: ["materials"],
 });
 
 const assertOwns = async (id) => {

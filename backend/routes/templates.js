@@ -16,4 +16,6 @@ export default crudRouter({
   routeName: "/api/templates",
   teacherScoped: true,
   softDelete: true,
+  // JSONB columns — tags is TEXT[] so it stays off this list.
+  jsonFields: ["objectives", "stages"],
 });

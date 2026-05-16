@@ -18,6 +18,12 @@ import { loadCurrentTeacher } from "./currentTeacher.js";
 //                    of removing the row. GETs hide soft-deleted rows.
 //                    Adds /trash, /:id/restore, /:id/forever routes and
 //                    auto-purges anything > 30 days old on /trash access.
+//   jsonFields     : columns of type json/jsonb. node-postgres serializes
+//                    a JS array as a Postgres ARRAY literal ('{...}'),
+//                    which a jsonb column rejects ("invalid input syntax
+//                    for type json"). We JSON.stringify these before bind
+//                    so the column gets valid JSON. TEXT[] columns must
+//                    NOT be listed here — they want the array literal.
 export function crudRouter({
   table,
   fields,
@@ -29,9 +35,29 @@ export function crudRouter({
   listExtra = null,
   afterMutation = null,
   softDelete = false,
+  jsonFields = [],
 }) {
   const router = Router();
   const tag = routeName || `/api/${table}`;
+
+  // Stringify json/jsonb fields so an array/object value lands as valid
+  // JSON instead of a Postgres array literal. Strings and null pass
+  // through untouched (already JSON, or an intentional SQL NULL).
+  const coerceJson = (obj) => {
+    if (!jsonFields.length || !obj) return obj;
+    const out = { ...obj };
+    for (const f of jsonFields) {
+      if (
+        Object.prototype.hasOwnProperty.call(out, f) &&
+        out[f] !== null &&
+        out[f] !== undefined &&
+        typeof out[f] !== "string"
+      ) {
+        out[f] = JSON.stringify(out[f]);
+      }
+    }
+    return out;
+  };
 
   const scopeFor = async () => {
     if (!teacherScoped) return { where: "", params: [], teacherId: null };
@@ -145,7 +171,7 @@ export function crudRouter({
   router.post("/", async (req, res) => {
     try {
       const scope = await scopeFor();
-      const body = { ...(req.body || {}) };
+      const body = coerceJson({ ...(req.body || {}) });
       if (teacherScoped) body.teacher_id = scope.teacherId;
 
       const allowed = teacherScoped ? [...fields, "teacher_id"] : fields;
@@ -187,7 +213,7 @@ export function crudRouter({
   router.patch("/:id", async (req, res) => {
     try {
       const scope = await scopeFor();
-      const { sets, params } = buildPatch(req.body || {}, fields);
+      const { sets, params } = buildPatch(coerceJson(req.body || {}), fields);
       if (sets.length === 0) return res.status(400).json({ error: "No fields" });
 
       params.push(req.params.id);

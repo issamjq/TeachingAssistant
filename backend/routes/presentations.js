@@ -12,4 +12,5 @@ export default crudRouter({
   routeName: "/api/presentations",
   teacherScoped: true,
   softDelete: true,
+  jsonFields: ["slides"],
 });
