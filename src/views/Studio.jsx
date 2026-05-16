@@ -1578,49 +1578,55 @@ export default function Studio({ initialKind } = {}) {
               </div>
 
               <div className="print:hidden">
-                {/* While a quiz is still streaming, keep the live
-                    QuizStreamingPlaceholder up for the WHOLE duration —
-                    the streaming effect populates `sections` almost
-                    immediately (Cover + N slots), and without this the
-                    UI would flip to the one-card-at-a-time editable
-                    view a split second in, so the teacher never sees
-                    the quiz "build up" the way prose kinds do. Only
-                    fall through to the sectioned editable view once
-                    generation has settled (result.quiz set / !busy). */}
+                {/* While a quiz is still streaming, hold the live prose
+                    view up for the WHOLE duration — the streaming effect
+                    populates `sections` almost immediately (Cover + N
+                    slots), and without this the UI would flip to the
+                    one-card-at-a-time editable view a split second in, so
+                    the teacher never sees the quiz "build up" the way
+                    prose kinds do. Only fall through to the sectioned
+                    editable view once generation has settled (result.quiz
+                    set / !busy). */}
                 {(sections.length === 0 || (kind === "quiz" && busy && !result?.quiz)) ? (
-                  // Pre-parse — for the markdown path render the streaming
-                  // markdown live so the teacher sees real headings; for
-                  // the structured-quiz path show a structured progress
-                  // panel because the JSON tool input isn't human-readable.
-                  kind === "quiz" ? (
-                    <QuizStreamingPlaceholder
-                      partial={quizPartial}
-                      busy={busy}
-                      expectedCount={Number(quizParams.questions) || 0}
-                      hintPrompt={prompt.trim()}
-                    />
-                  ) : (
-                  <div>
-                    <p className="font-serif italic text-base text-accent mb-3 inline-flex items-center gap-2">
-                      <span className="h-1.5 w-1.5 rounded-full bg-accent animate-pulse" />
-                      {busy ? "Generating" : "Done"}
-                    </p>
-                    <div className="max-h-[60vh] overflow-y-auto pr-1 studio-stream">
-                      {streamingText ? (
-                        <>
-                          {renderMarkdown(streamingText)}
-                          {busy && (
-                            <span className="inline-block w-1.5 h-4 bg-accent ml-0.5 animate-pulse align-text-bottom" />
+                  // Pre-parse — render the streaming text live so the
+                  // teacher watches real headings and questions appear
+                  // word by word, identical for quiz and prose kinds.
+                  (() => {
+                    // Quiz streams structured tool-JSON; every other kind
+                    // streams markdown text. Render BOTH the same way —
+                    // readable prose growing under a blinking caret — so
+                    // the teacher watches the quiz get written exactly
+                    // like a lesson plan instead of staring at a "drafting
+                    // question 1" placeholder until it pops in finished.
+                    const liveText =
+                      kind === "quiz"
+                        ? quizPartial
+                          ? streamingQuizMarkdown(quizPartial, prompt.trim())
+                          : ""
+                        : streamingText;
+                    return (
+                      <div>
+                        <p className="font-serif italic text-base text-accent mb-3 inline-flex items-center gap-2">
+                          <span className="h-1.5 w-1.5 rounded-full bg-accent animate-pulse" />
+                          {busy ? "Generating" : "Done"}
+                        </p>
+                        <div className="max-h-[60vh] overflow-y-auto pr-1 studio-stream">
+                          {liveText ? (
+                            <>
+                              {renderMarkdown(liveText)}
+                              {busy && (
+                                <span className="inline-block w-1.5 h-4 bg-accent ml-0.5 animate-pulse align-text-bottom" />
+                              )}
+                            </>
+                          ) : (
+                            <div className="flex flex-col items-center justify-center py-6">
+                              <MudirMascot size={140} label="Mudir is thinking…" />
+                            </div>
                           )}
-                        </>
-                      ) : (
-                        <div className="flex flex-col items-center justify-center py-6">
-                          <MudirMascot size={140} label="Mudir is thinking…" />
                         </div>
-                      )}
-                    </div>
-                  </div>
-                  )
+                      </div>
+                    );
+                  })()
                 ) : (
                   <>
                     {/* Eyebrow row now hosts the prev/next chevrons too —
@@ -2560,121 +2566,63 @@ function parsePartialQuiz(partial) {
   return { title, subject, questions };
 }
 
-function QuizStreamingPlaceholder({ partial, busy, expectedCount, hintPrompt }) {
-  const { title, subject, questions } = parsePartialQuiz(partial);
-  const drafted = questions.length;
-  const targetCount = Math.max(expectedCount || 5, drafted);
+// Turn the in-flight quiz tool JSON into readable markdown so the quiz
+// streams in word-by-word EXACTLY like the prose kinds (lesson, homework
+// …) instead of popping in as finished structured cards. Unclosed
+// strings are surfaced too, so the title and each prompt grow letter by
+// letter under the same blinking caret the lesson path uses.
+function streamingQuizMarkdown(partial, hintPrompt) {
+  if (!partial) return "";
 
-  // Anything past the last 2 completed questions collapses to a one-liner
-  // so the panel doesn't grow unbounded on a 30-question quiz. The two
-  // most recent + the in-flight one render in FULL — prompt, choices,
-  // correct answer — so the teacher watches the quiz unfold live.
-  const fullStart = Math.max(0, questions.length - 3);
-  const compact = questions.slice(0, fullStart);
-  const full = questions.slice(fullStart);
-  const pendingCount = busy ? Math.max(0, targetCount - drafted - (full.length > 0 && !full[full.length - 1].complete ? 0 : (busy ? 1 : 0))) : 0;
-  const showDraftingPlaceholder = busy
-    && (full.length === 0 || full[full.length - 1].complete);
+  // Open- OR closed-string grab for top-level scalars so the value types
+  // out as bytes arrive rather than popping in whole once its quote closes.
+  const liveStr = (key) => {
+    const closed = partial.match(
+      new RegExp(`"${key}"\\s*:\\s*"((?:[^"\\\\]|\\\\.)*)"`)
+    );
+    if (closed) return closed[1];
+    const open = partial.match(
+      new RegExp(`"${key}"\\s*:\\s*"((?:[^"\\\\]|\\\\.)*)$`)
+    );
+    return open ? open[1] : null;
+  };
 
-  const coverTitle = title || (hintPrompt ? truncate(hintPrompt, 60) : null);
+  const { questions } = parsePartialQuiz(partial);
+  const title = liveStr("title");
+  const subject = liveStr("subject");
 
-  return (
-    <div className="studio-card-flip-in">
-      <p className="font-serif italic text-base text-accent mb-3 inline-flex items-center gap-2">
-        <span className="h-1.5 w-1.5 rounded-full bg-accent animate-pulse" />
-        {busy ? "Building quiz" : "Done"}
-        {(drafted > 0 || targetCount > 0) && (
-          <span className="text-muted">
-            · <span key={drafted} className="studio-tick text-ink">{drafted}</span>
-            {" of "}{targetCount}
-          </span>
-        )}
-      </p>
-      <div className="rounded-2xl border border-line bg-paper-warm/40 p-5 md:p-6 grid grid-cols-1 md:grid-cols-[1fr_auto] gap-4 items-start">
-        <div className="min-w-0">
-          {/* Cover header — title (or fallback to the teacher's prompt) +
-              subject. Carets while still streaming. */}
-          <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-1.5">
-            Cover
-          </p>
-          {coverTitle ? (
-            <>
-              <h3 className="font-serif text-xl md:text-2xl font-medium text-ink leading-tight">
-                {coverTitle}
-                {!title && busy && (
-                  <span className="inline-block w-1.5 h-5 bg-accent ml-1 animate-pulse align-text-bottom" />
-                )}
-              </h3>
-              {subject ? (
-                <p className="font-serif italic text-sm text-muted mt-1">
-                  {subject}
-                </p>
-              ) : busy ? (
-                <p className="font-serif italic text-sm text-muted/70 mt-1">
-                  Picking subject, grade, marks…
-                </p>
-              ) : null}
-            </>
-          ) : (
-            <h3 className="font-serif text-xl md:text-2xl font-medium text-muted/80 leading-tight italic">
-              Mudir is structuring your quiz
-              <span className="inline-block w-1.5 h-5 bg-accent ml-1 animate-pulse align-text-bottom" />
-            </h3>
-          )}
-
-          <div className="mt-4 border-t border-line/60 pt-4 space-y-3">
-            {/* Older completed questions collapsed to a compact summary
-                row so the panel stays scannable on long quizzes. */}
-            {compact.map((q) => (
-              <CompactQuestionRow key={`c-${q.position}`} q={q} />
-            ))}
-
-            {/* The most recent ~3 questions, rendered in full so the
-                teacher can read what was just written. */}
-            {full.map((q) => (
-              <LiveQuestionCard key={`f-${q.position}`} q={q} busy={busy} />
-            ))}
-
-            {/* Optimistic placeholders for slots the model hasn't reached
-                yet. Stays in place until the actual question lands. */}
-            {showDraftingPlaceholder && (
-              <DraftingPlaceholder position={drafted + 1} />
-            )}
-            {Array.from({ length: Math.max(0, pendingCount - (showDraftingPlaceholder ? 1 : 0)) }).map((_, i) => (
-              <PendingPlaceholder
-                key={`p-${drafted + (showDraftingPlaceholder ? 2 : 1) + i}`}
-                position={drafted + (showDraftingPlaceholder ? 2 : 1) + i}
-              />
-            ))}
-          </div>
-        </div>
-        <div className="hidden md:flex justify-end items-start pt-2">
-          <MudirMascot size={120} />
-        </div>
-      </div>
-    </div>
+  const lines = [];
+  lines.push(
+    `## ${title || (hintPrompt ? truncate(hintPrompt, 70) : "Building your quiz")}`
   );
-}
+  if (subject) lines.push(`*${subject}*`);
+  lines.push("");
 
-// One-line summary for older completed questions — keeps the panel
-// scannable on 20+ question quizzes without losing the "I see what was
-// written" feeling.
-function CompactQuestionRow({ q }) {
-  return (
-    <div className="flex items-start gap-2.5">
-      <span className="flex-shrink-0 mt-0.5 h-5 w-5 rounded-md font-mono text-[10px] bg-ink text-paper-cool flex items-center justify-center">
-        {q.position}
-      </span>
-      <span className="text-sm text-ink-soft leading-snug line-clamp-1 min-w-0 flex-1">
-        {q.prompt || "(question)"}
-      </span>
-      {q.marks != null && (
-        <span className="font-mono text-[10px] text-muted flex-shrink-0">
-          {q.marks}m
-        </span>
-      )}
-    </div>
-  );
+  questions.forEach((q) => {
+    const pos = q.position ?? "";
+    const promptText = q.prompt != null && q.prompt !== "" ? q.prompt : "…";
+    lines.push(`**Q${pos}.** ${promptText}`);
+    if (q.type === "mcq" && Array.isArray(q.choices)) {
+      q.choices.forEach((c, idx) => {
+        lines.push(`- ${String.fromCharCode(65 + idx)}. ${c}`);
+      });
+    } else if (q.type === "tf") {
+      lines.push(`- True   ·   False`);
+    }
+    if (q.correct_answer != null && q.correct_answer !== "") {
+      const ans =
+        typeof q.correct_answer === "boolean"
+          ? q.correct_answer
+            ? "True"
+            : "False"
+          : q.correct_answer;
+      lines.push("");
+      lines.push(`*Answer: ${ans}*`);
+    }
+    lines.push("");
+  });
+
+  return lines.join("\n");
 }
 
 // Live mini-card showing the WHOLE question body as it streams in.
@@ -2844,36 +2792,6 @@ function LiveQuestionCard({ q, busy }) {
           {typeof q.correct_answer === "string" ? q.correct_answer : ""}
         </p>
       )}
-    </div>
-  );
-}
-
-// "Drafting question N…" placeholder — shown for the slot just past
-// what's been parsed, while busy.
-function DraftingPlaceholder({ position }) {
-  return (
-    <div className="rounded-xl border border-dashed border-accent/40 bg-paper-cool/50 px-4 py-3 flex items-center gap-2.5">
-      <span className="h-5 w-5 rounded-md font-mono text-[10px] bg-accent/[0.10] border border-accent/30 text-accent flex items-center justify-center">
-        {position}
-      </span>
-      <span className="font-serif italic text-[13px] text-ink-soft">
-        Drafting question {position}
-        <span className="inline-block w-1.5 h-3 bg-accent ml-1 animate-pulse align-text-bottom" />
-      </span>
-    </div>
-  );
-}
-
-// Distant pending slot — quieter than DraftingPlaceholder.
-function PendingPlaceholder({ position }) {
-  return (
-    <div className="px-4 py-2 flex items-center gap-2.5 opacity-60">
-      <span className="h-5 w-5 rounded-md font-mono text-[10px] bg-paper-warm border border-line text-muted flex items-center justify-center">
-        {position}
-      </span>
-      <span className="font-serif italic text-[12.5px] text-muted">
-        Question {position}
-      </span>
     </div>
   );
 }
