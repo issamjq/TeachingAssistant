@@ -1740,11 +1740,16 @@ export default function Studio({ initialKind } = {}) {
             editor there, no section/refine flow. */}
         {!presentationDeck && (
         <div className="sticky bottom-2 md:bottom-3 z-20 mt-3 print:hidden studio-refine-rise">
+          {/* The WHOLE bar (header + input) sits on one frosted panel so
+              the result card / cost footer scroll cleanly behind it —
+              without the panel the transparent header text collided with
+              the content underneath. */}
+          <div className="bg-paper-cool/95 backdrop-blur-md border border-line rounded-2xl shadow-[0_12px_40px_-16px_rgba(15,20,16,0.28)] p-3">
           {/* Two-line header above the input doubles as a teaching label so a
               teacher who's never used the bar before knows what it does, and
               an example line under it shows what kind of instructions land.
               Without this, the bar reads as a search box. */}
-          <div className="flex items-end justify-between gap-3 px-1 mb-1.5">
+          <div className="flex items-end justify-between gap-3 px-1 mb-2">
             <div>
               <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-accent inline-flex items-center gap-1.5">
                 <Sparkles size={11} strokeWidth={1.75} /> Refine with Mudir
@@ -1764,7 +1769,7 @@ export default function Studio({ initialKind } = {}) {
             )}
           </div>
           <div
-            className={`bg-paper-cool/95 backdrop-blur-md border rounded-2xl pl-4 pr-2 py-2 flex items-center gap-3 shadow-lg transition-all duration-200 ${
+            className={`bg-paper border rounded-xl pl-4 pr-2 py-2 flex items-center gap-3 transition-all duration-200 ${
               tweak.trim() ? "border-ink" : "border-line"
             }`}
           >
@@ -1805,6 +1810,7 @@ export default function Studio({ initialKind } = {}) {
               <Send size={13} className="mr-1.5" />
               {tweakBusy ? "Working…" : "Send"}
             </Button>
+          </div>
           </div>
         </div>
         )}
