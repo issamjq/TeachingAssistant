@@ -4,6 +4,7 @@ import "./index.css";
 import StudioApp from "./App.jsx";
 import Landing from "./views/Landing.jsx";
 import { useRoute, navigate, clearRoute } from "./lib/route.js";
+import { LanguageProvider } from "./lib/i18n.jsx";
 
 // Top-level surface decided by the URL hash:
 //   no hash         → landing page
@@ -25,6 +26,8 @@ function Root() {
 
 createRoot(document.getElementById("root")).render(
   <React.StrictMode>
-    <Root />
+    <LanguageProvider>
+      <Root />
+    </LanguageProvider>
   </React.StrictMode>
 );

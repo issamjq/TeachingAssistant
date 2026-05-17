@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from "react";
 import "../landing.css";
 import LandingDemo from "./LandingDemo";
+import { useT, LangToggle } from "../lib/i18n";
 
 const introPara = {
   fontSize: 17,
@@ -26,6 +27,7 @@ const sectionLead = {
 
 export default function Landing({ onOpenStudio }) {
   const rootRef = useRef(null);
+  const t = useT();
 
   useEffect(() => {
     const root = rootRef.current;
@@ -54,14 +56,15 @@ export default function Landing({ onOpenStudio }) {
       <nav className="topnav">
         <div className="logo">Mudir</div>
         <div className="nav-links">
-          <a href="#problem">Problem</a>
-          <a href="#solution">Solution</a>
-          <a href="#studio-map">Tools</a>
-          <a href="#hub">Dashboard</a>
-          <a href="#studio">Studio</a>
-          <a href="#try">Try it</a>
+          <a href="#problem">{t("landing.nav.problem")}</a>
+          <a href="#solution">{t("landing.nav.solution")}</a>
+          <a href="#studio-map">{t("landing.nav.tools")}</a>
+          <a href="#hub">{t("landing.nav.dashboard")}</a>
+          <a href="#studio">{t("landing.nav.studio")}</a>
+          <a href="#try">{t("landing.nav.try")}</a>
+          <LangToggle className="ms-1" />
           <a href="#" className="open-studio-btn" onClick={openStudio}>
-            Lesson Planner →
+            {t("landing.nav.openPlanner")}
           </a>
         </div>
       </nav>
@@ -69,18 +72,12 @@ export default function Landing({ onOpenStudio }) {
       <section className="hero" id="hero">
         <div className="hero-grid">
           <div>
-            <span className="eyebrow">For teachers, KG–G12 / UAE & beyond</span>
-            <h1 className="hero-title">
-              Lesson prep<br />
-              in <em>thirty</em><br />
-              seconds<span className="arabic-mark">.</span>
-            </h1>
-            <p className="hero-sub">
-              Teachers spend <strong>10+ hours a week</strong> preparing lessons after school. Mudir is the AI lesson director that turns a topic into a complete teaching package — plan, slides, worksheet, quiz, homework — aligned to your curriculum. KG through Grade 12. English and Arabic.
-            </p>
+            <span className="eyebrow">{t("landing.hero.eyebrow")}</span>
+            <h1 className="hero-title">{t("landing.hero.title")}</h1>
+            <p className="hero-sub">{t("landing.hero.sub")}</p>
             <div className="hero-cta">
-              <a href="#try" className="btn-primary">Try the prototype →</a>
-              <a href="#problem" className="btn-ghost">See how it works</a>
+              <a href="#try" className="btn-primary">{t("landing.hero.ctaPrimary")}</a>
+              <a href="#problem" className="btn-ghost">{t("landing.hero.ctaGhost")}</a>
             </div>
           </div>
           <div className="hero-visual">

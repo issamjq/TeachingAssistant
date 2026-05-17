@@ -24,6 +24,7 @@ import DevConsole from "./views/DevConsole";
 import { getRole, onRoleChange, ROLE_LABELS } from "./lib/role";
 import { api } from "./views/_shared";
 import { useRoute, navigate, replace } from "./lib/route";
+import { useT, LangToggle } from "./lib/i18n";
 
 // Sectioned nav matching the 2026 mockup — italic Fraunces section
 // headers + small letter/icon badges next to each label. All routes
@@ -105,6 +106,13 @@ function NavBadge({ letter, icon, lucide: Lucide }) {
 export default function StudioApp({ onClose }) {
   const [role, setRoleState] = useState(getRole());
   const route = useRoute();
+  const t = useT();
+  // Translate a nav/section key, falling back to its English label when
+  // a key isn't in the dictionary yet (phased rollout).
+  const navT = (key, fallback) => {
+    const s = t(`nav.${key}`);
+    return s === `nav.${key}` ? (fallback ?? key) : s;
+  };
 
   // Derive what to render purely from the URL — single source of truth.
   // Falls back to the role's default if the URL section doesn't apply.
@@ -315,7 +323,7 @@ export default function StudioApp({ onClose }) {
     mainContent = (
       <div className="flex flex-col items-center justify-center py-32 text-center">
         <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-3 inline-flex items-center gap-2.5">
-          <span className="w-6 h-px bg-accent" /> {itemLabel[section] || section}
+          <span className="w-6 h-px bg-accent" /> {navT(section, itemLabel[section] || section)}
         </p>
         <h2 className="font-serif text-5xl font-medium text-ink mb-3">
           Coming <em className="italic font-light text-accent">soon</em>
@@ -365,22 +373,22 @@ export default function StudioApp({ onClose }) {
                 <span className="mudir-studio-launcher-icon" aria-hidden>
                   <Sparkles size={15} strokeWidth={2.25} />
                 </span>
-                <span className="mudir-studio-launcher-title">Studio</span>
+                <span className="mudir-studio-launcher-title">{t("studio.name")}</span>
               </span>
-              <span className="mudir-studio-launcher-pill">AI</span>
+              <span className="mudir-studio-launcher-pill">{t("studio.badge")}</span>
             </span>
 
             <span className="mudir-studio-launcher-body">
               <span className="mudir-studio-launcher-subtitle">
-                Your AI co-pilot for teaching
+                {t("studio.subtitle")}
               </span>
               <span className="mudir-studio-launcher-tagline">
-                Create &middot; Plan &middot; Inspire
+                {t("studio.tagline")}
               </span>
             </span>
 
             <span className="mudir-studio-launcher-cta">
-              <span>Open Studio</span>
+              <span>{t("studio.open")}</span>
               <ArrowRight size={14} strokeWidth={2.25} className="mudir-studio-launcher-cta-arrow" />
             </span>
           </button>
@@ -395,7 +403,9 @@ export default function StudioApp({ onClose }) {
             return nav.map((s, sectionIdx) => (
               <section key={s.section || `sec-${sectionIdx}`} className="mudir-sidebar-section">
                 {s.section && (
-                  <p className="mudir-sidebar-section-label">{s.section}</p>
+                  <p className="mudir-sidebar-section-label">
+                    {navT(s.section.toLowerCase(), s.section)}
+                  </p>
                 )}
                 <div className="space-y-0.5 px-1">
                   {s.items.map((item) => {
@@ -410,7 +420,7 @@ export default function StudioApp({ onClose }) {
                         aria-current={isActive ? "page" : undefined}
                       >
                         <NavBadge letter={item.letter} icon={item.icon} lucide={item.lucide} />
-                        <span className="truncate flex-1">{item.label}</span>
+                        <span className="truncate flex-1">{navT(item.key, item.label)}</span>
                       </button>
                     );
                   })}
@@ -420,21 +430,28 @@ export default function StudioApp({ onClose }) {
           })()}
         </nav>
 
+        <div className="px-4 pb-2 pt-1 flex items-center justify-between">
+          <span className="font-mono text-[9.5px] uppercase tracking-[0.16em] text-muted">
+            {t("common.language")}
+          </span>
+          <LangToggle />
+        </div>
+
         <button
           onClick={() => navigate(["account"])}
           title="Open account"
           className={`mudir-sidebar-account ${section === "account" ? "mudir-sidebar-account-active" : ""}`}
         >
           <span className="mudir-sidebar-account-avatar">SA</span>
-          <div className="flex-1 min-w-0 text-left">
+          <div className="flex-1 min-w-0 text-start">
             <p className="text-sm font-medium leading-tight truncate text-ink">
               Sara Al-Mansoori
             </p>
             <p className="font-serif italic text-[11px] text-muted mt-0.5">
-              {ROLE_LABELS[role]}
+              {t(`account.${role}`) === `account.${role}` ? ROLE_LABELS[role] : t(`account.${role}`)}
             </p>
           </div>
-          <ChevronRight size={14} className="text-muted flex-shrink-0" />
+          <ChevronRight size={14} className="text-muted flex-shrink-0 rtl:rotate-180" />
         </button>
       </aside>
 
