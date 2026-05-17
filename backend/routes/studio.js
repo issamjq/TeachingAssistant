@@ -23,33 +23,35 @@ const ALLOWED_ATTACHMENT_TYPES = new Set([
   "application/pdf",
 ]);
 
-const buildUserContent = (text, attachment) => {
-  if (!attachment || !attachment.dataBase64) return text;
-  if (!ALLOWED_ATTACHMENT_TYPES.has(attachment.mediaType)) {
+// Accepts an array of attachments (or a single object / null for older
+// callers). Prepends one Anthropic image|document block per file.
+const buildUserContent = (text, attachments) => {
+  const list = Array.isArray(attachments)
+    ? attachments
+    : attachments ? [attachments] : [];
+  const valid = list.filter((a) => a && a.dataBase64);
+  if (valid.length === 0) return text;
+
+  let total = 0;
+  const blocks = valid.map((a) => {
+    if (!ALLOWED_ATTACHMENT_TYPES.has(a.mediaType)) {
+      throw Object.assign(
+        new Error(`Attachment type "${a.mediaType}" isn't supported.`),
+        { code: "ATTACHMENT_TYPE" }
+      );
+    }
+    total += a.dataBase64.length;
+    return a.mediaType === "application/pdf"
+      ? { type: "document", source: { type: "base64", media_type: "application/pdf", data: a.dataBase64 } }
+      : { type: "image", source: { type: "base64", media_type: a.mediaType, data: a.dataBase64 } };
+  });
+  if (total > 18_000_000) {
     throw Object.assign(
-      new Error(`Attachment type "${attachment.mediaType}" isn't supported.`),
-      { code: "ATTACHMENT_TYPE" }
-    );
-  }
-  if (attachment.dataBase64.length > 7_500_000) {
-    throw Object.assign(
-      new Error("Attachment is too large. Max ~5.5 MB after upload."),
+      new Error("Attachments are too large. Keep the total under ~13 MB."),
       { code: "ATTACHMENT_SIZE" }
     );
   }
-  const block = attachment.mediaType === "application/pdf"
-    ? {
-        type: "document",
-        source: { type: "base64", media_type: "application/pdf", data: attachment.dataBase64 },
-      }
-    : {
-        type: "image",
-        source: { type: "base64", media_type: attachment.mediaType, data: attachment.dataBase64 },
-      };
-  return [
-    block,
-    { type: "text", text },
-  ];
+  return [...blocks, { type: "text", text }];
 };
 
 // Flatten the kind-specific params bag the frontend sends into a
@@ -273,11 +275,14 @@ router.post("/generate", async (req, res) => {
       });
     }
 
-    const { prompt, kind, attachment, params } = req.body || {};
+    const { prompt, kind, params } = req.body || {};
+    const attachments = Array.isArray(req.body?.attachments)
+      ? req.body.attachments
+      : (req.body?.attachment ? [req.body.attachment] : []);
     const promptText = String(prompt || "").trim();
     // An attachment alone is a valid signal — "make a quiz from this
     // worksheet" doesn't need extra prose. Require ONE of the two.
-    if (!promptText && !attachment) {
+    if (!promptText && attachments.length === 0) {
       return res.status(400).json({ error: "Prompt or an attachment is required" });
     }
     const allowedKinds = new Set([
@@ -298,12 +303,12 @@ router.post("/generate", async (req, res) => {
       `KIND: ${k.toUpperCase()}\n` +
       `TEACHER CONTEXT: ${cur ? `id=${cur.id}, grades=${(cur.grade_levels || []).join(", ")}` : "none"}\n` +
       `${paramsLine ? `CONSTRAINTS (treat numeric counts as exact): ${paramsLine}\n` : ""}` +
-      `${attachment ? `\nNOTE: An attachment has been provided. Treat it as primary source material — base the output on what's in it.\n` : ""}` +
-      `\nPROMPT:\n${promptText || "(no extra guidance — use the attached file as the full source)"}`;
+      `${attachments.length ? `\nNOTE: ${attachments.length} attachment(s) have been provided. Treat them as primary source material — base the output on what's in them.\n` : ""}` +
+      `\nPROMPT:\n${promptText || "(no extra guidance — use the attached file(s) as the full source)"}`;
 
     let userContent;
     try {
-      userContent = buildUserContent(userMessage, attachment);
+      userContent = buildUserContent(userMessage, attachments);
     } catch (e) {
       return res.status(400).json({ error: e.message });
     }
@@ -465,9 +470,12 @@ router.post("/quiz", async (req, res) => {
       });
     }
 
-    const { prompt, params, attachment } = req.body || {};
+    const { prompt, params } = req.body || {};
+    const attachments = Array.isArray(req.body?.attachments)
+      ? req.body.attachments
+      : (req.body?.attachment ? [req.body.attachment] : []);
     const promptText = String(prompt || "").trim();
-    if (!promptText && !attachment) {
+    if (!promptText && attachments.length === 0) {
       return res.status(400).json({ error: "Prompt or an attachment is required" });
     }
 
@@ -547,7 +555,7 @@ router.post("/quiz", async (req, res) => {
       `KIND: QUIZ\n` +
       `TEACHER CONTEXT: ${cur ? `id=${cur.id}, grades=${(cur.grade_levels || []).join(", ")}` : "none"}\n\n` +
       settingsBlock +
-      `${attachment ? `ATTACHMENT: A file is provided. Base the quiz questions on the content of the attachment (textbook page, worksheet, exam paper, etc.). Use the prompt as additional guidance.\n\n` : ""}` +
+      `${attachments.length ? `ATTACHMENT: ${attachments.length} file(s) provided. Base the quiz questions on the content of the attachment(s) (textbook page, worksheet, exam paper, etc.). Use the prompt as additional guidance.\n\n` : ""}` +
       `PROMPT:\n${promptText || "(no extra guidance — base every question on the attached file)"}\n\n` +
       `Write the quiz as Markdown in EXACTLY this template — no preamble, no extra prose:\n\n` +
       `## <Quiz title>\n` +
@@ -574,7 +582,7 @@ router.post("/quiz", async (req, res) => {
 
     let userContent;
     try {
-      userContent = buildUserContent(userMessage, attachment);
+      userContent = buildUserContent(userMessage, attachments);
     } catch (e) {
       return res.status(400).json({ error: e.message });
     }

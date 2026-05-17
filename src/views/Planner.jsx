@@ -153,9 +153,15 @@ export default function Planner() {
   // entries stay clickable (open in SchedulePopup for edit/delete);
   // other kinds show as read-only chips for now.
   const reloadEvents = useCallback(() => {
-    const isoOnly = (v) => (typeof v === "string"
-      ? v.slice(0, 10)
-      : new Date(v).toISOString().slice(0, 10));
+    // DATE columns come back from pg as a JS Date at LOCAL midnight.
+    // toISOString() would convert to UTC and roll the day back one in
+    // UTC+ timezones (e.g. UAE), so May 15 showed as May 14. Format
+    // from local Y-M-D parts instead. Plain strings keep their date.
+    const isoOnly = (v) => {
+      if (typeof v === "string") return v.slice(0, 10);
+      const d = new Date(v);
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    };
     Promise.allSettled([
       api("/api/schedule"),
       api("/api/quizzes"),

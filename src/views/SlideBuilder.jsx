@@ -568,6 +568,13 @@ export default function SlideBuilder({
                 onApplyAll={(bg) => applyAll({ bg })}
                 label="Custom background"
               />
+              <button
+                type="button"
+                onClick={() => applyAll({ bg: cur?.bg })}
+                className="text-[10.5px] text-accent hover:text-ink font-serif italic ms-1"
+              >
+                Apply to all
+              </button>
             </div>
             <div className="flex items-center gap-1.5">
               <span className="font-mono text-[9.5px] uppercase tracking-[0.15em] text-muted mr-1">Text</span>

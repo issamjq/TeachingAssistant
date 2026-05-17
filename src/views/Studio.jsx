@@ -377,8 +377,8 @@ export default function Studio({ initialKind } = {}) {
   // Optional file attachment (image or PDF) — base64-encoded, sent
   // alongside the prompt so the AI can read a textbook page, photo of
   // the board, scanned exam, etc., and base the output on it.
-  //   shape: { name, mediaType, dataBase64, sizeBytes }  | null
-  const [attachment, setAttachment] = useState(null);
+  //   each: { name, mediaType, dataBase64, sizeBytes }; multiple allowed
+  const [attachments, setAttachments] = useState([]);
   const [attachError, setAttachError] = useState(null);
   const fileInputRef = useRef(null);
   const [result, setResult] = useState(null);
@@ -431,12 +431,13 @@ export default function Studio({ initialKind } = {}) {
   // "Same structure, different questions", "Translate to the chosen
   // language", etc. With no file, it shows the regular kind-specific
   // directive pool.
+  const hasAttach = attachments.length > 0;
   const suggestions = useMemo(
-    () => attachment
+    () => hasAttach
       ? pickAttachmentSuggestions(kind, recencyTick + Date.now() % 1000)
       : pickSuggestions(kind, recencyTick + Date.now() % 1000),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [kind, recencyTick, Boolean(attachment)]
+    [kind, recencyTick, hasAttach]
   );
   const currentSection = sections[sectionIndex];
   const currentLetter = sectionIndex >= 0 ? String.fromCharCode(65 + sectionIndex) : "";
@@ -543,7 +544,7 @@ export default function Studio({ initialKind } = {}) {
     setLessonParams(LESSON_PARAMS_DEFAULTS);
     setHomeworkParams(HOMEWORK_PARAMS_DEFAULTS);
     setPresentationParams(PRESENTATION_PARAMS_DEFAULTS);
-    setAttachment(null);
+    setAttachments([]);
     setAttachError(null);
     setResult(null);
     setSections([]);
@@ -562,42 +563,50 @@ export default function Studio({ initialKind } = {}) {
     "application/pdf",
   ]);
   const MAX_ATTACH_BYTES = 4 * 1024 * 1024;
+  const MAX_ATTACH_COUNT = 6;
 
   const onPickFile = (e) => {
     setAttachError(null);
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (!ALLOWED_ATTACH_MIME.has(file.type)) {
-      setAttachError(`Type "${file.type || "unknown"}" isn't supported. Use a PNG, JPEG, WebP, GIF, or PDF.`);
-      e.target.value = "";
-      return;
-    }
-    if (file.size > MAX_ATTACH_BYTES) {
-      setAttachError(`That file is ${(file.size / 1024 / 1024).toFixed(1)} MB. Cap is 4 MB for now.`);
-      e.target.value = "";
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = String(reader.result || "");
-      const comma = result.indexOf(",");
-      const dataBase64 = comma >= 0 ? result.slice(comma + 1) : "";
-      setAttachment({
-        name: file.name,
-        mediaType: file.type,
-        sizeBytes: file.size,
-        dataBase64,
-      });
-    };
-    reader.onerror = () => {
-      setAttachError("Could not read that file.");
-    };
-    reader.readAsDataURL(file);
+    const files = Array.from(e.target.files || []);
     e.target.value = ""; // allow re-selecting the same file later
+    if (files.length === 0) return;
+
+    setAttachments((prev) => {
+      const room = MAX_ATTACH_COUNT - prev.length;
+      if (room <= 0) {
+        setAttachError(`Up to ${MAX_ATTACH_COUNT} files. Remove one to add more.`);
+        return prev;
+      }
+      return prev;
+    });
+
+    files.forEach((file) => {
+      if (!ALLOWED_ATTACH_MIME.has(file.type)) {
+        setAttachError(`Type "${file.type || "unknown"}" isn't supported. Use a PNG, JPEG, WebP, GIF, or PDF.`);
+        return;
+      }
+      if (file.size > MAX_ATTACH_BYTES) {
+        setAttachError(`"${file.name}" is ${(file.size / 1024 / 1024).toFixed(1)} MB. Cap is 4 MB per file.`);
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = String(reader.result || "");
+        const comma = result.indexOf(",");
+        const dataBase64 = comma >= 0 ? result.slice(comma + 1) : "";
+        setAttachments((prev) =>
+          prev.length >= MAX_ATTACH_COUNT
+            ? prev
+            : [...prev, { name: file.name, mediaType: file.type, sizeBytes: file.size, dataBase64 }]
+        );
+      };
+      reader.onerror = () => setAttachError("Could not read that file.");
+      reader.readAsDataURL(file);
+    });
   };
 
-  const clearAttachment = () => {
-    setAttachment(null);
+  const removeAttachment = (idx) => {
+    setAttachments((prev) => prev.filter((_, i) => i !== idx));
     setAttachError(null);
   };
 
@@ -608,7 +617,7 @@ export default function Studio({ initialKind } = {}) {
     // Either a typed prompt or an attached file is enough — when the
     // teacher only attaches an image of a worksheet, an empty textarea
     // is a valid signal of "use the whole image".
-    if (!prompt.trim() && !attachment) return;
+    if (!prompt.trim() && attachments.length === 0) return;
     abortRef.current?.abort();
     abortRef.current = new AbortController();
     setBusy(true); setError(null); setResult(null);
@@ -628,8 +637,8 @@ export default function Studio({ initialKind } = {}) {
       null;
     try {
       const body = isQuiz
-        ? { kind, prompt: prompt.trim(), params: quizParams, attachment }
-        : { kind, prompt: prompt.trim(), params: paramsForKind, attachment };
+        ? { kind, prompt: prompt.trim(), params: quizParams, attachments }
+        : { kind, prompt: prompt.trim(), params: paramsForKind, attachments };
       const res = await fetch(API_BASE + (isQuiz ? "/api/studio/quiz" : "/api/studio/generate"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1738,7 +1747,7 @@ export default function Studio({ initialKind } = {}) {
         )}
 
         {result?.usage && (
-          <CostFooter usage={result.usage} hadAttachment={Boolean(attachment)} />
+          <CostFooter usage={result.usage} hadAttachment={attachments.length > 0} />
         )}
 
         {/* Tweak input bar — sticky at the bottom of the viewport so the
@@ -2004,8 +2013,8 @@ export default function Studio({ initialKind } = {}) {
             }
           }}
           placeholder={
-            attachment
-              ? "Optional focus — e.g. \"only the formulas\" or \"skip the diagrams\". Leave blank to use the whole file."
+            hasAttach
+              ? "Optional focus — e.g. \"only the formulas\" or \"skip the diagrams\". Leave blank to use the whole file(s)."
               : active?.sample
           }
           className="w-full bg-transparent outline-none px-5 py-3 text-base text-ink placeholder:text-muted resize-none"
@@ -2015,6 +2024,7 @@ export default function Studio({ initialKind } = {}) {
             <input
               ref={fileInputRef}
               type="file"
+              multiple
               accept="image/png,image/jpeg,image/webp,image/gif,application/pdf"
               onChange={onPickFile}
               className="hidden"
@@ -2022,35 +2032,32 @@ export default function Studio({ initialKind } = {}) {
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              title="Attach an image or PDF — Mudir will base the output on it"
+              title="Attach images or PDFs — Mudir will base the output on them"
               className={`h-8 w-8 rounded-full border flex items-center justify-center transition-colors duration-200 ${
-                attachment
+                hasAttach
                   ? "border-accent bg-accent/[0.06] text-accent"
                   : "border-line bg-paper-cool hover:border-ink hover:bg-paper-warm text-ink-soft"
               }`}
             >
               <Paperclip size={14} />
             </button>
-            {attachment && (
-              <AttachmentChip
-                file={attachment}
-                onRemove={clearAttachment}
-              />
-            )}
-            {!attachment && kind !== "quiz" && (
+            {attachments.map((f, i) => (
+              <AttachmentChip key={i} file={f} onRemove={() => removeAttachment(i)} />
+            ))}
+            {!hasAttach && kind !== "quiz" && (
               <ParamChip>{active?.oneliner}</ParamChip>
             )}
           </div>
           <div className="flex items-center gap-3">
             <p className="hidden sm:block text-xs text-muted italic">
-              {attachment && !prompt.trim()
-                ? "Mudir will use the whole file"
+              {hasAttach && !prompt.trim()
+                ? "Mudir will use the whole file(s)"
                 : "Mudir will fill the rest"}
             </p>
             <Button
               variant="danger"
               onClick={generate}
-              disabled={!prompt.trim() && !attachment}
+              disabled={!prompt.trim() && !hasAttach}
               className="hover:scale-[1.02] active:scale-[0.99] transition-transform duration-200 px-4 py-2 text-sm"
             >
               <Send size={14} className="mr-1.5" />
@@ -2070,7 +2077,7 @@ export default function Studio({ initialKind } = {}) {
       {suggestions.length > 0 && (
         <div className="mt-3 flex items-center gap-3 flex-wrap">
           <p className="font-serif italic text-base text-muted flex-shrink-0">
-            {attachment ? "Do this with it" : "Or try"}
+            {hasAttach ? "Do this with it" : "Or try"}
           </p>
           <div className="flex flex-wrap gap-1.5">
             {suggestions.map((s) => (
