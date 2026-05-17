@@ -76,6 +76,13 @@ const KINDS = [
   },
 ];
 
+// Translated KIND label (module-level so any component can use it with
+// its own t()). Falls back to the English KINDS label when not keyed.
+function kindLabelFor(t, v) {
+  const s = t(`kind.${v}`);
+  return s === `kind.${v}` ? (KINDS.find((k) => k.value === v)?.label || v) : s;
+}
+
 // Recent prompts live in localStorage so the chips always reflect what
 // THIS teacher actually generated. Stored per kind, capped at 8, prepended
 // on each successful generation. First-time users see a kind-appropriate
@@ -327,10 +334,7 @@ export default function Studio({ initialKind } = {}) {
   // homework", etc. Falls back to lesson_plan when the route is bare
   // or the value isn't one of the recognised kinds.
   const t = useT();
-  const kindLabel = (v) => {
-    const s = t(`kind.${v}`);
-    return s === `kind.${v}` ? (KINDS.find((k) => k.value === v)?.label || v) : s;
-  };
+  const kindLabel = (v) => kindLabelFor(t, v);
   const validKind = KINDS.some((k) => k.value === initialKind) ? initialKind : "lesson_plan";
   const [kind, setKind] = useState(validKind);
   const [prompt, setPrompt] = useState("");
@@ -2211,6 +2215,7 @@ function InlineKindPicker({
   active, pulseKey,
   open, cursor, onOpen, onClose, onPick, onCursor,
 }) {
+  const t = useT();
   if (!active) return null;
   const Icon = active.icon;
   // The pill is rendered inline inside a serif <p>, so wrap it in an
@@ -2238,7 +2243,7 @@ function InlineKindPicker({
           }`}
         />
         <span className={`leading-none ${open ? "text-paper-cool" : "text-ink"}`}>
-          {kindLabel(active.value)}
+          {kindLabelFor(t, active.value)}
         </span>
         <ChevronDown
           size={11}
@@ -2269,6 +2274,7 @@ function InlineKindPicker({
 // navigation is centralised in the parent's window keydown effect — this
 // component just renders the visual state driven by `cursor` + `activeValue`.
 function KindMenu({ activeValue, cursor, onPick, onClose, onCursor }) {
+  const t = useT();
   return (
     <>
       {/* Click-outside scrim. Transparent — no dim, no blur. The popover
@@ -2323,7 +2329,7 @@ function KindMenu({ activeValue, cursor, onPick, onClose, onCursor }) {
                           isActive ? "text-accent" : "text-ink"
                         }`}
                       >
-                        {kindLabel(k.value)}
+                        {kindLabelFor(t, k.value)}
                       </span>
                     </span>
                     <span className="block mt-1 text-[11px] text-muted leading-snug truncate">
