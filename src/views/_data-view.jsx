@@ -12,6 +12,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { Plus, X, Pencil, Trash2, LayoutGrid, List, Sparkles, RotateCcw, ArrowUpDown, Calendar as CalendarIcon } from "lucide-react";
+import { useT } from "../lib/i18n";
 import { navigate } from "../lib/route";
 import { api, DatePicker } from "./_shared";
 
@@ -45,6 +46,7 @@ export function useViewMode(storageKey, fallback = "cards") {
 // Cards ↔ List pill
 // ──────────────────────────────────────────────────────────────────
 export function ViewModeToggle({ mode, onChange }) {
+  const t = useT();
   const btn = (key, label, Icon) => (
     <button
       type="button"
@@ -63,8 +65,8 @@ export function ViewModeToggle({ mode, onChange }) {
   );
   return (
     <div className="h-9 inline-flex items-center gap-1 px-1 rounded-lg border border-line bg-paper-cool">
-      {btn("cards", "Cards", LayoutGrid)}
-      {btn("list",  "List",  List)}
+      {btn("cards", t("dv.cards"), LayoutGrid)}
+      {btn("list",  t("dv.list"),  List)}
     </div>
   );
 }
@@ -96,6 +98,7 @@ export function DataPageHeader({
   dateScope,          // { mode: "all"|"week"|"month"|"custom", from, to }
   onDateScopeChange,
 }) {
+  const t = useT();
   const [popupOpen, setPopupOpen] = useState(false);
   const [trashOpen, setTrashOpen] = useState(false);
   const [scopeOpen, setScopeOpen] = useState(false);
@@ -153,7 +156,7 @@ export function DataPageHeader({
             className={TOOLBAR_CHIP_GHOST}
           >
             <Trash2 size={12} strokeWidth={2} />
-            Recently deleted
+            {t("dv.recentlyDeleted")}
           </button>
         )}
         {newLabel && onNewManual && (
@@ -193,6 +196,7 @@ export function DataPageHeader({
 // (e.g., "/api/quizzes"); we hit /trash, /:id/restore, /:id/forever.
 // ──────────────────────────────────────────────────────────────────
 export function TrashPopup({ endpoint, titleField = "title", onClose, onChange }) {
+  const t = useT();
   const [rows, setRows] = useState(null);  // null = loading
   const [err, setErr] = useState(null);
   const [busyId, setBusyId] = useState(null);
@@ -231,7 +235,7 @@ export function TrashPopup({ endpoint, titleField = "title", onClose, onChange }
   };
 
   const forever = async (id) => {
-    if (!window.confirm("Delete forever? This cannot be undone.")) return;
+    if (!window.confirm(t("trash.confirmForever"))) return;
     setBusyId(id);
     try {
       await api(`${endpoint}/${id}/forever`, { method: "DELETE" });
@@ -268,13 +272,13 @@ export function TrashPopup({ endpoint, titleField = "title", onClose, onChange }
 
         <div className="px-7 pt-6 pb-5 border-b border-line pr-14">
           <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-1.5 inline-flex items-center gap-2.5">
-            <span className="w-6 h-px bg-accent" /> Trash
+            <span className="w-6 h-px bg-accent" /> {t("trash.title")}
           </p>
           <h2 className="font-serif text-2xl font-medium text-ink leading-tight">
-            Recently <em className="italic font-medium text-accent">deleted</em>
+            {t("dv.recentlyDeleted")}
           </h2>
           <p className="text-[12.5px] text-muted mt-1.5">
-            Items here are auto-purged after 30 days. Restore brings them back; Delete forever clears them now.
+            {t("trash.note")}
           </p>
         </div>
 
@@ -286,12 +290,12 @@ export function TrashPopup({ endpoint, titleField = "title", onClose, onChange }
           )}
 
           {rows === null && (
-            <p className="font-mono text-[10px] uppercase tracking-wider text-muted">Loading…</p>
+            <p className="font-mono text-[10px] uppercase tracking-wider text-muted">{t("common.loading")}</p>
           )}
 
           {rows && rows.length === 0 && !err && (
             <p className="text-center text-muted text-sm py-8">
-              Nothing in the trash. Items you delete will show up here for 30 days.
+              {t("trash.empty")}
             </p>
           )}
 
@@ -316,7 +320,7 @@ export function TrashPopup({ endpoint, titleField = "title", onClose, onChange }
                     disabled={busyId === r.id}
                     className="planner-nav-btn inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-sage/40 bg-paper-cool hover:bg-sage hover:text-paper-cool hover:border-sage text-[12px] text-sage disabled:opacity-50"
                   >
-                    <RotateCcw size={12} strokeWidth={2} /> Restore
+                    <RotateCcw size={12} strokeWidth={2} /> {t("trash.restore")}
                   </button>
                   <button
                     type="button"
@@ -324,7 +328,7 @@ export function TrashPopup({ endpoint, titleField = "title", onClose, onChange }
                     disabled={busyId === r.id}
                     className="planner-nav-btn inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-accent/40 bg-paper-cool hover:bg-accent hover:text-paper-cool hover:border-accent text-[12px] text-accent disabled:opacity-50"
                   >
-                    <Trash2 size={12} strokeWidth={2} /> Delete forever
+                    <Trash2 size={12} strokeWidth={2} /> {t("trash.deleteForever")}
                   </button>
                 </div>
               ))}
@@ -340,19 +344,17 @@ export function TrashPopup({ endpoint, titleField = "title", onClose, onChange }
 // ──────────────────────────────────────────────────────────────────
 // Date-scope picker (All / This week / This month / Custom range)
 // ──────────────────────────────────────────────────────────────────
-const SCOPE_LABEL = {
-  all: "All time",
-  week: "This week",
-  month: "This month",
-  custom: "Custom range",
-};
+
+const SCOPE_KEY = { all: "dv.allTime", week: "dv.thisWeek", month: "dv.thisMonth", custom: "dv.customRange" };
 
 function DateScopePicker({ scope, onChange, open, onToggle, onClose }) {
+  const t = useT();
+  const sl = (m) => t(SCOPE_KEY[m] || "dv.allTime");
   const label = scope.mode === "custom"
     ? (scope.from && scope.to
         ? `${scope.from.slice(5)} → ${scope.to.slice(5)}`
-        : "Custom range")
-    : SCOPE_LABEL[scope.mode] || "All time";
+        : t("dv.customRange"))
+    : sl(scope.mode);
   return (
     <div className="relative">
       <button
@@ -379,13 +381,13 @@ function DateScopePicker({ scope, onChange, open, onToggle, onClose }) {
                   scope.mode === m ? "bg-accent/[0.10] text-accent" : "text-ink hover:bg-paper-warm"
                 }`}
               >
-                {SCOPE_LABEL[m]}
+                {sl(m)}
               </button>
             ))}
             {scope.mode === "custom" && (
               <div className="mt-2 pt-2 border-t border-line flex flex-col gap-2">
                 <label className="text-[10px] uppercase tracking-wider text-muted">
-                  From
+                  {t("dv.from")}
                   <div className="mt-0.5">
                     <DatePicker
                       value={scope.from || ""}
@@ -395,7 +397,7 @@ function DateScopePicker({ scope, onChange, open, onToggle, onClose }) {
                   </div>
                 </label>
                 <label className="text-[10px] uppercase tracking-wider text-muted">
-                  To
+                  {t("dv.to")}
                   <div className="mt-0.5">
                     <DatePicker
                       value={scope.to || ""}
@@ -463,6 +465,7 @@ export function filterByDateScope(items, range, getDate) {
 // "How do you want to create this?" popup
 // ──────────────────────────────────────────────────────────────────
 export function NewKindPopup({ kind, aiKind, onClose, onManual }) {
+  const t = useT();
   useEffect(() => {
     const onKey = (e) => { if (e.key === "Escape") onClose(); };
     window.addEventListener("keydown", onKey);
@@ -499,10 +502,14 @@ export function NewKindPopup({ kind, aiKind, onClose, onManual }) {
 
         <div className="px-7 pt-6 pb-5 border-b border-line">
           <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-1.5 inline-flex items-center gap-2.5">
-            <span className="w-6 h-px bg-accent" /> Create
+            <span className="w-6 h-px bg-accent" /> {t("dv.create")}
           </p>
           <h2 className="font-serif text-2xl font-medium text-ink leading-tight">
-            How would you like to <em className="italic font-medium text-accent">{kind?.toLowerCase().replace(/^new\s+/, "") || "create"}</em>?
+            {t("dv.howA")}
+            <em className="italic font-medium text-accent">
+              {kind?.toLowerCase().replace(/^new\s+/, "") || t("dv.create").toLowerCase()}
+            </em>
+            {t("dv.howB")}
           </h2>
         </div>
 
@@ -516,10 +523,10 @@ export function NewKindPopup({ kind, aiKind, onClose, onManual }) {
               <Pencil size={16} strokeWidth={2.25} />
             </span>
             <span className="font-serif text-[15px] font-medium text-ink leading-tight">
-              Manually
+              {t("dv.manually")}
             </span>
             <span className="text-[11.5px] text-muted leading-snug">
-              Fill in the fields yourself. Best when you already know what you want.
+              {t("dv.manuallyDesc")}
             </span>
           </button>
 
@@ -532,10 +539,10 @@ export function NewKindPopup({ kind, aiKind, onClose, onManual }) {
               <Sparkles size={16} strokeWidth={2.25} />
             </span>
             <span className="font-serif text-[15px] font-medium text-ink leading-tight">
-              With Studio AI
+              {t("dv.withAI")}
             </span>
             <span className="text-[11.5px] text-muted leading-snug">
-              Describe what you need and let Mudir draft it for you.
+              {t("dv.withAIDesc")}
             </span>
           </button>
         </div>

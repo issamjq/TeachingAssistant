@@ -5,6 +5,7 @@ import {
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { useT } from "../lib/i18n";
 
 const subjectStyles = {
   English: { code: "EN", border: "border-line", text: "text-ink" },
@@ -122,9 +123,11 @@ const DP_PARSE = (s) => {
 const DP_WD = ["M", "T", "W", "T", "F", "S", "S"];
 
 export function DatePicker({
-  value, onChange, placeholder = "dd / mm / yyyy", className = inputClasses,
+  value, onChange, placeholder, className = inputClasses,
   min, max, disabled = false,
 }) {
+  const t = useT();
+  const ph = placeholder || t("dp.placeholder");
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
   const selected = DP_PARSE(value);
@@ -175,7 +178,7 @@ export function DatePicker({
           !label ? "text-muted" : ""
         }`}
       >
-        <span className="truncate">{label || placeholder}</span>
+        <span className="truncate">{label || ph}</span>
         <Calendar size={15} className="flex-shrink-0 text-muted" />
       </button>
 
@@ -246,14 +249,14 @@ export function DatePicker({
               onClick={() => { onChange?.(""); setOpen(false); }}
               className="text-[12px] text-muted hover:text-ink transition"
             >
-              Clear
+              {t("dp.clear")}
             </button>
             <button
               type="button"
-              onClick={() => { const t = new Date(); setView(t); pick(t); }}
+              onClick={() => { const d = new Date(); setView(d); pick(d); }}
               className="text-[12px] text-accent hover:text-ink font-serif italic transition"
             >
-              Today
+              {t("dp.today")}
             </button>
           </div>
         </div>
@@ -387,25 +390,26 @@ export function Modal({ open, onClose, title, eyebrow, children, footer, wide = 
 
 // Yes/No confirmation modal for delete actions. Caller drives loading state.
 export function ConfirmDelete({ open, onClose, onConfirm, title, message, busy = false }) {
+  const t = useT();
   return (
     <Modal
       open={open}
       onClose={onClose}
-      eyebrow="Delete"
+      eyebrow={t("confirm.eyebrow")}
       title={title}
       footer={
         <>
           <Button variant="secondary" onClick={onClose} disabled={busy}>
-            Cancel
+            {t("common.cancel")}
           </Button>
           <Button variant="danger" onClick={onConfirm} disabled={busy}>
-            {busy ? "Deleting…" : "Delete"}
+            {busy ? t("common.deleting") : t("common.delete")}
           </Button>
         </>
       }
     >
       <p className="text-sm text-ink-soft">{message}</p>
-      <p className="text-xs text-muted mt-3">This action can&rsquo;t be undone.</p>
+      <p className="text-xs text-muted mt-3">{t("common.cantUndo")}</p>
     </Modal>
   );
 }
