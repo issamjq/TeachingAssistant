@@ -1052,3 +1052,78 @@
     background: transparent !important;
   }
 }
+
+/* ── Accessibility widget effects ──────────────────────────────────
+   All visual transforms target #root only. The widget itself is
+   portaled to <body> (outside #root) so it stays sharp, full-colour
+   and unscaled while the page behind it adapts. */
+
+#root.a11y-zoom-on {
+  zoom: var(--a11y-zoom, 1);
+}
+
+#root.a11y-readable,
+#root.a11y-readable * {
+  font-family: "Tahoma", "Verdana", "Trebuchet MS", sans-serif !important;
+  letter-spacing: 0.01em;
+}
+
+#root.a11y-spaced p,
+#root.a11y-spaced span,
+#root.a11y-spaced li,
+#root.a11y-spaced a,
+#root.a11y-spaced h1,
+#root.a11y-spaced h2,
+#root.a11y-spaced h3,
+#root.a11y-spaced h4,
+#root.a11y-spaced h5,
+#root.a11y-spaced h6,
+#root.a11y-spaced td,
+#root.a11y-spaced th,
+#root.a11y-spaced label,
+#root.a11y-spaced button {
+  letter-spacing: var(--a11y-letter, 0) !important;
+  word-spacing: var(--a11y-word, 0) !important;
+}
+#root.a11y-spaced p,
+#root.a11y-spaced li,
+#root.a11y-spaced td {
+  line-height: var(--a11y-line, 1.5) !important;
+}
+
+#root.a11y-contrast {
+  filter: contrast(1.35) saturate(1.25);
+}
+#root.a11y-contrast a,
+#root.a11y-contrast button {
+  text-decoration: underline;
+}
+
+#root.a11y-grayscale { filter: grayscale(1); }
+#root.a11y-low-sat   { filter: saturate(0.4); }
+#root.a11y-grayscale.a11y-contrast { filter: grayscale(1) contrast(1.35); }
+#root.a11y-low-sat.a11y-contrast   { filter: saturate(0.4) contrast(1.35); }
+
+#root.a11y-big-cursor,
+#root.a11y-big-cursor * {
+  cursor:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='40' viewBox='0 0 24 24'%3E%3Cpath d='M4 2 L4 28 L11 21 L16 31 L20 29 L15 19 L24 19 Z' fill='%23ffffff' stroke='%231a1814' stroke-width='1.5'/%3E%3C/svg%3E")
+    2 2, auto !important;
+}
+
+#root.a11y-hl-links a,
+#root.a11y-hl-links button,
+#root.a11y-hl-links [role="button"] {
+  outline: 2px solid #c8472b !important;
+  outline-offset: 1px;
+  border-radius: 3px;
+}
+
+#root.a11y-stop-anim,
+#root.a11y-stop-anim * {
+  animation: none !important;
+  transition: none !important;
+  scroll-behavior: auto !important;
+}
+
+#root.a11y-read-aloud * { cursor: help; }
