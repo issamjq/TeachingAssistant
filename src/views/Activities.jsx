@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import {
   Field, Modal, ConfirmDelete,
   inputClasses, selectClasses, api, timeAgo,
+  DatePicker,
 } from "./_shared";
 import {
   DataPageHeader, DataCard, CardsGrid, useViewMode,
@@ -268,12 +269,7 @@ function ActivityModal({ initial, onClose, onSaved }) {
           <input className={inputClasses} value={form.subject} onChange={(e) => set("subject", e.target.value)} />
         </Field>
         <Field label="Scheduled for">
-          <input
-            type="date"
-            className={inputClasses}
-            value={form.scheduled_for}
-            onChange={(e) => set("scheduled_for", e.target.value)}
-          />
+          <DatePicker value={form.scheduled_for} onChange={(v) => set("scheduled_for", v)} />
         </Field>
       </div>
       <div className="mt-4">

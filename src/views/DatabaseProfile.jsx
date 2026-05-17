@@ -3,7 +3,7 @@ import { Calendar, Hash, Pencil, Plus, Trash2, ChevronDown } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { MAJORS, GRADE_LEVELS, QUIZ_LANGUAGES, QUIZ_SECTIONS } from "../lib/enums";
-import { Field, ChipMultiSelect, inputClasses, selectClasses, api } from "./_shared";
+import { Field, ChipMultiSelect, inputClasses, selectClasses, api, DatePicker } from "./_shared";
 
 const initials = (first, last) =>
   `${(first || "")[0] || ""}${(last || "")[0] || ""}`.toUpperCase();
@@ -262,12 +262,7 @@ function ProfileEditor({ initial, onClose, onSaved }) {
             />
           </Field>
           <Field label="Registered">
-            <input
-              type="date"
-              className={inputClasses}
-              value={hireDate || ""}
-              onChange={(e) => setHireDate(e.target.value)}
-            />
+            <DatePicker value={hireDate || ""} onChange={(v) => setHireDate(v)} />
           </Field>
         </div>
 

@@ -13,6 +13,7 @@ import {
   inputClasses,
   selectClasses,
   api,
+  DatePicker,
 } from "./_shared";
 
 const initials = (first, last) =>
@@ -383,8 +384,7 @@ function StudentEditModal({ initial, onClose, onSaved }) {
             onChange={(e) => set("student_id", e.target.value)} />
         </Field>
         <Field label="Date of birth">
-          <input type="date" className={inputClasses} value={form.date_of_birth}
-            onChange={(e) => set("date_of_birth", e.target.value)} />
+          <DatePicker value={form.date_of_birth} onChange={(v) => set("date_of_birth", v)} />
         </Field>
         <Field label="Gender">
           <select className={selectClasses} value={form.gender}
@@ -418,8 +418,7 @@ function StudentEditModal({ initial, onClose, onSaved }) {
             onChange={(e) => set("section", e.target.value)} required />
         </Field>
         <Field label="Enrollment date">
-          <input type="date" className={inputClasses} value={form.enrollment_date}
-            onChange={(e) => set("enrollment_date", e.target.value)} />
+          <DatePicker value={form.enrollment_date} onChange={(v) => set("enrollment_date", v)} />
         </Field>
       </div>
 

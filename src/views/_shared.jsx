@@ -1,5 +1,8 @@
-import React, { useState, useMemo, useEffect } from "react";
-import { ArrowUp, ArrowDown, ArrowUpDown, X, Pencil, Trash2 } from "lucide-react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
+import {
+  ArrowUp, ArrowDown, ArrowUpDown, X, Pencil, Trash2,
+  Calendar, ChevronLeft, ChevronRight,
+} from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 
@@ -105,6 +108,159 @@ export function FilePill({ name, type, size, removable = false }) {
 export const inputClasses =
   "w-full rounded-md border border-line bg-paper focus:border-ink focus:outline-none px-3 py-2.5 text-sm text-ink font-sans";
 export const selectClasses = inputClasses + " appearance-none";
+
+// ── DatePicker — one branded calendar used for every date field, so the
+// app never falls back to the OS's mismatched native picker. Drop-in
+// for <input type="date">: value/onChange are ISO "yyyy-mm-dd" strings
+// ("" = empty). Pass `className` (usually inputClasses) to size it.
+const DP_ISO = (d) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+const DP_PARSE = (s) => {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(s || ""));
+  return m ? new Date(+m[1], +m[2] - 1, +m[3]) : null;
+};
+const DP_WD = ["M", "T", "W", "T", "F", "S", "S"];
+
+export function DatePicker({
+  value, onChange, placeholder = "dd / mm / yyyy", className = inputClasses,
+  min, max, disabled = false,
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  const selected = DP_PARSE(value);
+  const [view, setView] = useState(() => selected || new Date());
+
+  useEffect(() => {
+    if (open) setView((selected || new Date()));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    const onEsc = (e) => { if (e.key === "Escape") setOpen(false); };
+    document.addEventListener("mousedown", onDoc);
+    document.addEventListener("keydown", onEsc);
+    return () => { document.removeEventListener("mousedown", onDoc); document.removeEventListener("keydown", onEsc); };
+  }, [open]);
+
+  const minD = DP_PARSE(min);
+  const maxD = DP_PARSE(max);
+  const todayKey = DP_ISO(new Date());
+  const y = view.getFullYear();
+  const m = view.getMonth();
+  const offset = (new Date(y, m, 1).getDay() + 6) % 7; // Monday-first
+  const start = new Date(y, m, 1 - offset);
+  const cells = Array.from({ length: 42 }, (_, i) => {
+    const d = new Date(start);
+    d.setDate(start.getDate() + i);
+    return d;
+  });
+  const outOfRange = (d) =>
+    (minD && d < new Date(minD.getFullYear(), minD.getMonth(), minD.getDate())) ||
+    (maxD && d > new Date(maxD.getFullYear(), maxD.getMonth(), maxD.getDate()));
+
+  const label = selected
+    ? selected.toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "numeric" })
+    : "";
+  const pick = (d) => { onChange?.(DP_ISO(d)); setOpen(false); };
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => setOpen((o) => !o)}
+        className={`${className} inline-flex items-center justify-between gap-2 text-left disabled:opacity-50 ${
+          !label ? "text-muted" : ""
+        }`}
+      >
+        <span className="truncate">{label || placeholder}</span>
+        <Calendar size={15} className="flex-shrink-0 text-muted" />
+      </button>
+
+      {open && !disabled && (
+        <div className="absolute z-50 mt-1.5 w-[280px] rounded-xl border border-line bg-paper-cool shadow-[0_24px_60px_-20px_rgba(15,20,16,0.4)] p-3.5">
+          <div className="flex items-center justify-between mb-3">
+            <button
+              type="button"
+              onClick={() => setView(new Date(y, m - 1, 1))}
+              className="h-7 w-7 rounded-md text-ink-soft hover:bg-paper-warm hover:text-ink flex items-center justify-center transition"
+              aria-label="Previous month"
+            >
+              <ChevronLeft size={15} />
+            </button>
+            <span className="font-serif text-[15px] font-medium text-ink">
+              {view.toLocaleDateString(undefined, { month: "long", year: "numeric" })}
+            </span>
+            <button
+              type="button"
+              onClick={() => setView(new Date(y, m + 1, 1))}
+              className="h-7 w-7 rounded-md text-ink-soft hover:bg-paper-warm hover:text-ink flex items-center justify-center transition"
+              aria-label="Next month"
+            >
+              <ChevronRight size={15} />
+            </button>
+          </div>
+
+          <div className="grid grid-cols-7 mb-1">
+            {DP_WD.map((d, i) => (
+              <span key={i} className="text-center font-mono text-[9px] uppercase tracking-[0.1em] text-muted py-1">
+                {d}
+              </span>
+            ))}
+          </div>
+
+          <div className="grid grid-cols-7 gap-0.5">
+            {cells.map((d, i) => {
+              const key = DP_ISO(d);
+              const inMonth = d.getMonth() === m;
+              const isToday = key === todayKey;
+              const isSel = selected && key === DP_ISO(selected);
+              const blocked = outOfRange(d);
+              return (
+                <button
+                  key={i}
+                  type="button"
+                  disabled={blocked}
+                  onClick={() => pick(d)}
+                  className={`h-8 rounded-md text-[12.5px] flex items-center justify-center transition ${
+                    isSel
+                      ? "bg-accent text-paper-cool font-semibold"
+                      : isToday
+                        ? "bg-accent/[0.12] text-accent font-semibold"
+                        : inMonth
+                          ? "text-ink-soft hover:bg-paper-warm"
+                          : "text-muted/45 hover:bg-paper-warm"
+                  } ${blocked ? "opacity-30 cursor-not-allowed hover:bg-transparent" : ""}`}
+                >
+                  {d.getDate()}
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="flex items-center justify-between mt-3 pt-3 border-t border-line/60">
+            <button
+              type="button"
+              onClick={() => { onChange?.(""); setOpen(false); }}
+              className="text-[12px] text-muted hover:text-ink transition"
+            >
+              Clear
+            </button>
+            <button
+              type="button"
+              onClick={() => { const t = new Date(); setView(t); pick(t); }}
+              className="text-[12px] text-accent hover:text-ink font-serif italic transition"
+            >
+              Today
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function timeAgo(timestamp) {
   if (!timestamp) return "—";
@@ -212,7 +368,8 @@ export function Modal({ open, onClose, title, eyebrow, children, footer, wide = 
           </div>
           <button
             onClick={onClose}
-            className="h-8 w-8 rounded-md border border-line hover:bg-paper-warm flex items-center justify-center text-ink-soft transition"
+            aria-label="Close"
+            className="h-8 w-8 rounded-md text-ink-soft hover:bg-paper-warm hover:text-ink flex items-center justify-center transition"
           >
             <X size={15} />
           </button>

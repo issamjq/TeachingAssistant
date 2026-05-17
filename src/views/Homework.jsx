@@ -5,6 +5,7 @@ import {
   Field, Modal, ConfirmDelete, SortHeader, useSortable,
   AttachmentsList, inputClasses, selectClasses, api,
   useTeacherClasses,
+  DatePicker,
 } from "./_shared";
 import {
   DataPageHeader, DataCard, CardsGrid, useViewMode,
@@ -304,7 +305,7 @@ function HomeworkModal({ initial, onClose, onSaved }) {
           </select>
         </Field>
         <Field label="Due date">
-          <input type="date" className={inputClasses} value={form.due_date} onChange={(e) => set("due_date", e.target.value)} />
+          <DatePicker value={form.due_date} onChange={(v) => set("due_date", v)} />
         </Field>
         <Field label="Status">
           <select className={selectClasses} value={form.status} onChange={(e) => set("status", e.target.value)}>

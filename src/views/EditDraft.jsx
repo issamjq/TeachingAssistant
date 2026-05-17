@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Save, CheckCircle2, Trash2, Plus } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Field, AttachmentsList, inputClasses, selectClasses, api, useTeacherClasses } from "./_shared";
+import { Field, AttachmentsList, inputClasses, selectClasses, api, useTeacherClasses, DatePicker } from "./_shared";
 
 const STATUSES = ["In progress", "Ready to use", "Blocked", "Paused"];
 
@@ -156,7 +156,7 @@ export default function EditDraft({ draft: initial, onClose, onMarkReady }) {
                   <input type="number" className={inputClasses} value={form.duration_minutes ?? ""} onChange={(e) => set("duration_minutes", e.target.value === "" ? null : Number(e.target.value))} />
                 </Field>
                 <Field label="Planned date">
-                  <input type="date" className={inputClasses} value={form.planned_date || ""} onChange={(e) => set("planned_date", e.target.value)} />
+                  <DatePicker value={form.planned_date || ""} onChange={(v) => set("planned_date", v)} />
                 </Field>
                 <Field label="Status">
                   <select className={selectClasses} value={form.status} onChange={(e) => set("status", e.target.value)}>

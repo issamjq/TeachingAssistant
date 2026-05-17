@@ -6,7 +6,7 @@
 import React, { useState, useCallback, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
-import { api, inputClasses, selectClasses } from "./_shared";
+import { api, inputClasses, selectClasses, DatePicker } from "./_shared";
 
 export default function SchedulePopup({
   initial,
@@ -141,7 +141,7 @@ export default function SchedulePopup({
           type="button"
           onClick={attemptClose}
           aria-label="Close"
-          className="absolute top-4 right-4 z-10 h-9 w-9 rounded-lg border border-line bg-paper-cool hover:bg-paper-warm hover:border-ink flex items-center justify-center transition-all"
+          className="absolute top-4 right-4 z-10 h-9 w-9 rounded-lg text-ink-soft hover:bg-paper-warm hover:text-ink flex items-center justify-center transition"
         >
           <X size={16} strokeWidth={1.75} />
         </button>
@@ -195,7 +195,7 @@ export default function SchedulePopup({
               </select>
             </SerifField>
             <SerifField label="Date">
-              <input type="date" className={inputClasses} value={form.date} onChange={(e) => set("date", e.target.value)} />
+              <DatePicker value={form.date} onChange={(v) => set("date", v)} />
             </SerifField>
             <SerifField label="Start time">
               <input type="time" className={inputClasses} value={form.start_time} onChange={(e) => set("start_time", e.target.value)} />

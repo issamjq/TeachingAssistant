@@ -13,7 +13,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { Plus, X, Pencil, Trash2, LayoutGrid, List, Sparkles, RotateCcw, ArrowUpDown, Calendar as CalendarIcon } from "lucide-react";
 import { navigate } from "../lib/route";
-import { api } from "./_shared";
+import { api, DatePicker } from "./_shared";
 
 // Shared toolbar chip class so every action button in the page header
 // (sort dropdown, date scope, view toggle, recently deleted, +New X,
@@ -261,7 +261,7 @@ export function TrashPopup({ endpoint, titleField = "title", onClose, onChange }
           type="button"
           onClick={onClose}
           aria-label="Close"
-          className="absolute top-4 right-4 z-10 h-9 w-9 rounded-lg border border-line bg-paper-cool hover:bg-paper-warm hover:border-ink flex items-center justify-center transition-all"
+          className="absolute top-4 right-4 z-10 h-9 w-9 rounded-lg text-ink-soft hover:bg-paper-warm hover:text-ink flex items-center justify-center transition"
         >
           <X size={16} strokeWidth={1.75} />
         </button>
@@ -386,21 +386,23 @@ function DateScopePicker({ scope, onChange, open, onToggle, onClose }) {
               <div className="mt-2 pt-2 border-t border-line flex flex-col gap-2">
                 <label className="text-[10px] uppercase tracking-wider text-muted">
                   From
-                  <input
-                    type="date"
-                    value={scope.from || ""}
-                    onChange={(e) => onChange({ ...scope, from: e.target.value })}
-                    className="block w-full mt-0.5 rounded-md border border-line bg-paper px-2 py-1 text-[12px] text-ink"
-                  />
+                  <div className="mt-0.5">
+                    <DatePicker
+                      value={scope.from || ""}
+                      onChange={(v) => onChange({ ...scope, from: v })}
+                      className="block w-full rounded-md border border-line bg-paper px-2 py-1 text-[12px] text-ink"
+                    />
+                  </div>
                 </label>
                 <label className="text-[10px] uppercase tracking-wider text-muted">
                   To
-                  <input
-                    type="date"
-                    value={scope.to || ""}
-                    onChange={(e) => onChange({ ...scope, to: e.target.value })}
-                    className="block w-full mt-0.5 rounded-md border border-line bg-paper px-2 py-1 text-[12px] text-ink"
-                  />
+                  <div className="mt-0.5">
+                    <DatePicker
+                      value={scope.to || ""}
+                      onChange={(v) => onChange({ ...scope, to: v })}
+                      className="block w-full rounded-md border border-line bg-paper px-2 py-1 text-[12px] text-ink"
+                    />
+                  </div>
                 </label>
               </div>
             )}
@@ -490,7 +492,7 @@ export function NewKindPopup({ kind, aiKind, onClose, onManual }) {
           type="button"
           onClick={onClose}
           aria-label="Close"
-          className="absolute top-4 right-4 z-10 h-9 w-9 rounded-lg border border-line bg-paper-cool hover:bg-paper-warm hover:border-ink flex items-center justify-center transition-all"
+          className="absolute top-4 right-4 z-10 h-9 w-9 rounded-lg text-ink-soft hover:bg-paper-warm hover:text-ink flex items-center justify-center transition"
         >
           <X size={16} strokeWidth={1.75} />
         </button>

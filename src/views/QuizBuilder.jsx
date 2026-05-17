@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Field, inputClasses, selectClasses, api, useTeacherClasses } from "./_shared";
+import { Field, inputClasses, selectClasses, api, useTeacherClasses, DatePicker } from "./_shared";
 
 const QUESTION_TYPES = [
   { value: "mcq",   label: "Multiple choice" },
@@ -168,7 +168,7 @@ export default function QuizBuilder({ quiz, onClose }) {
             </Field>
             <div className="md:col-span-2">
               <Field label="Scheduled date">
-                <input type="date" className={inputClasses} value={meta.scheduled_for || ""} onChange={(e) => setMetaField("scheduled_for", e.target.value)} />
+                <DatePicker value={meta.scheduled_for || ""} onChange={(v) => setMetaField("scheduled_for", v)} />
               </Field>
             </div>
             <div className="md:col-span-2">

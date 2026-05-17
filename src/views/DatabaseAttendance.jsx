@@ -1,9 +1,9 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { GRADE_LEVELS } from "../lib/enums";
-import { selectClasses, inputClasses, api } from "./_shared";
+import { selectClasses, inputClasses, api, DatePicker } from "./_shared";
 
 const STATUSES = ["Present", "Absent", "Late", "Excused"];
 
@@ -118,15 +118,11 @@ export default function DatabaseAttendance() {
           >
             <ChevronLeft size={14} />
           </button>
-          <div className="bg-paper-cool border border-line rounded-lg px-3 flex items-center gap-2">
-            <CalendarIcon size={14} className="text-muted" />
-            <input
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              className="bg-transparent outline-none text-sm py-2.5 text-ink"
-            />
-          </div>
+          <DatePicker
+            value={date}
+            onChange={(v) => setDate(v)}
+            className="bg-paper-cool border border-line rounded-lg px-3 py-2.5 text-sm text-ink min-w-[170px]"
+          />
           <button
             onClick={() => shiftDay(1)}
             className="h-10 w-10 rounded-md border border-line hover:bg-paper-warm flex items-center justify-center"

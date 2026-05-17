@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { api } from "./_shared";
+import { api, DatePicker } from "./_shared";
 import { parseSections, joinSections, renderMarkdown } from "../lib/markdown";
 import StudioCard from "./StudioCard";
 import SlideBuilder from "./SlideBuilder";
@@ -3111,12 +3111,11 @@ function ScheduledDateRow({ value, onChange }) {
         Schedule for
         <HelpTip text="When students should sit this quiz. Saved with the quiz so it shows up in Schedule and Quizzes & Exams. Leave blank to decide later." />
       </span>
-      <input
-        type="date"
+      <DatePicker
         value={value ? String(value).slice(0, 10) : ""}
         min={todayISO}
-        onChange={(e) => onChange(e.target.value || "")}
-        className="bg-paper-cool border border-line rounded-md px-2.5 py-1 text-sm text-ink outline-none focus:border-ink transition-colors duration-150"
+        onChange={(v) => onChange(v || "")}
+        className="bg-paper-cool border border-line rounded-md px-2.5 py-1 text-sm text-ink outline-none focus:border-ink transition-colors duration-150 min-w-[160px]"
       />
       {value ? (
         <button

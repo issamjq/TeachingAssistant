@@ -12,7 +12,7 @@ import {
   Search, Upload, X, Sparkles, Presentation as DeckIcon, Loader2,
   ChevronLeft, ChevronRight,
 } from "lucide-react";
-import { api } from "./_shared";
+import { api, DatePicker } from "./_shared";
 
 const API_BASE = (import.meta.env.VITE_API_URL || "").replace(/\/$/, "");
 const resolveSrc = (u) =>
@@ -440,7 +440,7 @@ export default function SlideBuilder({
               type="button"
               onClick={onClose}
               aria-label="Close editor"
-              className="h-9 w-9 rounded-lg border border-line bg-paper-cool hover:bg-paper-warm hover:border-ink flex items-center justify-center"
+              className="h-9 w-9 rounded-lg text-ink-soft hover:bg-paper-warm hover:text-ink flex items-center justify-center transition"
             >
               <X size={16} />
             </button>
@@ -462,11 +462,10 @@ export default function SlideBuilder({
           </label>
           <label className="text-[12px]">
             <span className="block font-mono text-[9.5px] uppercase tracking-[0.15em] text-muted mb-1">Scheduled for</span>
-            <input
-              type="date"
+            <DatePicker
               value={scheduledFor}
-              onChange={(e) => setScheduledFor(e.target.value)}
-              className="rounded-lg border border-line bg-paper-cool px-3 py-1.5 text-sm outline-none focus:border-ink"
+              onChange={(v) => setScheduledFor(v)}
+              className="rounded-lg border border-line bg-paper-cool px-3 py-1.5 text-sm outline-none focus:border-ink min-w-[160px]"
             />
           </label>
         </div>
@@ -1357,7 +1356,7 @@ function ImagePicker({ suggestedQuery, onClose, onPick }) {
               </button>
             ))}
           </div>
-          <button type="button" onClick={onClose} className="h-8 w-8 rounded-lg border border-line bg-paper-cool hover:bg-paper-warm flex items-center justify-center" aria-label="Close">
+          <button type="button" onClick={onClose} className="h-8 w-8 rounded-lg text-ink-soft hover:bg-paper-warm hover:text-ink flex items-center justify-center transition" aria-label="Close">
             <X size={15} />
           </button>
         </div>

@@ -448,7 +448,7 @@ export default function StudioApp({ onClose }) {
             <button
               onClick={onClose}
               title="Back to landing page"
-              className="absolute top-3 right-8 z-20 h-9 w-9 rounded-md border border-line hover:bg-accent hover:text-paper-cool hover:border-accent text-ink-soft flex items-center justify-center transition print:hidden"
+              className="absolute top-3 right-8 z-20 h-9 w-9 rounded-md text-ink-soft hover:bg-accent hover:text-paper-cool flex items-center justify-center transition print:hidden"
             >
               <X size={15} />
             </button>

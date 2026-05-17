@@ -6,6 +6,7 @@ import { GRADE_LEVELS } from "../lib/enums";
 import {
   Field, Modal, ConfirmDelete, RowActions,
   inputClasses, selectClasses, api,
+  DatePicker,
 } from "./_shared";
 
 const fmtTime = (t) => (t ? t.slice(0, 5) : "");
@@ -371,7 +372,7 @@ function ScheduleModal({ initial, onClose, onSaved }) {
           <input className={inputClasses} value={form.section} onChange={(e) => set("section", e.target.value)} />
         </Field>
         <Field label="Date">
-          <input type="date" className={inputClasses} value={form.date} onChange={(e) => set("date", e.target.value)} />
+          <DatePicker value={form.date} onChange={(v) => set("date", v)} />
         </Field>
         <Field label="Status">
           <select className={selectClasses} value={form.status} onChange={(e) => set("status", e.target.value)}>

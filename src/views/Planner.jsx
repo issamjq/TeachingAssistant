@@ -349,7 +349,7 @@ export default function Planner() {
           <StudioHeroCard />
         </div>
         <div className="min-w-0">
-          <ThisMonthOverviewCard />
+          <ThisMonthOverviewCard events={events} monthDate={anchor} todayStart={todayStart} />
         </div>
 
         {/* Row 2: Calendar (left, fills remaining height) + Upcoming +
@@ -546,31 +546,21 @@ function DayListPopup({ date, dayEvents, onClose, onSelect, onNew }) {
           type="button"
           onClick={onClose}
           aria-label="Close"
-          className="absolute top-4 right-4 z-10 h-9 w-9 rounded-lg border border-line bg-paper-cool hover:bg-paper-warm hover:border-ink flex items-center justify-center transition-all"
+          className="absolute top-4 right-4 z-10 h-9 w-9 rounded-lg text-ink-soft hover:bg-paper-warm hover:text-ink flex items-center justify-center transition"
         >
           <X size={16} strokeWidth={1.75} />
         </button>
 
-        <div className="px-7 pt-6 pb-5 border-b border-line flex items-start justify-between gap-3 pr-14">
-          <div>
-            <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-1.5 inline-flex items-center gap-2.5">
-              <span className="w-6 h-px bg-accent" /> This day
-            </p>
-            <h2 className="font-serif text-2xl font-medium text-ink leading-tight">
-              {weekday}, <em className="italic font-medium text-accent">{full}</em>
-            </h2>
-          </div>
-          <button
-            type="button"
-            onClick={onNew}
-            className="planner-nav-btn shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-accent/30 bg-accent/[0.10] hover:bg-accent/[0.18] hover:border-accent/50 text-accent text-[11.5px] font-semibold shadow-sm self-center"
-          >
-            <Plus size={13} strokeWidth={2.5} />
-            New entry
-          </button>
+        <div className="px-7 pt-6 pb-5 border-b border-line pr-14">
+          <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-1.5 inline-flex items-center gap-2.5">
+            <span className="w-6 h-px bg-accent" /> This day
+          </p>
+          <h2 className="font-serif text-2xl font-medium text-ink leading-tight">
+            {weekday}, <em className="italic font-medium text-accent">{full}</em>
+          </h2>
         </div>
 
-        <div className="px-6 py-5 max-h-[60vh] overflow-auto">
+        <div className="px-6 py-5 max-h-[55vh] overflow-auto">
           {dayEvents.length === 0 ? (
             <p className="text-center text-muted text-sm py-8">No entries yet on this day.</p>
           ) : (
@@ -596,6 +586,17 @@ function DayListPopup({ date, dayEvents, onClose, onSelect, onNew }) {
               ))}
             </div>
           )}
+        </div>
+
+        <div className="px-6 py-4 border-t border-line bg-paper/60 flex justify-end">
+          <button
+            type="button"
+            onClick={onNew}
+            className="planner-nav-btn w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-accent text-paper-cool text-sm font-semibold shadow-[0_10px_24px_-12px_rgba(200,71,43,0.6)] hover:bg-accent/90 hover:-translate-y-px transition-all"
+          >
+            <Plus size={15} strokeWidth={2.5} />
+            New entry
+          </button>
         </div>
       </div>
     </div>,
@@ -666,11 +667,21 @@ function StudioHeroCard() {
 // AI Insights — big "On track" headline in sage green, soft chart
 // glow below, 3-stat row underneath.
 // ───────────────────────────────────────────────────────────────────────
-function ThisMonthOverviewCard() {
-  const planned = 28;
-  const completed = 12;
-  const todo = 16;
-  const pct = Math.round((completed / planned) * 100);
+function ThisMonthOverviewCard({ events = [], monthDate, todayStart }) {
+  const y = monthDate.getFullYear();
+  const m = monthDate.getMonth();
+  const monthKey = `${y}-${String(m + 1).padStart(2, "0")}`;
+  const monthEvents = events.filter((e) => (e.date || "").slice(0, 7) === monthKey);
+  const planned = monthEvents.length;
+  // "Completed" = already happened this month (date is before today).
+  const completed = monthEvents.filter(
+    (e) => new Date(`${e.date}T00:00:00`) < todayStart
+  ).length;
+  const todo = Math.max(0, planned - completed);
+  const pct = planned ? Math.round((completed / planned) * 100) : 0;
+  const monthLabel = monthDate
+    .toLocaleDateString(undefined, { month: "short", year: "numeric" })
+    .toUpperCase();
   const stats = [
     { n: planned,   k: "Planned",   icon: CalendarDays,  tint: "ink",    iconBg: "bg-ink/[0.08]",    iconText: "text-ink" },
     { n: completed, k: "Completed", icon: CheckCircle2,  tint: "sage",   iconBg: "bg-sage/[0.14]",   iconText: "text-sage" },
@@ -683,7 +694,7 @@ function ThisMonthOverviewCard() {
           This Month Overview
         </h3>
         <span className="font-mono text-[9.5px] uppercase tracking-[0.18em] text-muted mt-1 whitespace-nowrap">
-          May 2026
+          {monthLabel}
         </span>
       </div>
 
