@@ -298,11 +298,14 @@ const Hero = ({ onOpenStudio }) => {
           </a>
         </motion.div>
 
+        {/* Break the preview out of the 1280 text column so it spans
+            wider and stays responsive (capped at 1700, never wider than
+            the viewport — the section clips any overflow). */}
         <motion.div
           initial={{ opacity: 0, y: 60 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 1.2, ease: EASE, delay: 1.2 }}
-          className="relative"
+          className="relative left-1/2 -translate-x-1/2 w-screen max-w-[1700px] px-4 sm:px-6 lg:px-10"
         >
           <ProductMock onOpenStudio={onOpenStudio} />
         </motion.div>
