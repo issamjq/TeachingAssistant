@@ -3,7 +3,7 @@ import {
   Sparkles, ArrowRight, ChevronRight, ChevronLeft, Plus, BookOpen,
   CalendarDays, GraduationCap, ClipboardList, Presentation, Layout,
   Users, MessageCircle, CheckCircle2, Clock, TrendingUp, FileText,
-  BarChart3,
+  BarChart3, Pencil, Trash2, ArrowUpDown, Calendar, LayoutGrid, List,
 } from "lucide-react";
 import "../landing.css";
 
@@ -883,218 +883,317 @@ function Win({ title, children }) {
           {title}
         </div>
       </div>
-      <div className="p-6 h-[440px] overflow-hidden bg-[#fbf2e6] text-ink">
+      <div className="h-[460px] overflow-hidden bg-[#fbf2e6] text-ink px-6 pt-5">
         {children}
       </div>
     </div>
   );
 }
 
+// Faithful replica of the Studio's shared DataPageHeader (eyebrow +
+// serif title with red italic accent + caption + toolbar chips).
+function Head({ eyebrow, plain, em, sub, neu }) {
+  return (
+    <div className="mb-5">
+      <div className="mb-3.5">
+        <p className={`${EB} mb-2 inline-flex items-center gap-2.5`}>
+          <span className="w-6 h-px bg-accent" /> {eyebrow}
+        </p>
+        <h2 className="font-serif text-[28px] font-medium text-ink leading-tight">
+          {plain}
+          <em className="italic font-light text-accent">{em}</em>
+        </h2>
+        <p className="text-muted text-[12.5px] mt-1.5 max-w-2xl">{sub}</p>
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="h-8 inline-flex items-center gap-1.5 px-3 rounded-lg text-[11.5px] border border-line bg-paper-cool text-ink">
+          <ArrowUpDown size={11} className="text-muted" /> Newest
+        </span>
+        <span className="h-8 inline-flex items-center gap-1.5 px-3 rounded-lg text-[11.5px] border border-line bg-paper-cool text-ink">
+          <Calendar size={11} className="text-muted" /> All time
+        </span>
+        <span className="h-8 inline-flex items-center gap-1 px-1 rounded-lg border border-line bg-paper-cool">
+          <span className="h-6 inline-flex items-center gap-1.5 px-2.5 rounded-md text-[11.5px] bg-ink text-paper-cool">
+            <LayoutGrid size={11} /> Cards
+          </span>
+          <span className="h-6 inline-flex items-center gap-1.5 px-2.5 rounded-md text-[11.5px] text-ink">
+            <List size={11} /> List
+          </span>
+        </span>
+        <span className="h-8 inline-flex items-center gap-1.5 px-3 rounded-lg text-[11.5px] border border-line bg-paper-cool text-ink">
+          <Trash2 size={11} /> Recently deleted
+        </span>
+        <span className="h-8 ml-auto inline-flex items-center gap-1.5 px-3 rounded-lg text-[11.5px] bg-ink text-paper-cool font-medium border border-ink">
+          <Plus size={12} strokeWidth={2.25} /> {neu}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function Cnt({ children }) {
+  return (
+    <p className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted mb-3.5">
+      {children}
+    </p>
+  );
+}
+
+function DGrid({ children }) {
+  return <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">{children}</div>;
+}
+
+// Replica of the Studio's DataCard (status chip, serif title, mono
+// meta, dashed-top stat row, pencil + trash in the corner).
+function DCard({ status, title, meta, stats }) {
+  return (
+    <div className="relative rounded-2xl border border-[#e6dccb] bg-paper-cool shadow-[0_18px_44px_-22px_rgba(15,20,16,0.14)] p-4 flex flex-col">
+      <div className="absolute top-3 right-3 flex items-center gap-1">
+        <span className="h-6 w-6 rounded-md border border-line bg-paper-cool flex items-center justify-center">
+          <Pencil size={11} className="text-ink-soft" />
+        </span>
+        <span className="h-6 w-6 rounded-md border border-line bg-paper-cool flex items-center justify-center text-ink-soft">
+          <Trash2 size={11} />
+        </span>
+      </div>
+      <span className="font-mono text-[9px] uppercase tracking-wider px-2 py-0.5 bg-paper border border-line text-ink-soft rounded self-start">
+        {status}
+      </span>
+      <h3 className="font-serif text-[15px] font-medium text-ink leading-snug mt-2 pr-14">
+        {title}
+      </h3>
+      <p className="font-mono text-[9px] uppercase tracking-wider text-muted mt-1">
+        {meta}
+      </p>
+      <div
+        className="grid gap-2 mt-2.5 pt-2.5 border-t border-dashed border-line"
+        style={{ gridTemplateColumns: `repeat(${stats.length}, minmax(0,1fr))` }}
+      >
+        {stats.map(([l, v]) => (
+          <div key={l} className="min-w-0">
+            <p className="font-mono text-[8.5px] uppercase tracking-wider text-muted">
+              {l}
+            </p>
+            <p className="text-[11.5px] text-ink mt-0.5 leading-tight truncate">
+              {v}
+            </p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── Lesson Plans — tab bar (Templates library / Drafts) + template
+//    cards, mirroring the real /lesson-plans screen.
 function PvLesson() {
-  const rows = [
-    ["00–05", "Starter · “What did your plant need this week?”"],
-    ["05–15", "Recap chloroplasts · diagram on board"],
-    ["15–35", "Worksheet · differentiated 3 levels"],
-    ["35–45", "Pair discussion · sunlight vs water"],
-    ["45–50", "Exit ticket · 3 questions"],
+  const tpl = [
+    { status: "Template", title: "Inquiry-led science lesson", meta: "Science · KG–G6", stats: [["Stages", "4"], ["Duration", "50 min"], ["Used", "23×"]] },
+    { status: "Template", title: "Exam revision carousel", meta: "Any · G7–G12", stats: [["Stages", "5"], ["Duration", "45 min"], ["Used", "61×"]] },
+    { status: "Template", title: "Lab practical write-up", meta: "Science · G7–G12", stats: [["Stages", "3"], ["Duration", "60 min"], ["Used", "12×"]] },
+    { status: "Template", title: "Reading circle", meta: "English · G3–G9", stats: [["Stages", "4"], ["Duration", "40 min"], ["Used", "38×"]] },
   ];
   return (
     <div>
-      <p className={`${EB} mb-2`}>Sunday 17 May · 50 min</p>
-      <h4 className="font-serif text-2xl font-medium mb-5">
-        Photosynthesis — leaf structure
-      </h4>
-      <div className="grid grid-cols-12 gap-x-3">
-        {rows.map(([t, d], i) => (
-          <React.Fragment key={t}>
-            <div className="col-span-3 font-mono text-[11px] text-muted py-2.5">
-              {t}
-            </div>
-            <div
-              className={`col-span-9 text-[13px] py-2.5 ${
-                i < rows.length - 1 ? "border-b border-line/70" : ""
-              }`}
-            >
-              {d}
-            </div>
-          </React.Fragment>
+      <div className="flex items-center gap-2 border-b border-line mb-5">
+        <span className="px-4 py-2 font-mono text-[11px] uppercase tracking-[0.15em] border-b-2 border-accent text-ink">
+          Templates library
+        </span>
+        <span className="px-4 py-2 font-mono text-[11px] uppercase tracking-[0.15em] border-b-2 border-transparent text-muted">
+          Drafts
+        </span>
+      </div>
+      <Head
+        eyebrow="Templates"
+        plain="Templates "
+        em="library"
+        sub="Pick a starting point. Edit it once, reuse it forever."
+        neu="New template"
+      />
+      <Cnt>4 templates</Cnt>
+      <DGrid>
+        {tpl.map((c) => (
+          <DCard key={c.title} {...c} />
         ))}
-      </div>
-      <div className="flex gap-2 mt-5">
-        <span className="text-[11px] font-mono px-2 py-1 rounded bg-paper-warm/70 text-muted">
-          MoE 7.2.1
-        </span>
-        <span className="text-[11px] font-mono px-2 py-1 rounded bg-paper-warm/70 text-muted">
-          Bloom · understand → apply
-        </span>
-      </div>
+      </DGrid>
     </div>
   );
 }
 
 function PvQuiz() {
-  const qs = [
-    { n: "1", q: "Which organelle produces most ATP?", t: "MCQ" },
-    { n: "2", q: "Word equation for aerobic respiration.", t: "Short" },
-    { n: "3", q: "Why do muscle cells switch to anaerobic?", t: "Extended" },
-    { n: "4", q: "Label the mitochondrion diagram.", t: "Diagram" },
+  const items = [
+    { status: "Scheduled", title: "Cell respiration · check", meta: "Science · G7 · 7B", stats: [["Marks", "20"], ["Duration", "15 min"], ["Scheduled", "May 19"]] },
+    { status: "Draft", title: "Photosynthesis end-of-unit", meta: "Science · G7 · 7A", stats: [["Marks", "40"], ["Duration", "45 min"], ["Scheduled", "—"]] },
+    { status: "Graded", title: "Genetics mid-term", meta: "Science · G10 · 10D", stats: [["Marks", "60"], ["Duration", "60 min"], ["Scheduled", "May 8"]] },
+    { status: "Scheduled", title: "States of matter quiz", meta: "Science · G8 · 8B", stats: [["Marks", "15"], ["Duration", "12 min"], ["Scheduled", "May 22"]] },
   ];
   return (
     <div>
-      <p className={`${EB} mb-2`}>Formative · 10 questions · 15 min</p>
-      <h4 className="font-serif text-2xl font-medium mb-4">
-        Cell respiration · check
-      </h4>
-      <div className="flex flex-col gap-2.5">
-        {qs.map((i) => (
-          <div
-            key={i.n}
-            className="flex items-start gap-3 rounded-xl border border-line bg-paper-cool p-3"
-          >
-            <span className="font-mono text-xs text-muted">{i.n}</span>
-            <div className="flex-1">
-              <div className="text-[13px] mb-1">{i.q}</div>
-              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-paper-warm/70 text-muted">
-                {i.t}
-              </span>
-            </div>
-          </div>
+      <Head
+        eyebrow="Quizzes & exams"
+        plain="Quizzes & "
+        em="exams"
+        sub="Build, schedule, and grade. MCQ, true/false, short, and essay."
+        neu="New quiz"
+      />
+      <Cnt>4 quizzes &amp; exams</Cnt>
+      <DGrid>
+        {items.map((c) => (
+          <DCard key={c.title} {...c} />
         ))}
-      </div>
-      <p className="text-center text-[12px] text-muted mt-3">
-        + 6 more · auto-graded
-      </p>
+      </DGrid>
     </div>
   );
 }
 
 function PvHomework() {
-  const students = [
-    ["Aisha A.", true],
-    ["Bilal H.", true],
-    ["Fatima R.", true],
-    ["Hamad K.", false],
-    ["Layla S.", true],
+  const items = [
+    { status: "Open", title: "Worksheet 4 — leaf structure", meta: "Science · G7 · 7A", stats: [["Due", "May 21"], ["Section", "7A"]] },
+    { status: "Graded", title: "Balancing equations set", meta: "Science · G9 · 9C", stats: [["Due", "May 12"], ["Section", "9C"]] },
+    { status: "Open", title: "Reading log — chapters 4–6", meta: "English · G5 · 5B", stats: [["Due", "May 24"], ["Section", "5B"]] },
+    { status: "Open", title: "Practice problems · fractions", meta: "Maths · G5 · 5B", stats: [["Due", "May 20"], ["Section", "5B"]] },
   ];
   return (
     <div>
-      <p className={`${EB} mb-2`}>Due Thursday · 7A</p>
-      <h4 className="font-serif text-2xl font-medium mb-4">
-        Worksheet 4 — leaf structure
-      </h4>
-      <div className="rounded-xl border border-line bg-paper-cool p-4 mb-4">
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-[12px] text-muted">Completed</span>
-          <span className="font-serif text-lg font-medium text-sage">
-            18 / 28
-          </span>
-        </div>
-        <div className="h-2 rounded-full bg-line/40 overflow-hidden">
-          <div
-            className="h-full rounded-full bg-gradient-to-r from-sage to-sage/70"
-            style={{ width: "64%" }}
-          />
-        </div>
-      </div>
-      <div className="flex flex-col gap-1.5">
-        {students.map(([n, done]) => (
-          <div
-            key={n}
-            className="flex items-center gap-3 px-3 py-2 rounded-lg border border-line/70 bg-paper-cool"
-          >
-            <span className="h-6 w-6 rounded-full bg-paper-warm/70 grid place-items-center text-[10px] font-medium">
-              {n.split(" ").map((x) => x[0]).join("")}
-            </span>
-            <span className="flex-1 text-[13px]">{n}</span>
-            <span
-              className={`text-[11px] font-medium ${
-                done ? "text-sage" : "text-accent"
-              }`}
-            >
-              {done ? "Submitted" : "Not yet"}
-            </span>
-          </div>
+      <Head
+        eyebrow="Homework"
+        plain=""
+        em="Homework"
+        sub="Assign work to a class, track who's done it, grade and give feedback."
+        neu="New homework"
+      />
+      <Cnt>4 homework tasks</Cnt>
+      <DGrid>
+        {items.map((c) => (
+          <DCard key={c.title} {...c} />
         ))}
-      </div>
+      </DGrid>
     </div>
   );
 }
 
 function PvPresentation() {
+  const items = [
+    { status: "Ready", title: "Photosynthesis — how leaves work", meta: "Science · G7 · 7A", stats: [["Slides", "12"], ["Linked", "Lesson 4"]] },
+    { status: "Draft", title: "Cell respiration overview", meta: "Science · G7 · 7B", stats: [["Slides", "9"], ["Linked", "—"]] },
+    { status: "Ready", title: "Romeo & Juliet — Act 1", meta: "English · G10 · 10D", stats: [["Slides", "16"], ["Linked", "Lesson 2"]] },
+    { status: "Ready", title: "Intro to statistics", meta: "Maths · G9 · 9C", stats: [["Slides", "11"], ["Linked", "Lesson 7"]] },
+  ];
   return (
-    <div className="h-full flex flex-col">
-      <p className={`${EB} mb-3`}>Deck · Photosynthesis · 12 slides</p>
-      <div className="flex-1 rounded-xl border border-line bg-gradient-to-br from-[#2a1f17] to-[#5a3a28] text-paper-cool p-7 flex flex-col justify-center">
-        <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-paper-cool/60 mb-3">
-          Slide 3 / 12
-        </span>
-        <h4 className="font-serif text-3xl font-medium leading-tight mb-3">
-          How a leaf captures light
-        </h4>
-        <p className="text-[13px] text-paper-cool/75 max-w-md leading-relaxed">
-          Chloroplasts in the palisade layer absorb sunlight to drive the
-          reaction. Speaker notes generated alongside every slide.
-        </p>
-      </div>
-      <div className="flex gap-2 mt-3">
-        {[1, 2, 3, 4, 5].map((s) => (
-          <div
-            key={s}
-            className={`h-12 flex-1 rounded-md border ${
-              s === 3
-                ? "border-accent bg-accent/[0.08]"
-                : "border-line bg-paper-cool"
-            }`}
-          />
+    <div>
+      <Head
+        eyebrow="Presentations"
+        plain="Slide "
+        em="decks"
+        sub="Build slide-based presentations linked to your lessons."
+        neu="New presentation"
+      />
+      <Cnt>4 presentations</Cnt>
+      <DGrid>
+        {items.map((c) => (
+          <DCard key={c.title} {...c} />
         ))}
-      </div>
+      </DGrid>
     </div>
   );
 }
 
 function PvActivities() {
-  const cards = [
-    { t: "Pair work", d: "Sort the light-reaction cards", m: "10 min · card set" },
-    { t: "Group task", d: "Build a leaf cross-section poster", m: "20 min · A3 + pens" },
-    { t: "Individual", d: "Label-the-diagram worksheet", m: "10 min · printable" },
+  const items = [
+    { status: "Pair work", title: "Sort the light-reaction cards", meta: "Science · G7 · 7A", stats: [["Time", "10 min"], ["Materials", "Card set"]] },
+    { status: "Group task", title: "Build a leaf cross-section poster", meta: "Science · G7 · 7A", stats: [["Time", "20 min"], ["Materials", "A3 + pens"]] },
+    { status: "Individual", title: "Label-the-diagram worksheet", meta: "Science · G7 · 7B", stats: [["Time", "10 min"], ["Materials", "Printable"]] },
+    { status: "Group task", title: "Debate: is fusion worth it?", meta: "Science · G10 · 10D", stats: [["Time", "25 min"], ["Materials", "Prompt"]] },
   ];
   return (
     <div>
-      <p className={`${EB} mb-2`}>Lesson activities · 7A</p>
-      <h4 className="font-serif text-2xl font-medium mb-4">
-        Three ways to practise
-      </h4>
-      <div className="flex flex-col gap-3">
-        {cards.map((c) => (
-          <div
-            key={c.t}
-            className="rounded-xl border border-line bg-paper-cool p-4"
-          >
-            <div className="flex items-center gap-2 mb-1.5">
-              <span className="h-1.5 w-1.5 rounded-full bg-accent" />
-              <span className={EB}>{c.t}</span>
-            </div>
-            <div className="text-[14px] font-medium mb-1">{c.d}</div>
-            <div className="text-[12px] text-muted">{c.m}</div>
-          </div>
+      <Head
+        eyebrow="Activities"
+        plain="Classroom "
+        em="activities"
+        sub="Pair-work, group tasks, individual exercises — with materials and timing."
+        neu="New activity"
+      />
+      <Cnt>4 activities</Cnt>
+      <DGrid>
+        {items.map((c) => (
+          <DCard key={c.title} {...c} />
         ))}
-      </div>
+      </DGrid>
     </div>
   );
 }
 
+function PvTemplates() {
+  const items = [
+    { status: "Template", title: "Inquiry-led science lesson", meta: "Science · KG–G6", stats: [["Stages", "4"], ["Duration", "50 min"], ["Used", "23×"]] },
+    { status: "Template", title: "Exam revision carousel", meta: "Any · G7–G12", stats: [["Stages", "5"], ["Duration", "45 min"], ["Used", "61×"]] },
+    { status: "Template", title: "Reading circle", meta: "English · G3–G9", stats: [["Stages", "4"], ["Duration", "40 min"], ["Used", "38×"]] },
+    { status: "Template", title: "Problem-set practice", meta: "Maths · G6–G12", stats: [["Stages", "3"], ["Duration", "35 min"], ["Used", "47×"]] },
+  ];
+  return (
+    <div>
+      <Head
+        eyebrow="Templates"
+        plain="Templates "
+        em="library"
+        sub="Pick a starting point. Edit it once, reuse it forever."
+        neu="New template"
+      />
+      <Cnt>4 templates</Cnt>
+      <DGrid>
+        {items.map((c) => (
+          <DCard key={c.title} {...c} />
+        ))}
+      </DGrid>
+    </div>
+  );
+}
+
+function PvDrafts() {
+  const items = [
+    { status: "In progress", title: "The Water Cycle", meta: "Science · G7 · 7A", stats: [["Updated", "Today"], ["Progress", "80%"]] },
+    { status: "In progress", title: "Fractions — introduction", meta: "Maths · G5 · 5B", stats: [["Updated", "Yesterday"], ["Progress", "45%"]] },
+    { status: "Paused", title: "Romeo & Juliet — Act 1", meta: "English · G10 · 10D", stats: [["Updated", "May 12"], ["Progress", "60%"]] },
+    { status: "In progress", title: "Photosynthesis", meta: "Science · G7 · 7A", stats: [["Updated", "May 15"], ["Progress", "25%"]] },
+  ];
+  return (
+    <div>
+      <Head
+        eyebrow="Drafts"
+        plain="Your "
+        em="drafts"
+        sub="Lesson plans you started, paused, or saved to reuse later. Only you can see these."
+        neu="New draft"
+      />
+      <Cnt>4 drafts</Cnt>
+      <DGrid>
+        {items.map((c) => (
+          <DCard key={c.title} {...c} />
+        ))}
+      </DGrid>
+    </div>
+  );
+}
+
+// ── Weekly Schedule — mirrors the Planner/Schedule grid chrome.
 function PvSchedule() {
   const days = ["Mon", "Tue", "Wed", "Thu", "Fri"];
   const grid = {
-    Mon: ["7A Bio", "", "9C Chem"],
-    Tue: ["", "8B Bio", ""],
-    Wed: ["7A Bio", "10D", ""],
-    Thu: ["", "9C Chem", "Lab"],
-    Fri: ["8B Bio", "", "7A Quiz"],
+    Mon: ["7A · Biology", "", "9C · Chemistry"],
+    Tue: ["", "8B · Biology", ""],
+    Wed: ["7A · Biology", "10D · English", ""],
+    Thu: ["", "9C · Chemistry", "Lab prep"],
+    Fri: ["8B · Biology", "", "7A · Quiz"],
   };
   return (
     <div>
-      <p className={`${EB} mb-3`}>Week of 17 May</p>
+      <h2 className="font-serif text-[28px] font-medium text-ink leading-none tracking-tight mb-1">
+        Week of <em className="italic font-medium text-accent">17 May</em>
+      </h2>
+      <p className="font-serif italic text-[12.5px] text-muted mb-4">
+        Your teaching week — periods, classes, and prep at a glance.
+      </p>
       <div className="grid grid-cols-5 gap-2">
         {days.map((d) => (
           <div key={d} className="text-center">
@@ -1103,7 +1202,7 @@ function PvSchedule() {
               {grid[d].map((c, i) => (
                 <div
                   key={i}
-                  className={`h-[88px] rounded-lg border text-[11px] p-2 flex items-start ${
+                  className={`h-[92px] rounded-lg border text-[11px] p-2 flex items-start ${
                     c
                       ? "border-accent/30 bg-accent/[0.07] text-accent font-medium"
                       : "border-line/70 bg-paper-cool text-transparent"
@@ -1120,32 +1219,48 @@ function PvSchedule() {
   );
 }
 
+// ── My Students — roster, mirroring the Database screen chrome.
 function PvStudents() {
   const rows = [
-    ["Aisha Al-Hashimi", "92%", "Present", "text-sage"],
-    ["Bilal Haddad", "78%", "Present", "text-sage"],
-    ["Fatima Rahman", "85%", "Late", "text-gold"],
-    ["Hamad Khalil", "67%", "Absent · note", "text-accent"],
-    ["Layla Saleh", "94%", "Present", "text-sage"],
-    ["Omar Nasr", "81%", "Present", "text-sage"],
+    ["Aisha Al-Hashimi", "7A", "92%", "Present", "text-sage"],
+    ["Bilal Haddad", "7A", "78%", "Present", "text-sage"],
+    ["Fatima Rahman", "7A", "85%", "Late", "text-gold"],
+    ["Hamad Khalil", "7A", "67%", "Absent · note", "text-accent"],
+    ["Layla Saleh", "7A", "94%", "Present", "text-sage"],
+    ["Omar Nasr", "7A", "81%", "Present", "text-sage"],
+    ["Sara Yousef", "7A", "88%", "Present", "text-sage"],
   ];
   return (
     <div>
-      <div className="flex items-baseline justify-between mb-4">
-        <h4 className="font-serif text-2xl font-medium">Class 7A</h4>
-        <span className={EB}>28 students</span>
-      </div>
-      <div className="flex flex-col">
-        {rows.map(([n, g, a, c]) => (
+      <p className={`${EB} mb-2 inline-flex items-center gap-2.5`}>
+        <span className="w-6 h-px bg-accent" /> My students
+      </p>
+      <h2 className="font-serif text-[28px] font-medium text-ink leading-tight">
+        Class <em className="italic font-light text-accent">7A</em>
+      </h2>
+      <p className="text-muted text-[12.5px] mt-1.5 mb-4">
+        28 students · attendance, grades and guardian contacts in one place.
+      </p>
+      <div className="rounded-2xl border border-line bg-paper-cool overflow-hidden">
+        <div className="grid grid-cols-[1fr_70px_70px_120px] font-mono text-[9px] uppercase tracking-[0.15em] text-muted border-b border-line px-4 py-2.5">
+          <span>Student</span>
+          <span>Class</span>
+          <span>Avg</span>
+          <span>Today</span>
+        </div>
+        {rows.map(([n, cl, g, a, c]) => (
           <div
             key={n}
-            className="flex items-center gap-4 py-2.5 border-b border-line/70"
+            className="grid grid-cols-[1fr_70px_70px_120px] items-center px-4 py-2.5 border-b border-line/60 last:border-0"
           >
-            <span className="h-7 w-7 rounded-full bg-paper-warm/70 grid place-items-center text-[10px] font-medium">
-              {n.split(" ").map((x) => x[0]).join("")}
+            <span className="flex items-center gap-3">
+              <span className="h-7 w-7 rounded-full bg-paper-warm/70 grid place-items-center text-[10px] font-medium">
+                {n.split(" ").map((x) => x[0]).join("")}
+              </span>
+              <span className="text-[13px] text-ink">{n}</span>
             </span>
-            <span className="flex-1 text-[13px]">{n}</span>
-            <span className="text-[12px] font-mono text-muted">{g}</span>
+            <span className="text-[12px] text-muted">{cl}</span>
+            <span className="text-[12px] font-mono text-ink-soft">{g}</span>
             <span className={`text-[12px] ${c}`}>{a}</span>
           </div>
         ))}
@@ -1154,10 +1269,17 @@ function PvStudents() {
   );
 }
 
+// ── AI Studio — the generate surface (prompt → draft → output).
 function PvStudio() {
   return (
     <div>
-      <div className="rounded-xl border border-line bg-paper-cool p-4 mb-4">
+      <p className={`${EB} mb-2 inline-flex items-center gap-2.5`}>
+        <span className="w-6 h-px bg-accent" /> Studio
+      </p>
+      <h2 className="font-serif text-[28px] font-medium text-ink leading-tight mb-4">
+        Mudir <em className="italic font-light text-accent">drafts.</em> You direct.
+      </h2>
+      <div className="rounded-xl border border-line bg-paper-cool p-4 mb-3.5">
         <p className={`${EB} mb-2`}>You said</p>
         <p className="text-[13px] leading-relaxed">
           Worksheet on photosynthesis for Grade 7. Three difficulty levels.
@@ -1169,9 +1291,7 @@ function PvStudio() {
           <React.Fragment key={s}>
             <span
               className={`text-[11px] font-mono px-2.5 py-1 rounded-md ${
-                i === 3
-                  ? "bg-sage/[0.14] text-sage"
-                  : "bg-paper-warm/60 text-muted"
+                i === 3 ? "bg-sage/[0.14] text-sage" : "bg-paper-warm/60 text-muted"
               }`}
             >
               {s}
@@ -1187,10 +1307,7 @@ function PvStudio() {
           ["Level 2", "Core", "10 questions"],
           ["Level 3", "Extension", "12 questions"],
         ].map(([l, d, n]) => (
-          <div
-            key={l}
-            className="rounded-xl border border-line bg-paper-cool p-3"
-          >
+          <div key={l} className="rounded-xl border border-line bg-paper-cool p-3">
             <p className={`${EB} mb-1.5`}>{l}</p>
             <p className="text-[13px] font-medium">{d}</p>
             <p className="text-[12px] text-muted">{n}</p>
@@ -1201,6 +1318,7 @@ function PvStudio() {
   );
 }
 
+// ── Worksheets — the differentiated set the Studio produces.
 function PvWorksheets() {
   const levels = [
     ["Level 1", "Foundation", "8 questions", "from-sage/15"],
@@ -1209,15 +1327,20 @@ function PvWorksheets() {
   ];
   return (
     <div>
-      <p className={`${EB} mb-2`}>Photosynthesis · differentiated</p>
-      <h4 className="font-serif text-2xl font-medium mb-5">
-        One topic, three levels
-      </h4>
+      <p className={`${EB} mb-2 inline-flex items-center gap-2.5`}>
+        <span className="w-6 h-px bg-accent" /> Worksheets
+      </p>
+      <h2 className="font-serif text-[28px] font-medium text-ink leading-tight">
+        One topic, <em className="italic font-light text-accent">three levels</em>
+      </h2>
+      <p className="text-muted text-[12.5px] mt-1.5 mb-5">
+        Photosynthesis · differentiated · printable PDF + answer key.
+      </p>
       <div className="grid grid-cols-3 gap-4">
         {levels.map(([l, d, n, g]) => (
           <div
             key={l}
-            className={`rounded-2xl border border-line bg-gradient-to-b ${g} to-transparent p-5 h-[240px] flex flex-col`}
+            className={`rounded-2xl border border-line bg-gradient-to-b ${g} to-transparent p-5 h-[250px] flex flex-col`}
           >
             <p className={`${EB} mb-2`}>{l}</p>
             <p className="font-serif text-xl font-medium mb-1">{d}</p>
@@ -1237,104 +1360,82 @@ function PvWorksheets() {
   );
 }
 
+// ── Reports — mirrors Reports.jsx (counts strip + per-student table).
 function PvReports() {
-  const bars = [40, 62, 55, 78, 70, 88];
-  return (
-    <div>
-      <p className={`${EB} mb-2`}>Term 2 · 7A</p>
-      <h4 className="font-serif text-2xl font-medium mb-5">Class performance</h4>
-      <div className="grid grid-cols-3 gap-3 mb-6">
-        {[
-          ["Avg. grade", "82%", "text-ink"],
-          ["Submitted", "94%", "text-sage"],
-          ["At risk", "3", "text-accent"],
-        ].map(([k, v, c]) => (
-          <div
-            key={k}
-            className="rounded-xl border border-line bg-paper-cool p-3"
-          >
-            <p className={`${EB} mb-1`}>{k}</p>
-            <p className={`font-serif text-2xl font-medium ${c}`}>{v}</p>
-          </div>
-        ))}
-      </div>
-      <div className="flex items-end gap-3 h-[150px] px-1">
-        {bars.map((h, i) => (
-          <div key={i} className="flex-1 flex flex-col items-center gap-2">
-            <div
-              className="w-full rounded-t-md bg-gradient-to-t from-accent/70 to-accent-soft/70"
-              style={{ height: `${h}%` }}
-            />
-            <span className="text-[10px] font-mono text-muted">U{i + 1}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function PvTemplates() {
-  const tpl = [
-    ["Inquiry lesson", "Science · KG–G6"],
-    ["Exam revision", "Any · G7–G12"],
-    ["Lab practical", "Science · G7–G12"],
-    ["Reading circle", "English · G3–G9"],
-    ["Problem set", "Maths · G6–G12"],
-    ["Debate", "Humanities · G8+"],
+  const counts = [
+    ["Students", 28], ["Lessons", 14], ["Templates", 9], ["Quizzes", 6],
+    ["Homework", 8], ["Slides", 5], ["Activities", 11],
+  ];
+  const rows = [
+    ["Aisha Al-Hashimi", "7A", 6, 92],
+    ["Bilal Haddad", "7A", 5, 78],
+    ["Fatima Rahman", "7A", 6, 85],
+    ["Hamad Khalil", "7A", 4, 67],
+    ["Layla Saleh", "7A", 6, 94],
   ];
   return (
     <div>
-      <p className={`${EB} mb-2`}>Templates library</p>
-      <h4 className="font-serif text-2xl font-medium mb-4">
-        Start from a proven shape
-      </h4>
-      <div className="grid grid-cols-2 gap-3">
-        {tpl.map(([t, m]) => (
-          <div
-            key={t}
-            className="rounded-xl border border-line bg-paper-cool p-4 hover:border-accent/40 transition"
-          >
-            <div className="text-[14px] font-medium mb-1">{t}</div>
-            <div className="text-[12px] text-muted">{m}</div>
+      <p className={`${EB} mb-2 inline-flex items-center gap-2.5`}>
+        <span className="w-6 h-px bg-accent" /> Reports
+      </p>
+      <h2 className="font-serif text-[28px] font-medium text-ink leading-tight">
+        Class <em className="italic font-light text-accent">reports</em>
+      </h2>
+      <p className="text-muted text-[12.5px] mt-1.5 mb-4">
+        A snapshot of your class — averages, counts, exportable to CSV.
+      </p>
+      <div className="grid grid-cols-7 gap-2 mb-4">
+        {counts.map(([l, v]) => (
+          <div key={l} className="rounded-xl border border-[#e6dccb] bg-paper-cool p-2.5">
+            <p className="font-mono text-[8px] uppercase tracking-[0.16em] text-muted mb-1">
+              {l}
+            </p>
+            <p className="font-serif text-xl font-medium text-accent leading-none">
+              {v}
+            </p>
           </div>
         ))}
       </div>
-    </div>
-  );
-}
-
-function PvDrafts() {
-  const drafts = [
-    ["The Water Cycle", "Science · 7A", 80],
-    ["Fractions intro", "Maths · 5B", 45],
-    ["Romeo & Juliet — Act 1", "English · 10D", 60],
-    ["Photosynthesis", "Science · 7A", 25],
-  ];
-  return (
-    <div>
-      <p className={`${EB} mb-2`}>Your drafts</p>
-      <h4 className="font-serif text-2xl font-medium mb-4">
-        Pick up where you left off
-      </h4>
-      <div className="flex flex-col gap-3">
-        {drafts.map(([t, m, p]) => (
-          <div
-            key={t}
-            className="rounded-xl border border-line bg-paper-cool p-4"
-          >
-            <div className="flex items-baseline justify-between mb-2">
-              <span className="text-[14px] font-medium">{t}</span>
-              <span className="text-[11px] font-mono text-muted">{p}%</span>
-            </div>
-            <div className="text-[12px] text-muted mb-2.5">{m}</div>
-            <div className="h-1.5 rounded-full bg-line/40 overflow-hidden">
-              <div
-                className="h-full rounded-full bg-gradient-to-r from-accent to-accent-soft"
-                style={{ width: `${p}%` }}
-              />
-            </div>
-          </div>
-        ))}
+      <div className="rounded-2xl border border-line bg-paper-cool overflow-hidden">
+        <div className="px-5 pt-4 pb-3 border-b border-line">
+          <h3 className="font-serif text-lg font-medium text-ink">
+            Per-student averages
+          </h3>
+        </div>
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="font-mono text-[9px] uppercase tracking-[0.15em] text-muted border-b border-line">
+              <th className="text-left py-2.5 px-5 font-medium">Student</th>
+              <th className="text-left py-2.5 font-medium">Class</th>
+              <th className="text-left py-2.5 font-medium">Entries</th>
+              <th className="text-left py-2.5 px-5 font-medium">Average</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(([n, cl, e, avg]) => (
+              <tr key={n} className="border-b border-line/60 last:border-0">
+                <td className="py-2.5 px-5 text-ink text-[13px]">{n}</td>
+                <td className="py-2.5 text-muted text-[13px]">{cl}</td>
+                <td className="py-2.5 text-ink-soft text-[13px]">{e}</td>
+                <td className="py-2.5 px-5">
+                  <div className="flex items-center gap-3">
+                    <div className="w-28 h-1.5 bg-paper-warm rounded-full overflow-hidden border border-line">
+                      <div
+                        className={`h-full ${
+                          avg >= 70 ? "bg-sage" : avg >= 50 ? "bg-ink" : "bg-accent"
+                        }`}
+                        style={{ width: `${avg}%` }}
+                      />
+                    </div>
+                    <span className="font-mono text-[11px] text-ink-soft w-10">
+                      {avg}%
+                    </span>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
     </div>
   );
