@@ -1,12 +1,28 @@
 import React, { useState, useEffect, useRef } from "react";
-import {
-  motion,
-  useScroll,
-  useTransform,
-  useInView,
-  AnimatePresence,
-} from "framer-motion";
 import "../landing.css";
+
+// Animations removed by request. These are no-op stand-ins for the
+// framer-motion API so the page renders fully static — no fades, no
+// scroll reveals, no entrance motion. Everything is visible at once.
+const ANIM_PROPS = new Set([
+  "initial", "animate", "exit", "transition", "variants", "custom",
+  "whileHover", "whileTap", "whileInView", "viewport", "layout",
+  "layoutId", "drag",
+]);
+const makeMotion = (tag) =>
+  React.forwardRef(function MotionShim(props, ref) {
+    const clean = {};
+    for (const k in props) if (!ANIM_PROPS.has(k)) clean[k] = props[k];
+    return React.createElement(tag, { ...clean, ref });
+  });
+const motion = new Proxy(
+  {},
+  { get: (cache, tag) => cache[tag] || (cache[tag] = makeMotion(tag)) }
+);
+const AnimatePresence = ({ children }) => children;
+const useScroll = () => ({ scrollYProgress: 0 });
+const useTransform = (_v, _in, out) => (Array.isArray(out) ? out[0] : 0);
+const useInView = () => true;
 
 // =====================================================================
 // SHARED MOTION PRIMITIVES
