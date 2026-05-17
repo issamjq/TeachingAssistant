@@ -2,7 +2,8 @@ import React, { useState, useEffect, useRef } from "react";
 import {
   Sparkles, ArrowRight, ChevronRight, ChevronLeft, Plus, BookOpen,
   CalendarDays, GraduationCap, ClipboardList, Presentation, Layout,
-  Users, MessageCircle, CheckCircle2, Clock, TrendingUp,
+  Users, MessageCircle, CheckCircle2, Clock, TrendingUp, FileText,
+  BarChart3,
 } from "lucide-react";
 import "../landing.css";
 
@@ -865,63 +866,567 @@ const ProductMock = ({ onOpenStudio }) => {
 };
 
 // =====================================================================
-// PROBLEM SECTION — empathy
+// TEACHER SHOWCASE — interactive desktop feature explorer
+// Two flanking columns of feature pills + a centre app preview that
+// swaps to match the selected feature (Apploye-style, Mudir palette).
 // =====================================================================
-const Problem = () => {
-  const items = [
-    "Three apps for one lesson plan.",
-    "Worksheets reformatted Sunday night.",
-    "Quizzes rewritten from last year.",
-    "Attendance, grades, and parents in different tabs.",
-    "Endless copy-paste between PDFs.",
-    "Sunday dread.",
-  ];
+const EB = "font-mono text-[10px] uppercase tracking-[0.18em] text-muted";
 
+function Win({ title, children }) {
   return (
-    <section className="py-24 md:py-36" style={{ borderColor: "var(--line)" }}>
-      <div className="max-w-[1280px] mx-auto px-8">
-        <div className="grid grid-cols-12 gap-8">
-          <div className="col-span-12 md:col-span-4">
-            <Reveal>
-              <div className="eyebrow mb-6">The honest part</div>
-              <h2 className="font-display text-5xl md:text-6xl leading-[1.02] tracking-tight">
-                Teaching already
-                <br />
-                demands enough
-                <br />
-                <em style={{ color: "var(--clay)" }}>energy.</em>
-              </h2>
-            </Reveal>
+    <div className="mudir-studio-frame rounded-2xl overflow-hidden border border-line bg-paper-cool shadow-[0_40px_90px_-30px_rgba(26,24,20,0.32)]">
+      <div className="flex items-center gap-2 px-4 py-2.5 border-b border-line bg-[#fffdf6]">
+        <span className="h-2.5 w-2.5 rounded-full bg-line" />
+        <span className="h-2.5 w-2.5 rounded-full bg-line" />
+        <span className="h-2.5 w-2.5 rounded-full bg-line" />
+        <div className="flex-1 text-center text-[11px] text-muted font-medium">
+          {title}
+        </div>
+      </div>
+      <div className="p-6 h-[440px] overflow-hidden bg-[#fbf2e6] text-ink">
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function PvLesson() {
+  const rows = [
+    ["00–05", "Starter · “What did your plant need this week?”"],
+    ["05–15", "Recap chloroplasts · diagram on board"],
+    ["15–35", "Worksheet · differentiated 3 levels"],
+    ["35–45", "Pair discussion · sunlight vs water"],
+    ["45–50", "Exit ticket · 3 questions"],
+  ];
+  return (
+    <div>
+      <p className={`${EB} mb-2`}>Sunday 17 May · 50 min</p>
+      <h4 className="font-serif text-2xl font-medium mb-5">
+        Photosynthesis — leaf structure
+      </h4>
+      <div className="grid grid-cols-12 gap-x-3">
+        {rows.map(([t, d], i) => (
+          <React.Fragment key={t}>
+            <div className="col-span-3 font-mono text-[11px] text-muted py-2.5">
+              {t}
+            </div>
+            <div
+              className={`col-span-9 text-[13px] py-2.5 ${
+                i < rows.length - 1 ? "border-b border-line/70" : ""
+              }`}
+            >
+              {d}
+            </div>
+          </React.Fragment>
+        ))}
+      </div>
+      <div className="flex gap-2 mt-5">
+        <span className="text-[11px] font-mono px-2 py-1 rounded bg-paper-warm/70 text-muted">
+          MoE 7.2.1
+        </span>
+        <span className="text-[11px] font-mono px-2 py-1 rounded bg-paper-warm/70 text-muted">
+          Bloom · understand → apply
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function PvQuiz() {
+  const qs = [
+    { n: "1", q: "Which organelle produces most ATP?", t: "MCQ" },
+    { n: "2", q: "Word equation for aerobic respiration.", t: "Short" },
+    { n: "3", q: "Why do muscle cells switch to anaerobic?", t: "Extended" },
+    { n: "4", q: "Label the mitochondrion diagram.", t: "Diagram" },
+  ];
+  return (
+    <div>
+      <p className={`${EB} mb-2`}>Formative · 10 questions · 15 min</p>
+      <h4 className="font-serif text-2xl font-medium mb-4">
+        Cell respiration · check
+      </h4>
+      <div className="flex flex-col gap-2.5">
+        {qs.map((i) => (
+          <div
+            key={i.n}
+            className="flex items-start gap-3 rounded-xl border border-line bg-paper-cool p-3"
+          >
+            <span className="font-mono text-xs text-muted">{i.n}</span>
+            <div className="flex-1">
+              <div className="text-[13px] mb-1">{i.q}</div>
+              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-paper-warm/70 text-muted">
+                {i.t}
+              </span>
+            </div>
           </div>
-          <div className="col-span-12 md:col-span-7 md:col-start-6">
-            <Reveal delay={1}>
-              <p
-                className="text-xl md:text-2xl font-display leading-relaxed mb-12"
-                style={{ color: "var(--ink-2)" }}
-              >
-                You did not become a teacher to spend Sunday evening fighting
-                with Word documents. The job is hard enough without the system
-                adding friction to every hour.
-              </p>
-            </Reveal>
-            <div className="space-y-0">
-              {items.map((item, i) => (
-                <Reveal key={i} delay={i + 2}>
-                  <div
-                    className="flex items-center gap-6 py-5 border-t"
-                    style={{ borderColor: "var(--line)" }}
-                  >
-                    <span
-                      className="font-mono text-xs w-6"
-                      style={{ color: "var(--ink-3)" }}
-                    >
-                      0{i + 1}
-                    </span>
-                    <span className="text-lg md:text-xl">{item}</span>
-                  </div>
-                </Reveal>
+        ))}
+      </div>
+      <p className="text-center text-[12px] text-muted mt-3">
+        + 6 more · auto-graded
+      </p>
+    </div>
+  );
+}
+
+function PvHomework() {
+  const students = [
+    ["Aisha A.", true],
+    ["Bilal H.", true],
+    ["Fatima R.", true],
+    ["Hamad K.", false],
+    ["Layla S.", true],
+  ];
+  return (
+    <div>
+      <p className={`${EB} mb-2`}>Due Thursday · 7A</p>
+      <h4 className="font-serif text-2xl font-medium mb-4">
+        Worksheet 4 — leaf structure
+      </h4>
+      <div className="rounded-xl border border-line bg-paper-cool p-4 mb-4">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-[12px] text-muted">Completed</span>
+          <span className="font-serif text-lg font-medium text-sage">
+            18 / 28
+          </span>
+        </div>
+        <div className="h-2 rounded-full bg-line/40 overflow-hidden">
+          <div
+            className="h-full rounded-full bg-gradient-to-r from-sage to-sage/70"
+            style={{ width: "64%" }}
+          />
+        </div>
+      </div>
+      <div className="flex flex-col gap-1.5">
+        {students.map(([n, done]) => (
+          <div
+            key={n}
+            className="flex items-center gap-3 px-3 py-2 rounded-lg border border-line/70 bg-paper-cool"
+          >
+            <span className="h-6 w-6 rounded-full bg-paper-warm/70 grid place-items-center text-[10px] font-medium">
+              {n.split(" ").map((x) => x[0]).join("")}
+            </span>
+            <span className="flex-1 text-[13px]">{n}</span>
+            <span
+              className={`text-[11px] font-medium ${
+                done ? "text-sage" : "text-accent"
+              }`}
+            >
+              {done ? "Submitted" : "Not yet"}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function PvPresentation() {
+  return (
+    <div className="h-full flex flex-col">
+      <p className={`${EB} mb-3`}>Deck · Photosynthesis · 12 slides</p>
+      <div className="flex-1 rounded-xl border border-line bg-gradient-to-br from-[#2a1f17] to-[#5a3a28] text-paper-cool p-7 flex flex-col justify-center">
+        <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-paper-cool/60 mb-3">
+          Slide 3 / 12
+        </span>
+        <h4 className="font-serif text-3xl font-medium leading-tight mb-3">
+          How a leaf captures light
+        </h4>
+        <p className="text-[13px] text-paper-cool/75 max-w-md leading-relaxed">
+          Chloroplasts in the palisade layer absorb sunlight to drive the
+          reaction. Speaker notes generated alongside every slide.
+        </p>
+      </div>
+      <div className="flex gap-2 mt-3">
+        {[1, 2, 3, 4, 5].map((s) => (
+          <div
+            key={s}
+            className={`h-12 flex-1 rounded-md border ${
+              s === 3
+                ? "border-accent bg-accent/[0.08]"
+                : "border-line bg-paper-cool"
+            }`}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function PvActivities() {
+  const cards = [
+    { t: "Pair work", d: "Sort the light-reaction cards", m: "10 min · card set" },
+    { t: "Group task", d: "Build a leaf cross-section poster", m: "20 min · A3 + pens" },
+    { t: "Individual", d: "Label-the-diagram worksheet", m: "10 min · printable" },
+  ];
+  return (
+    <div>
+      <p className={`${EB} mb-2`}>Lesson activities · 7A</p>
+      <h4 className="font-serif text-2xl font-medium mb-4">
+        Three ways to practise
+      </h4>
+      <div className="flex flex-col gap-3">
+        {cards.map((c) => (
+          <div
+            key={c.t}
+            className="rounded-xl border border-line bg-paper-cool p-4"
+          >
+            <div className="flex items-center gap-2 mb-1.5">
+              <span className="h-1.5 w-1.5 rounded-full bg-accent" />
+              <span className={EB}>{c.t}</span>
+            </div>
+            <div className="text-[14px] font-medium mb-1">{c.d}</div>
+            <div className="text-[12px] text-muted">{c.m}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function PvSchedule() {
+  const days = ["Mon", "Tue", "Wed", "Thu", "Fri"];
+  const grid = {
+    Mon: ["7A Bio", "", "9C Chem"],
+    Tue: ["", "8B Bio", ""],
+    Wed: ["7A Bio", "10D", ""],
+    Thu: ["", "9C Chem", "Lab"],
+    Fri: ["8B Bio", "", "7A Quiz"],
+  };
+  return (
+    <div>
+      <p className={`${EB} mb-3`}>Week of 17 May</p>
+      <div className="grid grid-cols-5 gap-2">
+        {days.map((d) => (
+          <div key={d} className="text-center">
+            <div className={`${EB} mb-2`}>{d}</div>
+            <div className="flex flex-col gap-2">
+              {grid[d].map((c, i) => (
+                <div
+                  key={i}
+                  className={`h-[88px] rounded-lg border text-[11px] p-2 flex items-start ${
+                    c
+                      ? "border-accent/30 bg-accent/[0.07] text-accent font-medium"
+                      : "border-line/70 bg-paper-cool text-transparent"
+                  }`}
+                >
+                  {c || "·"}
+                </div>
               ))}
             </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function PvStudents() {
+  const rows = [
+    ["Aisha Al-Hashimi", "92%", "Present", "text-sage"],
+    ["Bilal Haddad", "78%", "Present", "text-sage"],
+    ["Fatima Rahman", "85%", "Late", "text-gold"],
+    ["Hamad Khalil", "67%", "Absent · note", "text-accent"],
+    ["Layla Saleh", "94%", "Present", "text-sage"],
+    ["Omar Nasr", "81%", "Present", "text-sage"],
+  ];
+  return (
+    <div>
+      <div className="flex items-baseline justify-between mb-4">
+        <h4 className="font-serif text-2xl font-medium">Class 7A</h4>
+        <span className={EB}>28 students</span>
+      </div>
+      <div className="flex flex-col">
+        {rows.map(([n, g, a, c]) => (
+          <div
+            key={n}
+            className="flex items-center gap-4 py-2.5 border-b border-line/70"
+          >
+            <span className="h-7 w-7 rounded-full bg-paper-warm/70 grid place-items-center text-[10px] font-medium">
+              {n.split(" ").map((x) => x[0]).join("")}
+            </span>
+            <span className="flex-1 text-[13px]">{n}</span>
+            <span className="text-[12px] font-mono text-muted">{g}</span>
+            <span className={`text-[12px] ${c}`}>{a}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function PvStudio() {
+  return (
+    <div>
+      <div className="rounded-xl border border-line bg-paper-cool p-4 mb-4">
+        <p className={`${EB} mb-2`}>You said</p>
+        <p className="text-[13px] leading-relaxed">
+          Worksheet on photosynthesis for Grade 7. Three difficulty levels.
+          One diagram-label question. MoE-aligned.
+        </p>
+      </div>
+      <div className="flex items-center gap-2 mb-4">
+        {["Listening", "Outlining", "Drafting", "Ready"].map((s, i) => (
+          <React.Fragment key={s}>
+            <span
+              className={`text-[11px] font-mono px-2.5 py-1 rounded-md ${
+                i === 3
+                  ? "bg-sage/[0.14] text-sage"
+                  : "bg-paper-warm/60 text-muted"
+              }`}
+            >
+              {s}
+            </span>
+            {i < 3 && <span className="w-3 h-px bg-line" />}
+          </React.Fragment>
+        ))}
+      </div>
+      <p className={`${EB} mb-3`}>Mudir drafted</p>
+      <div className="grid grid-cols-3 gap-3">
+        {[
+          ["Level 1", "Foundation", "8 questions"],
+          ["Level 2", "Core", "10 questions"],
+          ["Level 3", "Extension", "12 questions"],
+        ].map(([l, d, n]) => (
+          <div
+            key={l}
+            className="rounded-xl border border-line bg-paper-cool p-3"
+          >
+            <p className={`${EB} mb-1.5`}>{l}</p>
+            <p className="text-[13px] font-medium">{d}</p>
+            <p className="text-[12px] text-muted">{n}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function PvWorksheets() {
+  const levels = [
+    ["Level 1", "Foundation", "8 questions", "from-sage/15"],
+    ["Level 2", "Core", "10 questions", "from-accent/15"],
+    ["Level 3", "Extension", "12 questions", "from-gold/15"],
+  ];
+  return (
+    <div>
+      <p className={`${EB} mb-2`}>Photosynthesis · differentiated</p>
+      <h4 className="font-serif text-2xl font-medium mb-5">
+        One topic, three levels
+      </h4>
+      <div className="grid grid-cols-3 gap-4">
+        {levels.map(([l, d, n, g]) => (
+          <div
+            key={l}
+            className={`rounded-2xl border border-line bg-gradient-to-b ${g} to-transparent p-5 h-[240px] flex flex-col`}
+          >
+            <p className={`${EB} mb-2`}>{l}</p>
+            <p className="font-serif text-xl font-medium mb-1">{d}</p>
+            <p className="text-[12px] text-muted">{n}</p>
+            <div className="mt-auto flex flex-col gap-1.5">
+              <span className="h-2 rounded bg-line/50" />
+              <span className="h-2 rounded bg-line/50 w-4/5" />
+              <span className="h-2 rounded bg-line/50 w-3/5" />
+            </div>
+            <span className="mt-3 text-[11px] font-mono px-2 py-1 rounded bg-paper-cool border border-line text-muted self-start">
+              PDF + key
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function PvReports() {
+  const bars = [40, 62, 55, 78, 70, 88];
+  return (
+    <div>
+      <p className={`${EB} mb-2`}>Term 2 · 7A</p>
+      <h4 className="font-serif text-2xl font-medium mb-5">Class performance</h4>
+      <div className="grid grid-cols-3 gap-3 mb-6">
+        {[
+          ["Avg. grade", "82%", "text-ink"],
+          ["Submitted", "94%", "text-sage"],
+          ["At risk", "3", "text-accent"],
+        ].map(([k, v, c]) => (
+          <div
+            key={k}
+            className="rounded-xl border border-line bg-paper-cool p-3"
+          >
+            <p className={`${EB} mb-1`}>{k}</p>
+            <p className={`font-serif text-2xl font-medium ${c}`}>{v}</p>
+          </div>
+        ))}
+      </div>
+      <div className="flex items-end gap-3 h-[150px] px-1">
+        {bars.map((h, i) => (
+          <div key={i} className="flex-1 flex flex-col items-center gap-2">
+            <div
+              className="w-full rounded-t-md bg-gradient-to-t from-accent/70 to-accent-soft/70"
+              style={{ height: `${h}%` }}
+            />
+            <span className="text-[10px] font-mono text-muted">U{i + 1}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function PvTemplates() {
+  const tpl = [
+    ["Inquiry lesson", "Science · KG–G6"],
+    ["Exam revision", "Any · G7–G12"],
+    ["Lab practical", "Science · G7–G12"],
+    ["Reading circle", "English · G3–G9"],
+    ["Problem set", "Maths · G6–G12"],
+    ["Debate", "Humanities · G8+"],
+  ];
+  return (
+    <div>
+      <p className={`${EB} mb-2`}>Templates library</p>
+      <h4 className="font-serif text-2xl font-medium mb-4">
+        Start from a proven shape
+      </h4>
+      <div className="grid grid-cols-2 gap-3">
+        {tpl.map(([t, m]) => (
+          <div
+            key={t}
+            className="rounded-xl border border-line bg-paper-cool p-4 hover:border-accent/40 transition"
+          >
+            <div className="text-[14px] font-medium mb-1">{t}</div>
+            <div className="text-[12px] text-muted">{m}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function PvDrafts() {
+  const drafts = [
+    ["The Water Cycle", "Science · 7A", 80],
+    ["Fractions intro", "Maths · 5B", 45],
+    ["Romeo & Juliet — Act 1", "English · 10D", 60],
+    ["Photosynthesis", "Science · 7A", 25],
+  ];
+  return (
+    <div>
+      <p className={`${EB} mb-2`}>Your drafts</p>
+      <h4 className="font-serif text-2xl font-medium mb-4">
+        Pick up where you left off
+      </h4>
+      <div className="flex flex-col gap-3">
+        {drafts.map(([t, m, p]) => (
+          <div
+            key={t}
+            className="rounded-xl border border-line bg-paper-cool p-4"
+          >
+            <div className="flex items-baseline justify-between mb-2">
+              <span className="text-[14px] font-medium">{t}</span>
+              <span className="text-[11px] font-mono text-muted">{p}%</span>
+            </div>
+            <div className="text-[12px] text-muted mb-2.5">{m}</div>
+            <div className="h-1.5 rounded-full bg-line/40 overflow-hidden">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-accent to-accent-soft"
+                style={{ width: `${p}%` }}
+              />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+const TeacherShowcase = () => {
+  const FEATURES = [
+    { label: "Lesson Plans", icon: BookOpen, title: "lessons / photosynthesis · 7A", Pv: PvLesson },
+    { label: "Quizzes & Exams", icon: GraduationCap, title: "quiz / cell respiration · 7B", Pv: PvQuiz },
+    { label: "Homework", icon: ClipboardList, title: "homework / worksheet 4 · 7A", Pv: PvHomework },
+    { label: "Presentations", icon: Presentation, title: "deck / photosynthesis", Pv: PvPresentation },
+    { label: "Activities", icon: Sparkles, title: "activities / 7A", Pv: PvActivities },
+    { label: "Weekly Schedule", icon: CalendarDays, title: "schedule / week of 17 may", Pv: PvSchedule },
+    { label: "My Students", icon: Users, title: "students / 7A", Pv: PvStudents },
+    { label: "AI Studio", icon: MessageCircle, title: "studio / new worksheet", Pv: PvStudio },
+    { label: "Worksheets", icon: FileText, title: "worksheets / photosynthesis", Pv: PvWorksheets },
+    { label: "Reports & Insights", icon: BarChart3, title: "reports / term 2 · 7A", Pv: PvReports },
+    { label: "Templates", icon: Layout, title: "templates / library", Pv: PvTemplates },
+    { label: "Drafts", icon: FileText, title: "drafts / mine", Pv: PvDrafts },
+  ];
+  const [active, setActive] = useState(0);
+  const f = FEATURES[active];
+  const Pv = f.Pv;
+
+  const Pill = ({ i }) => {
+    const F = FEATURES[i];
+    const Icon = F.icon;
+    const on = i === active;
+    return (
+      <button
+        type="button"
+        onClick={() => setActive(i)}
+        aria-pressed={on}
+        className={`group w-full flex items-center gap-3 rounded-2xl px-4 py-3.5 text-left transition-all ${
+          on
+            ? "bg-gradient-to-r from-accent to-accent-soft text-paper-cool shadow-[0_14px_30px_-12px_rgba(200,71,43,0.55)]"
+            : "bg-paper-cool border border-line text-ink hover:border-accent/40 hover:-translate-y-0.5"
+        }`}
+      >
+        <span
+          className={`inline-flex h-8 w-8 rounded-xl items-center justify-center flex-shrink-0 ${
+            on ? "bg-white/15 text-paper-cool" : "bg-paper-warm/60 text-accent"
+          }`}
+        >
+          <Icon size={16} strokeWidth={2} />
+        </span>
+        <span className="text-[14px] font-semibold leading-tight">
+          {F.label}
+        </span>
+      </button>
+    );
+  };
+
+  return (
+    <section className="py-24 md:py-36">
+      <div className="max-w-[1280px] mx-auto px-8">
+        <div className="max-w-2xl mx-auto text-center mb-14">
+          <div className="eyebrow mb-5">Inside Mudir</div>
+          <h2 className="font-display text-4xl md:text-5xl leading-[1.05] tracking-tight">
+            Everything a teacher prepares.
+            <br />
+            <em style={{ color: "var(--clay)" }}>Drafted in one place.</em>
+          </h2>
+        </div>
+
+        <div className="grid gap-5 lg:gap-7 lg:grid-cols-[230px_minmax(0,1fr)_230px] items-center">
+          {/* Mobile: all pills in a grid above the preview */}
+          <div className="lg:hidden grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+            {FEATURES.map((_, i) => (
+              <Pill key={i} i={i} />
+            ))}
+          </div>
+
+          {/* Desktop: left column */}
+          <div className="hidden lg:flex flex-col gap-3">
+            {FEATURES.slice(0, 6).map((_, i) => (
+              <Pill key={i} i={i} />
+            ))}
+          </div>
+
+          {/* Centre preview */}
+          <div className="w-full">
+            <Win title={f.title}>
+              <Pv />
+            </Win>
+          </div>
+
+          {/* Desktop: right column */}
+          <div className="hidden lg:flex flex-col gap-3">
+            {FEATURES.slice(6, 12).map((_, i) => (
+              <Pill key={i + 6} i={i + 6} />
+            ))}
           </div>
         </div>
       </div>
@@ -2085,7 +2590,7 @@ export default function Landing({ onOpenStudio }) {
       <Nav onOpenStudio={onOpenStudio} />
       <Hero onOpenStudio={onOpenStudio} />
       <SectionDivider variant="wave" />
-      <Problem />
+      <TeacherShowcase />
       <SectionDivider variant="calm" />
       <Workflow />
       <SectionDivider variant="cascade" />
