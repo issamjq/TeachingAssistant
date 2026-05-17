@@ -424,7 +424,7 @@ const ProductMock = ({ onOpenStudio }) => {
     <div className="relative">
       <div
         className="mudir-studio-frame rounded-2xl overflow-hidden border border-line bg-paper text-ink font-sans flex"
-        style={{ height: 880, boxShadow: "0 40px 100px -25px rgba(26,24,20,0.30)" }}
+        style={{ height: 760, boxShadow: "0 40px 100px -25px rgba(26,24,20,0.30)" }}
       >
         {/* ── SIDEBAR ─────────────────────────────────────────────── */}
         <aside className="mudir-sidebar w-64 flex flex-col flex-shrink-0 h-full">
