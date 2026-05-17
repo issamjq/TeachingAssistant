@@ -22,6 +22,7 @@ const DEFAULTS = {
   contrast: false,
   grayscale: false,
   lowSat: false,
+  colorBlind: "off",   // off | prot | deut | trit
   bigCursor: false,
   highlightLinks: false,
   stopAnim: false,
@@ -52,13 +53,21 @@ function applyToRoot(s) {
   st.setProperty("--a11y-word", `${WORD[s.wordStep] || 0}em`);
   st.setProperty("--a11y-line", String(LINE[s.lineStep] || 1.5));
 
+  // Combine every colour transform into ONE inline filter so a
+  // colour-blind SVG filter can stack with contrast/grayscale instead
+  // of competing class rules clobbering each other.
+  const f = [];
+  if (s.colorBlind && s.colorBlind !== "off") f.push(`url(#a11y-cb-${s.colorBlind})`);
+  if (s.grayscale) f.push("grayscale(1)");
+  else if (s.lowSat) f.push("saturate(0.45)");
+  if (s.contrast) f.push("contrast(1.32)");
+  st.filter = f.join(" ");
+
   const cl = root.classList;
   cl.toggle("a11y-zoom-on", s.textStep > 0);
   cl.toggle("a11y-readable", s.readableFont);
   cl.toggle("a11y-spaced", s.letterStep > 0 || s.wordStep > 0 || s.lineStep > 0);
   cl.toggle("a11y-contrast", s.contrast);
-  cl.toggle("a11y-grayscale", s.grayscale);
-  cl.toggle("a11y-low-sat", s.lowSat && !s.grayscale);
   cl.toggle("a11y-big-cursor", s.bigCursor);
   cl.toggle("a11y-hl-links", s.highlightLinks);
   cl.toggle("a11y-stop-anim", s.stopAnim);
@@ -116,7 +125,9 @@ export default function AccessibilityWidget() {
   }, []);
 
   const stopReading = () => window.speechSynthesis?.cancel();
-  const side = dir === "rtl" ? { right: 20 } : { left: 20 };
+  // Anchored to the trailing-bottom corner (right in LTR, left in RTL)
+  // to stay clear of the sidebar account/profile button.
+  const side = dir === "rtl" ? { left: 20 } : { right: 20 };
   const dirty = !isDefault(s);
 
   const launcher = (
@@ -290,6 +301,20 @@ export default function AccessibilityWidget() {
             tOn={t("a11y.on")}
             tOff={t("a11y.off")}
           />
+          <Choice
+            icon={<Eye size={17} />}
+            label={t("a11y.colorBlind")}
+            hint={t("a11y.colorBlindHint")}
+            value={s.colorBlind}
+            options={[
+              { v: "off", label: t("a11y.cb.off") },
+              { v: "prot", label: t("a11y.cb.prot") },
+              { v: "deut", label: t("a11y.cb.deut") },
+              { v: "trit", label: t("a11y.cb.trit") },
+            ]}
+            onChange={(v) => set({ colorBlind: v })}
+          />
+
           <Toggle
             icon={<MousePointer2 size={17} />}
             label={t("a11y.bigCursor")}
@@ -360,10 +385,54 @@ export default function AccessibilityWidget() {
 
   return createPortal(
     <>
+      <ColorBlindDefs />
       {launcher}
       {panel}
     </>,
     document.body
+  );
+}
+
+// Daltonization-style colour-matrix filters referenced from #root via
+// filter:url(#a11y-cb-*). Kept in the body-level portal but usable
+// document-wide; hidden so it never affects layout.
+function ColorBlindDefs() {
+  return (
+    <svg
+      aria-hidden="true"
+      focusable="false"
+      style={{ position: "absolute", width: 0, height: 0, overflow: "hidden" }}
+    >
+      <defs>
+        <filter id="a11y-cb-prot">
+          <feColorMatrix
+            type="matrix"
+            values="0.567 0.433 0 0 0
+                    0.558 0.442 0 0 0
+                    0     0.242 0.758 0 0
+                    0     0     0 1 0"
+          />
+        </filter>
+        <filter id="a11y-cb-deut">
+          <feColorMatrix
+            type="matrix"
+            values="0.625 0.375 0 0 0
+                    0.7   0.3   0 0 0
+                    0     0.3   0.7 0 0
+                    0     0     0 1 0"
+          />
+        </filter>
+        <filter id="a11y-cb-trit">
+          <feColorMatrix
+            type="matrix"
+            values="0.95 0.05  0     0 0
+                    0    0.433 0.567 0 0
+                    0    0.475 0.525 0 0
+                    0    0     0     1 0"
+          />
+        </filter>
+      </defs>
+    </svg>
   );
 }
 
@@ -416,6 +485,41 @@ function Toggle({ icon, label, hint, on, onToggle, tOn, tOff }) {
         <span className="sr-only">{on ? tOn : tOff}</span>
       </button>
     </Row>
+  );
+}
+
+function Choice({ icon, label, hint, value, options, onChange }) {
+  return (
+    <div className="px-2.5 py-2 rounded-xl border border-[#e3dac6] bg-[#f4ede0]">
+      <div className="flex items-center gap-3">
+        <span className="grid place-items-center w-7 h-7 rounded-lg bg-[#ede4d3] text-[#2d2a24] shrink-0">
+          {icon}
+        </span>
+        <div className="flex-1 min-w-0">
+          <p className="text-[13px] font-medium leading-tight">{label}</p>
+          {hint && (
+            <p className="text-[11px] text-[#6b6354] leading-snug mt-0.5">{hint}</p>
+          )}
+        </div>
+      </div>
+      <div className="mt-2 grid grid-cols-4 gap-1">
+        {options.map((o) => (
+          <button
+            key={o.v}
+            type="button"
+            onClick={() => onChange(o.v)}
+            aria-pressed={value === o.v}
+            className={`text-[11px] font-medium py-1.5 rounded-lg border transition ${
+              value === o.v
+                ? "bg-[#1a1814] text-[#faf6ec] border-[#1a1814]"
+                : "bg-[#faf6ec] text-[#2d2a24] border-[#d4c9b3] hover:border-[#c8472b] hover:text-[#c8472b]"
+            }`}
+          >
+            {o.label}
+          </button>
+        ))}
+      </div>
+    </div>
   );
 }
 

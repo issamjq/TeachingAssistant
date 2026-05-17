@@ -1091,18 +1091,14 @@
   line-height: var(--a11y-line, 1.5) !important;
 }
 
-#root.a11y-contrast {
-  filter: contrast(1.35) saturate(1.25);
-}
+/* Colour filters (contrast / grayscale / saturation / colour-blind)
+   are combined into one inline filter on #root by the widget so they
+   stack instead of overriding each other. Only the contrast link
+   underline stays here. */
 #root.a11y-contrast a,
 #root.a11y-contrast button {
   text-decoration: underline;
 }
-
-#root.a11y-grayscale { filter: grayscale(1); }
-#root.a11y-low-sat   { filter: saturate(0.4); }
-#root.a11y-grayscale.a11y-contrast { filter: grayscale(1) contrast(1.35); }
-#root.a11y-low-sat.a11y-contrast   { filter: saturate(0.4) contrast(1.35); }
 
 #root.a11y-big-cursor,
 #root.a11y-big-cursor * {
