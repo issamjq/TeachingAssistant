@@ -1,4 +1,9 @@
 import React, { useState, useEffect, useRef } from "react";
+import {
+  Sparkles, ArrowRight, ChevronRight, ChevronLeft, Plus, BookOpen,
+  CalendarDays, GraduationCap, ClipboardList, Presentation, Layout,
+  Users, MessageCircle, CheckCircle2, Clock, TrendingUp,
+} from "lucide-react";
 import "../landing.css";
 
 // Animations removed by request. These are no-op stand-ins for the
@@ -333,632 +338,525 @@ const Hero = ({ onOpenStudio }) => {
 // PRODUCT MOCK — the layered hero UI preview
 // =====================================================================
 const ProductMock = ({ onOpenStudio }) => {
-  const calendarDays = [
-    [27, false, false, []], [28, false, false, []], [29, false, false, []], [30, false, false, []], [1, true, false, []], [2, true, false, []], [3, true, false, []],
-    [4, true, false, []], [5, true, false, []], [6, true, false, []], [7, true, false, []], [8, true, false, []], [9, true, false, []], [10, true, false, []],
-    [11, true, false, []], [12, true, false, []], [13, true, false, [{ label: "The Water Cycle" }]], [14, true, false, []], [15, true, false, []], [16, true, false, [{ label: "The Water Cycle" }]], [17, true, true, [{ label: "Photosynthesis" }, { label: "Lab prep" }]],
-    [18, true, false, []], [19, true, false, [{ label: "Statistics intro" }, { label: "Presentation" }]], [20, true, false, []], [21, true, false, []], [22, true, false, []], [23, true, false, []], [24, true, false, []],
-    [25, true, false, []], [26, true, false, []], [27, true, false, []], [28, true, false, []], [29, true, false, []], [30, true, false, []], [31, true, false, []],
+  // Static May 2026 month grid (Mon-start) — mirrors the real Planner.
+  const anchor = new Date(2026, 4, 1);
+  const today = new Date(2026, 4, 17);
+  const todayStart = new Date(2026, 4, 17);
+  const sameYMD = (a, b) =>
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate();
+  const iso = (d) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
+      d.getDate()
+    ).padStart(2, "0")}`;
+  const offset = (anchor.getDay() - 1 + 7) % 7;
+  const start = new Date(2026, 4, 1 - offset);
+  let grid = Array.from({ length: 42 }, (_, i) => {
+    const d = new Date(start);
+    d.setDate(start.getDate() + i);
+    return d;
+  });
+  if (grid[35].getMonth() !== anchor.getMonth()) grid = grid.slice(0, 35);
+
+  const COLOR_STYLES = {
+    ink: { dot: "bg-ink", chipBg: "bg-ink/[0.06]", chipText: "text-ink" },
+    sage: { dot: "bg-sage", chipBg: "bg-sage/[0.10]", chipText: "text-sage" },
+    accent: { dot: "bg-accent", chipBg: "bg-accent/[0.08]", chipText: "text-accent" },
+    gold: { dot: "bg-gold", chipBg: "bg-gold/[0.10]", chipText: "text-gold" },
+    "accent-soft": { dot: "bg-accent-soft", chipBg: "bg-accent-soft/[0.10]", chipText: "text-accent-soft" },
+    muted: { dot: "bg-muted", chipBg: "bg-muted/[0.10]", chipText: "text-muted" },
+  };
+  const CATEGORIES = [
+    { key: "lesson-plans", label: "Lesson Plans", icon: BookOpen, color: "ink" },
+    { key: "schedule", label: "Schedule", icon: CalendarDays, color: "sage" },
+    { key: "quizzes", label: "Quizzes", icon: GraduationCap, color: "accent" },
+    { key: "homework", label: "Homework", icon: ClipboardList, color: "gold" },
+    { key: "presentations", label: "Presentations", icon: Presentation, color: "accent-soft" },
+    { key: "activities", label: "Activities", icon: Sparkles, color: "muted" },
   ];
+  const EVENTS = {
+    "2026-05-13": [{ kind: "lesson-plans", title: "The Water Cycle" }],
+    "2026-05-16": [{ kind: "schedule", title: "The Water Cycle" }],
+    "2026-05-17": [
+      { kind: "quizzes", title: "Photosynthesis" },
+      { kind: "activities", title: "Lab prep" },
+    ],
+    "2026-05-19": [
+      { kind: "schedule", title: "Statistics intro" },
+      { kind: "presentations", title: "Presentation" },
+    ],
+  };
+  const weekdayLabels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+  const heroChips = [
+    { verb: "Generate", noun: "Lesson Plan", icon: BookOpen, color: "accent" },
+    { verb: "Create", noun: "Quiz", icon: GraduationCap, color: "sage" },
+    { verb: "Build", noun: "Presentation", icon: Layout, color: "accent-soft" },
+    { verb: "Plan", noun: "Weekly Schedule", icon: CalendarDays, color: "indigo" },
+    { verb: "Analyze", noun: "Students", icon: Users, color: "moss" },
+    { verb: "Ask", noun: "Anything", icon: MessageCircle, color: "violet" },
+  ];
+  const stats = [
+    { n: 6, k: "Planned", icon: CalendarDays, iconBg: "bg-ink/[0.08]", iconText: "text-ink" },
+    { n: 2, k: "Completed", icon: CheckCircle2, iconBg: "bg-sage/[0.14]", iconText: "text-sage" },
+    { n: 4, k: "To do", icon: Clock, iconBg: "bg-accent/[0.12]", iconText: "text-accent" },
+  ];
+  const upcoming = [
+    { m: "MAY", d: "17", t: "Photosynthesis lab" },
+    { m: "MAY", d: "17", t: "Quiz · cell respiration" },
+    { m: "MAY", d: "19", t: "Statistics introduction" },
+    { m: "MAY", d: "19", t: "Term presentation" },
+  ];
+  const quickActions = [
+    { label: "New Lesson Plan", icon: BookOpen, tone: "accent" },
+    { label: "New Quiz", icon: ClipboardList, tone: "accent-soft" },
+    { label: "New Homework", icon: GraduationCap, tone: "sage" },
+    { label: "New Presentation", icon: Presentation, tone: "gold" },
+  ];
+  const toneToBg = {
+    accent: "bg-[rgba(200,71,43,0.12)] text-accent",
+    "accent-soft": "bg-[rgba(232,122,85,0.14)] text-accent",
+    sage: "bg-[rgba(107,127,90,0.14)] text-sage",
+    gold: "bg-[rgba(184,137,61,0.15)] text-gold",
+  };
 
   return (
     <div className="relative">
       <div
-        className="overflow-hidden rounded-2xl"
-        style={{
-          background: "var(--paper)",
-          boxShadow:
-            "0 40px 100px -25px rgba(42,31,23,0.25), 0 0 0 0.5px var(--line-strong)",
-        }}
+        className="mudir-studio-frame rounded-2xl overflow-hidden border border-line bg-paper text-ink font-sans flex"
+        style={{ height: 700, boxShadow: "0 40px 100px -25px rgba(26,24,20,0.30)" }}
       >
-        <div
-          className="flex items-center gap-2 px-5 py-3.5 border-b"
-          style={{ borderColor: "var(--line)", background: "var(--paper)" }}
-        >
-          <div className="dot" style={{ background: "#E3D9C5" }} />
-          <div className="dot" style={{ background: "#E3D9C5" }} />
-          <div className="dot" style={{ background: "#E3D9C5" }} />
-          <div className="flex-1 flex justify-center">
+        {/* ── SIDEBAR ─────────────────────────────────────────────── */}
+        <aside className="mudir-sidebar w-64 flex flex-col flex-shrink-0 h-full">
+          <div className="mudir-sidebar-brand flex items-center gap-3 px-5 pt-6 pb-4 text-left">
+            <span className="mudir-sidebar-brand-mark" aria-hidden>
+              M
+            </span>
+            <span className="font-serif text-[1.4rem] font-medium text-ink leading-none">
+              Mudir
+            </span>
+          </div>
+
+          <button
+            type="button"
+            onClick={onOpenStudio}
+            className="mudir-studio-launcher"
+            aria-label="Open AI studio"
+          >
+            <span className="mudir-studio-launcher-head">
+              <span className="mudir-studio-launcher-brand">
+                <span className="mudir-studio-launcher-icon" aria-hidden>
+                  <Sparkles size={15} strokeWidth={2.25} />
+                </span>
+                <span className="mudir-studio-launcher-title">Studio</span>
+              </span>
+              <span className="mudir-studio-launcher-pill">AI</span>
+            </span>
+            <span className="mudir-studio-launcher-body">
+              <span className="mudir-studio-launcher-subtitle">
+                Your AI co-pilot for teaching
+              </span>
+              <span className="mudir-studio-launcher-tagline">
+                Create · Plan · Inspire
+              </span>
+            </span>
+            <span className="mudir-studio-launcher-cta">
+              <span>Open Studio</span>
+              <ArrowRight
+                size={14}
+                strokeWidth={2.25}
+                className="mudir-studio-launcher-cta-arrow"
+              />
+            </span>
+          </button>
+
+          <nav className="px-2 flex-1 overflow-hidden pb-3" aria-label="Primary">
+            <section className="mudir-sidebar-section">
+              <p className="mudir-sidebar-section-label">Planning</p>
+              <div className="space-y-0.5 px-1">
+                <div className="mudir-sidebar-item mudir-sidebar-item-active">
+                  <span className="mudir-sidebar-badge text-base leading-none">▦</span>
+                  <span className="truncate flex-1">Planner</span>
+                </div>
+              </div>
+            </section>
+            <section className="mudir-sidebar-section">
+              <p className="mudir-sidebar-section-label">Teaching</p>
+              <div className="space-y-0.5 px-1">
+                {[
+                  ["L", "Lesson Plans"],
+                  ["Q", "Quizzes"],
+                  ["H", "Homework"],
+                  ["P", "Presentations"],
+                  ["A", "Activities"],
+                ].map(([badge, label]) => (
+                  <div key={badge} className="mudir-sidebar-item">
+                    <span className="mudir-sidebar-badge">{badge}</span>
+                    <span className="truncate flex-1">{label}</span>
+                  </div>
+                ))}
+              </div>
+            </section>
+            <section className="mudir-sidebar-section">
+              <p className="mudir-sidebar-section-label">Data</p>
+              <div className="space-y-0.5 px-1">
+                <div className="mudir-sidebar-item">
+                  <span className="mudir-sidebar-badge">C</span>
+                  <span className="truncate flex-1">My students</span>
+                </div>
+              </div>
+            </section>
+          </nav>
+
+          <div className="px-4 pb-2 pt-1 flex items-center justify-between">
+            <span className="font-mono text-[9.5px] uppercase tracking-[0.16em] text-muted">
+              Language
+            </span>
             <div
-              className="px-3 py-1 rounded-md text-xs font-mono"
-              style={{ background: "var(--paper-2)", color: "var(--ink-3)" }}
+              className="inline-flex items-center rounded-full border border-line bg-paper-cool p-0.5"
+              dir="ltr"
             >
-              mudir.app · planner
+              <span className="px-2.5 py-1 rounded-full text-[11px] font-medium leading-none bg-ink text-paper-cool">
+                EN
+              </span>
+              <span className="px-2.5 py-1 rounded-full text-[11px] font-medium leading-none text-ink-soft">
+                ع
+              </span>
+            </div>
+          </div>
+
+          <div className="mudir-sidebar-account">
+            <span className="mudir-sidebar-account-avatar">SA</span>
+            <div className="flex-1 min-w-0 text-start">
+              <p className="text-sm font-medium leading-tight truncate text-ink">
+                Sara Al-Mansoori
+              </p>
+              <p className="font-serif italic text-[11px] text-muted mt-0.5">
+                Teacher
+              </p>
+            </div>
+            <ChevronRight size={14} className="text-muted flex-shrink-0" />
+          </div>
+        </aside>
+
+        {/* ── MAIN: PLANNER ───────────────────────────────────────── */}
+        <div className="flex-1 min-w-0 h-full flex flex-col">
+          <div className="relative flex-1 px-6 py-4 overflow-hidden bg-[#fbf2e6]">
+            <div className="planner-view relative max-w-[1400px] mx-auto pb-0 h-full flex flex-col">
+              <div className="mb-3">
+                <h1 className="font-serif text-3xl md:text-4xl font-semibold text-ink leading-none tracking-tight">
+                  May <em className="italic font-medium text-accent">2026</em>
+                </h1>
+                <p className="font-serif italic text-[13px] text-muted leading-snug mt-1.5">
+                  Lesson plans, schedule, quizzes, homework, presentations, and activities — all on one grid.
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-1.5 mb-2 shrink-0">
+                <span className="planner-nav-btn inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[11.5px] font-medium bg-ink text-paper-cool border-ink shadow-sm">
+                  <span className="inline-flex h-3.5 w-3.5 rounded items-center justify-center text-[8px] bg-paper-cool/20">
+                    ▦
+                  </span>
+                  All
+                </span>
+                {CATEGORIES.map((c) => {
+                  const Icon = c.icon;
+                  const s = COLOR_STYLES[c.color];
+                  return (
+                    <span
+                      key={c.key}
+                      className={`planner-nav-btn inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[11.5px] ${s.chipBg} ${s.chipText} border-transparent`}
+                    >
+                      <Icon size={12} strokeWidth={1.75} />
+                      {c.label}
+                    </span>
+                  );
+                })}
+                <span className="flex-1" />
+                <span className="planner-nav-btn inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-accent/30 bg-accent/[0.10] text-accent text-[11.5px] font-semibold shadow-sm">
+                  <Plus size={13} strokeWidth={2.5} />
+                  Schedule
+                </span>
+                <span className="planner-nav-btn px-2.5 py-1 rounded-lg border border-line bg-paper-cool font-serif italic text-xs text-ink">
+                  Today
+                </span>
+                <span className="planner-nav-btn h-7 w-7 rounded-lg border border-line bg-paper-cool flex items-center justify-center">
+                  <ChevronLeft size={15} />
+                </span>
+                <span className="planner-nav-btn h-7 w-7 rounded-lg border border-line bg-paper-cool flex items-center justify-center">
+                  <ChevronRight size={15} />
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] grid-rows-[auto_1fr] gap-x-6 gap-y-3 items-stretch flex-1 min-h-0">
+                <div className="min-w-0">
+                  <div className="planner-hero rounded-2xl p-4 md:p-5 relative overflow-hidden h-full flex flex-col justify-center">
+                    <div className="relative z-10">
+                      <p className="inline-flex items-center gap-1.5 rounded-full bg-accent/[0.10] px-2.5 py-1 text-[11px] font-semibold text-accent mb-2.5">
+                        <Sparkles size={11} strokeWidth={2.25} /> Studio AI
+                      </p>
+                      <h2 className="font-serif text-2xl md:text-[1.55rem] text-ink leading-[1.1] font-semibold tracking-tight">
+                        What would you like to{" "}
+                        <span className="italic font-medium text-accent">create</span>{" "}
+                        today?
+                      </h2>
+                      <p className="text-[12.5px] text-muted mt-1.5 max-w-xl leading-snug">
+                        Your AI co-pilot that helps you plan, save time, and make every class amazing.
+                      </p>
+                    </div>
+                    <div className="relative z-10 mt-4 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2.5">
+                      {heroChips.map((c) => {
+                        const Icon = c.icon;
+                        return (
+                          <button
+                            key={c.noun}
+                            type="button"
+                            onClick={onOpenStudio}
+                            className="planner-hero-chip group"
+                          >
+                            <span
+                              className={`planner-hero-chip-icon planner-hero-chip-icon-${c.color}`}
+                            >
+                              <Icon size={13} strokeWidth={2} />
+                            </span>
+                            <span className="flex flex-col min-w-0 text-start leading-[1.1]">
+                              <span className="text-[10.5px] font-semibold text-ink whitespace-nowrap">
+                                {c.verb}
+                              </span>
+                              <span className="text-[9px] text-muted whitespace-nowrap">
+                                {c.noun}
+                              </span>
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="min-w-0">
+                  <div className="h-full flex flex-col rounded-2xl border border-[#e6dccb] bg-[#fffdf6] p-4 shadow-[0_18px_44px_-22px_rgba(15,20,16,0.14)]">
+                    <div className="flex items-start justify-between gap-2 mb-3">
+                      <h3 className="font-serif text-[15px] font-medium text-ink leading-tight">
+                        This Month Overview
+                      </h3>
+                      <span className="font-mono text-[9.5px] uppercase tracking-[0.18em] text-muted mt-1 whitespace-nowrap">
+                        MAY 2026
+                      </span>
+                    </div>
+                    <div className="h-px bg-line/40 mb-3" />
+                    <div className="grid grid-cols-3 gap-3">
+                      {stats.map((s) => {
+                        const Icon = s.icon;
+                        return (
+                          <div key={s.k}>
+                            <span
+                              className={`inline-flex h-6 w-6 rounded-md items-center justify-center ${s.iconBg} ${s.iconText} mb-2`}
+                            >
+                              <Icon size={12} strokeWidth={2.25} />
+                            </span>
+                            <p className="font-serif text-2xl font-medium text-ink leading-none">
+                              {s.n}
+                            </p>
+                            <p className="text-[11px] text-muted mt-1.5">{s.k}</p>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <div className="mt-auto pt-4">
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="font-mono text-[9.5px] uppercase tracking-[0.18em] text-muted">
+                          Progress
+                        </span>
+                        <span className="inline-flex items-center gap-1 text-[11px] font-medium text-sage">
+                          <TrendingUp size={11} strokeWidth={2.25} />
+                          33%
+                        </span>
+                      </div>
+                      <div className="h-1.5 rounded-full bg-line/40 overflow-hidden">
+                        <div
+                          className="h-full rounded-full bg-gradient-to-r from-sage to-sage/70"
+                          style={{ width: "33%" }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="min-w-0 min-h-0 flex flex-col">
+                  <div className="planner-grid planner-card-frame rounded-2xl bg-paper-cool overflow-hidden flex-1 flex flex-col min-h-0">
+                    <div className="grid grid-cols-7 border-b border-line bg-[#fffdf6] flex-shrink-0">
+                      {weekdayLabels.map((d) => (
+                        <div
+                          key={d}
+                          className="font-mono text-[9.5px] uppercase tracking-[0.18em] text-muted px-2 py-1.5 text-center"
+                        >
+                          {d}
+                        </div>
+                      ))}
+                    </div>
+                    <div
+                      className="grid grid-cols-7 flex-1 auto-rows-fr"
+                      style={{ gridTemplateRows: `repeat(${grid.length / 7}, 1fr)` }}
+                    >
+                      {grid.map((d, i) => {
+                        const inMonth = d.getMonth() === anchor.getMonth();
+                        const isToday = sameYMD(d, today);
+                        const isPast = !isToday && d < todayStart;
+                        const dayEvents = (inMonth && EVENTS[iso(d)]) || [];
+                        const shown = dayEvents.slice(0, 2);
+                        const overflow = dayEvents.length - shown.length;
+                        const lastRowStart = grid.length - 7;
+                        return (
+                          <div
+                            key={i}
+                            className={`planner-cell border-b border-r border-line/70 px-1.5 pt-1 pb-1 min-h-[60px] flex flex-col gap-0.5 ${
+                              inMonth
+                                ? isPast
+                                  ? "bg-paper-cool/50"
+                                  : "bg-paper-cool"
+                                : "bg-paper-warm/40 text-muted/60"
+                            } ${isToday ? "planner-cell-today" : ""} ${
+                              (i + 1) % 7 === 0 ? "border-r-0" : ""
+                            } ${i >= lastRowStart ? "border-b-0" : ""}`}
+                          >
+                            <div className="flex items-start justify-between gap-1">
+                              <span
+                                className={`font-mono text-[11px] leading-none ${
+                                  isToday
+                                    ? "h-6 w-6 rounded-full bg-accent text-paper-cool flex items-center justify-center font-medium text-[11.5px]"
+                                    : inMonth
+                                      ? isPast
+                                        ? "text-muted/70"
+                                        : "text-ink-soft"
+                                      : "text-muted/60"
+                                }`}
+                              >
+                                {d.getDate()}
+                              </span>
+                              {dayEvents.length > 0 && (
+                                <span className="font-mono text-[10px] text-muted">
+                                  {dayEvents.length}
+                                </span>
+                              )}
+                            </div>
+                            <div
+                              className={`flex-1 flex flex-col gap-1 min-h-0 ${
+                                isPast ? "opacity-60" : ""
+                              }`}
+                            >
+                              {shown.map((e, ei) => {
+                                const cat = CATEGORIES.find((c) => c.key === e.kind);
+                                const s = COLOR_STYLES[cat?.color || "ink"];
+                                return (
+                                  <span
+                                    key={ei}
+                                    className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md ${s.chipBg} ${s.chipText} text-[10.5px] leading-tight`}
+                                  >
+                                    <span
+                                      className={`h-1 w-1 flex-shrink-0 rounded-full ${s.dot}`}
+                                    />
+                                    <span className="truncate">{e.title}</span>
+                                  </span>
+                                );
+                              })}
+                              {overflow > 0 && (
+                                <span className="font-serif italic text-[10.5px] text-muted px-1.5">
+                                  +{overflow} more
+                                </span>
+                              )}
+                            </div>
+                            {isToday && (
+                              <span className="planner-cell-today-spark" aria-hidden>
+                                <Sparkles size={11} strokeWidth={2} />
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="min-w-0 min-h-0 flex flex-col gap-3">
+                  <div className="flex flex-col overflow-hidden flex-1 min-h-0">
+                    <div className="flex items-center justify-between mb-2.5">
+                      <h3 className="font-serif text-[15px] font-medium text-ink">
+                        Upcoming
+                      </h3>
+                      <span className="text-xs text-accent">View all</span>
+                    </div>
+                    <div className="flex flex-col gap-2.5">
+                      {upcoming.map((e, i) => (
+                        <div key={i} className="flex items-center gap-2.5">
+                          <div className="flex-shrink-0 rounded-lg bg-paper-warm/60 px-2 py-1 text-center min-w-[44px]">
+                            <div className="text-[9px] text-muted tracking-wider uppercase">
+                              {e.m}
+                            </div>
+                            <div className="text-sm font-medium font-serif text-ink leading-none mt-0.5">
+                              {e.d}
+                            </div>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[12.5px] font-medium text-ink leading-tight truncate">
+                              {e.t}
+                            </p>
+                            <p className="text-[10.5px] text-muted mt-0.5">All day</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <h3 className="font-serif text-[15px] font-medium text-ink mb-2.5">
+                      Quick Actions
+                    </h3>
+                    <div className="flex flex-col gap-2">
+                      {quickActions.map((a) => {
+                        const Icon = a.icon;
+                        return (
+                          <button
+                            key={a.label}
+                            type="button"
+                            onClick={onOpenStudio}
+                            className="planner-nav-btn w-full flex items-center gap-2.5 px-3 py-2 rounded-xl border border-line/70 bg-paper-cool"
+                          >
+                            <span
+                              className={`flex-shrink-0 inline-flex h-7 w-7 rounded-lg items-center justify-center ${toneToBg[a.tone]}`}
+                            >
+                              <Icon size={13} strokeWidth={2} />
+                            </span>
+                            <span className="flex-1 text-left text-[12.5px] font-medium text-ink">
+                              {a.label}
+                            </span>
+                            <Plus size={13} strokeWidth={2} className="text-muted flex-shrink-0" />
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
-
-        <div className="grid grid-cols-12 min-h-[640px]">
-          {/* SIDEBAR */}
-          <aside
-            className="col-span-3 p-5 flex flex-col border-r"
-            style={{ borderColor: "var(--line)" }}
-          >
-            <div className="flex items-center gap-2.5 mb-5">
-              <div
-                className="w-8 h-8 rounded-md flex items-center justify-center"
-                style={{ background: "var(--brick)" }}
-              >
-                <span
-                  className="font-display text-base font-medium"
-                  style={{ color: "var(--paper)" }}
-                >
-                  M
-                </span>
-              </div>
-              <span className="font-display text-xl">Mudir</span>
-            </div>
-
-            <div
-              className="rounded-xl p-4 mb-6 relative overflow-hidden"
-              style={{
-                background:
-                  "linear-gradient(135deg, #3A1A14 0%, #5A2818 50%, #2A1F17 100%)",
-                boxShadow: "0 8px 24px -8px rgba(90, 40, 24, 0.4)",
-              }}
-            >
-              <div className="flex items-start justify-between mb-3">
-                <div
-                  className="w-8 h-8 rounded-lg flex items-center justify-center"
-                  style={{ background: "rgba(247,243,236,0.1)" }}
-                >
-                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
-                    <path
-                      d="M8 1l1.5 4L13 6.5 9.5 8 8 12 6.5 8 3 6.5 6.5 5z"
-                      fill="var(--brick-soft)"
-                    />
-                  </svg>
-                </div>
-                <span
-                  className="text-[9px] font-mono px-1.5 py-0.5 rounded"
-                  style={{
-                    background: "rgba(247,243,236,0.08)",
-                    color: "rgba(247,243,236,0.6)",
-                  }}
-                >
-                  AI
-                </span>
-              </div>
-              <div
-                className="font-display text-lg mb-1"
-                style={{ color: "var(--paper)" }}
-              >
-                Studio
-              </div>
-              <div
-                className="text-[10px] mb-1"
-                style={{ color: "rgba(247,243,236,0.6)" }}
-              >
-                Your AI co-pilot for teaching
-              </div>
-              <div
-                className="text-[10px] mb-3"
-                style={{ color: "rgba(247,243,236,0.4)" }}
-              >
-                Create · Plan · Inspire
-              </div>
-              <button
-                type="button"
-                onClick={onOpenStudio}
-                className="w-full text-xs py-2 rounded-md flex items-center justify-between px-3 transition-all hover:bg-white/5"
-                style={{
-                  background: "rgba(247,243,236,0.06)",
-                  color: "var(--paper)",
-                  border: "0.5px solid rgba(247,243,236,0.12)",
-                }}
-              >
-                <span>Open Studio</span>
-                <svg width="10" height="10" viewBox="0 0 14 14" fill="none">
-                  <path
-                    d="M5 3l4 4-4 4"
-                    stroke="currentColor"
-                    strokeWidth="1.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-              </button>
-            </div>
-
-            <div className="flex-1">
-              <div
-                className="font-display italic text-xs mb-2.5"
-                style={{ color: "var(--ink-3)" }}
-              >
-                Planning
-              </div>
-              <div className="space-y-1 mb-5">
-                <div
-                  className="flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-xs font-medium cursor-pointer"
-                  style={{ background: "var(--paper-2)", color: "var(--ink)" }}
-                >
-                  <div
-                    className="w-5 h-5 rounded flex items-center justify-center"
-                    style={{ background: "var(--paper-3)" }}
-                  >
-                    <div
-                      className="w-2 h-2 rounded-sm"
-                      style={{ background: "var(--ink)" }}
-                    />
-                  </div>
-                  Planner
-                </div>
-              </div>
-
-              <div
-                className="font-display italic text-xs mb-2.5"
-                style={{ color: "var(--ink-3)" }}
-              >
-                Teaching
-              </div>
-              <div className="space-y-1 mb-5">
-                {[
-                  { k: "L", l: "Lesson Plans" },
-                  { k: "Q", l: "Quizzes" },
-                  { k: "H", l: "Homework" },
-                  { k: "P", l: "Presentations" },
-                  { k: "A", l: "Activities" },
-                ].map((item) => (
-                  <div
-                    key={item.k}
-                    className="flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-xs cursor-pointer hover:bg-black/[0.03]"
-                    style={{ color: "var(--ink-2)" }}
-                  >
-                    <div
-                      className="w-5 h-5 rounded font-mono text-[9px] flex items-center justify-center"
-                      style={{ background: "var(--paper-2)", color: "var(--ink-3)" }}
-                    >
-                      {item.k}
-                    </div>
-                    {item.l}
-                  </div>
-                ))}
-              </div>
-
-              <div
-                className="font-display italic text-xs mb-2.5"
-                style={{ color: "var(--ink-3)" }}
-              >
-                Data
-              </div>
-              <div className="space-y-1">
-                <div
-                  className="flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-xs cursor-pointer hover:bg-black/[0.03]"
-                  style={{ color: "var(--ink-2)" }}
-                >
-                  <div
-                    className="w-5 h-5 rounded font-mono text-[9px] flex items-center justify-center"
-                    style={{ background: "var(--paper-2)", color: "var(--ink-3)" }}
-                  >
-                    C
-                  </div>
-                  My students
-                </div>
-              </div>
-            </div>
-
-            <div
-              className="mt-4 pt-4 border-t"
-              style={{ borderColor: "var(--line)" }}
-            >
-              <div className="flex items-center justify-between mb-3">
-                <span
-                  className="font-mono text-[10px]"
-                  style={{ color: "var(--ink-3)" }}
-                >
-                  LANGUAGE
-                </span>
-                <div
-                  className="flex items-center gap-0.5 rounded-md p-0.5"
-                  style={{ background: "var(--paper-2)" }}
-                >
-                  <button
-                    className="px-2 py-0.5 rounded text-[10px] font-medium"
-                    style={{ background: "var(--paper)", color: "var(--ink)" }}
-                  >
-                    EN
-                  </button>
-                  <button
-                    className="px-2 py-0.5 rounded text-[10px]"
-                    style={{ color: "var(--ink-3)" }}
-                  >
-                    ع
-                  </button>
-                </div>
-              </div>
-              <div className="flex items-center gap-2.5 p-2 rounded-md cursor-pointer hover:bg-black/[0.02]">
-                <div
-                  className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-medium"
-                  style={{ background: "var(--paper-2)", color: "var(--ink)" }}
-                >
-                  SA
-                </div>
-                <div className="flex-1">
-                  <div className="text-xs font-medium">Sara Al-Mansoori</div>
-                  <div
-                    className="font-display italic text-[10px]"
-                    style={{ color: "var(--ink-3)" }}
-                  >
-                    Teacher
-                  </div>
-                </div>
-                <svg width="10" height="10" viewBox="0 0 14 14" fill="none">
-                  <path
-                    d="M5 3l4 4-4 4"
-                    stroke="var(--ink-3)"
-                    strokeWidth="1.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-              </div>
-            </div>
-          </aside>
-
-          {/* MAIN: CALENDAR */}
-          <main className="col-span-6 p-7">
-            <div className="mb-4">
-              <h2 className="font-display text-4xl tracking-tight leading-none mb-1.5">
-                May <em style={{ color: "var(--brick)" }}>2026</em>
-              </h2>
-              <p
-                className="font-display italic text-xs"
-                style={{ color: "var(--ink-2)" }}
-              >
-                Lesson plans, schedule, quizzes — all on one grid.
-              </p>
-            </div>
-
-            <div className="flex items-center gap-1.5 mb-5 flex-wrap">
-              <button
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] font-medium"
-                style={{ background: "var(--ink)", color: "var(--paper)" }}
-              >
-                <div
-                  className="w-2.5 h-2.5 rounded-sm"
-                  style={{ background: "rgba(247,243,236,0.3)" }}
-                />
-                All
-              </button>
-              {[
-                { l: "Lesson Plans", dot: "var(--brick-soft)" },
-                { l: "Schedule", dot: "#D4B895" },
-                { l: "Quizzes", dot: "var(--brick-soft)" },
-                { l: "Homework", dot: "#D4B895" },
-                { l: "Activities", dot: "var(--brick-soft)" },
-              ].map((p) => (
-                <button
-                  key={p.l}
-                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px]"
-                  style={{ background: "var(--paper-2)", color: "var(--ink-2)" }}
-                >
-                  <div
-                    className="w-1.5 h-1.5 rounded-full"
-                    style={{ background: p.dot }}
-                  />
-                  {p.l}
-                </button>
-              ))}
-            </div>
-
-            <div className="grid grid-cols-7 gap-1 mb-1.5">
-              {["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"].map((d) => (
-                <div
-                  key={d}
-                  className="font-mono text-[9px] text-center py-1.5"
-                  style={{ color: "var(--ink-3)" }}
-                >
-                  {d}
-                </div>
-              ))}
-            </div>
-
-            <div className="grid grid-cols-7 gap-1">
-              {calendarDays.map(([day, currentMonth, isToday, events], i) => (
-                <motion.div
-                  key={i}
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: currentMonth ? 1 : 0.35 }}
-                  transition={{
-                    duration: 0.4,
-                    ease: EASE,
-                    delay: 1.6 + i * 0.008,
-                  }}
-                  className="rounded-md p-1.5 min-h-[58px] relative"
-                  style={{
-                    background: isToday
-                      ? "rgba(160, 57, 42, 0.06)"
-                      : "var(--paper)",
-                    border: isToday
-                      ? "1px solid var(--brick)"
-                      : "0.5px solid var(--line)",
-                  }}
-                >
-                  <div className="flex items-start justify-between mb-1">
-                    {isToday ? (
-                      <div
-                        className="w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-medium"
-                        style={{ background: "var(--brick)", color: "var(--paper)" }}
-                      >
-                        {day}
-                      </div>
-                    ) : (
-                      <span
-                        className="text-[10px]"
-                        style={{
-                          color: currentMonth ? "var(--ink-2)" : "var(--ink-3)",
-                        }}
-                      >
-                        {day}
-                      </span>
-                    )}
-                    {events.length > 0 && (
-                      <span
-                        className="text-[8px] font-mono"
-                        style={{ color: "var(--ink-3)" }}
-                      >
-                        {events.length}
-                      </span>
-                    )}
-                  </div>
-                  <div className="space-y-0.5">
-                    {events.slice(0, 2).map((e, ei) => (
-                      <div
-                        key={ei}
-                        className="flex items-center gap-1 text-[8px] truncate"
-                        style={{ color: "var(--brick-deep)" }}
-                      >
-                        <div
-                          className="w-1 h-1 rounded-full flex-shrink-0"
-                          style={{ background: "var(--brick)" }}
-                        />
-                        <span className="truncate">{e.label}</span>
-                      </div>
-                    ))}
-                  </div>
-                  {isToday && (
-                    <svg
-                      className="absolute bottom-1 right-1"
-                      width="9"
-                      height="9"
-                      viewBox="0 0 16 16"
-                      fill="none"
-                    >
-                      <path
-                        d="M8 1l1.5 4L13 6.5 9.5 8 8 12 6.5 8 3 6.5 6.5 5z"
-                        fill="var(--brick)"
-                      />
-                    </svg>
-                  )}
-                </motion.div>
-              ))}
-            </div>
-          </main>
-
-          {/* RIGHT RAIL */}
-          <aside
-            className="col-span-3 p-5 border-l"
-            style={{ borderColor: "var(--line)", background: "var(--paper)" }}
-          >
-            <div className="flex items-center gap-1.5 mb-5">
-              <button
-                className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-md text-xs font-medium"
-                style={{
-                  background: "rgba(160,57,42,0.08)",
-                  color: "var(--brick-deep)",
-                  border: "0.5px solid rgba(160,57,42,0.2)",
-                }}
-              >
-                <svg width="10" height="10" viewBox="0 0 14 14" fill="none">
-                  <path
-                    d="M7 3v8M3 7h8"
-                    stroke="currentColor"
-                    strokeWidth="1.5"
-                    strokeLinecap="round"
-                  />
-                </svg>
-                Schedule
-              </button>
-              <button
-                className="font-display italic text-xs px-2 py-2"
-                style={{ color: "var(--ink-2)" }}
-              >
-                Today
-              </button>
-              <button
-                className="w-6 h-6 rounded-md flex items-center justify-center"
-                style={{ background: "var(--paper-2)" }}
-              >
-                <svg width="8" height="8" viewBox="0 0 14 14" fill="none">
-                  <path
-                    d="M9 3L5 7l4 4"
-                    stroke="var(--ink-2)"
-                    strokeWidth="1.5"
-                    strokeLinecap="round"
-                  />
-                </svg>
-              </button>
-              <button
-                className="w-6 h-6 rounded-md flex items-center justify-center"
-                style={{ background: "var(--paper-2)" }}
-              >
-                <svg width="8" height="8" viewBox="0 0 14 14" fill="none">
-                  <path
-                    d="M5 3l4 4-4 4"
-                    stroke="var(--ink-2)"
-                    strokeWidth="1.5"
-                    strokeLinecap="round"
-                  />
-                </svg>
-              </button>
-            </div>
-
-            <div
-              className="rounded-xl p-4 mb-5"
-              style={{ background: "var(--paper-2)" }}
-            >
-              <div className="flex items-baseline justify-between mb-3">
-                <h3 className="font-display text-sm">This month</h3>
-                <span
-                  className="font-mono text-[9px]"
-                  style={{ color: "var(--ink-3)" }}
-                >
-                  MAY 2026
-                </span>
-              </div>
-              <div className="grid grid-cols-3 gap-2 mb-3">
-                {[
-                  { v: "6", l: "Planned", c: "var(--brick)" },
-                  { v: "2", l: "Done", c: "var(--sage)" },
-                  { v: "4", l: "To do", c: "var(--ink-2)" },
-                ].map((s) => (
-                  <div key={s.l}>
-                    <div
-                      className="font-display text-2xl leading-none mb-0.5"
-                      style={{ color: s.c }}
-                    >
-                      {s.v}
-                    </div>
-                    <div
-                      className="font-display italic text-[10px]"
-                      style={{ color: "var(--ink-2)" }}
-                    >
-                      {s.l}
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <div className="flex items-center justify-between mb-1.5">
-                <span
-                  className="font-mono text-[9px]"
-                  style={{ color: "var(--ink-3)" }}
-                >
-                  PROGRESS
-                </span>
-                <span
-                  className="text-[10px] font-medium"
-                  style={{ color: "var(--sage)" }}
-                >
-                  ↑ 33%
-                </span>
-              </div>
-              <div
-                className="h-1 rounded-full overflow-hidden"
-                style={{ background: "var(--paper-3)" }}
-              >
-                <motion.div
-                  initial={{ width: 0 }}
-                  animate={{ width: "33%" }}
-                  transition={{ duration: 1.2, ease: EASE, delay: 2 }}
-                  className="h-full rounded-full"
-                  style={{ background: "var(--sage)" }}
-                />
-              </div>
-            </div>
-
-            <div className="mb-5">
-              <div className="flex items-baseline justify-between mb-3">
-                <h3 className="font-display text-sm">Upcoming</h3>
-                <button
-                  className="font-display italic text-[10px]"
-                  style={{ color: "var(--brick-deep)" }}
-                >
-                  View all
-                </button>
-              </div>
-              <div className="space-y-2.5">
-                {[
-                  { d: "17", m: "MAY", t: "Photosynthesis lab" },
-                  { d: "17", m: "MAY", t: "Quiz · cell respiration" },
-                  { d: "19", m: "MAY", t: "Statistics introduction" },
-                  { d: "19", m: "MAY", t: "Term presentation" },
-                ].map((u, i) => (
-                  <div key={i} className="flex items-start gap-3">
-                    <div className="text-center flex-shrink-0">
-                      <div
-                        className="font-mono text-[8px]"
-                        style={{ color: "var(--ink-3)" }}
-                      >
-                        {u.m}
-                      </div>
-                      <div className="font-display text-base leading-tight">
-                        {u.d}
-                      </div>
-                    </div>
-                    <div className="flex-1 pt-0.5">
-                      <div className="text-[11px] font-medium leading-tight">
-                        {u.t}
-                      </div>
-                      <div
-                        className="font-display italic text-[10px]"
-                        style={{ color: "var(--ink-3)" }}
-                      >
-                        All day
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <h3 className="font-display text-sm mb-3">Quick actions</h3>
-              <div className="space-y-1.5">
-                {[
-                  { l: "New lesson plan" },
-                  { l: "New quiz" },
-                  { l: "New homework" },
-                  { l: "New presentation" },
-                ].map((a) => (
-                  <button
-                    key={a.l}
-                    className="w-full flex items-center justify-between px-3 py-2 rounded-md text-[11px] hover:bg-black/[0.02]"
-                    style={{
-                      background: "var(--paper)",
-                      border: "0.5px solid var(--line)",
-                    }}
-                  >
-                    <span>{a.l}</span>
-                    <svg width="10" height="10" viewBox="0 0 14 14" fill="none">
-                      <path
-                        d="M7 3v8M3 7h8"
-                        stroke="var(--ink-3)"
-                        strokeWidth="1.5"
-                        strokeLinecap="round"
-                      />
-                    </svg>
-                  </button>
-                ))}
-              </div>
-            </div>
-          </aside>
-        </div>
       </div>
 
-      <motion.div
-        initial={{ opacity: 0, y: 20, rotate: -2 }}
-        animate={{ opacity: 1, y: 0, rotate: -2 }}
-        transition={{ duration: 1.1, ease: EASE, delay: 1.8 }}
-        className="absolute -bottom-8 -right-4 md:-right-12 card p-4 max-w-[240px] hidden md:block"
-        style={{
-          background: "var(--paper)",
-          boxShadow: "0 20px 50px -10px rgba(42,31,23,0.15)",
-        }}
+      {/* Floating callout — kept per request, restyled to the Studio palette */}
+      <div
+        className="absolute -bottom-8 -right-4 md:-right-12 rounded-2xl border border-line bg-paper-cool p-4 max-w-[240px] hidden md:block"
+        style={{ boxShadow: "0 20px 50px -10px rgba(26,24,20,0.18)" }}
       >
-        <div className="eyebrow mb-2">Saved this week</div>
-        <div
-          className="font-display text-3xl mb-1"
-          style={{ color: "var(--brick)" }}
-        >
+        <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-2">
+          Saved this week
+        </div>
+        <div className="font-serif text-3xl font-semibold text-accent mb-1">
           11h 40m
         </div>
-        <div
-          className="font-display italic text-xs"
-          style={{ color: "var(--ink-3)" }}
-        >
+        <div className="font-serif italic text-xs text-muted">
           Average across UAE pilot teachers
         </div>
-      </motion.div>
+      </div>
     </div>
   );
 };

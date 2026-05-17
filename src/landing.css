@@ -170,3 +170,11 @@ html { scroll-behavior: smooth; }
   background: var(--paper-2);
   height: 12px;
 }
+
+/* The hero "product" mock is a faithful copy of the real Studio and
+   reuses the Studio's global classes. Inside .mudir-landing our scoped
+   `.font-mono` would force JetBrains Mono onto it; pin it back to the
+   Studio's mono token so the preview matches the app exactly. */
+.mudir-landing .mudir-studio-frame .font-mono {
+  font-family: var(--font-mono);
+}
