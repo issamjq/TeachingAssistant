@@ -16,6 +16,7 @@ import {
   Users, X, CheckCircle2, Clock, TrendingUp,
 } from "lucide-react";
 import { navigate } from "../lib/route";
+import { useT, useI18n } from "../lib/i18n";
 import { api } from "./_shared";
 import SchedulePopup from "./_schedule-popup";
 
@@ -65,11 +66,6 @@ function monthGrid(anchor, weekStart = 1 /* Mon */) {
   return days[35].getMonth() !== m ? days.slice(0, 35) : days;
 }
 
-const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-const MONTH_LABELS = [
-  "January", "February", "March", "April", "May", "June",
-  "July", "August", "September", "October", "November", "December",
-];
 
 const isoKey = (d) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -80,6 +76,9 @@ const sameYMD = (a, b) =>
   a.getDate() === b.getDate();
 
 export default function Planner() {
+  const t = useT();
+  const { lang } = useI18n();
+  const locale = lang === "ar" ? "ar" : "en-US";
   // The visible month (1st of the displayed month). Today by default.
   const [anchor, setAnchor] = useState(() => {
     const n = new Date();
@@ -225,7 +224,15 @@ export default function Planner() {
   }, [events, visible]);
 
   const grid = useMemo(() => monthGrid(anchor), [anchor]);
-  const monthLabel = `${MONTH_LABELS[anchor.getMonth()]} ${anchor.getFullYear()}`;
+  const monthName = new Intl.DateTimeFormat(locale, { month: "long" }).format(anchor);
+  const monthLabel = `${monthName} ${anchor.getFullYear()}`;
+  // Monday-first weekday headers, localized (2024-01-01 is a Monday).
+  const weekdayLabels = useMemo(
+    () => Array.from({ length: 7 }, (_, i) =>
+      new Intl.DateTimeFormat(locale, { weekday: "short" }).format(new Date(2024, 0, 1 + i))
+    ),
+    [locale]
+  );
 
   // The "Today" panel — pulls today's events from the unfiltered list so
   // a teacher who hid e.g. Homework still sees today's homework here.
@@ -250,12 +257,12 @@ export default function Planner() {
       <div className="mb-3">
         <h1 className="font-serif text-3xl md:text-4xl font-semibold text-ink leading-none tracking-tight">
           <span key={monthLabel} className="studio-tick">
-            {MONTH_LABELS[anchor.getMonth()]}
+            {monthName}
           </span>{" "}
           <em className="italic font-medium text-accent">{anchor.getFullYear()}</em>
         </h1>
         <p className="font-serif italic text-[13px] text-muted leading-snug mt-1.5">
-          Lesson plans, schedule, quizzes, homework, presentations, and activities — all on one grid.
+          {t("planner.subtitle")}
         </p>
       </div>
 
@@ -283,7 +290,7 @@ export default function Planner() {
           <span className={`inline-flex h-3.5 w-3.5 rounded items-center justify-center text-[8px] ${
             allOn ? "bg-paper-cool/20" : "bg-ink/10"
           }`}>▦</span>
-          All
+          {t("planner.all")}
         </button>
         {CATEGORIES.map((c) => {
           const Icon = c.icon;
@@ -301,7 +308,7 @@ export default function Planner() {
               }`}
             >
               <Icon size={12} strokeWidth={1.75} />
-              {c.label}
+              {t(`nav.${c.key}`)}
             </button>
           );
         })}
@@ -315,19 +322,19 @@ export default function Planner() {
           className="planner-nav-btn inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-accent/30 bg-accent/[0.10] hover:bg-accent/[0.18] hover:border-accent/50 text-accent text-[11.5px] font-semibold shadow-sm"
         >
           <Plus size={13} strokeWidth={2.5} />
-          Schedule
+          {t("planner.schedule")}
         </button>
         <button
           type="button"
           onClick={goToday}
           className="planner-nav-btn px-2.5 py-1 rounded-lg border border-line bg-paper-cool hover:border-ink hover:bg-paper-warm font-serif italic text-xs text-ink"
         >
-          Today
+          {t("planner.today")}
         </button>
         <button
           type="button"
           onClick={goPrev}
-          aria-label="Previous month"
+          aria-label={t("planner.prevMonth")}
           className="planner-nav-btn h-7 w-7 rounded-lg border border-line bg-paper-cool hover:border-ink hover:bg-paper-warm flex items-center justify-center"
         >
           <ChevronLeft size={15} />
@@ -335,7 +342,7 @@ export default function Planner() {
         <button
           type="button"
           onClick={goNext}
-          aria-label="Next month"
+          aria-label={t("planner.nextMonth")}
           className="planner-nav-btn h-7 w-7 rounded-lg border border-line bg-paper-cool hover:border-ink hover:bg-paper-warm flex items-center justify-center"
         >
           <ChevronRight size={15} />
@@ -360,9 +367,9 @@ export default function Planner() {
           headers in mono-uppercase, body cells in a 7-column grid. */}
       <div className="planner-grid planner-card-frame rounded-2xl bg-paper-cool overflow-hidden flex-1 flex flex-col min-h-0">
         <div className="grid grid-cols-7 border-b border-line bg-[#fffdf6] flex-shrink-0">
-          {DAY_LABELS.map((d) => (
+          {weekdayLabels.map((d, i) => (
             <div
-              key={d}
+              key={i}
               className="font-mono text-[9.5px] uppercase tracking-[0.18em] text-muted px-2 py-1.5 text-center"
             >
               {d}
@@ -509,11 +516,11 @@ export default function Planner() {
 // date. The intermediate two-card picker is gone — this is the single
 // entry point for everything a teacher does on a day.
 // ───────────────────────────────────────────────────────────────────────
-function dayHeaderParts(iso) {
+function dayHeaderParts(iso, locale) {
   const d = new Date(`${iso}T00:00:00`);
   return {
-    weekday: d.toLocaleDateString(undefined, { weekday: "long" }),
-    full: d.toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" }),
+    weekday: d.toLocaleDateString(locale, { weekday: "long" }),
+    full: d.toLocaleDateString(locale, { month: "long", day: "numeric", year: "numeric" }),
   };
 }
 
@@ -532,7 +539,9 @@ function useModalChrome(onClose) {
 
 function DayListPopup({ date, dayEvents, onClose, onSelect, onNew }) {
   useModalChrome(onClose);
-  const { weekday, full } = dayHeaderParts(date);
+  const t = useT();
+  const { lang } = useI18n();
+  const { weekday, full } = dayHeaderParts(date, lang === "ar" ? "ar" : "en-US");
   return createPortal(
     <div
       className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-ink/45 backdrop-blur-lg backdrop-saturate-150 animate-[fadeIn_180ms_ease-out]"
@@ -553,7 +562,7 @@ function DayListPopup({ date, dayEvents, onClose, onSelect, onNew }) {
 
         <div className="px-7 pt-6 pb-5 border-b border-line pr-14">
           <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-1.5 inline-flex items-center gap-2.5">
-            <span className="w-6 h-px bg-accent" /> This day
+            <span className="w-6 h-px bg-accent" /> {t("planner.thisDay")}
           </p>
           <h2 className="font-serif text-2xl font-medium text-ink leading-tight">
             {weekday}, <em className="italic font-medium text-accent">{full}</em>
@@ -562,7 +571,7 @@ function DayListPopup({ date, dayEvents, onClose, onSelect, onNew }) {
 
         <div className="px-6 py-5 max-h-[55vh] overflow-auto">
           {dayEvents.length === 0 ? (
-            <p className="text-center text-muted text-sm py-8">No entries yet on this day.</p>
+            <p className="text-center text-muted text-sm py-8">{t("planner.noEntries")}</p>
           ) : (
             <div className="flex flex-col gap-2">
               {dayEvents.map((e) => (
@@ -576,7 +585,7 @@ function DayListPopup({ date, dayEvents, onClose, onSelect, onNew }) {
                   <div className="flex-1 min-w-0">
                     <p className="text-[13px] font-medium text-ink leading-tight truncate">{e.title}</p>
                     <p className="text-[11px] text-muted mt-0.5">
-                      {e.time || "All day"}
+                      {e.time || t("planner.allDay")}
                       {e.raw?.subject ? ` · ${e.raw.subject}` : ""}
                       {e.raw?.section ? ` · ${e.raw.section}` : ""}
                     </p>
@@ -595,7 +604,7 @@ function DayListPopup({ date, dayEvents, onClose, onSelect, onNew }) {
             className="planner-nav-btn w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-accent text-paper-cool text-sm font-semibold shadow-[0_10px_24px_-12px_rgba(200,71,43,0.6)] hover:bg-accent/90 hover:-translate-y-px transition-all"
           >
             <Plus size={15} strokeWidth={2.5} />
-            New entry
+            {t("planner.newEntry")}
           </button>
         </div>
       </div>
@@ -610,31 +619,33 @@ function DayListPopup({ date, dayEvents, onClose, onSelect, onNew }) {
 // pre-selects the kind in a later wire-up).
 // ───────────────────────────────────────────────────────────────────────
 function StudioHeroCard() {
+  const t = useT();
   // verb + noun two-line label, with a per-chip soft-tinted icon tile so
   // the row reads as six distinct tools instead of one repeated chip.
   // studioKind = the Studio kind to deep-link to (#/studio/<kind>).
   // null → land on Studio with its default picker (no kind to preset
   // for Analyze / Ask).
   const chips = [
-    { key: "lesson",       icon: BookOpen,      verb: "Generate", noun: "Lesson Plan",     color: "accent",      studioKind: "lesson_plan" },
-    { key: "quiz",         icon: GraduationCap, verb: "Create",   noun: "Quiz",            color: "sage",        studioKind: "quiz" },
-    { key: "presentation", icon: Layout,        verb: "Build",    noun: "Presentation",    color: "accent-soft", studioKind: "presentation" },
-    { key: "weekly",       icon: CalendarDays,  verb: "Plan",     noun: "Weekly Schedule", color: "indigo",      studioKind: "schedule" },
-    { key: "insights",     icon: Users,         verb: "Analyze",  noun: "Students",        color: "moss",        studioKind: null },
-    { key: "ask",          icon: MessageCircle, verb: "Ask",      noun: "Anything",        color: "violet",      studioKind: null },
+    { key: "lesson",       icon: BookOpen,      color: "accent",      studioKind: "lesson_plan" },
+    { key: "quiz",         icon: GraduationCap, color: "sage",        studioKind: "quiz" },
+    { key: "presentation", icon: Layout,        color: "accent-soft", studioKind: "presentation" },
+    { key: "weekly",       icon: CalendarDays,  color: "indigo",      studioKind: "schedule" },
+    { key: "insights",     icon: Users,         color: "moss",        studioKind: null },
+    { key: "ask",          icon: MessageCircle, color: "violet",      studioKind: null },
   ];
   return (
     <div className="planner-hero rounded-2xl p-4 md:p-5 relative overflow-hidden h-full flex flex-col justify-center">
       <div className="relative z-10">
         <p className="inline-flex items-center gap-1.5 rounded-full bg-accent/[0.10] px-2.5 py-1 text-[11px] font-semibold text-accent mb-2.5">
-          <Sparkles size={11} strokeWidth={2.25} /> Studio AI
+          <Sparkles size={11} strokeWidth={2.25} /> {t("planner.studioAI")}
         </p>
         <h2 className="font-serif text-2xl md:text-[1.55rem] text-ink leading-[1.1] font-semibold tracking-tight">
-          What would you like to{" "}
-          <span className="italic font-medium text-accent">create</span> today?
+          {t("planner.heroA")}
+          <span className="italic font-medium text-accent">{t("planner.heroCreate")}</span>
+          {t("planner.heroB")}
         </h2>
         <p className="text-[12.5px] text-muted mt-1.5 max-w-xl leading-snug">
-          Your AI co-pilot that helps you plan, save time, and make every class amazing.
+          {t("planner.heroSub")}
         </p>
       </div>
 
@@ -651,9 +662,9 @@ function StudioHeroCard() {
               <span className={`planner-hero-chip-icon planner-hero-chip-icon-${c.color}`}>
                 <Icon size={13} strokeWidth={2} />
               </span>
-              <span className="flex flex-col min-w-0 text-left leading-[1.1]">
-                <span className="text-[10.5px] font-semibold text-ink whitespace-nowrap">{c.verb}</span>
-                <span className="text-[9px] text-muted whitespace-nowrap">{c.noun}</span>
+              <span className="flex flex-col min-w-0 text-start leading-[1.1]">
+                <span className="text-[10.5px] font-semibold text-ink whitespace-nowrap">{t(`hero.${c.key}.verb`)}</span>
+                <span className="text-[9px] text-muted whitespace-nowrap">{t(`hero.${c.key}.noun`)}</span>
               </span>
             </button>
           );
@@ -668,6 +679,8 @@ function StudioHeroCard() {
 // glow below, 3-stat row underneath.
 // ───────────────────────────────────────────────────────────────────────
 function ThisMonthOverviewCard({ events = [], monthDate, todayStart }) {
+  const t = useT();
+  const { lang } = useI18n();
   const y = monthDate.getFullYear();
   const m = monthDate.getMonth();
   const monthKey = `${y}-${String(m + 1).padStart(2, "0")}`;
@@ -680,18 +693,18 @@ function ThisMonthOverviewCard({ events = [], monthDate, todayStart }) {
   const todo = Math.max(0, planned - completed);
   const pct = planned ? Math.round((completed / planned) * 100) : 0;
   const monthLabel = monthDate
-    .toLocaleDateString(undefined, { month: "short", year: "numeric" })
+    .toLocaleDateString(lang === "ar" ? "ar" : "en-US", { month: "short", year: "numeric" })
     .toUpperCase();
   const stats = [
-    { n: planned,   k: "Planned",   icon: CalendarDays,  tint: "ink",    iconBg: "bg-ink/[0.08]",    iconText: "text-ink" },
-    { n: completed, k: "Completed", icon: CheckCircle2,  tint: "sage",   iconBg: "bg-sage/[0.14]",   iconText: "text-sage" },
-    { n: todo,      k: "To do",     icon: Clock,         tint: "accent", iconBg: "bg-accent/[0.12]", iconText: "text-accent" },
+    { n: planned,   k: t("planner.planned"),   icon: CalendarDays,  iconBg: "bg-ink/[0.08]",    iconText: "text-ink" },
+    { n: completed, k: t("planner.completed"), icon: CheckCircle2,  iconBg: "bg-sage/[0.14]",   iconText: "text-sage" },
+    { n: todo,      k: t("planner.todo"),      icon: Clock,         iconBg: "bg-accent/[0.12]", iconText: "text-accent" },
   ];
   return (
     <div className="h-full flex flex-col rounded-2xl border border-[#e6dccb] bg-[#fffdf6] p-4 shadow-[0_18px_44px_-22px_rgba(15,20,16,0.14)]">
       <div className="flex items-start justify-between gap-2 mb-3">
         <h3 className="font-serif text-[15px] font-medium text-ink leading-tight">
-          This Month Overview
+          {t("planner.thisMonth")}
         </h3>
         <span className="font-mono text-[9.5px] uppercase tracking-[0.18em] text-muted mt-1 whitespace-nowrap">
           {monthLabel}
@@ -718,7 +731,7 @@ function ThisMonthOverviewCard({ events = [], monthDate, todayStart }) {
       <div className="mt-auto pt-4">
         <div className="flex items-center justify-between mb-1.5">
           <span className="font-mono text-[9.5px] uppercase tracking-[0.18em] text-muted">
-            Progress
+            {t("planner.progress")}
           </span>
           <span className="inline-flex items-center gap-1 text-[11px] font-medium text-sage">
             <TrendingUp size={11} strokeWidth={2.25} />
@@ -742,19 +755,22 @@ function ThisMonthOverviewCard({ events = [], monthDate, todayStart }) {
 // /api/schedule.
 // ───────────────────────────────────────────────────────────────────────
 function UpcomingCard({ events, className = "" }) {
+  const t = useT();
+  const { lang } = useI18n();
+  const loc = lang === "ar" ? "ar" : "en-US";
   const fmt = (iso) => {
     const d = new Date(`${iso}T00:00:00`);
     return {
-      month: d.toLocaleDateString(undefined, { month: "short" }).toUpperCase(),
-      day: d.getDate(),
+      month: d.toLocaleDateString(loc, { month: "short" }).toUpperCase(),
+      day: d.toLocaleDateString(loc, { day: "numeric" }),
     };
   };
   return (
     <div className={`flex flex-col overflow-hidden ${className}`}>
       <div className="flex items-center justify-between mb-2.5">
-        <h3 className="font-serif text-[15px] font-medium text-ink">Upcoming</h3>
+        <h3 className="font-serif text-[15px] font-medium text-ink">{t("planner.upcoming")}</h3>
         <button className="text-xs text-accent hover:text-ink transition">
-          View all
+          {t("planner.viewAll")}
         </button>
       </div>
       <div className="flex flex-col gap-2.5">
@@ -768,7 +784,7 @@ function UpcomingCard({ events, className = "" }) {
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-[12.5px] font-medium text-ink leading-tight truncate">{e.title}</p>
-                <p className="text-[10.5px] text-muted mt-0.5">{e.time || "All day"}</p>
+                <p className="text-[10.5px] text-muted mt-0.5">{e.time || t("planner.allDay")}</p>
               </div>
             </div>
           );
@@ -783,11 +799,12 @@ function UpcomingCard({ events, className = "" }) {
 // the kind pre-selected (deferred wiring — for now they go to /studio).
 // ───────────────────────────────────────────────────────────────────────
 function QuickActionsCard() {
+  const t = useT();
   const actions = [
-    { key: "lesson",       label: "New Lesson Plan",  icon: BookOpen,       tone: "accent",      route: ["lesson-plans", "templates"] },
-    { key: "quiz",         label: "New Quiz",         icon: ClipboardList,  tone: "accent-soft", route: ["quizzes"] },
-    { key: "homework",     label: "New Homework",     icon: GraduationCap,  tone: "sage",        route: ["homework"] },
-    { key: "presentation", label: "New Presentation", icon: Presentation,   tone: "gold",        route: ["presentations"] },
+    { key: "lesson",       label: t("planner.qa.lesson"),       icon: BookOpen,       tone: "accent",      route: ["lesson-plans", "templates"] },
+    { key: "quiz",         label: t("planner.qa.quiz"),         icon: ClipboardList,  tone: "accent-soft", route: ["quizzes"] },
+    { key: "homework",     label: t("planner.qa.homework"),     icon: GraduationCap,  tone: "sage",        route: ["homework"] },
+    { key: "presentation", label: t("planner.qa.presentation"), icon: Presentation,   tone: "gold",        route: ["presentations"] },
   ];
   const toneToBg = {
     accent:        "bg-[rgba(200,71,43,0.12)] text-accent",
@@ -798,7 +815,7 @@ function QuickActionsCard() {
   return (
     <div>
       <h3 className="font-serif text-[15px] font-medium text-ink mb-2.5">
-        Quick Actions
+        {t("planner.quickActions")}
       </h3>
       <div className="flex flex-col gap-2">
         {actions.map((a) => {
