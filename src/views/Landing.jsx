@@ -129,7 +129,7 @@ const Nav = ({ onOpenStudio }) => {
       }`}
       style={{ borderColor: scrolled ? "var(--line)" : "transparent" }}
     >
-      <div className="max-w-[1280px] mx-auto px-8 py-5 flex items-center justify-between">
+      <div className="max-w-[1280px] mx-auto px-8 py-3 flex items-center justify-between">
         <a href="#" className="flex items-center gap-2.5">
           <div
             className="w-7 h-7 rounded-md flex items-center justify-center"
@@ -208,7 +208,7 @@ const Hero = ({ onOpenStudio }) => {
   return (
     <section
       ref={heroRef}
-      className="relative min-h-screen pt-32 pb-32 overflow-hidden"
+      className="relative min-h-screen pt-24 pb-32 overflow-hidden"
     >
       <div ref={orbRef} className="glow-orb" style={{ left: 0, top: 0 }} />
 
@@ -424,7 +424,7 @@ const ProductMock = ({ onOpenStudio }) => {
     <div className="relative">
       <div
         className="mudir-studio-frame rounded-2xl overflow-hidden border border-line bg-paper text-ink font-sans flex"
-        style={{ height: 700, boxShadow: "0 40px 100px -25px rgba(26,24,20,0.30)" }}
+        style={{ height: 880, boxShadow: "0 40px 100px -25px rgba(26,24,20,0.30)" }}
       >
         {/* ── SIDEBAR ─────────────────────────────────────────────── */}
         <aside className="mudir-sidebar w-64 flex flex-col flex-shrink-0 h-full">
