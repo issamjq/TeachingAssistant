@@ -129,10 +129,8 @@ export default function Landing({ onOpenStudio }) {
         <div className="container">
           <div className="problem-grid">
             <div>
-              <span className="eyebrow">The problem</span>
-              <h2 className="section-title">
-                Teachers don't<br />have a <em>time</em> problem.<br />They have a <em>prep</em> problem.
-              </h2>
+              <span className="eyebrow">{t("lp.problem.eyebrow")}</span>
+              <h2 className="section-title">{t("lp.problem.title")}</h2>
               <p style={introPara}>
                 The classroom is only the visible part. Behind every lesson is hours of unseen labor — researching content, building slides, writing worksheets, aligning to the curriculum, differentiating for different learners.
               </p>
@@ -164,8 +162,8 @@ export default function Landing({ onOpenStudio }) {
 
       <section className="solution" id="solution">
         <div className="container">
-          <span className="eyebrow">The solution</span>
-          <h2 className="section-title">From topic to <em>taught</em>,<br />in four steps.</h2>
+          <span className="eyebrow">{t("lp.solution.eyebrow")}</span>
+          <h2 className="section-title">{t("lp.solution.title")}</h2>
           <p style={sectionLeadDark}>
             Mudir is your lesson director. You bring the expertise and the students. Mudir handles the production work — the slides, the worksheets, the timing, the differentiation.
           </p>
@@ -200,8 +198,8 @@ export default function Landing({ onOpenStudio }) {
 
       <section className="studio-map" id="studio-map">
         <div className="container">
-          <span className="eyebrow">Inside Mudir</span>
-          <h2 className="section-title">Eight tools.<br />One <em>studio</em>.</h2>
+          <span className="eyebrow">{t("lp.tools.eyebrow")}</span>
+          <h2 className="section-title">{t("lp.tools.title")}</h2>
           <p style={sectionLead}>
             Mudir Studio is the home base for everything a teacher prepares. Each tool stands on its own — and they all share the same students, schedule, and curriculum context.
           </p>
@@ -235,8 +233,8 @@ export default function Landing({ onOpenStudio }) {
 
       <section id="hub">
         <div className="container">
-          <span className="eyebrow">The teacher's hub</span>
-          <h2 className="section-title">A home base,<br />not another <em>inbox</em>.</h2>
+          <span className="eyebrow">{t("lp.hub.eyebrow")}</span>
+          <h2 className="section-title">{t("lp.hub.title")}</h2>
           <p style={sectionLead}>
             Open Mudir in the morning and the day is already laid out — today's classes, what's prepared, what's still pending. Everything one click away.
           </p>
@@ -398,8 +396,8 @@ export default function Landing({ onOpenStudio }) {
 
       <section className="studio-section" id="studio">
         <div className="container">
-          <span className="eyebrow">In the studio</span>
-          <h2 className="section-title">Mudir <em>drafts</em>.<br />You direct.</h2>
+          <span className="eyebrow">{t("lp.studio.eyebrow")}</span>
+          <h2 className="section-title">{t("lp.studio.title")}</h2>
           <p style={sectionLead}>
             AI gets you 90% of the way there in 30 seconds. The last 10% is yours — your voice, your students, your judgment. Edit anything inline. Add what's missing. Strike what doesn't fit. <em style={{ color: "var(--accent)" }}>Hover the right side</em> to see edit controls.
           </p>
@@ -487,8 +485,8 @@ export default function Landing({ onOpenStudio }) {
 
       <section className="features" id="screens">
         <div className="container">
-          <span className="eyebrow">Static screens</span>
-          <h2 className="section-title">What it <em>looks</em> like.</h2>
+          <span className="eyebrow">{t("lp.static.eyebrow")}</span>
+          <h2 className="section-title">{t("lp.static.title")}</h2>
           <p style={{ fontSize: 17, color: "var(--ink-soft)", maxWidth: 600, marginTop: 16 }}>
             Two flagship screens — the AI Generator and the Lesson Library — built for the way teachers actually think.
           </p>
@@ -635,7 +633,7 @@ export default function Landing({ onOpenStudio }) {
           </div>
 
           <div style={{ marginTop: 100 }}>
-            <span className="eyebrow">What's included</span>
+            <span className="eyebrow">{t("lp.pricing.eyebrow")}</span>
             <h3 className="serif" style={{ fontSize: 36, fontWeight: 500, marginTop: 16 }}>
               A complete teaching <em style={{ color: "var(--accent)", fontStyle: "italic" }}>package</em>, every time.
             </h3>
@@ -661,8 +659,8 @@ export default function Landing({ onOpenStudio }) {
 
       <section className="interactive" id="try">
         <div className="container">
-          <span className="eyebrow">Live prototype · click around</span>
-          <h2 className="section-title">Try it <em>yourself</em>.</h2>
+          <span className="eyebrow">{t("lp.try.eyebrow")}</span>
+          <h2 className="section-title">{t("lp.try.title")}</h2>
           <p style={{ fontSize: 17, color: "var(--ink-soft)", maxWidth: 600, marginTop: 16 }}>
             A working prototype of the core experience. Pick a topic, hit generate, and watch a complete lesson package come together in seconds. When you're ready for the real teacher workspace,{" "}
             <a href="#" onClick={openStudio} style={{ color: "var(--accent)", borderBottom: "1px solid var(--accent)", textDecoration: "none" }}>

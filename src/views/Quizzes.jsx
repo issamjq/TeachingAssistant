@@ -7,8 +7,10 @@ import {
   DataPageHeader, DataCard, CardsGrid, useViewMode,
   useDateScope, filterByDateScope,
 } from "./_data-view";
+import { useT } from "../lib/i18n";
 
 export default function Quizzes({ onOpenQuiz }) {
+  const t = useT();
   const [quizzes, setQuizzes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -52,10 +54,10 @@ export default function Quizzes({ onOpenQuiz }) {
   return (
     <div>
       <DataPageHeader
-        eyebrow="Quizzes & exams"
-        title={<>Quizzes &amp; <em className="italic font-light text-accent">exams</em></>}
-        subtitle="Build, schedule, and grade. MCQ, true/false, short, and essay."
-        newLabel="New quiz"
+        eyebrow={t("q.eyebrow")}
+        title={<>{t("q.titlePlain")}<em className="italic font-light text-accent">{t("q.titleEm")}</em></>}
+        subtitle={t("q.sub")}
+        newLabel={t("q.new")}
         onNewManual={() => onOpenQuiz?.({})}
         aiKind="quiz"
         mode={viewMode}
@@ -83,12 +85,12 @@ export default function Quizzes({ onOpenQuiz }) {
       )}
 
       <p className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted mb-4">
-        {loading ? "Loading…" : <>Showing <span className="text-ink">{sorted.length}</span> {sorted.length === 1 ? "quiz" : "quizzes"}</>}
+        {loading ? t("chip.loading") : <>{sorted.length} {t("q.eyebrow")}</>}
       </p>
 
       {!loading && sorted.length === 0 && (
         <div className="rounded-2xl border border-dashed border-line p-12 text-center text-muted">
-          No quizzes yet — click &ldquo;New quiz&rdquo; to build one.
+          {t("q.empty")}
         </div>
       )}
 

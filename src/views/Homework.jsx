@@ -11,8 +11,10 @@ import {
   DataPageHeader, DataCard, CardsGrid, useViewMode,
   useDateScope, filterByDateScope,
 } from "./_data-view";
+import { useT } from "../lib/i18n";
 
 export default function Homework() {
+  const t = useT();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -61,10 +63,10 @@ export default function Homework() {
   return (
     <div>
       <DataPageHeader
-        eyebrow="Homework"
-        title={<><em className="italic font-light text-accent">Homework</em> tasks</>}
-        subtitle="Assign work to a class, track who's done it, grade and give feedback."
-        newLabel="New homework"
+        eyebrow={t("hw.eyebrow")}
+        title={<><em className="italic font-light text-accent">{t("hw.titleEm")}</em>{t("hw.titlePlain")}</>}
+        subtitle={t("hw.sub")}
+        newLabel={t("hw.new")}
         onNewManual={() => setEditing("new")}
         aiKind="homework"
         mode={viewMode}
@@ -91,12 +93,12 @@ export default function Homework() {
       )}
 
       <p className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted mb-4">
-        {loading ? "Loading…" : <>Showing <span className="text-ink">{sorted.length}</span> assignments</>}
+        {loading ? t("chip.loading") : <>{sorted.length} {t("hw.eyebrow")}</>}
       </p>
 
       {!loading && sorted.length === 0 && (
         <div className="rounded-2xl border border-dashed border-line p-12 text-center text-muted">
-          No homework yet — click &ldquo;New homework&rdquo; to assign one.
+          {t("hw.empty")}
         </div>
       )}
 

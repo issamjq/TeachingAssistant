@@ -9,6 +9,7 @@ import {
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { api, DatePicker } from "./_shared";
+import { useT } from "../lib/i18n";
 import { parseSections, joinSections, renderMarkdown } from "../lib/markdown";
 import StudioCard from "./StudioCard";
 import SlideBuilder from "./SlideBuilder";
@@ -325,6 +326,11 @@ export default function Studio({ initialKind } = {}) {
   // surfaces can deep-link straight to "Make a quiz", "Make a
   // homework", etc. Falls back to lesson_plan when the route is bare
   // or the value isn't one of the recognised kinds.
+  const t = useT();
+  const kindLabel = (v) => {
+    const s = t(`kind.${v}`);
+    return s === `kind.${v}` ? (KINDS.find((k) => k.value === v)?.label || v) : s;
+  };
   const validKind = KINDS.some((k) => k.value === initialKind) ? initialKind : "lesson_plan";
   const [kind, setKind] = useState(validKind);
   const [prompt, setPrompt] = useState("");
@@ -1273,7 +1279,7 @@ export default function Studio({ initialKind } = {}) {
               className="text-xs px-3 py-1.5"
               title="Open the print dialog and choose Save as PDF"
             >
-              <FileDown size={13} className="mr-1.5" /> PDF
+              <FileDown size={13} className="mr-1.5" /> {t("studio.pdf")}
             </Button>
             <Button
               variant="secondary"
@@ -1282,8 +1288,8 @@ export default function Studio({ initialKind } = {}) {
               className="text-xs px-3 py-1.5"
             >
               {copied
-                ? <><Check size={13} className="mr-1.5" /> Copied</>
-                : <><Copy size={13} className="mr-1.5" /> Copy</>}
+                ? <><Check size={13} className="mr-1.5" /> {t("studio.copied")}</>
+                : <><Copy size={13} className="mr-1.5" /> {t("studio.copy")}</>}
             </Button>
             {savedDraftId && !isDirty ? (
               <span className="font-serif italic text-sm text-sage inline-flex items-center gap-1.5 px-2">
@@ -1300,16 +1306,16 @@ export default function Studio({ initialKind } = {}) {
                 className="text-xs px-3 py-1.5"
               >
                 <Save size={13} className="mr-1.5" />
-                {saving ? "Saving…" : savedDraftId ? "Save changes" : "Save"}
+                {saving ? t("studio.saving") : t("studio.save")}
               </Button>
             )}
             {busy ? (
               <Button variant="secondary" onClick={cancel} className="text-xs px-3 py-1.5">
-                <X size={13} className="mr-1.5" /> Cancel
+                <X size={13} className="mr-1.5" /> {t("studio.cancel")}
               </Button>
             ) : (
               <Button onClick={makeAnother} className="text-xs px-3 py-1.5">
-                <Sparkles size={13} className="mr-1.5" /> New
+                <Sparkles size={13} className="mr-1.5" /> {t("studio.new")}
               </Button>
             )}
           </div>
@@ -1517,7 +1523,7 @@ export default function Studio({ initialKind } = {}) {
                   <div>
                     <p className="font-serif italic text-base text-accent mb-3 inline-flex items-center gap-2">
                       <span className="h-1.5 w-1.5 rounded-full bg-accent animate-pulse" />
-                      {busy ? "Generating" : "Done"}
+                      {busy ? t("studio.generating") : t("studio.done")}
                     </p>
                     <div className="max-h-[60vh] overflow-y-auto pr-1 studio-stream">
                       {streamingText ? (
@@ -1529,7 +1535,7 @@ export default function Studio({ initialKind } = {}) {
                         </>
                       ) : (
                         <div className="flex flex-col items-center justify-center py-6">
-                          <MudirMascot size={140} label="Mudir is thinking…" />
+                          <MudirMascot size={140} label={t("studio.thinking")} />
                         </div>
                       )}
                     </div>
@@ -1544,7 +1550,7 @@ export default function Studio({ initialKind } = {}) {
                         regardless of how short or tall a section is. */}
                     <div className="flex items-center justify-between gap-3 mb-2">
                       <p className="font-serif italic text-base text-accent inline-flex items-baseline gap-2">
-                        <span>Part {currentLetter} · {active?.label}</span>
+                        <span>Part {currentLetter} · {kindLabel(active?.value)}</span>
                         {sections.length > 1 && (
                           <span className="text-muted">
                             · <span key={sectionIndex} className="studio-tick">{sectionIndex + 1}</span> of {sections.length}
@@ -1756,13 +1762,13 @@ export default function Studio({ initialKind } = {}) {
           <div className="flex items-end justify-between gap-3 px-1 mb-2">
             <div>
               <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-accent inline-flex items-center gap-1.5">
-                <Sparkles size={11} strokeWidth={1.75} /> Refine with Mudir
+                <Sparkles size={11} strokeWidth={1.75} /> {t("studio.refine")}
                 <HelpTip text="Type a plain-English instruction and Mudir will rewrite. Examples: 'make this harder', 'replace with a word problem', 'translate the whole quiz to Arabic'. Pick This question or Whole quiz on the left to choose the scope." />
               </p>
               <p className="font-serif italic text-[11.5px] text-muted leading-tight mt-0.5">
                 {result?.kind === "quiz"
-                  ? "Edit by chatting — Mudir applies your instruction to the picked scope."
-                  : "Edit by chatting — Mudir applies your instruction to the open section."}
+                  ? t("studio.refinePicked")
+                  : t("studio.refineSection")}
               </p>
             </div>
             {quizScopeBusy && (
@@ -2225,7 +2231,7 @@ function InlineKindPicker({
           }`}
         />
         <span className={`leading-none ${open ? "text-paper-cool" : "text-ink"}`}>
-          {active.label}
+          {kindLabel(active.value)}
         </span>
         <ChevronDown
           size={11}
@@ -2310,7 +2316,7 @@ function KindMenu({ activeValue, cursor, onPick, onClose, onCursor }) {
                           isActive ? "text-accent" : "text-ink"
                         }`}
                       >
-                        {k.label}
+                        {kindLabel(k.value)}
                       </span>
                     </span>
                     <span className="block mt-1 text-[11px] text-muted leading-snug truncate">

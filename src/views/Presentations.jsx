@@ -6,6 +6,7 @@ import {
   useDateScope, filterByDateScope,
 } from "./_data-view";
 import SlideBuilder, { PresentDeck, deckFromPresentation } from "./SlideBuilder";
+import { useT } from "../lib/i18n";
 
 // Blank deck for a brand-new presentation created from this page.
 const BLANK_DECK = {
@@ -17,6 +18,7 @@ const BLANK_DECK = {
 };
 
 export default function Presentations() {
+  const t = useT();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -105,10 +107,10 @@ export default function Presentations() {
   return (
     <div>
       <DataPageHeader
-        eyebrow="Presentations"
-        title={<>Slide <em className="italic font-light text-accent">decks</em></>}
-        subtitle="Build slide-based presentations linked to your lessons."
-        newLabel="New presentation"
+        eyebrow={t("pr.eyebrow")}
+        title={<>{t("pr.titlePlain")}<em className="italic font-light text-accent">{t("pr.titleEm")}</em></>}
+        subtitle={t("pr.sub")}
+        newLabel={t("pr.new")}
         onNewManual={() => setEditing("new")}
         aiKind="presentation"
         mode={viewMode}
@@ -134,13 +136,13 @@ export default function Presentations() {
         </div>
       )}
 
-      {loading && <p className="font-mono text-[10px] uppercase tracking-wider text-muted">Loading…</p>}
+      {loading && <p className="font-mono text-[10px] uppercase tracking-wider text-muted">{t("chip.loading")}</p>}
 
       {!loading && visibleItems.length === 0 && (
         <div className="rounded-2xl border border-dashed border-line p-12 text-center text-muted">
           {items.length === 0
-            ? "No presentations yet — click “New presentation” to build one."
-            : "Nothing matches the current filters."}
+            ? t("pr.empty")
+            : t("chip.noFilterMatch")}
         </div>
       )}
 

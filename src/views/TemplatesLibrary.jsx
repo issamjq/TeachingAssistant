@@ -11,6 +11,7 @@ import {
 } from "./_shared";
 import { DataPageHeader, useViewMode, useDateScope, filterByDateScope } from "./_data-view";
 import { MAJORS } from "../lib/enums";
+import { useT } from "../lib/i18n";
 
 // Lazy-load mammoth only when the user actually clicks Import .docx, so the
 // ~280 KB parser stays out of the main bundle.
@@ -55,6 +56,7 @@ const SORTS = {
 };
 
 export default function TemplatesLibrary({ onNewTemplate, onUseTemplate, onEditTemplate }) {
+  const t = useT();
   const [query, setQuery] = useState("");
   const [subjectFilter, setSubjectFilter] = useState("");
   const [gradeFilter, setGradeFilter] = useState("");
@@ -161,10 +163,10 @@ export default function TemplatesLibrary({ onNewTemplate, onUseTemplate, onEditT
   return (
     <div>
       <DataPageHeader
-        eyebrow="Templates"
-        title={<>Templates <em className="italic font-light text-accent">library</em></>}
-        subtitle="Pick a starting point. Edit it once, reuse it forever."
-        newLabel="New template"
+        eyebrow={t("tp.eyebrow")}
+        title={<>{t("tp.titlePlain")}<em className="italic font-light text-accent">{t("tp.titleEm")}</em></>}
+        subtitle={t("tp.sub")}
+        newLabel={t("tp.new")}
         onNewManual={() => onNewTemplate?.()}
         aiKind="lesson_plan"
         mode={viewMode}
@@ -206,7 +208,7 @@ export default function TemplatesLibrary({ onNewTemplate, onUseTemplate, onEditT
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             className="outline-none w-full text-sm bg-transparent text-ink placeholder:text-muted"
-            placeholder="Search templates by name, subject, topic…"
+            placeholder={t("tp.search")}
           />
         </div>
         <select
@@ -238,7 +240,7 @@ export default function TemplatesLibrary({ onNewTemplate, onUseTemplate, onEditT
 
       <p className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted mb-4">
         {loading ? (
-          "Loading templates from Neon…"
+          t("tp.loading")
         ) : (
           <>
             Showing <span className="text-ink">{filtered.length}</span> of {templates.length} templates
@@ -343,7 +345,7 @@ export default function TemplatesLibrary({ onNewTemplate, onUseTemplate, onEditT
               {filtered.length === 0 && (
                 <tr>
                   <td colSpan={7} className="py-12 text-center text-muted">
-                    No templates match your filters.
+                    {t("tp.empty")}
                   </td>
                 </tr>
               )}

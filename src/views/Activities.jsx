@@ -11,8 +11,10 @@ import {
   DataPageHeader, DataCard, CardsGrid, useViewMode,
   useDateScope, filterByDateScope,
 } from "./_data-view";
+import { useT } from "../lib/i18n";
 
 export default function Activities() {
+  const t = useT();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -68,10 +70,10 @@ export default function Activities() {
   return (
     <div>
       <DataPageHeader
-        eyebrow="Activities"
-        title={<>Classroom <em className="italic font-light text-accent">activities</em></>}
-        subtitle="Pair-work, group tasks, individual exercises — with materials and timing."
-        newLabel="New activity"
+        eyebrow={t("ac.eyebrow")}
+        title={<>{t("ac.titlePlain")}<em className="italic font-light text-accent">{t("ac.titleEm")}</em></>}
+        subtitle={t("ac.sub")}
+        newLabel={t("ac.new")}
         onNewManual={() => setEditing("new")}
         aiKind="activity"
         mode={viewMode}
@@ -97,13 +99,13 @@ export default function Activities() {
         </div>
       )}
 
-      {loading && <p className="font-mono text-[10px] uppercase tracking-wider text-muted">Loading…</p>}
+      {loading && <p className="font-mono text-[10px] uppercase tracking-wider text-muted">{t("chip.loading")}</p>}
 
       {!loading && visibleItems.length === 0 && (
         <div className="rounded-2xl border border-dashed border-line p-12 text-center text-muted">
           {items.length === 0
-            ? "No activities yet — click “New activity” to create one."
-            : "Nothing matches the current filters."}
+            ? t("ac.empty")
+            : t("chip.noFilterMatch")}
         </div>
       )}
 

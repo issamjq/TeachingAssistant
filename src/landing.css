@@ -1225,3 +1225,26 @@ html { scroll-behavior: smooth; }
   .tools-grid { grid-template-columns: 1fr; }
   .dash-kpis { grid-template-columns: 1fr 1fr; }
 }
+
+/* ── RTL (Arabic) — conservative pass. The document <html dir="rtl">
+   already flips text flow + flex inline direction; these rules fix the
+   few spots that use physical offsets so Arabic reads naturally. The
+   decorative absolutely-positioned hero collage is left as-is (purely
+   visual). */
+[dir="rtl"] .landing-root { text-align: right; }
+[dir="rtl"] .topnav .logo::before { margin-right: 0; margin-left: 8px; }
+[dir="rtl"] .eyebrow { flex-direction: row-reverse; }
+[dir="rtl"] .section-title,
+[dir="rtl"] .hero-title { text-align: right; }
+[dir="rtl"] [class*="quote"],
+[dir="rtl"] blockquote {
+  border-left: 0;
+  border-right: 3px solid var(--accent);
+  padding-left: 0;
+  padding-right: 20px;
+}
+/* Sections that are intentionally centred stay centred. */
+[dir="rtl"] .solution,
+[dir="rtl"] .studio-map,
+[dir="rtl"] .try-section,
+[dir="rtl"] .pricing { text-align: center; }

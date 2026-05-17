@@ -18,10 +18,12 @@ import {
   useDateScope, filterByDateScope,
 } from "./_data-view";
 import { MAJORS } from "../lib/enums";
+import { useT } from "../lib/i18n";
 
 const STATUSES = ["In progress", "Ready to use", "Blocked", "Paused"];
 
 export default function ReusableDrafts({ onEditDraft }) {
+  const t = useT();
   const [query, setQuery] = useState("");
   const [subjectFilter, setSubjectFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
@@ -101,9 +103,9 @@ export default function ReusableDrafts({ onEditDraft }) {
   return (
     <div>
       <DataPageHeader
-        eyebrow="Drafts"
-        title={<>Your <em className="italic font-light text-accent">drafts</em></>}
-        subtitle="Lesson plans you started, paused, or saved to reuse later. Only you can see these."
+        eyebrow={t("dr.eyebrow")}
+        title={<>{t("dr.titlePlain")}<em className="italic font-light text-accent">{t("dr.titleEm")}</em></>}
+        subtitle={t("dr.sub")}
         mode={viewMode}
         onModeChange={setViewMode}
         trashEndpoint="/api/drafts"
@@ -139,7 +141,7 @@ export default function ReusableDrafts({ onEditDraft }) {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             className="outline-none w-full text-sm bg-transparent text-ink placeholder:text-muted"
-            placeholder="Search drafts by name, subject, topic…"
+            placeholder={t("dr.search")}
           />
         </div>
         <select
@@ -171,7 +173,7 @@ export default function ReusableDrafts({ onEditDraft }) {
 
       <p className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted mb-4">
         {loading ? (
-          "Loading drafts from Neon…"
+          t("dr.loading")
         ) : (
           <>
             Showing <span className="text-ink">{sorted.length}</span> of {drafts.length} drafts · auto-saved every 30s
@@ -183,7 +185,7 @@ export default function ReusableDrafts({ onEditDraft }) {
         <>
           {!loading && sorted.length === 0 && (
             <div className="rounded-2xl border border-dashed border-line p-12 text-center text-muted">
-              No drafts match the current filters.
+              {t("dr.empty")}
             </div>
           )}
           {sorted.length > 0 && (
@@ -310,7 +312,7 @@ export default function ReusableDrafts({ onEditDraft }) {
                 {!loading && sorted.length === 0 && (
                   <tr>
                     <td colSpan={6} className="py-12 text-center text-muted">
-                      No drafts match the current filters.
+                      {t("dr.empty")}
                     </td>
                   </tr>
                 )}
