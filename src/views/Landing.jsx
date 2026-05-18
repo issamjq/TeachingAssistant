@@ -978,25 +978,28 @@ const ShowcaseScroll = () => {
   const N = CARDS.length;
   const mid = (N - 1) / 2;
 
-  // Card phase sub-progress
-  const g1 = easeInOut(seg(q, 0.02, 0.18)); // S → M  (converge)
-  const g2 = easeInOut(seg(q, 0.18, 0.4)); //  M → E  (cascade)
-  const g3 = easeInOut(seg(q, 0.46, 0.78)); // E → G  (travel to grid)
+  // Card phase sub-progress. Cards stay small/scattered low while the
+  // headline reads, THEN converge — so the two never sit on top of each
+  // other fully opaque.
+  const g1 = easeInOut(seg(q, 0.16, 0.32)); // S → M  (converge)
+  const g2 = easeInOut(seg(q, 0.32, 0.52)); //  M → E  (cascade)
+  const g3 = easeInOut(seg(q, 0.54, 0.82)); // E → G  (travel to grid)
 
-  // Headline #1 — centred, behind the cards (cascade phase)
-  const h1 = seg(q, 0.03, 0.3);
-  const head1Out = seg(q, 0.46, 0.6);
-  const head1Up = easeInOut(seg(q, 0.46, 0.7)) * -70;
+  // Headline #1 — centred. Reveals first (cards still low/small), then
+  // fades + drifts up as the cards converge over it.
+  const h1 = seg(q, 0.03, 0.2);
+  const head1Out = seg(q, 0.2, 0.34);
+  const head1Up = easeInOut(seg(q, 0.2, 0.4)) * -70;
 
   // Library window + headline #2 + honeycomb (grid phase)
-  const winT = easeInOut(seg(q, 0.5, 0.74));
-  const h2 = seg(q, 0.62, 0.96);
-  const honeyActive = q > 0.62;
+  const winT = easeInOut(seg(q, 0.58, 0.82));
+  const h2 = seg(q, 0.68, 0.97);
+  const honeyActive = q > 0.66;
 
   const bob = Math.sin(q * Math.PI * 2) * 6;
   const bCasc =
-    clamp01((q - 0.08) / 0.06) * (1 - clamp01((q - 0.4) / 0.08));
-  const bWin = clamp01((q - 0.66) / 0.08);
+    clamp01((q - 0.3) / 0.05) * (1 - clamp01((q - 0.52) / 0.06));
+  const bWin = clamp01((q - 0.74) / 0.06);
 
   const colOff = [-140, 0, 140];
   // Top row pushed down so it clears the header + folder tabs (the
