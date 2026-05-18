@@ -835,14 +835,13 @@ const VISION_SUB =
     .split(" ");
 const C_INK2 = "#6E5C4A";
 
-// Honeycomb — a tight hexagonal close-pack of the 58px circles: a 3-2-3
-// pile where every neighbour is tangent (touching) and the bottom row
-// sits on the ground (y: 0). Row pitch = 58·√3/2 ≈ 50, columns 58 apart,
-// odd rows offset by half a circle into the valleys.
+// Scattered drop — hand-tuned "random" rest spots (not a grid). Kept
+// shallow (y range ≈ 90px) so the whole cluster sits in the clear band
+// between the sub-paragraph and the Library window's bottom edge.
 const HONEY = [
-  { x: -58, y: 0 }, { x: 0, y: 0 }, { x: 58, y: 0 },
-  { x: -29, y: -50 }, { x: 29, y: -50 },
-  { x: -58, y: -100 }, { x: 0, y: -100 }, { x: 58, y: -100 },
+  { x: -86, y: -2 }, { x: 28, y: 6 }, { x: 150, y: -6 },
+  { x: -44, y: -52 }, { x: 96, y: -48 }, { x: 210, y: -58 },
+  { x: 4, y: -88 }, { x: 150, y: -100 },
 ];
 const HONEY_ICONS = [
   Sparkles, BookOpen, GraduationCap, ClipboardList,
@@ -895,8 +894,16 @@ const HoneyDrop = React.memo(function HoneyDrop({ active }) {
 
   return (
     <div
-      className="absolute left-[10%] bottom-[4%]"
-      style={{ width: 0, height: 0, zIndex: 25 }}
+      className="absolute left-1/2 top-1/2"
+      style={{
+        width: 0,
+        height: 0,
+        zIndex: 25,
+        // Anchored in the centre+px frame (same as the Library window)
+        // so the cluster's base lines up with the window's bottom edge,
+        // low in the left column and clear of the headline.
+        transform: "translate(-380px, 268px)",
+      }}
     >
       {HONEY.map((h, i) => {
         const Ic = HONEY_ICONS[i];
@@ -994,7 +1001,7 @@ const ShowcaseScroll = () => {
   // Library window + headline #2 + honeycomb (grid phase)
   const winT = easeInOut(seg(q, 0.58, 0.82));
   const h2 = seg(q, 0.68, 0.97);
-  const honeyActive = q > 0.66;
+  const honeyActive = q > 0.8; // start the drop once "grade" is revealed
 
   const bob = Math.sin(q * Math.PI * 2) * 6;
   const bCasc =
