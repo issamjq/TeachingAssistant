@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import "../landing.css";
 import { useT, useI18n, LangToggle } from "../lib/i18n";
+import { useAccount, setAccount } from "../lib/account";
 
 // Animations removed by request. These are no-op stand-ins for the
 // framer-motion API so the page renders fully static — no fades, no
@@ -114,7 +115,7 @@ const SectionDivider = ({ variant = "calm", flip = false, height = 120 }) => {
 // =====================================================================
 // NAV
 // =====================================================================
-const Nav = ({ onOpenStudio, onJump, onPage }) => {
+const Nav = ({ onEnter, signedIn, onJump, onPage }) => {
   const t = useT();
   const [scrolled, setScrolled] = useState(false);
   useEffect(() => {
@@ -170,20 +171,22 @@ const Nav = ({ onOpenStudio, onJump, onPage }) => {
 
         <div className="flex items-center gap-3">
           <LangToggle />
+          {!signedIn && (
+            <button
+              type="button"
+              onClick={() => onPage("signup")}
+              className="hidden sm:block text-sm link-quiet"
+              style={{ color: "var(--ink-2)" }}
+            >
+              {t("lp.nav.signin")}
+            </button>
+          )}
           <button
             type="button"
-            onClick={() => onPage("signin")}
-            className="hidden sm:block text-sm link-quiet"
-            style={{ color: "var(--ink-2)" }}
-          >
-            {t("lp.nav.signin")}
-          </button>
-          <button
-            type="button"
-            onClick={onOpenStudio}
+            onClick={onEnter}
             className="btn-primary px-4 py-2 rounded-lg text-sm font-medium"
           >
-            {t("lp.nav.openPlanner")}
+            {signedIn ? t("lp.nav.openPlanner") : t("lp.cta.subscribe")}
           </button>
         </div>
       </div>
@@ -388,8 +391,9 @@ function Bubble({ label, bg, style }) {
   );
 }
 
-const Hero = ({ onOpenStudio }) => {
+const Hero = ({ onEnter, signedIn }) => {
   const { t, lang } = useI18n();
+  const ctaLabel = signedIn ? t("lp.nav.openPlanner") : t("lp.cta.subscribe");
   const C_HEAD = lang === "ar" ? C_HEAD_AR : C_HEAD_EN;
   const trackRef = useRef(null);
   const [p, setP] = useState(0);
@@ -529,10 +533,10 @@ const Hero = ({ onOpenStudio }) => {
               <div className="flex flex-wrap items-center gap-3">
                 <button
                   type="button"
-                  onClick={onOpenStudio}
+                  onClick={onEnter}
                   className="btn-primary px-6 py-3.5 rounded-lg text-sm font-medium inline-flex items-center gap-2"
                 >
-                  {t("lp.nav.openPlanner")}
+                  {ctaLabel}
                   {ARROW}
                 </button>
                 <a
@@ -644,10 +648,10 @@ const Hero = ({ onOpenStudio }) => {
         <div className="flex flex-wrap items-center gap-3 mb-14">
           <button
             type="button"
-            onClick={onOpenStudio}
+            onClick={onEnter}
             className="btn-primary px-6 py-3.5 rounded-lg text-sm font-medium"
           >
-            {t("lp.nav.openPlanner")}
+            {ctaLabel}
           </button>
           <a
             href="#how"
@@ -3963,7 +3967,7 @@ const Philosophy = () => {
 // =====================================================================
 // FINAL CTA
 // =====================================================================
-const CTA = ({ onOpenStudio }) => {
+const CTA = ({ onEnter, signedIn }) => {
   const t = useT();
   return (
     <section
@@ -4007,10 +4011,10 @@ const CTA = ({ onOpenStudio }) => {
 
           <button
             type="button"
-            onClick={onOpenStudio}
+            onClick={onEnter}
             className="btn-invert inline-flex items-center gap-2 px-7 py-3.5 rounded-lg text-sm font-medium"
           >
-            {t("lp.nav.openPlanner")}
+            {signedIn ? t("lp.nav.openPlanner") : t("lp.cta.subscribe")}
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
               <path
                 d="M5 3l4 4-4 4"
@@ -4030,7 +4034,7 @@ const CTA = ({ onOpenStudio }) => {
 // =====================================================================
 // FOOTER
 // =====================================================================
-const Footer = ({ onOpenStudio, onJump, onPage }) => {
+const Footer = ({ onEnter, signedIn, onJump, onPage }) => {
   const t = useT();
   const FLink = ({ children, onClick }) => (
     <button type="button" onClick={onClick} className="link-quiet text-left">
@@ -4097,10 +4101,10 @@ const Footer = ({ onOpenStudio, onJump, onPage }) => {
             </p>
             <button
               type="button"
-              onClick={onOpenStudio}
+              onClick={onEnter}
               className="text-sm link-quiet font-medium"
             >
-              {t("lp.foot.openPlanner")}
+              {signedIn ? t("lp.foot.openPlanner") : t("lp.cta.subscribe")}
             </button>
           </div>
         </div>
@@ -4242,65 +4246,169 @@ function ContactForm() {
   );
 }
 
-function SignInPage({ onOpenStudio, onPage }) {
+// Brand marks — small, recognisable, no external assets.
+function GoogleMark() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden focusable="false">
+      <path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.7-1.57 2.68-3.88 2.68-6.62z" />
+      <path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.81.54-1.84.86-3.04.86-2.34 0-4.32-1.58-5.03-3.7H.96v2.33A9 9 0 0 0 9 18z" />
+      <path fill="#FBBC05" d="M3.97 10.72a5.41 5.41 0 0 1 0-3.44V4.95H.96a9 9 0 0 0 0 8.1l3.01-2.33z" />
+      <path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58C13.47.89 11.43 0 9 0A9 9 0 0 0 .96 4.95l3.01 2.33C4.68 5.16 6.66 3.58 9 3.58z" />
+    </svg>
+  );
+}
+function OutlookMark() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden focusable="false">
+      <rect x="1" y="1" width="7.4" height="7.4" fill="#F25022" />
+      <rect x="9.6" y="1" width="7.4" height="7.4" fill="#7FBA00" />
+      <rect x="1" y="9.6" width="7.4" height="7.4" fill="#00A4EF" />
+      <rect x="9.6" y="9.6" width="7.4" height="7.4" fill="#FFB900" />
+    </svg>
+  );
+}
+
+function ProviderButton({ icon, label, onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="w-full flex items-center justify-center gap-3 px-5 py-3.5 rounded-xl text-sm font-medium transition lift"
+      style={{ background: "var(--paper)", border: "0.5px solid var(--line-strong)", color: "var(--ink)" }}
+    >
+      <span className="flex-shrink-0 inline-flex">{icon}</span>
+      <span>{label}</span>
+    </button>
+  );
+}
+
+// Sign up — Google / Outlook only. No real auth yet (mock): tapping a
+// provider records it and moves to plan onboarding. Swap onSignUp for a
+// Firebase popup later; the rest of the funnel is unchanged.
+function AuthPage({ onSignUp, onPage }) {
   const t = useT();
   return (
     <PageShell
-      eyebrow={t("lp.pg.signin.eyebrow")}
-      title={t("lp.pg.signin.title")}
+      eyebrow={t("lp.auth.eyebrow")}
+      title={t("lp.auth.title")}
+      em={t("lp.auth.titleEm")}
+      lead={t("lp.auth.lead")}
       onPage={onPage}
       narrow
     >
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          onOpenStudio();
-        }}
-        className="space-y-4"
-      >
-        <input
-          required
-          type="email"
-          placeholder={t("lp.pg.emailPh")}
-          className="w-full px-4 py-3 rounded-lg text-sm outline-none"
-          style={fieldStyle}
+      <div className="space-y-3 max-w-sm">
+        <ProviderButton
+          icon={<GoogleMark />}
+          label={t("lp.auth.google")}
+          onClick={() => onSignUp("google")}
         />
-        <input
-          required
-          type="password"
-          placeholder={t("lp.pg.signin.pwd")}
-          className="w-full px-4 py-3 rounded-lg text-sm outline-none"
-          style={fieldStyle}
+        <ProviderButton
+          icon={<OutlookMark />}
+          label={t("lp.auth.outlook")}
+          onClick={() => onSignUp("outlook")}
         />
-        <button
-          type="submit"
-          className="btn-primary w-full px-6 py-3 rounded-lg text-sm font-medium"
-        >
-          {t("lp.pg.signin.btn")}
-        </button>
-      </form>
-      <p className="text-sm mt-6" style={{ color: "var(--ink-2)" }}>
-        {t("lp.pg.signin.newQ")}{" "}
-        <button
-          type="button"
-          onClick={onOpenStudio}
-          className="link-quiet font-medium"
-          style={{ color: "var(--ink)" }}
-        >
-          {t("lp.pg.signin.open")}
-        </button>
+      </div>
+      <p className="text-xs mt-6" style={{ color: "var(--ink-3)" }}>
+        {t("lp.auth.only")}
       </p>
-      <p className="text-xs mt-8" style={{ color: "var(--ink-3)" }}>
-        {t("lp.pg.signin.note")}
+      <p className="text-xs mt-2" style={{ color: "var(--ink-3)" }}>
+        {t("lp.auth.terms")}
       </p>
     </PageShell>
   );
 }
 
-function MarketingPage({ page, onOpenStudio, onPage }) {
+// Onboarding — pick a membership. Choosing a plan finalises the mock
+// account and drops the teacher straight into the planner.
+function OnboardingPage({ onChoosePlan, onPage }) {
   const t = useT();
-  if (page === "signin")
-    return <SignInPage onOpenStudio={onOpenStudio} onPage={onPage} />;
+  const cur = t("lp.plan.aed");
+  return (
+    <PageShell
+      eyebrow={t("lp.ob.eyebrow")}
+      title={t("lp.ob.title")}
+      em={t("lp.ob.titleEm")}
+      lead={t("lp.ob.lead")}
+      onPage={onPage}
+    >
+      <div className="grid gap-4 sm:grid-cols-3">
+        {PLANS.map((p) => {
+          const billed =
+            p.cycle === "mo"
+              ? t("lp.plan.billed.mo")
+              : t(p.cycle === "q" ? "lp.plan.billed.q" : "lp.plan.billed.yr", {
+                  total: p.total,
+                  cur,
+                });
+          return (
+            <div
+              key={p.id}
+              className="relative rounded-2xl p-6 flex flex-col lift"
+              style={{
+                background: p.best ? "var(--ink)" : "var(--paper)",
+                color: p.best ? "var(--paper)" : "var(--ink)",
+                border: "0.5px solid " + (p.best ? "var(--ink)" : "var(--line-strong)"),
+              }}
+            >
+              {p.best && (
+                <span
+                  className="absolute -top-2.5 inset-x-0 mx-auto w-max px-2.5 py-0.5 rounded-full font-mono text-[9px] uppercase tracking-[0.16em]"
+                  style={{ background: "var(--clay)", color: "var(--paper)" }}
+                >
+                  {t("lp.plan.best")}
+                </span>
+              )}
+              <div
+                className="font-mono text-[10px] uppercase tracking-[0.16em] mb-3"
+                style={{ color: p.best ? "rgba(247,243,236,0.6)" : "var(--ink-3)" }}
+              >
+                {t(`lp.plan.name.${p.id}`)}
+              </div>
+              <div className="flex items-baseline gap-1.5">
+                <span className="font-display text-4xl leading-none">{p.perMonth}</span>
+                <span className="text-sm" style={{ opacity: 0.7 }}>{cur}</span>
+                <span className="text-sm" style={{ opacity: 0.7 }}>{t("lp.plan.perMo")}</span>
+              </div>
+              <div
+                className="text-xs mt-2 mb-1"
+                style={{ color: p.best ? "rgba(247,243,236,0.65)" : "var(--ink-2)" }}
+              >
+                {billed}
+              </div>
+              {p.savePct > 0 && (
+                <div
+                  className="font-mono text-[10px] uppercase tracking-wider mb-5"
+                  style={{ color: p.best ? "var(--brick-soft)" : "var(--clay)" }}
+                >
+                  {t("lp.plan.save", { n: p.savePct })}
+                </div>
+              )}
+              <button
+                type="button"
+                onClick={() => onChoosePlan(p.id)}
+                className={`mt-auto w-full px-5 py-3 rounded-lg text-sm font-medium transition ${
+                  p.best ? "btn-invert" : "btn-primary"
+                }`}
+              >
+                {t("lp.plan.choose")}
+              </button>
+            </div>
+          );
+        })}
+      </div>
+      <p className="text-xs mt-8" style={{ color: "var(--ink-3)" }}>
+        {t("lp.ob.note")}
+      </p>
+    </PageShell>
+  );
+}
+
+function MarketingPage({ page, onSignUp, onChoosePlan, onPage }) {
+  const t = useT();
+  if (page === "signin" || page === "signup")
+    return <AuthPage onSignUp={onSignUp} onPage={onPage} />;
+  if (page === "onboarding")
+    return <OnboardingPage onChoosePlan={onChoosePlan} onPage={onPage} />;
 
   if (page === "privacy")
     return (
@@ -4433,10 +4541,27 @@ function MarketingPage({ page, onOpenStudio, onPage }) {
 // =====================================================================
 export default function Landing({ onOpenStudio }) {
   const [page, setPage] = useState("home");
+  // Mock auth: an account exists only once a provider was picked AND a
+  // plan chosen. Signed-in visitors skip the funnel entirely.
+  const account = useAccount();
+  const signedIn = !!account;
+  const [pendingProvider, setPendingProvider] = useState(null);
 
   const goPage = (p) => {
     setPage(p);
     window.scrollTo(0, 0);
+  };
+
+  // The single entry action behind every primary CTA: into the planner
+  // if subscribed, otherwise into the sign-up funnel.
+  const enter = () => (signedIn ? onOpenStudio() : goPage("signup"));
+  const handleSignUp = (provider) => {
+    setPendingProvider(provider);
+    goPage("onboarding");
+  };
+  const handleChoosePlan = (plan) => {
+    setAccount({ provider: pendingProvider || "google", plan });
+    onOpenStudio();
   };
   const jump = (id) => {
     const doScroll = () => {
@@ -4452,10 +4577,10 @@ export default function Landing({ onOpenStudio }) {
 
   return (
     <div className="mudir-landing paper-noise">
-      <Nav onOpenStudio={onOpenStudio} onJump={jump} onPage={goPage} />
+      <Nav onEnter={enter} signedIn={signedIn} onJump={jump} onPage={goPage} />
       {page === "home" ? (
         <>
-          <Hero onOpenStudio={onOpenStudio} />
+          <Hero onEnter={enter} signedIn={signedIn} />
           <ShowcaseScroll />
           <CommunityScroll />
           <SectionDivider variant="wave" />
@@ -4463,16 +4588,17 @@ export default function Landing({ onOpenStudio }) {
           <SectionDivider variant="cascade" />
           <Workflow />
           <SectionDivider variant="cascade" flip />
-          <CTA onOpenStudio={onOpenStudio} />
+          <CTA onEnter={enter} signedIn={signedIn} />
         </>
       ) : (
         <MarketingPage
           page={page}
-          onOpenStudio={onOpenStudio}
+          onSignUp={handleSignUp}
+          onChoosePlan={handleChoosePlan}
           onPage={goPage}
         />
       )}
-      <Footer onOpenStudio={onOpenStudio} onJump={jump} onPage={goPage} />
+      <Footer onEnter={enter} signedIn={signedIn} onJump={jump} onPage={goPage} />
     </div>
   );
 }
