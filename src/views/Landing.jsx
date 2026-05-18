@@ -194,6 +194,25 @@ const Nav = ({ onOpenStudio, onJump, onPage }) => {
 const easeInOut = (t) =>
   t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
 
+// Penner easeOutBounce — a ball dropped under gravity: it hits, bounces
+// back up, falls, bounces smaller, then comes to rest. Drives the
+// honeycomb "thrown on the ground" entrance.
+const easeOutBounce = (t) => {
+  const n1 = 7.5625;
+  const d1 = 2.75;
+  if (t < 1 / d1) return n1 * t * t;
+  if (t < 2 / d1) {
+    const u = t - 1.5 / d1;
+    return n1 * u * u + 0.75;
+  }
+  if (t < 2.5 / d1) {
+    const u = t - 2.25 / d1;
+    return n1 * u * u + 0.9375;
+  }
+  const u = t - 2.625 / d1;
+  return n1 * u * u + 0.984375;
+};
+
 // Scroll-scrub math. `seg` remaps a slice [a,b] of the global scroll
 // progress to a fresh 0→1 ramp; `lerp` blends between two states; `mix`
 // blends two #rrggbb colours. Same no-library technique the rest of the
@@ -987,11 +1006,24 @@ const ShowcaseScroll = () => {
           >
             {HONEY.map((h, i) => {
               const Ic = HONEY_ICONS[i];
-              const prog = easeInOut(clamp01((honey - i * 0.055) / 0.4));
-              const sx = h.x * 0.2 - 50;
-              const sy = h.y * 0.2 + 90;
-              const x = lerp(sx, h.x, prog);
-              const y = lerp(sy, h.y, prog);
+              // Each ball is "thrown" a beat after the previous one.
+              const p = clamp01((honey - i * 0.05) / 0.36);
+              // Released from above, falls under gravity, bounces, settles
+              // onto its honeycomb spot.
+              const fall = easeOutBounce(p);
+              const startY = h.y - 320;
+              const y = lerp(startY, h.y, fall);
+              // Impact squash — pulses each time the bounce kisses the
+              // ground, then fades to nothing as it comes to rest.
+              const squash = clamp01((fall - 0.84) / 0.16) * (1 - p);
+              const sX = 1 + 0.18 * squash;
+              const sY = 1 - 0.2 * squash;
+              // Snaps to solid size at the top almost immediately so it
+              // reads as a falling ball, not a growing dot.
+              const appear = clamp01(p / 0.12);
+              const sc = lerp(0.72, 1, appear);
+              // Contact shadow: wide & soft mid-air, tight when grounded.
+              const air = 1 - fall;
               return (
                 <span
                   key={i}
@@ -1004,13 +1036,16 @@ const ShowcaseScroll = () => {
                     background: "var(--paper)",
                     border: "0.5px solid var(--line-strong)",
                     color: "var(--ink)",
-                    boxShadow: "0 12px 28px -16px rgba(42,31,23,0.4)",
-                    transform: `translate(${x}px, ${y}px) scale(${lerp(
-                      0.3,
-                      1,
-                      prog
-                    )})`,
-                    opacity: prog,
+                    boxShadow: `0 ${lerp(8, 22, air)}px ${lerp(
+                      18,
+                      40,
+                      air
+                    )}px -16px rgba(42,31,23,${lerp(0.5, 0.32, air)})`,
+                    transform: `translate(${h.x}px, ${y}px) scale(${
+                      sc * sX
+                    }, ${sc * sY})`,
+                    transformOrigin: "50% 100%",
+                    opacity: appear,
                     willChange: "transform, opacity",
                   }}
                 >
