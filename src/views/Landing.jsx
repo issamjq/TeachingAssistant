@@ -1116,7 +1116,7 @@ const ShowcaseScroll = () => {
               className="overflow-hidden"
               style={{
                 width: 470,
-                height: 470,
+                height: 520,
                 borderRadius: 22,
                 background: "var(--paper)",
                 border: "0.5px solid var(--line-strong)",
@@ -1131,10 +1131,7 @@ const ShowcaseScroll = () => {
             >
               <div
                 className="flex items-center justify-between px-6"
-                style={{
-                  height: 64,
-                  borderBottom: "0.5px solid var(--line)",
-                }}
+                style={{ height: 64 }}
               >
                 <span className="font-display text-xl">Library</span>
                 <span
@@ -1150,57 +1147,43 @@ const ShowcaseScroll = () => {
                   <Plus size={13} strokeWidth={2.5} /> New
                 </span>
               </div>
-              {/* Folder tabs — stacked like the reference: a lighter
-                  folder behind, the active one dark in front. */}
+              {/* Active folder — full-width band stacked UNDER the
+                  header (not side tabs), with the concave curve scooped
+                  out of its top-right under the "+ New", exactly like
+                  the reference. */}
               <div
-                className="relative px-6"
-                style={{ paddingTop: 16, height: 58 }}
+                className="relative"
+                style={{
+                  height: 62,
+                  background: "var(--ink)",
+                  borderTopLeftRadius: 20,
+                  boxShadow: "0 18px 30px -20px rgba(42,31,23,0.55)",
+                }}
               >
-                {/* Back folder — "School" (peeks behind, to the right) */}
-                <div
-                  className="font-mono absolute"
+                <span
+                  className="absolute inline-flex items-center gap-2"
                   style={{
-                    top: 12,
-                    left: 150,
-                    fontSize: 10.5,
-                    letterSpacing: "0.13em",
-                    textTransform: "uppercase",
-                    padding: "9px 26px 18px",
-                    background: "var(--paper-2)",
-                    color: "var(--ink-3)",
-                    border: "0.5px solid var(--line-strong)",
-                    borderBottom: "none",
-                    borderRadius: "13px 13px 0 0",
-                    zIndex: 1,
-                  }}
-                >
-                  School
-                </div>
-                {/* Active folder — "Personal" (dark, in front) */}
-                <div
-                  className="relative inline-flex items-center gap-2"
-                  style={{
-                    zIndex: 2,
-                    padding: "11px 26px 16px",
-                    background: "var(--ink)",
+                    left: 26,
+                    top: "50%",
+                    transform: "translateY(-50%)",
                     color: "var(--paper)",
-                    borderRadius: "15px 15px 0 0",
-                    boxShadow: "0 14px 26px -16px rgba(42,31,23,0.5)",
                     fontFamily: "'Fraunces', serif",
-                    fontSize: 15,
+                    fontSize: 17,
                   }}
                 >
-                  <BookOpen size={14} strokeWidth={2} />
+                  <BookOpen size={15} strokeWidth={2} />
                   Personal
-                </div>
-                {/* Seam — the active folder opens onto the content */}
+                </span>
+                {/* Concave quarter-circle scooped from the top-right */}
                 <div
-                  className="absolute left-0 right-0"
                   style={{
-                    bottom: 0,
-                    height: "0.5px",
-                    background: "var(--line)",
-                    zIndex: 0,
+                    position: "absolute",
+                    top: 0,
+                    right: 0,
+                    width: 46,
+                    height: 46,
+                    background: "var(--paper)",
+                    borderBottomLeftRadius: 46,
                   }}
                 />
               </div>
