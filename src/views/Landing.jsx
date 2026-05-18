@@ -7,6 +7,7 @@ import {
   Paperclip, Send, Layers, Play,
 } from "lucide-react";
 import "../landing.css";
+import { useT, useI18n, LangToggle } from "../lib/i18n";
 
 // Animations removed by request. These are no-op stand-ins for the
 // framer-motion API so the page renders fully static — no fades, no
@@ -114,6 +115,7 @@ const SectionDivider = ({ variant = "calm", flip = false, height = 120 }) => {
 // NAV
 // =====================================================================
 const Nav = ({ onOpenStudio, onJump, onPage }) => {
+  const t = useT();
   const [scrolled, setScrolled] = useState(false);
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 20);
@@ -153,34 +155,35 @@ const Nav = ({ onOpenStudio, onJump, onPage }) => {
           style={{ color: "var(--ink-2)" }}
         >
           <button type="button" onClick={() => onJump("how")} className="link-quiet">
-            How it works
+            {t("lp.nav.how")}
           </button>
           <button type="button" onClick={() => onJump("features")} className="link-quiet">
-            Features
+            {t("lp.nav.features")}
           </button>
           <button type="button" onClick={() => onJump("how")} className="link-quiet">
-            AI studio
+            {t("lp.nav.aistudio")}
           </button>
           <button type="button" onClick={() => onJump("philosophy")} className="link-quiet">
-            How we build
+            {t("lp.nav.build")}
           </button>
         </nav>
 
         <div className="flex items-center gap-3">
+          <LangToggle />
           <button
             type="button"
             onClick={() => onPage("signin")}
             className="hidden sm:block text-sm link-quiet"
             style={{ color: "var(--ink-2)" }}
           >
-            Sign in
+            {t("lp.nav.signin")}
           </button>
           <button
             type="button"
             onClick={onOpenStudio}
             className="btn-primary px-4 py-2 rounded-lg text-sm font-medium"
           >
-            Open the planner
+            {t("lp.nav.openPlanner")}
           </button>
         </div>
       </div>
@@ -335,11 +338,18 @@ function HeroCardFace({ kind }) {
 const HERO_CARDS = ["lesson", "quiz", "deck", "presentation", "activity", "homework", "worksheet"];
 
 // Phase-C headline — each token fades + un-blurs + colour-shifts in turn.
-const C_HEAD = [
+// Per-language word lists so the reveal works in EN and AR (RTL).
+const C_HEAD_EN = [
   { t: "Plan," }, { t: "draft," },
   { t: "&", accent: true }, { t: "teach", accent: true },
   { t: "every" }, { t: "lesson" }, { t: "—" },
   { t: "start" }, { t: "to" }, { t: "finish." },
+];
+const C_HEAD_AR = [
+  { t: "خطِّط،" }, { t: "اصِغ،" },
+  { t: "و", accent: true }, { t: "علِّم", accent: true },
+  { t: "كل" }, { t: "درس" }, { t: "—" },
+  { t: "من" }, { t: "البداية" }, { t: "إلى" }, { t: "النهاية." },
 ];
 
 // Floating handle pill with a little speech tail.
@@ -379,6 +389,8 @@ function Bubble({ label, bg, style }) {
 }
 
 const Hero = ({ onOpenStudio }) => {
+  const { t, lang } = useI18n();
+  const C_HEAD = lang === "ar" ? C_HEAD_AR : C_HEAD_EN;
   const trackRef = useRef(null);
   const [p, setP] = useState(0);
 
@@ -453,22 +465,23 @@ const Hero = ({ onOpenStudio }) => {
             <div className="flex items-center justify-center gap-3 mb-6">
               <span className="w-6 h-px" style={{ background: "var(--ink-3)" }} />
               <span className="eyebrow">
-                An AI lesson director · Built for UAE schools
+                {t("lp.hero.eyebrow")}
               </span>
             </div>
             <h1 className="font-display text-[clamp(44px,5.6vw,92px)] leading-[0.98] tracking-tight">
-              The teacher directs.{" "}
+              {t("lp.hero.h1a")}{" "}
               <em style={{ color: "var(--clay)", fontStyle: "italic" }}>
-                Mudir
+                {t("lp.hero.brand")}
               </em>{" "}
-              <span style={{ color: "var(--ink-2)" }}>drafts.</span>
+              <span style={{ color: "var(--ink-2)" }}>{t("lp.hero.h1b")}</span>
             </h1>
           </div>
 
           {/* Scene C — headline reveals word-by-word (left column) */}
           <div
-            className="absolute left-8 top-1/2 w-[45%] will-change-transform"
+            className="absolute top-1/2 w-[45%] will-change-transform"
             style={{
+              insetInlineStart: "2rem",
               transform: `translateY(calc(-50% + ${lerp(36, 0, cIn)}px))`,
               pointerEvents: cIn > 0.1 ? "auto" : "none",
             }}
@@ -476,7 +489,7 @@ const Hero = ({ onOpenStudio }) => {
             <div className="flex items-center gap-3 mb-6" style={{ opacity: cIn }}>
               <span className="w-6 h-px" style={{ background: "var(--clay)" }} />
               <span className="eyebrow" style={{ color: "var(--clay)" }}>
-                The studio
+                {t("lp.hero.studioEyebrow")}
               </span>
             </div>
             <h2 className="font-display text-[clamp(38px,4.8vw,74px)] leading-[1.04] tracking-tight">
@@ -487,7 +500,7 @@ const Hero = ({ onOpenStudio }) => {
                     key={i}
                     style={{
                       display: "inline-block",
-                      marginRight: "0.26em",
+                      marginInlineEnd: "0.26em",
                       opacity: wp,
                       filter: `blur(${(1 - wp) * 9}px)`,
                       transform: `translateY(${(1 - wp) * 16}px)`,
@@ -511,8 +524,7 @@ const Hero = ({ onOpenStudio }) => {
                 className="text-base md:text-lg leading-relaxed mt-7 mb-7 max-w-md"
                 style={{ color: "var(--ink-2)" }}
               >
-                One studio for every artifact. You direct the lesson — Mudir
-                builds the rest, classroom-ready.
+                {t("lp.hero.studioBody")}
               </p>
               <div className="flex flex-wrap items-center gap-3">
                 <button
@@ -520,14 +532,14 @@ const Hero = ({ onOpenStudio }) => {
                   onClick={onOpenStudio}
                   className="btn-primary px-6 py-3.5 rounded-lg text-sm font-medium inline-flex items-center gap-2"
                 >
-                  Open the planner
+                  {t("lp.nav.openPlanner")}
                   {ARROW}
                 </button>
                 <a
                   href="#how"
                   className="btn-secondary px-6 py-3.5 rounded-lg text-sm font-medium"
                 >
-                  See how it works
+                  {t("lp.hero.seeHow")}
                 </a>
               </div>
             </div>
@@ -615,20 +627,19 @@ const Hero = ({ onOpenStudio }) => {
         <div className="flex items-center gap-3 mb-6">
           <span className="w-6 h-px" style={{ background: "var(--ink-3)" }} />
           <span className="eyebrow">
-            An AI lesson director · Built for UAE schools
+            {t("lp.hero.eyebrow")}
           </span>
         </div>
         <h1 className="font-display text-[clamp(40px,11vw,64px)] leading-[1.0] tracking-tight mb-6">
-          The teacher directs.{" "}
-          <em style={{ color: "var(--clay)", fontStyle: "italic" }}>Mudir</em>{" "}
-          <span style={{ color: "var(--ink-2)" }}>drafts.</span>
+          {t("lp.hero.h1a")}{" "}
+          <em style={{ color: "var(--clay)", fontStyle: "italic" }}>{t("lp.hero.brand")}</em>{" "}
+          <span style={{ color: "var(--ink-2)" }}>{t("lp.hero.h1b")}</span>
         </h1>
         <p
           className="text-base leading-relaxed mb-7"
           style={{ color: "var(--ink-2)" }}
         >
-          Lessons, quizzes, slides, homework — every teaching artifact, drafted
-          for you and ready to teach.
+          {t("lp.hero.mobileSub")}
         </p>
         <div className="flex flex-wrap items-center gap-3 mb-14">
           <button
@@ -636,13 +647,13 @@ const Hero = ({ onOpenStudio }) => {
             onClick={onOpenStudio}
             className="btn-primary px-6 py-3.5 rounded-lg text-sm font-medium"
           >
-            Open the planner
+            {t("lp.nav.openPlanner")}
           </button>
           <a
             href="#how"
             className="btn-secondary px-6 py-3.5 rounded-lg text-sm font-medium"
           >
-            See how it works
+            {t("lp.hero.seeHow")}
           </a>
         </div>
         <div className="relative h-[320px]">
@@ -1077,7 +1088,7 @@ const ShowcaseScroll = () => {
                     key={i}
                     style={{
                       display: "inline-block",
-                      marginRight: "0.26em",
+                      marginInlineEnd: "0.26em",
                       opacity: wp,
                       filter: `blur(${(1 - wp) * 9}px)`,
                       transform: `translateY(${(1 - wp) * 15}px)`,

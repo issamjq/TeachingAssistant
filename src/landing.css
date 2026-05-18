@@ -209,3 +209,19 @@ html { scroll-behavior: smooth; }
 .mudir-landing .studioflow-scene {
   animation: studioflow-scene 460ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
+
+/* ─────────────────────────────────────────────────────────────────────
+   RTL — Arabic. The i18n provider sets <html dir="rtl"> when Arabic is
+   selected, so text flow, flex rows and logical properties mirror
+   automatically. These rules flip the few styles that are still
+   physically anchored. Section-level mirroring of the bespoke scroll
+   animations is handled inline (logical props) per section.
+   ───────────────────────────────────────────────────────────────────── */
+[dir="rtl"] .mudir-landing .link-quiet::after {
+  left: auto;
+  right: 0;
+  transform-origin: right;
+}
+[dir="rtl"] .mudir-landing {
+  font-feature-settings: normal;
+}
