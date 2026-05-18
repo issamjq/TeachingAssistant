@@ -9,6 +9,7 @@ import {
 import "../landing.css";
 import { useT, useI18n, LangToggle } from "../lib/i18n";
 import { useAccount, setAccount } from "../lib/account";
+import { PLANS } from "../lib/plans";
 
 // Animations removed by request. These are no-op stand-ins for the
 // framer-motion API so the page renders fully static — no fades, no
