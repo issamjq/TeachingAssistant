@@ -4,8 +4,7 @@
 //
 //   ""                                 → landing page
 //   "#/dashboard"                      → studio dashboard
-//   "#/lesson-plans/templates"         → lesson plans, templates tab
-//   "#/lesson-plans/drafts"            → lesson plans, drafts tab
+//   "#/lesson-plans/templates"         → lesson plans, templates library
 //   "#/lesson-plans/new"               → new lesson plan builder
 //   "#/lesson-plans/edit/42"           → editing draft id 42
 //   "#/quizzes"                        → quizzes list

@@ -5,7 +5,6 @@ import {
 import Dashboard from "./views/Dashboard";
 import TemplatesLibrary from "./views/TemplatesLibrary";
 import NewTemplate from "./views/NewTemplate";
-import ReusableDrafts from "./views/ReusableDrafts";
 import EditDraft from "./views/EditDraft";
 import TeachingRail from "./views/TeachingRail";
 import Database from "./views/Database";
@@ -151,7 +150,6 @@ export default function StudioApp({ onClose }) {
 
   const goLessonPlans = (subView = "templates") => navigate(["lesson-plans", subView]);
   const goNewTemplate = () => navigate(["lesson-plans", "newTemplate"]);
-  const goNewLesson  = () => navigate(["lesson-plans", "new"]);
   const goEditDraft  = (draft) => navigate(["lesson-plans", "edit", draft.id]);
   // All Teaching builders share one routed pattern: no id → <section>/new,
   // existing row → <section>/edit/:id (mirrors quizzes/new + quizzes/edit/3).
@@ -256,25 +254,9 @@ export default function StudioApp({ onClose }) {
     crumbs = [{ label: "Lesson Plans", onClick: () => goLessonPlans("templates") }];
     const view = sub || "templates";
 
-    const tab = (key, label, onClick, isActive) => (
-      <button
-        key={key}
-        onClick={onClick}
-        className={`px-4 py-2 font-mono text-[11px] uppercase tracking-[0.15em] border-b-2 transition ${
-          isActive ? "border-accent text-ink" : "border-transparent text-muted hover:text-ink"
-        }`}
-      >
-        {label}
-      </button>
-    );
-
-    const isTemplatesArea = ["templates", "newTemplate"].includes(view);
-    const isDraftsArea    = ["drafts", "new", "edit"].includes(view);
-
     let inner;
     switch (view) {
       case "templates":
-        crumbs.push({ label: "Templates library" });
         inner = (
           <TemplatesLibrary
             onNewTemplate={goNewTemplate}
@@ -322,10 +304,7 @@ export default function StudioApp({ onClose }) {
         );
         break;
       case "newTemplate":
-        crumbs.push(
-          { label: "Templates library", onClick: () => goLessonPlans("templates") },
-          { label: "New template" }
-        );
+        crumbs.push({ label: "New template" });
         inner = (
           <NewTemplate
             onCancel={() => goLessonPlans("templates")}
@@ -333,39 +312,29 @@ export default function StudioApp({ onClose }) {
           />
         );
         break;
-      case "drafts":
-        crumbs.push({ label: "Drafts" });
-        inner = <ReusableDrafts onEditDraft={goEditDraft} onNewLesson={goNewLesson} />;
-        break;
       case "new":
       case "edit":
-        crumbs.push(
-          { label: "Drafts", onClick: () => goLessonPlans("drafts") },
-          { label: view === "edit" ? "Edit lesson plan" : "New lesson plan" }
-        );
+        crumbs.push({ label: view === "edit" ? "Edit lesson plan" : "New lesson plan" });
         inner = (
           <EditDraft
             // EditDraft fetches the latest from /api/drafts/:id on mount, so
             // passing just the id is enough — survives a refresh. With no id
             // it POSTs a fresh draft on first save (same as QuizBuilder).
             draft={view === "edit" && extraId ? { id: Number(extraId) } : null}
-            onClose={() => goLessonPlans("drafts")}
-            onMarkReady={() => goLessonPlans("drafts")}
+            onClose={() => goLessonPlans("templates")}
+            onMarkReady={() => goLessonPlans("templates")}
           />
         );
         break;
       default:
-        // Unknown sub — bounce to the templates tab.
+        // Unknown sub (incl. the old "drafts" tab, now removed) — bounce
+        // back to the templates library.
         replace(["lesson-plans", "templates"]);
         inner = null;
     }
 
     mainContent = (
       <div>
-        <div className="flex items-center gap-2 border-b border-line mb-8">
-          {tab("templates", "Templates library", () => goLessonPlans("templates"), isTemplatesArea)}
-          {tab("drafts", "Drafts", () => goLessonPlans("drafts"), isDraftsArea)}
-        </div>
         {inner}
       </div>
     );
