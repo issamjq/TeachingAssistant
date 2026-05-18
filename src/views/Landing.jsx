@@ -3,7 +3,8 @@ import {
   Sparkles, ArrowRight, ChevronRight, ChevronLeft, Plus, BookOpen,
   CalendarDays, GraduationCap, ClipboardList, Presentation, Layout,
   Users, MessageCircle, CheckCircle2, Clock, TrendingUp, FileText,
-  BarChart3, Pencil, Trash2, ArrowUpDown, Calendar, LayoutGrid, List,
+  Pencil, Trash2, ArrowUpDown, Calendar, LayoutGrid, List,
+  Paperclip, Send, Layers, Play,
 } from "lucide-react";
 import "../landing.css";
 
@@ -112,7 +113,7 @@ const SectionDivider = ({ variant = "calm", flip = false, height = 120 }) => {
 // =====================================================================
 // NAV
 // =====================================================================
-const Nav = ({ onOpenStudio }) => {
+const Nav = ({ onOpenStudio, onJump, onPage }) => {
   const [scrolled, setScrolled] = useState(false);
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 20);
@@ -131,7 +132,11 @@ const Nav = ({ onOpenStudio }) => {
       style={{ borderColor: scrolled ? "var(--line)" : "transparent" }}
     >
       <div className="max-w-[1280px] mx-auto px-8 py-3 flex items-center justify-between">
-        <a href="#" className="flex items-center gap-2.5">
+        <button
+          type="button"
+          onClick={() => onPage("home")}
+          className="flex items-center gap-2.5"
+        >
           <div
             className="w-7 h-7 rounded-md flex items-center justify-center"
             style={{ background: "var(--ink)" }}
@@ -141,41 +146,42 @@ const Nav = ({ onOpenStudio }) => {
             </span>
           </div>
           <span className="font-display text-xl tracking-tight">Mudir</span>
-        </a>
+        </button>
 
         <nav
           className="hidden md:flex items-center gap-10 text-sm"
           style={{ color: "var(--ink-2)" }}
         >
-          <a href="#workflow" className="link-quiet">
+          <button type="button" onClick={() => onJump("how")} className="link-quiet">
             How it works
-          </a>
-          <a href="#features" className="link-quiet">
+          </button>
+          <button type="button" onClick={() => onJump("features")} className="link-quiet">
             Features
-          </a>
-          <a href="#studio" className="link-quiet">
+          </button>
+          <button type="button" onClick={() => onJump("how")} className="link-quiet">
             AI studio
-          </a>
-          <a href="#philosophy" className="link-quiet">
-            Philosophy
-          </a>
+          </button>
+          <button type="button" onClick={() => onJump("philosophy")} className="link-quiet">
+            How we build
+          </button>
         </nav>
 
         <div className="flex items-center gap-3">
           <button
             type="button"
-            onClick={onOpenStudio}
+            onClick={() => onPage("signin")}
             className="hidden sm:block text-sm link-quiet"
             style={{ color: "var(--ink-2)" }}
           >
             Sign in
           </button>
-          <a
-            href="#cta"
+          <button
+            type="button"
+            onClick={onOpenStudio}
             className="btn-primary px-4 py-2 rounded-lg text-sm font-medium"
           >
-            Join waitlist
-          </a>
+            Open the planner
+          </button>
         </div>
       </div>
     </motion.header>
@@ -185,155 +191,1287 @@ const Nav = ({ onOpenStudio }) => {
 // =====================================================================
 // HERO
 // =====================================================================
+const easeInOut = (t) =>
+  t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+
+// Scroll-scrub math. `seg` remaps a slice [a,b] of the global scroll
+// progress to a fresh 0→1 ramp; `lerp` blends between two states; `mix`
+// blends two #rrggbb colours. Same no-library technique the rest of the
+// page uses — every motion here is a pure function of scroll position.
+const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
+const seg = (p, a, b) => clamp01((p - a) / (b - a));
+const lerp = (a, b, t) => a + (b - a) * t;
+const hexRGB = (h) => [
+  parseInt(h.slice(1, 3), 16),
+  parseInt(h.slice(3, 5), 16),
+  parseInt(h.slice(5, 7), 16),
+];
+const mix = (h1, h2, t) => {
+  const a = hexRGB(h1);
+  const b = hexRGB(h2);
+  return `rgb(${Math.round(lerp(a[0], b[0], t))},${Math.round(
+    lerp(a[1], b[1], t)
+  )},${Math.round(lerp(a[2], b[2], t))})`;
+};
+const C_INK = "#2A1F17";
+const C_INK3 = "#9B8B76";
+const C_CLAY = "#B5754E";
+
+// Real Mudir cards that fan out, then collapse + shrink as you scroll.
+function HeroCardFace({ kind }) {
+  const SHELL =
+    "w-[230px] h-[300px] rounded-2xl border overflow-hidden flex flex-col p-5";
+  const SH = { boxShadow: "0 30px 60px -28px rgba(26,24,20,0.45)" };
+  const EBC = "font-mono text-[10px] uppercase tracking-[0.16em]";
+
+  if (kind === "deck" || kind === "presentation") {
+    const t =
+      kind === "deck"
+        ? { bg: "#1e3a44", tx: "#eaf3f4", soft: "#a8c4c8", dot: "#7fc6c0", k: "Slide deck", title: "The Water Cycle" }
+        : { bg: "#5f7256", tx: "#f8f5ec", soft: "#dde3d2", dot: "#f0d9a8", k: "Presentation", title: "Photosynthesis" };
+    return (
+      <div
+        className={`${SHELL} relative`}
+        style={{ ...SH, background: t.bg, color: t.tx, borderColor: "rgba(255,255,255,0.12)" }}
+      >
+        <span className={EBC} style={{ color: t.soft }}>
+          {t.k}
+        </span>
+        <h4 className="font-display text-2xl leading-tight mt-2">{t.title}</h4>
+        <span className="mt-2 h-1 w-10 rounded-full" style={{ background: t.dot }} />
+        <div className="absolute right-0 bottom-0 w-32 h-32 opacity-90">
+          <SlideArt stroke={t.dot} fill={t.soft} full />
+        </div>
+      </div>
+    );
+  }
+
+  const META = {
+    lesson: { k: "Lesson plan", title: "Photosynthesis", icon: BookOpen, rows: ["00–05  Starter", "15–35  Worksheet", "45–50  Exit ticket"] },
+    quiz: { k: "Quiz", title: "Cell respiration", icon: GraduationCap, rows: ["1  Which organelle…", "2  Word equation…", "3  Why anaerobic…"] },
+    activity: { k: "Activity", title: "Group debate", icon: Sparkles, rows: ["Pair · 10 min", "Group · 20 min", "Solo · exit slip"] },
+    homework: { k: "Homework", title: "Worksheet 4", icon: ClipboardList, rows: ["Due Thursday · 7A"] },
+    worksheet: { k: "Worksheet", title: "Three levels", icon: FileText, rows: ["Foundation · 8 Qs", "Core · 10 Qs", "Extension · 12 Qs"] },
+  }[kind] || {};
+  const Icon = META.icon || BookOpen;
+  return (
+    <div
+      className={SHELL}
+      style={{ ...SH, background: "#fffdf6", borderColor: "var(--line)", color: "var(--ink)" }}
+    >
+      <div className="flex items-center justify-between mb-3">
+        <span className={`${EBC}`} style={{ color: "var(--clay)" }}>
+          {META.k}
+        </span>
+        <span
+          className="inline-flex h-7 w-7 rounded-lg items-center justify-center"
+          style={{ background: "var(--paper-2)", color: "var(--clay)" }}
+        >
+          <Icon size={14} strokeWidth={2} />
+        </span>
+      </div>
+      <h4 className="font-display text-2xl leading-tight mb-4">{META.title}</h4>
+      {kind === "homework" ? (
+        <div className="mt-1">
+          <div className="text-[12px] mb-2" style={{ color: "var(--ink-2)" }}>
+            {META.rows[0]}
+          </div>
+          <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "var(--paper-3)" }}>
+            <div className="h-full rounded-full" style={{ width: "64%", background: "var(--sage)" }} />
+          </div>
+          <div className="text-[12px] mt-2" style={{ color: "var(--ink-3)" }}>
+            18 / 28 submitted
+          </div>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-2.5">
+          {META.rows.map((r) => (
+            <div key={r} className="flex items-center gap-2 text-[12px]" style={{ color: "var(--ink-2)" }}>
+              <span className="h-1 w-1 rounded-full flex-shrink-0" style={{ background: "var(--clay)" }} />
+              <span className="truncate">{r}</span>
+            </div>
+          ))}
+        </div>
+      )}
+      <span
+        className="mt-auto self-start text-[10px] font-mono px-2 py-1 rounded"
+        style={{ background: "var(--paper-2)", color: "var(--ink-3)" }}
+      >
+        Drafted by Mudir
+      </span>
+    </div>
+  );
+}
+
+const HERO_CARDS = ["lesson", "quiz", "deck", "presentation", "activity", "homework", "worksheet"];
+
+// Phase-C headline — each token fades + un-blurs + colour-shifts in turn.
+const C_HEAD = [
+  { t: "Plan," }, { t: "draft," },
+  { t: "&", accent: true }, { t: "teach", accent: true },
+  { t: "every" }, { t: "lesson" }, { t: "—" },
+  { t: "start" }, { t: "to" }, { t: "finish." },
+];
+
+// Floating handle pill with a little speech tail.
+function Bubble({ label, bg, style }) {
+  return (
+    <div style={{ position: "absolute", ...style }}>
+      <div
+        style={{
+          position: "relative",
+          background: bg,
+          color: "#F7F3EC",
+          fontFamily: "'JetBrains Mono', monospace",
+          fontSize: 11,
+          letterSpacing: "0.03em",
+          padding: "7px 13px",
+          borderRadius: 999,
+          whiteSpace: "nowrap",
+          boxShadow: "0 14px 30px -14px rgba(42,31,23,0.55)",
+        }}
+      >
+        {label}
+        <span
+          style={{
+            position: "absolute",
+            left: 20,
+            bottom: -3,
+            width: 9,
+            height: 9,
+            background: bg,
+            transform: "rotate(45deg)",
+            borderRadius: 2,
+          }}
+        />
+      </div>
+    </div>
+  );
+}
+
 const Hero = ({ onOpenStudio }) => {
-  const orbRef = useRef(null);
-  const heroRef = useRef(null);
-  const { scrollYProgress } = useScroll({
-    target: heroRef,
-    offset: ["start start", "end start"],
-  });
-  const y = useTransform(scrollYProgress, [0, 1], [0, 120]);
-  const opacity = useTransform(scrollYProgress, [0, 0.6], [1, 0]);
+  const trackRef = useRef(null);
+  const [p, setP] = useState(0);
 
   useEffect(() => {
-    const onMove = (e) => {
-      if (!orbRef.current) return;
-      const x = e.clientX - 300;
-      const yy = e.clientY - 300;
-      orbRef.current.style.transform = `translate(${x}px, ${yy}px)`;
+    let raf = 0;
+    const onScroll = () => {
+      if (raf) return;
+      raf = requestAnimationFrame(() => {
+        raf = 0;
+        const el = trackRef.current;
+        if (!el) return;
+        const r = el.getBoundingClientRect();
+        const span = r.height - window.innerHeight;
+        setP(span > 0 ? Math.min(1, Math.max(0, -r.top / span)) : 0);
+      });
     };
-    window.addEventListener("mousemove", onMove);
-    return () => window.removeEventListener("mousemove", onMove);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll);
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onScroll);
+      if (raf) cancelAnimationFrame(raf);
+    };
   }, []);
 
-  return (
-    <section
-      ref={heroRef}
-      className="relative min-h-screen pt-24 pb-32 overflow-hidden"
-    >
-      <div ref={orbRef} className="glow-orb" style={{ left: 0, top: 0 }} />
+  const N = HERO_CARDS.length;
+  const mid = (N - 1) / 2;
 
-      <motion.div
-        style={{ y, opacity }}
-        className="relative max-w-[1280px] mx-auto px-8"
-      >
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, ease: EASE, delay: 0.1 }}
-          className="flex items-center gap-3 mb-10"
-        >
+  // Three phases, all pure functions of scroll position `p`:
+  //   A  wide smile arc + hero title      (read)
+  //   B  everything converges to one deck (collapse)
+  //   C  deck re-fans into a diagonal cascade while a second
+  //      headline reveals word-by-word    (reveal)
+  const collapseT = easeInOut(seg(p, 0.14, 0.42)); // arc → deck
+  const fanT = easeInOut(seg(p, 0.52, 0.9)); // deck → cascade
+  const heroOut = seg(p, 0.12, 0.34); // hero title leaves
+  const heroE = easeInOut(heroOut);
+  const bubbleA = 1 - seg(p, 0.1, 0.28); // phase-A pills fade
+  const cIn = easeInOut(seg(p, 0.54, 0.72)); // phase-C frame arrives
+  const pc = seg(p, 0.56, 0.96); // word-reveal scrub
+  const cardsX = lerp(0, 210, easeInOut(seg(p, 0.56, 0.9))); // deck slides right
+  const bob = Math.sin(p * Math.PI * 2) * 6; // gentle pill float
+  const cBody = clamp01((pc - 0.55) / 0.3); // C sub + buttons
+
+  const ARROW = (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+      <path
+        d="M5 3l4 4-4 4"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+
+  return (
+    <section ref={trackRef} className="relative min-h-screen lg:h-[460vh]">
+      {/* ---------- DESKTOP — pinned 3-phase scroll choreography ---------- */}
+      <div className="hidden lg:block lg:sticky lg:top-0 lg:h-screen overflow-hidden">
+        <div className="relative max-w-[1280px] mx-auto px-8 h-screen">
+          {/* Scene A — hero title (top) */}
+          <div
+            className="absolute left-1/2 top-[11vh] w-full max-w-3xl text-center will-change-transform"
+            style={{
+              transform: `translateX(-50%) translateY(${heroE * -80}px)`,
+              opacity: 1 - heroOut,
+              pointerEvents: heroOut > 0.9 ? "none" : "auto",
+            }}
+          >
+            <div className="flex items-center justify-center gap-3 mb-6">
+              <span className="w-6 h-px" style={{ background: "var(--ink-3)" }} />
+              <span className="eyebrow">
+                An AI lesson director · Built for UAE schools
+              </span>
+            </div>
+            <h1 className="font-display text-[clamp(44px,5.6vw,92px)] leading-[0.98] tracking-tight">
+              The teacher directs.{" "}
+              <em style={{ color: "var(--clay)", fontStyle: "italic" }}>
+                Mudir
+              </em>{" "}
+              <span style={{ color: "var(--ink-2)" }}>drafts.</span>
+            </h1>
+          </div>
+
+          {/* Scene C — headline reveals word-by-word (left column) */}
+          <div
+            className="absolute left-8 top-1/2 w-[45%] will-change-transform"
+            style={{
+              transform: `translateY(calc(-50% + ${lerp(36, 0, cIn)}px))`,
+              pointerEvents: cIn > 0.1 ? "auto" : "none",
+            }}
+          >
+            <div className="flex items-center gap-3 mb-6" style={{ opacity: cIn }}>
+              <span className="w-6 h-px" style={{ background: "var(--clay)" }} />
+              <span className="eyebrow" style={{ color: "var(--clay)" }}>
+                The studio
+              </span>
+            </div>
+            <h2 className="font-display text-[clamp(38px,4.8vw,74px)] leading-[1.04] tracking-tight">
+              {C_HEAD.map((w, i) => {
+                const wp = easeInOut(clamp01((pc - i * 0.05) / 0.34));
+                return (
+                  <span
+                    key={i}
+                    style={{
+                      display: "inline-block",
+                      marginRight: "0.26em",
+                      opacity: wp,
+                      filter: `blur(${(1 - wp) * 9}px)`,
+                      transform: `translateY(${(1 - wp) * 16}px)`,
+                      color: mix(C_INK3, w.accent ? C_CLAY : C_INK, wp),
+                      fontStyle: w.accent ? "italic" : "normal",
+                      willChange: "filter, transform, opacity",
+                    }}
+                  >
+                    {w.t}
+                  </span>
+                );
+              })}
+            </h2>
+            <div
+              style={{
+                opacity: cBody,
+                transform: `translateY(${(1 - cBody) * 16}px)`,
+              }}
+            >
+              <p
+                className="text-base md:text-lg leading-relaxed mt-7 mb-7 max-w-md"
+                style={{ color: "var(--ink-2)" }}
+              >
+                One studio for every artifact. You direct the lesson — Mudir
+                builds the rest, classroom-ready.
+              </p>
+              <div className="flex flex-wrap items-center gap-3">
+                <button
+                  type="button"
+                  onClick={onOpenStudio}
+                  className="btn-primary px-6 py-3.5 rounded-lg text-sm font-medium inline-flex items-center gap-2"
+                >
+                  Open the planner
+                  {ARROW}
+                </button>
+                <a
+                  href="#how"
+                  className="btn-secondary px-6 py-3.5 rounded-lg text-sm font-medium"
+                >
+                  See how it works
+                </a>
+              </div>
+            </div>
+          </div>
+
+          {/* Shared card layer — arc → deck → cascade */}
+          <div
+            className="absolute left-1/2 top-1/2 will-change-transform"
+            style={{ transform: `translateX(${cardsX}px)` }}
+          >
+            {HERO_CARDS.map((kind, i) => {
+              const o = i - mid;
+              // A — wide smile arc
+              const xa = o * 168;
+              const ya = (mid * mid - o * o) * 12 - 30;
+              const ra = o * 9;
+              const sa = 1;
+              // B — tight centered deck
+              const xb = o * 6;
+              const yb = o * 2;
+              const rb = o * 0.8;
+              const sb = 0.62;
+              // C — diagonal cascade (upper-left → lower-right)
+              const xc = o * 60 + 20;
+              const yc = o * 50 + 10;
+              const rc = -8 + i * 2;
+              const sc = 0.82;
+              const x = lerp(lerp(xa, xb, collapseT), xc, fanT);
+              const y = lerp(lerp(ya, yb, collapseT), yc, fanT);
+              const r = lerp(lerp(ra, rb, collapseT), rc, fanT);
+              const s = lerp(lerp(sa, sb, collapseT), sc, fanT);
+              return (
+                <div
+                  key={kind}
+                  className="absolute left-0 top-0 will-change-transform"
+                  style={{
+                    transform: `translate(-50%,-50%) translate(${x}px,${y}px) rotate(${r}deg) scale(${s})`,
+                    zIndex: 10 + i,
+                  }}
+                >
+                  <HeroCardFace kind={kind} />
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Floating handle bubbles */}
+          <Bubble
+            label="@ms.layla"
+            bg="var(--sage)"
+            style={{
+              left: "21%",
+              top: "29%",
+              opacity: bubbleA,
+              transform: `translateY(${bob}px)`,
+              transition: "opacity 0.15s linear",
+            }}
+          />
+          <Bubble
+            label="@mr.idris"
+            bg="var(--clay)"
+            style={{
+              right: "21%",
+              top: "25%",
+              opacity: bubbleA,
+              transform: `translateY(${-bob}px)`,
+              transition: "opacity 0.15s linear",
+            }}
+          />
+          <Bubble
+            label="@head.of.science"
+            bg="var(--brick)"
+            style={{
+              right: "15%",
+              top: "30%",
+              opacity: clamp01((pc - 0.4) / 0.28),
+              transform: `translateY(${bob}px)`,
+            }}
+          />
+        </div>
+      </div>
+
+      {/* ---------- MOBILE — static (no scrub) ---------- */}
+      <div className="lg:hidden px-6 pt-28 pb-16">
+        <div className="flex items-center gap-3 mb-6">
           <span className="w-6 h-px" style={{ background: "var(--ink-3)" }} />
           <span className="eyebrow">
             An AI lesson director · Built for UAE schools
           </span>
-        </motion.div>
-
-        <h1 className="font-display text-[clamp(56px,9vw,128px)] leading-[0.95] tracking-tight mb-8 max-w-5xl">
-          {["The", "teacher", "directs.", ""].map((w, i) => (
-            <motion.span
-              key={i}
-              initial={{ opacity: 0, y: 40 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 1, ease: EASE, delay: 0.2 + i * 0.08 }}
-              className="inline-block mr-[0.25em]"
-            >
-              {w === "" ? <br /> : w}
-            </motion.span>
-          ))}
-          {["Mudir", "drafts."].map((w, i) => (
-            <motion.span
-              key={`b${i}`}
-              initial={{ opacity: 0, y: 40 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 1, ease: EASE, delay: 0.5 + i * 0.08 }}
-              className="inline-block mr-[0.25em]"
-              style={{
-                color: i === 0 ? "var(--clay)" : "var(--ink-2)",
-                fontStyle: i === 0 ? "italic" : "normal",
-              }}
-            >
-              {w}
-            </motion.span>
-          ))}
+        </div>
+        <h1 className="font-display text-[clamp(40px,11vw,64px)] leading-[1.0] tracking-tight mb-6">
+          The teacher directs.{" "}
+          <em style={{ color: "var(--clay)", fontStyle: "italic" }}>Mudir</em>{" "}
+          <span style={{ color: "var(--ink-2)" }}>drafts.</span>
         </h1>
-
-        <motion.p
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.9, ease: EASE, delay: 0.9 }}
-          className="text-lg md:text-xl max-w-xl leading-relaxed mb-10"
+        <p
+          className="text-base leading-relaxed mb-7"
           style={{ color: "var(--ink-2)" }}
         >
-          An AI workspace for teachers, KG through Grade 12. Plan lessons, draft
-          quizzes, manage your classroom — all in one calm place.
-        </motion.p>
-
-        <motion.div
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.9, ease: EASE, delay: 1.05 }}
-          className="flex flex-wrap items-center gap-3 mb-20"
-        >
+          Lessons, quizzes, slides, homework — every teaching artifact, drafted
+          for you and ready to teach.
+        </p>
+        <div className="flex flex-wrap items-center gap-3 mb-14">
           <button
             type="button"
             onClick={onOpenStudio}
-            className="btn-primary px-6 py-3.5 rounded-lg text-sm font-medium inline-flex items-center gap-2"
+            className="btn-primary px-6 py-3.5 rounded-lg text-sm font-medium"
           >
             Open the planner
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-              <path
-                d="M5 3l4 4-4 4"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
           </button>
           <a
-            href="#workflow"
+            href="#how"
             className="btn-secondary px-6 py-3.5 rounded-lg text-sm font-medium"
           >
             See how it works
           </a>
-        </motion.div>
+        </div>
+        <div className="relative h-[320px]">
+          {HERO_CARDS.slice(0, 5).map((kind, i) => {
+            const o = i - 2;
+            return (
+              <div
+                key={kind}
+                className="absolute left-1/2 top-1/2"
+                style={{
+                  transform: `translate(-50%,-50%) translate(${o * 26}px,${
+                    Math.abs(o) * 10
+                  }px) rotate(${o * 5}deg) scale(0.6)`,
+                  zIndex: 10 + i,
+                }}
+              >
+                <HeroCardFace kind={kind} />
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </section>
+  );
+};
 
-        {/* Break the preview out of the 1280 text column so it spans
-            wider and stays responsive (capped at 1700, never wider than
-            the viewport — the section clips any overflow). */}
-        <motion.div
-          initial={{ opacity: 0, y: 60 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 1.2, ease: EASE, delay: 1.2 }}
-          className="relative left-1/2 -translate-x-1/2 w-screen max-w-[1700px] px-4 sm:px-6 lg:px-10"
-        >
-          <ProductMock onOpenStudio={onOpenStudio} />
-        </motion.div>
+// =====================================================================
+// SHOWCASE — second scroll act. Mudir "content cover" cards converge
+// into a centred portrait stack while a headline reveals word-by-word
+// behind them, then the stack fans into a diagonal cascade.
+// =====================================================================
+const SHOW_CARDS = [
+  {
+    k: "science",
+    bg: "#5E7156",
+    tx: "#F2F5EE",
+    tag: "Lesson plan · G5",
+    title: "The Water\nCycle",
+    note: "Evaporation → condensation",
+  },
+  {
+    k: "math",
+    bg: "#2A1F17",
+    tx: "#F7F3EC",
+    tag: "Quiz · G10",
+    title: "Trigonometry",
+    note: "20 questions · auto-marked",
+  },
+  {
+    k: "reading",
+    bg: "#F7F3EC",
+    tx: "#2A1F17",
+    accent: "#B5754E",
+    tag: "Reading unit · G8",
+    title: "الشِّعر\nالعربي",
+    arabic: true,
+    note: "Arabic poetry · 6 lessons",
+  },
+  {
+    k: "history",
+    bg: "#A0392A",
+    tx: "#F7F3EC",
+    tag: "Unit overview · G7",
+    title: "Islamic\nHistory",
+    note: "Scheme of work · 6 weeks",
+  },
+  {
+    k: "art",
+    bg: "#B5754E",
+    tx: "#FBF5EC",
+    tag: "Project brief · G6",
+    title: "Colour\n& Form",
+    note: "Studio project · rubric",
+  },
+  {
+    k: "slides",
+    bg: "#7A8F6E",
+    tx: "#F7F3EC",
+    tag: "Slide deck · G9",
+    title: "Photo-\nsynthesis",
+    note: "18 slides · speaker notes",
+  },
+  {
+    k: "work",
+    bg: "#EDE5D6",
+    tx: "#2A1F17",
+    accent: "#A0392A",
+    tag: "Worksheet · G6",
+    title: "Fractions,\nThree Ways",
+    note: "Foundation · core · stretch",
+  },
+];
 
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 1, ease: EASE, delay: 1.6 }}
-          className="mt-20"
+function ShowCardFace({ c }) {
+  return (
+    <div
+      className="w-[238px] h-[322px] rounded-2xl border overflow-hidden flex flex-col p-6 relative"
+      style={{
+        background: c.bg,
+        color: c.tx,
+        borderColor: "rgba(42,31,23,0.10)",
+        boxShadow: "0 38px 72px -30px rgba(42,31,23,0.5)",
+      }}
+    >
+      <span
+        className="font-mono uppercase"
+        style={{ fontSize: 10, letterSpacing: "0.16em", color: c.tx, opacity: 0.7 }}
+      >
+        {c.tag}
+      </span>
+      <h3
+        className={`font-display mt-3 ${c.arabic ? "arabic" : ""}`}
+        style={{
+          fontSize: c.arabic ? 38 : 31,
+          lineHeight: 1.04,
+          whiteSpace: "pre-line",
+          color: c.tx,
+        }}
+      >
+        {c.title}
+      </h3>
+      <span
+        className="mt-4 h-[3px] w-12 rounded-full"
+        style={{ background: c.accent || c.tx, opacity: 0.85 }}
+      />
+      <p
+        className="mt-auto"
+        style={{ fontSize: 12, lineHeight: 1.4, color: c.tx, opacity: 0.78 }}
+      >
+        {c.note}
+      </p>
+      <div className="mt-3 flex items-center justify-between">
+        <span
+          className="font-mono uppercase"
+          style={{ fontSize: 9, letterSpacing: "0.14em", color: c.tx, opacity: 0.55 }}
         >
-          <p className="eyebrow mb-6">Designed with teachers from</p>
-          <div
-            className="flex flex-wrap items-center gap-x-10 gap-y-4 font-display text-lg"
-            style={{ color: "var(--ink-3)" }}
+          {c.k}
+        </span>
+        <span
+          className="font-mono"
+          style={{
+            fontSize: 9,
+            padding: "3px 7px",
+            borderRadius: 5,
+            color: c.tx,
+            border: `0.5px solid ${c.tx}`,
+            opacity: 0.5,
+          }}
+        >
+          Mudir
+        </span>
+      </div>
+      <span
+        aria-hidden
+        style={{
+          position: "absolute",
+          right: -46,
+          bottom: -46,
+          width: 150,
+          height: 150,
+          borderRadius: "50%",
+          border: `1px solid ${c.tx}`,
+          opacity: 0.16,
+          pointerEvents: "none",
+        }}
+      />
+    </div>
+  );
+}
+
+// Centred headline — reveals word-by-word, behind the card stack.
+const SHOW_HEAD = [
+  { t: "Whether" }, { t: "you're" }, { t: "planning" },
+  { t: "tomorrow's" }, { t: "lesson" }, { t: "or" }, { t: "building" },
+  { t: "a" }, { t: "full" }, { t: "unit" }, { t: "—" },
+  { t: "Mudir", accent: "clay", italic: true }, { t: "turns" },
+  { t: "intent" }, { t: "into" },
+  { t: "classroom-ready", accent: "sage" }, { t: "material." },
+];
+const C_SAGE = "#7A8F6E";
+
+// Headline #2 (left column, library phase) + the honeycomb chips.
+const VISION_HEAD = [
+  { t: "One" }, { t: "studio." },
+  { t: "Every", accent: "clay" }, { t: "subject,", accent: "clay" },
+  { t: "every" }, { t: "grade." },
+];
+const VISION_SUB =
+  "Every lesson tells a story. Mudir helps you plan it, build it, and teach it."
+    .split(" ");
+const C_INK2 = "#6E5C4A";
+
+const HONEY = [
+  { x: -84, y: 0 }, { x: 0, y: 0 }, { x: 84, y: 0 },
+  { x: -42, y: -74 }, { x: 42, y: -74 },
+  { x: -84, y: -148 }, { x: 0, y: -148 }, { x: 84, y: -148 },
+];
+const HONEY_ICONS = [
+  Sparkles, BookOpen, GraduationCap, ClipboardList,
+  Presentation, CalendarDays, Layers, Pencil,
+];
+
+// One continuous act, ONE set of cards, four phases driven by a single
+// scroll progress `q`:
+//   P1 converge  scattered → centred portrait stack  (headline #1 reveals)
+//   P2 cascade   stack → diagonal cascade
+//   P3 to-grid   the SAME cards travel right + shrink into the Library grid
+//   P4 reveal    left headline #2 + sub + honeycomb chips assemble
+const ShowcaseScroll = () => {
+  const trackRef = useRef(null);
+  const [q, setQ] = useState(0);
+
+  useEffect(() => {
+    let raf = 0;
+    const onScroll = () => {
+      if (raf) return;
+      raf = requestAnimationFrame(() => {
+        raf = 0;
+        const el = trackRef.current;
+        if (!el) return;
+        const r = el.getBoundingClientRect();
+        const span = r.height - window.innerHeight;
+        setQ(span > 0 ? Math.min(1, Math.max(0, -r.top / span)) : 0);
+      });
+    };
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll);
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onScroll);
+      if (raf) cancelAnimationFrame(raf);
+    };
+  }, []);
+
+  const CARDS = SHOW_CARDS.slice(0, 6);
+  const N = CARDS.length;
+  const mid = (N - 1) / 2;
+
+  // Card phase sub-progress
+  const g1 = easeInOut(seg(q, 0.02, 0.18)); // S → M  (converge)
+  const g2 = easeInOut(seg(q, 0.18, 0.4)); //  M → E  (cascade)
+  const g3 = easeInOut(seg(q, 0.46, 0.78)); // E → G  (travel to grid)
+
+  // Headline #1 — centred, behind the cards (cascade phase)
+  const h1 = seg(q, 0.03, 0.3);
+  const head1Out = seg(q, 0.46, 0.6);
+  const head1Up = easeInOut(seg(q, 0.46, 0.7)) * -70;
+
+  // Library window + headline #2 + honeycomb (grid phase)
+  const winT = easeInOut(seg(q, 0.5, 0.74));
+  const h2 = seg(q, 0.62, 0.96);
+  const honey = seg(q, 0.64, 0.96);
+
+  const bob = Math.sin(q * Math.PI * 2) * 6;
+  const bCasc =
+    clamp01((q - 0.08) / 0.06) * (1 - clamp01((q - 0.4) / 0.08));
+  const bWin = clamp01((q - 0.66) / 0.08);
+
+  const colOff = [-140, 0, 140];
+  const rowOff = [-40, 150];
+
+  return (
+    <section ref={trackRef} className="relative min-h-screen lg:h-[680vh]">
+      {/* ---------- DESKTOP — one pinned, continuous choreography ---------- */}
+      <div className="hidden lg:block lg:sticky lg:top-0 lg:h-screen overflow-hidden">
+        <div className="relative max-w-[1280px] mx-auto px-8 h-screen">
+          {/* Headline #1 — centred, behind the cards */}
+          <h2
+            className="absolute left-1/2 top-1/2 w-full max-w-5xl text-center font-display text-[clamp(32px,4.4vw,66px)] leading-[1.14] tracking-tight"
+            style={{
+              transform: `translate(-50%,-50%) translateY(${head1Up}px)`,
+              opacity: 1 - head1Out,
+              zIndex: 5,
+            }}
           >
-            <span>GEMS Education</span>
-            <span>·</span>
-            <span>Aldar Academies</span>
-            <span>·</span>
-            <span>Taaleem Schools</span>
-            <span>·</span>
-            <span>Bloom Education</span>
-            <span>·</span>
-            <span>Innoventures</span>
+            {SHOW_HEAD.map((w, i) => {
+              const wp = easeInOut(clamp01((h1 - i * 0.044) / 0.3));
+              const col =
+                w.accent === "clay"
+                  ? C_CLAY
+                  : w.accent === "sage"
+                  ? C_SAGE
+                  : C_INK;
+              return (
+                <span
+                  key={i}
+                  style={{
+                    display: "inline-block",
+                    marginRight: "0.28em",
+                    opacity: wp,
+                    filter: `blur(${(1 - wp) * 10}px)`,
+                    transform: `translateY(${(1 - wp) * 14}px)`,
+                    color: mix(C_INK3, col, wp),
+                    fontStyle: w.italic ? "italic" : "normal",
+                    willChange: "filter, transform, opacity",
+                  }}
+                >
+                  {w.t}
+                </span>
+              );
+            })}
+          </h2>
+
+          {/* Headline #2 — left column, arrives as the grid forms */}
+          <div
+            className="absolute left-[4%] top-[23%] w-[42%]"
+            style={{ zIndex: 30 }}
+          >
+            <div
+              className="flex items-center gap-3 mb-6"
+              style={{ opacity: clamp01((q - 0.6) / 0.05) }}
+            >
+              <span className="w-6 h-px" style={{ background: "var(--clay)" }} />
+              <span className="eyebrow" style={{ color: "var(--clay)" }}>
+                The library
+              </span>
+            </div>
+            <h2 className="font-display text-[clamp(38px,4.8vw,76px)] leading-[1.04] tracking-tight">
+              {VISION_HEAD.map((w, i) => {
+                const wp = easeInOut(clamp01((h2 - i * 0.05) / 0.3));
+                return (
+                  <span
+                    key={i}
+                    style={{
+                      display: "inline-block",
+                      marginRight: "0.26em",
+                      opacity: wp,
+                      filter: `blur(${(1 - wp) * 9}px)`,
+                      transform: `translateY(${(1 - wp) * 15}px)`,
+                      color: mix(
+                        C_INK3,
+                        w.accent === "clay" ? C_CLAY : C_INK,
+                        wp
+                      ),
+                      fontStyle: w.accent ? "italic" : "normal",
+                      willChange: "filter, transform, opacity",
+                    }}
+                  >
+                    {w.t}
+                  </span>
+                );
+              })}
+            </h2>
+            <p className="text-base md:text-lg leading-relaxed mt-7 max-w-md">
+              {VISION_SUB.map((w, i) => {
+                const wp = easeInOut(clamp01((h2 - 0.3 - i * 0.02) / 0.26));
+                return (
+                  <span
+                    key={i}
+                    style={{
+                      display: "inline-block",
+                      marginRight: "0.24em",
+                      opacity: wp,
+                      filter: `blur(${(1 - wp) * 6}px)`,
+                      color: mix(C_INK3, C_INK2, wp),
+                      willChange: "filter, opacity",
+                    }}
+                  >
+                    {w}
+                  </span>
+                );
+              })}
+            </p>
           </div>
-        </motion.div>
-      </motion.div>
+
+          {/* Honeycomb of feature chips (bottom-left) */}
+          <div
+            className="absolute left-[10%] bottom-[15%]"
+            style={{ width: 0, height: 0, zIndex: 25 }}
+          >
+            {HONEY.map((h, i) => {
+              const Ic = HONEY_ICONS[i];
+              const prog = easeInOut(clamp01((honey - i * 0.055) / 0.4));
+              const sx = h.x * 0.2 - 50;
+              const sy = h.y * 0.2 + 90;
+              const x = lerp(sx, h.x, prog);
+              const y = lerp(sy, h.y, prog);
+              return (
+                <span
+                  key={i}
+                  className="absolute inline-flex items-center justify-center rounded-full"
+                  style={{
+                    left: 0,
+                    bottom: 0,
+                    width: 58,
+                    height: 58,
+                    background: "var(--paper)",
+                    border: "0.5px solid var(--line-strong)",
+                    color: "var(--ink)",
+                    boxShadow: "0 12px 28px -16px rgba(42,31,23,0.4)",
+                    transform: `translate(${x}px, ${y}px) scale(${lerp(
+                      0.3,
+                      1,
+                      prog
+                    )})`,
+                    opacity: prog,
+                    willChange: "transform, opacity",
+                  }}
+                >
+                  <Ic size={20} strokeWidth={1.8} />
+                </span>
+              );
+            })}
+          </div>
+
+          {/* The Mudir "Library" product window (behind the cards) */}
+          <div className="absolute left-1/2 top-1/2" style={{ zIndex: 8 }}>
+            <div
+              className="overflow-hidden"
+              style={{
+                width: 470,
+                height: 470,
+                borderRadius: 22,
+                background: "var(--paper)",
+                border: "0.5px solid var(--line-strong)",
+                boxShadow: "0 50px 110px -40px rgba(42,31,23,0.4)",
+                transform: `translate(-50%,-50%) translate(250px, 22px) scale(${lerp(
+                  0.96,
+                  1,
+                  winT
+                )})`,
+                opacity: winT,
+              }}
+            >
+              <div
+                className="flex items-center justify-between px-6"
+                style={{
+                  height: 64,
+                  borderBottom: "0.5px solid var(--line)",
+                }}
+              >
+                <span className="font-display text-xl">Library</span>
+                <span
+                  className="inline-flex items-center gap-1.5 font-mono"
+                  style={{
+                    fontSize: 11,
+                    padding: "7px 12px",
+                    borderRadius: 8,
+                    background: "var(--ink)",
+                    color: "var(--paper)",
+                  }}
+                >
+                  <Plus size={13} strokeWidth={2.5} /> New
+                </span>
+              </div>
+              <div className="flex items-center gap-2 px-6 pt-4">
+                {["All", "This week", "Drafts"].map((t, idx) => (
+                  <span
+                    key={t}
+                    className="font-mono"
+                    style={{
+                      fontSize: 10,
+                      letterSpacing: "0.12em",
+                      textTransform: "uppercase",
+                      padding: "6px 11px",
+                      borderRadius: 999,
+                      background: idx === 0 ? "var(--ink)" : "transparent",
+                      color: idx === 0 ? "var(--paper)" : "var(--ink-3)",
+                      border:
+                        idx === 0
+                          ? "none"
+                          : "0.5px solid var(--line-strong)",
+                    }}
+                  >
+                    {t}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* The ONE card layer — converge → stack → cascade → grid */}
+          <div className="absolute left-1/2 top-1/2" style={{ zIndex: 20 }}>
+            {CARDS.map((c, i) => {
+              const o = i - mid;
+              // S — small, low, lightly scattered
+              const xs = o * 6;
+              const ys = 80;
+              const rs = o * 3;
+              const ss = 0.3;
+              // M — centred portrait stack
+              const xm = o * 6;
+              const ym = o * 1.5;
+              const rm = o * 1.4;
+              const sm = 0.92;
+              // E — centred diagonal cascade
+              const xe = o * 92;
+              const ye = o * 70;
+              const re = -10 + i * 2.6;
+              const se = 0.84;
+              // G — grid cell inside the Library window
+              const gx = 250 + colOff[i % 3];
+              const gy = -10 + rowOff[Math.floor(i / 3)];
+              const base = (a, b, cc, d) =>
+                lerp(lerp(lerp(a, b, g1), cc, g2), d, g3);
+              const x = base(xs, xm, xe, gx);
+              const y = base(ys, ym, ye, gy);
+              const r = base(rs, rm, re, 0);
+              const s = base(ss, sm, se, 0.46);
+              return (
+                <div
+                  key={c.k}
+                  className="absolute left-0 top-0 will-change-transform"
+                  style={{
+                    transform: `translate(-50%,-50%) translate(${x}px,${y}px) rotate(${r}deg) scale(${s})`,
+                    zIndex: 10 + i,
+                  }}
+                >
+                  <ShowCardFace c={c} />
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Floating handle bubbles */}
+          <Bubble
+            label="@ms.layla"
+            bg="var(--ink)"
+            style={{
+              left: "21%",
+              top: "31%",
+              opacity: bCasc,
+              transform: `translateY(${bob}px)`,
+              zIndex: 30,
+            }}
+          />
+          <Bubble
+            label="@mr.idris"
+            bg="var(--clay)"
+            style={{
+              right: "21%",
+              top: "27%",
+              opacity: bCasc,
+              transform: `translateY(${-bob}px)`,
+              zIndex: 30,
+            }}
+          />
+          <Bubble
+            label="@head.of.year"
+            bg="var(--sage)"
+            style={{
+              left: "50%",
+              top: "24%",
+              opacity: bWin,
+              transform: `translateX(120px) translateY(${bob}px)`,
+              zIndex: 30,
+            }}
+          />
+        </div>
+      </div>
+
+      {/* ---------- MOBILE — static (no scrub) ---------- */}
+      <div className="lg:hidden px-6 py-20">
+        <h2 className="font-display text-[clamp(30px,8vw,46px)] leading-[1.16] tracking-tight mb-10">
+          Whether you're planning tomorrow's lesson or building a full unit —{" "}
+          <em style={{ color: "var(--clay)", fontStyle: "italic" }}>Mudir</em>{" "}
+          turns intent into{" "}
+          <span style={{ color: "var(--sage)" }}>classroom-ready</span> material.
+        </h2>
+        <div className="relative h-[340px] mb-14">
+          {CARDS.slice(0, 5).map((c, i) => {
+            const o = i - 2;
+            return (
+              <div
+                key={c.k}
+                className="absolute left-1/2 top-1/2"
+                style={{
+                  transform: `translate(-50%,-50%) translate(${o * 30}px,${
+                    o * 22
+                  }px) rotate(${-6 + i * 3}deg) scale(0.6)`,
+                  zIndex: 10 + i,
+                }}
+              >
+                <ShowCardFace c={c} />
+              </div>
+            );
+          })}
+        </div>
+        <div className="flex items-center gap-3 mb-6">
+          <span className="w-6 h-px" style={{ background: "var(--clay)" }} />
+          <span className="eyebrow" style={{ color: "var(--clay)" }}>
+            The library
+          </span>
+        </div>
+        <h2 className="font-display text-[clamp(32px,8vw,48px)] leading-[1.08] tracking-tight mb-5">
+          One studio.{" "}
+          <em style={{ color: "var(--clay)", fontStyle: "italic" }}>
+            Every subject,
+          </em>{" "}
+          every grade.
+        </h2>
+        <p
+          className="text-base leading-relaxed mb-10"
+          style={{ color: "var(--ink-2)" }}
+        >
+          Every lesson tells a story. Mudir helps you plan it, build it, and
+          teach it.
+        </p>
+        <div className="grid grid-cols-2 gap-3">
+          {CARDS.slice(0, 4).map((c) => (
+            <div
+              key={c.k}
+              style={{ transform: "scale(0.62)", transformOrigin: "top left" }}
+            >
+              <ShowCardFace c={c} />
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+};
+
+// =====================================================================
+// COMMUNITY — two opposing tile marquees (top R→L, bottom L→R) with a
+// gentle vertical wave, and a centred headline that reveals word-by-word.
+// =====================================================================
+const MQ_TILES = [
+  { code: "MA", label: "Mathematics", bg: "#2A1F17", tx: "#F4EFE4" },
+  { code: "SC", label: "Science", bg: "#5E7156", tx: "#F2F5EE" },
+  { code: "AR", label: "Arabic", bg: "#EDE5D6", tx: "#2A1F17" },
+  { code: "EN", label: "English", bg: "#B5754E", tx: "#FBF5EC" },
+  { code: "PH", label: "Physics", bg: "#33291F", tx: "#F4EFE4" },
+  { code: "CH", label: "Chemistry", bg: "#7A8F6E", tx: "#F7F3EC" },
+  { code: "BI", label: "Biology", bg: "#5E7156", tx: "#F2F5EE" },
+  { code: "HI", label: "History", bg: "#A0392A", tx: "#FBEFE9" },
+  { code: "GE", label: "Geography", bg: "#8E5435", tx: "#FBF1E8" },
+  { code: "IS", label: "Islamic St.", bg: "#7A2A1E", tx: "#FBEFE9" },
+  { code: "AT", label: "Art & Design", bg: "#B5754E", tx: "#FBF5EC" },
+  { code: "MU", label: "Music", bg: "#E3D9C5", tx: "#2A1F17" },
+  { code: "CS", label: "Coding", bg: "#2A1F17", tx: "#F4EFE4" },
+  { code: "PE", label: "P.E.", bg: "#7A8F6E", tx: "#F7F3EC" },
+  { code: "EC", label: "Economics", bg: "#8E5435", tx: "#FBF1E8" },
+  { code: "ME", label: "Moral Ed.", bg: "#EDE5D6", tx: "#2A1F17" },
+];
+
+function MqTile({ t }) {
+  return (
+    <div
+      className="flex flex-col justify-between p-3.5 rounded-[20px] select-none"
+      style={{
+        width: 112,
+        height: 112,
+        background: t.bg,
+        color: t.tx,
+        boxShadow: "0 18px 36px -22px rgba(42,31,23,0.45)",
+      }}
+    >
+      <span
+        className="font-mono"
+        style={{ fontSize: 9, letterSpacing: "0.16em", opacity: 0.65 }}
+      >
+        {t.code}
+      </span>
+      <span className="font-display" style={{ fontSize: 15, lineHeight: 1.05 }}>
+        {t.label}
+      </span>
+    </div>
+  );
+}
+
+const MQ_HEAD = [
+  { t: "You'll" }, { t: "find" },
+  { t: "every", accent: true }, { t: "subject", accent: true },
+  { t: "here." },
+];
+const MQ_SUB =
+  "Built with teachers across the UAE — from KG to Grade 12, every classroom."
+    .split(" ");
+
+// JS-driven so each tile's vertical offset is a function of its LIVE
+// position — the wave actually travels with the tiles instead of being a
+// fixed stagger that just slides sideways.
+const MQ_PITCH = 134; // 112 tile + 22 gap
+const MQ_AMP = 19; // vertical wave amplitude (px)
+const MQ_SPEED = 40; // horizontal px / second
+
+const MarqueeRow = ({ reverse }) => {
+  const trackRef = useRef(null);
+  const tilesRef = useRef([]);
+  const L = MQ_TILES.length;
+  const list = MQ_TILES.concat(MQ_TILES);
+  const SETW = L * MQ_PITCH;
+  // 3 full waves per set so the sine is continuous across the loop seam.
+  const F = (Math.PI * 2 * 3) / SETW;
+
+  useEffect(() => {
+    const reduce = window.matchMedia(
+      "(prefers-reduced-motion: reduce)"
+    ).matches;
+    if (reduce) return;
+    let raf = 0;
+    let last = performance.now();
+    let pos = 0;
+    const dir = reverse ? -1 : 1;
+    const tick = (now) => {
+      const dt = Math.min(0.05, (now - last) / 1000);
+      last = now;
+      pos += MQ_SPEED * dt;
+      const wrapped = pos % SETW;
+      const track = trackRef.current;
+      if (track) {
+        track.style.transform = `translateX(${
+          reverse ? wrapped - SETW : -wrapped
+        }px)`;
+      }
+      const tiles = tilesRef.current;
+      for (let i = 0; i < tiles.length; i++) {
+        const el = tiles[i];
+        if (!el) continue;
+        const y = MQ_AMP * Math.sin((i * MQ_PITCH - dir * pos) * F);
+        el.style.transform = `translateY(${y}px)`;
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [reverse, SETW, F]);
+
+  return (
+    <div
+      className="w-full"
+      style={{ overflowX: "hidden", overflowY: "visible", paddingBlock: MQ_AMP + 34 }}
+    >
+      <div
+        ref={trackRef}
+        style={{ display: "flex", width: "max-content", willChange: "transform" }}
+      >
+        {list.map((t, i) => (
+          <div
+            key={i}
+            ref={(el) => (tilesRef.current[i] = el)}
+            style={{ marginRight: 22, willChange: "transform" }}
+          >
+            <MqTile t={t} />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+const CommunityScroll = () => {
+  const trackRef = useRef(null);
+  const [q, setQ] = useState(0);
+
+  useEffect(() => {
+    let raf = 0;
+    const onScroll = () => {
+      if (raf) return;
+      raf = requestAnimationFrame(() => {
+        raf = 0;
+        const el = trackRef.current;
+        if (!el) return;
+        const r = el.getBoundingClientRect();
+        const span = r.height - window.innerHeight;
+        setQ(span > 0 ? Math.min(1, Math.max(0, -r.top / span)) : 0);
+      });
+    };
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll);
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onScroll);
+      if (raf) cancelAnimationFrame(raf);
+    };
+  }, []);
+
+  const hr = seg(q, 0.12, 0.66); // headline scrub
+  const sb = seg(q, 0.46, 0.92); // sub scrub
+
+  return (
+    <section ref={trackRef} className="relative min-h-screen lg:h-[260vh]">
+      {/* ---------- DESKTOP — pinned; marquees loop, text reveals ---------- */}
+      <div className="hidden lg:flex lg:sticky lg:top-0 lg:h-screen overflow-hidden flex-col py-[6vh]">
+        <MarqueeRow />
+
+        <div className="flex-1 min-h-0 flex flex-col items-center justify-center text-center px-8 overflow-hidden">
+          <span
+            className="inline-flex h-9 w-9 rounded-full items-center justify-center mb-7"
+            style={{
+              background: "var(--paper)",
+              border: "0.5px solid var(--line-strong)",
+              color: "var(--clay)",
+            }}
+          >
+            <Sparkles size={15} strokeWidth={2} />
+          </span>
+          <h2 className="font-display text-[clamp(38px,5vw,80px)] leading-[1.02] tracking-tight max-w-4xl mx-auto">
+            {MQ_HEAD.map((w, i) => {
+              const wp = easeInOut(clamp01((hr - i * 0.07) / 0.34));
+              return (
+                <span
+                  key={i}
+                  style={{
+                    display: "inline-block",
+                    marginRight: "0.26em",
+                    opacity: wp,
+                    filter: `blur(${(1 - wp) * 10}px)`,
+                    transform: `translateY(${(1 - wp) * 16}px)`,
+                    color: mix(C_INK3, w.accent ? C_CLAY : C_INK, wp),
+                    fontStyle: w.accent ? "italic" : "normal",
+                    willChange: "filter, transform, opacity",
+                  }}
+                >
+                  {w.t}
+                </span>
+              );
+            })}
+          </h2>
+          <p className="text-base md:text-lg leading-relaxed mt-6 max-w-md mx-auto">
+            {MQ_SUB.map((w, i) => {
+              const wp = easeInOut(clamp01((sb - i * 0.03) / 0.3));
+              return (
+                <span
+                  key={i}
+                  style={{
+                    display: "inline-block",
+                    marginRight: "0.24em",
+                    opacity: wp,
+                    filter: `blur(${(1 - wp) * 6}px)`,
+                    color: mix(C_INK3, C_INK2, wp),
+                    willChange: "filter, opacity",
+                  }}
+                >
+                  {w}
+                </span>
+              );
+            })}
+          </p>
+        </div>
+
+        <MarqueeRow reverse />
+      </div>
+
+      {/* ---------- MOBILE — marquees + static text ---------- */}
+      <div className="lg:hidden py-16 flex flex-col gap-10">
+        <MarqueeRow />
+        <div className="text-center px-6">
+          <h2 className="font-display text-[clamp(34px,9vw,52px)] leading-[1.06] tracking-tight">
+            You'll find{" "}
+            <em style={{ color: "var(--clay)", fontStyle: "italic" }}>
+              every subject
+            </em>{" "}
+            here.
+          </h2>
+          <p
+            className="text-base leading-relaxed mt-5"
+            style={{ color: "var(--ink-2)" }}
+          >
+            Built with teachers across the UAE — from KG to Grade 12, every
+            classroom.
+          </p>
+        </div>
+        <MarqueeRow reverse />
+      </div>
     </section>
   );
 };
@@ -426,9 +1564,17 @@ const ProductMock = ({ onOpenStudio }) => {
 
   return (
     <div className="relative">
+      {/* Rendered at full desktop scale then uniformly zoomed down so
+          the whole faithful layout shrinks together (nothing reflows /
+          clips) — like a scaled screenshot. */}
       <div
         className="mudir-studio-frame rounded-2xl overflow-hidden border border-line bg-paper text-ink font-sans flex"
-        style={{ height: 760, boxShadow: "0 40px 100px -25px rgba(26,24,20,0.30)" }}
+        style={{
+          width: 1340,
+          height: 830,
+          zoom: 0.77,
+          boxShadow: "0 40px 100px -25px rgba(26,24,20,0.30)",
+        }}
       >
         {/* ── SIDEBAR ─────────────────────────────────────────────── */}
         <aside className="mudir-sidebar w-64 flex flex-col flex-shrink-0 h-full">
@@ -533,7 +1679,7 @@ const ProductMock = ({ onOpenStudio }) => {
             <span className="mudir-sidebar-account-avatar">SA</span>
             <div className="flex-1 min-w-0 text-start">
               <p className="text-sm font-medium leading-tight truncate text-ink">
-                Sara Al-Mansoori
+                Sara
               </p>
               <p className="font-serif italic text-[11px] text-muted mt-0.5">
                 Teacher
@@ -883,7 +2029,7 @@ function Win({ title, children }) {
           {title}
         </div>
       </div>
-      <div className="h-[460px] overflow-hidden bg-[#fbf2e6] text-ink px-6 pt-5">
+      <div className="h-[620px] overflow-hidden bg-[#fbf2e6] text-ink px-6 py-5">
         {children}
       </div>
     </div>
@@ -998,9 +2144,6 @@ function PvLesson() {
       <div className="flex items-center gap-2 border-b border-line mb-5">
         <span className="px-4 py-2 font-mono text-[11px] uppercase tracking-[0.15em] border-b-2 border-accent text-ink">
           Templates library
-        </span>
-        <span className="px-4 py-2 font-mono text-[11px] uppercase tracking-[0.15em] border-b-2 border-transparent text-muted">
-          Drafts
         </span>
       </div>
       <Head
@@ -1150,32 +2293,6 @@ function PvTemplates() {
   );
 }
 
-function PvDrafts() {
-  const items = [
-    { status: "In progress", title: "The Water Cycle", meta: "Science · G7 · 7A", stats: [["Updated", "Today"], ["Progress", "80%"]] },
-    { status: "In progress", title: "Fractions — introduction", meta: "Maths · G5 · 5B", stats: [["Updated", "Yesterday"], ["Progress", "45%"]] },
-    { status: "Paused", title: "Romeo & Juliet — Act 1", meta: "English · G10 · 10D", stats: [["Updated", "May 12"], ["Progress", "60%"]] },
-    { status: "In progress", title: "Photosynthesis", meta: "Science · G7 · 7A", stats: [["Updated", "May 15"], ["Progress", "25%"]] },
-  ];
-  return (
-    <div>
-      <Head
-        eyebrow="Drafts"
-        plain="Your "
-        em="drafts"
-        sub="Lesson plans you started, paused, or saved to reuse later. Only you can see these."
-        neu="New draft"
-      />
-      <Cnt>4 drafts</Cnt>
-      <DGrid>
-        {items.map((c) => (
-          <DCard key={c.title} {...c} />
-        ))}
-      </DGrid>
-    </div>
-  );
-}
-
 // ── Weekly Schedule — mirrors the Planner/Schedule grid chrome.
 function PvSchedule() {
   const days = ["Mon", "Tue", "Wed", "Thu", "Fri"];
@@ -1212,105 +2329,6 @@ function PvSchedule() {
                 </div>
               ))}
             </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// ── My Students — roster, mirroring the Database screen chrome.
-function PvStudents() {
-  const rows = [
-    ["Aisha Al-Hashimi", "7A", "92%", "Present", "text-sage"],
-    ["Bilal Haddad", "7A", "78%", "Present", "text-sage"],
-    ["Fatima Rahman", "7A", "85%", "Late", "text-gold"],
-    ["Hamad Khalil", "7A", "67%", "Absent · note", "text-accent"],
-    ["Layla Saleh", "7A", "94%", "Present", "text-sage"],
-    ["Omar Nasr", "7A", "81%", "Present", "text-sage"],
-    ["Sara Yousef", "7A", "88%", "Present", "text-sage"],
-  ];
-  return (
-    <div>
-      <p className={`${EB} mb-2 inline-flex items-center gap-2.5`}>
-        <span className="w-6 h-px bg-accent" /> My students
-      </p>
-      <h2 className="font-serif text-[28px] font-medium text-ink leading-tight">
-        Class <em className="italic font-light text-accent">7A</em>
-      </h2>
-      <p className="text-muted text-[12.5px] mt-1.5 mb-4">
-        28 students · attendance, grades and guardian contacts in one place.
-      </p>
-      <div className="rounded-2xl border border-line bg-paper-cool overflow-hidden">
-        <div className="grid grid-cols-[1fr_70px_70px_120px] font-mono text-[9px] uppercase tracking-[0.15em] text-muted border-b border-line px-4 py-2.5">
-          <span>Student</span>
-          <span>Class</span>
-          <span>Avg</span>
-          <span>Today</span>
-        </div>
-        {rows.map(([n, cl, g, a, c]) => (
-          <div
-            key={n}
-            className="grid grid-cols-[1fr_70px_70px_120px] items-center px-4 py-2.5 border-b border-line/60 last:border-0"
-          >
-            <span className="flex items-center gap-3">
-              <span className="h-7 w-7 rounded-full bg-paper-warm/70 grid place-items-center text-[10px] font-medium">
-                {n.split(" ").map((x) => x[0]).join("")}
-              </span>
-              <span className="text-[13px] text-ink">{n}</span>
-            </span>
-            <span className="text-[12px] text-muted">{cl}</span>
-            <span className="text-[12px] font-mono text-ink-soft">{g}</span>
-            <span className={`text-[12px] ${c}`}>{a}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// ── AI Studio — the generate surface (prompt → draft → output).
-function PvStudio() {
-  return (
-    <div>
-      <p className={`${EB} mb-2 inline-flex items-center gap-2.5`}>
-        <span className="w-6 h-px bg-accent" /> Studio
-      </p>
-      <h2 className="font-serif text-[28px] font-medium text-ink leading-tight mb-4">
-        Mudir <em className="italic font-light text-accent">drafts.</em> You direct.
-      </h2>
-      <div className="rounded-xl border border-line bg-paper-cool p-4 mb-3.5">
-        <p className={`${EB} mb-2`}>You said</p>
-        <p className="text-[13px] leading-relaxed">
-          Worksheet on photosynthesis for Grade 7. Three difficulty levels.
-          One diagram-label question. MoE-aligned.
-        </p>
-      </div>
-      <div className="flex items-center gap-2 mb-4">
-        {["Listening", "Outlining", "Drafting", "Ready"].map((s, i) => (
-          <React.Fragment key={s}>
-            <span
-              className={`text-[11px] font-mono px-2.5 py-1 rounded-md ${
-                i === 3 ? "bg-sage/[0.14] text-sage" : "bg-paper-warm/60 text-muted"
-              }`}
-            >
-              {s}
-            </span>
-            {i < 3 && <span className="w-3 h-px bg-line" />}
-          </React.Fragment>
-        ))}
-      </div>
-      <p className={`${EB} mb-3`}>Mudir drafted</p>
-      <div className="grid grid-cols-3 gap-3">
-        {[
-          ["Level 1", "Foundation", "8 questions"],
-          ["Level 2", "Core", "10 questions"],
-          ["Level 3", "Extension", "12 questions"],
-        ].map(([l, d, n]) => (
-          <div key={l} className="rounded-xl border border-line bg-paper-cool p-3">
-            <p className={`${EB} mb-1.5`}>{l}</p>
-            <p className="text-[13px] font-medium">{d}</p>
-            <p className="text-[12px] text-muted">{n}</p>
           </div>
         ))}
       </div>
@@ -1360,87 +2378,6 @@ function PvWorksheets() {
   );
 }
 
-// ── Reports — mirrors Reports.jsx (counts strip + per-student table).
-function PvReports() {
-  const counts = [
-    ["Students", 28], ["Lessons", 14], ["Templates", 9], ["Quizzes", 6],
-    ["Homework", 8], ["Slides", 5], ["Activities", 11],
-  ];
-  const rows = [
-    ["Aisha Al-Hashimi", "7A", 6, 92],
-    ["Bilal Haddad", "7A", 5, 78],
-    ["Fatima Rahman", "7A", 6, 85],
-    ["Hamad Khalil", "7A", 4, 67],
-    ["Layla Saleh", "7A", 6, 94],
-  ];
-  return (
-    <div>
-      <p className={`${EB} mb-2 inline-flex items-center gap-2.5`}>
-        <span className="w-6 h-px bg-accent" /> Reports
-      </p>
-      <h2 className="font-serif text-[28px] font-medium text-ink leading-tight">
-        Class <em className="italic font-light text-accent">reports</em>
-      </h2>
-      <p className="text-muted text-[12.5px] mt-1.5 mb-4">
-        A snapshot of your class — averages, counts, exportable to CSV.
-      </p>
-      <div className="grid grid-cols-7 gap-2 mb-4">
-        {counts.map(([l, v]) => (
-          <div key={l} className="rounded-xl border border-[#e6dccb] bg-paper-cool p-2.5">
-            <p className="font-mono text-[8px] uppercase tracking-[0.16em] text-muted mb-1">
-              {l}
-            </p>
-            <p className="font-serif text-xl font-medium text-accent leading-none">
-              {v}
-            </p>
-          </div>
-        ))}
-      </div>
-      <div className="rounded-2xl border border-line bg-paper-cool overflow-hidden">
-        <div className="px-5 pt-4 pb-3 border-b border-line">
-          <h3 className="font-serif text-lg font-medium text-ink">
-            Per-student averages
-          </h3>
-        </div>
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="font-mono text-[9px] uppercase tracking-[0.15em] text-muted border-b border-line">
-              <th className="text-left py-2.5 px-5 font-medium">Student</th>
-              <th className="text-left py-2.5 font-medium">Class</th>
-              <th className="text-left py-2.5 font-medium">Entries</th>
-              <th className="text-left py-2.5 px-5 font-medium">Average</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map(([n, cl, e, avg]) => (
-              <tr key={n} className="border-b border-line/60 last:border-0">
-                <td className="py-2.5 px-5 text-ink text-[13px]">{n}</td>
-                <td className="py-2.5 text-muted text-[13px]">{cl}</td>
-                <td className="py-2.5 text-ink-soft text-[13px]">{e}</td>
-                <td className="py-2.5 px-5">
-                  <div className="flex items-center gap-3">
-                    <div className="w-28 h-1.5 bg-paper-warm rounded-full overflow-hidden border border-line">
-                      <div
-                        className={`h-full ${
-                          avg >= 70 ? "bg-sage" : avg >= 50 ? "bg-ink" : "bg-accent"
-                        }`}
-                        style={{ width: `${avg}%` }}
-                      />
-                    </div>
-                    <span className="font-mono text-[11px] text-ink-soft w-10">
-                      {avg}%
-                    </span>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
 const TeacherShowcase = () => {
   const FEATURES = [
     { label: "Lesson Plans", icon: BookOpen, title: "lessons / photosynthesis · 7A", Pv: PvLesson },
@@ -1449,12 +2386,8 @@ const TeacherShowcase = () => {
     { label: "Presentations", icon: Presentation, title: "deck / photosynthesis", Pv: PvPresentation },
     { label: "Activities", icon: Sparkles, title: "activities / 7A", Pv: PvActivities },
     { label: "Weekly Schedule", icon: CalendarDays, title: "schedule / week of 17 may", Pv: PvSchedule },
-    { label: "My Students", icon: Users, title: "students / 7A", Pv: PvStudents },
-    { label: "AI Studio", icon: MessageCircle, title: "studio / new worksheet", Pv: PvStudio },
     { label: "Worksheets", icon: FileText, title: "worksheets / photosynthesis", Pv: PvWorksheets },
-    { label: "Reports & Insights", icon: BarChart3, title: "reports / term 2 · 7A", Pv: PvReports },
     { label: "Templates", icon: Layout, title: "templates / library", Pv: PvTemplates },
-    { label: "Drafts", icon: FileText, title: "drafts / mine", Pv: PvDrafts },
   ];
   const [active, setActive] = useState(0);
   const f = FEATURES[active];
@@ -1471,7 +2404,7 @@ const TeacherShowcase = () => {
         aria-pressed={on}
         className={`group w-full flex items-center gap-3 rounded-2xl px-4 py-3.5 text-left transition-all ${
           on
-            ? "bg-gradient-to-r from-accent to-accent-soft text-paper-cool shadow-[0_14px_30px_-12px_rgba(200,71,43,0.55)]"
+            ? "bg-accent text-paper-cool shadow-[0_14px_30px_-12px_rgba(200,71,43,0.55)]"
             : "bg-paper-cool border border-line text-ink hover:border-accent/40 hover:-translate-y-0.5"
         }`}
       >
@@ -1490,7 +2423,7 @@ const TeacherShowcase = () => {
   };
 
   return (
-    <section className="py-24 md:py-36">
+    <section id="features" className="snap-stop py-24 md:py-36">
       <div className="max-w-[1280px] mx-auto px-8">
         <div className="max-w-2xl mx-auto text-center mb-14">
           <div className="eyebrow mb-5">Inside Mudir</div>
@@ -1511,7 +2444,7 @@ const TeacherShowcase = () => {
 
           {/* Desktop: left column */}
           <div className="hidden lg:flex flex-col gap-3">
-            {FEATURES.slice(0, 6).map((_, i) => (
+            {FEATURES.slice(0, 4).map((_, i) => (
               <Pill key={i} i={i} />
             ))}
           </div>
@@ -1525,8 +2458,8 @@ const TeacherShowcase = () => {
 
           {/* Desktop: right column */}
           <div className="hidden lg:flex flex-col gap-3">
-            {FEATURES.slice(6, 12).map((_, i) => (
-              <Pill key={i + 6} i={i + 6} />
+            {FEATURES.slice(4, 8).map((_, i) => (
+              <Pill key={i + 4} i={i + 4} />
             ))}
           </div>
         </div>
@@ -1542,48 +2475,48 @@ const Workflow = () => {
   const steps = [
     {
       n: "01",
-      label: "Direct",
-      title: "Tell Mudir what you're teaching.",
-      body: "A topic, a grade, a class. A photo of the textbook page. A scribbled outline. Mudir reads context the way a colleague would.",
-      tag: "30 seconds",
+      label: "Mariam",
+      title: "A full slide deck, in twenty seconds.",
+      body: "Mariam used to spend twenty minutes building a presentation for every lesson. Now she describes it once and Mudir drafts the whole deck — she just reviews and walks into class.",
+      tag: "20 min → 20 sec",
     },
     {
       n: "02",
-      label: "Draft",
-      title: "Mudir prepares everything.",
-      body: "A lesson plan with timing. A starter activity. Three differentiated worksheets. A formative quiz. Slides if you want them. Aligned to MoE outcomes.",
-      tag: "Under a minute",
+      label: "Salma",
+      title: "A quiz ready before the bell.",
+      body: "Salma needed a formative quiz for Grade 7 science. Mixed formats, Bloom-tagged, auto-graded — Mudir drafted it while she finished her coffee.",
+      tag: "Quiz in under a minute",
     },
     {
       n: "03",
-      label: "Deliver",
-      title: "You review, refine, and teach.",
-      body: "Edit anything. Approve in one click. Export to PDF, Word, or print. Send homework to parents. Track who completed what.",
-      tag: "You stay in charge",
+      label: "Ibrahim",
+      title: "Next week's lessons, already planned.",
+      body: "Ibrahim maps his whole week in the Planner. Mudir turns each topic into a timed lesson plan aligned to MoE outcomes — Sunday prep, gone.",
+      tag: "A week of plans in minutes",
     },
   ];
 
   return (
     <section
       id="workflow"
-      className="py-24 md:py-36"
+      className="snap-stop py-24 md:py-36"
       style={{ borderColor: "var(--line)" }}
     >
       <div className="max-w-[1280px] mx-auto px-8">
         <div className="max-w-2xl mb-24">
           <Reveal>
-            <div className="eyebrow mb-6">How it works</div>
+            <div className="eyebrow mb-6">From real classrooms</div>
             <h2 className="font-display text-5xl md:text-6xl leading-[1.02] tracking-tight mb-6">
-              One workspace.
+              Real teachers.
               <br />
-              Three calm steps.
+              Real time back.
             </h2>
             <p
               className="text-xl leading-relaxed"
               style={{ color: "var(--ink-2)" }}
             >
-              Mudir is not a chatbot you have to fight with. It's a structured
-              flow from intent to ready-to-teach material.
+              Three teachers, three tasks that used to eat their evenings —
+              now drafted by Mudir in the time it takes to read this.
             </p>
           </Reveal>
         </div>
@@ -1642,657 +2575,519 @@ const Workflow = () => {
 };
 
 // =====================================================================
-// PRODUCT SHOWCASE — tabbed UI
+// STUDIO FLOW — auto-playing walkthrough of the real presentation
+// pipeline: open Studio AI from the Planner → describe the deck →
+// Mudir builds it → the finished slides. Content is the real Studio
+// (presentation sample, "Slide-by-slide outline", "Make it", the
+// SlideBuilder ocean theme).
 // =====================================================================
-const MockShell = ({ children, label }) => (
-  <div
-    className="card overflow-hidden"
-    style={{ boxShadow: "0 20px 60px -20px rgba(42,31,23,0.12)" }}
-  >
-    <div
-      className="flex items-center gap-2 px-4 py-3 border-b"
-      style={{ borderColor: "var(--line)" }}
-    >
-      <div className="dot" style={{ background: "var(--paper-3)" }} />
-      <div className="dot" style={{ background: "var(--paper-3)" }} />
-      <div className="dot" style={{ background: "var(--paper-3)" }} />
-      <div
-        className="flex-1 text-center text-[11px] font-mono"
-        style={{ color: "var(--ink-3)" }}
-      >
-        {label}
+
+// Step 1 — the Planner's Studio AI hero card, "Build / Presentation"
+// chip spotlighted with a cursor cue.
+function FlowPlanner() {
+  const chips = [
+    { label: "Lesson Plans", icon: BookOpen, color: "accent" },
+    { label: "Quizzes", icon: GraduationCap, color: "sage" },
+    { label: "Homework", icon: ClipboardList, color: "indigo" },
+    { label: "Presentations", icon: Presentation, color: "accent-soft", hot: true },
+    { label: "Activities", icon: Sparkles, color: "violet" },
+  ];
+  return (
+    <div className="planner-hero rounded-2xl p-5 md:p-6 relative overflow-hidden h-full flex flex-col justify-center">
+      <div className="relative z-10">
+        <p className="inline-flex items-center gap-1.5 rounded-full bg-accent/[0.10] px-2.5 py-1 text-[12px] font-semibold text-accent mb-3">
+          <Sparkles size={12} strokeWidth={2.25} /> Studio AI
+        </p>
+        <h2 className="font-serif text-3xl text-ink leading-[1.1] font-semibold tracking-tight">
+          What would you like to{" "}
+          <span className="italic font-medium text-accent">create</span> today?
+        </h2>
+        <p className="text-[13px] text-muted mt-2 max-w-xl leading-snug">
+          Your AI co-pilot that helps you plan, save time, and make every class amazing.
+        </p>
+      </div>
+      <div className="relative z-10 mt-6 grid grid-cols-2 md:grid-cols-3 gap-3">
+        {chips.map((c) => {
+          const Icon = c.icon;
+          return (
+            <div
+              key={c.label}
+              className="relative"
+              data-flow={c.hot ? "build" : undefined}
+            >
+              <div
+                className={`planner-hero-chip ${
+                  c.hot ? "ring-2 ring-accent ring-offset-2 ring-offset-[#fbf2e6]" : ""
+                }`}
+              >
+                <span className={`planner-hero-chip-icon planner-hero-chip-icon-${c.color}`}>
+                  <Icon size={14} strokeWidth={2} />
+                </span>
+                <span className="text-[13px] font-semibold text-ink whitespace-nowrap">
+                  {c.label}
+                </span>
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
-    <div className="p-6">{children}</div>
-  </div>
-);
+  );
+}
 
-const LessonPlanMock = () => (
-  <MockShell label="lessons / photosynthesis · 7A">
-    <div className="eyebrow mb-2">Sunday 17 May · 50 min</div>
-    <h4 className="font-display text-2xl mb-4">
-      Photosynthesis — leaf structure
-    </h4>
-    <div className="grid grid-cols-12 gap-3 mb-4">
-      {[
-        ["00–05", 'Starter · "What did your plant need this week?"'],
-        ["05–15", "Recap chloroplasts · diagram on board"],
-        ["15–35", "Worksheet · differentiated 3 levels"],
-        ["35–45", "Pair discussion · sunlight vs water"],
-        ["45–50", "Exit ticket · 3 questions"],
-      ].map(([tm, d], i, arr) => (
-        <React.Fragment key={tm}>
-          <div
-            className="col-span-3 text-xs font-mono py-2"
-            style={{ color: "var(--ink-3)" }}
-          >
-            {tm}
-          </div>
-          <div
-            className={`col-span-9 text-sm py-2 ${
-              i < arr.length - 1 ? "border-b" : ""
-            }`}
-            style={{ borderColor: "var(--line)" }}
-          >
-            {d}
-          </div>
-        </React.Fragment>
-      ))}
-    </div>
-    <div className="flex items-center gap-2 text-xs">
-      <span
-        className="px-2 py-0.5 rounded font-mono"
-        style={{ background: "var(--paper-2)", color: "var(--ink-2)" }}
-      >
-        MoE 7.2.1
-      </span>
-      <span
-        className="px-2 py-0.5 rounded font-mono"
-        style={{ background: "var(--paper-2)", color: "var(--ink-2)" }}
-      >
-        Bloom · understand → apply
-      </span>
-    </div>
-  </MockShell>
-);
+// Step 2 — the real Studio composer for the Presentation kind.
+function FlowCompose() {
+  const FULL = "8-slide intro deck on the water cycle for Grade 4.";
+  const [typed, setTyped] = useState("");
+  useEffect(() => {
+    let i = 0;
+    setTyped("");
+    // Type like a person — slightly uneven cadence, a beat after commas.
+    let id;
+    const tick = () => {
+      i += 1;
+      setTyped(FULL.slice(0, i));
+      if (i < FULL.length) {
+        const ch = FULL[i - 1];
+        const delay =
+          ch === "." ? 320 : ch === " " ? 70 : 38 + Math.random() * 55;
+        id = setTimeout(tick, delay);
+      }
+    };
+    id = setTimeout(tick, 450);
+    return () => clearTimeout(id);
+  }, []);
+  return (
+    <div className="h-full flex flex-col justify-center">
+      <div className="flex items-center gap-2 mb-4">
+        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-line bg-paper-cool text-[13px] text-ink">
+          <Layers size={14} className="text-accent" /> Presentation
+          <ChevronRight size={13} className="text-muted rotate-90" />
+        </span>
+        <span className="text-[12.5px] text-muted font-serif italic">
+          Tell Mudir what to cover.
+        </span>
+      </div>
 
-const QuizMock = () => (
-  <MockShell label="quiz / cell respiration · 7B">
-    <div className="eyebrow mb-2">Formative · 10 questions · 15 min</div>
-    <h4 className="font-display text-2xl mb-5">Cell respiration · check</h4>
-    <div className="space-y-3">
-      {[
-        { n: "1", q: "Which organelle produces most ATP?", type: "MCQ" },
-        { n: "2", q: "Word equation for aerobic respiration.", type: "Short" },
-        {
-          n: "3",
-          q: "Why do muscle cells switch to anaerobic?",
-          type: "Extended",
-        },
-      ].map((i) => (
-        <div
-          key={i.n}
-          className="card p-3 flex items-start gap-3"
-          style={{ background: "var(--paper-2)" }}
-        >
-          <span className="font-mono text-xs" style={{ color: "var(--ink-3)" }}>
-            {i.n}
-          </span>
-          <div className="flex-1">
-            <div className="text-sm mb-1">{i.q}</div>
+      <div className="bg-paper-cool rounded-2xl border border-ink shadow-sm overflow-hidden">
+        <div className="px-5 py-4 text-[15px] text-ink min-h-[92px] leading-relaxed">
+          {typed || <span className="text-muted">{/* sample */}</span>}
+          <span className="inline-block w-px h-[1.1em] align-[-2px] ml-0.5 bg-accent animate-pulse" />
+        </div>
+        <div className="border-t border-line px-3 py-2.5 flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-2">
+            <span className="h-8 w-8 rounded-full border border-line bg-paper-cool text-ink-soft flex items-center justify-center">
+              <Paperclip size={14} />
+            </span>
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-line bg-paper text-[11.5px] text-muted">
+              <Sparkles size={11} className="text-accent" /> Slide-by-slide outline
+            </span>
+          </div>
+          <div className="flex items-center gap-3">
+            <p className="hidden sm:block text-xs text-muted italic">
+              Mudir will fill the rest
+            </p>
             <span
-              className="text-[10px] font-mono px-1.5 py-0.5 rounded"
-              style={{ background: "var(--paper)", color: "var(--ink-3)" }}
+              data-flow="makeit"
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-accent text-paper-cool text-sm font-medium"
             >
-              {i.type}
+              <Send size={14} /> Make it
             </span>
           </div>
         </div>
-      ))}
-      <div
-        className="text-xs text-center pt-1"
-        style={{ color: "var(--ink-3)" }}
-      >
-        + 7 more · auto-graded
+      </div>
+
+      <div className="mt-4 flex items-center gap-3 flex-wrap">
+        <p className="font-serif italic text-[15px] text-muted">Or try</p>
+        <div className="flex flex-wrap gap-1.5">
+          {["Water cycle", "World religions", "Plot diagram"].map((s) => (
+            <span
+              key={s}
+              className="px-2.5 py-1 rounded-full border border-line bg-paper-cool text-[12px] text-ink-soft"
+            >
+              {s}
+            </span>
+          ))}
+        </div>
       </div>
     </div>
-  </MockShell>
-);
+  );
+}
 
-const RosterMock = () => (
-  <MockShell label="students / 7A">
-    <div className="flex items-baseline justify-between mb-4">
-      <h4 className="font-display text-2xl">Class 7A</h4>
-      <span className="text-xs font-mono" style={{ color: "var(--ink-3)" }}>
-        28 students
-      </span>
-    </div>
-    <div className="space-y-2">
-      {[
-        { n: "Aisha A.", g: "92%", a: "Present", c: "var(--sage)" },
-        { n: "Bilal H.", g: "78%", a: "Present", c: "var(--sage)" },
-        { n: "Fatima R.", g: "85%", a: "Late", c: "var(--clay)" },
-        { n: "Hamad K.", g: "67%", a: "Absent · note", c: "#9B8B76" },
-        { n: "Layla S.", g: "94%", a: "Present", c: "var(--sage)" },
-      ].map((s) => (
-        <div
-          key={s.n}
-          className="flex items-center gap-4 py-2.5 border-b"
-          style={{ borderColor: "var(--line)" }}
-        >
-          <div
-            className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-medium"
-            style={{ background: "var(--paper-2)" }}
-          >
-            {s.n
-              .split(" ")
-              .map((x) => x[0])
-              .join("")}
-          </div>
-          <div className="flex-1 text-sm">{s.n}</div>
-          <div
-            className="text-xs font-mono"
-            style={{ color: "var(--ink-2)" }}
-          >
-            {s.g}
-          </div>
-          <div
-            className="flex items-center gap-1.5 text-xs"
-            style={{ color: "var(--ink-2)" }}
-          >
-            <div
-              className="w-1.5 h-1.5 rounded-full"
-              style={{ background: s.c }}
-            />
-            {s.a}
-          </div>
-        </div>
-      ))}
-      <div
-        className="text-xs text-center pt-2"
-        style={{ color: "var(--ink-3)" }}
-      >
-        + 23 more
-      </div>
-    </div>
-  </MockShell>
-);
-
-const DashboardMock = () => (
-  <MockShell label="today · sunday 17 may">
-    <div className="grid grid-cols-3 gap-3 mb-5">
-      {[
-        { l: "Lessons", v: "3" },
-        { l: "Drafts to review", v: "2" },
-        { l: "Parent replies", v: "1" },
-      ].map((x) => (
-        <div
-          key={x.l}
-          className="card p-3"
-          style={{ background: "var(--paper-2)" }}
-        >
-          <div className="eyebrow mb-1">{x.l}</div>
-          <div className="font-display text-3xl">{x.v}</div>
-        </div>
-      ))}
-    </div>
-    <div className="eyebrow mb-3">Upcoming this week</div>
-    <div className="space-y-2">
-      {[
-        "Photosynthesis quiz · Tuesday",
-        "Parent conference · Wednesday",
-        "Mid-term planning · Thursday",
-      ].map((x) => (
-        <div
-          key={x}
-          className="flex items-center gap-3 text-sm py-2 border-t"
-          style={{ borderColor: "var(--line)" }}
-        >
-          <div
-            className="w-1 h-1 rounded-full"
-            style={{ background: "var(--clay)" }}
-          />
-          {x}
-        </div>
-      ))}
-    </div>
-  </MockShell>
-);
-
-const ProductShowcase = () => {
-  const [active, setActive] = useState(0);
-
-  const tabs = [
-    {
-      label: "Lesson plan",
-      eyebrow: "Lesson plans",
-      title: "Plans that already know your curriculum.",
-      body: "MoE-aligned by default. Adjusts to your pace, your class size, your teaching style. Re-uses what worked last term.",
-      mock: <LessonPlanMock />,
-    },
-    {
-      label: "Quiz",
-      eyebrow: "Quizzes & exams",
-      title: "Quizzes drafted in the time it takes to make tea.",
-      body: "Mixed formats. Bloom-tagged. Differentiated automatically for stronger and weaker students. Auto-graded.",
-      mock: <QuizMock />,
-    },
-    {
-      label: "Roster",
-      eyebrow: "Student database",
-      title: "Every student, every guardian, in one quiet place.",
-      body: "Attendance, grades, contact info, notes — connected. No spreadsheets. No silos. Search across everything.",
-      mock: <RosterMock />,
-    },
-    {
-      label: "Today",
-      eyebrow: "Daily dashboard",
-      title: "Your day, on one screen.",
-      body: "Three lessons, two drafts to review, one parent reply. Mudir surfaces what matters before you open anything.",
-      mock: <DashboardMock />,
-    },
+// Step 3 — Mudir building the deck (the real "thinking" state +
+// streaming outline).
+function FlowBuilding() {
+  const lines = [
+    "Slide 1 — The Water Cycle",
+    "Slide 2 — Where water lives",
+    "Slide 3 — Evaporation",
+    "Slide 4 — Condensation",
+    "Slide 5 — Precipitation",
+    "Slide 6 — Collection",
   ];
+  return (
+    <div className="h-full flex flex-col items-center justify-center text-center">
+      <span className="relative inline-flex items-center justify-center w-16 h-16 mb-5">
+        <span className="absolute inset-0 rounded-full bg-accent/15 animate-ping" />
+        <span className="relative inline-flex items-center justify-center w-16 h-16 rounded-full bg-accent text-paper-cool">
+          <Sparkles size={26} strokeWidth={2} />
+        </span>
+      </span>
+      <p className="font-serif text-2xl text-ink mb-1">Mudir is thinking…</p>
+      <p className="text-[13px] text-muted mb-6">
+        Drafting an 8-slide deck on the water cycle, Grade 4.
+      </p>
+      <div className="w-full max-w-md text-left flex flex-col gap-1.5">
+        {lines.map((l, i) => (
+          <div
+            key={l}
+            className="flex items-center gap-2.5 px-3 py-2 rounded-lg bg-paper-cool border border-line/70"
+            style={{
+              opacity: 0,
+              animation: `studioflow-line 420ms ease-out ${i * 260}ms forwards`,
+            }}
+          >
+            <CheckCircle2 size={13} className="text-sage flex-shrink-0" />
+            <span className="text-[12.5px] text-ink-soft">{l}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// Step 4 — the finished deck, styled like the real SlideBuilder
+// (ocean theme cover + thumbnail strip).
+// A small slide-scene illustration so the deck reads as real designed
+// slides, not flat colour chips. Tinted to each slide's palette.
+function SlideArt({ stroke, fill, full = false }) {
+  return (
+    <svg
+      viewBox="0 0 200 150"
+      className={full ? "w-full h-full" : "h-full"}
+      preserveAspectRatio="xMidYMid slice"
+      aria-hidden
+    >
+      {/* sun */}
+      <circle cx="158" cy="34" r="15" fill={fill} opacity="0.55" />
+      {[...Array(8)].map((_, k) => {
+        const a = (k / 8) * Math.PI * 2;
+        return (
+          <line
+            key={k}
+            x1={158 + Math.cos(a) * 19}
+            y1={34 + Math.sin(a) * 19}
+            x2={158 + Math.cos(a) * 25}
+            y2={34 + Math.sin(a) * 25}
+            stroke={fill}
+            strokeWidth="2"
+            strokeLinecap="round"
+            opacity="0.5"
+          />
+        );
+      })}
+      {/* cloud */}
+      <g fill={fill} opacity="0.85">
+        <circle cx="74" cy="58" r="20" />
+        <circle cx="98" cy="50" r="24" />
+        <circle cx="122" cy="60" r="18" />
+        <rect x="70" y="58" width="56" height="20" rx="10" />
+      </g>
+      {/* rain */}
+      {[78, 94, 110].map((x) => (
+        <line
+          key={x}
+          x1={x}
+          y1="84"
+          x2={x - 5}
+          y2="100"
+          stroke={stroke}
+          strokeWidth="3"
+          strokeLinecap="round"
+          opacity="0.8"
+        />
+      ))}
+      {/* water + evaporation arrow */}
+      <path
+        d="M0 132 Q 25 122 50 132 T 100 132 T 150 132 T 200 132 V150 H0 Z"
+        fill={stroke}
+        opacity="0.5"
+      />
+      <path
+        d="M40 124 C 28 104, 40 86, 58 80"
+        fill="none"
+        stroke={stroke}
+        strokeWidth="2.5"
+        strokeDasharray="3 4"
+        strokeLinecap="round"
+        opacity="0.7"
+      />
+    </svg>
+  );
+}
+
+function FlowResult() {
+  const ocean = { bg: "#1e3a44", text: "#eaf3f4", soft: "#a8c4c8", dot: "#7fc6c0" };
+  // Each thumb is a real slide palette: bg + the tint used for its art.
+  const thumbs = [
+    { bg: "#1e3a44", art: "#7fc6c0" },
+    { bg: "#dce8ee", art: "#2f7d95" },
+    { bg: "#5f7256", art: "#f0d9a8" },
+    { bg: "#fffdf6", art: "#c8472b" },
+    { bg: "#f0d79a", art: "#b3442b" },
+    { bg: "#b3442b", art: "#ffe6d2" },
+    { bg: "#3a2740", art: "#d39bd0" },
+    { bg: "#243027", art: "#9bc48a" },
+  ];
+  return (
+    <div className="h-full flex flex-col">
+      <div className="flex items-center justify-between mb-3">
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-sage/[0.14] text-sage text-[11px] font-semibold">
+          <CheckCircle2 size={12} /> Ready
+        </span>
+        <div className="flex items-center gap-2">
+          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-line bg-paper-cool text-[12px] text-ink">
+            <Pencil size={12} /> Edit deck
+          </span>
+          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent text-paper-cool text-[12px] font-medium">
+            <Play size={12} /> Present
+          </span>
+        </div>
+      </div>
+      <div
+        className="flex-1 rounded-2xl flex border border-line overflow-hidden"
+        style={{ background: ocean.bg, color: ocean.text }}
+      >
+        <div className="flex-1 p-9 flex flex-col justify-center">
+          <span
+            className="font-mono text-[11px] uppercase tracking-[0.22em] mb-4"
+            style={{ color: ocean.soft }}
+          >
+            Grade 4 · Science
+          </span>
+          <h3 className="font-serif text-5xl font-medium leading-[1.05] mb-4">
+            The Water Cycle
+          </h3>
+          <p className="text-[15px] max-w-md leading-relaxed" style={{ color: ocean.soft }}>
+            How water moves around our planet — evaporation, condensation,
+            precipitation and collection.
+          </p>
+          <span
+            className="mt-6 h-1 w-16 rounded-full"
+            style={{ background: ocean.dot }}
+          />
+        </div>
+        <div className="w-[44%] relative">
+          <SlideArt stroke={ocean.dot} fill={ocean.soft} full />
+        </div>
+      </div>
+      <div className="flex gap-2 mt-3">
+        {thumbs.map((s, i) => (
+          <div
+            key={i}
+            className={`relative h-16 flex-1 rounded-md overflow-hidden border ${
+              i === 0 ? "border-accent ring-1 ring-accent" : "border-line"
+            }`}
+            style={{ background: s.bg }}
+          >
+            <span
+              className="absolute left-2 top-2 h-1.5 w-7 rounded-full"
+              style={{ background: s.art, opacity: 0.85 }}
+            />
+            <span
+              className="absolute left-2 top-[18px] h-1 w-10 rounded-full"
+              style={{ background: s.art, opacity: 0.4 }}
+            />
+            <div className="absolute right-1.5 bottom-1.5 top-1.5 w-9 rounded">
+              <SlideArt stroke={s.art} fill={s.art} full />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+const FLOW_SCENES = {
+  planner: { title: "mudir.app · planner", Render: FlowPlanner },
+  compose: { title: "mudir.app · studio · presentation", Render: FlowCompose },
+  building: { title: "studio · generating", Render: FlowBuilding },
+  result: { title: "studio · presentation · ready", Render: FlowResult },
+};
+
+// Scripted shot list — plays as one continuous take (cursor moves,
+// clicks, the prompt types itself, Mudir builds it, the deck appears),
+// then loops. No tabs, no manual stepping.
+const TIMELINE = [
+  { scene: "planner",  target: "start",  ms: 900 },
+  { scene: "planner",  target: "build",  ms: 1000 },
+  { scene: "planner",  target: "build",  click: true, ms: 650 },
+  { scene: "compose",  target: null,     ms: 3000 },
+  { scene: "compose",  target: "makeit", ms: 850 },
+  { scene: "compose",  target: "makeit", click: true, ms: 650 },
+  { scene: "building", target: null,     ms: 2800 },
+  { scene: "result",   target: null,     ms: 3400 },
+];
+const SCENE_LABEL = {
+  planner: "Open Studio AI",
+  compose: "Describe the deck",
+  building: "Mudir builds it",
+  result: "Your deck, ready",
+};
+
+const StudioFlow = () => {
+  const [i, setI] = useState(0);
+  const frame = TIMELINE[i];
+  const scene = frame.scene;
+  const steps = Object.entries(SCENE_LABEL);
+  const sceneIdx = steps.findIndex(([k]) => k === scene);
+  const stageRef = useRef(null);
+  const [cur, setCur] = useState({ x: 0, y: 0, show: false });
+
+  // Advance the scripted timeline, looping.
+  useEffect(() => {
+    const id = setTimeout(
+      () => setI((n) => (n + 1) % TIMELINE.length),
+      frame.ms || 950
+    );
+    return () => clearTimeout(id);
+  }, [i, frame.ms]);
+
+  // Anchor the simulated cursor to the *real* target element so it
+  // always lands exactly on the Build·Presentation chip / Make it
+  // button regardless of layout.
+  useEffect(() => {
+    const place = () => {
+      const stage = stageRef.current;
+      if (!stage) return;
+      const f = TIMELINE[i];
+      const sr = stage.getBoundingClientRect();
+      if (f.target === "start") {
+        setCur({ x: sr.width * 0.26, y: sr.height * 0.86, show: true });
+        return;
+      }
+      if (f.target === "build" || f.target === "makeit") {
+        const el = stage.querySelector(`[data-flow="${f.target}"]`);
+        if (el) {
+          const r = el.getBoundingClientRect();
+          setCur({
+            x: r.left - sr.left + r.width / 2,
+            y: r.top - sr.top + r.height / 2,
+            show: true,
+          });
+          return;
+        }
+      }
+      setCur((p) => ({ ...p, show: false }));
+    };
+    const raf = requestAnimationFrame(() =>
+      requestAnimationFrame(place)
+    );
+    window.addEventListener("resize", place);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener("resize", place);
+    };
+  }, [i]);
+
+  const { Render } = FLOW_SCENES[scene];
 
   return (
     <section
-      id="features"
-      className="py-24 md:py-36"
+      id="how"
+      className="snap-stop py-24 md:py-36"
       style={{ borderColor: "var(--line)" }}
     >
       <div className="max-w-[1280px] mx-auto px-8">
-        <div className="max-w-2xl mb-16">
-          <Reveal>
-            <div className="eyebrow mb-6">Inside the product</div>
-            <h2 className="font-display text-5xl md:text-6xl leading-[1.02] tracking-tight">
-              Everything a teacher prepares.
-              <br />
-              <em style={{ color: "var(--clay)" }}>Drafted for you.</em>
-            </h2>
-          </Reveal>
+        <div className="max-w-2xl mb-12">
+          <div className="eyebrow mb-6">From the Planner</div>
+          <h2 className="font-display text-5xl md:text-6xl leading-[1.02] tracking-tight mb-6">
+            A presentation,
+            <br />
+            <em style={{ color: "var(--clay)" }}>start to slides.</em>
+          </h2>
+          <p className="text-xl leading-relaxed" style={{ color: "var(--ink-2)" }}>
+            One continuous take — open Studio AI from the Planner, describe the
+            deck in a sentence, and Mudir builds the slides for you.
+          </p>
         </div>
 
-        <Reveal>
-          <div
-            className="flex flex-wrap gap-2 mb-10 pb-6 border-b"
-            style={{ borderColor: "var(--line)" }}
-          >
-            {tabs.map((tb, i) => (
-              <button
-                key={i}
-                onClick={() => setActive(i)}
-                className={`px-4 py-2 rounded-lg text-sm transition-all ${
-                  active === i ? "" : "hover:opacity-80"
-                }`}
+        <div className="max-w-[1040px] mx-auto">
+          <Win title="">
+            <div ref={stageRef} className="relative h-full">
+              <div key={scene} className="studioflow-scene h-full">
+                <Render />
+              </div>
+              {/* Simulated cursor — glides to the real target, clicks. */}
+              <div
+                className="pointer-events-none absolute z-30 transition-all duration-[800ms] ease-[cubic-bezier(0.22,1,0.36,1)]"
                 style={{
-                  background: active === i ? "var(--ink)" : "transparent",
-                  color: active === i ? "var(--paper)" : "var(--ink-2)",
-                  border: active === i ? "none" : "0.5px solid var(--line-strong)",
+                  left: cur.x,
+                  top: cur.y,
+                  opacity: cur.show ? 1 : 0,
+                  transform: "translate(-3px, -2px)",
                 }}
               >
-                {tb.label}
-              </button>
-            ))}
-          </div>
-        </Reveal>
-
-        <div className="grid grid-cols-12 gap-8 md:gap-16 items-start">
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={active}
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.5, ease: EASE }}
-              className="col-span-12 md:col-span-5"
-            >
-              <div className="eyebrow mb-4">{tabs[active].eyebrow}</div>
-              <h3 className="font-display text-3xl md:text-4xl leading-tight mb-5">
-                {tabs[active].title}
-              </h3>
-              <p
-                className="text-lg leading-relaxed"
-                style={{ color: "var(--ink-2)" }}
-              >
-                {tabs[active].body}
-              </p>
-            </motion.div>
-          </AnimatePresence>
-
-          <div className="col-span-12 md:col-span-7">
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={active}
-                initial={{ opacity: 0, y: 16 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -8 }}
-                transition={{ duration: 0.6, ease: EASE }}
-              >
-                {tabs[active].mock}
-              </motion.div>
-            </AnimatePresence>
-          </div>
-        </div>
-      </div>
-    </section>
-  );
-};
-
-// =====================================================================
-// AI STUDIO
-// =====================================================================
-const StudioMock = () => {
-  const [step, setStep] = useState(0);
-  useEffect(() => {
-    const t = setInterval(() => setStep((s) => (s + 1) % 4), 2400);
-    return () => clearInterval(t);
-  }, []);
-
-  const stages = [
-    { l: "Listening", c: "var(--clay)" },
-    { l: "Outlining", c: "var(--clay)" },
-    { l: "Drafting", c: "var(--clay)" },
-    { l: "Ready", c: "var(--sage)" },
-  ];
-
-  return (
-    <div
-      className="card p-6"
-      style={{
-        background: "var(--paper)",
-        boxShadow: "0 30px 80px -20px rgba(42,31,23,0.16)",
-      }}
-    >
-      <div
-        className="card p-4 mb-4"
-        style={{ background: "var(--paper-2)" }}
-      >
-        <div className="eyebrow mb-2">You said</div>
-        <div className="text-sm leading-relaxed">
-          Worksheet on photosynthesis for Grade 7. Three difficulty levels.
-          Include one diagram-label question. MoE-aligned.
-        </div>
-      </div>
-
-      <div className="flex items-center gap-2 mb-4">
-        {stages.map((s, i) => (
-          <React.Fragment key={i}>
-            <motion.div
-              className="flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-mono"
-              animate={{
-                background: i === step ? "var(--paper-2)" : "transparent",
-                color: i <= step ? "var(--ink)" : "var(--ink-3)",
-              }}
-              transition={{ duration: 0.4 }}
-            >
-              <motion.div
-                className="w-1.5 h-1.5 rounded-full"
-                animate={{ background: i <= step ? s.c : "var(--paper-3)" }}
-              />
-              {s.l}
-            </motion.div>
-            {i < stages.length - 1 && (
-              <div
-                className="w-3 h-px"
-                style={{ background: "var(--line)" }}
-              />
-            )}
-          </React.Fragment>
-        ))}
-      </div>
-
-      <div>
-        <div className="eyebrow mb-3">Mudir drafted</div>
-        <div className="grid grid-cols-3 gap-3">
-          {[
-            { l: "Level 1", desc: "Foundation", n: "8 questions" },
-            { l: "Level 2", desc: "Core", n: "10 questions" },
-            { l: "Level 3", desc: "Extension", n: "12 questions" },
-          ].map((x, i) => (
-            <motion.div
-              key={i}
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: step >= 3 ? 1 : 0.3, y: 0 }}
-              transition={{ duration: 0.5, delay: i * 0.1, ease: EASE }}
-              className="card p-3"
-              style={{ background: "var(--paper-2)" }}
-            >
-              <div className="eyebrow mb-1.5">{x.l}</div>
-              <div className="text-sm font-medium mb-0.5">{x.desc}</div>
-              <div className="text-xs" style={{ color: "var(--ink-3)" }}>
-                {x.n}
+                {frame.click && cur.show && (
+                  <span className="absolute -left-2.5 -top-2.5 h-10 w-10 rounded-full bg-accent/30 animate-ping" />
+                )}
+                <svg
+                  width="24"
+                  height="24"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  className="drop-shadow-[0_2px_4px_rgba(0,0,0,0.25)]"
+                >
+                  <path
+                    d="M5 3l14 7-6 2-2 6z"
+                    fill="#1a1814"
+                    stroke="#fff"
+                    strokeWidth="1.6"
+                  />
+                </svg>
               </div>
-            </motion.div>
-          ))}
-        </div>
+            </div>
+          </Win>
 
-        <div
-          className="mt-4 pt-4 border-t flex items-center justify-between"
-          style={{ borderColor: "var(--line)" }}
-        >
-          <span
-            className="text-xs font-mono"
-            style={{ color: "var(--ink-3)" }}
-          >
-            worksheet · 3 PDFs · answer keys
-          </span>
-          <button
-            className="text-xs px-3 py-1.5 rounded-md font-medium"
-            style={{ background: "var(--ink)", color: "var(--paper)" }}
-          >
-            Open
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-const Studio = () => {
-  return (
-    <section
-      id="studio"
-      className="py-24 md:py-36"
-      style={{ borderColor: "var(--line)", background: "var(--paper-2)" }}
-    >
-      <div className="max-w-[1280px] mx-auto px-8">
-        <div className="grid grid-cols-12 gap-8 md:gap-16 items-center">
-          <div className="col-span-12 md:col-span-5">
-            <Reveal>
-              <div className="eyebrow mb-6">AI content studio</div>
-              <h2 className="font-display text-5xl md:text-6xl leading-[1.02] tracking-tight mb-6">
-                Worksheets,
-                <br />
-                slides, activities —
-                <br />
-                <em style={{ color: "var(--clay)" }}>on demand.</em>
-              </h2>
-              <p
-                className="text-lg leading-relaxed mb-8"
-                style={{ color: "var(--ink-2)" }}
-              >
-                The Studio is where Mudir generates the things you'd otherwise
-                spend two hours making yourself. You describe. It drafts. You
-                refine.
-              </p>
-              <ul className="space-y-3 text-sm">
-                {[
-                  "Worksheets, 3 difficulty levels",
-                  "Slide decks with speaker notes",
-                  "Classroom activities & group work",
-                  "Homework + answer keys",
-                  "Printable PDFs, every time",
-                ].map((x) => (
-                  <li key={x} className="flex items-center gap-3">
-                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                      <path
-                        d="M3 7l3 3 5-6"
-                        stroke="var(--clay)"
-                        strokeWidth="1.5"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
-                    {x}
-                  </li>
-                ))}
-              </ul>
-            </Reveal>
-          </div>
-
-          <div className="col-span-12 md:col-span-7">
-            <Reveal delay={1}>
-              <StudioMock />
-            </Reveal>
-          </div>
-        </div>
-      </div>
-    </section>
-  );
-};
-
-// =====================================================================
-// DAY IN THE LIFE
-// =====================================================================
-const DayInLife = () => {
-  const moments = [
-    {
-      time: "6:45 AM",
-      label: "Before school",
-      line: "Mudir has drafted today's three lessons. You skim them on the drive in.",
-    },
-    {
-      time: "8:00 AM",
-      label: "Period one",
-      line: "Open the lesson. The worksheet is already printed. Begin.",
-    },
-    {
-      time: "10:30 AM",
-      label: "Break",
-      line: "A parent replied. Mudir suggests a response. You add one sentence and send.",
-    },
-    {
-      time: "1:00 PM",
-      label: "Lunch",
-      line: "Tomorrow's quiz needs review. Three taps. Approved.",
-    },
-    {
-      time: "3:30 PM",
-      label: "Final bell",
-      line: "Attendance and grades synced. Your evening is yours.",
-    },
-  ];
-
-  return (
-    <section className="py-24 md:py-36" style={{ borderColor: "var(--line)" }}>
-      <div className="max-w-[1280px] mx-auto px-8">
-        <div className="max-w-2xl mb-20">
-          <Reveal>
-            <div className="eyebrow mb-6">A day with Mudir</div>
-            <h2 className="font-display text-5xl md:text-6xl leading-[1.02] tracking-tight">
-              From Sunday dread
-              <br />
-              to <em style={{ color: "var(--clay)" }}>Sunday calm.</em>
-            </h2>
-          </Reveal>
-        </div>
-
-        <div className="relative max-w-3xl">
-          <div
-            className="absolute left-[80px] top-2 bottom-2 w-px"
-            style={{ background: "var(--line)" }}
-          />
-
-          <div className="space-y-12">
-            {moments.map((m, i) => (
-              <Reveal key={i} delay={i}>
-                <div className="flex gap-8 items-start">
-                  <div className="w-[72px] flex-shrink-0 pt-0.5">
+          {/* 4-step flow indicator — shows where in the take we are. */}
+          <div className="mt-6 grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-4">
+            {steps.map(([key, label], idx) => {
+              const done = idx < sceneIdx;
+              const active = idx === sceneIdx;
+              return (
+                <div key={key}>
+                  <div className="h-1 rounded-full bg-line/50 overflow-hidden">
                     <div
-                      className="font-mono text-xs mb-1"
-                      style={{ color: "var(--ink-3)" }}
-                    >
-                      {m.time}
-                    </div>
-                  </div>
-                  <div className="relative">
-                    <div
-                      className="absolute -left-[26px] top-2 w-2.5 h-2.5 rounded-full border-2"
-                      style={{
-                        background: "var(--paper)",
-                        borderColor: "var(--clay)",
-                      }}
+                      className="h-full rounded-full bg-accent transition-all duration-700 ease-linear"
+                      style={{ width: done || active ? "100%" : "0%" }}
                     />
-                    <div className="eyebrow mb-2">{m.label}</div>
-                    <p className="font-display text-xl md:text-2xl leading-snug">
-                      {m.line}
-                    </p>
+                  </div>
+                  <div className="mt-3 flex items-center gap-2">
+                    <span
+                      className={`grid place-items-center h-5 w-5 rounded-full text-[10px] font-semibold flex-shrink-0 transition-colors ${
+                        done || active
+                          ? "bg-accent text-paper-cool"
+                          : "bg-paper-cool border border-line text-muted"
+                      }`}
+                    >
+                      {done ? "✓" : idx + 1}
+                    </span>
+                    <span
+                      className={`text-[12.5px] font-medium leading-tight ${
+                        active
+                          ? "text-ink"
+                          : done
+                            ? "text-ink-soft"
+                            : "text-muted"
+                      }`}
+                    >
+                      {label}
+                    </span>
                   </div>
                 </div>
-              </Reveal>
-            ))}
+              );
+            })}
           </div>
-        </div>
-      </div>
-    </section>
-  );
-};
-
-// =====================================================================
-// FEATURE GRID
-// =====================================================================
-const FeatureGrid = () => {
-  const features = [
-    { label: "Lesson plans", desc: "MoE-aligned. Differentiated. Reusable." },
-    { label: "Quizzes & exams", desc: "Mixed formats. Auto-graded. Bloom-tagged." },
-    { label: "Homework", desc: "Sent to students or parents. Tracked." },
-    { label: "Worksheets", desc: "Three levels. Printable. Editable." },
-    { label: "Slides", desc: "Generated with speaker notes." },
-    { label: "Activities", desc: "Group work, starters, exit tickets." },
-    { label: "Attendance", desc: "One screen. Optional auto-marking." },
-    { label: "Grades", desc: "Synced to your gradebook." },
-    { label: "Guardians", desc: "Direct messages. No new apps to install." },
-    { label: "Schedule", desc: "Term, week, day — at the right zoom." },
-    { label: "Daily dashboard", desc: "What needs you today, in priority order." },
-    { label: "AI studio", desc: "Anything else, drafted on demand." },
-  ];
-
-  return (
-    <section
-      className="py-24 md:py-36"
-      style={{ borderColor: "var(--line)", background: "var(--paper-2)" }}
-    >
-      <div className="max-w-[1280px] mx-auto px-8">
-        <div className="max-w-2xl mb-16">
-          <Reveal>
-            <div className="eyebrow mb-6">Everything in one place</div>
-            <h2 className="font-display text-5xl md:text-6xl leading-[1.02] tracking-tight">
-              Built for the
-              <br />
-              whole teaching week.
-            </h2>
-          </Reveal>
-        </div>
-
-        <div
-          className="grid grid-cols-1 md:grid-cols-3 gap-px"
-          style={{ background: "var(--line)" }}
-        >
-          {features.map((f, i) => (
-            <Reveal key={i} delay={i % 3}>
-              <div
-                className="p-8 h-full lift"
-                style={{ background: "var(--paper-2)" }}
-              >
-                <div className="font-display text-2xl mb-2">{f.label}</div>
-                <p
-                  className="text-sm leading-relaxed"
-                  style={{ color: "var(--ink-2)" }}
-                >
-                  {f.desc}
-                </p>
-              </div>
-            </Reveal>
-          ))}
         </div>
       </div>
     </section>
@@ -2303,159 +3098,88 @@ const FeatureGrid = () => {
 // PHILOSOPHY
 // =====================================================================
 const Philosophy = () => {
-  const principles = [
+  const beliefs = [
     {
       n: "I",
       title: "The teacher is the author.",
-      body: "Mudir drafts. You direct. Every output is a starting point, never the final word.",
+      body: "Mudir drafts. You direct. Every output is a starting point, never the final word — your name goes on the lesson, so your judgment has the last say.",
     },
     {
       n: "II",
       title: "Calm over clever.",
-      body: "We chose restraint over novelty. No flashing prompts. No surprises. Just structure.",
+      body: "We chose restraint over novelty. No flashing prompts, no gimmicks, no surprises. Just structure you can trust on a Sunday night.",
     },
     {
       n: "III",
       title: "Aligned to the UAE classroom.",
-      body: "MoE outcomes, Arabic-first content where relevant, local context understood.",
+      body: "MoE outcomes, Arabic-first content where it matters, and local context understood — not a foreign tool bent to fit.",
     },
     {
       n: "IV",
       title: "Private by default.",
-      body: "Student data stays in your school's region. Nothing trains a public model.",
+      body: "Student data stays in your school's region. Nothing you create trains a public model. Quietly, that is the point.",
     },
   ];
 
   return (
     <section
       id="philosophy"
-      className="py-24 md:py-36"
+      className="snap-stop py-24 md:py-36"
       style={{ borderColor: "var(--line)" }}
     >
-      <div className="max-w-[1280px] mx-auto px-8">
-        <div className="grid grid-cols-12 gap-8 mb-20">
-          <div className="col-span-12 md:col-span-4">
-            <Reveal>
-              <div className="eyebrow mb-6">What we believe</div>
-            </Reveal>
-          </div>
-          <div className="col-span-12 md:col-span-8">
-            <Reveal delay={1}>
-              <h2 className="font-display text-5xl md:text-7xl leading-[1.02] tracking-tight">
-                AI should reduce
-                <br />
-                teacher workload —
-                <br />
-                <em style={{ color: "var(--clay)" }}>not replace</em>
-                <br />
-                teacher judgment.
-              </h2>
-            </Reveal>
-          </div>
-        </div>
+      <div className="max-w-3xl mx-auto px-8">
+        <div className="eyebrow mb-8">How we build</div>
 
-        <div className="grid grid-cols-12 gap-8 md:gap-12 mt-24">
-          {principles.map((p, i) => (
-            <Reveal key={i} delay={i} className="col-span-12 md:col-span-6">
-              <div
-                className="flex gap-6 pb-8 border-b"
-                style={{ borderColor: "var(--line)" }}
+        <h2 className="font-display text-4xl md:text-6xl leading-[1.05] tracking-tight mb-10">
+          AI should reduce teacher workload —{" "}
+          <em style={{ color: "var(--clay)" }}>not replace</em> teacher
+          judgment.
+        </h2>
+
+        <p
+          className="text-xl leading-relaxed mb-16"
+          style={{ color: "var(--ink-2)" }}
+        >
+          Mudir is built on four convictions. They shape every screen, every
+          default, and every line of generated text — so the tool stays
+          quietly on your side.
+        </p>
+
+        <div className="space-y-12">
+          {beliefs.map((b) => (
+            <div key={b.n} className="flex gap-6 md:gap-8">
+              <span
+                className="font-display italic text-3xl md:text-4xl leading-none flex-shrink-0 w-12 pt-1"
+                style={{ color: "var(--clay)" }}
               >
-                <span
-                  className="font-display text-3xl flex-shrink-0"
-                  style={{ color: "var(--clay)" }}
+                {b.n}
+              </span>
+              <div>
+                <h3 className="font-display text-2xl md:text-3xl leading-tight mb-2.5">
+                  {b.title}
+                </h3>
+                <p
+                  className="text-lg leading-relaxed"
+                  style={{ color: "var(--ink-2)" }}
                 >
-                  {p.n}
-                </span>
-                <div>
-                  <h3 className="font-display text-2xl mb-3 leading-tight">
-                    {p.title}
-                  </h3>
-                  <p
-                    className="leading-relaxed"
-                    style={{ color: "var(--ink-2)" }}
-                  >
-                    {p.body}
-                  </p>
-                </div>
+                  {b.body}
+                </p>
               </div>
-            </Reveal>
+            </div>
           ))}
         </div>
-      </div>
-    </section>
-  );
-};
 
-// =====================================================================
-// VOICES
-// =====================================================================
-const Voices = () => {
-  const quotes = [
-    {
-      q: "I used to spend three hours every Sunday preparing the week. Now it takes thirty minutes — and I'm reviewing, not writing from scratch.",
-      n: "Sara Al-Hashimi",
-      r: "Grade 7 science · GEMS, Dubai",
-    },
-    {
-      q: "Mudir doesn't try to be clever. It just gets the worksheet on my desk before I've finished my coffee.",
-      n: "Karim Nasr",
-      r: "Grade 10 mathematics · Aldar, Abu Dhabi",
-    },
-    {
-      q: "I was sceptical of AI in education. After a term using Mudir, I'm less tired, my lessons are tighter, and my evenings are mine again.",
-      n: "Nadia Othman",
-      r: "Head of English · Taaleem",
-    },
-  ];
-
-  return (
-    <section className="py-24 md:py-36" style={{ borderColor: "var(--line)" }}>
-      <div className="max-w-[1280px] mx-auto px-8">
-        <div className="max-w-2xl mb-16">
-          <Reveal>
-            <div className="eyebrow mb-6">From the pilot</div>
-            <h2 className="font-display text-5xl md:text-6xl leading-[1.02] tracking-tight">
-              Teachers, in
-              <br />
-              their words.
-            </h2>
-          </Reveal>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {quotes.map((q, i) => (
-            <Reveal key={i} delay={i}>
-              <figure className="card p-8 h-full flex flex-col">
-                <svg
-                  width="22"
-                  height="22"
-                  viewBox="0 0 22 22"
-                  fill="none"
-                  className="mb-6"
-                >
-                  <path
-                    d="M3 14V10c0-3 2-5 5-5M11 14v-4c0-3 2-5 5-5"
-                    stroke="var(--clay)"
-                    strokeWidth="1.5"
-                    strokeLinecap="round"
-                  />
-                </svg>
-                <blockquote className="font-display text-xl leading-snug mb-6 flex-1">
-                  {q.q}
-                </blockquote>
-                <figcaption>
-                  <div className="text-sm font-medium">{q.n}</div>
-                  <div
-                    className="text-xs mt-0.5"
-                    style={{ color: "var(--ink-3)" }}
-                  >
-                    {q.r}
-                  </div>
-                </figcaption>
-              </figure>
-            </Reveal>
-          ))}
+        <div
+          className="mt-16 pt-8 border-t"
+          style={{ borderColor: "var(--line)" }}
+        >
+          <p
+            className="font-display italic text-xl md:text-2xl"
+            style={{ color: "var(--ink)" }}
+          >
+            — The Mudir team
+          </p>
+          <p className="eyebrow mt-3">Built in Dubai, alongside teachers</p>
         </div>
       </div>
     </section>
@@ -2465,14 +3189,11 @@ const Voices = () => {
 // =====================================================================
 // FINAL CTA
 // =====================================================================
-const CTA = () => {
-  const [email, setEmail] = useState("");
-  const [submitted, setSubmitted] = useState(false);
-
+const CTA = ({ onOpenStudio }) => {
   return (
     <section
       id="cta"
-      className="py-24 md:py-36 relative overflow-hidden"
+      className="snap-stop py-24 md:py-36 relative overflow-hidden"
       style={{ borderColor: "var(--line)", background: "var(--ink)" }}
     >
       <div className="absolute inset-0 opacity-30 pointer-events-none">
@@ -2488,69 +3209,44 @@ const CTA = () => {
 
       <div className="relative max-w-[1280px] mx-auto px-8">
         <div className="max-w-3xl mx-auto text-center">
-          <Reveal>
-            <div
-              className="eyebrow mb-8"
-              style={{ color: "rgba(247,243,236,0.5)" }}
-            >
-              Now in pilot — UAE schools
-            </div>
-            <h2
-              className="font-display text-6xl md:text-8xl leading-[0.98] tracking-tight mb-8"
-              style={{ color: "var(--paper)" }}
-            >
-              Get your
-              <br />
-              evenings back.
-            </h2>
-            <p
-              className="text-xl mb-12 max-w-xl mx-auto leading-relaxed"
-              style={{ color: "rgba(247,243,236,0.65)" }}
-            >
-              Join the waitlist. We're opening access to teachers and schools
-              gradually, with care, starting this term.
-            </p>
-          </Reveal>
+          <div
+            className="eyebrow mb-8"
+            style={{ color: "rgba(247,243,236,0.5)" }}
+          >
+            Now in pilot — UAE schools
+          </div>
+          <h2
+            className="font-display text-6xl md:text-8xl leading-[0.98] tracking-tight mb-8"
+            style={{ color: "var(--paper)" }}
+          >
+            Get your
+            <br />
+            evenings back.
+          </h2>
+          <p
+            className="text-xl mb-12 max-w-xl mx-auto leading-relaxed"
+            style={{ color: "rgba(247,243,236,0.65)" }}
+          >
+            Open the planner and let Mudir draft your next lesson, quiz, or
+            deck — you stay in charge of every word.
+          </p>
 
-          <Reveal delay={1}>
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                setSubmitted(true);
-              }}
-              className="flex flex-col sm:flex-row gap-3 max-w-md mx-auto"
-            >
-              <input
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="your.email@school.ae"
-                className="flex-1 px-5 py-3.5 rounded-lg text-sm outline-none transition-all"
-                style={{
-                  background: "rgba(247,243,236,0.06)",
-                  color: "var(--paper)",
-                  border: "0.5px solid rgba(247,243,236,0.18)",
-                }}
+          <button
+            type="button"
+            onClick={onOpenStudio}
+            className="btn-invert inline-flex items-center gap-2 px-7 py-3.5 rounded-lg text-sm font-medium"
+          >
+            Open the planner
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+              <path
+                d="M5 3l4 4-4 4"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
               />
-              <button
-                type="submit"
-                className="px-6 py-3.5 rounded-lg text-sm font-medium transition-all hover:opacity-90 active:scale-[0.98]"
-                style={{ background: "var(--clay)", color: "var(--paper)" }}
-              >
-                {submitted ? "Thank you ✓" : "Join waitlist"}
-              </button>
-            </form>
-          </Reveal>
-
-          <Reveal delay={2}>
-            <p
-              className="mt-10 text-xs"
-              style={{ color: "rgba(247,243,236,0.4)" }}
-            >
-              No marketing emails. We'll write once, when it's your turn.
-            </p>
-          </Reveal>
+            </svg>
+          </button>
         </div>
       </div>
     </section>
@@ -2560,154 +3256,449 @@ const CTA = () => {
 // =====================================================================
 // FOOTER
 // =====================================================================
-const Footer = ({ onOpenStudio }) => (
-  <footer
-    className="py-16"
-    style={{ borderColor: "var(--line)", background: "var(--paper)" }}
-  >
-    <div className="max-w-[1280px] mx-auto px-8">
-      <div className="grid grid-cols-12 gap-8 mb-16">
-        <div className="col-span-12 md:col-span-5">
-          <div className="flex items-center gap-2.5 mb-5">
-            <div
-              className="w-7 h-7 rounded-md flex items-center justify-center"
-              style={{ background: "var(--ink)" }}
-            >
-              <span
-                className="font-display text-base"
-                style={{ color: "var(--paper)" }}
+const Footer = ({ onOpenStudio, onJump, onPage }) => {
+  const FLink = ({ children, onClick }) => (
+    <button type="button" onClick={onClick} className="link-quiet text-left">
+      {children}
+    </button>
+  );
+  return (
+    <footer
+      className="py-16"
+      style={{ borderColor: "var(--line)", background: "var(--paper)" }}
+    >
+      <div className="max-w-[1280px] mx-auto px-8">
+        <div className="grid grid-cols-12 gap-8 mb-16">
+          <div className="col-span-12 md:col-span-5">
+            <div className="flex items-center gap-2.5 mb-5">
+              <div
+                className="w-7 h-7 rounded-md flex items-center justify-center"
+                style={{ background: "var(--ink)" }}
               >
-                م
-              </span>
+                <span
+                  className="font-display text-base"
+                  style={{ color: "var(--paper)" }}
+                >
+                  م
+                </span>
+              </div>
+              <span className="font-display text-xl">Mudir</span>
             </div>
-            <span className="font-display text-xl">Mudir</span>
+            <p className="font-display text-2xl leading-tight max-w-sm mb-6">
+              A calmer way to prepare lessons.
+            </p>
+            <p className="text-xs" style={{ color: "var(--ink-3)" }}>
+              Built in Dubai, for teachers across the UAE.
+            </p>
           </div>
-          <p className="font-display text-2xl leading-tight max-w-sm mb-6">
-            A calmer way to prepare lessons.
-          </p>
-          <p className="text-xs" style={{ color: "var(--ink-3)" }}>
-            Built in Dubai, for teachers across the UAE.
-          </p>
+
+          <div className="col-span-6 md:col-span-2">
+            <div className="eyebrow mb-4">Product</div>
+            <ul className="space-y-2.5 text-sm" style={{ color: "var(--ink-2)" }}>
+              <li><FLink onClick={() => onJump("features")}>Features</FLink></li>
+              <li><FLink onClick={() => onJump("how")}>How it works</FLink></li>
+              <li><FLink onClick={() => onJump("how")}>AI studio</FLink></li>
+              <li><FLink onClick={() => onPage("pricing")}>Pricing</FLink></li>
+            </ul>
+          </div>
+
+          <div className="col-span-6 md:col-span-2">
+            <div className="eyebrow mb-4">Schools</div>
+            <ul className="space-y-2.5 text-sm" style={{ color: "var(--ink-2)" }}>
+              <li><FLink onClick={() => onPage("schools")}>For schools</FLink></li>
+              <li><FLink onClick={() => onPage("moe")}>MoE alignment</FLink></li>
+              <li><FLink onClick={() => onPage("privacy")}>Data privacy</FLink></li>
+              <li><FLink onClick={() => onPage("contact")}>Contact</FLink></li>
+            </ul>
+          </div>
+
+          <div className="col-span-12 md:col-span-3">
+            <div className="eyebrow mb-4">From the team</div>
+            <p
+              className="text-sm leading-relaxed mb-4"
+              style={{ color: "var(--ink-2)" }}
+            >
+              We're a small team building Mudir alongside teachers in Dubai and
+              Abu Dhabi.
+            </p>
+            <button
+              type="button"
+              onClick={onOpenStudio}
+              className="text-sm link-quiet font-medium"
+            >
+              Open the planner →
+            </button>
+          </div>
         </div>
 
-        <div className="col-span-6 md:col-span-2">
-          <div className="eyebrow mb-4">Product</div>
-          <ul className="space-y-2.5 text-sm" style={{ color: "var(--ink-2)" }}>
-            <li>
-              <a href="#features" className="link-quiet">
-                Features
-              </a>
-            </li>
-            <li>
-              <a href="#workflow" className="link-quiet">
-                How it works
-              </a>
-            </li>
-            <li>
-              <a href="#studio" className="link-quiet">
-                AI studio
-              </a>
-            </li>
-            <li>
-              <a href="#" className="link-quiet">
-                Pricing
-              </a>
-            </li>
-          </ul>
+        <div
+          className="pt-8 border-t flex flex-wrap items-center justify-between gap-4 text-xs"
+          style={{ borderColor: "var(--line)", color: "var(--ink-3)" }}
+        >
+          <div>© 2026 Mudir. Made in Dubai.</div>
+          <div className="flex items-center gap-6">
+            <FLink onClick={() => onPage("privacy")}>Privacy</FLink>
+            <FLink onClick={() => onPage("privacy")}>Terms</FLink>
+            <FLink onClick={() => onPage("privacy")}>Security</FLink>
+          </div>
         </div>
+      </div>
+    </footer>
+  );
+};
 
-        <div className="col-span-6 md:col-span-2">
-          <div className="eyebrow mb-4">Schools</div>
-          <ul className="space-y-2.5 text-sm" style={{ color: "var(--ink-2)" }}>
-            <li>
-              <a href="#" className="link-quiet">
-                For schools
-              </a>
-            </li>
-            <li>
-              <a href="#" className="link-quiet">
-                MoE alignment
-              </a>
-            </li>
-            <li>
-              <a href="#" className="link-quiet">
-                Data privacy
-              </a>
-            </li>
-            <li>
-              <a href="#" className="link-quiet">
-                Contact
-              </a>
-            </li>
-          </ul>
-        </div>
+// =====================================================================
+// MARKETING PAGES — lightweight in-app views (no router). Reached from
+// the nav/footer; share the same Nav + Footer chrome.
+// =====================================================================
+const fieldStyle = {
+  background: "var(--paper)",
+  border: "0.5px solid var(--line-strong)",
+  color: "var(--ink)",
+};
 
-        <div className="col-span-12 md:col-span-3">
-          <div className="eyebrow mb-4">From the team</div>
+function PageShell({ eyebrow, title, em, lead, onPage, children, narrow }) {
+  return (
+    <main className="pt-28 md:pt-32 pb-28 min-h-screen">
+      <div className={`${narrow ? "max-w-xl" : "max-w-3xl"} mx-auto px-8`}>
+        <button
+          type="button"
+          onClick={() => onPage("home")}
+          className="link-quiet text-sm mb-10 inline-flex items-center gap-1.5"
+          style={{ color: "var(--ink-2)" }}
+        >
+          ← Back to home
+        </button>
+        <div className="eyebrow mb-6">{eyebrow}</div>
+        <h1 className="font-display text-4xl md:text-5xl leading-[1.05] tracking-tight mb-6">
+          {title}
+          {em && <em style={{ color: "var(--clay)" }}> {em}</em>}
+        </h1>
+        {lead && (
           <p
-            className="text-sm leading-relaxed mb-4"
+            className="text-xl leading-relaxed mb-12"
             style={{ color: "var(--ink-2)" }}
           >
-            We're a small team building Mudir alongside teachers in Dubai and
-            Abu Dhabi. Updates come once a month.
+            {lead}
           </p>
-          <button
-            type="button"
-            onClick={onOpenStudio}
-            className="text-sm link-quiet font-medium"
-          >
-            Open the planner →
-          </button>
-        </div>
+        )}
+        {children}
       </div>
+    </main>
+  );
+}
 
+function CommitList({ items }) {
+  return (
+    <ul className="space-y-6">
+      {items.map((it) => (
+        <li key={it.t} className="flex gap-5">
+          <span
+            className="font-display italic text-2xl leading-none w-8 flex-shrink-0 pt-1"
+            style={{ color: "var(--clay)" }}
+          >
+            ·
+          </span>
+          <div>
+            <h3 className="font-display text-xl md:text-2xl leading-tight mb-1.5">
+              {it.t}
+            </h3>
+            <p className="leading-relaxed" style={{ color: "var(--ink-2)" }}>
+              {it.b}
+            </p>
+          </div>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function ContactForm() {
+  const [sent, setSent] = useState(false);
+  if (sent) {
+    return (
       <div
-        className="pt-8 border-t flex flex-wrap items-center justify-between gap-4 text-xs"
-        style={{ borderColor: "var(--line)", color: "var(--ink-3)" }}
+        className="rounded-2xl p-8 text-center"
+        style={{ border: "0.5px solid var(--line)", background: "var(--paper)" }}
       >
-        <div>© 2026 Mudir. Made in Dubai.</div>
-        <div className="flex items-center gap-6">
-          <a href="#" className="link-quiet">
-            Privacy
-          </a>
-          <a href="#" className="link-quiet">
-            Terms
-          </a>
-          <a href="#" className="link-quiet">
-            Security
-          </a>
-        </div>
+        <p className="font-display text-2xl mb-1">Thanks — we'll be in touch.</p>
+        <p style={{ color: "var(--ink-2)" }}>
+          We read every message. Expect a reply within a couple of days.
+        </p>
       </div>
-    </div>
-  </footer>
-);
+    );
+  }
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        setSent(true);
+      }}
+      className="space-y-4"
+    >
+      <input
+        required
+        placeholder="Your name"
+        className="w-full px-4 py-3 rounded-lg text-sm outline-none"
+        style={fieldStyle}
+      />
+      <input
+        required
+        type="email"
+        placeholder="your.email@school.ae"
+        className="w-full px-4 py-3 rounded-lg text-sm outline-none"
+        style={fieldStyle}
+      />
+      <textarea
+        required
+        rows={4}
+        placeholder="How can we help?"
+        className="w-full px-4 py-3 rounded-lg text-sm outline-none resize-none"
+        style={fieldStyle}
+      />
+      <button
+        type="submit"
+        className="btn-primary px-6 py-3 rounded-lg text-sm font-medium"
+      >
+        Send message
+      </button>
+    </form>
+  );
+}
+
+function SignInPage({ onOpenStudio, onPage }) {
+  return (
+    <PageShell
+      eyebrow="Welcome back"
+      title="Sign in"
+      onPage={onPage}
+      narrow
+    >
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          onOpenStudio();
+        }}
+        className="space-y-4"
+      >
+        <input
+          required
+          type="email"
+          placeholder="your.email@school.ae"
+          className="w-full px-4 py-3 rounded-lg text-sm outline-none"
+          style={fieldStyle}
+        />
+        <input
+          required
+          type="password"
+          placeholder="Password"
+          className="w-full px-4 py-3 rounded-lg text-sm outline-none"
+          style={fieldStyle}
+        />
+        <button
+          type="submit"
+          className="btn-primary w-full px-6 py-3 rounded-lg text-sm font-medium"
+        >
+          Sign in
+        </button>
+      </form>
+      <p className="text-sm mt-6" style={{ color: "var(--ink-2)" }}>
+        New to Mudir?{" "}
+        <button
+          type="button"
+          onClick={onOpenStudio}
+          className="link-quiet font-medium"
+          style={{ color: "var(--ink)" }}
+        >
+          Open the planner
+        </button>
+      </p>
+      <p className="text-xs mt-8" style={{ color: "var(--ink-3)" }}>
+        Pilot access — signing in opens the planner directly.
+      </p>
+    </PageShell>
+  );
+}
+
+function MarketingPage({ page, onOpenStudio, onPage }) {
+  if (page === "signin")
+    return <SignInPage onOpenStudio={onOpenStudio} onPage={onPage} />;
+
+  if (page === "privacy")
+    return (
+      <PageShell
+        eyebrow="Data privacy"
+        title="Your data"
+        em="stays yours."
+        lead="Mudir is built for schools that take student data seriously. Privacy is a default, not a setting."
+        onPage={onPage}
+      >
+        <CommitList
+          items={[
+            { t: "Region residency", b: "Student data stays in your school's region. It is never shipped elsewhere to be processed." },
+            { t: "Nothing trains a public model", b: "What you and your students create is yours. It is never used to train public AI models." },
+            { t: "Teacher-owned content", b: "Every lesson, quiz and deck belongs to you. Export or delete it at any time." },
+            { t: "Deleted means deleted", b: "Remove an item and it's gone — soft-deleted for 30 days, then permanently purged." },
+          ]}
+        />
+      </PageShell>
+    );
+
+  if (page === "moe")
+    return (
+      <PageShell
+        eyebrow="Curriculum"
+        title="Built for the"
+        em="UAE classroom."
+        lead="Mudir speaks the curriculum your inspectors do — every output can be mapped to Ministry of Education outcomes."
+        onPage={onPage}
+      >
+        <CommitList
+          items={[
+            { t: "MoE outcomes by default", b: "Lessons and quizzes tag the outcomes they cover, so coverage is visible at a glance." },
+            { t: "Arabic-first where it matters", b: "Generate in Arabic or English, with content that respects local context — not a translated afterthought." },
+            { t: "KG through Grade 12", b: "Pacing, language and difficulty adjust to the grade and stream you teach." },
+            { t: "Bloom-tagged assessment", b: "Quizzes balance recall, application and extension so they hold up to scrutiny." },
+          ]}
+        />
+      </PageShell>
+    );
+
+  if (page === "schools")
+    return (
+      <PageShell
+        eyebrow="For schools"
+        title="Bring Mudir to"
+        em="your school."
+        lead="Give every teacher the same calm prep workflow — and give leadership the consistency and time back that follows."
+        onPage={onPage}
+      >
+        <CommitList
+          items={[
+            { t: "Consistency across teachers", b: "Shared templates and MoE-aligned defaults mean every classroom starts from the same strong base." },
+            { t: "Hours back, every week", b: "Pilot teachers report 10+ hours saved a week on prep — time that returns to teaching." },
+            { t: "Onboarding we run with you", b: "We set up your grades, sections and subjects together, so day one is productive." },
+          ]}
+        />
+        <button
+          type="button"
+          onClick={() => onPage("contact")}
+          className="btn-primary px-6 py-3 rounded-lg text-sm font-medium mt-12"
+        >
+          Talk to us
+        </button>
+      </PageShell>
+    );
+
+  if (page === "pricing")
+    return (
+      <PageShell
+        eyebrow="Pricing"
+        title="Simple, while"
+        em="we're in pilot."
+        lead="Mudir is in an invite-only pilot with UAE schools. Pricing for teachers and schools comes after the pilot — shaped by what teachers actually use."
+        onPage={onPage}
+      >
+        <div className="grid sm:grid-cols-3 gap-4 mb-12">
+          {[
+            { k: "Pilot", v: "Free", d: "For participating UAE schools, for the duration of the pilot." },
+            { k: "Teacher", v: "Later", d: "An individual plan for solo teachers — after the pilot." },
+            { k: "School", v: "Later", d: "Whole-school licensing with admin tools — after the pilot." },
+          ].map((p) => (
+            <div
+              key={p.k}
+              className="rounded-2xl p-6"
+              style={{ border: "0.5px solid var(--line)", background: "var(--paper)" }}
+            >
+              <div className="eyebrow mb-3">{p.k}</div>
+              <div
+                className="font-display text-3xl mb-2"
+                style={{ color: "var(--clay)" }}
+              >
+                {p.v}
+              </div>
+              <p className="text-sm leading-relaxed" style={{ color: "var(--ink-2)" }}>
+                {p.d}
+              </p>
+            </div>
+          ))}
+        </div>
+        <button
+          type="button"
+          onClick={() => onPage("contact")}
+          className="btn-primary px-6 py-3 rounded-lg text-sm font-medium"
+        >
+          Talk to us about the pilot
+        </button>
+      </PageShell>
+    );
+
+  // contact (default)
+  return (
+    <PageShell
+      eyebrow="Contact"
+      title="Say"
+      em="hello."
+      lead="Questions, a pilot enquiry, or feedback from the classroom — we'd like to hear it."
+      onPage={onPage}
+    >
+      <ContactForm />
+      <p className="text-xs mt-8" style={{ color: "var(--ink-3)" }}>
+        Built in Dubai · we read everything.
+      </p>
+    </PageShell>
+  );
+}
 
 // =====================================================================
 // LANDING (exported)
 // =====================================================================
 export default function Landing({ onOpenStudio }) {
+  const [page, setPage] = useState("home");
+
+  const goPage = (p) => {
+    setPage(p);
+    window.scrollTo(0, 0);
+  };
+  const jump = (id) => {
+    const doScroll = () => {
+      const el = document.getElementById(id);
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+    };
+    if (page === "home") doScroll();
+    else {
+      setPage("home");
+      setTimeout(doScroll, 90);
+    }
+  };
+
   return (
     <div className="mudir-landing paper-noise">
-      <Nav onOpenStudio={onOpenStudio} />
-      <Hero onOpenStudio={onOpenStudio} />
-      <SectionDivider variant="wave" />
-      <TeacherShowcase />
-      <SectionDivider variant="calm" />
-      <Workflow />
-      <SectionDivider variant="cascade" />
-      <ProductShowcase />
-      <SectionDivider variant="rise" />
-      <Studio />
-      <SectionDivider variant="calm" flip />
-      <DayInLife />
-      <SectionDivider variant="wave" />
-      <FeatureGrid />
-      <SectionDivider variant="cascade" flip />
-      <Philosophy />
-      <SectionDivider variant="rise" />
-      <Voices />
-      <CTA />
-      <Footer onOpenStudio={onOpenStudio} />
+      <Nav onOpenStudio={onOpenStudio} onJump={jump} onPage={goPage} />
+      {page === "home" ? (
+        <>
+          <Hero onOpenStudio={onOpenStudio} />
+          <ShowcaseScroll />
+          <CommunityScroll />
+          <SectionDivider variant="wave" />
+          <StudioFlow />
+          <SectionDivider variant="calm" />
+          <TeacherShowcase />
+          <SectionDivider variant="cascade" />
+          <Workflow />
+          <SectionDivider variant="rise" />
+          <Philosophy />
+          <SectionDivider variant="cascade" flip />
+          <CTA onOpenStudio={onOpenStudio} />
+        </>
+      ) : (
+        <MarketingPage
+          page={page}
+          onOpenStudio={onOpenStudio}
+          onPage={goPage}
+        />
+      )}
+      <Footer onOpenStudio={onOpenStudio} onJump={jump} onPage={goPage} />
     </div>
   );
 }
