@@ -8,6 +8,10 @@
 
 html { scroll-behavior: smooth; }
 
+/* .snap-stop is the marker the JS scroll-pager looks for. Each marked
+   section is centred in the viewport and "holds" the reader for a few
+   wheel notches before releasing to the next one (see Landing). */
+
 .mudir-landing {
   --paper:       #F7F3EC;
   --paper-2:     #EDE5D6;
@@ -79,8 +83,19 @@ html { scroll-behavior: smooth; }
   transition: background 0.3s ease, transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
   cursor: pointer;
 }
-.mudir-landing .btn-primary:hover { background: var(--clay-deep); }
+.mudir-landing .btn-primary:hover { background: var(--ink-2); }
 .mudir-landing .btn-primary:active { transform: scale(0.98); }
+
+/* Inverse of primary — for dark surfaces (e.g. the closing CTA).
+   Same two colours, flipped. No third hue anywhere. */
+.mudir-landing .btn-invert {
+  background: var(--paper);
+  color: var(--ink);
+  transition: background 0.3s ease, transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+  cursor: pointer;
+}
+.mudir-landing .btn-invert:hover { background: var(--paper-2); }
+.mudir-landing .btn-invert:active { transform: scale(0.98); }
 
 .mudir-landing .btn-secondary {
   background: transparent;
@@ -177,4 +192,20 @@ html { scroll-behavior: smooth; }
    Studio's mono token so the preview matches the app exactly. */
 .mudir-landing .mudir-studio-frame .font-mono {
   font-family: var(--font-mono);
+}
+
+/* Streaming-outline rows in the Studio-flow "building" step. */
+@keyframes studioflow-line {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Scene change in the continuous Studio-flow "video" — a quick
+   cross-dissolve so the take reads as one recording, not a slideshow. */
+@keyframes studioflow-scene {
+  from { opacity: 0; transform: translateY(10px) scale(0.992); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+.mudir-landing .studioflow-scene {
+  animation: studioflow-scene 460ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }

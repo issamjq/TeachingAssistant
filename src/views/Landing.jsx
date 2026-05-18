@@ -194,22 +194,33 @@ const Nav = ({ onOpenStudio, onJump, onPage }) => {
 const easeInOut = (t) =>
   t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
 
-// Gravity drop for the honeycomb: an accelerating free-fall to the first
-// impact, then two quick, decreasing rebounds before it settles — the
-// way a real ball comes to rest on the floor, not a cartoon multi-bounce.
-const gravityDrop = (p) => {
-  const c1 = 0.58; // free-fall portion — accelerates toward impact
-  if (p < c1) {
-    const f = p / c1;
-    return f * f;
+// Real bouncing-ball physics for the honeycomb drop. Pure function of
+// elapsed seconds: constant gravity `g`, coefficient of restitution `e`
+// (each impact keeps a fraction of the speed, so bounce heights AND the
+// intervals between them decay geometrically — exactly like a ball
+// dropped on a hard floor in real life). Returns the downward
+// displacement (0 → H, settling at H) and a short impact-squash pulse.
+const bounceState = (t, H, g, e) => {
+  if (t <= 0) return { disp: 0, sq: 0 };
+  const v0 = Math.sqrt(2 * g * H); // speed at the first impact
+  const t0 = v0 / g; // duration of the initial free-fall
+  if (t < t0) return { disp: 0.5 * g * t * t, sq: 0 };
+  let tau = t - t0; // time since the first impact
+  let vIn = v0; // speed coming into the current contact
+  for (let n = 1; n <= 7; n++) {
+    const vUp = vIn * e; // rebound speed off this contact
+    const dn = (2 * vUp) / g; // up-and-down flight time of this arc
+    // Squash fires at the contact that launched this arc, scaled by how
+    // hard it hit, and decays over ~70ms.
+    const sq = (vIn / v0) * Math.exp(-tau / 0.07);
+    if (tau < dn) {
+      const h = vUp * tau - 0.5 * g * tau * tau; // height above floor
+      return { disp: H - h, sq };
+    }
+    tau -= dn;
+    vIn = vUp; // next contact arrives at this speed
   }
-  const r = (p - c1) / (1 - c1); // 0→1 across the two settle bounces
-  if (r < 0.62) {
-    const u = r / 0.62; // bounce 1 — rebounds ~14% of the drop
-    return 1 - 0.14 * 4 * u * (1 - u);
-  }
-  const u = (r - 0.62) / 0.38; // bounce 2 — a small ~5% settle
-  return 1 - 0.05 * 4 * u * (1 - u);
+  return { disp: H, sq: 0 }; // at rest on the floor
 };
 
 // Scroll-scrub math. `seg` remaps a slice [a,b] of the global scroll
@@ -824,15 +835,111 @@ const VISION_SUB =
     .split(" ");
 const C_INK2 = "#6E5C4A";
 
+// Honeycomb — a tight hexagonal close-pack of the 58px circles: a 3-2-3
+// pile where every neighbour is tangent (touching) and the bottom row
+// sits on the ground (y: 0). Row pitch = 58·√3/2 ≈ 50, columns 58 apart,
+// odd rows offset by half a circle into the valleys.
 const HONEY = [
-  { x: -84, y: 0 }, { x: 0, y: 0 }, { x: 84, y: 0 },
-  { x: -42, y: -64 }, { x: 42, y: -64 },
-  { x: -84, y: -128 }, { x: 0, y: -128 }, { x: 84, y: -128 },
+  { x: -58, y: 0 }, { x: 0, y: 0 }, { x: 58, y: 0 },
+  { x: -29, y: -50 }, { x: 29, y: -50 },
+  { x: -58, y: -100 }, { x: 0, y: -100 }, { x: 58, y: -100 },
 ];
 const HONEY_ICONS = [
   Sparkles, BookOpen, GraduationCap, ClipboardList,
   Presentation, CalendarDays, Layers, Pencil,
 ];
+
+// The honeycomb runs on its OWN wall-clock (rAF) once it's revealed, so
+// the fall obeys real gravity instead of the scroll speed. `active` is
+// driven by scroll; flipping it false (scrolling back above the section)
+// rewinds so the drop replays on the next pass. Memoised so the parent's
+// per-scroll-frame re-renders don't touch it.
+const HONEY_H = 150; // release height above each rest spot (px)
+const HONEY_G = 1800; // gravity (px / s²)
+const HONEY_E = 0.34; // restitution — low so they settle neatly
+const HONEY_STAGGER = 0.04; // s — gentle release offset, bottom-row first
+const HONEY_LAST = (HONEY.length - 1) * HONEY_STAGGER;
+
+const HoneyDrop = React.memo(function HoneyDrop({ active }) {
+  const [t, setT] = useState(0); // elapsed seconds — drives the frame
+  const startRef = useRef(0);
+  const rafRef = useRef(0);
+  const reduceRef = useRef(false);
+
+  useEffect(() => {
+    reduceRef.current = window.matchMedia(
+      "(prefers-reduced-motion: reduce)"
+    ).matches;
+  }, []);
+
+  useEffect(() => {
+    if (!active) {
+      cancelAnimationFrame(rafRef.current);
+      setT(0); // rewind — replays next time it scrolls into view
+      return undefined;
+    }
+    if (reduceRef.current) {
+      setT(999); // no motion — show everything already settled
+      return undefined;
+    }
+    startRef.current = performance.now();
+    const settle = HONEY_LAST + 2.4; // last icon released, then at rest
+    const loop = (now) => {
+      const el = (now - startRef.current) / 1000;
+      setT(el);
+      if (el < settle) rafRef.current = requestAnimationFrame(loop);
+    };
+    rafRef.current = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(rafRef.current);
+  }, [active]);
+
+  return (
+    <div
+      className="absolute left-[10%] bottom-[4%]"
+      style={{ width: 0, height: 0, zIndex: 25 }}
+    >
+      {HONEY.map((h, i) => {
+        const Ic = HONEY_ICONS[i];
+        const ti = t - i * HONEY_STAGGER; // gentle bottom-first cascade
+        const { disp, sq } = bounceState(ti, HONEY_H, HONEY_G, HONEY_E);
+        const y = h.y - HONEY_H + disp; // released HONEY_H above its spot
+        const sX = 1 + 0.16 * sq; // squash widens on impact…
+        const sY = 1 - 0.18 * sq; // …and flattens, pinned to its base
+        const appear = clamp01(ti / 0.06); // pops in at the release point
+        const sc = lerp(0.7, 1, appear);
+        const air = clamp01((HONEY_H - disp) / HONEY_H); // 1 high, 0 floor
+        return (
+          <span
+            key={i}
+            className="absolute inline-flex items-center justify-center rounded-full"
+            style={{
+              left: 0,
+              bottom: 0,
+              width: 58,
+              height: 58,
+              background: "var(--paper)",
+              border: "0.5px solid var(--line-strong)",
+              color: "var(--ink)",
+              boxShadow: `0 ${lerp(8, 22, air)}px ${lerp(
+                18,
+                40,
+                air
+              )}px -16px rgba(42,31,23,${lerp(0.5, 0.32, air)})`,
+              transform: `translate(${h.x}px, ${y}px) scale(${sc * sX}, ${
+                sc * sY
+              })`,
+              transformOrigin: "50% 100%",
+              opacity: appear,
+              willChange: "transform, opacity",
+            }}
+          >
+            <Ic size={20} strokeWidth={1.8} />
+          </span>
+        );
+      })}
+    </div>
+  );
+});
 
 // One continuous act, ONE set of cards, four phases driven by a single
 // scroll progress `q`:
@@ -884,7 +991,7 @@ const ShowcaseScroll = () => {
   // Library window + headline #2 + honeycomb (grid phase)
   const winT = easeInOut(seg(q, 0.5, 0.74));
   const h2 = seg(q, 0.62, 0.96);
-  const honey = seg(q, 0.64, 0.96);
+  const honeyActive = q > 0.62;
 
   const bob = Math.sin(q * Math.PI * 2) * 6;
   const bCasc =
@@ -892,7 +999,9 @@ const ShowcaseScroll = () => {
   const bWin = clamp01((q - 0.66) / 0.08);
 
   const colOff = [-140, 0, 140];
-  const rowOff = [-40, 150];
+  // Top row pushed down so it clears the header + folder tabs (the
+  // floating cards otherwise cover the "Personal / School" labels).
+  const rowOff = [-6, 184];
 
   return (
     <section ref={trackRef} className="relative min-h-screen lg:h-[680vh]">
@@ -998,62 +1107,8 @@ const ShowcaseScroll = () => {
             </p>
           </div>
 
-          {/* Honeycomb of feature chips (bottom-left) */}
-          <div
-            className="absolute left-[10%] bottom-[4%]"
-            style={{ width: 0, height: 0, zIndex: 25 }}
-          >
-            {HONEY.map((h, i) => {
-              const Ic = HONEY_ICONS[i];
-              // Each ball is "thrown" a beat after the previous one.
-              const p = clamp01((honey - i * 0.05) / 0.36);
-              // Drops from just above its spot, accelerates, lands and
-              // settles with two small natural rebounds. Short travel so
-              // the whole motion stays below the sub text.
-              const fall = gravityDrop(p);
-              const startY = h.y - 130;
-              const y = lerp(startY, h.y, fall);
-              // Impact squash — pulses each time it kisses the floor,
-              // then fades to nothing as it comes to rest.
-              const squash = clamp01((fall - 0.84) / 0.16) * (1 - p);
-              const sX = 1 + 0.12 * squash;
-              const sY = 1 - 0.14 * squash;
-              // Snaps to solid size at the top almost immediately so it
-              // reads as a falling ball, not a growing dot.
-              const appear = clamp01(p / 0.12);
-              const sc = lerp(0.72, 1, appear);
-              // Contact shadow: wide & soft mid-air, tight when grounded.
-              const air = 1 - fall;
-              return (
-                <span
-                  key={i}
-                  className="absolute inline-flex items-center justify-center rounded-full"
-                  style={{
-                    left: 0,
-                    bottom: 0,
-                    width: 58,
-                    height: 58,
-                    background: "var(--paper)",
-                    border: "0.5px solid var(--line-strong)",
-                    color: "var(--ink)",
-                    boxShadow: `0 ${lerp(8, 22, air)}px ${lerp(
-                      18,
-                      40,
-                      air
-                    )}px -16px rgba(42,31,23,${lerp(0.5, 0.32, air)})`,
-                    transform: `translate(${h.x}px, ${y}px) scale(${
-                      sc * sX
-                    }, ${sc * sY})`,
-                    transformOrigin: "50% 100%",
-                    opacity: appear,
-                    willChange: "transform, opacity",
-                  }}
-                >
-                  <Ic size={20} strokeWidth={1.8} />
-                </span>
-              );
-            })}
-          </div>
+          {/* Honeycomb of feature chips — real-gravity drop (bottom-left) */}
+          <HoneyDrop active={honeyActive} />
 
           {/* The Mudir "Library" product window (behind the cards) */}
           <div className="absolute left-1/2 top-1/2" style={{ zIndex: 8 }}>
@@ -1095,28 +1150,59 @@ const ShowcaseScroll = () => {
                   <Plus size={13} strokeWidth={2.5} /> New
                 </span>
               </div>
-              <div className="flex items-center gap-2 px-6 pt-4">
-                {["All", "This week", "Drafts"].map((t, idx) => (
-                  <span
-                    key={t}
-                    className="font-mono"
-                    style={{
-                      fontSize: 10,
-                      letterSpacing: "0.12em",
-                      textTransform: "uppercase",
-                      padding: "6px 11px",
-                      borderRadius: 999,
-                      background: idx === 0 ? "var(--ink)" : "transparent",
-                      color: idx === 0 ? "var(--paper)" : "var(--ink-3)",
-                      border:
-                        idx === 0
-                          ? "none"
-                          : "0.5px solid var(--line-strong)",
-                    }}
-                  >
-                    {t}
-                  </span>
-                ))}
+              {/* Folder tabs — stacked like the reference: a lighter
+                  folder behind, the active one dark in front. */}
+              <div
+                className="relative px-6"
+                style={{ paddingTop: 16, height: 58 }}
+              >
+                {/* Back folder — "School" (peeks behind, to the right) */}
+                <div
+                  className="font-mono absolute"
+                  style={{
+                    top: 12,
+                    left: 150,
+                    fontSize: 10.5,
+                    letterSpacing: "0.13em",
+                    textTransform: "uppercase",
+                    padding: "9px 26px 18px",
+                    background: "var(--paper-2)",
+                    color: "var(--ink-3)",
+                    border: "0.5px solid var(--line-strong)",
+                    borderBottom: "none",
+                    borderRadius: "13px 13px 0 0",
+                    zIndex: 1,
+                  }}
+                >
+                  School
+                </div>
+                {/* Active folder — "Personal" (dark, in front) */}
+                <div
+                  className="relative inline-flex items-center gap-2"
+                  style={{
+                    zIndex: 2,
+                    padding: "11px 26px 16px",
+                    background: "var(--ink)",
+                    color: "var(--paper)",
+                    borderRadius: "15px 15px 0 0",
+                    boxShadow: "0 14px 26px -16px rgba(42,31,23,0.5)",
+                    fontFamily: "'Fraunces', serif",
+                    fontSize: 15,
+                  }}
+                >
+                  <BookOpen size={14} strokeWidth={2} />
+                  Personal
+                </div>
+                {/* Seam — the active folder opens onto the content */}
+                <div
+                  className="absolute left-0 right-0"
+                  style={{
+                    bottom: 0,
+                    height: "0.5px",
+                    background: "var(--line)",
+                    zIndex: 0,
+                  }}
+                />
               </div>
             </div>
           </div>
@@ -2413,94 +2499,673 @@ function PvWorksheets() {
   );
 }
 
-const TeacherShowcase = () => {
-  const FEATURES = [
-    { label: "Lesson Plans", icon: BookOpen, title: "lessons / photosynthesis · 7A", Pv: PvLesson },
-    { label: "Quizzes & Exams", icon: GraduationCap, title: "quiz / cell respiration · 7B", Pv: PvQuiz },
-    { label: "Homework", icon: ClipboardList, title: "homework / worksheet 4 · 7A", Pv: PvHomework },
-    { label: "Presentations", icon: Presentation, title: "deck / photosynthesis", Pv: PvPresentation },
-    { label: "Activities", icon: Sparkles, title: "activities / 7A", Pv: PvActivities },
-    { label: "Weekly Schedule", icon: CalendarDays, title: "schedule / week of 17 may", Pv: PvSchedule },
-    { label: "Worksheets", icon: FileText, title: "worksheets / photosynthesis", Pv: PvWorksheets },
-    { label: "Templates", icon: Layout, title: "templates / library", Pv: PvTemplates },
-  ];
-  const [active, setActive] = useState(0);
-  const f = FEATURES[active];
-  const Pv = f.Pv;
+// A single Mudir "slide" — a real deck slide: tinted cover + SlideArt.
+function GallerySlide({ bg, art, tx, eyebrow, title }) {
+  return (
+    <div
+      className="relative h-full w-full rounded-2xl overflow-hidden flex flex-col p-4"
+      style={{ background: bg, color: tx }}
+    >
+      <span
+        className="font-mono text-[9px] uppercase tracking-[0.18em]"
+        style={{ color: art }}
+      >
+        {eyebrow}
+      </span>
+      <h4 className="font-display text-[17px] leading-tight mt-1.5 pr-6">
+        {title}
+      </h4>
+      <span
+        className="mt-2 h-[3px] w-8 rounded-full"
+        style={{ background: art }}
+      />
+      <div className="absolute right-0 bottom-0 w-[64%] h-[56%] opacity-90">
+        <SlideArt stroke={art} fill={art} full />
+      </div>
+    </div>
+  );
+}
 
-  const Pill = ({ i }) => {
-    const F = FEATURES[i];
-    const Icon = F.icon;
-    const on = i === active;
-    return (
-      <button
-        type="button"
-        onClick={() => setActive(i)}
-        aria-pressed={on}
-        className={`group w-full flex items-center gap-3 rounded-2xl px-4 py-3.5 text-left transition-all ${
-          on
-            ? "bg-accent text-paper-cool shadow-[0_14px_30px_-12px_rgba(200,71,43,0.55)]"
-            : "bg-paper-cool border border-line text-ink hover:border-accent/40 hover:-translate-y-0.5"
-        }`}
+// A single Mudir Studio document card — real /lessons · /quizzes etc.
+function GalleryDoc({ k, title, meta, tag, tone }) {
+  const dot =
+    { sage: "var(--sage)", accent: "var(--clay)", gold: "#C99A4B", soft: "#B5754E" }[
+      tone
+    ] || "var(--clay)";
+  return (
+    <div
+      className="relative h-full w-full rounded-2xl overflow-hidden flex flex-col p-4 border"
+      style={{ background: "#fffdf6", borderColor: "var(--line)", color: "var(--ink)" }}
+    >
+      <span
+        className="font-mono text-[9px] uppercase tracking-[0.16em] px-1.5 py-0.5 rounded self-start"
+        style={{ background: "var(--paper-2)", color: "var(--ink-3)" }}
+      >
+        {k}
+      </span>
+      <h4 className="font-display text-[16px] leading-snug mt-2.5 line-clamp-2">
+        {title}
+      </h4>
+      <span
+        className="font-mono text-[9px] uppercase tracking-wider mt-1.5"
+        style={{ color: "var(--ink-3)" }}
+      >
+        {meta}
+      </span>
+      <div
+        className="mt-auto pt-3 border-t border-dashed flex items-center gap-1.5"
+        style={{ borderColor: "var(--line)" }}
       >
         <span
-          className={`inline-flex h-8 w-8 rounded-xl items-center justify-center flex-shrink-0 ${
-            on ? "bg-white/15 text-paper-cool" : "bg-paper-warm/60 text-accent"
-          }`}
-        >
-          <Icon size={16} strokeWidth={2} />
+          className="h-1 w-1 rounded-full"
+          style={{ background: dot }}
+        />
+        <span className="text-[11px]" style={{ color: "var(--ink-2)" }}>
+          {tag}
         </span>
-        <span className="text-[14px] font-semibold leading-tight">
-          {F.label}
-        </span>
-      </button>
-    );
-  };
+      </div>
+    </div>
+  );
+}
+
+const GALLERY_TILES = [
+  { t: "slide", bg: "#1e3a44", art: "#7fc6c0", tx: "#eaf3f4", eyebrow: "G4 · Science", title: "The Water Cycle" },
+  { t: "doc", k: "Lesson plan", title: "Photosynthesis — how leaves work", meta: "Science · G7 · 7A", tag: "50 min · 4 stages", tone: "sage" },
+  { t: "slide", bg: "#5f7256", art: "#f0d9a8", tx: "#f8f5ec", eyebrow: "G7 · Science", title: "Photosynthesis" },
+  { t: "doc", k: "Quiz", title: "Cell respiration check", meta: "Science · G7 · 7B", tag: "20 marks · auto-graded", tone: "accent" },
+  { t: "slide", bg: "#b3442b", art: "#ffe6d2", tx: "#fbefe9", eyebrow: "G10 · English", title: "Romeo & Juliet — Act 1" },
+  { t: "doc", k: "Homework", title: "Worksheet 4 — leaf structure", meta: "Science · 7A", tag: "Due May 21", tone: "gold" },
+  { t: "slide", bg: "#3a2740", art: "#d39bd0", tx: "#f4e9f3", eyebrow: "G9 · Maths", title: "Intro to Statistics" },
+  // index 7 — featured centre
+  { t: "slide", bg: "#1e3a44", art: "#7fc6c0", tx: "#eaf3f4", eyebrow: "Grade 4 · Science", title: "The Water Cycle" },
+  { t: "doc", k: "Activity", title: "Group debate: is fusion worth it?", meta: "Science · G10 · 10D", tag: "25 min · groups", tone: "soft" },
+  { t: "slide", bg: "#dce8ee", art: "#2f7d95", tx: "#1e3a44", eyebrow: "G8 · Science", title: "States of Matter" },
+  { t: "doc", k: "Template", title: "Inquiry-led science lesson", meta: "Science · KG–G6", tag: "Used 23×", tone: "sage" },
+  { t: "slide", bg: "#243027", art: "#9bc48a", tx: "#eaf3e6", eyebrow: "G6 · Science", title: "Plant Life Cycles" },
+  { t: "doc", k: "Worksheet", title: "Photosynthesis · differentiated", meta: "3 levels", tag: "8 / 10 / 12 Qs", tone: "gold" },
+  { t: "slide", bg: "#2A1F17", art: "#E3B23C", tx: "#f4efe4", eyebrow: "G5 · Maths", title: "Fractions in Action" },
+  { t: "doc", k: "Presentation", title: "Cell respiration overview", meta: "Science · G7 · 7B", tag: "9 slides", tone: "accent" },
+];
+
+// ---- Gallery stage geometry (logical px, scaled to fit) -------------
+const G_TILE_W = 152;
+const G_TILE_H = 190;
+const G_COL_DX = 178; // column pitch
+const G_ROW_DY = 216; // row pitch
+const G_V_OFF = [-36, 28, 0, 28, -36]; // per-column V scatter (by col+2)
+const G_FEAT_W = 320;
+const G_FEAT_H = 400;
+const G_DESIGN_W = 1000;
+const G_DESIGN_H = 780;
+
+// 5×3 cells minus the centre (which the featured card occupies). Order
+// rings inner→outer so the inner tiles emerge from behind the card
+// first as it grows, then the corners fan out.
+const G_CELLS = (() => {
+  const list = [];
+  for (let row = -1; row <= 1; row++) {
+    for (let col = -2; col <= 2; col++) {
+      if (row === 0 && col === 0) continue;
+      list.push({
+        col,
+        row,
+        fx: col * G_COL_DX,
+        fy: row * G_ROW_DY + G_V_OFF[col + 2],
+        ring: Math.max(Math.abs(col), Math.abs(row)),
+      });
+    }
+  }
+  return list.sort((a, b) => a.ring - b.ring);
+})();
+
+const GalleryTileFace = ({ tile }) =>
+  tile.t === "slide" ? <GallerySlide {...tile} /> : <GalleryDoc {...tile} />;
+
+// Pinned, scroll-scrubbed reveal: an app-dock whose centre icon grows
+// into the big featured card while the small tiles fan out from behind
+// it into the scattered grid, then the overlays fade in.
+const TeacherShowcase = () => {
+  const trackRef = useRef(null);
+  const stageWrapRef = useRef(null);
+  const [q, setQ] = useState(0);
+  const [scale, setScale] = useState(1);
+
+  useEffect(() => {
+    let raf = 0;
+    const onScroll = () => {
+      if (raf) return;
+      raf = requestAnimationFrame(() => {
+        raf = 0;
+        const el = trackRef.current;
+        if (!el) return;
+        const r = el.getBoundingClientRect();
+        const span = r.height - window.innerHeight;
+        setQ(span > 0 ? Math.min(1, Math.max(0, -r.top / span)) : 0);
+      });
+    };
+    const onResize = () => {
+      const w = stageWrapRef.current?.clientWidth || G_DESIGN_W;
+      setScale(Math.min(1, Math.max(0.42, w / G_DESIGN_W)));
+      onScroll();
+    };
+    onResize();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onResize);
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onResize);
+      if (raf) cancelAnimationFrame(raf);
+    };
+  }, []);
+
+  const featured = GALLERY_TILES[7];
+  const smalls = GALLERY_TILES.filter((_, i) => i !== 7);
+
+  // Timeline — the big card starts fully below the section and slides
+  // straight up into the centre as you scroll (no fade — it travels in),
+  // shrinking a touch while the small tiles fan out from behind it.
+  const enter = easeInOut(seg(q, 0.0, 0.46)); // rises ↑ from below
+  const appear = easeInOut(seg(q, 0.74, 0.96)); // overlays settle
+  const featSc = lerp(2.2, 1, enter); // very big → final
+  const featY = lerp(470, 0, enter); // already in view low → centred
 
   return (
-    <section id="features" className="snap-stop py-24 md:py-36">
-      <div className="max-w-[1280px] mx-auto px-8">
-        <div className="max-w-2xl mx-auto text-center mb-14">
-          <div className="eyebrow mb-5">Inside Mudir</div>
-          <h2 className="font-display text-4xl md:text-5xl leading-[1.05] tracking-tight">
-            Everything a teacher prepares.
-            <br />
-            <em style={{ color: "var(--clay)" }}>Drafted in one place.</em>
-          </h2>
+    <section
+      id="features"
+      ref={trackRef}
+      className="relative min-h-screen lg:h-[210vh]"
+    >
+      {/* Desktop — pinned choreography */}
+      <div
+        ref={stageWrapRef}
+        className="hidden lg:flex lg:sticky lg:top-0 lg:h-screen overflow-hidden items-center justify-center"
+      >
+        <div
+          className="relative"
+          style={{
+            width: G_DESIGN_W,
+            height: G_DESIGN_H,
+            transform: `scale(${scale})`,
+          }}
+        >
+          {/* Small tiles — fan out from behind the card */}
+          {G_CELLS.map((c, i) => {
+            const tile = smalls[i % smalls.length];
+            const delay =
+              0.3 + (c.ring - 1) * 0.12 + (i % 5) * 0.015;
+            const ti = easeInOut(clamp01((q - delay) / 0.34));
+            const s = lerp(0.28, 1, ti);
+            return (
+              <div
+                key={i}
+                className="absolute left-1/2 top-1/2 rounded-2xl overflow-hidden shadow-[0_26px_56px_-30px_rgba(26,24,20,0.45)]"
+                style={{
+                  width: G_TILE_W,
+                  height: G_TILE_H,
+                  marginLeft: -G_TILE_W / 2,
+                  marginTop: -G_TILE_H / 2,
+                  transform: `translate(${c.fx * ti}px, ${c.fy * ti}px) scale(${s})`,
+                  opacity: clamp01(ti / 0.45),
+                  zIndex: 10 + c.ring,
+                  willChange: "transform, opacity",
+                }}
+              >
+                <GalleryTileFace tile={tile} />
+              </div>
+            );
+          })}
+
+          {/* Featured card — rises very large from below, shrinks to
+              its final size as the small tiles spread from behind it */}
+          <div
+            className="absolute left-1/2 top-1/2"
+            style={{
+              width: G_FEAT_W,
+              height: G_FEAT_H,
+              marginLeft: -G_FEAT_W / 2,
+              marginTop: -G_FEAT_H / 2,
+              transform: `translateY(${featY}px) scale(${featSc})`,
+              opacity: 1,
+              zIndex: 30,
+              willChange: "transform, opacity",
+            }}
+          >
+            <div className="relative h-full w-full rounded-[26px] overflow-hidden shadow-[0_60px_110px_-30px_rgba(26,24,20,0.6)] ring-1 ring-black/5">
+              <GalleryTileFace tile={featured} />
+            </div>
+            {/* Overlays settle once the card is full size */}
+            <div
+              style={{
+                opacity: appear,
+                transform: `translateY(${(1 - appear) * 10}px)`,
+              }}
+            >
+              <Bubble
+                label="@mudir"
+                bg="var(--clay)"
+                style={{ top: 54, left: -14, zIndex: 40 }}
+              />
+              <span
+                className="absolute flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-paper-cool text-ink text-[12px] font-semibold"
+                style={{
+                  top: 16,
+                  right: 16,
+                  zIndex: 40,
+                  boxShadow: "0 12px 24px -12px rgba(26,24,20,0.4)",
+                }}
+              >
+                <Sparkles size={12} className="text-accent" /> Open in Studio
+              </span>
+              <div
+                className="absolute flex items-center gap-2.5 px-3 py-2 rounded-2xl bg-paper-cool"
+                style={{
+                  left: 16,
+                  bottom: 16,
+                  zIndex: 40,
+                  boxShadow: "0 14px 28px -14px rgba(26,24,20,0.45)",
+                }}
+              >
+                <span className="h-8 w-8 rounded-xl bg-accent/15 text-accent flex items-center justify-center">
+                  <BookOpen size={15} />
+                </span>
+                <span className="leading-tight">
+                  <span className="block text-[12.5px] font-semibold text-ink">
+                    The Water Cycle
+                  </span>
+                  <span className="block text-[10.5px] text-muted">
+                    Drafted by Mudir
+                  </span>
+                </span>
+              </div>
+            </div>
+          </div>
         </div>
+      </div>
 
-        <div className="grid gap-5 lg:gap-7 lg:grid-cols-[230px_minmax(0,1fr)_230px] items-center">
-          {/* Mobile: all pills in a grid above the preview */}
-          <div className="lg:hidden grid grid-cols-2 sm:grid-cols-3 gap-2.5">
-            {FEATURES.map((_, i) => (
-              <Pill key={i} i={i} />
-            ))}
-          </div>
-
-          {/* Desktop: left column */}
-          <div className="hidden lg:flex flex-col gap-3">
-            {FEATURES.slice(0, 4).map((_, i) => (
-              <Pill key={i} i={i} />
-            ))}
-          </div>
-
-          {/* Centre preview */}
-          <div className="w-full">
-            <Win title={f.title}>
-              <Pv />
-            </Win>
-          </div>
-
-          {/* Desktop: right column */}
-          <div className="hidden lg:flex flex-col gap-3">
-            {FEATURES.slice(4, 8).map((_, i) => (
-              <Pill key={i + 4} i={i + 4} />
-            ))}
-          </div>
+      {/* Mobile / tablet — static scattered grid */}
+      <div className="lg:hidden py-20 px-6">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 max-w-[680px] mx-auto">
+          {GALLERY_TILES.map((tile, i) => (
+            <div
+              key={i}
+              className={`aspect-[4/5] rounded-2xl overflow-hidden shadow-[0_22px_50px_-30px_rgba(26,24,20,0.4)] ${
+                i === 7 ? "ring-1 ring-accent/30" : ""
+              } ${i % 2 === 1 ? "translate-y-5" : ""}`}
+            >
+              <GalleryTileFace tile={tile} />
+            </div>
+          ))}
         </div>
       </div>
     </section>
   );
+};
+
+// =====================================================================
+// WORKFLOW MINI-DEMOS — small looping "screens" that replace the prose
+// in each teacher card: a deck building, a quiz generating, a week of
+// plans filling in. Each runs its own rAF loop, only while on screen,
+// and freezes on its final frame for reduced-motion.
+// =====================================================================
+function useLoop(period) {
+  const [p, setP] = useState(0);
+  const ref = useRef(null);
+  useEffect(() => {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      setP(1);
+      return undefined;
+    }
+    const el = ref.current;
+    let raf = 0;
+    let last = 0;
+    let acc = 0;
+    // Stays paused on its first frame until the card is actually
+    // scrolled into view — the demo "plays when you reach it".
+    let vis = false;
+    let io;
+    if (el && "IntersectionObserver" in window) {
+      io = new IntersectionObserver(
+        ([e]) => {
+          vis = e.isIntersecting;
+          if (!vis) {
+            // Left the section — rewind so it replays from the
+            // beginning the next time it's scrolled back into view.
+            acc = 0;
+            setP(0);
+          }
+        },
+        { threshold: 0.25 }
+      );
+      io.observe(el);
+    } else {
+      vis = true;
+    }
+    const tick = (now) => {
+      if (last && vis) {
+        acc = (acc + (now - last)) % period;
+        setP(acc / period);
+      }
+      last = now;
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => {
+      cancelAnimationFrame(raf);
+      if (io) io.disconnect();
+    };
+  }, [period]);
+  return [ref, p];
+}
+
+// Just the media block now — the WorkflowCard around it owns the
+// rounded border / shadow so the demo sits *inside* one card.
+function MiniWin({ label, chip, ChipIcon, refProp, children }) {
+  return (
+    <div ref={refProp} className="border-b border-line">
+      <div className="flex items-center gap-1.5 px-3 py-2 border-b border-line bg-[#fffdf6]">
+        <span className="h-1.5 w-1.5 rounded-full bg-line" />
+        <span className="h-1.5 w-1.5 rounded-full bg-line" />
+        <span className="h-1.5 w-1.5 rounded-full bg-line" />
+        <span className="ml-1 font-mono text-[9px] uppercase tracking-[0.16em] text-muted">
+          {label}
+        </span>
+      </div>
+      <div className="h-[212px] bg-[#fbf2e6] px-4 py-3.5 overflow-hidden">
+        <div className="flex h-full flex-col">
+          <div className="flex items-center gap-2 mb-3 flex-shrink-0">
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md border border-line bg-paper-cool text-[10px] text-ink">
+              <ChipIcon size={10} className="text-accent" /> {chip}
+            </span>
+          </div>
+          {children}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MiniStatus({ show, children }) {
+  return (
+    <div
+      className="mt-3 flex items-center gap-1.5 text-[10px] flex-shrink-0"
+      style={{ opacity: show }}
+    >
+      <CheckCircle2 size={11} className="text-sage" />
+      <span className="text-ink-soft">{children}</span>
+    </div>
+  );
+}
+
+// Page-wide entrance motion is intentionally stubbed out (see top of
+// file). This is a small, self-contained slide-up reveal *only* for the
+// workflow cards: each starts lower and transparent, then slides up and
+// fades in once as it's scrolled into view, and stays — so they appear
+// one by one as you scroll down.
+function CardReveal({ children, className = "" }) {
+  const ref = useRef(null);
+  const [shown, setShown] = useState(false);
+  useEffect(() => {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      setShown(true);
+      return undefined;
+    }
+    const el = ref.current;
+    if (!el || !("IntersectionObserver" in window)) {
+      setShown(true);
+      return undefined;
+    }
+    const io = new IntersectionObserver(
+      ([e]) => {
+        if (e.isIntersecting) {
+          setShown(true);
+          io.disconnect(); // one-shot — it stays once revealed
+        }
+      },
+      { threshold: 0.15, rootMargin: "0px 0px -10% 0px" }
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
+  return (
+    <div
+      ref={ref}
+      className={className}
+      style={{
+        opacity: shown ? 1 : 0,
+        transform: shown ? "translateY(0)" : "translateY(44px)",
+        transition:
+          "opacity 0.7s cubic-bezier(0.22,1,0.36,1), transform 0.7s cubic-bezier(0.22,1,0.36,1)",
+        willChange: "opacity, transform",
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+const DECK_THUMBS = [
+  { bg: "#1e3a44", art: "#7fc6c0" },
+  { bg: "#dce8ee", art: "#2f7d95" },
+  { bg: "#5f7256", art: "#f0d9a8" },
+  { bg: "#fffdf6", art: "#c8472b" },
+  { bg: "#f0d79a", art: "#b3442b" },
+  { bg: "#b3442b", art: "#ffe6d2" },
+  { bg: "#3a2740", art: "#d39bd0" },
+  { bg: "#243027", art: "#9bc48a" },
+];
+
+// Mariam — describe a deck, Mudir builds the slides.
+function MiniDeck() {
+  const [ref, p] = useLoop(7200);
+  const PROMPT = "8-slide deck · the water cycle · G4";
+  const typed = PROMPT.slice(0, Math.round(seg(p, 0.02, 0.16) * PROMPT.length));
+  const built = seg(p, 0.22, 0.64);
+  return (
+    <MiniWin
+      refProp={ref}
+      label="studio · presentation"
+      chip="Presentation"
+      ChipIcon={Layers}
+    >
+      <div className="font-mono text-[10px] text-ink-soft mb-3 h-[14px] truncate flex-shrink-0">
+        {typed}
+        {p < 0.16 && (
+          <span className="inline-block w-px h-[1em] align-[-1px] bg-accent ml-px animate-pulse" />
+        )}
+      </div>
+      <div className="grid grid-cols-4 grid-rows-2 gap-1.5 flex-1 min-h-0">
+        {DECK_THUMBS.map((s, i) => {
+          const a = clamp01((built - i * 0.08) / 0.2);
+          return (
+            <div
+              key={i}
+              className="relative rounded-md overflow-hidden border border-line"
+              style={{
+                background: s.bg,
+                opacity: a,
+                transform: `scale(${lerp(0.84, 1, a)})`,
+              }}
+            >
+              <SlideArt stroke={s.art} fill={s.art} full />
+            </div>
+          );
+        })}
+      </div>
+      <MiniStatus show={clamp01((p - 0.66) / 0.06)}>
+        Deck ready · 8 slides
+      </MiniStatus>
+    </MiniWin>
+  );
+}
+
+// Salma — a formative quiz drafts itself, Bloom-tagged & auto-graded.
+function MiniQuiz() {
+  const [ref, p] = useLoop(7200);
+  const Q = [
+    { n: "Q1", t: "Which organelle releases energy?", tag: "MCQ" },
+    { n: "Q2", t: "Aerobic respiration needs oxygen.", tag: "True / False" },
+    { n: "Q3", t: "Word equation for respiration?", tag: "Short" },
+  ];
+  const built = seg(p, 0.1, 0.62);
+  return (
+    <MiniWin
+      refProp={ref}
+      label="studio · quiz"
+      chip="Quiz · Grade 7"
+      ChipIcon={GraduationCap}
+    >
+      <div className="flex flex-col gap-1.5 flex-1 min-h-0">
+        {Q.map((q, i) => {
+          const a = clamp01((built - i * 0.2) / 0.22);
+          const graded = clamp01((built - i * 0.2 - 0.14) / 0.12);
+          return (
+            <div
+              key={q.n}
+              className="flex items-center gap-2 px-2.5 py-2 rounded-lg border border-line/70 bg-paper-cool"
+              style={{ opacity: a, transform: `translateY(${(1 - a) * 6}px)` }}
+            >
+              <span className="font-mono text-[9px] text-accent flex-shrink-0">
+                {q.n}
+              </span>
+              <span className="text-[11px] text-ink-soft truncate flex-1">
+                {q.t}
+              </span>
+              <span className="font-mono text-[8px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-paper border border-line text-muted flex-shrink-0">
+                {q.tag}
+              </span>
+              <CheckCircle2
+                size={12}
+                className="text-sage flex-shrink-0"
+                style={{ opacity: graded }}
+              />
+            </div>
+          );
+        })}
+      </div>
+      <MiniStatus show={clamp01((p - 0.64) / 0.06)}>
+        Bloom-tagged · auto-graded
+      </MiniStatus>
+    </MiniWin>
+  );
+}
+
+// Noura — homework set, collected and graded itself (real /homework
+// content: a Studio worksheet task + auto-marked submissions).
+function MiniHomework() {
+  const [ref, p] = useLoop(7200);
+  const subs = [
+    { who: "Ahmed K.", score: "18 / 20" },
+    { who: "Lina M.", score: "20 / 20" },
+    { who: "Omar S.", score: "16 / 20" },
+    { who: "Sara H.", score: "19 / 20" },
+  ];
+  const built = seg(p, 0.12, 0.66);
+  return (
+    <MiniWin
+      refProp={ref}
+      label="studio · homework"
+      chip="Homework · 7A"
+      ChipIcon={ClipboardList}
+    >
+      <div className="rounded-lg border border-line/70 bg-paper-cool px-3 py-2 mb-2 flex items-center justify-between gap-2 flex-shrink-0">
+        <span className="text-[11px] text-ink truncate">
+          Worksheet 4 — leaf structure
+        </span>
+        <span className="font-mono text-[8px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-paper border border-line text-muted flex-shrink-0">
+          Due May 21
+        </span>
+      </div>
+      <div className="flex flex-col gap-1.5 flex-1 min-h-0">
+        {subs.map((s, i) => {
+          const a = clamp01((built - i * 0.16) / 0.2);
+          const graded = clamp01((built - i * 0.16 - 0.12) / 0.12);
+          return (
+            <div
+              key={s.who}
+              className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg border border-line/70 bg-paper-cool flex-1"
+              style={{ opacity: a, transform: `translateY(${(1 - a) * 6}px)` }}
+            >
+              <span className="text-[11px] text-ink-soft flex-1 truncate">
+                {s.who}
+              </span>
+              <span
+                className="font-mono text-[9px] text-ink"
+                style={{ opacity: graded }}
+              >
+                {s.score}
+              </span>
+              <CheckCircle2
+                size={12}
+                className="text-sage flex-shrink-0"
+                style={{ opacity: graded }}
+              />
+            </div>
+          );
+        })}
+      </div>
+      <MiniStatus show={clamp01((p - 0.66) / 0.06)}>
+        Auto-graded · feedback added
+      </MiniStatus>
+    </MiniWin>
+  );
+}
+
+// Ibrahim — a timed lesson plan, drafted and MoE-aligned (the real
+// Studio lesson-plan stage breakdown).
+function MiniLessonPlan() {
+  const [ref, p] = useLoop(7200);
+  const stages = [
+    { t: "00–05", s: "Starter — recall prior" },
+    { t: "05–15", s: "Hook — leaf demo" },
+    { t: "15–35", s: "Guided worksheet" },
+    { t: "35–45", s: "Discussion" },
+    { t: "45–50", s: "Exit ticket" },
+  ];
+  const built = seg(p, 0.1, 0.66);
+  return (
+    <MiniWin
+      refProp={ref}
+      label="studio · lesson plan"
+      chip="Photosynthesis · G7"
+      ChipIcon={BookOpen}
+    >
+      <div className="flex flex-col gap-1.5 flex-1 min-h-0">
+        {stages.map((st, i) => {
+          const a = clamp01((built - i * 0.13) / 0.18);
+          const done = clamp01((built - i * 0.13 - 0.1) / 0.1);
+          return (
+            <div
+              key={st.t}
+              className="flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg border border-line/70 bg-paper-cool flex-1"
+              style={{ opacity: a, transform: `translateY(${(1 - a) * 6}px)` }}
+            >
+              <span className="font-mono text-[8.5px] text-accent flex-shrink-0 w-9">
+                {st.t}
+              </span>
+              <span className="text-[11px] text-ink-soft flex-1 truncate">
+                {st.s}
+              </span>
+              <CheckCircle2
+                size={12}
+                className="text-sage flex-shrink-0"
+                style={{ opacity: done }}
+              />
+            </div>
+          );
+        })}
+      </div>
+      <MiniStatus show={clamp01((p - 0.66) / 0.06)}>
+        Timed · MoE-aligned
+      </MiniStatus>
+    </MiniWin>
+  );
+}
+
+const WORKFLOW_DEMOS = {
+  deck: MiniDeck,
+  quiz: MiniQuiz,
+  homework: MiniHomework,
+  lesson: MiniLessonPlan,
 };
 
 // =====================================================================
@@ -2512,21 +3177,28 @@ const Workflow = () => {
       n: "01",
       label: "Mariam",
       title: "A full slide deck, in twenty seconds.",
-      body: "Mariam used to spend twenty minutes building a presentation for every lesson. Now she describes it once and Mudir drafts the whole deck — she just reviews and walks into class.",
+      demo: "deck",
       tag: "20 min → 20 sec",
     },
     {
       n: "02",
       label: "Salma",
-      title: "A quiz ready before the bell.",
-      body: "Salma needed a formative quiz for Grade 7 science. Mixed formats, Bloom-tagged, auto-graded — Mudir drafted it while she finished her coffee.",
+      title: "A formative quiz, ready before the bell.",
+      demo: "quiz",
       tag: "Quiz in under a minute",
     },
     {
       n: "03",
+      label: "Noura",
+      title: "Homework, marked before home time.",
+      demo: "homework",
+      tag: "Graded the moment it's in",
+    },
+    {
+      n: "04",
       label: "Ibrahim",
       title: "Next week's lessons, already planned.",
-      body: "Ibrahim maps his whole week in the Planner. Mudir turns each topic into a timed lesson plan aligned to MoE outcomes — Sunday prep, gone.",
+      demo: "lesson",
       tag: "A week of plans in minutes",
     },
   ];
@@ -2550,59 +3222,55 @@ const Workflow = () => {
               className="text-xl leading-relaxed"
               style={{ color: "var(--ink-2)" }}
             >
-              Three teachers, three tasks that used to eat their evenings —
+              Four teachers, four tasks that used to eat their evenings —
               now drafted by Mudir in the time it takes to read this.
             </p>
           </Reveal>
         </div>
 
-        <div className="grid grid-cols-12 gap-8 md:gap-12">
-          {steps.map((s, i) => (
-            <Reveal key={i} delay={i} className="col-span-12 md:col-span-4">
-              <div className="relative h-full">
-                {i < 2 && (
-                  <div
-                    className="hidden md:block absolute top-3 -right-6 w-12 h-px"
-                    style={{ background: "var(--line-strong)" }}
-                  >
-                    <div
-                      className="absolute right-0 -top-1 w-2 h-2 border-t border-r rotate-45"
-                      style={{ borderColor: "var(--line-strong)" }}
-                    />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-10 lg:gap-x-14 gap-y-14">
+          {steps.map((s, i) => {
+            const Demo = WORKFLOW_DEMOS[s.demo];
+            return (
+              <div
+                key={i}
+                className={i % 2 === 1 ? "md:translate-y-24" : ""}
+              >
+                <CardReveal className="h-full">
+                  <div className="rounded-2xl overflow-hidden border border-line bg-paper-cool shadow-[0_28px_64px_-36px_rgba(26,24,20,0.36)] flex flex-col h-full">
+                    <Demo />
+                    <div className="px-5 py-5 flex flex-col flex-1">
+                      <div className="flex items-baseline gap-3 mb-3">
+                        <span
+                          className="font-mono text-xs"
+                          style={{ color: "var(--clay)" }}
+                        >
+                          {s.n}
+                        </span>
+                        <span className="eyebrow">{s.label}</span>
+                      </div>
+                      <h3 className="font-display text-2xl md:text-[26px] leading-tight text-balance mb-4 min-h-[3.25rem] md:min-h-[3.75rem]">
+                        {s.title}
+                      </h3>
+                      <div
+                        className="mt-auto inline-flex self-start items-center gap-2 text-xs font-mono px-2.5 py-1 rounded"
+                        style={{
+                          background: "var(--paper-2)",
+                          color: "var(--ink-2)",
+                        }}
+                      >
+                        <div
+                          className="w-1 h-1 rounded-full"
+                          style={{ background: "var(--sage)" }}
+                        />
+                        {s.tag}
+                      </div>
+                    </div>
                   </div>
-                )}
-
-                <div className="flex items-baseline gap-3 mb-6">
-                  <span
-                    className="font-mono text-xs"
-                    style={{ color: "var(--clay)" }}
-                  >
-                    {s.n}
-                  </span>
-                  <span className="eyebrow">{s.label}</span>
-                </div>
-                <h3 className="font-display text-2xl md:text-[28px] leading-tight mb-4">
-                  {s.title}
-                </h3>
-                <p
-                  className="leading-relaxed mb-6"
-                  style={{ color: "var(--ink-2)" }}
-                >
-                  {s.body}
-                </p>
-                <div
-                  className="inline-flex items-center gap-2 text-xs font-mono px-2.5 py-1 rounded"
-                  style={{ background: "var(--paper-2)", color: "var(--ink-2)" }}
-                >
-                  <div
-                    className="w-1 h-1 rounded-full"
-                    style={{ background: "var(--sage)" }}
-                  />
-                  {s.tag}
-                </div>
+                </CardReveal>
               </div>
-            </Reveal>
-          ))}
+            );
+          })}
         </div>
       </div>
     </section>
@@ -3716,13 +4384,9 @@ export default function Landing({ onOpenStudio }) {
           <ShowcaseScroll />
           <CommunityScroll />
           <SectionDivider variant="wave" />
-          <StudioFlow />
-          <SectionDivider variant="calm" />
           <TeacherShowcase />
           <SectionDivider variant="cascade" />
           <Workflow />
-          <SectionDivider variant="rise" />
-          <Philosophy />
           <SectionDivider variant="cascade" flip />
           <CTA onOpenStudio={onOpenStudio} />
         </>

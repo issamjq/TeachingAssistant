@@ -445,7 +445,7 @@ export default function StudioApp({ onClose }) {
           <span className="mudir-sidebar-account-avatar">SA</span>
           <div className="flex-1 min-w-0 text-start">
             <p className="text-sm font-medium leading-tight truncate text-ink">
-              Sara Al-Mansoori
+              Sara
             </p>
             <p className="font-serif italic text-[11px] text-muted mt-0.5">
               {t(`account.${role}`) === `account.${role}` ? ROLE_LABELS[role] : t(`account.${role}`)}
