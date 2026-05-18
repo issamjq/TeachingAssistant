@@ -2601,23 +2601,25 @@ function GalleryDoc({ k, title, meta, tag, tone }) {
   );
 }
 
+// Decorative sample cards. Each carries an `ar` overlay used when the
+// page is in Arabic (GalleryTileFace merges it over the base fields).
 const GALLERY_TILES = [
-  { t: "slide", bg: "#1e3a44", art: "#7fc6c0", tx: "#eaf3f4", eyebrow: "G4 · Science", title: "The Water Cycle" },
-  { t: "doc", k: "Lesson plan", title: "Photosynthesis — how leaves work", meta: "Science · G7 · 7A", tag: "50 min · 4 stages", tone: "sage" },
-  { t: "slide", bg: "#5f7256", art: "#f0d9a8", tx: "#f8f5ec", eyebrow: "G7 · Science", title: "Photosynthesis" },
-  { t: "doc", k: "Quiz", title: "Cell respiration check", meta: "Science · G7 · 7B", tag: "20 marks · auto-graded", tone: "accent" },
-  { t: "slide", bg: "#b3442b", art: "#ffe6d2", tx: "#fbefe9", eyebrow: "G10 · English", title: "Romeo & Juliet — Act 1" },
-  { t: "doc", k: "Homework", title: "Worksheet 4 — leaf structure", meta: "Science · 7A", tag: "Due May 21", tone: "gold" },
-  { t: "slide", bg: "#3a2740", art: "#d39bd0", tx: "#f4e9f3", eyebrow: "G9 · Maths", title: "Intro to Statistics" },
+  { t: "slide", bg: "#1e3a44", art: "#7fc6c0", tx: "#eaf3f4", eyebrow: "G4 · Science", title: "The Water Cycle", ar: { eyebrow: "الصف 4 · العلوم", title: "دورة الماء" } },
+  { t: "doc", k: "Lesson plan", title: "Photosynthesis — how leaves work", meta: "Science · G7 · 7A", tag: "50 min · 4 stages", tone: "sage", ar: { k: "خطة درس", title: "البناء الضوئي — كيف تعمل الأوراق", meta: "العلوم · الصف 7 · 7A", tag: "50 دقيقة · 4 مراحل" } },
+  { t: "slide", bg: "#5f7256", art: "#f0d9a8", tx: "#f8f5ec", eyebrow: "G7 · Science", title: "Photosynthesis", ar: { eyebrow: "الصف 7 · العلوم", title: "البناء الضوئي" } },
+  { t: "doc", k: "Quiz", title: "Cell respiration check", meta: "Science · G7 · 7B", tag: "20 marks · auto-graded", tone: "accent", ar: { k: "اختبار", title: "اختبار التنفّس الخلوي", meta: "العلوم · الصف 7 · 7B", tag: "20 درجة · تصحيح آلي" } },
+  { t: "slide", bg: "#b3442b", art: "#ffe6d2", tx: "#fbefe9", eyebrow: "G10 · English", title: "Romeo & Juliet — Act 1", ar: { eyebrow: "الصف 10 · الإنجليزية", title: "روميو وجولييت — الفصل 1" } },
+  { t: "doc", k: "Homework", title: "Worksheet 4 — leaf structure", meta: "Science · 7A", tag: "Due May 21", tone: "gold", ar: { k: "واجب", title: "ورقة عمل 4 — بنية الورقة", meta: "العلوم · 7A", tag: "يُسلَّم 21 مايو" } },
+  { t: "slide", bg: "#3a2740", art: "#d39bd0", tx: "#f4e9f3", eyebrow: "G9 · Maths", title: "Intro to Statistics", ar: { eyebrow: "الصف 9 · الرياضيات", title: "مقدمة في الإحصاء" } },
   // index 7 — featured centre
-  { t: "slide", bg: "#1e3a44", art: "#7fc6c0", tx: "#eaf3f4", eyebrow: "Grade 4 · Science", title: "The Water Cycle" },
-  { t: "doc", k: "Activity", title: "Group debate: is fusion worth it?", meta: "Science · G10 · 10D", tag: "25 min · groups", tone: "soft" },
-  { t: "slide", bg: "#dce8ee", art: "#2f7d95", tx: "#1e3a44", eyebrow: "G8 · Science", title: "States of Matter" },
-  { t: "doc", k: "Template", title: "Inquiry-led science lesson", meta: "Science · KG–G6", tag: "Used 23×", tone: "sage" },
-  { t: "slide", bg: "#243027", art: "#9bc48a", tx: "#eaf3e6", eyebrow: "G6 · Science", title: "Plant Life Cycles" },
-  { t: "doc", k: "Worksheet", title: "Photosynthesis · differentiated", meta: "3 levels", tag: "8 / 10 / 12 Qs", tone: "gold" },
-  { t: "slide", bg: "#2A1F17", art: "#E3B23C", tx: "#f4efe4", eyebrow: "G5 · Maths", title: "Fractions in Action" },
-  { t: "doc", k: "Presentation", title: "Cell respiration overview", meta: "Science · G7 · 7B", tag: "9 slides", tone: "accent" },
+  { t: "slide", bg: "#1e3a44", art: "#7fc6c0", tx: "#eaf3f4", eyebrow: "Grade 4 · Science", title: "The Water Cycle", ar: { eyebrow: "الصف 4 · العلوم", title: "دورة الماء" } },
+  { t: "doc", k: "Activity", title: "Group debate: is fusion worth it?", meta: "Science · G10 · 10D", tag: "25 min · groups", tone: "soft", ar: { k: "نشاط", title: "نقاش جماعي: هل يستحقّ الاندماج؟", meta: "العلوم · الصف 10 · 10D", tag: "25 دقيقة · مجموعات" } },
+  { t: "slide", bg: "#dce8ee", art: "#2f7d95", tx: "#1e3a44", eyebrow: "G8 · Science", title: "States of Matter", ar: { eyebrow: "الصف 8 · العلوم", title: "حالات المادة" } },
+  { t: "doc", k: "Template", title: "Inquiry-led science lesson", meta: "Science · KG–G6", tag: "Used 23×", tone: "sage", ar: { k: "قالب", title: "درس علوم قائم على الاستقصاء", meta: "العلوم · الروضة–الصف 6", tag: "استُخدم 23×" } },
+  { t: "slide", bg: "#243027", art: "#9bc48a", tx: "#eaf3e6", eyebrow: "G6 · Science", title: "Plant Life Cycles", ar: { eyebrow: "الصف 6 · العلوم", title: "دورات حياة النبات" } },
+  { t: "doc", k: "Worksheet", title: "Photosynthesis · differentiated", meta: "3 levels", tag: "8 / 10 / 12 Qs", tone: "gold", ar: { k: "ورقة عمل", title: "البناء الضوئي · متمايزة", meta: "3 مستويات", tag: "8 / 10 / 12 سؤالًا" } },
+  { t: "slide", bg: "#2A1F17", art: "#E3B23C", tx: "#f4efe4", eyebrow: "G5 · Maths", title: "Fractions in Action", ar: { eyebrow: "الصف 5 · الرياضيات", title: "الكسور في التطبيق" } },
+  { t: "doc", k: "Presentation", title: "Cell respiration overview", meta: "Science · G7 · 7B", tag: "9 slides", tone: "accent", ar: { k: "عرض تقديمي", title: "نظرة على التنفّس الخلوي", meta: "العلوم · الصف 7 · 7B", tag: "9 شرائح" } },
 ];
 
 // ---- Gallery stage geometry (logical px, scaled to fit) -------------
@@ -2651,13 +2653,17 @@ const G_CELLS = (() => {
   return list.sort((a, b) => a.ring - b.ring);
 })();
 
-const GalleryTileFace = ({ tile }) =>
-  tile.t === "slide" ? <GallerySlide {...tile} /> : <GalleryDoc {...tile} />;
+const GalleryTileFace = ({ tile }) => {
+  const { lang } = useI18n();
+  const v = lang === "ar" && tile.ar ? { ...tile, ...tile.ar } : tile;
+  return v.t === "slide" ? <GallerySlide {...v} /> : <GalleryDoc {...v} />;
+};
 
 // Pinned, scroll-scrubbed reveal: an app-dock whose centre icon grows
 // into the big featured card while the small tiles fan out from behind
 // it into the scattered grid, then the overlays fade in.
 const TeacherShowcase = () => {
+  const { t } = useI18n();
   const trackRef = useRef(null);
   const stageWrapRef = useRef(null);
   const [q, setQ] = useState(0);
@@ -2787,7 +2793,7 @@ const TeacherShowcase = () => {
                   boxShadow: "0 12px 24px -12px rgba(26,24,20,0.4)",
                 }}
               >
-                <Sparkles size={12} className="text-accent" /> Open in Studio
+                <Sparkles size={12} className="text-accent" /> {t("lp.ts.openStudio")}
               </span>
               <div
                 className="absolute flex items-center gap-2.5 px-3 py-2 rounded-2xl bg-paper-cool"
@@ -2803,10 +2809,10 @@ const TeacherShowcase = () => {
                 </span>
                 <span className="leading-tight">
                   <span className="block text-[12.5px] font-semibold text-ink">
-                    The Water Cycle
+                    {t("lp.ts.featTitle")}
                   </span>
                   <span className="block text-[10.5px] text-muted">
-                    Drafted by Mudir
+                    {t("lp.ts.draftedBy")}
                   </span>
                 </span>
               </div>
@@ -2989,15 +2995,19 @@ const DECK_THUMBS = [
 
 // Mariam — describe a deck, Mudir builds the slides.
 function MiniDeck() {
+  const { lang } = useI18n();
+  const ar = lang === "ar";
   const [ref, p] = useLoop(7200);
-  const PROMPT = "8-slide deck · the water cycle · G4";
+  const PROMPT = ar
+    ? "عرض من 8 شرائح · دورة الماء · الصف 4"
+    : "8-slide deck · the water cycle · G4";
   const typed = PROMPT.slice(0, Math.round(seg(p, 0.02, 0.16) * PROMPT.length));
   const built = seg(p, 0.22, 0.64);
   return (
     <MiniWin
       refProp={ref}
-      label="studio · presentation"
-      chip="Presentation"
+      label={ar ? "الاستوديو · عرض تقديمي" : "studio · presentation"}
+      chip={ar ? "عرض تقديمي" : "Presentation"}
       ChipIcon={Layers}
     >
       <div className="font-mono text-[10px] text-ink-soft mb-3 h-[14px] truncate flex-shrink-0">
@@ -3025,7 +3035,7 @@ function MiniDeck() {
         })}
       </div>
       <MiniStatus show={clamp01((p - 0.66) / 0.06)}>
-        Deck ready · 8 slides
+        {ar ? "العرض جاهز · 8 شرائح" : "Deck ready · 8 slides"}
       </MiniStatus>
     </MiniWin>
   );
@@ -3033,18 +3043,26 @@ function MiniDeck() {
 
 // Salma — a formative quiz drafts itself, Bloom-tagged & auto-graded.
 function MiniQuiz() {
+  const { lang } = useI18n();
+  const ar = lang === "ar";
   const [ref, p] = useLoop(7200);
-  const Q = [
-    { n: "Q1", t: "Which organelle releases energy?", tag: "MCQ" },
-    { n: "Q2", t: "Aerobic respiration needs oxygen.", tag: "True / False" },
-    { n: "Q3", t: "Word equation for respiration?", tag: "Short" },
-  ];
+  const Q = ar
+    ? [
+        { n: "س1", t: "أيُّ عُضيّة تُطلق الطاقة؟", tag: "اختياري" },
+        { n: "س2", t: "التنفّس الهوائي يحتاج أكسجين.", tag: "صح / خطأ" },
+        { n: "س3", t: "المعادلة اللفظية للتنفّس؟", tag: "قصير" },
+      ]
+    : [
+        { n: "Q1", t: "Which organelle releases energy?", tag: "MCQ" },
+        { n: "Q2", t: "Aerobic respiration needs oxygen.", tag: "True / False" },
+        { n: "Q3", t: "Word equation for respiration?", tag: "Short" },
+      ];
   const built = seg(p, 0.1, 0.62);
   return (
     <MiniWin
       refProp={ref}
-      label="studio · quiz"
-      chip="Quiz · Grade 7"
+      label={ar ? "الاستوديو · اختبار" : "studio · quiz"}
+      chip={ar ? "اختبار · الصف 7" : "Quiz · Grade 7"}
       ChipIcon={GraduationCap}
     >
       <div className="flex flex-col gap-1.5 flex-1 min-h-0">
@@ -3076,7 +3094,7 @@ function MiniQuiz() {
         })}
       </div>
       <MiniStatus show={clamp01((p - 0.64) / 0.06)}>
-        Bloom-tagged · auto-graded
+        {ar ? "مصنّف بتصنيف بلوم · تصحيح آلي" : "Bloom-tagged · auto-graded"}
       </MiniStatus>
     </MiniWin>
   );
@@ -3085,27 +3103,36 @@ function MiniQuiz() {
 // Noura — homework set, collected and graded itself (real /homework
 // content: a Studio worksheet task + auto-marked submissions).
 function MiniHomework() {
+  const { lang } = useI18n();
+  const ar = lang === "ar";
   const [ref, p] = useLoop(7200);
-  const subs = [
-    { who: "Ahmed K.", score: "18 / 20" },
-    { who: "Lina M.", score: "20 / 20" },
-    { who: "Omar S.", score: "16 / 20" },
-    { who: "Sara H.", score: "19 / 20" },
-  ];
+  const subs = ar
+    ? [
+        { who: "أحمد ك.", score: "18 / 20" },
+        { who: "لينا م.", score: "20 / 20" },
+        { who: "عمر س.", score: "16 / 20" },
+        { who: "سارة ح.", score: "19 / 20" },
+      ]
+    : [
+        { who: "Ahmed K.", score: "18 / 20" },
+        { who: "Lina M.", score: "20 / 20" },
+        { who: "Omar S.", score: "16 / 20" },
+        { who: "Sara H.", score: "19 / 20" },
+      ];
   const built = seg(p, 0.12, 0.66);
   return (
     <MiniWin
       refProp={ref}
-      label="studio · homework"
-      chip="Homework · 7A"
+      label={ar ? "الاستوديو · واجب" : "studio · homework"}
+      chip={ar ? "واجب · 7A" : "Homework · 7A"}
       ChipIcon={ClipboardList}
     >
       <div className="rounded-lg border border-line/70 bg-paper-cool px-3 py-2 mb-2 flex items-center justify-between gap-2 flex-shrink-0">
         <span className="text-[11px] text-ink truncate">
-          Worksheet 4 — leaf structure
+          {ar ? "ورقة عمل 4 — بنية الورقة" : "Worksheet 4 — leaf structure"}
         </span>
         <span className="font-mono text-[8px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-paper border border-line text-muted flex-shrink-0">
-          Due May 21
+          {ar ? "يُسلَّم 21 مايو" : "Due May 21"}
         </span>
       </div>
       <div className="flex flex-col gap-1.5 flex-1 min-h-0">
@@ -3137,7 +3164,7 @@ function MiniHomework() {
         })}
       </div>
       <MiniStatus show={clamp01((p - 0.66) / 0.06)}>
-        Auto-graded · feedback added
+        {ar ? "تصحيح آلي · أُضيفت ملاحظات" : "Auto-graded · feedback added"}
       </MiniStatus>
     </MiniWin>
   );
@@ -3146,20 +3173,30 @@ function MiniHomework() {
 // Ibrahim — a timed lesson plan, drafted and MoE-aligned (the real
 // Studio lesson-plan stage breakdown).
 function MiniLessonPlan() {
+  const { lang } = useI18n();
+  const ar = lang === "ar";
   const [ref, p] = useLoop(7200);
-  const stages = [
-    { t: "00–05", s: "Starter — recall prior" },
-    { t: "05–15", s: "Hook — leaf demo" },
-    { t: "15–35", s: "Guided worksheet" },
-    { t: "35–45", s: "Discussion" },
-    { t: "45–50", s: "Exit ticket" },
-  ];
+  const stages = ar
+    ? [
+        { t: "00–05", s: "تمهيد — استرجاع سابق" },
+        { t: "05–15", s: "تشويق — عرض الورقة" },
+        { t: "15–35", s: "ورقة عمل موجَّهة" },
+        { t: "35–45", s: "نقاش" },
+        { t: "45–50", s: "بطاقة خروج" },
+      ]
+    : [
+        { t: "00–05", s: "Starter — recall prior" },
+        { t: "05–15", s: "Hook — leaf demo" },
+        { t: "15–35", s: "Guided worksheet" },
+        { t: "35–45", s: "Discussion" },
+        { t: "45–50", s: "Exit ticket" },
+      ];
   const built = seg(p, 0.1, 0.66);
   return (
     <MiniWin
       refProp={ref}
-      label="studio · lesson plan"
-      chip="Photosynthesis · G7"
+      label={ar ? "الاستوديو · خطة درس" : "studio · lesson plan"}
+      chip={ar ? "البناء الضوئي · الصف 7" : "Photosynthesis · G7"}
       ChipIcon={BookOpen}
     >
       <div className="flex flex-col gap-1.5 flex-1 min-h-0">
@@ -3188,7 +3225,7 @@ function MiniLessonPlan() {
         })}
       </div>
       <MiniStatus show={clamp01((p - 0.66) / 0.06)}>
-        Timed · MoE-aligned
+        {ar ? "موقوت · متوافق مع الوزارة" : "Timed · MoE-aligned"}
       </MiniStatus>
     </MiniWin>
   );
@@ -3205,34 +3242,36 @@ const WORKFLOW_DEMOS = {
 // WORKFLOW — How it works
 // =====================================================================
 const Workflow = () => {
+  const { t, lang } = useI18n();
+  const ar = lang === "ar";
   const steps = [
     {
       n: "01",
-      label: "Mariam",
-      title: "A full slide deck, in twenty seconds.",
+      label: ar ? "مريم" : "Mariam",
+      title: ar ? "عرض شرائح كامل في عشرين ثانية." : "A full slide deck, in twenty seconds.",
       demo: "deck",
-      tag: "20 min → 20 sec",
+      tag: ar ? "20 دقيقة ← 20 ثانية" : "20 min → 20 sec",
     },
     {
       n: "02",
-      label: "Salma",
-      title: "A formative quiz, ready before the bell.",
+      label: ar ? "سلمى" : "Salma",
+      title: ar ? "اختبار تكويني جاهز قبل الجرس." : "A formative quiz, ready before the bell.",
       demo: "quiz",
-      tag: "Quiz in under a minute",
+      tag: ar ? "اختبار في أقل من دقيقة" : "Quiz in under a minute",
     },
     {
       n: "03",
-      label: "Noura",
-      title: "Homework, marked before home time.",
+      label: ar ? "نورة" : "Noura",
+      title: ar ? "واجب مُصحَّح قبل موعد الانصراف." : "Homework, marked before home time.",
       demo: "homework",
-      tag: "Graded the moment it's in",
+      tag: ar ? "يُصحَّح لحظة تسليمه" : "Graded the moment it's in",
     },
     {
       n: "04",
-      label: "Ibrahim",
-      title: "Next week's lessons, already planned.",
+      label: ar ? "إبراهيم" : "Ibrahim",
+      title: ar ? "دروس الأسبوع القادم، مخطَّطة سلفًا." : "Next week's lessons, already planned.",
       demo: "lesson",
-      tag: "A week of plans in minutes",
+      tag: ar ? "أسبوع من الخطط في دقائق" : "A week of plans in minutes",
     },
   ];
 
@@ -3245,18 +3284,17 @@ const Workflow = () => {
       <div className="max-w-[1280px] mx-auto px-8">
         <div className="max-w-2xl mb-24">
           <Reveal>
-            <div className="eyebrow mb-6">From real classrooms</div>
+            <div className="eyebrow mb-6">{t("lp.wf.eyebrow")}</div>
             <h2 className="font-display text-5xl md:text-6xl leading-[1.02] tracking-tight mb-6">
-              Real teachers.
+              {t("lp.wf.h2a")}
               <br />
-              Real time back.
+              {t("lp.wf.h2b")}
             </h2>
             <p
               className="text-xl leading-relaxed"
               style={{ color: "var(--ink-2)" }}
             >
-              Four teachers, four tasks that used to eat their evenings —
-              now drafted by Mudir in the time it takes to read this.
+              {t("lp.wf.sub")}
             </p>
           </Reveal>
         </div>
@@ -3926,6 +3964,7 @@ const Philosophy = () => {
 // FINAL CTA
 // =====================================================================
 const CTA = ({ onOpenStudio }) => {
+  const t = useT();
   return (
     <section
       id="cta"
@@ -3949,22 +3988,21 @@ const CTA = ({ onOpenStudio }) => {
             className="eyebrow mb-8"
             style={{ color: "rgba(247,243,236,0.5)" }}
           >
-            Now in pilot — UAE schools
+            {t("lp.cta.eyebrow")}
           </div>
           <h2
             className="font-display text-6xl md:text-8xl leading-[0.98] tracking-tight mb-8"
             style={{ color: "var(--paper)" }}
           >
-            Get your
+            {t("lp.cta.h1a")}
             <br />
-            evenings back.
+            {t("lp.cta.h1b")}
           </h2>
           <p
             className="text-xl mb-12 max-w-xl mx-auto leading-relaxed"
             style={{ color: "rgba(247,243,236,0.65)" }}
           >
-            Open the planner and let Mudir draft your next lesson, quiz, or
-            deck — you stay in charge of every word.
+            {t("lp.cta.sub")}
           </p>
 
           <button
@@ -3972,7 +4010,7 @@ const CTA = ({ onOpenStudio }) => {
             onClick={onOpenStudio}
             className="btn-invert inline-flex items-center gap-2 px-7 py-3.5 rounded-lg text-sm font-medium"
           >
-            Open the planner
+            {t("lp.nav.openPlanner")}
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
               <path
                 d="M5 3l4 4-4 4"
@@ -3993,6 +4031,7 @@ const CTA = ({ onOpenStudio }) => {
 // FOOTER
 // =====================================================================
 const Footer = ({ onOpenStudio, onJump, onPage }) => {
+  const t = useT();
   const FLink = ({ children, onClick }) => (
     <button type="button" onClick={onClick} className="link-quiet text-left">
       {children}
@@ -4021,48 +4060,47 @@ const Footer = ({ onOpenStudio, onJump, onPage }) => {
               <span className="font-display text-xl">Mudir</span>
             </div>
             <p className="font-display text-2xl leading-tight max-w-sm mb-6">
-              A calmer way to prepare lessons.
+              {t("lp.foot.tagline")}
             </p>
             <p className="text-xs" style={{ color: "var(--ink-3)" }}>
-              Built in Dubai, for teachers across the UAE.
+              {t("lp.foot.builtIn")}
             </p>
           </div>
 
           <div className="col-span-6 md:col-span-2">
-            <div className="eyebrow mb-4">Product</div>
+            <div className="eyebrow mb-4">{t("lp.foot.product")}</div>
             <ul className="space-y-2.5 text-sm" style={{ color: "var(--ink-2)" }}>
-              <li><FLink onClick={() => onJump("features")}>Features</FLink></li>
-              <li><FLink onClick={() => onJump("how")}>How it works</FLink></li>
-              <li><FLink onClick={() => onJump("how")}>AI studio</FLink></li>
-              <li><FLink onClick={() => onPage("pricing")}>Pricing</FLink></li>
+              <li><FLink onClick={() => onJump("features")}>{t("lp.nav.features")}</FLink></li>
+              <li><FLink onClick={() => onJump("how")}>{t("lp.nav.how")}</FLink></li>
+              <li><FLink onClick={() => onJump("how")}>{t("lp.nav.aistudio")}</FLink></li>
+              <li><FLink onClick={() => onPage("pricing")}>{t("lp.foot.pricing")}</FLink></li>
             </ul>
           </div>
 
           <div className="col-span-6 md:col-span-2">
-            <div className="eyebrow mb-4">Schools</div>
+            <div className="eyebrow mb-4">{t("lp.foot.schools")}</div>
             <ul className="space-y-2.5 text-sm" style={{ color: "var(--ink-2)" }}>
-              <li><FLink onClick={() => onPage("schools")}>For schools</FLink></li>
-              <li><FLink onClick={() => onPage("moe")}>MoE alignment</FLink></li>
-              <li><FLink onClick={() => onPage("privacy")}>Data privacy</FLink></li>
-              <li><FLink onClick={() => onPage("contact")}>Contact</FLink></li>
+              <li><FLink onClick={() => onPage("schools")}>{t("lp.foot.forSchools")}</FLink></li>
+              <li><FLink onClick={() => onPage("moe")}>{t("lp.foot.moe")}</FLink></li>
+              <li><FLink onClick={() => onPage("privacy")}>{t("lp.foot.privacy")}</FLink></li>
+              <li><FLink onClick={() => onPage("contact")}>{t("lp.foot.contact")}</FLink></li>
             </ul>
           </div>
 
           <div className="col-span-12 md:col-span-3">
-            <div className="eyebrow mb-4">From the team</div>
+            <div className="eyebrow mb-4">{t("lp.foot.fromTeam")}</div>
             <p
               className="text-sm leading-relaxed mb-4"
               style={{ color: "var(--ink-2)" }}
             >
-              We're a small team building Mudir alongside teachers in Dubai and
-              Abu Dhabi.
+              {t("lp.foot.teamBody")}
             </p>
             <button
               type="button"
               onClick={onOpenStudio}
               className="text-sm link-quiet font-medium"
             >
-              Open the planner →
+              {t("lp.foot.openPlanner")}
             </button>
           </div>
         </div>
@@ -4071,11 +4109,11 @@ const Footer = ({ onOpenStudio, onJump, onPage }) => {
           className="pt-8 border-t flex flex-wrap items-center justify-between gap-4 text-xs"
           style={{ borderColor: "var(--line)", color: "var(--ink-3)" }}
         >
-          <div>© 2026 Mudir. Made in Dubai.</div>
+          <div>{t("lp.foot.copyright")}</div>
           <div className="flex items-center gap-6">
-            <FLink onClick={() => onPage("privacy")}>Privacy</FLink>
-            <FLink onClick={() => onPage("privacy")}>Terms</FLink>
-            <FLink onClick={() => onPage("privacy")}>Security</FLink>
+            <FLink onClick={() => onPage("privacy")}>{t("lp.foot.privacyShort")}</FLink>
+            <FLink onClick={() => onPage("privacy")}>{t("lp.foot.terms")}</FLink>
+            <FLink onClick={() => onPage("privacy")}>{t("lp.foot.security")}</FLink>
           </div>
         </div>
       </div>
@@ -4094,6 +4132,7 @@ const fieldStyle = {
 };
 
 function PageShell({ eyebrow, title, em, lead, onPage, children, narrow }) {
+  const t = useT();
   return (
     <main className="pt-28 md:pt-32 pb-28 min-h-screen">
       <div className={`${narrow ? "max-w-xl" : "max-w-3xl"} mx-auto px-8`}>
@@ -4103,7 +4142,7 @@ function PageShell({ eyebrow, title, em, lead, onPage, children, narrow }) {
           className="link-quiet text-sm mb-10 inline-flex items-center gap-1.5"
           style={{ color: "var(--ink-2)" }}
         >
-          ← Back to home
+          {t("lp.pg.back")}
         </button>
         <div className="eyebrow mb-6">{eyebrow}</div>
         <h1 className="font-display text-4xl md:text-5xl leading-[1.05] tracking-tight mb-6">
@@ -4150,6 +4189,7 @@ function CommitList({ items }) {
 }
 
 function ContactForm() {
+  const t = useT();
   const [sent, setSent] = useState(false);
   if (sent) {
     return (
@@ -4157,9 +4197,9 @@ function ContactForm() {
         className="rounded-2xl p-8 text-center"
         style={{ border: "0.5px solid var(--line)", background: "var(--paper)" }}
       >
-        <p className="font-display text-2xl mb-1">Thanks — we'll be in touch.</p>
+        <p className="font-display text-2xl mb-1">{t("lp.pg.contact.sentTitle")}</p>
         <p style={{ color: "var(--ink-2)" }}>
-          We read every message. Expect a reply within a couple of days.
+          {t("lp.pg.contact.sentBody")}
         </p>
       </div>
     );
@@ -4174,21 +4214,21 @@ function ContactForm() {
     >
       <input
         required
-        placeholder="Your name"
+        placeholder={t("lp.pg.contact.namePh")}
         className="w-full px-4 py-3 rounded-lg text-sm outline-none"
         style={fieldStyle}
       />
       <input
         required
         type="email"
-        placeholder="your.email@school.ae"
+        placeholder={t("lp.pg.emailPh")}
         className="w-full px-4 py-3 rounded-lg text-sm outline-none"
         style={fieldStyle}
       />
       <textarea
         required
         rows={4}
-        placeholder="How can we help?"
+        placeholder={t("lp.pg.contact.msgPh")}
         className="w-full px-4 py-3 rounded-lg text-sm outline-none resize-none"
         style={fieldStyle}
       />
@@ -4196,17 +4236,18 @@ function ContactForm() {
         type="submit"
         className="btn-primary px-6 py-3 rounded-lg text-sm font-medium"
       >
-        Send message
+        {t("lp.pg.contact.send")}
       </button>
     </form>
   );
 }
 
 function SignInPage({ onOpenStudio, onPage }) {
+  const t = useT();
   return (
     <PageShell
-      eyebrow="Welcome back"
-      title="Sign in"
+      eyebrow={t("lp.pg.signin.eyebrow")}
+      title={t("lp.pg.signin.title")}
       onPage={onPage}
       narrow
     >
@@ -4220,14 +4261,14 @@ function SignInPage({ onOpenStudio, onPage }) {
         <input
           required
           type="email"
-          placeholder="your.email@school.ae"
+          placeholder={t("lp.pg.emailPh")}
           className="w-full px-4 py-3 rounded-lg text-sm outline-none"
           style={fieldStyle}
         />
         <input
           required
           type="password"
-          placeholder="Password"
+          placeholder={t("lp.pg.signin.pwd")}
           className="w-full px-4 py-3 rounded-lg text-sm outline-none"
           style={fieldStyle}
         />
@@ -4235,46 +4276,47 @@ function SignInPage({ onOpenStudio, onPage }) {
           type="submit"
           className="btn-primary w-full px-6 py-3 rounded-lg text-sm font-medium"
         >
-          Sign in
+          {t("lp.pg.signin.btn")}
         </button>
       </form>
       <p className="text-sm mt-6" style={{ color: "var(--ink-2)" }}>
-        New to Mudir?{" "}
+        {t("lp.pg.signin.newQ")}{" "}
         <button
           type="button"
           onClick={onOpenStudio}
           className="link-quiet font-medium"
           style={{ color: "var(--ink)" }}
         >
-          Open the planner
+          {t("lp.pg.signin.open")}
         </button>
       </p>
       <p className="text-xs mt-8" style={{ color: "var(--ink-3)" }}>
-        Pilot access — signing in opens the planner directly.
+        {t("lp.pg.signin.note")}
       </p>
     </PageShell>
   );
 }
 
 function MarketingPage({ page, onOpenStudio, onPage }) {
+  const t = useT();
   if (page === "signin")
     return <SignInPage onOpenStudio={onOpenStudio} onPage={onPage} />;
 
   if (page === "privacy")
     return (
       <PageShell
-        eyebrow="Data privacy"
-        title="Your data"
-        em="stays yours."
-        lead="Mudir is built for schools that take student data seriously. Privacy is a default, not a setting."
+        eyebrow={t("lp.pg.privacy.eyebrow")}
+        title={t("lp.pg.privacy.title")}
+        em={t("lp.pg.privacy.em")}
+        lead={t("lp.pg.privacy.lead")}
         onPage={onPage}
       >
         <CommitList
           items={[
-            { t: "Region residency", b: "Student data stays in your school's region. It is never shipped elsewhere to be processed." },
-            { t: "Nothing trains a public model", b: "What you and your students create is yours. It is never used to train public AI models." },
-            { t: "Teacher-owned content", b: "Every lesson, quiz and deck belongs to you. Export or delete it at any time." },
-            { t: "Deleted means deleted", b: "Remove an item and it's gone — soft-deleted for 30 days, then permanently purged." },
+            { t: t("lp.pg.privacy.i1t"), b: t("lp.pg.privacy.i1b") },
+            { t: t("lp.pg.privacy.i2t"), b: t("lp.pg.privacy.i2b") },
+            { t: t("lp.pg.privacy.i3t"), b: t("lp.pg.privacy.i3b") },
+            { t: t("lp.pg.privacy.i4t"), b: t("lp.pg.privacy.i4b") },
           ]}
         />
       </PageShell>
@@ -4283,18 +4325,18 @@ function MarketingPage({ page, onOpenStudio, onPage }) {
   if (page === "moe")
     return (
       <PageShell
-        eyebrow="Curriculum"
-        title="Built for the"
-        em="UAE classroom."
-        lead="Mudir speaks the curriculum your inspectors do — every output can be mapped to Ministry of Education outcomes."
+        eyebrow={t("lp.pg.moe.eyebrow")}
+        title={t("lp.pg.moe.title")}
+        em={t("lp.pg.moe.em")}
+        lead={t("lp.pg.moe.lead")}
         onPage={onPage}
       >
         <CommitList
           items={[
-            { t: "MoE outcomes by default", b: "Lessons and quizzes tag the outcomes they cover, so coverage is visible at a glance." },
-            { t: "Arabic-first where it matters", b: "Generate in Arabic or English, with content that respects local context — not a translated afterthought." },
-            { t: "KG through Grade 12", b: "Pacing, language and difficulty adjust to the grade and stream you teach." },
-            { t: "Bloom-tagged assessment", b: "Quizzes balance recall, application and extension so they hold up to scrutiny." },
+            { t: t("lp.pg.moe.i1t"), b: t("lp.pg.moe.i1b") },
+            { t: t("lp.pg.moe.i2t"), b: t("lp.pg.moe.i2b") },
+            { t: t("lp.pg.moe.i3t"), b: t("lp.pg.moe.i3b") },
+            { t: t("lp.pg.moe.i4t"), b: t("lp.pg.moe.i4b") },
           ]}
         />
       </PageShell>
@@ -4303,17 +4345,17 @@ function MarketingPage({ page, onOpenStudio, onPage }) {
   if (page === "schools")
     return (
       <PageShell
-        eyebrow="For schools"
-        title="Bring Mudir to"
-        em="your school."
-        lead="Give every teacher the same calm prep workflow — and give leadership the consistency and time back that follows."
+        eyebrow={t("lp.pg.schools.eyebrow")}
+        title={t("lp.pg.schools.title")}
+        em={t("lp.pg.schools.em")}
+        lead={t("lp.pg.schools.lead")}
         onPage={onPage}
       >
         <CommitList
           items={[
-            { t: "Consistency across teachers", b: "Shared templates and MoE-aligned defaults mean every classroom starts from the same strong base." },
-            { t: "Hours back, every week", b: "Pilot teachers report 10+ hours saved a week on prep — time that returns to teaching." },
-            { t: "Onboarding we run with you", b: "We set up your grades, sections and subjects together, so day one is productive." },
+            { t: t("lp.pg.schools.i1t"), b: t("lp.pg.schools.i1b") },
+            { t: t("lp.pg.schools.i2t"), b: t("lp.pg.schools.i2b") },
+            { t: t("lp.pg.schools.i3t"), b: t("lp.pg.schools.i3b") },
           ]}
         />
         <button
@@ -4321,7 +4363,7 @@ function MarketingPage({ page, onOpenStudio, onPage }) {
           onClick={() => onPage("contact")}
           className="btn-primary px-6 py-3 rounded-lg text-sm font-medium mt-12"
         >
-          Talk to us
+          {t("lp.pg.schools.cta")}
         </button>
       </PageShell>
     );
@@ -4329,17 +4371,17 @@ function MarketingPage({ page, onOpenStudio, onPage }) {
   if (page === "pricing")
     return (
       <PageShell
-        eyebrow="Pricing"
-        title="Simple, while"
-        em="we're in pilot."
-        lead="Mudir is in an invite-only pilot with UAE schools. Pricing for teachers and schools comes after the pilot — shaped by what teachers actually use."
+        eyebrow={t("lp.pg.pricing.eyebrow")}
+        title={t("lp.pg.pricing.title")}
+        em={t("lp.pg.pricing.em")}
+        lead={t("lp.pg.pricing.lead")}
         onPage={onPage}
       >
         <div className="grid sm:grid-cols-3 gap-4 mb-12">
           {[
-            { k: "Pilot", v: "Free", d: "For participating UAE schools, for the duration of the pilot." },
-            { k: "Teacher", v: "Later", d: "An individual plan for solo teachers — after the pilot." },
-            { k: "School", v: "Later", d: "Whole-school licensing with admin tools — after the pilot." },
+            { k: t("lp.pg.pricing.c1k"), v: t("lp.pg.pricing.c1v"), d: t("lp.pg.pricing.c1d") },
+            { k: t("lp.pg.pricing.c2k"), v: t("lp.pg.pricing.c2v"), d: t("lp.pg.pricing.c2d") },
+            { k: t("lp.pg.pricing.c3k"), v: t("lp.pg.pricing.c3v"), d: t("lp.pg.pricing.c3d") },
           ].map((p) => (
             <div
               key={p.k}
@@ -4364,7 +4406,7 @@ function MarketingPage({ page, onOpenStudio, onPage }) {
           onClick={() => onPage("contact")}
           className="btn-primary px-6 py-3 rounded-lg text-sm font-medium"
         >
-          Talk to us about the pilot
+          {t("lp.pg.pricing.cta")}
         </button>
       </PageShell>
     );
@@ -4372,15 +4414,15 @@ function MarketingPage({ page, onOpenStudio, onPage }) {
   // contact (default)
   return (
     <PageShell
-      eyebrow="Contact"
-      title="Say"
-      em="hello."
-      lead="Questions, a pilot enquiry, or feedback from the classroom — we'd like to hear it."
+      eyebrow={t("lp.pg.contact.eyebrow")}
+      title={t("lp.pg.contact.title")}
+      em={t("lp.pg.contact.em")}
+      lead={t("lp.pg.contact.lead")}
       onPage={onPage}
     >
       <ContactForm />
       <p className="text-xs mt-8" style={{ color: "var(--ink-3)" }}>
-        Built in Dubai · we read everything.
+        {t("lp.pg.contact.note")}
       </p>
     </PageShell>
   );
