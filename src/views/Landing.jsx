@@ -825,7 +825,8 @@ function ShowCardFace({ c }) {
 }
 
 // Centred headline — reveals word-by-word, behind the card stack.
-const SHOW_HEAD = [
+// Per-language word lists so the reveal works in EN and AR (RTL).
+const SHOW_HEAD_EN = [
   { t: "Whether" }, { t: "you're" }, { t: "planning" },
   { t: "tomorrow's" }, { t: "lesson" }, { t: "or" }, { t: "building" },
   { t: "a" }, { t: "full" }, { t: "unit" }, { t: "—" },
@@ -833,16 +834,31 @@ const SHOW_HEAD = [
   { t: "intent" }, { t: "into" },
   { t: "classroom-ready", accent: "sage" }, { t: "material." },
 ];
+const SHOW_HEAD_AR = [
+  { t: "سواء" }, { t: "تُحضّر" }, { t: "درس" }, { t: "الغد" },
+  { t: "أو" }, { t: "تبني" }, { t: "وحدةً" }, { t: "كاملة" }, { t: "—" },
+  { t: "Mudir", accent: "clay", italic: true }, { t: "يحوّل" },
+  { t: "النيّة" }, { t: "إلى" },
+  { t: "مادّة", accent: "sage" }, { t: "جاهزة" }, { t: "للصَّف." },
+];
 const C_SAGE = "#7A8F6E";
 
 // Headline #2 (left column, library phase) + the honeycomb chips.
-const VISION_HEAD = [
+const VISION_HEAD_EN = [
   { t: "One" }, { t: "studio." },
   { t: "Every", accent: "clay" }, { t: "subject,", accent: "clay" },
   { t: "every" }, { t: "grade." },
 ];
-const VISION_SUB =
+const VISION_HEAD_AR = [
+  { t: "استوديو" }, { t: "واحد." },
+  { t: "كل", accent: "clay" }, { t: "مادّة،", accent: "clay" },
+  { t: "كل" }, { t: "صف." },
+];
+const VISION_SUB_EN =
   "Every lesson tells a story. Mudir helps you plan it, build it, and teach it."
+    .split(" ");
+const VISION_SUB_AR =
+  "كل درس يحكي قصّة. يساعدك Mudir على تخطيطه وبنائه وتدريسه."
     .split(" ");
 const C_INK2 = "#6E5C4A";
 
@@ -966,6 +982,10 @@ const HoneyDrop = React.memo(function HoneyDrop({ active }) {
 //   P3 to-grid   the SAME cards travel right + shrink into the Library grid
 //   P4 reveal    left headline #2 + sub + honeycomb chips assemble
 const ShowcaseScroll = () => {
+  const { t, lang } = useI18n();
+  const SHOW_HEAD = lang === "ar" ? SHOW_HEAD_AR : SHOW_HEAD_EN;
+  const VISION_HEAD = lang === "ar" ? VISION_HEAD_AR : VISION_HEAD_EN;
+  const VISION_SUB = lang === "ar" ? VISION_SUB_AR : VISION_SUB_EN;
   const trackRef = useRef(null);
   const [q, setQ] = useState(0);
 
@@ -1051,7 +1071,7 @@ const ShowcaseScroll = () => {
                   key={i}
                   style={{
                     display: "inline-block",
-                    marginRight: "0.28em",
+                    marginInlineEnd: "0.28em",
                     opacity: wp,
                     filter: `blur(${(1 - wp) * 10}px)`,
                     transform: `translateY(${(1 - wp) * 14}px)`,
@@ -1077,7 +1097,7 @@ const ShowcaseScroll = () => {
             >
               <span className="w-6 h-px" style={{ background: "var(--clay)" }} />
               <span className="eyebrow" style={{ color: "var(--clay)" }}>
-                The library
+                {t("lp.show.libraryEyebrow")}
               </span>
             </div>
             <h2 className="font-display text-[clamp(38px,4.8vw,76px)] leading-[1.04] tracking-tight">
@@ -1114,7 +1134,7 @@ const ShowcaseScroll = () => {
                     key={i}
                     style={{
                       display: "inline-block",
-                      marginRight: "0.24em",
+                      marginInlineEnd: "0.24em",
                       opacity: wp,
                       filter: `blur(${(1 - wp) * 6}px)`,
                       color: mix(C_INK3, C_INK2, wp),
@@ -1154,7 +1174,7 @@ const ShowcaseScroll = () => {
                 className="flex items-center justify-between px-6"
                 style={{ height: 64 }}
               >
-                <span className="font-display text-xl">Library</span>
+                <span className="font-display text-xl">{t("lp.show.libraryWin")}</span>
                 <span
                   className="inline-flex items-center gap-1.5 font-mono"
                   style={{
@@ -1294,10 +1314,10 @@ const ShowcaseScroll = () => {
       {/* ---------- MOBILE — static (no scrub) ---------- */}
       <div className="lg:hidden px-6 py-20">
         <h2 className="font-display text-[clamp(30px,8vw,46px)] leading-[1.16] tracking-tight mb-10">
-          Whether you're planning tomorrow's lesson or building a full unit —{" "}
-          <em style={{ color: "var(--clay)", fontStyle: "italic" }}>Mudir</em>{" "}
-          turns intent into{" "}
-          <span style={{ color: "var(--sage)" }}>classroom-ready</span> material.
+          {t("lp.show.mHeadA")}{" "}
+          <em style={{ color: "var(--clay)", fontStyle: "italic" }}>{t("lp.brand")}</em>{" "}
+          {t("lp.show.mHeadB")}{" "}
+          <span style={{ color: "var(--sage)" }}>{t("lp.show.mHeadAccent")}</span> {t("lp.show.mHeadC")}
         </h2>
         <div className="relative h-[340px] mb-14">
           {CARDS.slice(0, 5).map((c, i) => {
@@ -1321,22 +1341,21 @@ const ShowcaseScroll = () => {
         <div className="flex items-center gap-3 mb-6">
           <span className="w-6 h-px" style={{ background: "var(--clay)" }} />
           <span className="eyebrow" style={{ color: "var(--clay)" }}>
-            The library
+            {t("lp.show.libraryEyebrow")}
           </span>
         </div>
         <h2 className="font-display text-[clamp(32px,8vw,48px)] leading-[1.08] tracking-tight mb-5">
-          One studio.{" "}
+          {t("lp.show.visionA")}{" "}
           <em style={{ color: "var(--clay)", fontStyle: "italic" }}>
-            Every subject,
+            {t("lp.show.visionEm")}
           </em>{" "}
-          every grade.
+          {t("lp.show.visionB")}
         </h2>
         <p
           className="text-base leading-relaxed mb-10"
           style={{ color: "var(--ink-2)" }}
         >
-          Every lesson tells a story. Mudir helps you plan it, build it, and
-          teach it.
+          {t("lp.show.visionSub")}
         </p>
         <div className="grid grid-cols-2 gap-3">
           {CARDS.slice(0, 4).map((c) => (
@@ -1358,33 +1377,34 @@ const ShowcaseScroll = () => {
 // gentle vertical wave, and a centred headline that reveals word-by-word.
 // =====================================================================
 const MQ_TILES = [
-  { code: "MA", label: "Mathematics", bg: "#2A1F17", tx: "#F4EFE4" },
-  { code: "SC", label: "Science", bg: "#5E7156", tx: "#F2F5EE" },
-  { code: "AR", label: "Arabic", bg: "#EDE5D6", tx: "#2A1F17" },
-  { code: "EN", label: "English", bg: "#B5754E", tx: "#FBF5EC" },
-  { code: "PH", label: "Physics", bg: "#33291F", tx: "#F4EFE4" },
-  { code: "CH", label: "Chemistry", bg: "#7A8F6E", tx: "#F7F3EC" },
-  { code: "BI", label: "Biology", bg: "#5E7156", tx: "#F2F5EE" },
-  { code: "HI", label: "History", bg: "#A0392A", tx: "#FBEFE9" },
-  { code: "GE", label: "Geography", bg: "#8E5435", tx: "#FBF1E8" },
-  { code: "IS", label: "Islamic St.", bg: "#7A2A1E", tx: "#FBEFE9" },
-  { code: "AT", label: "Art & Design", bg: "#B5754E", tx: "#FBF5EC" },
-  { code: "MU", label: "Music", bg: "#E3D9C5", tx: "#2A1F17" },
-  { code: "CS", label: "Coding", bg: "#2A1F17", tx: "#F4EFE4" },
-  { code: "PE", label: "P.E.", bg: "#7A8F6E", tx: "#F7F3EC" },
-  { code: "EC", label: "Economics", bg: "#8E5435", tx: "#FBF1E8" },
-  { code: "ME", label: "Moral Ed.", bg: "#EDE5D6", tx: "#2A1F17" },
+  { code: "MA", label: "Mathematics", ar: "الرياضيات", bg: "#2A1F17", tx: "#F4EFE4" },
+  { code: "SC", label: "Science", ar: "العلوم", bg: "#5E7156", tx: "#F2F5EE" },
+  { code: "AR", label: "Arabic", ar: "العربية", bg: "#EDE5D6", tx: "#2A1F17" },
+  { code: "EN", label: "English", ar: "الإنجليزية", bg: "#B5754E", tx: "#FBF5EC" },
+  { code: "PH", label: "Physics", ar: "الفيزياء", bg: "#33291F", tx: "#F4EFE4" },
+  { code: "CH", label: "Chemistry", ar: "الكيمياء", bg: "#7A8F6E", tx: "#F7F3EC" },
+  { code: "BI", label: "Biology", ar: "الأحياء", bg: "#5E7156", tx: "#F2F5EE" },
+  { code: "HI", label: "History", ar: "التاريخ", bg: "#A0392A", tx: "#FBEFE9" },
+  { code: "GE", label: "Geography", ar: "الجغرافيا", bg: "#8E5435", tx: "#FBF1E8" },
+  { code: "IS", label: "Islamic St.", ar: "التربية الإسلامية", bg: "#7A2A1E", tx: "#FBEFE9" },
+  { code: "AT", label: "Art & Design", ar: "الفنون والتصميم", bg: "#B5754E", tx: "#FBF5EC" },
+  { code: "MU", label: "Music", ar: "الموسيقى", bg: "#E3D9C5", tx: "#2A1F17" },
+  { code: "CS", label: "Coding", ar: "البرمجة", bg: "#2A1F17", tx: "#F4EFE4" },
+  { code: "PE", label: "P.E.", ar: "التربية البدنية", bg: "#7A8F6E", tx: "#F7F3EC" },
+  { code: "EC", label: "Economics", ar: "الاقتصاد", bg: "#8E5435", tx: "#FBF1E8" },
+  { code: "ME", label: "Moral Ed.", ar: "التربية الأخلاقية", bg: "#EDE5D6", tx: "#2A1F17" },
 ];
 
-function MqTile({ t }) {
+function MqTile({ t: tile }) {
+  const { lang } = useI18n();
   return (
     <div
       className="flex flex-col justify-between p-3.5 rounded-[20px] select-none"
       style={{
         width: 112,
         height: 112,
-        background: t.bg,
-        color: t.tx,
+        background: tile.bg,
+        color: tile.tx,
         boxShadow: "0 18px 36px -22px rgba(42,31,23,0.45)",
       }}
     >
@@ -1392,22 +1412,29 @@ function MqTile({ t }) {
         className="font-mono"
         style={{ fontSize: 9, letterSpacing: "0.16em", opacity: 0.65 }}
       >
-        {t.code}
+        {tile.code}
       </span>
       <span className="font-display" style={{ fontSize: 15, lineHeight: 1.05 }}>
-        {t.label}
+        {lang === "ar" ? tile.ar : tile.label}
       </span>
     </div>
   );
 }
 
-const MQ_HEAD = [
+const MQ_HEAD_EN = [
   { t: "You'll" }, { t: "find" },
   { t: "every", accent: true }, { t: "subject", accent: true },
   { t: "here." },
 ];
-const MQ_SUB =
+const MQ_HEAD_AR = [
+  { t: "ستجد" }, { t: "كل", accent: true }, { t: "مادّة", accent: true },
+  { t: "هنا." },
+];
+const MQ_SUB_EN =
   "Built with teachers across the UAE — from KG to Grade 12, every classroom."
+    .split(" ");
+const MQ_SUB_AR =
+  "بُني مع معلّمين من كل أنحاء الإمارات — من الروضة إلى الصف 12، كل صفّ."
     .split(" ");
 
 // JS-driven so each tile's vertical offset is a function of its LIVE
@@ -1483,6 +1510,9 @@ const MarqueeRow = ({ reverse }) => {
 };
 
 const CommunityScroll = () => {
+  const { t, lang } = useI18n();
+  const MQ_HEAD = lang === "ar" ? MQ_HEAD_AR : MQ_HEAD_EN;
+  const MQ_SUB = lang === "ar" ? MQ_SUB_AR : MQ_SUB_EN;
   const trackRef = useRef(null);
   const [q, setQ] = useState(0);
 
@@ -1537,7 +1567,7 @@ const CommunityScroll = () => {
                   key={i}
                   style={{
                     display: "inline-block",
-                    marginRight: "0.26em",
+                    marginInlineEnd: "0.26em",
                     opacity: wp,
                     filter: `blur(${(1 - wp) * 10}px)`,
                     transform: `translateY(${(1 - wp) * 16}px)`,
@@ -1559,7 +1589,7 @@ const CommunityScroll = () => {
                   key={i}
                   style={{
                     display: "inline-block",
-                    marginRight: "0.24em",
+                    marginInlineEnd: "0.24em",
                     opacity: wp,
                     filter: `blur(${(1 - wp) * 6}px)`,
                     color: mix(C_INK3, C_INK2, wp),
@@ -1581,18 +1611,17 @@ const CommunityScroll = () => {
         <MarqueeRow />
         <div className="text-center px-6">
           <h2 className="font-display text-[clamp(34px,9vw,52px)] leading-[1.06] tracking-tight">
-            You'll find{" "}
+            {t("lp.comm.headA")}{" "}
             <em style={{ color: "var(--clay)", fontStyle: "italic" }}>
-              every subject
+              {t("lp.comm.headEm")}
             </em>{" "}
-            here.
+            {t("lp.comm.headB")}
           </h2>
           <p
             className="text-base leading-relaxed mt-5"
             style={{ color: "var(--ink-2)" }}
           >
-            Built with teachers across the UAE — from KG to Grade 12, every
-            classroom.
+            {t("lp.comm.sub")}
           </p>
         </div>
         <MarqueeRow reverse />
