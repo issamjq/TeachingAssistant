@@ -194,23 +194,22 @@ const Nav = ({ onOpenStudio, onJump, onPage }) => {
 const easeInOut = (t) =>
   t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
 
-// Penner easeOutBounce — a ball dropped under gravity: it hits, bounces
-// back up, falls, bounces smaller, then comes to rest. Drives the
-// honeycomb "thrown on the ground" entrance.
-const easeOutBounce = (t) => {
-  const n1 = 7.5625;
-  const d1 = 2.75;
-  if (t < 1 / d1) return n1 * t * t;
-  if (t < 2 / d1) {
-    const u = t - 1.5 / d1;
-    return n1 * u * u + 0.75;
+// Gravity drop for the honeycomb: an accelerating free-fall to the first
+// impact, then two quick, decreasing rebounds before it settles — the
+// way a real ball comes to rest on the floor, not a cartoon multi-bounce.
+const gravityDrop = (p) => {
+  const c1 = 0.58; // free-fall portion — accelerates toward impact
+  if (p < c1) {
+    const f = p / c1;
+    return f * f;
   }
-  if (t < 2.5 / d1) {
-    const u = t - 2.25 / d1;
-    return n1 * u * u + 0.9375;
+  const r = (p - c1) / (1 - c1); // 0→1 across the two settle bounces
+  if (r < 0.62) {
+    const u = r / 0.62; // bounce 1 — rebounds ~14% of the drop
+    return 1 - 0.14 * 4 * u * (1 - u);
   }
-  const u = t - 2.625 / d1;
-  return n1 * u * u + 0.984375;
+  const u = (r - 0.62) / 0.38; // bounce 2 — a small ~5% settle
+  return 1 - 0.05 * 4 * u * (1 - u);
 };
 
 // Scroll-scrub math. `seg` remaps a slice [a,b] of the global scroll
@@ -827,8 +826,8 @@ const C_INK2 = "#6E5C4A";
 
 const HONEY = [
   { x: -84, y: 0 }, { x: 0, y: 0 }, { x: 84, y: 0 },
-  { x: -42, y: -74 }, { x: 42, y: -74 },
-  { x: -84, y: -148 }, { x: 0, y: -148 }, { x: 84, y: -148 },
+  { x: -42, y: -64 }, { x: 42, y: -64 },
+  { x: -84, y: -128 }, { x: 0, y: -128 }, { x: 84, y: -128 },
 ];
 const HONEY_ICONS = [
   Sparkles, BookOpen, GraduationCap, ClipboardList,
@@ -1001,23 +1000,24 @@ const ShowcaseScroll = () => {
 
           {/* Honeycomb of feature chips (bottom-left) */}
           <div
-            className="absolute left-[10%] bottom-[15%]"
+            className="absolute left-[10%] bottom-[4%]"
             style={{ width: 0, height: 0, zIndex: 25 }}
           >
             {HONEY.map((h, i) => {
               const Ic = HONEY_ICONS[i];
               // Each ball is "thrown" a beat after the previous one.
               const p = clamp01((honey - i * 0.05) / 0.36);
-              // Released from above, falls under gravity, bounces, settles
-              // onto its honeycomb spot.
-              const fall = easeOutBounce(p);
-              const startY = h.y - 320;
+              // Drops from just above its spot, accelerates, lands and
+              // settles with two small natural rebounds. Short travel so
+              // the whole motion stays below the sub text.
+              const fall = gravityDrop(p);
+              const startY = h.y - 130;
               const y = lerp(startY, h.y, fall);
-              // Impact squash — pulses each time the bounce kisses the
-              // ground, then fades to nothing as it comes to rest.
+              // Impact squash — pulses each time it kisses the floor,
+              // then fades to nothing as it comes to rest.
               const squash = clamp01((fall - 0.84) / 0.16) * (1 - p);
-              const sX = 1 + 0.18 * squash;
-              const sY = 1 - 0.2 * squash;
+              const sX = 1 + 0.12 * squash;
+              const sY = 1 - 0.14 * squash;
               // Snaps to solid size at the top almost immediately so it
               // reads as a falling ball, not a growing dot.
               const appear = clamp01(p / 0.12);
