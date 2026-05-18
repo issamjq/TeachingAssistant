@@ -5,24 +5,14 @@ import {
   DataPageHeader, DataCard, CardsGrid, useViewMode,
   useDateScope, filterByDateScope,
 } from "./_data-view";
-import SlideBuilder, { PresentDeck, deckFromPresentation } from "./SlideBuilder";
+import { PresentDeck } from "./SlideBuilder";
 import { useT } from "../lib/i18n";
 
-// Blank deck for a brand-new presentation created from this page.
-const BLANK_DECK = {
-  deckTitle: "Untitled presentation",
-  metaLine: "",
-  slides: [
-    { title: "Title slide", bullets: [""], notes: "", imageQuery: "", image: null, layout: "title", bg: "ink" },
-  ],
-};
-
-export default function Presentations() {
+export default function Presentations({ onOpenPresentation }) {
   const t = useT();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [editing, setEditing] = useState(null);
   const [presenting, setPresenting] = useState(null);
   const [deleting, setDeleting] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -44,30 +34,6 @@ export default function Presentations() {
   }, [items, sortKey]);
   const visibleItems = filterByDateScope(sortedItems, scopeRange, (p) => p.scheduled_for);
 
-  // Derive the editor deck/meta ONCE per opened presentation. If we built
-  // these inline in JSX they'd be new objects every render, and the save
-  // (which re-renders this page) would make SlideBuilder reload the deck
-  // and wipe the teacher's in-progress edits (e.g. a slide reorder).
-  const editorDeck = React.useMemo(
-    () => (!editing ? null : editing === "new" ? BLANK_DECK : deckFromPresentation(editing)),
-    [editing]
-  );
-  const editorMeta = React.useMemo(
-    () =>
-      editing === "new"
-        ? { status: "Draft" }
-        : editing
-          ? {
-              subject: editing.subject,
-              grade: editing.grade,
-              section: editing.section,
-              status: editing.status,
-              scheduled_for: editing.scheduled_for,
-            }
-          : null,
-    [editing]
-  );
-
   const reload = () => {
     setLoading(true);
     api("/api/presentations")
@@ -75,21 +41,6 @@ export default function Presentations() {
       .catch((err) => { setError(err.message); setLoading(false); });
   };
   useEffect(reload, []);
-
-  // Keep the editor open after a save (teacher may keep tweaking) but
-  // also re-pull from the DB so the list — and any later reopen — is
-  // the saved truth, never a stale snapshot. `editing` keeps its old
-  // object ref so the open editor isn't reset by the refresh.
-  const onSaved = (saved) => {
-    setItems((rows) =>
-      rows.some((r) => r.id === saved.id)
-        ? rows.map((r) => (r.id === saved.id ? saved : r))
-        : [saved, ...rows]
-    );
-    api("/api/presentations")
-      .then((data) => setItems(data))
-      .catch(() => { /* keep optimistic update */ });
-  };
 
   const confirmDelete = async () => {
     setBusy(true);
@@ -111,7 +62,7 @@ export default function Presentations() {
         title={<>{t("pr.titlePlain")}<em className="italic font-light text-accent">{t("pr.titleEm")}</em></>}
         subtitle={t("pr.sub")}
         newLabel={t("pr.new")}
-        onNewManual={() => setEditing("new")}
+        onNewManual={() => onOpenPresentation?.({})}
         aiKind="presentation"
         mode={viewMode}
         onModeChange={setViewMode}
@@ -151,10 +102,14 @@ export default function Presentations() {
           {visibleItems.map((p) => (
             <DataCard
               key={p.id}
-              onEdit={() => setEditing(p)}
+              onEdit={() => onOpenPresentation?.(p)}
               onDelete={() => setDeleting(p)}
             >
-              <div className="pr-16 flex-1 flex flex-col gap-2">
+              <button
+                type="button"
+                onClick={() => onOpenPresentation?.(p)}
+                className="text-left pr-16 flex-1 flex flex-col gap-2"
+              >
                 <span className="font-mono text-[10px] uppercase tracking-wider px-2 py-0.5 bg-paper border border-line text-ink-soft rounded self-start">
                   {p.status}
                 </span>
@@ -162,7 +117,7 @@ export default function Presentations() {
                 <p className="font-mono text-[10px] uppercase tracking-wider text-muted">
                   {p.subject || "—"}{p.grade ? ` · ${p.grade}` : ""} · {(p.slides || []).length} slide{(p.slides || []).length === 1 ? "" : "s"}
                 </p>
-              </div>
+              </button>
               <div className="mt-3 pt-3 border-t border-dashed border-line flex items-center justify-between">
                 <span className="font-mono text-[10px] uppercase tracking-wider text-muted">
                   {timeAgo(p.updated_at)}
@@ -195,7 +150,11 @@ export default function Presentations() {
             </thead>
             <tbody>
               {visibleItems.map((p) => (
-                <tr key={p.id} className="border-b border-line/60 last:border-0 hover:bg-paper-warm transition">
+                <tr
+                  key={p.id}
+                  className="border-b border-line/60 last:border-0 hover:bg-paper-warm transition cursor-pointer"
+                  onClick={() => onOpenPresentation?.(p)}
+                >
                   <td className="py-4 px-5 text-ink">{p.title}</td>
                   <td className="py-4 text-muted">{p.subject || "—"}</td>
                   <td className="py-4 text-muted">{p.grade || "—"}</td>
@@ -206,28 +165,13 @@ export default function Presentations() {
                     </span>
                   </td>
                   <td className="py-4 text-ink-soft text-xs">{timeAgo(p.updated_at)}</td>
-                  <td className="py-4 px-5 text-right">
-                    <ListRowActions onEdit={() => setEditing(p)} onDelete={() => setDeleting(p)} />
+                  <td className="py-4 px-5 text-right" onClick={(e) => e.stopPropagation()}>
+                    <ListRowActions onEdit={() => onOpenPresentation?.(p)} onDelete={() => setDeleting(p)} />
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
-        </div>
-      )}
-
-      {editing && (
-        <div className="fixed inset-0 z-[70] bg-paper overflow-y-auto">
-          <div className="max-w-6xl mx-auto px-5 md:px-8 py-6">
-            <SlideBuilder
-              key={editing === "new" ? "new" : editing.id}
-              deck={editorDeck}
-              presentationId={editing === "new" ? null : editing.id}
-              meta={editorMeta}
-              onSaved={onSaved}
-              onClose={() => { setEditing(null); reload(); }}
-            />
-          </div>
         </div>
       )}
 

@@ -1,11 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Pencil, Trash2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import {
-  Field, Modal, ConfirmDelete, SortHeader, useSortable,
-  AttachmentsList, inputClasses, selectClasses, api,
-  useTeacherClasses,
-  DatePicker,
+  ConfirmDelete, SortHeader, useSortable, api,
 } from "./_shared";
 import {
   DataPageHeader, DataCard, CardsGrid, useViewMode,
@@ -13,12 +9,11 @@ import {
 } from "./_data-view";
 import { useT } from "../lib/i18n";
 
-export default function Homework() {
+export default function Homework({ onOpenHomework }) {
   const t = useT();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [editing, setEditing] = useState(null);
   const [deleting, setDeleting] = useState(null);
   const [busy, setBusy] = useState(false);
   const [viewMode, setViewMode] = useViewMode("mudir.view.homework", "cards");
@@ -41,12 +36,6 @@ export default function Homework() {
   useEffect(() => { setSort({ key: sortField, dir: sortDir }); }, [sortKey, setSort, sortField, sortDir]);
   const sorted = filterByDateScope(sortedAll, scopeRange, (h) => h.due_date);
 
-  const onSaved = (saved, isNew) => {
-    if (isNew) setItems((rows) => [saved, ...rows]);
-    else setItems((rows) => rows.map((r) => (r.id === saved.id ? saved : r)));
-    setEditing(null);
-  };
-
   const confirmDelete = async () => {
     setBusy(true);
     try {
@@ -67,7 +56,7 @@ export default function Homework() {
         title={<><em className="italic font-light text-accent">{t("hw.titleEm")}</em>{t("hw.titlePlain")}</>}
         subtitle={t("hw.sub")}
         newLabel={t("hw.new")}
-        onNewManual={() => setEditing("new")}
+        onNewManual={() => onOpenHomework?.({})}
         aiKind="homework"
         mode={viewMode}
         onModeChange={setViewMode}
@@ -107,10 +96,14 @@ export default function Homework() {
           {sorted.map((h) => (
             <DataCard
               key={h.id}
-              onEdit={() => setEditing(h)}
+              onEdit={() => onOpenHomework?.(h)}
               onDelete={() => setDeleting(h)}
             >
-              <div className="pr-16 flex-1 flex flex-col gap-2">
+              <button
+                type="button"
+                onClick={() => onOpenHomework?.(h)}
+                className="text-left pr-16 flex-1 flex flex-col gap-2"
+              >
                 <span className="font-mono text-[10px] uppercase tracking-wider px-2 py-0.5 bg-paper border border-line text-ink-soft rounded self-start">
                   {h.status}
                 </span>
@@ -126,7 +119,7 @@ export default function Homework() {
                   <Stat label="Due" value={fmtShortDate(h.due_date)} />
                   <Stat label="Section" value={h.section || "—"} />
                 </div>
-              </div>
+              </button>
             </DataCard>
           ))}
         </CardsGrid>
@@ -148,7 +141,11 @@ export default function Homework() {
               </thead>
               <tbody>
                 {sorted.map((h) => (
-                  <tr key={h.id} className="border-b border-line/60 last:border-0 hover:bg-paper-warm transition">
+                  <tr
+                    key={h.id}
+                    className="border-b border-line/60 last:border-0 hover:bg-paper-warm transition cursor-pointer"
+                    onClick={() => onOpenHomework?.(h)}
+                  >
                     <td className="py-4 px-5 text-ink">{h.title}</td>
                     <td className="py-4 text-muted">{h.subject || "—"}</td>
                     <td className="py-4 text-muted">
@@ -162,8 +159,8 @@ export default function Homework() {
                         {h.status}
                       </span>
                     </td>
-                    <td className="py-4 px-5 text-right">
-                      <ListRowActions onEdit={() => setEditing(h)} onDelete={() => setDeleting(h)} />
+                    <td className="py-4 px-5 text-right" onClick={(e) => e.stopPropagation()}>
+                      <ListRowActions onEdit={() => onOpenHomework?.(h)} onDelete={() => setDeleting(h)} />
                     </td>
                   </tr>
                 ))}
@@ -171,14 +168,6 @@ export default function Homework() {
             </table>
           </div>
         </div>
-      )}
-
-      {editing && (
-        <HomeworkModal
-          initial={editing === "new" ? null : editing}
-          onClose={() => setEditing(null)}
-          onSaved={onSaved}
-        />
       )}
 
       <ConfirmDelete
@@ -223,112 +212,3 @@ function ListRowActions({ onEdit, onDelete }) {
     </span>
   );
 }
-
-const EMPTY = {
-  title: "",
-  subject: "",
-  grade: "",
-  section: "",
-  instructions: "",
-  due_date: "",
-  status: "Open",
-  attachments: [],
-};
-
-function HomeworkModal({ initial, onClose, onSaved }) {
-  const { grades: teacherGrades, sections: teacherSections } = useTeacherClasses();
-  const isNew = !initial;
-  const [form, setForm] = useState(() => initial
-    ? {
-        ...EMPTY,
-        ...initial,
-        due_date: initial.due_date ? initial.due_date.slice(0, 10) : "",
-        attachments: Array.isArray(initial.attachments) ? initial.attachments : [],
-      }
-    : EMPTY
-  );
-  const [saving, setSaving] = useState(false);
-  const [err, setErr] = useState(null);
-  const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
-
-  const submit = async () => {
-    setSaving(true); setErr(null);
-    try {
-      const saved = isNew
-        ? await api("/api/homework", { method: "POST", body: form })
-        : await api(`/api/homework/${initial.id}`, { method: "PATCH", body: form });
-      onSaved(saved, isNew);
-    } catch (e) {
-      setErr(e.message);
-      setSaving(false);
-    }
-  };
-
-  return (
-    <Modal
-      open
-      onClose={onClose}
-      eyebrow={isNew ? "New homework" : "Edit homework"}
-      title={isNew ? "Assign homework" : `Edit "${initial.title}"`}
-      wide
-      footer={
-        <>
-          <Button variant="secondary" onClick={onClose} disabled={saving}>Cancel</Button>
-          <Button onClick={submit} disabled={saving}>{saving ? "Saving…" : "Save"}</Button>
-        </>
-      }
-    >
-      {err && <div className="mb-4 bg-paper border border-accent rounded-lg p-3"><p className="text-sm text-accent">{err}</p></div>}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="md:col-span-2">
-          <Field label="Title">
-            <input className={inputClasses} value={form.title} onChange={(e) => set("title", e.target.value)} />
-          </Field>
-        </div>
-        <Field label="Subject">
-          <input className={inputClasses} value={form.subject} onChange={(e) => set("subject", e.target.value)} />
-        </Field>
-        <Field label="Grade">
-          <select className={selectClasses} value={form.grade} onChange={(e) => set("grade", e.target.value)}>
-            <option value="">{teacherGrades.length ? "—" : "No grades on your profile"}</option>
-            {teacherGrades.map((g) => <option key={g} value={g}>{g}</option>)}
-            {form.grade && !teacherGrades.includes(form.grade) && (
-              <option value={form.grade}>{form.grade}</option>
-            )}
-          </select>
-        </Field>
-        <Field label="Section">
-          <select className={selectClasses} value={form.section} onChange={(e) => set("section", e.target.value)}>
-            <option value="">{teacherSections.length ? "—" : "No sections on your profile"}</option>
-            {teacherSections.map((s) => <option key={s} value={s}>{s}</option>)}
-            {form.section && !teacherSections.includes(form.section) && (
-              <option value={form.section}>{form.section}</option>
-            )}
-          </select>
-        </Field>
-        <Field label="Due date">
-          <DatePicker value={form.due_date} onChange={(v) => set("due_date", v)} />
-        </Field>
-        <Field label="Status">
-          <select className={selectClasses} value={form.status} onChange={(e) => set("status", e.target.value)}>
-            <option>Open</option>
-            <option>Closed</option>
-          </select>
-        </Field>
-      </div>
-      <div className="mt-4">
-        <Field label="Instructions">
-          <textarea rows={4} className={inputClasses} value={form.instructions} onChange={(e) => set("instructions", e.target.value)} />
-        </Field>
-      </div>
-      <div className="mt-4">
-        <p className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted mb-2">Attachments (links)</p>
-        <AttachmentsList
-          value={form.attachments}
-          onChange={(v) => set("attachments", v)}
-        />
-      </div>
-    </Modal>
-  );
-}
-

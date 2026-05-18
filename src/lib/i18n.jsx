@@ -169,6 +169,7 @@ const EN = {
   "dr.search": "Search drafts by name, subject, topic…",
   "dr.loading": "Loading drafts from Neon…",
   "dr.empty": "No drafts match the current filters.",
+  "dr.new": "New lesson plan",
   // studio shell
   "studio.pdf": "PDF",
   "studio.copy": "Copy",
@@ -397,6 +398,7 @@ const AR = {
   "dr.search": "ابحث في المسودّات بالاسم أو المادة أو الموضوع…",
   "dr.loading": "جارٍ تحميل المسودّات من Neon…",
   "dr.empty": "لا مسودّات تطابق عوامل التصفية الحالية.",
+  "dr.new": "خطة درس جديدة",
   "studio.pdf": "PDF",
   "studio.copy": "نسخ",
   "studio.copied": "تم النسخ",

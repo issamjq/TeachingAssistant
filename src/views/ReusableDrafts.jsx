@@ -22,7 +22,7 @@ import { useT } from "../lib/i18n";
 
 const STATUSES = ["In progress", "Ready to use", "Blocked", "Paused"];
 
-export default function ReusableDrafts({ onEditDraft }) {
+export default function ReusableDrafts({ onEditDraft, onNewLesson }) {
   const t = useT();
   const [query, setQuery] = useState("");
   const [subjectFilter, setSubjectFilter] = useState("");
@@ -106,6 +106,9 @@ export default function ReusableDrafts({ onEditDraft }) {
         eyebrow={t("dr.eyebrow")}
         title={<>{t("dr.titlePlain")}<em className="italic font-light text-accent">{t("dr.titleEm")}</em></>}
         subtitle={t("dr.sub")}
+        newLabel={t("dr.new")}
+        onNewManual={() => onNewLesson?.()}
+        aiKind="lesson_plan"
         mode={viewMode}
         onModeChange={setViewMode}
         trashEndpoint="/api/drafts"

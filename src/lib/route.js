@@ -6,9 +6,13 @@
 //   "#/dashboard"                      → studio dashboard
 //   "#/lesson-plans/templates"         → lesson plans, templates tab
 //   "#/lesson-plans/drafts"            → lesson plans, drafts tab
-//   "#/lesson-plans/edit-draft/42"     → editing draft id 42
+//   "#/lesson-plans/new"               → new lesson plan builder
+//   "#/lesson-plans/edit/42"           → editing draft id 42
 //   "#/quizzes"                        → quizzes list
+//   "#/quizzes/new"                    → new quiz builder
 //   "#/quizzes/edit/3"                 → quiz builder for id 3
+//   (homework / activities / presentations follow the same
+//    "<section>" + "<section>/new" + "<section>/edit/:id" shape)
 //   "#/database/students"              → class roster, students tab
 //   "#/account"                        → account profile (any role)
 //   "#/admin"                          → admin console (admin role)

@@ -1,11 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { ListChecks, Pencil, Trash2 } from "lucide-react";
-import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
-  Field, Modal, ConfirmDelete,
-  inputClasses, selectClasses, api, timeAgo,
-  DatePicker,
+  Modal, ConfirmDelete, api, timeAgo,
 } from "./_shared";
 import {
   DataPageHeader, DataCard, CardsGrid, useViewMode,
@@ -13,12 +10,11 @@ import {
 } from "./_data-view";
 import { useT } from "../lib/i18n";
 
-export default function Activities() {
+export default function Activities({ onOpenActivity }) {
   const t = useT();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [editing, setEditing] = useState(null);
   const [deleting, setDeleting] = useState(null);
   const [busy, setBusy] = useState(false);
   const [completionsFor, setCompletionsFor] = useState(null);
@@ -48,12 +44,6 @@ export default function Activities() {
   };
   useEffect(reload, []);
 
-  const onSaved = (saved, isNew) => {
-    if (isNew) setItems((rows) => [saved, ...rows]);
-    else setItems((rows) => rows.map((r) => (r.id === saved.id ? saved : r)));
-    setEditing(null);
-  };
-
   const confirmDelete = async () => {
     setBusy(true);
     try {
@@ -74,7 +64,7 @@ export default function Activities() {
         title={<>{t("ac.titlePlain")}<em className="italic font-light text-accent">{t("ac.titleEm")}</em></>}
         subtitle={t("ac.sub")}
         newLabel={t("ac.new")}
-        onNewManual={() => setEditing("new")}
+        onNewManual={() => onOpenActivity?.({})}
         aiKind="activity"
         mode={viewMode}
         onModeChange={setViewMode}
@@ -114,10 +104,14 @@ export default function Activities() {
           {visibleItems.map((a) => (
             <DataCard
               key={a.id}
-              onEdit={() => setEditing(a)}
+              onEdit={() => onOpenActivity?.(a)}
               onDelete={() => setDeleting(a)}
             >
-              <div className="pr-16 flex-1 flex flex-col gap-2">
+              <button
+                type="button"
+                onClick={() => onOpenActivity?.(a)}
+                className="text-left pr-16 flex-1 flex flex-col gap-2"
+              >
                 <span className="font-mono text-[10px] uppercase tracking-wider px-2 py-0.5 bg-paper border border-line text-ink-soft rounded self-start">
                   {a.type || "—"}
                 </span>
@@ -129,7 +123,7 @@ export default function Activities() {
                 {a.instructions && (
                   <p className="text-sm text-ink-soft mt-1 leading-relaxed line-clamp-3">{a.instructions}</p>
                 )}
-              </div>
+              </button>
               <div className="mt-3 pt-3 border-t border-dashed border-line flex items-center justify-between">
                 <span className="font-mono text-[10px] uppercase tracking-wider text-muted">
                   Updated {timeAgo(a.updated_at)}
@@ -162,29 +156,25 @@ export default function Activities() {
             </thead>
             <tbody>
               {visibleItems.map((a) => (
-                <tr key={a.id} className="border-b border-line/60 last:border-0 hover:bg-paper-warm transition">
+                <tr
+                  key={a.id}
+                  className="border-b border-line/60 last:border-0 hover:bg-paper-warm transition cursor-pointer"
+                  onClick={() => onOpenActivity?.(a)}
+                >
                   <td className="py-4 px-5 text-ink">{a.title}</td>
                   <td className="py-4 text-muted">{a.type || "—"}</td>
                   <td className="py-4 text-muted">{a.subject || "—"}</td>
                   <td className="py-4 text-muted">{a.grade || "—"}</td>
                   <td className="py-4 text-ink-soft">{a.duration_minutes ? `${a.duration_minutes} min` : "—"}</td>
                   <td className="py-4 text-ink-soft text-xs">{timeAgo(a.updated_at)}</td>
-                  <td className="py-4 px-5 text-right">
-                    <ListRowActions onEdit={() => setEditing(a)} onDelete={() => setDeleting(a)} />
+                  <td className="py-4 px-5 text-right" onClick={(e) => e.stopPropagation()}>
+                    <ListRowActions onEdit={() => onOpenActivity?.(a)} onDelete={() => setDeleting(a)} />
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
-      )}
-
-      {editing && (
-        <ActivityModal
-          initial={editing === "new" ? null : editing}
-          onClose={() => setEditing(null)}
-          onSaved={onSaved}
-        />
       )}
 
       {completionsFor && (
@@ -203,83 +193,6 @@ export default function Activities() {
         message="This activity will be removed permanently."
       />
     </div>
-  );
-}
-
-function ActivityModal({ initial, onClose, onSaved }) {
-  const isNew = !initial;
-  const [form, setForm] = useState(() => ({
-    title: initial?.title || "",
-    type: initial?.type || "individual",
-    subject: initial?.subject || "",
-    duration_minutes: initial?.duration_minutes || 15,
-    scheduled_for: initial?.scheduled_for ? String(initial.scheduled_for).slice(0, 10) : "",
-    instructions: initial?.instructions || "",
-    materials: initial?.materials || [],
-  }));
-  const [saving, setSaving] = useState(false);
-  const [err, setErr] = useState(null);
-  const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
-
-  const submit = async () => {
-    setSaving(true); setErr(null);
-    // Empty date → null so Postgres doesn't try to cast "" to DATE.
-    const payload = { ...form, scheduled_for: form.scheduled_for || null };
-    try {
-      const saved = isNew
-        ? await api("/api/activities", { method: "POST", body: payload })
-        : await api(`/api/activities/${initial.id}`, { method: "PATCH", body: payload });
-      onSaved(saved, isNew);
-    } catch (e) {
-      setErr(e.message);
-      setSaving(false);
-    }
-  };
-
-  return (
-    <Modal
-      open
-      onClose={onClose}
-      eyebrow={isNew ? "New activity" : "Edit activity"}
-      title={isNew ? "Plan an activity" : `Edit "${initial.title}"`}
-      wide
-      footer={
-        <>
-          <Button variant="secondary" onClick={onClose} disabled={saving}>Cancel</Button>
-          <Button onClick={submit} disabled={saving}>{saving ? "Saving…" : "Save"}</Button>
-        </>
-      }
-    >
-      {err && <div className="mb-4 bg-paper border border-accent rounded-lg p-3"><p className="text-sm text-accent">{err}</p></div>}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="md:col-span-2">
-          <Field label="Title">
-            <input className={inputClasses} value={form.title} onChange={(e) => set("title", e.target.value)} />
-          </Field>
-        </div>
-        <Field label="Type">
-          <select className={selectClasses} value={form.type} onChange={(e) => set("type", e.target.value)}>
-            <option value="individual">Individual</option>
-            <option value="pair">Pair</option>
-            <option value="group">Group</option>
-          </select>
-        </Field>
-        <Field label="Duration (minutes)">
-          <input type="number" className={inputClasses} value={form.duration_minutes ?? ""} onChange={(e) => set("duration_minutes", e.target.value === "" ? null : Number(e.target.value))} />
-        </Field>
-        <Field label="Subject">
-          <input className={inputClasses} value={form.subject} onChange={(e) => set("subject", e.target.value)} />
-        </Field>
-        <Field label="Scheduled for">
-          <DatePicker value={form.scheduled_for} onChange={(v) => set("scheduled_for", v)} />
-        </Field>
-      </div>
-      <div className="mt-4">
-        <Field label="Instructions">
-          <textarea rows={4} className={inputClasses} value={form.instructions} onChange={(e) => set("instructions", e.target.value)} />
-        </Field>
-      </div>
-    </Modal>
   );
 }
 

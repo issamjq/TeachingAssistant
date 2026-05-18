@@ -15,8 +15,11 @@ import Planner from "./views/Planner";
 import Quizzes from "./views/Quizzes";
 import QuizBuilder from "./views/QuizBuilder";
 import Homework from "./views/Homework";
+import HomeworkBuilder from "./views/HomeworkBuilder";
 import Presentations from "./views/Presentations";
+import PresentationBuilder from "./views/PresentationBuilder";
 import Activities from "./views/Activities";
+import ActivityBuilder from "./views/ActivityBuilder";
 import Reports from "./views/Reports";
 import Studio from "./views/Studio";
 import AdminConsole from "./views/AdminConsole";
@@ -148,8 +151,14 @@ export default function StudioApp({ onClose }) {
 
   const goLessonPlans = (subView = "templates") => navigate(["lesson-plans", subView]);
   const goNewTemplate = () => navigate(["lesson-plans", "newTemplate"]);
-  const goEditDraft  = (draft) => navigate(["lesson-plans", "edit-draft", draft.id]);
+  const goNewLesson  = () => navigate(["lesson-plans", "new"]);
+  const goEditDraft  = (draft) => navigate(["lesson-plans", "edit", draft.id]);
+  // All Teaching builders share one routed pattern: no id → <section>/new,
+  // existing row → <section>/edit/:id (mirrors quizzes/new + quizzes/edit/3).
   const goQuizBuilder = (quiz) => navigate(["quizzes", quiz?.id ? "edit" : "new", quiz?.id].filter(Boolean));
+  const goHomework = (hw) => navigate(["homework", hw?.id ? "edit" : "new", hw?.id].filter(Boolean));
+  const goActivity = (ac) => navigate(["activities", ac?.id ? "edit" : "new", ac?.id].filter(Boolean));
+  const goPresentation = (pr) => navigate(["presentations", pr?.id ? "edit" : "new", pr?.id].filter(Boolean));
 
   const handleNavClick = (key) => {
     // Top-level sections that have a default sub-tab pre-fill it so the
@@ -180,11 +189,50 @@ export default function StudioApp({ onClose }) {
   } else if (section === "planner") {
     mainContent = <Planner />;
   } else if (section === "homework") {
-    mainContent = <Homework />;
+    if (sub === "new" || sub === "edit") {
+      crumbs = [
+        { label: "Homework", onClick: () => navigate(["homework"]) },
+        { label: sub === "edit" ? "Edit homework" : "New homework" },
+      ];
+      mainContent = (
+        <HomeworkBuilder
+          homework={sub === "edit" ? { id: Number(extraId) } : null}
+          onClose={() => navigate(["homework"])}
+        />
+      );
+    } else {
+      mainContent = <Homework onOpenHomework={goHomework} />;
+    }
   } else if (section === "presentations") {
-    mainContent = <Presentations />;
+    if (sub === "new" || sub === "edit") {
+      crumbs = [
+        { label: "Presentations", onClick: () => navigate(["presentations"]) },
+        { label: sub === "edit" ? "Edit presentation" : "New presentation" },
+      ];
+      mainContent = (
+        <PresentationBuilder
+          presentation={sub === "edit" ? { id: Number(extraId) } : null}
+          onClose={() => navigate(["presentations"])}
+        />
+      );
+    } else {
+      mainContent = <Presentations onOpenPresentation={goPresentation} />;
+    }
   } else if (section === "activities") {
-    mainContent = <Activities />;
+    if (sub === "new" || sub === "edit") {
+      crumbs = [
+        { label: "Activities", onClick: () => navigate(["activities"]) },
+        { label: sub === "edit" ? "Edit activity" : "New activity" },
+      ];
+      mainContent = (
+        <ActivityBuilder
+          activity={sub === "edit" ? { id: Number(extraId) } : null}
+          onClose={() => navigate(["activities"])}
+        />
+      );
+    } else {
+      mainContent = <Activities onOpenActivity={goActivity} />;
+    }
   } else if (section === "studio") {
     mainContent = <Studio onJump={handleNavClick} initialKind={sub} />;
   } else if (section === "reports") {
@@ -221,7 +269,7 @@ export default function StudioApp({ onClose }) {
     );
 
     const isTemplatesArea = ["templates", "newTemplate"].includes(view);
-    const isDraftsArea    = ["drafts", "edit-draft"].includes(view);
+    const isDraftsArea    = ["drafts", "new", "edit"].includes(view);
 
     let inner;
     switch (view) {
@@ -287,18 +335,20 @@ export default function StudioApp({ onClose }) {
         break;
       case "drafts":
         crumbs.push({ label: "Drafts" });
-        inner = <ReusableDrafts onEditDraft={goEditDraft} />;
+        inner = <ReusableDrafts onEditDraft={goEditDraft} onNewLesson={goNewLesson} />;
         break;
-      case "edit-draft":
+      case "new":
+      case "edit":
         crumbs.push(
           { label: "Drafts", onClick: () => goLessonPlans("drafts") },
-          { label: "Edit lesson plan" }
+          { label: view === "edit" ? "Edit lesson plan" : "New lesson plan" }
         );
         inner = (
           <EditDraft
-            // EditDraft fetches the latest from /api/drafts/:id on mount,
-            // so passing just the id is enough — survives a refresh.
-            draft={extraId ? { id: Number(extraId) } : null}
+            // EditDraft fetches the latest from /api/drafts/:id on mount, so
+            // passing just the id is enough — survives a refresh. With no id
+            // it POSTs a fresh draft on first save (same as QuizBuilder).
+            draft={view === "edit" && extraId ? { id: Number(extraId) } : null}
             onClose={() => goLessonPlans("drafts")}
             onMarkReady={() => goLessonPlans("drafts")}
           />
