@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import {
-  ChevronRight, X, Sparkles, ArrowUpRight, ArrowRight, Crown,
+  ChevronRight, X, Sparkles, ArrowUpRight, ArrowRight, Crown, Menu,
 } from "lucide-react";
 import Dashboard from "./views/Dashboard";
 import TemplatesLibrary from "./views/TemplatesLibrary";
@@ -107,8 +107,13 @@ function NavBadge({ letter, icon, lucide: Lucide }) {
 
 export default function StudioApp({ onClose }) {
   const [role, setRoleState] = useState(getRole());
+  const [navOpen, setNavOpen] = useState(false); // mobile drawer
   const route = useRoute();
   const t = useT();
+
+  // Any route change closes the mobile drawer so the new screen is
+  // visible immediately after tapping a nav item.
+  useEffect(() => { setNavOpen(false); }, [route]);
   // Translate a nav/section key, falling back to its English label when
   // a key isn't in the dictionary yet (phased rollout).
   const navT = (key, fallback) => {
@@ -353,9 +358,10 @@ export default function StudioApp({ onClose }) {
 
   const sidebarActive = section === "account" ? "account" : section;
 
-  return (
-    <div className="h-screen bg-paper flex text-ink font-sans overflow-hidden">
-      <aside className="mudir-sidebar w-64 flex-col flex-shrink-0 hidden md:flex h-full print:hidden">
+  // Sidebar contents — rendered once for the desktop rail and again
+  // inside the mobile drawer, so the navigation is identical everywhere.
+  const sidebarBody = (
+    <>
         {/* Brand block — accent-square mark + Fraunces wordmark. The
             mark plays a one-shot halo on mount and a subtle hover-rotate
             so the sidebar has a small piece of life the moment you
@@ -472,27 +478,93 @@ export default function StudioApp({ onClose }) {
           </div>
           <ChevronRight size={14} className="text-muted flex-shrink-0 rtl:rotate-180" />
         </button>
+    </>
+  );
+
+  return (
+    <div className="h-[100dvh] bg-paper flex text-ink font-sans overflow-hidden">
+      {/* Desktop / iPad-landscape rail */}
+      <aside className="mudir-sidebar w-64 flex-col flex-shrink-0 hidden md:flex h-full print:hidden">
+        {sidebarBody}
       </aside>
 
-      <main className="flex-1 flex flex-col min-w-0 h-full">
+      {/* Mobile / iPad-portrait drawer — the sidebar slides in over a
+          scrim. Identical nav to desktop; closes on any route change. */}
+      <div className={`md:hidden ${navOpen ? "" : "pointer-events-none"}`}>
         <div
-          className={`relative flex-1 pl-8 pt-3 pb-2 overflow-y-auto bg-[#fbf2e6] ${
-            onClose ? "pr-20" : "pr-8"
+          onClick={() => setNavOpen(false)}
+          className={`fixed inset-0 z-40 bg-ink/40 backdrop-blur-sm transition-opacity duration-300 print:hidden ${
+            navOpen ? "opacity-100" : "opacity-0"
+          }`}
+          aria-hidden
+        />
+        <aside
+          className={`mudir-sidebar fixed inset-y-0 start-0 z-50 w-[82vw] max-w-xs flex flex-col h-[100dvh] shadow-2xl transition-transform duration-300 ease-out print:hidden ${
+            navOpen ? "translate-x-0" : "-translate-x-full rtl:translate-x-full"
+          }`}
+          aria-label="Primary"
+          aria-hidden={!navOpen}
+        >
+          <button
+            onClick={() => setNavOpen(false)}
+            aria-label="Close menu"
+            className="absolute top-3 end-3 z-10 h-9 w-9 rounded-md text-ink-soft hover:bg-accent hover:text-paper-cool flex items-center justify-center transition"
+          >
+            <X size={16} />
+          </button>
+          {sidebarBody}
+        </aside>
+      </div>
+
+      <main className="flex-1 flex flex-col min-w-0 h-full">
+        {/* Mobile top bar — the only nav affordance below md */}
+        <div className="md:hidden flex items-center gap-2 px-3 h-14 border-b border-line bg-paper-cool flex-shrink-0 print:hidden">
+          <button
+            onClick={() => setNavOpen(true)}
+            aria-label="Open menu"
+            className="h-10 w-10 rounded-md text-ink hover:bg-paper-warm flex items-center justify-center transition"
+          >
+            <Menu size={20} />
+          </button>
+          <button
+            onClick={() => navigate([DEFAULT_ROUTE[role]])}
+            className="font-serif text-lg font-medium text-ink leading-none flex-1 text-start truncate"
+          >
+            Mudir
+          </button>
+          <LangToggle />
+          {onClose && (
+            <button
+              onClick={onClose}
+              title="Back to landing page"
+              aria-label="Back to landing page"
+              className="h-10 w-10 rounded-md text-ink-soft hover:bg-accent hover:text-paper-cool flex items-center justify-center transition"
+            >
+              <X size={16} />
+            </button>
+          )}
+        </div>
+
+        <div
+          className={`relative flex-1 overflow-y-auto bg-[#fbf2e6] px-4 pt-4 pb-6 sm:px-6 md:pl-8 md:pt-3 md:pb-2 ${
+            onClose ? "md:pr-20" : "md:pr-8"
           }`}
         >
           {onClose && (
             <button
               onClick={onClose}
               title="Back to landing page"
-              className="absolute top-3 right-8 z-20 h-9 w-9 rounded-md text-ink-soft hover:bg-accent hover:text-paper-cool flex items-center justify-center transition print:hidden"
+              className="hidden md:flex absolute top-3 right-8 z-20 h-9 w-9 rounded-md text-ink-soft hover:bg-accent hover:text-paper-cool items-center justify-center transition print:hidden"
             >
               <X size={15} />
             </button>
           )}
           {TEACHING_RAIL_SECTIONS.has(section) ? (
-            <div className="flex gap-6 h-full">
+            <div className="lg:flex lg:gap-6 h-full">
               <div className="flex-1 min-w-0">{mainContent}</div>
-              <TeachingRail />
+              <div className="hidden lg:block flex-shrink-0">
+                <TeachingRail />
+              </div>
             </div>
           ) : (
             mainContent
