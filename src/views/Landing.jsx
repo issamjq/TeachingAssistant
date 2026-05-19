@@ -3354,6 +3354,219 @@ const Workflow = () => {
 };
 
 // =====================================================================
+// MEMBERSHIP — pricing. Scroll-scrubbed like the other acts: the left
+// column reveals (icon + headline + word-by-word sub) while three plan
+// cards rise from below and settle into an overlapping fan, the middle
+// "Popular" card raised. Mudir palette (clay accent — no orange).
+// =====================================================================
+function PlanCardFace({ plan, featured, t, cur }) {
+  const [intp, decp] = String(plan.perMonth).split(".");
+  const note =
+    plan.id === "monthly"
+      ? t("lp.plan.billed.mo")
+      : plan.id === "annual"
+        ? t("lp.plan.yearOff", { n: plan.savePct })
+        : t("lp.plan.save", { n: plan.savePct });
+  return (
+    <div
+      className="h-full w-full rounded-[24px] p-5 flex flex-col text-start"
+      style={{
+        background: featured ? "var(--clay)" : "#fffdf6",
+        color: featured ? "var(--paper)" : "var(--ink)",
+        border: "0.5px solid " + (featured ? "var(--clay)" : "var(--line-strong)"),
+        boxShadow: "0 26px 54px -26px rgba(26,24,20,0.42)",
+      }}
+    >
+      <div className="flex items-center justify-between gap-2">
+        <span className="font-display text-base leading-none">
+          {t(`lp.plan.name.${plan.id}`)}
+        </span>
+        {featured && (
+          <span
+            className="px-2.5 py-1 rounded-full text-[9.5px] font-semibold flex-shrink-0"
+            style={{ background: "var(--paper)", color: "var(--ink)" }}
+          >
+            {t("lp.plan.popular")}
+          </span>
+        )}
+      </div>
+      <div className="mt-auto">
+        <div className="flex items-start gap-1">
+          <span className="text-[12px] mt-1.5" style={{ opacity: 0.7 }}>{cur}</span>
+          <span className="font-display text-[44px] leading-none">{intp}</span>
+          <span className="text-base mt-1">.{decp}</span>
+        </div>
+        <div
+          className="text-[11.5px] mt-2"
+          style={{ color: featured ? "rgba(247,243,236,0.72)" : "var(--ink-3)" }}
+        >
+          {note}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Rest layout per card (px from centre): side cards rotate out and sit
+// lower/behind; the middle "Popular" card is raised and on top.
+const MB_REST = [
+  { x: -182, y: 34, rot: -8, z: 10, sc: 0.97 },
+  { x: 0, y: -30, rot: 0, z: 30, sc: 1.05 },
+  { x: 182, y: 34, rot: 8, z: 10, sc: 0.97 },
+];
+
+const Membership = ({ onEnter }) => {
+  const { t, isRTL } = useI18n();
+  const trackRef = useRef(null);
+  const [q, setQ] = useState(0);
+
+  useEffect(() => {
+    let raf = 0;
+    const onScroll = () => {
+      if (raf) return;
+      raf = requestAnimationFrame(() => {
+        raf = 0;
+        const el = trackRef.current;
+        if (!el) return;
+        const r = el.getBoundingClientRect();
+        const span = r.height - window.innerHeight;
+        setQ(span > 0 ? Math.min(1, Math.max(0, -r.top / span)) : 0);
+      });
+    };
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll);
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onScroll);
+      if (raf) cancelAnimationFrame(raf);
+    };
+  }, []);
+
+  const cur = t("lp.plan.aed");
+  const headIn = easeInOut(seg(q, 0.06, 0.42));
+  const subWords = t("lp.mb.sub").split(" ");
+  const dir = isRTL ? -1 : 1;
+
+  return (
+    <section
+      id="membership"
+      ref={trackRef}
+      className="relative min-h-screen lg:h-[200vh]"
+    >
+      {/* Desktop / iPad-landscape — pinned scroll-scrub */}
+      <div className="hidden lg:flex lg:sticky lg:top-0 lg:h-screen overflow-hidden items-center">
+        <div className="max-w-[1280px] mx-auto px-8 w-full grid grid-cols-2 gap-12 items-center">
+          <div
+            style={{
+              opacity: headIn,
+              transform: `translateY(${(1 - headIn) * 34}px)`,
+            }}
+          >
+            <span
+              className="inline-flex h-10 w-10 rounded-full items-center justify-center mb-7"
+              style={{
+                background: "var(--paper)",
+                border: "0.5px solid var(--line-strong)",
+                color: "var(--clay)",
+              }}
+            >
+              <Sparkles size={16} strokeWidth={2} />
+            </span>
+            <h2 className="font-display text-[clamp(44px,5vw,84px)] leading-[1.0] tracking-tight mb-6">
+              {t("lp.mb.title")}
+            </h2>
+            <p className="text-lg leading-relaxed max-w-md">
+              {subWords.map((w, i) => {
+                const wp = easeInOut(clamp01((q - 0.16 - i * 0.018) / 0.3));
+                return (
+                  <span
+                    key={i}
+                    style={{
+                      display: "inline-block",
+                      marginInlineEnd: "0.24em",
+                      opacity: wp,
+                      filter: `blur(${(1 - wp) * 5}px)`,
+                      color: mix(C_INK3, C_INK2, wp),
+                      willChange: "filter, opacity",
+                    }}
+                  >
+                    {w}
+                  </span>
+                );
+              })}
+            </p>
+          </div>
+
+          <div className="relative h-[440px]">
+            {PLANS.map((p, i) => {
+              const r = MB_REST[i];
+              const cp = easeInOut(seg(q, 0.2 + i * 0.07, 0.82));
+              return (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={onEnter}
+                  aria-label={t(`lp.plan.name.${p.id}`)}
+                  className="absolute left-1/2 top-1/2 w-[224px] h-[210px] bg-transparent p-0 border-0 cursor-pointer focus-visible:outline-none"
+                  style={{
+                    zIndex: r.z,
+                    opacity: clamp01(cp / 0.5),
+                    transform:
+                      `translate(-50%,-50%) ` +
+                      `translate(${r.x * dir * cp}px, ${r.y + (1 - cp) * 280}px) ` +
+                      `rotate(${r.rot * dir * cp}deg) scale(${lerp(0.82, r.sc, cp)})`,
+                    willChange: "transform, opacity",
+                  }}
+                >
+                  <PlanCardFace plan={p} featured={i === 1} t={t} cur={cur} />
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      {/* Mobile / iPad-portrait — static, stacked */}
+      <div className="lg:hidden px-6 py-20">
+        <Reveal>
+          <span
+            className="inline-flex h-10 w-10 rounded-full items-center justify-center mb-6"
+            style={{
+              background: "var(--paper)",
+              border: "0.5px solid var(--line-strong)",
+              color: "var(--clay)",
+            }}
+          >
+            <Sparkles size={16} strokeWidth={2} />
+          </span>
+          <h2 className="font-display text-[clamp(36px,9vw,52px)] leading-[1.04] tracking-tight mb-4">
+            {t("lp.mb.title")}
+          </h2>
+          <p className="text-base leading-relaxed mb-10" style={{ color: "var(--ink-2)" }}>
+            {t("lp.mb.sub")}
+          </p>
+        </Reveal>
+        <div className="grid gap-4 sm:grid-cols-3">
+          {PLANS.map((p, i) => (
+            <CardReveal key={p.id} className={i === 1 ? "sm:-translate-y-3" : ""}>
+              <button
+                type="button"
+                onClick={onEnter}
+                aria-label={t(`lp.plan.name.${p.id}`)}
+                className="block w-full h-[190px] bg-transparent p-0 border-0 cursor-pointer text-start"
+              >
+                <PlanCardFace plan={p} featured={i === 1} t={t} cur={cur} />
+              </button>
+            </CardReveal>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+};
+
+// =====================================================================
 // STUDIO FLOW — auto-playing walkthrough of the real presentation
 // pipeline: open Studio AI from the Planner → describe the deck →
 // Mudir builds it → the finished slides. Content is the real Studio
@@ -4589,6 +4802,8 @@ export default function Landing({ onOpenStudio }) {
           <SectionDivider variant="cascade" />
           <Workflow />
           <SectionDivider variant="cascade" flip />
+          <Membership onEnter={enter} />
+          <SectionDivider variant="wave" />
           <CTA onEnter={enter} signedIn={signedIn} />
         </>
       ) : (

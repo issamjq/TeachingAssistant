@@ -374,6 +374,11 @@ const EN = {
   "lp.plan.best": "Best value",
   "lp.plan.choose": "Choose plan",
   "lp.plan.aed": "AED",
+  "lp.plan.popular": "Popular",
+  "lp.plan.yearOff": "Plus {n}% off for 1 year",
+  // landing — membership section
+  "lp.mb.title": "Membership",
+  "lp.mb.sub": "One simple membership. Every tool, every subject, every grade — drafted with you and ready to teach. Cancel anytime.",
   // accessibility widget
   "a11y.open": "Accessibility tools",
   "a11y.title": "Accessibility",
@@ -769,6 +774,11 @@ const AR = {
   "lp.plan.best": "الأفضل قيمة",
   "lp.plan.choose": "اختر هذه الباقة",
   "lp.plan.aed": "د.إ",
+  "lp.plan.popular": "الأكثر شيوعًا",
+  "lp.plan.yearOff": "بالإضافة إلى خصم {n}% لمدة سنة",
+  // landing — membership section
+  "lp.mb.title": "العضوية",
+  "lp.mb.sub": "عضوية واحدة بسيطة. كل أداة، وكل مادّة، وكل صف — تُصاغ معك وجاهزة للتدريس. ألغِ متى شئت.",
   "a11y.open": "أدوات الوصول",
   "a11y.title": "إمكانية الوصول",
   "a11y.subtitle": "اضبط الصفحة بما يناسبك. تُحفظ اختياراتك على هذا الجهاز.",
