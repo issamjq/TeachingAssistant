@@ -430,14 +430,16 @@ const Hero = ({ onEnter, signedIn }) => {
   //   B  everything converges to one deck (collapse)
   //   C  deck re-fans into a diagonal cascade while a second
   //      headline reveals word-by-word    (reveal)
-  const collapseT = easeInOut(seg(p, 0.14, 0.42)); // arc → deck
-  const fanT = easeInOut(seg(p, 0.52, 0.9)); // deck → cascade
-  const heroOut = seg(p, 0.12, 0.34); // hero title leaves
+  // Continuous timeline — no dead zone: the fan begins the instant the
+  // deck finishes collapsing, so the stack never just sits there.
+  const collapseT = easeInOut(seg(p, 0.1, 0.4)); // arc → deck
+  const fanT = easeInOut(seg(p, 0.4, 0.86)); // deck → cascade (starts as collapse ends)
+  const heroOut = seg(p, 0.08, 0.3); // hero title leaves
   const heroE = easeInOut(heroOut);
-  const bubbleA = 1 - seg(p, 0.1, 0.28); // phase-A pills fade
-  const cIn = easeInOut(seg(p, 0.54, 0.72)); // phase-C frame arrives
-  const pc = seg(p, 0.56, 0.96); // word-reveal scrub
-  const cardsX = lerp(0, 210, easeInOut(seg(p, 0.56, 0.9))); // deck slides right
+  const bubbleA = 1 - seg(p, 0.06, 0.22); // phase-A pills fade
+  const cIn = easeInOut(seg(p, 0.42, 0.62)); // phase-C frame arrives
+  const pc = seg(p, 0.44, 0.92); // word-reveal scrub
+  const cardsX = lerp(0, 210, easeInOut(seg(p, 0.44, 0.86))); // deck slides right
   const bob = Math.sin(p * Math.PI * 2) * 6; // gentle pill float
   const cBody = clamp01((pc - 0.55) / 0.3); // C sub + buttons
 
@@ -454,13 +456,13 @@ const Hero = ({ onEnter, signedIn }) => {
   );
 
   return (
-    <section ref={trackRef} className="relative min-h-screen lg:h-[460vh]">
+    <section ref={trackRef} className="relative min-h-screen lg:h-[200vh]">
       {/* ---------- DESKTOP — pinned 3-phase scroll choreography ---------- */}
       <div className="hidden lg:block lg:sticky lg:top-0 lg:h-screen overflow-hidden">
         <div className="relative max-w-[1280px] mx-auto px-8 h-screen">
           {/* Scene A — hero title (top) */}
           <div
-            className="absolute left-1/2 top-[11vh] w-full max-w-3xl text-center will-change-transform"
+            className="absolute left-1/2 top-[18vh] w-full max-w-3xl text-center will-change-transform"
             style={{
               transform: `translateX(-50%) translateY(${heroE * -80}px)`,
               opacity: 1 - heroOut,
@@ -557,9 +559,9 @@ const Hero = ({ onEnter, signedIn }) => {
           >
             {HERO_CARDS.map((kind, i) => {
               const o = i - mid;
-              // A — wide smile arc
-              const xa = o * 168;
-              const ya = (mid * mid - o * o) * 12 - 30;
+              // A — wide smile arc (centered, contained, vertically balanced)
+              const xa = o * 150;
+              const ya = (mid * mid - o * o) * 12 + 26;
               const ra = o * 9;
               const sa = 1;
               // B — tight centered deck
@@ -679,6 +681,538 @@ const Hero = ({ onEnter, signedIn }) => {
               </div>
             );
           })}
+        </div>
+      </div>
+    </section>
+  );
+};
+
+// =====================================================================
+// HERO JOURNEY — ONE pinned section, ONE card layer, no gap.
+// The seven Mudir cards travel a single continuous path:
+//   A  wide arc + "The teacher directs. Mudir drafts."
+//   B  collapse into a deck
+//   C  diagonal cascade + "Plan, draft, & teach… start to finish."
+//   D  the SAME cards keep sliding while "Whether you're planning…"
+//   E  they file into the Library folder · "The library / One studio."
+// (Replaces the old Hero + ShowcaseScroll seam — the cards never
+// unmount, so there is no empty scroll between the acts.)
+// =====================================================================
+const HeroJourney = ({ onEnter, signedIn }) => {
+  const { t, lang } = useI18n();
+  const ctaLabel = signedIn ? t("lp.nav.openPlanner") : t("lp.cta.subscribe");
+  const C_HEAD = lang === "ar" ? C_HEAD_AR : C_HEAD_EN;
+  const trackRef = useRef(null);
+  const [p, setP] = useState(0);
+
+  useEffect(() => {
+    let raf = 0;
+    const onScroll = () => {
+      if (raf) return;
+      raf = requestAnimationFrame(() => {
+        raf = 0;
+        const el = trackRef.current;
+        if (!el) return;
+        const r = el.getBoundingClientRect();
+        const span = r.height - window.innerHeight;
+        setP(span > 0 ? Math.min(1, Math.max(0, -r.top / span)) : 0);
+      });
+    };
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll);
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onScroll);
+      if (raf) cancelAnimationFrame(raf);
+    };
+  }, []);
+
+  const N = HERO_CARDS.length;
+  const mid = (N - 1) / 2;
+
+  // All pure functions of scroll `p` — one timeline, no dead seam.
+  const heroOut = seg(p, 0.05, 0.15); // hero title leaves
+  const heroE = easeInOut(heroOut);
+  const collapseT = easeInOut(seg(p, 0.07, 0.22)); // arc → deck
+  const fanT = easeInOut(seg(p, 0.22, 0.4)); // deck → cascade (+slide right)
+  const fileT = easeInOut(seg(p, 0.5, 0.74)); // cascade → Library folder
+  const bubbleA = 1 - seg(p, 0.03, 0.12); // phase-A pills fade
+  const cIn = easeInOut(seg(p, 0.26, 0.38)); // phase-C frame arrives
+  const pc = seg(p, 0.28, 0.46); // phase-C word-reveal scrub
+  const cBody = clamp01((pc - 0.55) / 0.3); // C sub + buttons
+  const cOut = seg(p, 0.46, 0.56); // phase-C column leaves
+  const winT = easeInOut(seg(p, 0.66, 0.84)); // Library folder window
+  const h2v = seg(p, 0.56, 0.82); // "One studio…" reveal — starts at the cascade
+  const VISION_HEAD = lang === "ar" ? VISION_HEAD_AR : VISION_HEAD_EN;
+  const VISION_SUB = lang === "ar" ? VISION_SUB_AR : VISION_SUB_EN;
+  // Icons fall the instant "and" (3rd-from-last sub word —
+  // "…and teach it.") begins to reveal. Length-based so EN & AR match.
+  const subAndIdx = Math.max(0, VISION_SUB.length - 3);
+  const honeyActive = p > 0.56 + 0.26 * (0.3 + subAndIdx * 0.02); // ≈0.70 EN
+  const bWin = clamp01((p - 0.82) / 0.05); // @head.of.year
+  const bob = Math.sin(p * Math.PI * 2) * 6; // gentle pill float
+
+  const ARROW = (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+      <path
+        d="M5 3l4 4-4 4"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+
+  return (
+    <section ref={trackRef} className="relative min-h-screen lg:h-[600vh]">
+      {/* ---------- DESKTOP — one pinned, continuous choreography ---------- */}
+      <div className="hidden lg:block lg:sticky lg:top-0 lg:h-screen overflow-hidden">
+        <div className="relative max-w-[1280px] mx-auto px-8 h-screen">
+          {/* Scene A — hero title */}
+          <div
+            className="absolute left-1/2 top-[18vh] w-full max-w-3xl text-center will-change-transform"
+            style={{
+              transform: `translateX(-50%) translateY(${heroE * -80}px)`,
+              opacity: 1 - heroOut,
+              pointerEvents: heroOut > 0.9 ? "none" : "auto",
+              zIndex: 6,
+            }}
+          >
+            <div className="flex items-center justify-center gap-3 mb-6">
+              <span className="w-6 h-px" style={{ background: "var(--ink-3)" }} />
+              <span className="eyebrow">{t("lp.hero.eyebrow")}</span>
+            </div>
+            <h1 className="font-display text-[clamp(44px,5.6vw,92px)] leading-[0.98] tracking-tight">
+              {t("lp.hero.h1a")}{" "}
+              <em style={{ color: "var(--clay)", fontStyle: "italic" }}>
+                {t("lp.hero.brand")}
+              </em>{" "}
+              <span style={{ color: "var(--ink-2)" }}>{t("lp.hero.h1b")}</span>
+            </h1>
+          </div>
+
+          {/* Scene C — "Plan, draft, & teach…" (left column) */}
+          <div
+            className="absolute top-1/2 w-[45%] will-change-transform"
+            style={{
+              insetInlineStart: "2rem",
+              transform: `translateY(calc(-50% + ${lerp(36, 0, cIn)}px))`,
+              opacity: 1 - cOut,
+              pointerEvents: cIn > 0.1 && cOut < 0.9 ? "auto" : "none",
+              zIndex: 6,
+            }}
+          >
+            <div className="flex items-center gap-3 mb-6" style={{ opacity: cIn }}>
+              <span className="w-6 h-px" style={{ background: "var(--clay)" }} />
+              <span className="eyebrow" style={{ color: "var(--clay)" }}>
+                {t("lp.hero.studioEyebrow")}
+              </span>
+            </div>
+            <h2 className="font-display text-[clamp(38px,4.8vw,74px)] leading-[1.04] tracking-tight">
+              {C_HEAD.map((w, i) => {
+                const wp = easeInOut(clamp01((pc - i * 0.05) / 0.34));
+                return (
+                  <span
+                    key={i}
+                    style={{
+                      display: "inline-block",
+                      marginInlineEnd: "0.26em",
+                      opacity: wp,
+                      filter: `blur(${(1 - wp) * 9}px)`,
+                      transform: `translateY(${(1 - wp) * 16}px)`,
+                      color: mix(C_INK3, w.accent ? C_CLAY : C_INK, wp),
+                      fontStyle: w.accent ? "italic" : "normal",
+                      willChange: "filter, transform, opacity",
+                    }}
+                  >
+                    {w.t}
+                  </span>
+                );
+              })}
+            </h2>
+            <div
+              style={{
+                opacity: cBody,
+                transform: `translateY(${(1 - cBody) * 16}px)`,
+              }}
+            >
+              <p
+                className="text-base md:text-lg leading-relaxed mt-7 mb-7 max-w-md"
+                style={{ color: "var(--ink-2)" }}
+              >
+                {t("lp.hero.studioBody")}
+              </p>
+              <div className="flex flex-wrap items-center gap-3">
+                <button
+                  type="button"
+                  onClick={onEnter}
+                  className="btn-primary px-6 py-3.5 rounded-lg text-sm font-medium inline-flex items-center gap-2"
+                >
+                  {ctaLabel}
+                  {ARROW}
+                </button>
+                <a
+                  href="#how"
+                  className="btn-secondary px-6 py-3.5 rounded-lg text-sm font-medium"
+                >
+                  {t("lp.hero.seeHow")}
+                </a>
+              </div>
+            </div>
+          </div>
+
+          {/* Section heading — "The library / One studio…" above the icons */}
+          <div
+            className="absolute left-[4%] top-[23%] w-[42%]"
+            style={{ zIndex: 30 }}
+          >
+            <div
+              className="flex items-center gap-3 mb-6"
+              style={{ opacity: clamp01((p - 0.56) / 0.05) }}
+            >
+              <span className="w-6 h-px" style={{ background: "var(--clay)" }} />
+              <span className="eyebrow" style={{ color: "var(--clay)" }}>
+                {t("lp.show.libraryEyebrow")}
+              </span>
+            </div>
+            <h2 className="font-display text-[clamp(38px,4.8vw,76px)] leading-[1.04] tracking-tight">
+              {VISION_HEAD.map((w, i) => {
+                const wp = easeInOut(clamp01((h2v - i * 0.05) / 0.3));
+                return (
+                  <span
+                    key={i}
+                    style={{
+                      display: "inline-block",
+                      marginInlineEnd: "0.26em",
+                      opacity: wp,
+                      filter: `blur(${(1 - wp) * 9}px)`,
+                      transform: `translateY(${(1 - wp) * 15}px)`,
+                      color: mix(
+                        C_INK3,
+                        w.accent === "clay" ? C_CLAY : C_INK,
+                        wp
+                      ),
+                      fontStyle: w.accent ? "italic" : "normal",
+                      willChange: "filter, transform, opacity",
+                    }}
+                  >
+                    {w.t}
+                  </span>
+                );
+              })}
+            </h2>
+            <p className="text-base md:text-lg leading-relaxed mt-7 max-w-md">
+              {VISION_SUB.map((w, i) => {
+                const wp = easeInOut(clamp01((h2v - 0.3 - i * 0.02) / 0.26));
+                return (
+                  <span
+                    key={i}
+                    style={{
+                      display: "inline-block",
+                      marginInlineEnd: "0.24em",
+                      opacity: wp,
+                      filter: `blur(${(1 - wp) * 6}px)`,
+                      color: mix(C_INK3, C_INK2, wp),
+                      willChange: "filter, opacity",
+                    }}
+                  >
+                    {w}
+                  </span>
+                );
+              })}
+            </p>
+          </div>
+
+          {/* Honeycomb of feature chips — drops in at the folder */}
+          <HoneyDrop active={honeyActive} />
+
+          {/* The Mudir folder window (behind the cards) — chrome only */}
+          <div className="absolute left-1/2 top-1/2" style={{ zIndex: 8 }}>
+            <div
+              className="overflow-hidden"
+              style={{
+                width: 470,
+                height: 520,
+                borderRadius: 26,
+                background: "var(--paper)",
+                border: "0.5px solid var(--line-strong)",
+                boxShadow: "0 50px 110px -40px rgba(42,31,23,0.4)",
+                transform: `translate(-50%,-50%) translate(250px, 22px) scale(${lerp(
+                  0.96,
+                  1,
+                  winT
+                )})`,
+                opacity: winT,
+              }}
+            >
+              {/* Closed folder ("School") tab strip + the New action */}
+              <div
+                className="flex items-center justify-between"
+                style={{ height: 44, paddingInline: 26 }}
+              >
+                <span
+                  className="font-display"
+                  style={{ fontSize: 18, color: "var(--ink-3)" }}
+                >
+                  {t("lp.show.folderBehind")}
+                </span>
+                <span
+                  className="inline-flex items-center gap-1.5 font-mono"
+                  style={{
+                    fontSize: 11,
+                    padding: "7px 13px",
+                    borderRadius: 999,
+                    background: "var(--paper)",
+                    color: "var(--ink)",
+                    border: "0.5px solid var(--line-strong)",
+                    boxShadow: "0 2px 6px -2px rgba(42,31,23,0.18)",
+                  }}
+                >
+                  <Plus size={13} strokeWidth={2.5} />
+                  {t("lp.show.folderNew")}
+                </span>
+              </div>
+              {/* Active folder — the black "Personal" panel cards file into.
+                  Manila-folder silhouette: the tab top runs flat across the
+                  left (carrying the label) and ends in a rounded lobe under
+                  "+ New", where a concave sweep drops to the body's straight
+                  top edge. */}
+              <div className="relative" style={{ height: 476 }}>
+                {/* Body — top edge sits a lip below the raised tab */}
+                <div
+                  style={{
+                    position: "absolute",
+                    left: 0,
+                    right: 0,
+                    top: 48,
+                    bottom: 0,
+                    background: "var(--ink)",
+                    boxShadow:
+                      "0 -1px 0 0 rgba(42,31,23,0.05), 0 26px 44px -28px rgba(42,31,23,0.6)",
+                  }}
+                />
+                {/* Raised tab — flat top across the left, under the label */}
+                <div
+                  style={{
+                    position: "absolute",
+                    left: 0,
+                    right: 168,
+                    top: 0,
+                    height: 76,
+                    background: "var(--ink)",
+                    borderTopLeftRadius: 26,
+                  }}
+                />
+                {/* Sweep — straight diagonal dropping the tab into the
+                    body under "+ New" (the yellow-line contour) */}
+                <svg
+                  width={170}
+                  height={76}
+                  viewBox="0 0 170 76"
+                  style={{ position: "absolute", right: 0, top: 0, display: "block" }}
+                  aria-hidden="true"
+                >
+                  <path
+                    d="M0 0 L 116 48 L 170 48 L 170 76 L 0 76 Z"
+                    fill="var(--ink)"
+                  />
+                </svg>
+                <span
+                  className="absolute inline-flex items-center gap-2 font-display"
+                  style={{
+                    left: 26,
+                    top: 17,
+                    color: "var(--paper)",
+                    fontSize: 18,
+                  }}
+                >
+                  <BookOpen size={15} strokeWidth={2} />
+                  {t("lp.show.folderActive")}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* The ONE card layer — arc → deck → cascade → folder */}
+          <div
+            className="absolute left-1/2 top-1/2 will-change-transform"
+            style={{ zIndex: 20 }}
+          >
+            {HERO_CARDS.map((kind, i) => {
+              const o = i - mid;
+              // A — wide smile arc
+              const xa = o * 150;
+              const ya = (mid * mid - o * o) * 12 + 26;
+              const ra = o * 9;
+              const sa = 1;
+              // B — tight centred deck
+              const xb = o * 6;
+              const yb = o * 2;
+              const rb = o * 0.8;
+              const sb = 0.62;
+              // C — diagonal cascade (slide baked in: + right shift)
+              const xc = o * 60 + 230;
+              const yc = o * 50 + 10;
+              const rc = -8 + i * 2;
+              const sc = 0.82;
+              // G — cell inside the Library folder (7 cards: 3·3·1)
+              const row = Math.floor(i / 3);
+              const rowN = row < 2 ? 3 : 1;
+              const ci = i - row * 3;
+              const gx = 250 + (ci - (rowN - 1) / 2) * 132;
+              const gy = -25 + row * 110;
+              const x = lerp(lerp(lerp(xa, xb, collapseT), xc, fanT), gx, fileT);
+              const y = lerp(lerp(lerp(ya, yb, collapseT), yc, fanT), gy, fileT);
+              const r = lerp(lerp(lerp(ra, rb, collapseT), rc, fanT), 0, fileT);
+              const s = lerp(lerp(lerp(sa, sb, collapseT), sc, fanT), 0.42, fileT);
+              return (
+                <div
+                  key={kind}
+                  className="absolute left-0 top-0 will-change-transform"
+                  style={{
+                    transform: `translate(-50%,-50%) translate(${x}px,${y}px) rotate(${r}deg) scale(${s})`,
+                    zIndex: 10 + i,
+                  }}
+                >
+                  <HeroCardFace kind={kind} />
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Floating handle bubbles */}
+          <Bubble
+            label="@ms.layla"
+            bg="var(--sage)"
+            style={{
+              left: "21%",
+              top: "29%",
+              opacity: bubbleA,
+              transform: `translateY(${bob}px)`,
+              transition: "opacity 0.15s linear",
+              zIndex: 30,
+            }}
+          />
+          <Bubble
+            label="@mr.idris"
+            bg="var(--clay)"
+            style={{
+              right: "21%",
+              top: "25%",
+              opacity: bubbleA,
+              transform: `translateY(${-bob}px)`,
+              transition: "opacity 0.15s linear",
+              zIndex: 30,
+            }}
+          />
+          <Bubble
+            label="@head.of.science"
+            bg="var(--brick)"
+            style={{
+              right: "15%",
+              top: "30%",
+              opacity: clamp01((pc - 0.4) / 0.28) * (1 - cOut),
+              transform: `translateY(${bob}px)`,
+              zIndex: 30,
+            }}
+          />
+          <Bubble
+            label="@head.of.year"
+            bg="var(--sage)"
+            style={{
+              left: "50%",
+              top: "24%",
+              opacity: bWin,
+              transform: `translateX(120px) translateY(${bob}px)`,
+              zIndex: 30,
+            }}
+          />
+        </div>
+      </div>
+
+      {/* ---------- MOBILE — static (no scrub) ---------- */}
+      <div className="lg:hidden px-6 pt-28 pb-12">
+        <div className="flex items-center gap-3 mb-6">
+          <span className="w-6 h-px" style={{ background: "var(--ink-3)" }} />
+          <span className="eyebrow">{t("lp.hero.eyebrow")}</span>
+        </div>
+        <h1 className="font-display text-[clamp(40px,11vw,64px)] leading-[1.0] tracking-tight mb-6">
+          {t("lp.hero.h1a")}{" "}
+          <em style={{ color: "var(--clay)", fontStyle: "italic" }}>
+            {t("lp.hero.brand")}
+          </em>{" "}
+          <span style={{ color: "var(--ink-2)" }}>{t("lp.hero.h1b")}</span>
+        </h1>
+        <p
+          className="text-base leading-relaxed mb-7"
+          style={{ color: "var(--ink-2)" }}
+        >
+          {t("lp.hero.mobileSub")}
+        </p>
+        <div className="flex flex-wrap items-center gap-3 mb-12">
+          <button
+            type="button"
+            onClick={onEnter}
+            className="btn-primary px-6 py-3.5 rounded-lg text-sm font-medium"
+          >
+            {ctaLabel}
+          </button>
+          <a
+            href="#how"
+            className="btn-secondary px-6 py-3.5 rounded-lg text-sm font-medium"
+          >
+            {t("lp.hero.seeHow")}
+          </a>
+        </div>
+        <div className="relative h-[320px] mb-16">
+          {HERO_CARDS.slice(0, 5).map((kind, i) => {
+            const o = i - 2;
+            return (
+              <div
+                key={kind}
+                className="absolute left-1/2 top-1/2"
+                style={{
+                  transform: `translate(-50%,-50%) translate(${o * 26}px,${
+                    Math.abs(o) * 10
+                  }px) rotate(${o * 5}deg) scale(0.6)`,
+                  zIndex: 10 + i,
+                }}
+              >
+                <HeroCardFace kind={kind} />
+              </div>
+            );
+          })}
+        </div>
+        <div className="flex items-center gap-3 mb-6">
+          <span className="w-6 h-px" style={{ background: "var(--clay)" }} />
+          <span className="eyebrow" style={{ color: "var(--clay)" }}>
+            {t("lp.show.libraryEyebrow")}
+          </span>
+        </div>
+        <h2 className="font-display text-[clamp(32px,8vw,48px)] leading-[1.08] tracking-tight mb-5">
+          {t("lp.show.visionA")}{" "}
+          <em style={{ color: "var(--clay)", fontStyle: "italic" }}>
+            {t("lp.show.visionEm")}
+          </em>{" "}
+          {t("lp.show.visionB")}
+        </h2>
+        <p
+          className="text-base leading-relaxed mb-10"
+          style={{ color: "var(--ink-2)" }}
+        >
+          {t("lp.show.visionSub")}
+        </p>
+        <div className="grid grid-cols-2 gap-3">
+          {HERO_CARDS.slice(0, 4).map((kind) => (
+            <div
+              key={kind}
+              style={{ transform: "scale(0.62)", transformOrigin: "top left" }}
+            >
+              <HeroCardFace kind={kind} />
+            </div>
+          ))}
         </div>
       </div>
     </section>
@@ -1017,32 +1551,36 @@ const ShowcaseScroll = () => {
     };
   }, []);
 
-  const CARDS = SHOW_CARDS.slice(0, 6);
+  // SAME cards as the hero — they carry continuously from the hero's
+  // cascade into the Library folder (no separate subject deck).
+  const CARDS = HERO_CARDS.slice(0, 6);
   const N = CARDS.length;
   const mid = (N - 1) / 2;
 
-  // Card phase sub-progress. Cards stay small/scattered low while the
-  // headline reads, THEN converge — so the two never sit on top of each
-  // other fully opaque.
-  const g1 = easeInOut(seg(q, 0.16, 0.32)); // S → M  (converge)
-  const g2 = easeInOut(seg(q, 0.32, 0.52)); //  M → E  (cascade)
-  const g3 = easeInOut(seg(q, 0.54, 0.82)); // E → G  (travel to grid)
+  // ONE continuous motion. The section opens on the SAME diagonal
+  // cascade the hero left its cards in (so the seam reads as one move),
+  // then the cards file themselves into the Library folder. A short
+  // hold up front is the hero hand-off beat, not a dead zone — the
+  // bubbles + bob keep it alive.
+  const gFile = easeInOut(seg(q, 0.06, 0.6)); // entry cascade → folder grid
 
-  // Headline #1 — centred. Reveals first (cards still low/small), then
-  // fades + drifts up as the cards converge over it.
-  const h1 = seg(q, 0.03, 0.2);
-  const head1Out = seg(q, 0.2, 0.34);
-  const head1Up = easeInOut(seg(q, 0.2, 0.4)) * -70;
+  // Headline #1 — centred. Holds under the cascade, then reveals as the
+  // cards file away to the right and clear the centre.
+  const h1 = seg(q, 0.22, 0.44);
+  const head1Out = seg(q, 0.5, 0.64);
+  const head1Up = easeInOut(seg(q, 0.5, 0.68)) * -70;
 
-  // Library window + headline #2 + honeycomb (grid phase)
-  const winT = easeInOut(seg(q, 0.58, 0.82));
-  const h2 = seg(q, 0.68, 0.97);
-  const honeyActive = q > 0.8; // start the drop once "grade" is revealed
+  // Library folder window + headline #2 + honeycomb (folder phase)
+  const winT = easeInOut(seg(q, 0.42, 0.66));
+  const h2 = seg(q, 0.64, 0.97);
+  const honeyActive = q > 0.78; // start the drop once "grade" is revealed
 
   const bob = Math.sin(q * Math.PI * 2) * 6;
-  const bCasc =
-    clamp01((q - 0.3) / 0.05) * (1 - clamp01((q - 0.52) / 0.06));
-  const bWin = clamp01((q - 0.74) / 0.06);
+  // Teacher bubbles flank the entry cascade (the hero hand-off moment),
+  // then fade as the cards file into the folder.
+  const bStack =
+    clamp01((q - 0.04) / 0.05) * (1 - clamp01((q - 0.22) / 0.07));
+  const bWin = clamp01((q - 0.68) / 0.06);
 
   const colOff = [-140, 0, 140];
   // Top row pushed down so it clears the header + folder tabs (the
@@ -1050,7 +1588,7 @@ const ShowcaseScroll = () => {
   const rowOff = [-6, 184];
 
   return (
-    <section ref={trackRef} className="relative min-h-screen lg:h-[680vh]">
+    <section ref={trackRef} className="relative min-h-screen lg:h-[480vh]">
       {/* ---------- DESKTOP — one pinned, continuous choreography ---------- */}
       <div className="hidden lg:block lg:sticky lg:top-0 lg:h-screen overflow-hidden">
         <div className="relative max-w-[1280px] mx-auto px-8 h-screen">
@@ -1193,24 +1731,54 @@ const ShowcaseScroll = () => {
                   <Plus size={13} strokeWidth={2.5} /> New
                 </span>
               </div>
-              {/* Active folder — full-width band stacked UNDER the
-                  header (not side tabs), with the concave curve scooped
-                  out of its top-right under the "+ New", exactly like
-                  the reference. */}
-              <div
-                className="relative"
-                style={{
-                  height: 62,
-                  background: "var(--ink)",
-                  borderTopLeftRadius: 20,
-                  boxShadow: "0 18px 30px -20px rgba(42,31,23,0.55)",
-                }}
-              >
+              {/* Active folder — manila-folder silhouette: the tab top
+                  runs flat across the left (carrying the label) and ends
+                  in a rounded lobe under "+ New", where a concave sweep
+                  drops to the body's straight top edge. */}
+              <div className="relative" style={{ height: 62 }}>
+                {/* Body — top edge sits a lip below the raised tab */}
+                <div
+                  style={{
+                    position: "absolute",
+                    left: 0,
+                    right: 0,
+                    top: 24,
+                    bottom: 0,
+                    background: "var(--ink)",
+                    boxShadow: "0 18px 30px -20px rgba(42,31,23,0.55)",
+                  }}
+                />
+                {/* Raised tab — flat top across the left, under the label */}
+                <div
+                  style={{
+                    position: "absolute",
+                    left: 0,
+                    right: 138,
+                    top: 0,
+                    height: 46,
+                    background: "var(--ink)",
+                    borderTopLeftRadius: 20,
+                  }}
+                />
+                {/* Sweep — straight diagonal dropping the tab into the
+                    body under "+ New" (the yellow-line contour) */}
+                <svg
+                  width={140}
+                  height={46}
+                  viewBox="0 0 140 46"
+                  style={{ position: "absolute", right: 0, top: 0, display: "block" }}
+                  aria-hidden="true"
+                >
+                  <path
+                    d="M0 0 L 96 24 L 140 24 L 140 46 L 0 46 Z"
+                    fill="var(--ink)"
+                  />
+                </svg>
                 <span
                   className="absolute inline-flex items-center gap-2"
                   style={{
                     left: 26,
-                    top: "50%",
+                    top: 23,
                     transform: "translateY(-50%)",
                     color: "var(--paper)",
                     fontFamily: "'Fraunces', serif",
@@ -1220,18 +1788,6 @@ const ShowcaseScroll = () => {
                   <BookOpen size={15} strokeWidth={2} />
                   Personal
                 </span>
-                {/* Concave quarter-circle scooped from the top-right */}
-                <div
-                  style={{
-                    position: "absolute",
-                    top: 0,
-                    right: 0,
-                    width: 46,
-                    height: 46,
-                    background: "var(--paper)",
-                    borderBottomLeftRadius: 46,
-                  }}
-                />
               </div>
             </div>
           </div>
@@ -1240,40 +1796,31 @@ const ShowcaseScroll = () => {
           <div className="absolute left-1/2 top-1/2" style={{ zIndex: 20 }}>
             {CARDS.map((c, i) => {
               const o = i - mid;
-              // S — small, low, lightly scattered
-              const xs = o * 6;
-              const ys = 80;
-              const rs = o * 3;
-              const ss = 0.3;
-              // M — centred portrait stack
-              const xm = o * 6;
-              const ym = o * 1.5;
-              const rm = o * 1.4;
-              const sm = 0.92;
-              // E — centred diagonal cascade
-              const xe = o * 92;
-              const ye = o * 70;
-              const re = -10 + i * 2.6;
-              const se = 0.84;
-              // G — grid cell inside the Library window
+              // C — entry cascade: the SAME diagonal arrangement the
+              // hero left its cards in, sitting over the folder zone so
+              // the section reads as one continuous motion.
+              const cx = o * 64 + 300;
+              const cy = o * 52 + 8;
+              const cr = -8 + i * 2.4;
+              const cs = 0.82;
+              // G — grid cell inside the Library folder
               const gx = 250 + colOff[i % 3];
               const gy = -10 + rowOff[Math.floor(i / 3)];
-              const base = (a, b, cc, d) =>
-                lerp(lerp(lerp(a, b, g1), cc, g2), d, g3);
-              const x = base(xs, xm, xe, gx);
-              const y = base(ys, ym, ye, gy);
-              const r = base(rs, rm, re, 0);
-              const s = base(ss, sm, se, 0.46);
+              const base = (a, d) => lerp(a, d, gFile);
+              const x = base(cx, gx);
+              const y = base(cy, gy);
+              const r = base(cr, 0);
+              const s = base(cs, 0.5);
               return (
                 <div
-                  key={c.k}
+                  key={c}
                   className="absolute left-0 top-0 will-change-transform"
                   style={{
                     transform: `translate(-50%,-50%) translate(${x}px,${y}px) rotate(${r}deg) scale(${s})`,
                     zIndex: 10 + i,
                   }}
                 >
-                  <ShowCardFace c={c} />
+                  <HeroCardFace kind={c} />
                 </div>
               );
             })}
@@ -1286,7 +1833,7 @@ const ShowcaseScroll = () => {
             style={{
               left: "21%",
               top: "31%",
-              opacity: bCasc,
+              opacity: bStack,
               transform: `translateY(${bob}px)`,
               zIndex: 30,
             }}
@@ -1297,7 +1844,7 @@ const ShowcaseScroll = () => {
             style={{
               right: "21%",
               top: "27%",
-              opacity: bCasc,
+              opacity: bStack,
               transform: `translateY(${-bob}px)`,
               zIndex: 30,
             }}
@@ -1329,7 +1876,7 @@ const ShowcaseScroll = () => {
             const o = i - 2;
             return (
               <div
-                key={c.k}
+                key={c}
                 className="absolute left-1/2 top-1/2"
                 style={{
                   transform: `translate(-50%,-50%) translate(${o * 30}px,${
@@ -1338,7 +1885,7 @@ const ShowcaseScroll = () => {
                   zIndex: 10 + i,
                 }}
               >
-                <ShowCardFace c={c} />
+                <HeroCardFace kind={c} />
               </div>
             );
           })}
@@ -1365,10 +1912,10 @@ const ShowcaseScroll = () => {
         <div className="grid grid-cols-2 gap-3">
           {CARDS.slice(0, 4).map((c) => (
             <div
-              key={c.k}
+              key={c}
               style={{ transform: "scale(0.62)", transformOrigin: "top left" }}
             >
-              <ShowCardFace c={c} />
+              <HeroCardFace kind={c} />
             </div>
           ))}
         </div>
@@ -4794,8 +5341,7 @@ export default function Landing({ onOpenStudio }) {
       <Nav onEnter={enter} signedIn={signedIn} onJump={jump} onPage={goPage} />
       {page === "home" ? (
         <>
-          <Hero onEnter={enter} signedIn={signedIn} />
-          <ShowcaseScroll />
+          <HeroJourney onEnter={enter} signedIn={signedIn} />
           <CommunityScroll />
           <SectionDivider variant="wave" />
           <TeacherShowcase />

@@ -227,6 +227,9 @@ const EN = {
   // landing — showcase
   "lp.show.libraryEyebrow": "The library",
   "lp.show.libraryWin": "Library",
+  "lp.show.folderActive": "Personal",
+  "lp.show.folderBehind": "School",
+  "lp.show.folderNew": "New",
   "lp.show.mHeadA": "Whether you're planning tomorrow's lesson or building a full unit —",
   "lp.show.mHeadB": "turns intent into",
   "lp.show.mHeadAccent": "classroom-ready",
@@ -627,6 +630,9 @@ const AR = {
   // landing — showcase
   "lp.show.libraryEyebrow": "المكتبة",
   "lp.show.libraryWin": "المكتبة",
+  "lp.show.folderActive": "شخصي",
+  "lp.show.folderBehind": "المدرسة",
+  "lp.show.folderNew": "جديد",
   "lp.show.mHeadA": "سواء تُحضّر درس الغد أو تبني وحدة كاملة —",
   "lp.show.mHeadB": "يحوّل النيّة إلى",
   "lp.show.mHeadAccent": "مادّة جاهزة",
