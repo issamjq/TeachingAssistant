@@ -298,60 +298,91 @@ export default function ProfileForm({ onDone, onBack }) {
         )}
 
         {step === "students" && (
-          <div className="space-y-4">
-            <div className="grid sm:grid-cols-2 gap-3">
-              <button
-                type="button"
-                onClick={handleTemplateDownload}
-                className="flex items-center gap-3 px-4 py-3 rounded-xl border border-line bg-paper-cool hover:border-ink/40 transition-colors text-start"
-              >
-                <span className="inline-flex h-10 w-10 rounded-lg bg-accent/10 text-accent items-center justify-center flex-shrink-0">
-                  <Download size={18} />
+          <div className="space-y-5">
+            {/* Three numbered steps — keeps the flow obvious for
+                non-technical teachers. Steps 1 and 3 carry their
+                action buttons inline so the order matches the
+                reading order. Step 2 is just text. */}
+            <ol className="space-y-3">
+              <li className="flex items-start gap-3">
+                <span className="flex-shrink-0 inline-flex h-7 w-7 rounded-full bg-accent text-paper-cool font-mono text-[12px] font-semibold items-center justify-center">
+                  1
                 </span>
-                <span className="flex-1 min-w-0">
-                  <span className="block text-sm font-medium text-ink leading-tight">
-                    {t("onb.students.tplBtn")}
-                  </span>
-                  <span className="block text-[11.5px] text-muted leading-snug mt-0.5">
-                    {t("onb.students.tplHint")}
-                  </span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-ink leading-tight">
+                    {t("onb.students.s1.title")}
+                  </p>
+                  <p className="text-[12.5px] text-muted leading-snug mt-0.5 mb-2">
+                    {t("onb.students.s1.body")}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={handleTemplateDownload}
+                    className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg border border-line bg-paper-cool hover:border-ink/40 transition-colors text-[13px] font-medium text-ink"
+                  >
+                    <Download size={14} className="text-accent" />
+                    {t("onb.students.s1.btn")}
+                  </button>
+                </div>
+              </li>
+
+              <li className="flex items-start gap-3">
+                <span className="flex-shrink-0 inline-flex h-7 w-7 rounded-full bg-accent text-paper-cool font-mono text-[12px] font-semibold items-center justify-center">
+                  2
                 </span>
-              </button>
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className="flex items-center gap-3 px-4 py-3 rounded-xl border border-line bg-paper-cool hover:border-ink/40 transition-colors text-start"
-              >
-                <span className="inline-flex h-10 w-10 rounded-lg bg-ink/[0.06] text-ink items-center justify-center flex-shrink-0">
-                  <Upload size={18} />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-ink leading-tight">
+                    {t("onb.students.s2.title")}
+                  </p>
+                  <p className="text-[12.5px] text-muted leading-snug mt-0.5">
+                    {t("onb.students.s2.body")}
+                  </p>
+                </div>
+              </li>
+
+              <li className="flex items-start gap-3">
+                <span className="flex-shrink-0 inline-flex h-7 w-7 rounded-full bg-accent text-paper-cool font-mono text-[12px] font-semibold items-center justify-center">
+                  3
                 </span>
-                <span className="flex-1 min-w-0">
-                  <span className="block text-sm font-medium text-ink leading-tight">
-                    {t("onb.students.uploadBtn")}
-                  </span>
-                  <span className="block text-[11.5px] text-muted leading-snug mt-0.5">
-                    {t("onb.students.uploadHint")}
-                  </span>
-                </span>
-              </button>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".csv,text/csv"
-                onChange={(e) => handleFile(e.target.files?.[0])}
-                className="hidden"
-              />
-            </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-ink leading-tight">
+                    {t("onb.students.s3.title")}
+                  </p>
+                  <p className="text-[12.5px] text-muted leading-snug mt-0.5 mb-2">
+                    {t("onb.students.s3.body")}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg border border-line bg-paper-cool hover:border-ink/40 transition-colors text-[13px] font-medium text-ink"
+                  >
+                    <Upload size={14} className="text-ink" />
+                    {t("onb.students.s3.btn")}
+                  </button>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".csv,text/csv"
+                    onChange={(e) => handleFile(e.target.files?.[0])}
+                    className="hidden"
+                  />
+                </div>
+              </li>
+            </ol>
+
+            <p className="text-[12px] text-muted italic">
+              {t("onb.students.skipNote")}
+            </p>
 
             {importError && (
-              <p className="text-[12px] text-accent">{importError}</p>
+              <p className="text-[12.5px] text-accent">{importError}</p>
             )}
 
-            {students.length > 0 ? (
-              <div className="rounded-xl border border-line bg-paper-cool overflow-hidden">
-                <div className="flex items-center justify-between gap-2 px-4 py-2.5 border-b border-line bg-paper-warm/40">
-                  <div className="flex items-center gap-2 text-[12.5px] text-ink">
-                    <FileText size={14} className="text-accent" />
+            {students.length > 0 && (
+              <div className="rounded-xl border border-sage/40 bg-sage/[0.06] overflow-hidden">
+                <div className="flex items-center justify-between gap-2 px-4 py-2.5 border-b border-sage/30">
+                  <div className="flex items-center gap-2 text-[13px] text-ink">
+                    <FileText size={14} className="text-sage" />
                     <span className="font-medium">
                       {t("onb.students.parsed", { n: students.length })}
                     </span>
@@ -364,7 +395,7 @@ export default function ProfileForm({ onDone, onBack }) {
                     <X size={12} /> {t("onb.students.clear")}
                   </button>
                 </div>
-                <ul className="max-h-[180px] overflow-y-auto divide-y divide-line">
+                <ul className="max-h-[160px] overflow-y-auto divide-y divide-sage/20">
                   {students.slice(0, 6).map((s, i) => (
                     <li key={i} className="px-4 py-2 text-[12.5px] flex items-center gap-2">
                       <span className="font-medium text-ink truncate">
@@ -382,10 +413,6 @@ export default function ProfileForm({ onDone, onBack }) {
                   )}
                 </ul>
               </div>
-            ) : (
-              <p className="text-[12.5px] text-muted italic">
-                {t("onb.students.empty")}
-              </p>
             )}
           </div>
         )}
