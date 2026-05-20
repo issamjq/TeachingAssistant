@@ -26,7 +26,7 @@ import DevConsole from "./views/DevConsole";
 import { getRole, onRoleChange, ROLE_LABELS } from "./lib/role";
 import { api } from "./views/_shared";
 import { useRoute, navigate, replace, clearRoute } from "./lib/route";
-import { useT } from "./lib/i18n";
+import { useT, LangToggle } from "./lib/i18n";
 import { useAccount, clearAccount } from "./lib/account";
 import AccountMenu from "./views/AccountMenu";
 import HelpPopover from "./views/HelpPopover";
