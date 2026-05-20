@@ -12,8 +12,8 @@
 //
 // Submit on step 3 writes a pending profile to localStorage and calls
 // onDone() so the funnel advances to the plan picker.
-import React, { useRef, useState } from "react";
-import { ChevronRight, ChevronLeft, Check, Download, Upload, FileText, X } from "lucide-react";
+import React, { useMemo, useRef, useState } from "react";
+import { ChevronRight, ChevronLeft, Check, Download, Upload, FileText, X, Plus } from "lucide-react";
 import { MAJORS, GRADE_LEVELS, QUIZ_LANGUAGES, QUIZ_SECTIONS } from "../../lib/enums";
 import {
   setPendingProfile, getPendingProfile,
@@ -283,6 +283,9 @@ export default function ProfileForm({ onDone, onBack }) {
                 onToggle={(v) => toggleIn("sections", v)}
                 onSetAll={(next) => set({ sections: next })}
                 allLabel={t("onb.all.sections")}
+                onAdd={(v) => set({ sections: [...data.sections, v] })}
+                addPlaceholder={t("onb.fld.addSection.ph")}
+                addButtonLabel={t("onb.fld.addSection.btn")}
               />
             </Field>
             <Field label={t("onb.fld.bio")} hint={t("onb.fld.optional")}>
@@ -503,41 +506,91 @@ function Field({ label, hint, required, children }) {
   );
 }
 
-function ChipPicker({ options, selected, onToggle, onSetAll, allLabel }) {
+function ChipPicker({
+  options, selected, onToggle, onSetAll, allLabel,
+  onAdd, addPlaceholder, addButtonLabel,
+}) {
+  // Render the predefined options PLUS any custom items already in
+  // `selected` (so a teacher who added "Maths Track" still sees it).
+  // Custom chips toggle off the same way as predefined ones — clicking
+  // an unselected custom chip re-adds it through onToggle.
+  const allOptions = useMemo(() => {
+    const seen = new Set(options);
+    const extras = selected.filter((v) => !seen.has(v));
+    return [...options, ...extras];
+  }, [options, selected]);
+
   const allOn = onSetAll && options.every((o) => selected.includes(o));
+  const [draft, setDraft] = useState("");
+  const handleAdd = () => {
+    const v = draft.trim();
+    if (!v) return;
+    // Only push if it's not already selected, so adding a duplicate is a no-op.
+    if (!selected.includes(v)) onAdd?.(v);
+    setDraft("");
+  };
+
   return (
-    <div className="flex flex-wrap gap-1.5">
-      {onSetAll && (
-        <button
-          type="button"
-          onClick={() => onSetAll(allOn ? [] : [...options])}
-          aria-pressed={allOn}
-          className={`px-3 py-1.5 rounded-full text-[12.5px] font-semibold border transition-colors ${
-            allOn
-              ? "bg-accent text-paper-cool border-accent"
-              : "bg-paper-cool text-accent border-accent hover:bg-accent/10"
-          }`}
-        >
-          {allLabel}
-        </button>
-      )}
-      {options.map((opt) => {
-        const on = selected.includes(opt);
-        return (
+    <div className="space-y-2">
+      <div className="flex flex-wrap gap-1.5">
+        {onSetAll && (
           <button
-            key={opt}
             type="button"
-            onClick={() => onToggle(opt)}
-            className={`px-3 py-1.5 rounded-full text-[12.5px] font-medium border transition-colors ${
-              on
-                ? "bg-ink text-paper-cool border-ink"
-                : "bg-paper-cool text-ink border-line hover:border-ink"
+            onClick={() => onSetAll(allOn ? [] : [...options])}
+            aria-pressed={allOn}
+            className={`px-3 py-1.5 rounded-full text-[12.5px] font-semibold border transition-colors ${
+              allOn
+                ? "bg-accent text-paper-cool border-accent"
+                : "bg-paper-cool text-accent border-accent hover:bg-accent/10"
             }`}
           >
-            {opt}
+            {allLabel}
           </button>
-        );
-      })}
+        )}
+        {allOptions.map((opt) => {
+          const on = selected.includes(opt);
+          return (
+            <button
+              key={opt}
+              type="button"
+              onClick={() => onToggle(opt)}
+              className={`px-3 py-1.5 rounded-full text-[12.5px] font-medium border transition-colors ${
+                on
+                  ? "bg-ink text-paper-cool border-ink"
+                  : "bg-paper-cool text-ink border-line hover:border-ink"
+              }`}
+            >
+              {opt}
+            </button>
+          );
+        })}
+      </div>
+      {onAdd && (
+        <div className="flex items-center gap-2 max-w-sm">
+          <input
+            type="text"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                handleAdd();
+              }
+            }}
+            placeholder={addPlaceholder}
+            className="onb-input flex-1 !py-1.5 !text-[12.5px]"
+          />
+          <button
+            type="button"
+            onClick={handleAdd}
+            disabled={!draft.trim()}
+            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-line bg-paper-cool text-[12.5px] font-medium text-ink hover:border-ink disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          >
+            <Plus size={12} />
+            {addButtonLabel}
+          </button>
+        </div>
+      )}
     </div>
   );
 }
