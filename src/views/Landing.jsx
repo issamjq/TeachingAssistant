@@ -5006,11 +5006,20 @@ const fieldStyle = {
   color: "var(--ink)",
 };
 
-function PageShell({ eyebrow, title, em, lead, onPage, children, narrow }) {
+function PageShell({ eyebrow, title, em, lead, onPage, children, narrow, centered }) {
   const t = useT();
+  // `centered` switches the shell to a vertically-centered flex layout
+  // — used by short pages like AuthPage that otherwise float at the
+  // top of a near-empty viewport. Long content pages keep the default.
   return (
-    <main className="pt-28 md:pt-32 pb-28 min-h-screen">
-      <div className={`${narrow ? "max-w-xl" : "max-w-3xl"} mx-auto px-8`}>
+    <main
+      className={
+        centered
+          ? "min-h-[100dvh] flex items-center justify-center px-8 py-20"
+          : "pt-28 md:pt-32 pb-28 min-h-screen"
+      }
+    >
+      <div className={`${narrow ? "max-w-xl" : "max-w-3xl"} ${centered ? "w-full" : "mx-auto px-8"}`}>
         <button
           type="button"
           onClick={() => onPage("home")}
@@ -5166,6 +5175,7 @@ function AuthPage({ onSignUp, onPage }) {
       lead={t("lp.auth.lead")}
       onPage={onPage}
       narrow
+      centered
     >
       <div className="space-y-3 max-w-sm">
         <ProviderButton
