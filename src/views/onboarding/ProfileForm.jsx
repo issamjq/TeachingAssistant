@@ -373,28 +373,6 @@ export default function ProfileForm({ onDone, onBack }) {
               </li>
             </ol>
 
-            {/* Explicit Skip button — easier to spot than the small
-                italic line we used to have, and clearer than expecting
-                the teacher to interpret "Continue to plan" as "skip". */}
-            <div className="pt-1">
-              <button
-                type="button"
-                onClick={() => {
-                  setStudents([]);
-                  setImportError(null);
-                  setPendingProfile(data);
-                  setPendingStudents([]);
-                  onDone?.({ ...data, students: [] });
-                }}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-dashed border-line bg-paper-cool hover:border-ink hover:bg-paper-warm transition-colors text-[13px] font-medium text-ink"
-              >
-                {t("onb.students.skipBtn")}
-              </button>
-              <p className="text-[12px] text-muted mt-2 leading-snug">
-                {t("onb.students.skipNote")}
-              </p>
-            </div>
-
             {importError && (
               <p className="text-[12.5px] text-accent">{importError}</p>
             )}
@@ -438,7 +416,7 @@ export default function ProfileForm({ onDone, onBack }) {
           </div>
         )}
 
-        <div className="mt-10 flex items-center justify-between gap-3">
+        <div className="mt-10 flex items-start justify-between gap-3">
           <button
             type="button"
             onClick={back}
@@ -448,15 +426,38 @@ export default function ProfileForm({ onDone, onBack }) {
             <ChevronLeft size={16} className="rtl:rotate-180" />
             {stepIdx === 0 ? t("onb.back.signin") : t("onb.back.step")}
           </button>
-          <button
-            type="button"
-            onClick={next}
-            disabled={!valid}
-            className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-lg text-sm font-medium btn-primary disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            {last ? t("onb.finish") : t("onb.next")}
-            {last ? <Check size={16} /> : <ChevronRight size={16} className="rtl:rotate-180" />}
-          </button>
+          <div className="flex flex-col items-end gap-2">
+            <button
+              type="button"
+              onClick={next}
+              disabled={!valid}
+              className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-lg text-sm font-medium btn-primary disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {last ? t("onb.finish") : t("onb.next")}
+              {last ? <Check size={16} /> : <ChevronRight size={16} className="rtl:rotate-180" />}
+            </button>
+            {/* Skip is only meaningful on the students step (last + optional). */}
+            {step === "students" && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStudents([]);
+                    setImportError(null);
+                    setPendingProfile(data);
+                    setPendingStudents([]);
+                    onDone?.({ ...data, students: [] });
+                  }}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg border border-dashed border-line bg-paper-cool hover:border-ink hover:bg-paper-warm transition-colors text-[12.5px] font-medium text-ink"
+                >
+                  {t("onb.students.skipBtn")}
+                </button>
+                <p className="text-[11.5px] text-muted leading-snug text-end max-w-[260px]">
+                  {t("onb.students.skipNote")}
+                </p>
+              </>
+            )}
+          </div>
         </div>
       </div>
 
