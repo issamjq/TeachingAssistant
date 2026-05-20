@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import {
   ChevronRight, X, Sparkles, ArrowUpRight, ArrowRight, Crown, Menu,
+  PanelLeftClose, PanelLeftOpen,
 } from "lucide-react";
 import Dashboard from "./views/Dashboard";
 import TemplatesLibrary from "./views/TemplatesLibrary";
@@ -108,11 +109,25 @@ function NavBadge({ letter, icon, lucide: Lucide }) {
   return <span className="murchid-sidebar-badge">{letter}</span>;
 }
 
+const SIDEBAR_COLLAPSED_KEY = "murchid.sidebar.collapsed";
+
 export default function StudioApp({ onClose }) {
   const [role, setRoleState] = useState(getRole());
   const [navOpen, setNavOpen] = useState(false); // mobile drawer
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
+  // Desktop sidebar collapsed state — persists across sessions.
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    try { return localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "1"; }
+    catch { return false; }
+  });
+  const toggleSidebar = () => {
+    setSidebarCollapsed((c) => {
+      const next = !c;
+      try { localStorage.setItem(SIDEBAR_COLLAPSED_KEY, next ? "1" : "0"); } catch { /* ignore */ }
+      return next;
+    });
+  };
   const account = useAccount();
   // Free-trial users (no paid account in storage) see "Upgrade plan".
   // Once they pick a plan, the row hides automatically.
@@ -371,13 +386,15 @@ export default function StudioApp({ onClose }) {
   // inside the mobile drawer, so the navigation is identical everywhere.
   const sidebarBody = (
     <>
-        {/* Brand block — accent-square mark + Fraunces wordmark. The
+        {/* Brand block — accent-square mark + Fraunces wordmark, with a
+            collapse toggle on the trailing edge (desktop only). The
             mark plays a one-shot halo on mount and a subtle hover-rotate
             so the sidebar has a small piece of life the moment you
             land. */}
+        <div className="flex items-center pe-2">
         <button
           onClick={() => navigate([DEFAULT_ROUTE[role]])}
-          className="murchid-sidebar-brand flex items-center gap-3 px-5 pt-6 pb-4 text-left"
+          className="murchid-sidebar-brand flex-1 flex items-center gap-3 px-5 pt-6 pb-4 text-left"
           aria-label="Go home"
         >
           <span className="murchid-sidebar-brand-mark" aria-hidden>
@@ -387,6 +404,16 @@ export default function StudioApp({ onClose }) {
             Murchid
           </span>
         </button>
+        <button
+          type="button"
+          onClick={toggleSidebar}
+          title="Hide sidebar"
+          aria-label="Hide sidebar"
+          className="hidden md:flex h-8 w-8 mt-3 rounded-md text-ink-soft hover:text-ink hover:bg-paper-warm items-center justify-center transition-colors"
+        >
+          <PanelLeftClose size={16} className="rtl:rotate-180" />
+        </button>
+        </div>
 
         {/* Studio launcher — the hero CTA of the app, lifted out of the
             nav list. Dark ink card with an accent-red bolt circle on the
@@ -504,8 +531,12 @@ export default function StudioApp({ onClose }) {
 
   return (
     <div className="h-[100dvh] bg-paper flex text-ink font-sans overflow-hidden">
-      {/* Desktop / iPad-landscape rail */}
-      <aside className="murchid-sidebar w-64 flex-col flex-shrink-0 hidden md:flex h-full print:hidden">
+      {/* Desktop / iPad-landscape rail — collapsible (state persists). */}
+      <aside
+        className={`murchid-sidebar w-64 flex-col flex-shrink-0 h-full print:hidden ${
+          sidebarCollapsed ? "hidden" : "hidden md:flex"
+        }`}
+      >
         {sidebarBody}
       </aside>
 
@@ -567,10 +598,23 @@ export default function StudioApp({ onClose }) {
         </div>
 
         <div
-          className={`relative flex-1 overflow-y-auto bg-[#fbf2e6] px-4 pt-4 pb-6 sm:px-6 md:ps-8 md:pt-3 md:pb-2 ${
+          className={`relative flex-1 overflow-y-auto bg-[#fbf2e6] px-4 pt-4 pb-6 sm:px-6 md:pt-3 md:pb-2 ${
+            sidebarCollapsed ? "md:ps-16" : "md:ps-8"
+          } ${
             onClose ? "md:pe-20" : "md:pe-8"
           }`}
         >
+          {sidebarCollapsed && (
+            <button
+              type="button"
+              onClick={toggleSidebar}
+              title="Show sidebar"
+              aria-label="Show sidebar"
+              className="hidden md:flex absolute top-3 start-3 z-20 h-9 w-9 rounded-md text-ink-soft hover:text-ink hover:bg-paper-warm items-center justify-center transition print:hidden"
+            >
+              <PanelLeftOpen size={16} className="rtl:rotate-180" />
+            </button>
+          )}
           {onClose && (
             <button
               onClick={onClose}
