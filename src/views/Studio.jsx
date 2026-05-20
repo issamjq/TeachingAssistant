@@ -13,7 +13,7 @@ import { useT } from "../lib/i18n";
 import { parseSections, joinSections, renderMarkdown } from "../lib/markdown";
 import StudioCard from "./StudioCard";
 import SlideBuilder from "./SlideBuilder";
-import MudirMascot from "../components/MudirMascot";
+import MurchidMascot from "../components/MurchidMascot";
 import {
   GRADE_LEVELS, MAJORS,
   QUIZ_QUESTION_COUNTS, QUIZ_DURATIONS, QUIZ_DIFFICULTIES,
@@ -25,22 +25,22 @@ import {
 const API_BASE = (import.meta.env.VITE_API_URL || "").replace(/\/$/, "");
 
 // Each kind has its headline split into three parts so the noun-phrase can
-// be rendered as an inline-clickable element inside the Mudir sentence:
+// be rendered as an inline-clickable element inside the Murchid sentence:
 //   "{verb} a {inlineLabel}. {suffix}"
-// e.g.  Plan  a  [schedule ▾].  Tell Mudir the timeframe.
+// e.g.  Plan  a  [schedule ▾].  Tell Murchid the timeframe.
 const KINDS = [
   {
     value: "lesson_plan",  label: "Lesson",     icon: FileText,
     oneliner: "Structured class plan",
     menuBlurb: "Outline + materials",
-    verb: "Make", inlineLabel: "lesson plan",   suffix: "Tell Mudir what to teach.",
+    verb: "Make", inlineLabel: "lesson plan",   suffix: "Tell Murchid what to teach.",
     sample: "A 45-minute Grade 7 science lesson on photosynthesis with a hands-on starter, two activities, and a quick exit ticket.",
   },
   {
     value: "quiz",         label: "Quiz",       icon: GraduationCap,
     oneliner: "MCQ, T/F, short or essay",
     menuBlurb: "MCQ, T/F, short or essay",
-    verb: "Make", inlineLabel: "quiz",          suffix: "Tell Mudir what to test.",
+    verb: "Make", inlineLabel: "quiz",          suffix: "Tell Murchid what to test.",
     // The chips above the textarea already carry grade / subject / major
     // / difficulty / count / duration, so the prompt should focus on
     // content only: which sub-topics, real-world hooks, what to emphasise.
@@ -50,29 +50,15 @@ const KINDS = [
     value: "homework",     label: "Homework",   icon: ClipboardList,
     oneliner: "Take-home tasks",
     menuBlurb: "Take-home practice",
-    verb: "Make", inlineLabel: "homework",      suffix: "Tell Mudir the focus.",
+    verb: "Make", inlineLabel: "homework",      suffix: "Tell Murchid the focus.",
     sample: "Reading-comprehension homework for Grade 6 English on a short story — students answer 5 questions in writing.",
-  },
-  {
-    value: "activity",     label: "Activity",   icon: Users,
-    oneliner: "Pair, group or solo task",
-    menuBlurb: "Group or pair task",
-    verb: "Plan", inlineLabel: "activity",      suffix: "Tell Mudir what learners explore.",
-    sample: "Group activity for Grade 5 history: students roleplay a town hall debating the construction of the railway.",
   },
   {
     value: "presentation", label: "Presentation", icon: Layers,
     oneliner: "Slide-by-slide outline",
     menuBlurb: "Deck for class",
-    verb: "Make", inlineLabel: "presentation",  suffix: "Tell Mudir what to cover.",
+    verb: "Make", inlineLabel: "presentation",  suffix: "Tell Murchid what to cover.",
     sample: "8-slide intro deck on the water cycle for Grade 4.",
-  },
-  {
-    value: "schedule",     label: "Schedule",   icon: Calendar,
-    oneliner: "Weekly or term plan",
-    menuBlurb: "Pacing & calendar",
-    verb: "Plan", inlineLabel: "schedule",      suffix: "Tell Mudir the timeframe.",
-    sample: "A weekly schedule for Grade 7 Science covering forces and motion across one week (5 days, ~50 min each).",
   },
 ];
 
@@ -87,7 +73,7 @@ function kindLabelFor(t, v) {
 // THIS teacher actually generated. Stored per kind, capped at 8, prepended
 // on each successful generation. First-time users see a kind-appropriate
 // seed list (so the row is never empty).
-const RECENTS_STORAGE_KEY = (kind) => `mudir:studio:recents:${kind}`;
+const RECENTS_STORAGE_KEY = (kind) => `murchid:studio:recents:${kind}`;
 const RECENT_SEEDS = {
   lesson_plan:  ["Photosynthesis", "Pythagoras", "Story arc", "Buoyancy"],
   quiz:         ["Linear equations", "Quadratics", "Geometry: angles", "Statistics: mean & median"],
@@ -149,7 +135,7 @@ const QUIZ_PARAMS_DEFAULTS = {
 // Activity pre-prompt panel mirrors the quiz settings layout but with
 // activity-specific labels. Per the chip rules, activities have NO
 // grade or section — only Type, Major, Language, Duration. Same idea:
-// every field is optional, Mudir infers from the prompt when blank.
+// every field is optional, Murchid infers from the prompt when blank.
 const ACTIVITY_TYPES = ["Individual", "Pair", "Group"];
 const ACTIVITY_DURATIONS = [10, 15, 20, 30, 45, 60];
 const ACTIVITY_PARAMS_DEFAULTS = {
@@ -409,7 +395,7 @@ export default function Studio({ initialKind } = {}) {
   // custom confirm modal. `proceed()` runs the original navigation if
   // they pick Leave; closing the modal cancels it.
   const [pendingLeave, setPendingLeave] = useState(null);
-  // The "Ask Mudir to tweak" input. Submitting it regenerates the current
+  // The "Ask Murchid to tweak" input. Submitting it regenerates the current
   // section with the typed hint as guidance. For structured quizzes the
   // teacher can scope the tweak to the current question or the whole quiz.
   const [tweak, setTweak] = useState("");
@@ -1447,7 +1433,7 @@ export default function Studio({ initialKind } = {}) {
                           onClick={() => setSectionIndex(i)}
                           title={
                             quizScopeBusy
-                              ? "Mudir is rewriting — please wait."
+                              ? "Murchid is rewriting — please wait."
                               : (s.question?.prompt || s.title)
                           }
                           disabled={quizScopeBusy}
@@ -1548,7 +1534,7 @@ export default function Studio({ initialKind } = {}) {
                         </>
                       ) : (
                         <div className="flex flex-col items-center justify-center py-6">
-                          <MudirMascot size={140} label={t("studio.thinking")} />
+                          <MurchidMascot size={140} label={t("studio.thinking")} />
                         </div>
                       )}
                     </div>
@@ -1703,8 +1689,8 @@ export default function Studio({ initialKind } = {}) {
                             <span className="h-1.5 w-1.5 rounded-full bg-accent animate-pulse" />
                             <span className="font-serif italic text-sm text-ink">
                               {currentSection?.regenerating
-                                ? "Mudir is rewriting this question…"
-                                : "Mudir is rewriting the quiz…"}
+                                ? "Murchid is rewriting this question…"
+                                : "Murchid is rewriting the quiz…"}
                             </span>
                           </div>
                         </div>
@@ -1776,7 +1762,7 @@ export default function Studio({ initialKind } = {}) {
             <div>
               <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-accent inline-flex items-center gap-1.5">
                 <Sparkles size={11} strokeWidth={1.75} /> {t("studio.refine")}
-                <HelpTip text="Type a plain-English instruction and Mudir will rewrite. Examples: 'make this harder', 'replace with a word problem', 'translate the whole quiz to Arabic'. Pick This question or Whole quiz on the left to choose the scope." />
+                <HelpTip text="Type a plain-English instruction and Murchid will rewrite. Examples: 'make this harder', 'replace with a word problem', 'translate the whole quiz to Arabic'. Pick This question or Whole quiz on the left to choose the scope." />
               </p>
               <p className="font-serif italic text-[11.5px] text-muted leading-tight mt-0.5">
                 {result?.kind === "quiz"
@@ -1813,13 +1799,13 @@ export default function Studio({ initialKind } = {}) {
               placeholder={
                 sections.length === 0
                   ? busy
-                    ? "Mudir is drafting — tweak will be ready when sections appear."
-                    : "Ask Mudir to tweak…"
+                    ? "Murchid is drafting — tweak will be ready when sections appear."
+                    : "Ask Murchid to tweak…"
                   : result?.kind === "quiz"
                     ? (currentSection?.kind === "quiz_meta" || tweakScope === "quiz")
                       ? "Tweak the whole quiz — e.g. 'switch every question to Arabic' or 'make it harder'"
                       : `Tweak Question ${(currentSection?.question?.position ?? sectionIndex)} — e.g. 'make this a word problem' or 'replace with True/False'`
-                    : `Ask Mudir to tweak — e.g. 'make Part ${currentLetter} harder' or 'add 2 word problems'`
+                    : `Ask Murchid to tweak — e.g. 'make Part ${currentLetter} harder' or 'add 2 word problems'`
               }
               disabled={tweakBusy || sections.length === 0}
               className="flex-1 min-w-0 bg-transparent outline-none text-sm placeholder:text-muted disabled:opacity-50"
@@ -1890,7 +1876,7 @@ export default function Studio({ initialKind } = {}) {
         </h2>
       </div>
 
-      {/* Mudir prompt block — the kind noun-phrase inside the sentence is
+      {/* Murchid prompt block — the kind noun-phrase inside the sentence is
           itself the picker. Teachers read the sentence, see one phrase
           styled like a tappable mini-card with an icon + chevron, and
           click it to swap the kind. No "spin" jargon needed. */}
@@ -1899,7 +1885,7 @@ export default function Studio({ initialKind } = {}) {
           M
         </div>
         <div className="flex-1 min-w-0 pt-0.5 sm:pt-1">
-          <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-1.5 sm:mb-2">Mudir</p>
+          <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-1.5 sm:mb-2">Murchid</p>
           <p className="font-serif text-lg sm:text-xl md:text-2xl lg:text-[1.75rem] text-ink leading-[1.4] sm:leading-[1.45]">
             {/* Keep "{verb} a [pill]" as a no-break unit so the kind pill
                 never lands on its own line under "Make a". The suffix
@@ -2036,7 +2022,7 @@ export default function Studio({ initialKind } = {}) {
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              title="Attach images or PDFs — Mudir will base the output on them"
+              title="Attach images or PDFs — Murchid will base the output on them"
               className={`h-8 w-8 rounded-full border flex items-center justify-center transition-colors duration-200 ${
                 hasAttach
                   ? "border-accent bg-accent/[0.06] text-accent"
@@ -2055,8 +2041,8 @@ export default function Studio({ initialKind } = {}) {
           <div className="flex items-center gap-3">
             <p className="hidden sm:block text-xs text-muted italic">
               {hasAttach && !prompt.trim()
-                ? "Mudir will use the whole file(s)"
-                : "Mudir will fill the rest"}
+                ? "Murchid will use the whole file(s)"
+                : "Murchid will fill the rest"}
             </p>
             <Button
               variant="danger"
@@ -2208,7 +2194,7 @@ function ParamChip({ children }) {
   );
 }
 
-// The kind word inside the Mudir headline, rendered as a tappable mini-card
+// The kind word inside the Murchid headline, rendered as a tappable mini-card
 // that hosts a keyboard-first popover menu. Affordance is the icon + chevron;
 // the popover is anchored directly under the pill.
 function InlineKindPicker({
@@ -2228,7 +2214,7 @@ function InlineKindPicker({
         onClick={() => (open ? onClose() : onOpen())}
         aria-haspopup="listbox"
         aria-expanded={open}
-        title="Tap to choose what Mudir makes — or press K"
+        title="Tap to choose what Murchid makes — or press K"
         className={`studio-kind-pulse group inline-flex items-center gap-2 px-3.5 py-1 mx-1 rounded-full border focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/20 transition-all duration-200 align-middle -translate-y-[0.12em] whitespace-nowrap text-[0.72em] font-sans font-medium tracking-normal cursor-pointer ${
           open
             ? "bg-ink border-ink text-paper-cool shadow-[0_0_0_4px_rgba(28,26,22,0.06)]"
@@ -2287,12 +2273,12 @@ function KindMenu({ activeValue, cursor, onPick, onClose, onCursor }) {
       />
       <div
         role="listbox"
-        aria-label="What Mudir makes"
+        aria-label="What Murchid makes"
         onClick={(e) => e.stopPropagation()}
-        className="studio-menu-rise absolute left-0 top-full mt-2 z-50 w-[26rem] sm:w-[28rem] max-w-[calc(100vw-2rem)] origin-top-left rounded-2xl border border-line bg-paper-cool shadow-xl ring-1 ring-ink/5 overflow-hidden"
+        className="studio-menu-rise absolute start-0 top-full mt-2 z-50 w-[22rem] sm:w-[28rem] max-w-[calc(100vw-2rem)] origin-top-left rtl:origin-top-right rounded-2xl border border-line bg-paper-cool shadow-xl ring-1 ring-ink/5 overflow-hidden"
       >
         <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted px-4 pt-3.5 pb-2">
-          Switch to
+          {t("studio.menu.switchTo")}
         </p>
         <ul className="grid grid-cols-2 gap-1 px-2 pb-2">
           {KINDS.map((k, i) => {
@@ -2307,7 +2293,7 @@ function KindMenu({ activeValue, cursor, onPick, onClose, onCursor }) {
                   aria-selected={isActive}
                   onMouseEnter={() => onCursor(i)}
                   onClick={() => onPick(k.value)}
-                  className={`group w-full flex items-start gap-2.5 px-3 py-2.5 rounded-lg text-left transition-colors duration-100 ${
+                  className={`group w-full flex items-start gap-2.5 px-3 py-2.5 rounded-lg text-start transition-colors duration-100 ${
                     isActive
                       ? "bg-paper-warm"
                       : isCursor
@@ -2333,7 +2319,10 @@ function KindMenu({ activeValue, cursor, onPick, onClose, onCursor }) {
                       </span>
                     </span>
                     <span className="block mt-1 text-[11px] text-muted leading-snug truncate">
-                      {k.menuBlurb || k.oneliner}
+                      {(() => {
+                        const tr = t(`kind.${k.value}.blurb`);
+                        return tr === `kind.${k.value}.blurb` ? (k.menuBlurb || k.oneliner) : tr;
+                      })()}
                     </span>
                   </span>
                   {isActive && (
@@ -2347,17 +2336,17 @@ function KindMenu({ activeValue, cursor, onPick, onClose, onCursor }) {
         <div className="border-t border-line px-4 py-2.5 flex items-center justify-center gap-3 bg-paper">
           <span className="inline-flex items-center gap-1.5">
             <kbd className="px-1.5 py-0.5 rounded border border-line bg-paper-cool font-mono text-[10px] text-ink-soft leading-none">↑↓</kbd>
-            <span className="font-serif italic text-base text-ink-soft">browse</span>
+            <span className="font-serif italic text-base text-ink-soft">{t("studio.menu.browse")}</span>
           </span>
           <span className="text-line">·</span>
           <span className="inline-flex items-center gap-1.5">
             <kbd className="px-1.5 py-0.5 rounded border border-line bg-paper-cool font-mono text-[10px] text-ink-soft leading-none">↵</kbd>
-            <span className="font-serif italic text-base text-ink-soft">pick</span>
+            <span className="font-serif italic text-base text-ink-soft">{t("studio.menu.pick")}</span>
           </span>
           <span className="text-line">·</span>
           <span className="inline-flex items-center gap-1.5">
             <kbd className="px-1.5 py-0.5 rounded border border-line bg-paper-cool font-mono text-[10px] text-ink-soft leading-none">Esc</kbd>
-            <span className="font-serif italic text-base text-ink-soft">close</span>
+            <span className="font-serif italic text-base text-ink-soft">{t("studio.menu.close")}</span>
           </span>
         </div>
       </div>
@@ -2399,7 +2388,7 @@ function StreamingCoverCard({ meta, busy, hintPrompt }) {
         </h3>
       ) : (
         <h3 className="font-serif text-2xl md:text-3xl font-medium text-muted/80 italic leading-tight mb-2">
-          Mudir is structuring your quiz
+          Murchid is structuring your quiz
           <span className="inline-block w-1.5 h-6 bg-accent ml-1 animate-pulse align-text-bottom" />
         </h3>
       )}
@@ -2430,7 +2419,7 @@ function StreamingCoverCard({ meta, busy, hintPrompt }) {
       </div>
 
       <p className="font-serif italic text-sm text-muted mt-4">
-        Mudir is drafting the rest — flip through the sidebar to watch each question land.
+        Murchid is drafting the rest — flip through the sidebar to watch each question land.
       </p>
     </div>
   );
@@ -2651,7 +2640,7 @@ function QuizParamsPanel({ params, onChange, gradeOptions, majorOptions, languag
             Quiz settings
           </p>
           <p className="font-serif text-base text-ink leading-snug">
-            Pick the basics first <span className="italic text-muted">— or leave them blank and Mudir will figure it out.</span>
+            Pick the basics first <span className="italic text-muted">— or leave them blank and Murchid will figure it out.</span>
           </p>
         </div>
         {setCount > 0 && (
@@ -2724,7 +2713,7 @@ function QuizParamsPanel({ params, onChange, gradeOptions, majorOptions, languag
           label="Questions"
           slot="questions"
           emptyHint="Any count"
-          help="Exact number of questions to produce. This is a hard constraint — Mudir will fit the scope to this count."
+          help="Exact number of questions to produce. This is a hard constraint — Murchid will fit the scope to this count."
           value={
             params.questions === "" || params.questions == null
               ? ""
@@ -2741,7 +2730,7 @@ function QuizParamsPanel({ params, onChange, gradeOptions, majorOptions, languag
           label="Duration"
           slot="duration"
           emptyHint="Any length"
-          help="How long, in minutes, a student should take to finish. Mudir uses this to calibrate question depth (a 15-min quiz is mostly recall; 60 min allows essay-style)."
+          help="How long, in minutes, a student should take to finish. Murchid uses this to calibrate question depth (a 15-min quiz is mostly recall; 60 min allows essay-style)."
           value={
             params.duration === "" || params.duration == null
               ? ""
@@ -2758,8 +2747,8 @@ function QuizParamsPanel({ params, onChange, gradeOptions, majorOptions, languag
           icon={ListChecks}
           label="Types"
           slot="types"
-          emptyHint="Mudir picks"
-          help="Which question formats Mudir is allowed to use. 'MCQ only' = every question is multiple choice. 'Identification only' = every question is short recall. 'MCQ + Identification' = mix those two. 'Mixed' = anything goes, including True/False."
+          emptyHint="Murchid picks"
+          help="Which question formats Murchid is allowed to use. 'MCQ only' = every question is multiple choice. 'Identification only' = every question is short recall. 'MCQ + Identification' = mix those two. 'Mixed' = anything goes, including True/False."
           value={params.types}
           options={QUIZ_QUESTION_MIXES}
           onChange={(v) => set({ types: v })}
@@ -2795,7 +2784,7 @@ function ActivityParamsPanel({ params, onChange, majorOptions, languageOptions }
             Activity settings
           </p>
           <p className="font-serif text-base text-ink leading-snug">
-            Pick the basics first <span className="italic text-muted">— or leave them blank and Mudir will figure it out.</span>
+            Pick the basics first <span className="italic text-muted">— or leave them blank and Murchid will figure it out.</span>
           </p>
         </div>
         {setCount > 0 && (
@@ -2810,7 +2799,7 @@ function ActivityParamsPanel({ params, onChange, majorOptions, languageOptions }
           icon={Users}
           label="Type"
           slot="type"
-          emptyHint="Mudir picks"
+          emptyHint="Murchid picks"
           help="How students work on this activity — solo, in pairs, or in groups."
           value={params.type}
           options={ACTIVITY_TYPES}
@@ -2841,7 +2830,7 @@ function ActivityParamsPanel({ params, onChange, majorOptions, languageOptions }
           label="Duration"
           slot="duration"
           emptyHint="Any length"
-          help="How long, in minutes, the activity should run. Mudir uses this to calibrate the depth and number of stages."
+          help="How long, in minutes, the activity should run. Murchid uses this to calibrate the depth and number of stages."
           value={
             params.duration === "" || params.duration == null
               ? ""
@@ -2876,7 +2865,7 @@ function LessonParamsPanel({ params, onChange, gradeOptions, majorOptions, langu
         <div>
           <p className="font-serif italic text-base text-muted mb-0.5">Lesson settings</p>
           <p className="font-serif text-base text-ink leading-snug">
-            Pick the basics first <span className="italic text-muted">— or leave them blank and Mudir will figure it out.</span>
+            Pick the basics first <span className="italic text-muted">— or leave them blank and Murchid will figure it out.</span>
           </p>
         </div>
         {setCount > 0 && (
@@ -2933,7 +2922,7 @@ function LessonParamsPanel({ params, onChange, gradeOptions, majorOptions, langu
           label="Duration"
           slot="duration"
           emptyHint="Any length"
-          help="How long, in minutes, the lesson should run. Mudir uses this to pace the warm-up, main activity, and exit ticket."
+          help="How long, in minutes, the lesson should run. Murchid uses this to pace the warm-up, main activity, and exit ticket."
           value={
             params.duration === "" || params.duration == null
               ? ""
@@ -2968,7 +2957,7 @@ function HomeworkParamsPanel({ params, onChange, gradeOptions, majorOptions, lan
         <div>
           <p className="font-serif italic text-base text-muted mb-0.5">Homework settings</p>
           <p className="font-serif text-base text-ink leading-snug">
-            Pick the basics first <span className="italic text-muted">— or leave them blank and Mudir will figure it out.</span>
+            Pick the basics first <span className="italic text-muted">— or leave them blank and Murchid will figure it out.</span>
           </p>
         </div>
         {setCount > 0 && (
@@ -3044,7 +3033,7 @@ function PresentationParamsPanel({ params, onChange, gradeOptions, majorOptions,
         <div>
           <p className="font-serif italic text-base text-muted mb-0.5">Presentation settings</p>
           <p className="font-serif text-base text-ink leading-snug">
-            Pick the basics first <span className="italic text-muted">— or leave them blank and Mudir will figure it out.</span>
+            Pick the basics first <span className="italic text-muted">— or leave them blank and Murchid will figure it out.</span>
           </p>
         </div>
         {setCount > 0 && (
@@ -3100,8 +3089,8 @@ function PresentationParamsPanel({ params, onChange, gradeOptions, majorOptions,
           icon={Hash}
           label="Slides"
           slot="slides"
-          emptyHint="Mudir picks"
-          help="Roughly how many slides the deck should have. Mudir will fit the scope to this count."
+          emptyHint="Murchid picks"
+          help="Roughly how many slides the deck should have. Murchid will fit the scope to this count."
           value={
             params.slides === "" || params.slides == null
               ? ""
@@ -3409,7 +3398,7 @@ function DropdownChip({
 //   1. "Use \"<draft>\" (custom)" — when the draft text doesn't match
 //      any preset; lets the teacher commit (single) or append (multi)
 //      a free-form value.
-//   2. "Any — let Mudir choose" — clears the field.
+//   2. "Any — let Murchid choose" — clears the field.
 //   3. The filtered preset options.
 // In multi mode, clicking an option toggles it in the joined value
 // without closing the menu; "Done" at the bottom closes.
@@ -3473,7 +3462,7 @@ function ComboboxMenu({
               }`}
             >
               <span className="italic">
-                {multi ? "Clear all — let Mudir choose" : "Any — let Mudir choose"}
+                {multi ? "Clear all — let Murchid choose" : "Any — let Murchid choose"}
               </span>
               {noneSelected && <Check size={13} className="text-accent" />}
             </button>
@@ -3655,7 +3644,7 @@ function LeaveStudioConfirm({ busy, isDirty, savedDraftId, onStay, onLeave }) {
       : "Leave with unsaved edits?";
 
   const body = busy
-    ? "Mudir is still generating. Leaving now cancels the draft — nothing is saved to your library."
+    ? "Murchid is still generating. Leaving now cancels the draft — nothing is saved to your library."
     : savedDraftId && !isDirty
       ? "Your quiz is safely saved. You can reopen it from the library any time."
       : "Your in-place edits aren't saved yet. Leaving will discard them.";
@@ -3672,7 +3661,7 @@ function LeaveStudioConfirm({ busy, isDirty, savedDraftId, onStay, onLeave }) {
       />
       <div className="studio-menu-rise relative bg-paper-cool rounded-2xl border border-line shadow-2xl w-full max-w-md p-6 md:p-7">
         <p className="font-serif italic text-base text-accent mb-2">
-          {busy ? "Mudir is still working" : "Before you go"}
+          {busy ? "Murchid is still working" : "Before you go"}
         </p>
         <h3 className="font-serif text-xl md:text-2xl font-medium text-ink leading-tight mb-2">
           {headline}
