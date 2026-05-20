@@ -129,9 +129,12 @@ export default function StudioApp({ onClose }) {
     });
   };
   const account = useAccount();
-  // Free-trial users (no paid account in storage) see "Upgrade plan".
-  // Once they pick a plan, the row hides automatically.
-  const showUpgrade = !account;
+  // "Upgrade plan" stays visible for now — the real plan/trial split
+  // (paid vs free-trial vs lapsed) isn't wired yet, and the signup
+  // flow currently records *any* chosen plan even before payment.
+  // Flip this back to `!account?.paid` (or similar) once Firebase
+  // billing lands.
+  const showUpgrade = true;
   const route = useRoute();
   const t = useT();
 

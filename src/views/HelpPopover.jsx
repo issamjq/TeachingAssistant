@@ -4,7 +4,10 @@
 // Modeled after Claude's in-product help so the shape feels familiar.
 import React, { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import { X, Send, Search, CheckCircle2, ChevronRight, ArrowLeft } from "lucide-react";
+import {
+  X, Send, Search, CheckCircle2, ChevronRight, ArrowLeft,
+  Home, MessageSquare, HelpCircle,
+} from "lucide-react";
 import { useT, useI18n } from "../lib/i18n";
 
 const SUPPORT_EMAIL = "support@murchid.app";
@@ -64,17 +67,23 @@ const HELP_ARTICLES = [
   },
 ];
 
+// Bottom tabs: Home / Messages / Help. Home and Help both show the
+// support menu; Messages is a placeholder (mailto for now) until real
+// in-app messaging is wired.
+
 export default function HelpPopover({ open, onClose }) {
   const t = useT();
   const { lang, dir } = useI18n();
   const [query, setQuery] = useState("");
   const [openArticle, setOpenArticle] = useState(null);
+  const [tab, setTab] = useState("home");
 
   // Reset to list view + clear search every time the popover reopens.
   useEffect(() => {
     if (!open) {
       setQuery("");
       setOpenArticle(null);
+      setTab("home");
     }
   }, [open]);
 
@@ -130,7 +139,7 @@ export default function HelpPopover({ open, onClose }) {
           </h2>
         </div>
 
-        {/* Body — either article reader or the menu */}
+        {/* Body — article reader, or the tab content */}
         <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
           {article ? (
             <div className="space-y-3">
@@ -149,9 +158,23 @@ export default function HelpPopover({ open, onClose }) {
                 {article.body[lang] || article.body.en}
               </p>
             </div>
+          ) : tab === "messages" ? (
+            <div className="py-6 text-center space-y-3">
+              <MessageSquare size={36} className="mx-auto text-muted" strokeWidth={1.5} />
+              <p className="text-sm text-ink-soft leading-relaxed px-4">
+                {t("help.messagesEmpty")}
+              </p>
+              <a
+                href={`mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent(t("help.mailSubject"))}`}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-ink text-paper-cool text-sm font-medium hover:bg-ink-soft transition-colors"
+              >
+                <Send size={14} className="rtl:rotate-180" />
+                {t("help.sendMessage")}
+              </a>
+            </div>
           ) : (
             <>
-              {/* Status pill (decorative — no real probe) */}
+              {/* Status pill */}
               <div className="flex items-center gap-3 px-4 py-3 rounded-xl border border-line bg-paper">
                 <CheckCircle2 size={18} className="text-sage flex-shrink-0" />
                 <div className="flex-1 min-w-0">
@@ -210,8 +233,47 @@ export default function HelpPopover({ open, onClose }) {
             </>
           )}
         </div>
+
+        {/* Bottom tab bar — Home / Messages / Help. Home and Help both
+            show the help menu; Messages is a placeholder until real
+            in-app messaging exists. */}
+        <nav className="grid grid-cols-3 border-t border-line bg-paper-cool">
+          <TabBtn
+            icon={Home}
+            label={t("help.tab.home")}
+            active={tab === "home"}
+            onClick={() => { setTab("home"); setOpenArticle(null); }}
+          />
+          <TabBtn
+            icon={MessageSquare}
+            label={t("help.tab.messages")}
+            active={tab === "messages"}
+            onClick={() => { setTab("messages"); setOpenArticle(null); }}
+          />
+          <TabBtn
+            icon={HelpCircle}
+            label={t("help.tab.help")}
+            active={tab === "help"}
+            onClick={() => { setTab("help"); setOpenArticle(null); }}
+          />
+        </nav>
       </div>
     </div>,
     document.body
+  );
+}
+
+function TabBtn({ icon: Icon, label, active, onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex flex-col items-center justify-center gap-1 py-3 transition-colors ${
+        active ? "text-accent" : "text-muted hover:text-ink-soft"
+      }`}
+    >
+      <Icon size={18} strokeWidth={active ? 2.2 : 1.75} />
+      <span className="text-[11px] font-medium">{label}</span>
+    </button>
   );
 }
