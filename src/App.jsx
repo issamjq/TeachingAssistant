@@ -94,15 +94,15 @@ function NavBadge({ letter, icon, lucide: Lucide }) {
   // glyph, then letter — first-defined wins.
   if (Lucide) {
     return (
-      <span className="mudir-sidebar-badge">
+      <span className="murchid-sidebar-badge">
         <Lucide size={15} strokeWidth={1.75} />
       </span>
     );
   }
   if (icon) {
-    return <span className="mudir-sidebar-badge text-base leading-none">{icon}</span>;
+    return <span className="murchid-sidebar-badge text-base leading-none">{icon}</span>;
   }
-  return <span className="mudir-sidebar-badge">{letter}</span>;
+  return <span className="murchid-sidebar-badge">{letter}</span>;
 }
 
 export default function StudioApp({ onClose }) {
@@ -368,53 +368,53 @@ export default function StudioApp({ onClose }) {
             land. */}
         <button
           onClick={() => navigate([DEFAULT_ROUTE[role]])}
-          className="mudir-sidebar-brand flex items-center gap-3 px-5 pt-6 pb-4 text-left"
+          className="murchid-sidebar-brand flex items-center gap-3 px-5 pt-6 pb-4 text-left"
           aria-label="Go home"
         >
-          <span className="mudir-sidebar-brand-mark" aria-hidden>
+          <span className="murchid-sidebar-brand-mark" aria-hidden>
             M
           </span>
           <span className="font-serif text-[1.4rem] font-medium text-ink leading-none">
-            Mudir
+            Murchid
           </span>
         </button>
 
         {/* Studio launcher — the hero CTA of the app, lifted out of the
             nav list. Dark ink card with an accent-red bolt circle on the
             left, big serif title, italic subtitle. Same vocabulary as the
-            "Activate Pro" pill in the design handoff, in Mudir's palette
+            "Activate Pro" pill in the design handoff, in Murchid's palette
             and on a vertical card form factor so it fits the sidebar.
             Hover lifts -2px, accent halo brightens, chevron slides 4px. */}
         {role === "teacher" && (
           <button
             type="button"
             onClick={() => navigate(["studio"])}
-            className={`mudir-studio-launcher ${section === "studio" ? "mudir-studio-launcher-active" : ""}`}
+            className={`murchid-studio-launcher ${section === "studio" ? "murchid-studio-launcher-active" : ""}`}
             aria-label="Open AI studio"
             aria-current={section === "studio" ? "page" : undefined}
           >
-            <span className="mudir-studio-launcher-head">
-              <span className="mudir-studio-launcher-brand">
-                <span className="mudir-studio-launcher-icon" aria-hidden>
+            <span className="murchid-studio-launcher-head">
+              <span className="murchid-studio-launcher-brand">
+                <span className="murchid-studio-launcher-icon" aria-hidden>
                   <Sparkles size={15} strokeWidth={2.25} />
                 </span>
-                <span className="mudir-studio-launcher-title">{t("studio.name")}</span>
+                <span className="murchid-studio-launcher-title">{t("studio.name")}</span>
               </span>
-              <span className="mudir-studio-launcher-pill">{t("studio.badge")}</span>
+              <span className="murchid-studio-launcher-pill">{t("studio.badge")}</span>
             </span>
 
-            <span className="mudir-studio-launcher-body">
-              <span className="mudir-studio-launcher-subtitle">
+            <span className="murchid-studio-launcher-body">
+              <span className="murchid-studio-launcher-subtitle">
                 {t("studio.subtitle")}
               </span>
-              <span className="mudir-studio-launcher-tagline">
+              <span className="murchid-studio-launcher-tagline">
                 {t("studio.tagline")}
               </span>
             </span>
 
-            <span className="mudir-studio-launcher-cta">
+            <span className="murchid-studio-launcher-cta">
               <span>{t("studio.open")}</span>
-              <ArrowRight size={14} strokeWidth={2.25} className="mudir-studio-launcher-cta-arrow" />
+              <ArrowRight size={14} strokeWidth={2.25} className="murchid-studio-launcher-cta-arrow" />
             </span>
           </button>
         )}
@@ -426,9 +426,9 @@ export default function StudioApp({ onClose }) {
           {(() => {
             let mi = 0;
             return nav.map((s, sectionIdx) => (
-              <section key={s.section || `sec-${sectionIdx}`} className="mudir-sidebar-section">
+              <section key={s.section || `sec-${sectionIdx}`} className="murchid-sidebar-section">
                 {s.section && (
-                  <p className="mudir-sidebar-section-label">
+                  <p className="murchid-sidebar-section-label">
                     {navT(s.section.toLowerCase(), s.section)}
                   </p>
                 )}
@@ -441,7 +441,7 @@ export default function StudioApp({ onClose }) {
                         key={item.key}
                         onClick={() => handleNavClick(item.key)}
                         style={{ "--mi": myIndex }}
-                        className={`mudir-sidebar-item ${isActive ? "mudir-sidebar-item-active" : ""}`}
+                        className={`murchid-sidebar-item ${isActive ? "murchid-sidebar-item-active" : ""}`}
                         aria-current={isActive ? "page" : undefined}
                       >
                         <NavBadge letter={item.letter} icon={item.icon} lucide={item.lucide} />
@@ -465,9 +465,9 @@ export default function StudioApp({ onClose }) {
         <button
           onClick={() => navigate(["account"])}
           title="Open account"
-          className={`mudir-sidebar-account ${section === "account" ? "mudir-sidebar-account-active" : ""}`}
+          className={`murchid-sidebar-account ${section === "account" ? "murchid-sidebar-account-active" : ""}`}
         >
-          <span className="mudir-sidebar-account-avatar">SA</span>
+          <span className="murchid-sidebar-account-avatar">SA</span>
           <div className="flex-1 min-w-0 text-start">
             <p className="text-sm font-medium leading-tight truncate text-ink">
               Sara
@@ -484,7 +484,7 @@ export default function StudioApp({ onClose }) {
   return (
     <div className="h-[100dvh] bg-paper flex text-ink font-sans overflow-hidden">
       {/* Desktop / iPad-landscape rail */}
-      <aside className="mudir-sidebar w-64 flex-col flex-shrink-0 hidden md:flex h-full print:hidden">
+      <aside className="murchid-sidebar w-64 flex-col flex-shrink-0 hidden md:flex h-full print:hidden">
         {sidebarBody}
       </aside>
 
@@ -499,7 +499,7 @@ export default function StudioApp({ onClose }) {
           aria-hidden
         />
         <aside
-          className={`mudir-sidebar fixed inset-y-0 start-0 z-50 w-[82vw] max-w-xs flex flex-col h-[100dvh] shadow-2xl transition-transform duration-300 ease-out print:hidden ${
+          className={`murchid-sidebar fixed inset-y-0 start-0 z-50 w-[82vw] max-w-xs flex flex-col h-[100dvh] shadow-2xl transition-transform duration-300 ease-out print:hidden ${
             navOpen ? "translate-x-0" : "-translate-x-full rtl:translate-x-full"
           }`}
           aria-label="Primary"
@@ -530,7 +530,7 @@ export default function StudioApp({ onClose }) {
             onClick={() => navigate([DEFAULT_ROUTE[role]])}
             className="font-serif text-lg font-medium text-ink leading-none flex-1 text-start truncate"
           >
-            Mudir
+            Murchid
           </button>
           <LangToggle />
           {onClose && (
@@ -546,15 +546,15 @@ export default function StudioApp({ onClose }) {
         </div>
 
         <div
-          className={`relative flex-1 overflow-y-auto bg-[#fbf2e6] px-4 pt-4 pb-6 sm:px-6 md:pl-8 md:pt-3 md:pb-2 ${
-            onClose ? "md:pr-20" : "md:pr-8"
+          className={`relative flex-1 overflow-y-auto bg-[#fbf2e6] px-4 pt-4 pb-6 sm:px-6 md:ps-8 md:pt-3 md:pb-2 ${
+            onClose ? "md:pe-20" : "md:pe-8"
           }`}
         >
           {onClose && (
             <button
               onClick={onClose}
               title="Back to landing page"
-              className="hidden md:flex absolute top-3 right-8 z-20 h-9 w-9 rounded-md text-ink-soft hover:bg-accent hover:text-paper-cool items-center justify-center transition print:hidden"
+              className="hidden md:flex absolute top-3 end-8 z-20 h-9 w-9 rounded-md text-ink-soft hover:bg-accent hover:text-paper-cool items-center justify-center transition print:hidden"
             >
               <X size={15} />
             </button>

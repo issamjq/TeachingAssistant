@@ -162,7 +162,7 @@ export function DataPageHeader({
         {newLabel && onNewManual && (
           <button
             type="button"
-            onClick={() => setPopupOpen(true)}
+            onClick={() => (aiKind ? setPopupOpen(true) : onNewManual())}
             className={`${TOOLBAR_CHIP} ml-auto bg-ink text-paper-cool font-medium hover:bg-ink-soft border-ink`}
           >
             <Plus size={13} strokeWidth={2.25} />

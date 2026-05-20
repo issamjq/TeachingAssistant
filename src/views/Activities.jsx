@@ -18,7 +18,7 @@ export default function Activities({ onOpenActivity }) {
   const [deleting, setDeleting] = useState(null);
   const [busy, setBusy] = useState(false);
   const [completionsFor, setCompletionsFor] = useState(null);
-  const [viewMode, setViewMode] = useViewMode("mudir.view.activities", "cards");
+  const [viewMode, setViewMode] = useViewMode("murchid.view.activities", "cards");
   const [sortKey, setSortKey] = useState("updated_at-desc");
   const [scope, setScope, scopeRange] = useDateScope();
 
@@ -65,7 +65,6 @@ export default function Activities({ onOpenActivity }) {
         subtitle={t("ac.sub")}
         newLabel={t("ac.new")}
         onNewManual={() => onOpenActivity?.({})}
-        aiKind="activity"
         mode={viewMode}
         onModeChange={setViewMode}
         trashEndpoint="/api/activities"

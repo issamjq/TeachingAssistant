@@ -12,8 +12,8 @@ import { createPortal } from "react-dom";
 import {
   ChevronLeft, ChevronRight, Plus, BookOpen, CalendarDays,
   GraduationCap, ClipboardList, Presentation, Sparkles, ArrowRight,
-  MoreHorizontal, MessageCircle, BarChart3, FileText, Layout,
-  Users, X, CheckCircle2, Clock, TrendingUp,
+  MoreHorizontal, BarChart3, FileText, Layout,
+  X, CheckCircle2, Clock, TrendingUp,
 } from "lucide-react";
 import { navigate } from "../lib/route";
 import { useT, useI18n } from "../lib/i18n";
@@ -21,7 +21,7 @@ import { api } from "./_shared";
 import SchedulePopup from "./_schedule-popup";
 
 // Categories the calendar can show. Each maps to one of the existing
-// teaching surfaces, with a Mudir-palette color so the day cells stay
+// teaching surfaces, with a Murchid-palette color so the day cells stay
 // editorial instead of garish. Icon is shown in the filter row and on
 // each event chip.
 const CATEGORIES = [
@@ -634,10 +634,8 @@ function StudioHeroCard() {
   const chips = [
     { key: "lesson",       icon: BookOpen,      color: "accent",      studioKind: "lesson_plan" },
     { key: "quiz",         icon: GraduationCap, color: "sage",        studioKind: "quiz" },
+    { key: "homework",     icon: ClipboardList, color: "gold",        studioKind: "homework" },
     { key: "presentation", icon: Layout,        color: "accent-soft", studioKind: "presentation" },
-    { key: "weekly",       icon: CalendarDays,  color: "indigo",      studioKind: "schedule" },
-    { key: "insights",     icon: Users,         color: "moss",        studioKind: null },
-    { key: "ask",          icon: MessageCircle, color: "violet",      studioKind: null },
   ];
   return (
     <div className="planner-hero rounded-2xl p-4 md:p-5 relative overflow-hidden h-full flex flex-col justify-center">
@@ -655,7 +653,7 @@ function StudioHeroCard() {
         </p>
       </div>
 
-      <div className="relative z-10 mt-4 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2.5">
+      <div className="relative z-10 mt-4 grid grid-cols-2 md:grid-cols-4 gap-2.5">
         {chips.map((c) => {
           const Icon = c.icon;
           return (
