@@ -6,7 +6,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   X, Send, Search, CheckCircle2, ChevronRight, ArrowLeft,
-  Home, MessageSquare, HelpCircle,
+  MessageSquare, HelpCircle,
 } from "lucide-react";
 import { useT, useI18n } from "../lib/i18n";
 
@@ -67,23 +67,27 @@ const HELP_ARTICLES = [
   },
 ];
 
-// Bottom tabs: Home / Messages / Help. Home and Help both show the
-// support menu; Messages is a placeholder (mailto for now) until real
-// in-app messaging is wired.
+// Two bottom tabs:
+//   help     — status pill + send-us-a-message link + search + articles
+//   messages — textarea composer; Send opens the user's mail client with
+//              the typed body pre-filled to SUPPORT_EMAIL
+// A previous version had a third "Home" tab that duplicated Help — dropped.
 
 export default function HelpPopover({ open, onClose }) {
   const t = useT();
   const { lang, dir } = useI18n();
   const [query, setQuery] = useState("");
   const [openArticle, setOpenArticle] = useState(null);
-  const [tab, setTab] = useState("home");
+  const [tab, setTab] = useState("help");
+  const [messageDraft, setMessageDraft] = useState("");
 
-  // Reset to list view + clear search every time the popover reopens.
+  // Reset state every time the popover reopens.
   useEffect(() => {
     if (!open) {
       setQuery("");
       setOpenArticle(null);
-      setTab("home");
+      setTab("help");
+      setMessageDraft("");
     }
   }, [open]);
 
@@ -159,18 +163,41 @@ export default function HelpPopover({ open, onClose }) {
               </p>
             </div>
           ) : tab === "messages" ? (
-            <div className="py-6 text-center space-y-3">
-              <MessageSquare size={36} className="mx-auto text-muted" strokeWidth={1.5} />
-              <p className="text-sm text-ink-soft leading-relaxed px-4">
-                {t("help.messagesEmpty")}
+            <div className="space-y-3">
+              <p className="text-sm text-ink-soft leading-relaxed">
+                {t("help.messagesIntro")}
               </p>
-              <a
-                href={`mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent(t("help.mailSubject"))}`}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-ink text-paper-cool text-sm font-medium hover:bg-ink-soft transition-colors"
-              >
-                <Send size={14} className="rtl:rotate-180" />
-                {t("help.sendMessage")}
-              </a>
+              <div className="rounded-xl border border-line bg-paper overflow-hidden">
+                <textarea
+                  value={messageDraft}
+                  onChange={(e) => setMessageDraft(e.target.value)}
+                  placeholder={t("help.messagesPlaceholder")}
+                  rows={6}
+                  className="w-full bg-transparent px-4 py-3 text-sm text-ink placeholder:text-muted outline-none resize-y"
+                />
+                <div className="flex items-center justify-between gap-2 px-3 py-2 border-t border-line bg-paper-cool">
+                  <p className="text-[11px] text-muted truncate">
+                    {t("help.messagesTo")}{SUPPORT_EMAIL}
+                  </p>
+                  <a
+                    href={
+                      messageDraft.trim()
+                        ? `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent(t("help.mailSubject"))}&body=${encodeURIComponent(messageDraft)}`
+                        : undefined
+                    }
+                    onClick={(e) => { if (!messageDraft.trim()) e.preventDefault(); }}
+                    aria-disabled={!messageDraft.trim()}
+                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                      messageDraft.trim()
+                        ? "bg-ink text-paper-cool hover:bg-ink-soft"
+                        : "bg-line text-muted cursor-default"
+                    }`}
+                  >
+                    <Send size={13} className="rtl:rotate-180" />
+                    {t("help.sendBtn")}
+                  </a>
+                </div>
+              </div>
             </div>
           ) : (
             <>
@@ -234,27 +261,20 @@ export default function HelpPopover({ open, onClose }) {
           )}
         </div>
 
-        {/* Bottom tab bar — Home / Messages / Help. Home and Help both
-            show the help menu; Messages is a placeholder until real
-            in-app messaging exists. */}
-        <nav className="grid grid-cols-3 border-t border-line bg-paper-cool">
+        {/* Bottom tab bar — Help is the article list (default), Messages
+            is the composer. Removed the duplicate Home tab. */}
+        <nav className="grid grid-cols-2 border-t border-line bg-paper-cool">
           <TabBtn
-            icon={Home}
-            label={t("help.tab.home")}
-            active={tab === "home"}
-            onClick={() => { setTab("home"); setOpenArticle(null); }}
+            icon={HelpCircle}
+            label={t("help.tab.help")}
+            active={tab === "help"}
+            onClick={() => { setTab("help"); setOpenArticle(null); }}
           />
           <TabBtn
             icon={MessageSquare}
             label={t("help.tab.messages")}
             active={tab === "messages"}
             onClick={() => { setTab("messages"); setOpenArticle(null); }}
-          />
-          <TabBtn
-            icon={HelpCircle}
-            label={t("help.tab.help")}
-            active={tab === "help"}
-            onClick={() => { setTab("help"); setOpenArticle(null); }}
           />
         </nav>
       </div>
