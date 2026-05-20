@@ -8,8 +8,9 @@ import {
 } from "lucide-react";
 import "../landing.css";
 import { useT, useI18n, LangToggle } from "../lib/i18n";
-import { useAccount, setAccount } from "../lib/account";
+import { useAccount, setAccount, clearAccount, getPendingProfile, clearPendingProfile } from "../lib/account";
 import { PLANS } from "../lib/plans";
+import ProfileForm from "./onboarding/ProfileForm";
 
 // Animations removed by request. These are no-op stand-ins for the
 // framer-motion API so the page renders fully static — no fades, no
@@ -76,6 +77,75 @@ const DIVIDER_PATHS = {
   rise: "M 0 80 C 180 60, 320 20, 480 30 S 760 80, 960 60 C 1120 45, 1280 25, 1440 40",
 };
 
+// Reveal driver for un-pinned sections: returns [ref, q]. Attach ref to
+// the section; q tweens 0→1 over `duration` ms each time the section
+// scrolls into view, and resets to 0 when it leaves — so the slide-up
+// reveal replays on every entry (scrolling down OR back up), instead of
+// the old scroll-pinned scrub (which needed a tall void). Honours
+// prefers-reduced-motion by snapping to the finished state.
+function useRevealQ({ duration = 1200, margin = "-15% 0px -15% 0px" } = {}) {
+  const ref = useRef(null);
+  const [q, setQ] = useState(0);
+  const qRef = useRef(0);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return undefined;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      qRef.current = 1;
+      setQ(1);
+      return undefined;
+    }
+    let raf = 0;
+    const start = () => {
+      cancelAnimationFrame(raf);
+      const t0 = performance.now();
+      const tick = (now) => {
+        const p = Math.min(1, (now - t0) / duration);
+        qRef.current = p;
+        setQ(p);
+        if (p < 1) raf = requestAnimationFrame(tick);
+      };
+      raf = requestAnimationFrame(tick);
+    };
+    // Two observers, so the late-trigger margin doesn't double as a
+    // reset boundary (which would hide the section while it's still
+    // visible on screen).
+    //   • triggerObs: uses the caller's `margin` — fires the reveal
+    //     start only when the section reaches the desired position.
+    //   • lifecycleObs: uses the real viewport — only resets q to 0
+    //     once the section is FULLY below the viewport (user scrolled
+    //     all the way up past it), so the reveal can replay on the
+    //     next downward entry. Exiting via the top (scroll down past)
+    //     intentionally does NOT reset, to keep the assembled state
+    //     and avoid initial-state bleed into the next section.
+    const triggerObs = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && qRef.current === 0) start();
+      },
+      { rootMargin: margin }
+    );
+    const lifecycleObs = new IntersectionObserver(
+      (entries) => {
+        const e = entries[0];
+        if (!e.isIntersecting && e.boundingClientRect.top > 0) {
+          cancelAnimationFrame(raf);
+          qRef.current = 0;
+          setQ(0);
+        }
+      },
+      { rootMargin: "0px" }
+    );
+    triggerObs.observe(el);
+    lifecycleObs.observe(el);
+    return () => {
+      triggerObs.disconnect();
+      lifecycleObs.disconnect();
+      cancelAnimationFrame(raf);
+    };
+  }, [duration, margin]);
+  return [ref, q];
+}
+
 const SectionDivider = ({ variant = "calm", flip = false, height = 120 }) => {
   const ref = useRef(null);
   const inView = useInView(ref, { once: true, margin: "-100px" });
@@ -116,7 +186,7 @@ const SectionDivider = ({ variant = "calm", flip = false, height = 120 }) => {
 // =====================================================================
 // NAV
 // =====================================================================
-const Nav = ({ onEnter, signedIn, onJump, onPage }) => {
+const Nav = ({ onEnter, signedIn, onJump, onPage, onSignOut }) => {
   const t = useT();
   const [scrolled, setScrolled] = useState(false);
   useEffect(() => {
@@ -149,7 +219,7 @@ const Nav = ({ onEnter, signedIn, onJump, onPage }) => {
               م
             </span>
           </div>
-          <span className="font-display text-xl tracking-tight">Mudir</span>
+          <span className="font-display text-xl tracking-tight">Murchid</span>
         </button>
 
         <nav
@@ -180,6 +250,16 @@ const Nav = ({ onEnter, signedIn, onJump, onPage }) => {
               style={{ color: "var(--ink-2)" }}
             >
               {t("lp.nav.signin")}
+            </button>
+          )}
+          {signedIn && (
+            <button
+              type="button"
+              onClick={onSignOut}
+              className="text-sm link-quiet"
+              style={{ color: "var(--ink-2)" }}
+            >
+              {t("lp.nav.signout")}
             </button>
           )}
           <button
@@ -253,7 +333,7 @@ const C_INK = "#2A1F17";
 const C_INK3 = "#9B8B76";
 const C_CLAY = "#B5754E";
 
-// Real Mudir cards that fan out, then collapse + shrink as you scroll.
+// Real Murchid cards that fan out, then collapse + shrink as you scroll.
 function HeroCardFace({ kind }) {
   const SHELL =
     "w-[230px] h-[300px] rounded-2xl border overflow-hidden flex flex-col p-5";
@@ -333,13 +413,13 @@ function HeroCardFace({ kind }) {
         className="mt-auto self-start text-[10px] font-mono px-2 py-1 rounded"
         style={{ background: "var(--paper-2)", color: "var(--ink-3)" }}
       >
-        Drafted by Mudir
+        Drafted by Murchid
       </span>
     </div>
   );
 }
 
-const HERO_CARDS = ["lesson", "quiz", "deck", "presentation", "activity", "homework", "worksheet"];
+const HERO_CARDS = ["lesson", "quiz", "deck", "presentation", "activity", "homework"];
 
 // Phase-C headline — each token fades + un-blurs + colour-shifts in turn.
 // Per-language word lists so the reveal works in EN and AR (RTL).
@@ -361,6 +441,10 @@ function Bubble({ label, bg, style }) {
   return (
     <div style={{ position: "absolute", ...style }}>
       <div
+        // Username handles are Latin/English (@ms.layla, @mr.idris,
+        // @head.of.science…). Force LTR so the leading "@" stays on the
+        // left even when the surrounding page is in Arabic/RTL.
+        dir="ltr"
         style={{
           position: "relative",
           background: bg,
@@ -689,8 +773,8 @@ const Hero = ({ onEnter, signedIn }) => {
 
 // =====================================================================
 // HERO JOURNEY — ONE pinned section, ONE card layer, no gap.
-// The seven Mudir cards travel a single continuous path:
-//   A  wide arc + "The teacher directs. Mudir drafts."
+// The seven Murchid cards travel a single continuous path:
+//   A  wide arc + "The teacher directs. Murchid drafts."
 //   B  collapse into a deck
 //   C  diagonal cascade + "Plan, draft, & teach… start to finish."
 //   D  the SAME cards keep sliding while "Whether you're planning…"
@@ -865,7 +949,7 @@ const HeroJourney = ({ onEnter, signedIn }) => {
 
           {/* Section heading — "The library / One studio…" above the icons */}
           <div
-            className="absolute left-[4%] top-[23%] w-[42%]"
+            className="absolute start-[4%] top-[23%] w-[42%]"
             style={{ zIndex: 30 }}
           >
             <div
@@ -925,10 +1009,12 @@ const HeroJourney = ({ onEnter, signedIn }) => {
             </p>
           </div>
 
-          {/* Honeycomb of feature chips — drops in at the folder */}
-          <HoneyDrop active={honeyActive} />
+          {/* Honeycomb of feature chips — drops in at the folder. Shifted
+              toward the text column (left in LTR, right in RTL) so the
+              cluster stays under the text and doesn't cross it. */}
+          <HoneyDrop active={honeyActive} dx={lang === "ar" ? 455 : -455} />
 
-          {/* The Mudir folder window (behind the cards) — chrome only */}
+          {/* The Murchid folder window (behind the cards) — chrome only */}
           <div className="absolute left-1/2 top-1/2" style={{ zIndex: 8 }}>
             <div
               className="overflow-hidden"
@@ -939,7 +1025,7 @@ const HeroJourney = ({ onEnter, signedIn }) => {
                 background: "var(--paper)",
                 border: "0.5px solid var(--line-strong)",
                 boxShadow: "0 50px 110px -40px rgba(42,31,23,0.4)",
-                transform: `translate(-50%,-50%) translate(250px, 22px) scale(${lerp(
+                transform: `translate(-50%,-50%) translate(${(lang === "ar" ? -250 : 250)}px, 22px) scale(${lerp(
                   0.96,
                   1,
                   winT
@@ -980,49 +1066,62 @@ const HeroJourney = ({ onEnter, signedIn }) => {
                   "+ New", where a concave sweep drops to the body's straight
                   top edge. */}
               <div className="relative" style={{ height: 476 }}>
-                {/* Body — top edge sits a lip below the raised tab */}
+                {/* Body — full-bleed solid dark behind the cream sheet.
+                    Square so the cream card's rounded top corners reveal
+                    the dark folder (framing the card) with no page-bg gap
+                    on the sides. The arc ends exactly at the cream line
+                    (y=74), so there's no straight stub. */}
                 <div
                   style={{
                     position: "absolute",
                     left: 0,
                     right: 0,
-                    top: 48,
+                    top: 74,
                     bottom: 0,
                     background: "var(--ink)",
                     boxShadow:
                       "0 -1px 0 0 rgba(42,31,23,0.05), 0 26px 44px -28px rgba(42,31,23,0.6)",
                   }}
                 />
-                {/* Raised tab — flat top across the left, under the label */}
+                {/* Raised tab — flat top across the start side, under the
+                    label. Uses logical properties so the whole silhouette
+                    mirrors automatically in Arabic/RTL. */}
                 <div
                   style={{
                     position: "absolute",
-                    left: 0,
-                    right: 168,
+                    insetInlineStart: 0,
+                    insetInlineEnd: 168,
                     top: 0,
                     height: 76,
                     background: "var(--ink)",
-                    borderTopLeftRadius: 26,
+                    borderStartStartRadius: 26,
                   }}
                 />
-                {/* Sweep — straight diagonal dropping the tab into the
-                    body under "+ New" (the yellow-line contour) */}
+                {/* Ogee sweep — traced curve dropping the tab into the
+                    body under "+ New". In RTL the SVG flips horizontally
+                    so the shoulder lands under the now-left-side "+ New". */}
                 <svg
                   width={170}
                   height={76}
                   viewBox="0 0 170 76"
-                  style={{ position: "absolute", right: 0, top: 0, display: "block" }}
+                  style={{
+                    position: "absolute",
+                    insetInlineEnd: 0,
+                    top: 0,
+                    display: "block",
+                    transform: lang === "ar" ? "scaleX(-1)" : undefined,
+                  }}
                   aria-hidden="true"
                 >
                   <path
-                    d="M0 0 L 116 48 L 170 48 L 170 76 L 0 76 Z"
+                    d="M0 0 C 36 0 56 34 104 34 L 130 34 A 40 40 0 0 1 170 74 L 0 74 Z"
                     fill="var(--ink)"
                   />
                 </svg>
                 <span
                   className="absolute inline-flex items-center gap-2 font-display"
                   style={{
-                    left: 26,
+                    insetInlineStart: 26,
                     top: 17,
                     color: "var(--paper)",
                     fontSize: 18,
@@ -1031,6 +1130,25 @@ const HeroJourney = ({ onEnter, signedIn }) => {
                   <BookOpen size={15} strokeWidth={2} />
                   {t("lp.show.folderActive")}
                 </span>
+                {/* Big cream sheet the filed cards rest on — fills the
+                    folder edge-to-edge (left/right/bottom); only the dark
+                    "Personal" header band shows above it. Bottom corners
+                    round via the folder window's overflow clip. Fades in
+                    as the cards land in the grid. */}
+                <div
+                  style={{
+                    position: "absolute",
+                    left: 0,
+                    right: 0,
+                    top: 74,
+                    bottom: 0,
+                    background: "var(--paper)",
+                    borderTopLeftRadius: 24,
+                    borderTopRightRadius: 24,
+                    boxShadow: "inset 0 14px 26px -22px rgba(42,31,23,0.5)",
+                    opacity: fileT,
+                  }}
+                />
               </div>
             </div>
           </div>
@@ -1042,9 +1160,13 @@ const HeroJourney = ({ onEnter, signedIn }) => {
           >
             {HERO_CARDS.map((kind, i) => {
               const o = i - mid;
-              // A — wide smile arc
+              // A — wide smile arc, sat below the hero title (the base
+              // offset clears the headline at top-[18vh]). Same offset
+              // in both languages — the Arabic headline fits the same
+              // 2 lines as the English one and the deeper inner cards
+              // would otherwise clip past the bottom of the viewport.
               const xa = o * 150;
-              const ya = (mid * mid - o * o) * 12 + 26;
+              const ya = (mid * mid - o * o) * 12 + 150;
               const ra = o * 9;
               const sa = 1;
               // B — tight centred deck
@@ -1052,21 +1174,25 @@ const HeroJourney = ({ onEnter, signedIn }) => {
               const yb = o * 2;
               const rb = o * 0.8;
               const sb = 0.62;
-              // C — diagonal cascade (slide baked in: + right shift)
-              const xc = o * 60 + 230;
+              // C — diagonal cascade (slide baked in: + right shift,
+              // mirrored to the left in RTL so the cascade and the
+              // Arabic headline sit on opposite sides like in LTR)
+              const xc = (o * 60 + 230) * (lang === "ar" ? -1 : 1);
               const yc = o * 50 + 10;
               const rc = -8 + i * 2;
               const sc = 0.82;
-              // G — cell inside the Library folder (7 cards: 3·3·1)
+              // G — cell inside the folder, on the cream sheet (3×2).
+              // Bigger cards, even gutter, top row tucked under the tab.
               const row = Math.floor(i / 3);
-              const rowN = row < 2 ? 3 : 1;
               const ci = i - row * 3;
-              const gx = 250 + (ci - (rowN - 1) / 2) * 132;
-              const gy = -25 + row * 110;
+              // Folder grid centered under the folder window (which sits
+              // at +250 in LTR / -250 in RTL).
+              const gx = (250 + (ci - 1) * 146) * (lang === "ar" ? -1 : 1);
+              const gy = -16 + row * 182;
               const x = lerp(lerp(lerp(xa, xb, collapseT), xc, fanT), gx, fileT);
               const y = lerp(lerp(lerp(ya, yb, collapseT), yc, fanT), gy, fileT);
               const r = lerp(lerp(lerp(ra, rb, collapseT), rc, fanT), 0, fileT);
-              const s = lerp(lerp(lerp(sa, sb, collapseT), sc, fanT), 0.42, fileT);
+              const s = lerp(lerp(lerp(sa, sb, collapseT), sc, fanT), 0.52, fileT);
               return (
                 <div
                   key={kind}
@@ -1083,11 +1209,15 @@ const HeroJourney = ({ onEnter, signedIn }) => {
           </div>
 
           {/* Floating handle bubbles */}
+          {/* Bubble positions use logical inset properties so the whole
+              cluster mirrors automatically in Arabic/RTL. The head.of.year
+              bubble's translateX is flipped explicitly since CSS has no
+              logical translate. */}
           <Bubble
             label="@ms.layla"
             bg="var(--sage)"
             style={{
-              left: "21%",
+              insetInlineStart: "21%",
               top: "29%",
               opacity: bubbleA,
               transform: `translateY(${bob}px)`,
@@ -1099,7 +1229,7 @@ const HeroJourney = ({ onEnter, signedIn }) => {
             label="@mr.idris"
             bg="var(--clay)"
             style={{
-              right: "21%",
+              insetInlineEnd: "21%",
               top: "25%",
               opacity: bubbleA,
               transform: `translateY(${-bob}px)`,
@@ -1111,7 +1241,7 @@ const HeroJourney = ({ onEnter, signedIn }) => {
             label="@head.of.science"
             bg="var(--brick)"
             style={{
-              right: "15%",
+              insetInlineEnd: "15%",
               top: "30%",
               opacity: clamp01((pc - 0.4) / 0.28) * (1 - cOut),
               transform: `translateY(${bob}px)`,
@@ -1122,10 +1252,10 @@ const HeroJourney = ({ onEnter, signedIn }) => {
             label="@head.of.year"
             bg="var(--sage)"
             style={{
-              left: "50%",
+              insetInlineStart: "50%",
               top: "24%",
               opacity: bWin,
-              transform: `translateX(120px) translateY(${bob}px)`,
+              transform: `translateX(${lang === "ar" ? -120 : 120}px) translateY(${bob}px)`,
               zIndex: 30,
             }}
           />
@@ -1220,7 +1350,7 @@ const HeroJourney = ({ onEnter, signedIn }) => {
 };
 
 // =====================================================================
-// SHOWCASE — second scroll act. Mudir "content cover" cards converge
+// SHOWCASE — second scroll act. Murchid "content cover" cards converge
 // into a centred portrait stack while a headline reveals word-by-word
 // behind them, then the stack fans into a diagonal cascade.
 // =====================================================================
@@ -1342,7 +1472,7 @@ function ShowCardFace({ c }) {
             opacity: 0.5,
           }}
         >
-          Mudir
+          Murchid
         </span>
       </div>
       <span
@@ -1369,14 +1499,14 @@ const SHOW_HEAD_EN = [
   { t: "Whether" }, { t: "you're" }, { t: "planning" },
   { t: "tomorrow's" }, { t: "lesson" }, { t: "or" }, { t: "building" },
   { t: "a" }, { t: "full" }, { t: "unit" }, { t: "—" },
-  { t: "Mudir", accent: "clay", italic: true }, { t: "turns" },
+  { t: "Murchid", accent: "clay", italic: true }, { t: "turns" },
   { t: "intent" }, { t: "into" },
   { t: "classroom-ready", accent: "sage" }, { t: "material." },
 ];
 const SHOW_HEAD_AR = [
   { t: "سواء" }, { t: "تُحضّر" }, { t: "درس" }, { t: "الغد" },
   { t: "أو" }, { t: "تبني" }, { t: "وحدةً" }, { t: "كاملة" }, { t: "—" },
-  { t: "Mudir", accent: "clay", italic: true }, { t: "يحوّل" },
+  { t: "Murchid", accent: "clay", italic: true }, { t: "يحوّل" },
   { t: "النيّة" }, { t: "إلى" },
   { t: "مادّة", accent: "sage" }, { t: "جاهزة" }, { t: "للصَّف." },
 ];
@@ -1394,10 +1524,10 @@ const VISION_HEAD_AR = [
   { t: "كل" }, { t: "صف." },
 ];
 const VISION_SUB_EN =
-  "Every lesson tells a story. Mudir helps you plan it, build it, and teach it."
+  "Every lesson tells a story. Murchid helps you plan it, build it, and teach it."
     .split(" ");
 const VISION_SUB_AR =
-  "كل درس يحكي قصّة. يساعدك Mudir على تخطيطه وبنائه وتدريسه."
+  "كل درس يحكي قصّة. يساعدك Murchid على تخطيطه وبنائه وتدريسه."
     .split(" ");
 const C_INK2 = "#6E5C4A";
 
@@ -1425,7 +1555,7 @@ const HONEY_E = 0.34; // restitution — low so they settle neatly
 const HONEY_STAGGER = 0.04; // s — gentle release offset, bottom-row first
 const HONEY_LAST = (HONEY.length - 1) * HONEY_STAGGER;
 
-const HoneyDrop = React.memo(function HoneyDrop({ active }) {
+const HoneyDrop = React.memo(function HoneyDrop({ active, dx = -380, dy = 268 }) {
   const [t, setT] = useState(0); // elapsed seconds — drives the frame
   const startRef = useRef(0);
   const rafRef = useRef(0);
@@ -1467,8 +1597,9 @@ const HoneyDrop = React.memo(function HoneyDrop({ active }) {
         zIndex: 25,
         // Anchored in the centre+px frame (same as the Library window)
         // so the cluster's base lines up with the window's bottom edge,
-        // low in the left column and clear of the headline.
-        transform: "translate(-380px, 268px)",
+        // low in the left column and clear of the headline. dx/dy let a
+        // call site nudge it (e.g. keep it within the text column).
+        transform: `translate(${dx}px, ${dy}px)`,
       }}
     >
       {HONEY.map((h, i) => {
@@ -1631,7 +1762,7 @@ const ShowcaseScroll = () => {
 
           {/* Headline #2 — left column, arrives as the grid forms */}
           <div
-            className="absolute left-[4%] top-[23%] w-[42%]"
+            className="absolute start-[4%] top-[23%] w-[42%]"
             style={{ zIndex: 30 }}
           >
             <div
@@ -1691,10 +1822,11 @@ const ShowcaseScroll = () => {
             </p>
           </div>
 
-          {/* Honeycomb of feature chips — real-gravity drop (bottom-left) */}
-          <HoneyDrop active={honeyActive} />
+          {/* Honeycomb of feature chips — real-gravity drop, flipped to
+              the right in RTL so it stays under the (now right-side) text. */}
+          <HoneyDrop active={honeyActive} dx={lang === "ar" ? 380 : -380} />
 
-          {/* The Mudir "Library" product window (behind the cards) */}
+          {/* The Murchid "Library" product window (behind the cards) */}
           <div className="absolute left-1/2 top-1/2" style={{ zIndex: 8 }}>
             <div
               className="overflow-hidden"
@@ -1705,7 +1837,7 @@ const ShowcaseScroll = () => {
                 background: "var(--paper)",
                 border: "0.5px solid var(--line-strong)",
                 boxShadow: "0 50px 110px -40px rgba(42,31,23,0.4)",
-                transform: `translate(-50%,-50%) translate(250px, 22px) scale(${lerp(
+                transform: `translate(-50%,-50%) translate(${(lang === "ar" ? -250 : 250)}px, 22px) scale(${lerp(
                   0.96,
                   1,
                   winT
@@ -1748,36 +1880,43 @@ const ShowcaseScroll = () => {
                     boxShadow: "0 18px 30px -20px rgba(42,31,23,0.55)",
                   }}
                 />
-                {/* Raised tab — flat top across the left, under the label */}
+                {/* Raised tab — flat top across the start side, mirrors
+                    automatically in Arabic/RTL via logical properties. */}
                 <div
                   style={{
                     position: "absolute",
-                    left: 0,
-                    right: 138,
+                    insetInlineStart: 0,
+                    insetInlineEnd: 138,
                     top: 0,
                     height: 46,
                     background: "var(--ink)",
-                    borderTopLeftRadius: 20,
+                    borderStartStartRadius: 20,
                   }}
                 />
-                {/* Sweep — straight diagonal dropping the tab into the
-                    body under "+ New" (the yellow-line contour) */}
+                {/* Ogee sweep — flipped horizontally in RTL so the
+                    shoulder still lands under the (now-start-side) "+ New". */}
                 <svg
                   width={140}
                   height={46}
                   viewBox="0 0 140 46"
-                  style={{ position: "absolute", right: 0, top: 0, display: "block" }}
+                  style={{
+                    position: "absolute",
+                    insetInlineEnd: 0,
+                    top: 0,
+                    display: "block",
+                    transform: lang === "ar" ? "scaleX(-1)" : undefined,
+                  }}
                   aria-hidden="true"
                 >
                   <path
-                    d="M0 0 L 96 24 L 140 24 L 140 46 L 0 46 Z"
+                    d="M0 0 C 24 0 40 16 76 16 L 110 16 A 30 30 0 0 1 140 46 L 0 46 Z"
                     fill="var(--ink)"
                   />
                 </svg>
                 <span
                   className="absolute inline-flex items-center gap-2"
                   style={{
-                    left: 26,
+                    insetInlineStart: 26,
                     top: 23,
                     transform: "translateY(-50%)",
                     color: "var(--paper)",
@@ -1799,12 +1938,14 @@ const ShowcaseScroll = () => {
               // C — entry cascade: the SAME diagonal arrangement the
               // hero left its cards in, sitting over the folder zone so
               // the section reads as one continuous motion.
-              const cx = o * 64 + 300;
+              // Mirror the cascade x in RTL so the cards and the Arabic
+              // headline sit on opposite sides like in LTR.
+              const cx = (o * 64 + 300) * (lang === "ar" ? -1 : 1);
               const cy = o * 52 + 8;
               const cr = -8 + i * 2.4;
               const cs = 0.82;
               // G — grid cell inside the Library folder
-              const gx = 250 + colOff[i % 3];
+              const gx = (250 + colOff[i % 3]) * (lang === "ar" ? -1 : 1);
               const gy = -10 + rowOff[Math.floor(i / 3)];
               const base = (a, d) => lerp(a, d, gFile);
               const x = base(cx, gx);
@@ -2041,6 +2182,11 @@ const MarqueeRow = ({ reverse }) => {
   return (
     <div
       className="w-full"
+      // Force LTR flow inside the marquee — the JS translateX animation
+      // is hard-coded for LTR, so an inherited dir="rtl" (Arabic page)
+      // would otherwise reverse the flex layout and bunch the tiles at
+      // one edge. Tile content is still bilingual via the MqTile data.
+      dir="ltr"
       style={{ overflowX: "hidden", overflowY: "visible", paddingBlock: MQ_AMP + 34 }}
     >
       <div
@@ -2274,7 +2420,7 @@ const ProductMock = ({ onOpenStudio }) => {
           the whole faithful layout shrinks together (nothing reflows /
           clips) — like a scaled screenshot. */}
       <div
-        className="mudir-studio-frame rounded-2xl overflow-hidden border border-line bg-paper text-ink font-sans flex"
+        className="murchid-studio-frame rounded-2xl overflow-hidden border border-line bg-paper text-ink font-sans flex"
         style={{
           width: 1340,
           height: 830,
@@ -2283,61 +2429,61 @@ const ProductMock = ({ onOpenStudio }) => {
         }}
       >
         {/* ── SIDEBAR ─────────────────────────────────────────────── */}
-        <aside className="mudir-sidebar w-64 flex flex-col flex-shrink-0 h-full">
-          <div className="mudir-sidebar-brand flex items-center gap-3 px-5 pt-6 pb-4 text-left">
-            <span className="mudir-sidebar-brand-mark" aria-hidden>
+        <aside className="murchid-sidebar w-64 flex flex-col flex-shrink-0 h-full">
+          <div className="murchid-sidebar-brand flex items-center gap-3 px-5 pt-6 pb-4 text-left">
+            <span className="murchid-sidebar-brand-mark" aria-hidden>
               M
             </span>
             <span className="font-serif text-[1.4rem] font-medium text-ink leading-none">
-              Mudir
+              Murchid
             </span>
           </div>
 
           <button
             type="button"
             onClick={onOpenStudio}
-            className="mudir-studio-launcher"
+            className="murchid-studio-launcher"
             aria-label="Open AI studio"
           >
-            <span className="mudir-studio-launcher-head">
-              <span className="mudir-studio-launcher-brand">
-                <span className="mudir-studio-launcher-icon" aria-hidden>
+            <span className="murchid-studio-launcher-head">
+              <span className="murchid-studio-launcher-brand">
+                <span className="murchid-studio-launcher-icon" aria-hidden>
                   <Sparkles size={15} strokeWidth={2.25} />
                 </span>
-                <span className="mudir-studio-launcher-title">Studio</span>
+                <span className="murchid-studio-launcher-title">Studio</span>
               </span>
-              <span className="mudir-studio-launcher-pill">AI</span>
+              <span className="murchid-studio-launcher-pill">AI</span>
             </span>
-            <span className="mudir-studio-launcher-body">
-              <span className="mudir-studio-launcher-subtitle">
+            <span className="murchid-studio-launcher-body">
+              <span className="murchid-studio-launcher-subtitle">
                 Your AI co-pilot for teaching
               </span>
-              <span className="mudir-studio-launcher-tagline">
+              <span className="murchid-studio-launcher-tagline">
                 Create · Plan · Inspire
               </span>
             </span>
-            <span className="mudir-studio-launcher-cta">
+            <span className="murchid-studio-launcher-cta">
               <span>Open Studio</span>
               <ArrowRight
                 size={14}
                 strokeWidth={2.25}
-                className="mudir-studio-launcher-cta-arrow"
+                className="murchid-studio-launcher-cta-arrow"
               />
             </span>
           </button>
 
           <nav className="px-2 flex-1 overflow-hidden pb-3" aria-label="Primary">
-            <section className="mudir-sidebar-section">
-              <p className="mudir-sidebar-section-label">Planning</p>
+            <section className="murchid-sidebar-section">
+              <p className="murchid-sidebar-section-label">Planning</p>
               <div className="space-y-0.5 px-1">
-                <div className="mudir-sidebar-item mudir-sidebar-item-active">
-                  <span className="mudir-sidebar-badge text-base leading-none">▦</span>
+                <div className="murchid-sidebar-item murchid-sidebar-item-active">
+                  <span className="murchid-sidebar-badge text-base leading-none">▦</span>
                   <span className="truncate flex-1">Planner</span>
                 </div>
               </div>
             </section>
-            <section className="mudir-sidebar-section">
-              <p className="mudir-sidebar-section-label">Teaching</p>
+            <section className="murchid-sidebar-section">
+              <p className="murchid-sidebar-section-label">Teaching</p>
               <div className="space-y-0.5 px-1">
                 {[
                   ["L", "Lesson Plans"],
@@ -2346,18 +2492,18 @@ const ProductMock = ({ onOpenStudio }) => {
                   ["P", "Presentations"],
                   ["A", "Activities"],
                 ].map(([badge, label]) => (
-                  <div key={badge} className="mudir-sidebar-item">
-                    <span className="mudir-sidebar-badge">{badge}</span>
+                  <div key={badge} className="murchid-sidebar-item">
+                    <span className="murchid-sidebar-badge">{badge}</span>
                     <span className="truncate flex-1">{label}</span>
                   </div>
                 ))}
               </div>
             </section>
-            <section className="mudir-sidebar-section">
-              <p className="mudir-sidebar-section-label">Data</p>
+            <section className="murchid-sidebar-section">
+              <p className="murchid-sidebar-section-label">Data</p>
               <div className="space-y-0.5 px-1">
-                <div className="mudir-sidebar-item">
-                  <span className="mudir-sidebar-badge">C</span>
+                <div className="murchid-sidebar-item">
+                  <span className="murchid-sidebar-badge">C</span>
                   <span className="truncate flex-1">My students</span>
                 </div>
               </div>
@@ -2381,8 +2527,8 @@ const ProductMock = ({ onOpenStudio }) => {
             </div>
           </div>
 
-          <div className="mudir-sidebar-account">
-            <span className="mudir-sidebar-account-avatar">SA</span>
+          <div className="murchid-sidebar-account">
+            <span className="murchid-sidebar-account-avatar">SA</span>
             <div className="flex-1 min-w-0 text-start">
               <p className="text-sm font-medium leading-tight truncate text-ink">
                 Sara
@@ -2720,13 +2866,13 @@ const ProductMock = ({ onOpenStudio }) => {
 // =====================================================================
 // TEACHER SHOWCASE — interactive desktop feature explorer
 // Two flanking columns of feature pills + a centre app preview that
-// swaps to match the selected feature (Apploye-style, Mudir palette).
+// swaps to match the selected feature (Apploye-style, Murchid palette).
 // =====================================================================
 const EB = "font-mono text-[10px] uppercase tracking-[0.18em] text-muted";
 
 function Win({ title, children }) {
   return (
-    <div className="mudir-studio-frame rounded-2xl overflow-hidden border border-line bg-paper-cool shadow-[0_40px_90px_-30px_rgba(26,24,20,0.32)]">
+    <div className="murchid-studio-frame rounded-2xl overflow-hidden border border-line bg-paper-cool shadow-[0_40px_90px_-30px_rgba(26,24,20,0.32)]">
       <div className="flex items-center gap-2 px-4 py-2.5 border-b border-line bg-[#fffdf6]">
         <span className="h-2.5 w-2.5 rounded-full bg-line" />
         <span className="h-2.5 w-2.5 rounded-full bg-line" />
@@ -3084,7 +3230,7 @@ function PvWorksheets() {
   );
 }
 
-// A single Mudir "slide" — a real deck slide: tinted cover + SlideArt.
+// A single Murchid "slide" — a real deck slide: tinted cover + SlideArt.
 function GallerySlide({ bg, art, tx, eyebrow, title }) {
   return (
     <div
@@ -3111,7 +3257,7 @@ function GallerySlide({ bg, art, tx, eyebrow, title }) {
   );
 }
 
-// A single Mudir Studio document card — real /lessons · /quizzes etc.
+// A single Murchid Studio document card — real /lessons · /quizzes etc.
 function GalleryDoc({ k, title, meta, tag, tone }) {
   const dot =
     { sage: "var(--sage)", accent: "var(--clay)", gold: "#C99A4B", soft: "#B5754E" }[
@@ -3216,37 +3362,18 @@ const GalleryTileFace = ({ tile }) => {
 // it into the scattered grid, then the overlays fade in.
 const TeacherShowcase = () => {
   const { t } = useI18n();
-  const trackRef = useRef(null);
   const stageWrapRef = useRef(null);
-  const [q, setQ] = useState(0);
   const [scale, setScale] = useState(1);
+  const [ref, q] = useRevealQ(); // un-pinned; slide-up replays on entry
 
   useEffect(() => {
-    let raf = 0;
-    const onScroll = () => {
-      if (raf) return;
-      raf = requestAnimationFrame(() => {
-        raf = 0;
-        const el = trackRef.current;
-        if (!el) return;
-        const r = el.getBoundingClientRect();
-        const span = r.height - window.innerHeight;
-        setQ(span > 0 ? Math.min(1, Math.max(0, -r.top / span)) : 0);
-      });
-    };
     const onResize = () => {
       const w = stageWrapRef.current?.clientWidth || G_DESIGN_W;
       setScale(Math.min(1, Math.max(0.42, w / G_DESIGN_W)));
-      onScroll();
     };
     onResize();
-    window.addEventListener("scroll", onScroll, { passive: true });
     window.addEventListener("resize", onResize);
-    return () => {
-      window.removeEventListener("scroll", onScroll);
-      window.removeEventListener("resize", onResize);
-      if (raf) cancelAnimationFrame(raf);
-    };
+    return () => window.removeEventListener("resize", onResize);
   }, []);
 
   const featured = GALLERY_TILES[7];
@@ -3255,21 +3382,23 @@ const TeacherShowcase = () => {
   // Timeline — the big card starts fully below the section and slides
   // straight up into the centre as you scroll (no fade — it travels in),
   // shrinking a touch while the small tiles fan out from behind it.
-  const enter = easeInOut(seg(q, 0.0, 0.46)); // rises ↑ from below
-  const appear = easeInOut(seg(q, 0.74, 0.96)); // overlays settle
+  // Reveal sequence: big card slides in first (0 → 0.40), THEN the
+  // small tiles expand from behind it (see delay/ti below, starts ~0.5),
+  // and the chips settle last (0.85 → 1.0).
+  const enter = easeInOut(seg(q, 0.0, 0.40)); // rises ↑ from below
+  const appear = easeInOut(seg(q, 0.85, 1.0)); // overlays settle (last)
   const featSc = lerp(2.2, 1, enter); // very big → final
   const featY = lerp(470, 0, enter); // already in view low → centred
 
   return (
-    <section
-      id="features"
-      ref={trackRef}
-      className="relative min-h-screen lg:h-[210vh]"
-    >
-      {/* Desktop — pinned choreography */}
+    <section id="features" ref={ref} className="relative overflow-hidden">
+      {/* Desktop — un-pinned; slide-up reveal replays on view.
+          Generous top padding gives the subjects marquee above clear
+          breathing room before the gallery enters, so the reveal plays
+          naturally as the user reaches the section. */}
       <div
         ref={stageWrapRef}
-        className="hidden lg:flex lg:sticky lg:top-0 lg:h-screen overflow-hidden items-center justify-center"
+        className="hidden lg:flex overflow-hidden items-center justify-center pt-48 pb-24"
       >
         <div
           className="relative"
@@ -3282,9 +3411,11 @@ const TeacherShowcase = () => {
           {/* Small tiles — fan out from behind the card */}
           {G_CELLS.map((c, i) => {
             const tile = smalls[i % smalls.length];
+            // Tiles start AFTER the big card has settled (q≈0.4),
+            // then cascade out ring by ring from behind it.
             const delay =
-              0.3 + (c.ring - 1) * 0.12 + (i % 5) * 0.015;
-            const ti = easeInOut(clamp01((q - delay) / 0.34));
+              0.5 + (c.ring - 1) * 0.09 + (i % 5) * 0.012;
+            const ti = easeInOut(clamp01((q - delay) / 0.26));
             const s = lerp(0.28, 1, ti);
             return (
               <div
@@ -3332,7 +3463,7 @@ const TeacherShowcase = () => {
               }}
             >
               <Bubble
-                label="@mudir"
+                label="@murchid"
                 bg="var(--clay)"
                 style={{ top: 54, left: -14, zIndex: 40 }}
               />
@@ -3545,7 +3676,7 @@ const DECK_THUMBS = [
   { bg: "#243027", art: "#9bc48a" },
 ];
 
-// Mariam — describe a deck, Mudir builds the slides.
+// Mariam — describe a deck, Murchid builds the slides.
 function MiniDeck() {
   const { lang } = useI18n();
   const ar = lang === "ar";
@@ -3904,7 +4035,7 @@ const Workflow = () => {
 // MEMBERSHIP — pricing. Scroll-scrubbed like the other acts: the left
 // column reveals (icon + headline + word-by-word sub) while three plan
 // cards rise from below and settle into an overlapping fan, the middle
-// "Popular" card raised. Mudir palette (clay accent — no orange).
+// "Popular" card raised. Murchid palette (clay accent — no orange).
 // =====================================================================
 function PlanCardFace({ plan, featured, t, cur }) {
   const [intp, decp] = String(plan.perMonth).split(".");
@@ -3957,52 +4088,31 @@ function PlanCardFace({ plan, featured, t, cur }) {
 // Rest layout per card (px from centre): side cards rotate out and sit
 // lower/behind; the middle "Popular" card is raised and on top.
 const MB_REST = [
-  { x: -182, y: 34, rot: -8, z: 10, sc: 0.97 },
+  { x: -218, y: 34, rot: -8, z: 10, sc: 0.97 },
   { x: 0, y: -30, rot: 0, z: 30, sc: 1.05 },
-  { x: 182, y: 34, rot: 8, z: 10, sc: 0.97 },
+  { x: 218, y: 34, rot: 8, z: 10, sc: 0.97 },
 ];
 
 const Membership = ({ onEnter }) => {
   const { t, isRTL } = useI18n();
-  const trackRef = useRef(null);
-  const [q, setQ] = useState(0);
-
-  useEffect(() => {
-    let raf = 0;
-    const onScroll = () => {
-      if (raf) return;
-      raf = requestAnimationFrame(() => {
-        raf = 0;
-        const el = trackRef.current;
-        if (!el) return;
-        const r = el.getBoundingClientRect();
-        const span = r.height - window.innerHeight;
-        setQ(span > 0 ? Math.min(1, Math.max(0, -r.top / span)) : 0);
-      });
-    };
-    onScroll();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    window.addEventListener("resize", onScroll);
-    return () => {
-      window.removeEventListener("scroll", onScroll);
-      window.removeEventListener("resize", onScroll);
-      if (raf) cancelAnimationFrame(raf);
-    };
-  }, []);
+  // Late trigger: only fire the reveal once Membership's top has
+  // scrolled up into the top quarter of the viewport — i.e. the
+  // gallery's last cards have just exited above, so Membership isn't
+  // showing while the previous section is still half-visible.
+  const [ref, q] = useRevealQ({ margin: "0px 0px -75% 0px" });
 
   const cur = t("lp.plan.aed");
-  const headIn = easeInOut(seg(q, 0.06, 0.42));
+  const headIn = easeInOut(seg(q, 0.0, 0.28));
   const subWords = t("lp.mb.sub").split(" ");
   const dir = isRTL ? -1 : 1;
 
   return (
-    <section
-      id="membership"
-      ref={trackRef}
-      className="relative min-h-screen lg:h-[200vh]"
-    >
-      {/* Desktop / iPad-landscape — pinned scroll-scrub */}
-      <div className="hidden lg:flex lg:sticky lg:top-0 lg:h-screen overflow-hidden items-center">
+    <section id="membership" ref={ref} className="relative">
+      {/* Desktop / iPad-landscape — un-pinned; slide-up reveal on view.
+          Generous top padding gives the gallery above clear breathing
+          room before Membership enters. No overflow-hidden so the
+          fanned pricing cards aren't clipped at the right edge. */}
+      <div className="hidden lg:flex items-center pt-48 pb-24">
         <div className="max-w-[1280px] mx-auto px-8 w-full grid grid-cols-2 gap-12 items-center">
           <div
             style={{
@@ -4116,7 +4226,7 @@ const Membership = ({ onEnter }) => {
 // =====================================================================
 // STUDIO FLOW — auto-playing walkthrough of the real presentation
 // pipeline: open Studio AI from the Planner → describe the deck →
-// Mudir builds it → the finished slides. Content is the real Studio
+// Murchid builds it → the finished slides. Content is the real Studio
 // (presentation sample, "Slide-by-slide outline", "Make it", the
 // SlideBuilder ocean theme).
 // =====================================================================
@@ -4204,7 +4314,7 @@ function FlowCompose() {
           <ChevronRight size={13} className="text-muted rotate-90" />
         </span>
         <span className="text-[12.5px] text-muted font-serif italic">
-          Tell Mudir what to cover.
+          Tell Murchid what to cover.
         </span>
       </div>
 
@@ -4224,7 +4334,7 @@ function FlowCompose() {
           </div>
           <div className="flex items-center gap-3">
             <p className="hidden sm:block text-xs text-muted italic">
-              Mudir will fill the rest
+              Murchid will fill the rest
             </p>
             <span
               data-flow="makeit"
@@ -4253,7 +4363,7 @@ function FlowCompose() {
   );
 }
 
-// Step 3 — Mudir building the deck (the real "thinking" state +
+// Step 3 — Murchid building the deck (the real "thinking" state +
 // streaming outline).
 function FlowBuilding() {
   const lines = [
@@ -4272,7 +4382,7 @@ function FlowBuilding() {
           <Sparkles size={26} strokeWidth={2} />
         </span>
       </span>
-      <p className="font-serif text-2xl text-ink mb-1">Mudir is thinking…</p>
+      <p className="font-serif text-2xl text-ink mb-1">Murchid is thinking…</p>
       <p className="text-[13px] text-muted mb-6">
         Drafting an 8-slide deck on the water cycle, Grade 4.
       </p>
@@ -4448,14 +4558,14 @@ function FlowResult() {
 }
 
 const FLOW_SCENES = {
-  planner: { title: "mudir.app · planner", Render: FlowPlanner },
-  compose: { title: "mudir.app · studio · presentation", Render: FlowCompose },
+  planner: { title: "murchid.app · planner", Render: FlowPlanner },
+  compose: { title: "murchid.app · studio · presentation", Render: FlowCompose },
   building: { title: "studio · generating", Render: FlowBuilding },
   result: { title: "studio · presentation · ready", Render: FlowResult },
 };
 
 // Scripted shot list — plays as one continuous take (cursor moves,
-// clicks, the prompt types itself, Mudir builds it, the deck appears),
+// clicks, the prompt types itself, Murchid builds it, the deck appears),
 // then loops. No tabs, no manual stepping.
 const TIMELINE = [
   { scene: "planner",  target: "start",  ms: 900 },
@@ -4470,7 +4580,7 @@ const TIMELINE = [
 const SCENE_LABEL = {
   planner: "Open Studio AI",
   compose: "Describe the deck",
-  building: "Mudir builds it",
+  building: "Murchid builds it",
   result: "Your deck, ready",
 };
 
@@ -4547,7 +4657,7 @@ const StudioFlow = () => {
           </h2>
           <p className="text-xl leading-relaxed" style={{ color: "var(--ink-2)" }}>
             One continuous take — open Studio AI from the Planner, describe the
-            deck in a sentence, and Mudir builds the slides for you.
+            deck in a sentence, and Murchid builds the slides for you.
           </p>
         </div>
 
@@ -4641,7 +4751,7 @@ const Philosophy = () => {
     {
       n: "I",
       title: "The teacher is the author.",
-      body: "Mudir drafts. You direct. Every output is a starting point, never the final word — your name goes on the lesson, so your judgment has the last say.",
+      body: "Murchid drafts. You direct. Every output is a starting point, never the final word — your name goes on the lesson, so your judgment has the last say.",
     },
     {
       n: "II",
@@ -4679,7 +4789,7 @@ const Philosophy = () => {
           className="text-xl leading-relaxed mb-16"
           style={{ color: "var(--ink-2)" }}
         >
-          Mudir is built on four convictions. They shape every screen, every
+          Murchid is built on four convictions. They shape every screen, every
           default, and every line of generated text — so the tool stays
           quietly on your side.
         </p>
@@ -4716,7 +4826,7 @@ const Philosophy = () => {
             className="font-display italic text-xl md:text-2xl"
             style={{ color: "var(--ink)" }}
           >
-            — The Mudir team
+            — The Murchid team
           </p>
           <p className="eyebrow mt-3">Built in Dubai, alongside teachers</p>
         </div>
@@ -4822,7 +4932,7 @@ const Footer = ({ onEnter, signedIn, onJump, onPage }) => {
                   م
                 </span>
               </div>
-              <span className="font-display text-xl">Mudir</span>
+              <span className="font-display text-xl">Murchid</span>
             </div>
             <p className="font-display text-2xl leading-tight max-w-sm mb-6">
               {t("lp.foot.tagline")}
@@ -5092,63 +5202,65 @@ function OnboardingPage({ onChoosePlan, onPage }) {
       lead={t("lp.ob.lead")}
       onPage={onPage}
     >
-      <div className="grid gap-4 sm:grid-cols-3">
+      {/* Plan cards — same visual treatment as the Membership section
+          (clay/orange "Popular" middle card, cream side cards) but laid
+          out in a clean selectable grid with a "Choose plan" CTA and a
+          7-day free-trial line on each card. */}
+      <div className="grid gap-5 sm:grid-cols-3 max-w-4xl mx-auto">
         {PLANS.map((p) => {
-          const billed =
-            p.cycle === "mo"
+          const featured = p.id === "quarterly";
+          const [intp, decp] = String(p.perMonth).split(".");
+          const note =
+            p.id === "monthly"
               ? t("lp.plan.billed.mo")
-              : t(p.cycle === "q" ? "lp.plan.billed.q" : "lp.plan.billed.yr", {
-                  total: p.total,
-                  cur,
-                });
+              : p.id === "annual"
+                ? t("lp.plan.yearOff", { n: p.savePct })
+                : t("lp.plan.save", { n: p.savePct });
           return (
             <div
               key={p.id}
-              className="relative rounded-2xl p-6 flex flex-col lift"
+              className="rounded-[24px] p-5 flex flex-col gap-4"
               style={{
-                background: p.best ? "var(--ink)" : "var(--paper)",
-                color: p.best ? "var(--paper)" : "var(--ink)",
-                border: "0.5px solid " + (p.best ? "var(--ink)" : "var(--line-strong)"),
+                background: featured ? "var(--clay)" : "#fffdf6",
+                color: featured ? "var(--paper)" : "var(--ink)",
+                border:
+                  "0.5px solid " + (featured ? "var(--clay)" : "var(--line-strong)"),
+                boxShadow: "0 26px 54px -26px rgba(26,24,20,0.42)",
               }}
             >
-              {p.best && (
-                <span
-                  className="absolute -top-2.5 inset-x-0 mx-auto w-max px-2.5 py-0.5 rounded-full font-mono text-[9px] uppercase tracking-[0.16em]"
-                  style={{ background: "var(--clay)", color: "var(--paper)" }}
-                >
-                  {t("lp.plan.best")}
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-display text-base leading-none">
+                  {t(`lp.plan.name.${p.id}`)}
                 </span>
-              )}
-              <div
-                className="font-mono text-[10px] uppercase tracking-[0.16em] mb-3"
-                style={{ color: p.best ? "rgba(247,243,236,0.6)" : "var(--ink-3)" }}
-              >
-                {t(`lp.plan.name.${p.id}`)}
+                {featured && (
+                  <span
+                    className="px-2.5 py-1 rounded-full text-[9.5px] font-semibold flex-shrink-0"
+                    style={{ background: "var(--paper)", color: "var(--ink)" }}
+                  >
+                    {t("lp.plan.popular")}
+                  </span>
+                )}
               </div>
-              <div className="flex items-baseline gap-1.5">
-                <span className="font-display text-4xl leading-none">{p.perMonth}</span>
-                <span className="text-sm" style={{ opacity: 0.7 }}>{cur}</span>
-                <span className="text-sm" style={{ opacity: 0.7 }}>{t("lp.plan.perMo")}</span>
-              </div>
-              <div
-                className="text-xs mt-2 mb-1"
-                style={{ color: p.best ? "rgba(247,243,236,0.65)" : "var(--ink-2)" }}
-              >
-                {billed}
-              </div>
-              {p.savePct > 0 && (
-                <div
-                  className="font-mono text-[10px] uppercase tracking-wider mb-5"
-                  style={{ color: p.best ? "var(--brick-soft)" : "var(--clay)" }}
-                >
-                  {t("lp.plan.save", { n: p.savePct })}
+              <div>
+                <div className="flex items-start gap-1">
+                  <span className="text-[12px] mt-1.5" style={{ opacity: 0.7 }}>
+                    {cur}
+                  </span>
+                  <span className="font-display text-[44px] leading-none">{intp}</span>
+                  <span className="text-base mt-1">.{decp}</span>
                 </div>
-              )}
+                <div
+                  className="text-[11.5px] mt-2"
+                  style={{ color: featured ? "rgba(247,243,236,0.72)" : "var(--ink-3)" }}
+                >
+                  {note}
+                </div>
+              </div>
               <button
                 type="button"
                 onClick={() => onChoosePlan(p.id)}
                 className={`mt-auto w-full px-5 py-3 rounded-lg text-sm font-medium transition ${
-                  p.best ? "btn-invert" : "btn-primary"
+                  featured ? "btn-invert" : "btn-primary"
                 }`}
               >
                 {t("lp.plan.choose")}
@@ -5157,6 +5269,67 @@ function OnboardingPage({ onChoosePlan, onPage }) {
           );
         })}
       </div>
+
+      {/* Trial CTA — wide banner matching the 3 cards' width above
+          (max-w-4xl, rounded-[24px]), kept low in height so it doesn't
+          overwhelm the cards. Premium feel from the warm clay radial
+          glow inside + a sprinkle of subtle sparkle particles, all
+          quietly animating on their own (shimmer + breathe + twinkle)
+          so the button feels alive without needing hover. */}
+      <button
+        type="button"
+        onClick={() => onChoosePlan("quarterly")}
+        className="group relative mt-7 w-full max-w-4xl mx-auto rounded-[24px] overflow-hidden flex flex-col items-center justify-center gap-0.5 px-7 py-2.5 transition-transform duration-300 hover:-translate-y-0.5"
+        style={{
+          background: "#3A2C21",
+          color: "var(--paper)",
+          boxShadow:
+            "0 14px 30px -12px rgba(26,24,20,0.55), inset 0 1px 0 rgba(255,255,255,0.08)",
+        }}
+      >
+        {/* Warm-clay inner glow — breathes continuously (slow opacity
+            cycle), intensifies further on hover */}
+        <span
+          aria-hidden="true"
+          className="murchid-trial-glow absolute inset-0 pointer-events-none transition-opacity duration-500 group-hover:!opacity-100"
+          style={{
+            background:
+              "radial-gradient(60% 100% at 50% 100%, rgba(181,117,78,0.55), rgba(26,24,20,0) 70%)",
+            animation: "murchid-trial-glow 4.5s ease-in-out infinite",
+          }}
+        />
+        {/* Slow diagonal shimmer — a soft highlight sweeps across the
+            pill ~every 6s, giving the dark surface a "live" sheen */}
+        <span
+          aria-hidden="true"
+          className="murchid-trial-shimmer absolute inset-y-0 -left-1/2 w-1/2 pointer-events-none"
+          style={{
+            background:
+              "linear-gradient(105deg, transparent 35%, rgba(255,255,255,0.12) 50%, transparent 65%)",
+            animation: "murchid-trial-shimmer 6s linear infinite",
+          }}
+        />
+        {/* Subtle sparkle particles spread across the wider canvas —
+            each twinkles independently via a staggered delay */}
+        <span aria-hidden="true" className="murchid-trial-twinkle absolute top-3 start-[10%] w-0.5 h-0.5 rounded-full" style={{ background: "var(--paper)", animation: "murchid-trial-twinkle 3.6s ease-in-out infinite", animationDelay: "0s" }} />
+        <span aria-hidden="true" className="murchid-trial-twinkle absolute bottom-3 end-[16%] w-px h-px rounded-full" style={{ background: "var(--paper)", animation: "murchid-trial-twinkle 4.2s ease-in-out infinite", animationDelay: "-0.8s" }} />
+        <span aria-hidden="true" className="murchid-trial-twinkle absolute top-4 end-[8%] w-0.5 h-0.5 rounded-full" style={{ background: "var(--paper)", animation: "murchid-trial-twinkle 3.2s ease-in-out infinite", animationDelay: "-1.6s" }} />
+        <span aria-hidden="true" className="murchid-trial-twinkle absolute top-2 start-[38%] w-px h-px rounded-full" style={{ background: "var(--paper)", animation: "murchid-trial-twinkle 4s ease-in-out infinite", animationDelay: "-2.2s" }} />
+        <span aria-hidden="true" className="murchid-trial-twinkle absolute bottom-4 start-[8%] w-0.5 h-0.5 rounded-full" style={{ background: "var(--paper)", animation: "murchid-trial-twinkle 3.8s ease-in-out infinite", animationDelay: "-1.1s" }} />
+        <span aria-hidden="true" className="murchid-trial-twinkle absolute bottom-2 start-[60%] w-px h-px rounded-full" style={{ background: "var(--paper)", animation: "murchid-trial-twinkle 4.4s ease-in-out infinite", animationDelay: "-0.4s" }} />
+        <div className="relative inline-flex items-center gap-2.5">
+          <Sparkles size={16} strokeWidth={2} style={{ color: "var(--clay)" }} />
+          <span className="text-sm font-medium tracking-tight">
+            {t("lp.plan.trialTitle")}
+          </span>
+        </div>
+        <p
+          className="relative text-[11px]"
+          style={{ color: "rgba(247,243,236,0.6)" }}
+        >
+          {t("lp.plan.trialNote")}
+        </p>
+      </button>
       <p className="text-xs mt-8" style={{ color: "var(--ink-3)" }}>
         {t("lp.ob.note")}
       </p>
@@ -5164,10 +5337,17 @@ function OnboardingPage({ onChoosePlan, onPage }) {
   );
 }
 
-function MarketingPage({ page, onSignUp, onChoosePlan, onPage }) {
+function MarketingPage({ page, onSignUp, onProfileDone, onChoosePlan, onPage }) {
   const t = useT();
   if (page === "signin" || page === "signup")
     return <AuthPage onSignUp={onSignUp} onPage={onPage} />;
+  if (page === "profile")
+    return (
+      <ProfileForm
+        onDone={onProfileDone}
+        onBack={() => onPage("signup")}
+      />
+    );
   if (page === "onboarding")
     return <OnboardingPage onChoosePlan={onChoosePlan} onPage={onPage} />;
 
@@ -5318,11 +5498,25 @@ export default function Landing({ onOpenStudio }) {
   const enter = () => (signedIn ? onOpenStudio() : goPage("signup"));
   const handleSignUp = (provider) => {
     setPendingProvider(provider);
+    // New step in the funnel: collect teacher profile BEFORE plan
+    // picker, so we have the My-Students data ready by the time the
+    // planner opens.
+    goPage("profile");
+  };
+  const handleProfileDone = () => {
     goPage("onboarding");
   };
   const handleChoosePlan = (plan) => {
-    setAccount({ provider: pendingProvider || "google", plan });
+    const profile = getPendingProfile() || undefined;
+    setAccount({ provider: pendingProvider || "google", plan, profile });
+    clearPendingProfile();
     onOpenStudio();
+  };
+  // Clears the mock account and returns the user to the landing home so
+  // they can sign in again. Available from the Nav whenever signedIn.
+  const handleSignOut = () => {
+    clearAccount();
+    goPage("home");
   };
   const jump = (id) => {
     const doScroll = () => {
@@ -5337,25 +5531,21 @@ export default function Landing({ onOpenStudio }) {
   };
 
   return (
-    <div className="mudir-landing paper-noise">
-      <Nav onEnter={enter} signedIn={signedIn} onJump={jump} onPage={goPage} />
+    <div className="murchid-landing paper-noise">
+      <Nav onEnter={enter} signedIn={signedIn} onJump={jump} onPage={goPage} onSignOut={handleSignOut} />
       {page === "home" ? (
         <>
           <HeroJourney onEnter={enter} signedIn={signedIn} />
           <CommunityScroll />
-          <SectionDivider variant="wave" />
           <TeacherShowcase />
-          <SectionDivider variant="cascade" />
-          <Workflow />
-          <SectionDivider variant="cascade" flip />
           <Membership onEnter={enter} />
-          <SectionDivider variant="wave" />
           <CTA onEnter={enter} signedIn={signedIn} />
         </>
       ) : (
         <MarketingPage
           page={page}
           onSignUp={handleSignUp}
+          onProfileDone={handleProfileDone}
           onChoosePlan={handleChoosePlan}
           onPage={goPage}
         />

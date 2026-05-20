@@ -19,6 +19,7 @@ import { navigate } from "../lib/route";
 import { useT, useI18n } from "../lib/i18n";
 import { api } from "./_shared";
 import SchedulePopup from "./_schedule-popup";
+import PlannerTour, { hasSeenPlannerTour } from "./onboarding/PlannerTour";
 
 // Categories the calendar can show. Each maps to one of the existing
 // teaching surfaces, with a Murchid-palette color so the day cells stay
@@ -79,6 +80,10 @@ export default function Planner() {
   const t = useT();
   const { lang } = useI18n();
   const locale = lang === "ar" ? "ar" : "en-US";
+  // First-run tour: opens once on the first Planner visit per device.
+  // Mount with the seen-flag inverted so it fires on initial render
+  // (after auth + plan pick), and immediately persists once dismissed.
+  const [tourOpen, setTourOpen] = useState(() => !hasSeenPlannerTour());
   // The visible month (1st of the displayed month). Today by default.
   const [anchor, setAnchor] = useState(() => {
     const n = new Date();
@@ -511,6 +516,8 @@ export default function Planner() {
           onSaved={reloadEvents}
         />
       )}
+
+      <PlannerTour open={tourOpen} onClose={() => setTourOpen(false)} />
     </div>
   );
 }
