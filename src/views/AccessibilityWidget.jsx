@@ -11,7 +11,7 @@ import { useI18n } from "../lib/i18n.jsx";
 // visual filters (zoom / grayscale / contrast) we apply to #root.
 // Preferences persist per-device in localStorage.
 
-const STORAGE_KEY = "mudir.a11y";
+const STORAGE_KEY = "murchid.a11y";
 
 const DEFAULTS = {
   textStep: 0,        // 0..4  → zoom 1, 1.1, 1.2, 1.35, 1.5
@@ -127,11 +127,17 @@ export default function AccessibilityWidget() {
   const stopReading = () => window.speechSynthesis?.cancel();
   // Anchored to the trailing-bottom corner (right in LTR, left in RTL)
   // to stay clear of the sidebar account/profile button.
-  const side = dir === "rtl" ? { left: 20 } : { right: 20 };
+  // Both sides are always set (opposite = "auto") so a language flip
+  // can't leave a stale `right`/`left` on the DOM node — without this
+  // the widget visually pins to BOTH edges until the page is refreshed.
+  const side = dir === "rtl"
+    ? { right: "auto", left: 20 }
+    : { left: "auto", right: 20 };
   const dirty = !isDefault(s);
 
   const launcher = (
     <button
+      key={dir}
       type="button"
       onClick={() => setOpen((o) => !o)}
       aria-label={t("a11y.open")}
