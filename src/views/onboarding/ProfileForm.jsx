@@ -426,7 +426,7 @@ export default function ProfileForm({ onDone, onBack }) {
             <ChevronLeft size={16} className="rtl:rotate-180" />
             {stepIdx === 0 ? t("onb.back.signin") : t("onb.back.step")}
           </button>
-          <div className="flex flex-col items-end gap-2">
+          <div className="flex flex-col items-center gap-2">
             <button
               type="button"
               onClick={next}
@@ -436,7 +436,9 @@ export default function ProfileForm({ onDone, onBack }) {
               {last ? t("onb.finish") : t("onb.next")}
               {last ? <Check size={16} /> : <ChevronRight size={16} className="rtl:rotate-180" />}
             </button>
-            {/* Skip — italic text link, like every other onboarding flow. */}
+            {/* Skip — italic text link with permanent underline, centered
+                directly under the primary Continue button. Standard
+                pattern: low-commitment exit beneath the primary CTA. */}
             {step === "students" && (
               <button
                 type="button"
@@ -447,7 +449,7 @@ export default function ProfileForm({ onDone, onBack }) {
                   setPendingStudents([]);
                   onDone?.({ ...data, students: [] });
                 }}
-                className="font-serif italic text-sm text-ink-soft hover:text-ink hover:underline underline-offset-2 transition-colors"
+                className="font-serif italic text-sm text-ink-soft hover:text-ink underline underline-offset-2 transition-colors"
               >
                 {t("onb.students.skipBtn")}
               </button>
