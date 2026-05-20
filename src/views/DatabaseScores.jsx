@@ -43,11 +43,8 @@ export default function DatabaseScores() {
   }, []);
 
   // Whenever the picked quiz changes, fetch its existing scores so the
-  // grid pre-fills with what the teacher already entered before. Also
-  // reset the match-only filter so each new quiz starts narrowed to
-  // its own grade + section (the teacher can widen it again per quiz).
+  // grid pre-fills with what the teacher already entered before.
   useEffect(() => {
-    setMatchOnly(true);
     if (!quizId) { setScores({}); return; }
     setBusy(true);
     setError(null);
@@ -107,6 +104,15 @@ export default function DatabaseScores() {
     [students, quiz]
   );
 
+  // Auto-pick the right default per quiz so the teacher never sees a
+  // confusing "0 students" screen. If at least one student matches the
+  // quiz's grade + section, narrow to them; otherwise just show the
+  // full roster with an explanatory note in the chip slot.
+  useEffect(() => {
+    if (!quiz) return;
+    setMatchOnly(matchCount > 0);
+  }, [quiz, matchCount]);
+
   const setCell = (sid, patch) =>
     setScores((m) => ({ ...m, [sid]: { ...(m[sid] || {}), ...patch } }));
 
@@ -163,8 +169,10 @@ export default function DatabaseScores() {
       </div>
 
       {/* Filter chip + name search — shown once a quiz is picked.
-          The chip pre-filters to the quiz's grade + section but
-          can be removed in one click to see every student. */}
+          The chip auto-narrows to the quiz's grade + section IF anyone
+          matches; otherwise it sits in "showing all" mode with an
+          explanatory note so the teacher never sees a confusing 0-row
+          screen. Both states are one click away from the other. */}
       {quizId && (
         <div className="flex flex-wrap items-center gap-2">
           {matchOnly ? (
@@ -179,13 +187,24 @@ export default function DatabaseScores() {
               <span className="opacity-70">({matchCount} of {students.length})</span>
               <X size={12} />
             </button>
+          ) : matchCount === 0 ? (
+            // Auto-fallback: no one matches this quiz's grade + section,
+            // so we're showing all students. Frame it as info, not as
+            // an action — teachers don't need to know there's a chip
+            // they could have toggled.
+            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-paper-warm border border-line text-[12px] text-ink-soft">
+              No one in your roster is tagged
+              {quiz?.grade ? ` ${quiz.grade}` : ""}
+              {quiz?.section && quiz.section !== "All sections" ? ` · ${quiz.section}` : ""}
+              {" — showing all "}{students.length}{" students."}
+            </span>
           ) : (
             <button
               type="button"
               onClick={() => setMatchOnly(true)}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-paper-cool border border-line text-[12px] font-medium text-ink-soft hover:border-ink transition-colors"
             >
-              Showing all {students.length} students — re-apply match
+              Showing all {students.length} — re-apply match ({matchCount})
             </button>
           )}
           <div className="relative flex-1 min-w-[180px] max-w-sm">
@@ -219,13 +238,7 @@ export default function DatabaseScores() {
         </p>
       )}
 
-      {quizId && !busy && eligible.length === 0 && students.length > 0 && matchOnly && (
-        <p className="text-sm text-muted italic">
-          No students match this quiz's grade and section. Click the filter chip above to see every student instead.
-        </p>
-      )}
-
-      {quizId && !busy && eligible.length === 0 && students.length > 0 && !matchOnly && query && (
+      {quizId && !busy && eligible.length === 0 && students.length > 0 && query && (
         <p className="text-sm text-muted italic">
           No students match "{query}".
         </p>
