@@ -9,7 +9,7 @@ import {
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { api, DatePicker } from "./_shared";
-import { useT } from "../lib/i18n";
+import { useT, useI18n } from "../lib/i18n";
 import { parseSections, joinSections, renderMarkdown } from "../lib/markdown";
 import StudioCard from "./StudioCard";
 import SlideBuilder from "./SlideBuilder";
@@ -320,6 +320,7 @@ export default function Studio({ initialKind } = {}) {
   // homework", etc. Falls back to lesson_plan when the route is bare
   // or the value isn't one of the recognised kinds.
   const t = useT();
+  const { lang: uiLang } = useI18n();
   const kindLabel = (v) => kindLabelFor(t, v);
   const validKind = KINDS.some((k) => k.value === initialKind) ? initialKind : "lesson_plan";
   const [kind, setKind] = useState(validKind);
@@ -625,10 +626,16 @@ export default function Studio({ initialKind } = {}) {
       kind === "activity"      ? activityParams     :
       kind === "presentation"  ? presentationParams :
       null;
+    // When the teacher leaves Language on "Auto", fall back to the UI
+    // language. So an Arabic-mode teacher gets Arabic output by default;
+    // explicitly picking English/Turkish/etc. in the dropdown overrides.
+    const uiDefaultLang = uiLang === "ar" ? "Arabic" : "English";
+    const withDefaultLang = (p) =>
+      p ? { ...p, language: p.language || uiDefaultLang } : p;
     try {
       const body = isQuiz
-        ? { kind, prompt: prompt.trim(), params: quizParams, attachments }
-        : { kind, prompt: prompt.trim(), params: paramsForKind, attachments };
+        ? { kind, prompt: prompt.trim(), params: withDefaultLang(quizParams), attachments }
+        : { kind, prompt: prompt.trim(), params: withDefaultLang(paramsForKind), attachments };
       const res = await fetch(API_BASE + (isQuiz ? "/api/studio/quiz" : "/api/studio/generate"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1826,7 +1833,7 @@ export default function Studio({ initialKind } = {}) {
 
         {error && (
           <div className="mt-4 bg-paper border border-accent rounded-lg p-4 shadow-sm">
-            <p className="text-sm font-medium text-accent mb-1">Could not generate</p>
+            <p className="text-sm font-medium text-accent mb-1">{t("studio.stream.couldNotGenerate")}</p>
             <p className="text-sm text-ink-soft">{error}</p>
             {error.includes("ai_studio") && (
               <p className="text-xs text-muted mt-2">
@@ -1885,13 +1892,13 @@ export default function Studio({ initialKind } = {}) {
           M
         </div>
         <div className="flex-1 min-w-0 pt-0.5 sm:pt-1">
-          <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-1.5 sm:mb-2">Murchid</p>
+          <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-1.5 sm:mb-2">{t("studio.eyebrow")}</p>
           <p className="font-serif text-lg sm:text-xl md:text-2xl lg:text-[1.75rem] text-ink leading-[1.4] sm:leading-[1.45]">
             {/* Keep "{verb} a [pill]" as a no-break unit so the kind pill
                 never lands on its own line under "Make a". The suffix
                 wraps naturally on narrow widths. */}
             <span className="whitespace-nowrap">
-              {active?.verb} a{" "}
+              {t(`kind.${active?.value}.verb`)}{" "}
               <InlineKindPicker
                 active={active}
                 pulseKey={pulseKey}
@@ -1904,7 +1911,7 @@ export default function Studio({ initialKind } = {}) {
               />
             </span>
             {". "}
-            {active?.suffix}
+            {t(`kind.${active?.value}.suffix`)}
           </p>
         </div>
       </div>
@@ -1914,7 +1921,7 @@ export default function Studio({ initialKind } = {}) {
           full prompt into the textarea. */}
       {recents.length > 0 && (
         <div className="mb-3 flex items-center gap-3 flex-wrap">
-          <p className="font-serif italic text-base text-muted flex-shrink-0">Recent</p>
+          <p className="font-serif italic text-base text-muted flex-shrink-0">{t("studio.recent")}</p>
           <div className="flex flex-wrap gap-1.5">
             {recents.slice(0, 4).map((r) => (
               <button
@@ -2004,8 +2011,8 @@ export default function Studio({ initialKind } = {}) {
           }}
           placeholder={
             hasAttach
-              ? "Optional focus — e.g. \"only the formulas\" or \"skip the diagrams\". Leave blank to use the whole file(s)."
-              : active?.sample
+              ? t("studio.textarea.attachedPlaceholder")
+              : t(`kind.${active?.value}.sample`)
           }
           className="w-full bg-transparent outline-none px-5 py-3 text-base text-ink placeholder:text-muted resize-none"
         />
@@ -2035,14 +2042,14 @@ export default function Studio({ initialKind } = {}) {
               <AttachmentChip key={i} file={f} onRemove={() => removeAttachment(i)} />
             ))}
             {!hasAttach && kind !== "quiz" && (
-              <ParamChip>{active?.oneliner}</ParamChip>
+              <ParamChip>{t(`kind.${active?.value}.oneliner`)}</ParamChip>
             )}
           </div>
           <div className="flex items-center gap-3">
             <p className="hidden sm:block text-xs text-muted italic">
               {hasAttach && !prompt.trim()
-                ? "Murchid will use the whole file(s)"
-                : "Murchid will fill the rest"}
+                ? t("studio.caption.withFile")
+                : t("studio.caption.willFill")}
             </p>
             <Button
               variant="danger"
@@ -2051,7 +2058,7 @@ export default function Studio({ initialKind } = {}) {
               className="hover:scale-[1.02] active:scale-[0.99] transition-transform duration-200 px-4 py-2 text-sm"
             >
               <Send size={14} className="mr-1.5" />
-              Make it
+              {t("studio.makeIt")}
             </Button>
           </div>
         </div>
@@ -2067,7 +2074,7 @@ export default function Studio({ initialKind } = {}) {
       {suggestions.length > 0 && (
         <div className="mt-3 flex items-center gap-3 flex-wrap">
           <p className="font-serif italic text-base text-muted flex-shrink-0">
-            {hasAttach ? "Do this with it" : "Or try"}
+            {hasAttach ? t("studio.doThisWithIt") : t("studio.orTry")}
           </p>
           <div className="flex flex-wrap gap-1.5">
             {suggestions.map((s) => (
@@ -2087,7 +2094,7 @@ export default function Studio({ initialKind } = {}) {
 
       {error && (
         <div className="mt-5 bg-paper border border-accent rounded-lg p-4 shadow-sm">
-          <p className="text-sm font-medium text-accent mb-1">Could not generate</p>
+          <p className="text-sm font-medium text-accent mb-1">{t("studio.stream.couldNotGenerate")}</p>
           <p className="text-sm text-ink-soft">{error}</p>
           {error.includes("ai_studio") && (
             <p className="text-xs text-muted mt-2">
@@ -2370,6 +2377,7 @@ const QUIZ_TYPE_LABELS = {
 
 // Read-only cover card — kept for the structured quiz result view.
 function StreamingCoverCard({ meta, busy, hintPrompt }) {
+  const t = useT();
   const title = meta?.title || (hintPrompt ? truncate(hintPrompt, 80) : null);
   const subject = meta?.subject;
   const questions = meta?.questions || [];
@@ -2388,7 +2396,7 @@ function StreamingCoverCard({ meta, busy, hintPrompt }) {
         </h3>
       ) : (
         <h3 className="font-serif text-2xl md:text-3xl font-medium text-muted/80 italic leading-tight mb-2">
-          Murchid is structuring your quiz
+          {t("studio.stream.structuring")}
           <span className="inline-block w-1.5 h-6 bg-accent ml-1 animate-pulse align-text-bottom" />
         </h3>
       )}
@@ -2401,7 +2409,7 @@ function StreamingCoverCard({ meta, busy, hintPrompt }) {
           </span>
         ) : busy ? (
           <span className="font-serif italic text-sm text-muted/70 inline-flex items-baseline gap-1">
-            Picking subject, grade, marks…
+            {t("studio.stream.pickingMeta")}
             <span className="inline-block w-1.5 h-3 bg-accent ml-1 animate-pulse align-text-bottom" />
           </span>
         ) : null}
@@ -2419,13 +2427,14 @@ function StreamingCoverCard({ meta, busy, hintPrompt }) {
       </div>
 
       <p className="font-serif italic text-sm text-muted mt-4">
-        Murchid is drafting the rest — flip through the sidebar to watch each question land.
+        {t("studio.stream.draftingRest")}
       </p>
     </div>
   );
 }
 
 function LiveQuestionCard({ q, busy }) {
+  const t = useT();
   const inflight = !q.complete && busy;
   const typeLabel = QUIZ_TYPE_LABELS[q.type] || (q.type ? q.type : null);
   const correctLetter =
@@ -2467,7 +2476,7 @@ function LiveQuestionCard({ q, busy }) {
         </p>
       ) : (
         <p className="font-serif italic text-[13px] text-muted mb-2">
-          writing prompt…
+          {t("studio.stream.writingPrompt")}
           <span className="inline-block w-1.5 h-3 bg-accent ml-1 animate-pulse align-text-bottom" />
         </p>
       )}
@@ -2615,6 +2624,7 @@ const CHIP_VALIDATORS = {
 // is impossible to miss. Every chip is optional — leave any blank and
 // the AI infers from the prompt.
 function QuizParamsPanel({ params, onChange, gradeOptions, majorOptions, languageOptions, sectionOptions }) {
+  const t = useT();
   const set = (patch) => onChange((prev) => ({ ...prev, ...patch }));
   const setCount = [
     params.grade, params.major, params.language, params.section,
@@ -2637,15 +2647,15 @@ function QuizParamsPanel({ params, onChange, gradeOptions, majorOptions, languag
       <div className="flex items-end justify-between gap-3 mb-2.5">
         <div>
           <p className="font-serif italic text-base text-muted mb-0.5">
-            Quiz settings
+            {t("studio.params.quiz")}
           </p>
           <p className="font-serif text-base text-ink leading-snug">
-            Pick the basics first <span className="italic text-muted">— or leave them blank and Murchid will figure it out.</span>
+            {t("studio.params.subtitleLead")} <span className="italic text-muted">{t("studio.params.subtitleTail")}</span>
           </p>
         </div>
         {setCount > 0 && (
           <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-accent flex-shrink-0">
-            {setCount} of 8 set
+            {t("studio.params.setCount8", { n: setCount })}
           </p>
         )}
       </div>
@@ -2653,9 +2663,9 @@ function QuizParamsPanel({ params, onChange, gradeOptions, majorOptions, languag
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
         <DropdownChip
           icon={GraduationCap}
-          label="Grade"
+          label={t("studio.chip.grade.label")}
           slot="grade"
-          emptyHint="Any grade"
+          emptyHint={t("studio.chip.grade.empty")}
           help="Which year group the quiz is for. The list shows the grades you teach (set in My students → Teaching profile). Type to add a one-off."
           value={params.grade}
           options={gradeOptions}
@@ -2665,9 +2675,9 @@ function QuizParamsPanel({ params, onChange, gradeOptions, majorOptions, languag
         />
         <DropdownChip
           icon={BookOpen}
-          label="Major"
+          label={t("studio.chip.major.label")}
           slot="major"
-          emptyHint="Any major"
+          emptyHint={t("studio.chip.major.empty")}
           help="The school subject the quiz tests. The list shows the majors you teach (set in My students → Teaching profile). Type to add a one-off."
           value={params.major}
           options={majorOptions}
@@ -2677,9 +2687,9 @@ function QuizParamsPanel({ params, onChange, gradeOptions, majorOptions, languag
         />
         <DropdownChip
           icon={Globe}
-          label="Language"
+          label={t("studio.chip.language.label")}
           slot="language"
-          emptyHint="Auto"
+          emptyHint={t("studio.chip.language.empty")}
           help="The language the quiz will be written in (questions, choices, answer key). The list shows the languages you teach (set in My students → Teaching profile). Type to add a one-off."
           value={params.language}
           options={languageOptions}
@@ -2687,9 +2697,9 @@ function QuizParamsPanel({ params, onChange, gradeOptions, majorOptions, languag
         />
         <DropdownChip
           icon={Users}
-          label="Section"
+          label={t("studio.chip.section.label")}
           slot="section"
-          emptyHint="All sections"
+          emptyHint={t("studio.chip.section.empty")}
           help="Which class section(s) the quiz is for. Pick one OR several (Grade 6 A AND B for the same quiz). The list shows the sections you teach (My students → Teaching profile). Type to add a one-off."
           value={params.section}
           options={sectionOptions}
@@ -2698,9 +2708,9 @@ function QuizParamsPanel({ params, onChange, gradeOptions, majorOptions, languag
         />
         <DropdownChip
           icon={Gauge}
-          label="Difficulty"
+          label={t("studio.chip.difficulty.label")}
           slot="difficulty"
-          emptyHint="Any level"
+          emptyHint={t("studio.chip.difficulty.empty")}
           help="How hard the questions should be. Easy = recall + simple application; Medium = grade-appropriate problem solving; Hard = stretches the strongest students."
           value={params.difficulty}
           options={QUIZ_DIFFICULTIES}
@@ -2710,9 +2720,9 @@ function QuizParamsPanel({ params, onChange, gradeOptions, majorOptions, languag
         />
         <DropdownChip
           icon={Hash}
-          label="Questions"
+          label={t("studio.chip.questions.label")}
           slot="questions"
-          emptyHint="Any count"
+          emptyHint={t("studio.chip.questions.empty")}
           help="Exact number of questions to produce. This is a hard constraint — Murchid will fit the scope to this count."
           value={
             params.questions === "" || params.questions == null
@@ -2727,9 +2737,9 @@ function QuizParamsPanel({ params, onChange, gradeOptions, majorOptions, languag
         />
         <DropdownChip
           icon={Clock}
-          label="Duration"
+          label={t("studio.chip.duration.label")}
           slot="duration"
-          emptyHint="Any length"
+          emptyHint={t("studio.chip.duration.empty")}
           help="How long, in minutes, a student should take to finish. Murchid uses this to calibrate question depth (a 15-min quiz is mostly recall; 60 min allows essay-style)."
           value={
             params.duration === "" || params.duration == null
@@ -2745,9 +2755,9 @@ function QuizParamsPanel({ params, onChange, gradeOptions, majorOptions, languag
         />
         <DropdownChip
           icon={ListChecks}
-          label="Types"
+          label={t("studio.chip.types.label")}
           slot="types"
-          emptyHint="Murchid picks"
+          emptyHint={t("studio.chip.types.empty")}
           help="Which question formats Murchid is allowed to use. 'MCQ only' = every question is multiple choice. 'Identification only' = every question is short recall. 'MCQ + Identification' = mix those two. 'Mixed' = anything goes, including True/False."
           value={params.types}
           options={QUIZ_QUESTION_MIXES}
@@ -2771,6 +2781,7 @@ function QuizParamsPanel({ params, onChange, gradeOptions, majorOptions, languag
 // Per the chip rules, no Grade and no Section. Type sits in the slot
 // Grade would normally occupy so the grid stays balanced.
 function ActivityParamsPanel({ params, onChange, majorOptions, languageOptions }) {
+  const t = useT();
   const set = (patch) => onChange((prev) => ({ ...prev, ...patch }));
   const setCount = [
     params.type, params.major, params.language, params.duration,
@@ -2781,15 +2792,15 @@ function ActivityParamsPanel({ params, onChange, majorOptions, languageOptions }
       <div className="flex items-end justify-between gap-3 mb-2.5">
         <div>
           <p className="font-serif italic text-base text-muted mb-0.5">
-            Activity settings
+            {t("studio.params.activity")}
           </p>
           <p className="font-serif text-base text-ink leading-snug">
-            Pick the basics first <span className="italic text-muted">— or leave them blank and Murchid will figure it out.</span>
+            {t("studio.params.subtitleLead")} <span className="italic text-muted">{t("studio.params.subtitleTail")}</span>
           </p>
         </div>
         {setCount > 0 && (
           <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-accent flex-shrink-0">
-            {setCount} of 4 set
+            {t("studio.params.setCount4", { n: setCount })}
           </p>
         )}
       </div>
@@ -2797,9 +2808,9 @@ function ActivityParamsPanel({ params, onChange, majorOptions, languageOptions }
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
         <DropdownChip
           icon={Users}
-          label="Type"
+          label={t("studio.chip.type.label")}
           slot="type"
-          emptyHint="Murchid picks"
+          emptyHint={t("studio.chip.type.empty")}
           help="How students work on this activity — solo, in pairs, or in groups."
           value={params.type}
           options={ACTIVITY_TYPES}
@@ -2807,9 +2818,9 @@ function ActivityParamsPanel({ params, onChange, majorOptions, languageOptions }
         />
         <DropdownChip
           icon={BookOpen}
-          label="Major"
+          label={t("studio.chip.major.label")}
           slot="major"
-          emptyHint="Any major"
+          emptyHint={t("studio.chip.major.empty")}
           help="The school subject the activity supports. The list shows the majors you teach (set in My students → Teaching profile). Type to add a one-off."
           value={params.major}
           options={majorOptions}
@@ -2817,9 +2828,9 @@ function ActivityParamsPanel({ params, onChange, majorOptions, languageOptions }
         />
         <DropdownChip
           icon={Globe}
-          label="Language"
+          label={t("studio.chip.language.label")}
           slot="language"
-          emptyHint="Auto"
+          emptyHint={t("studio.chip.language.empty")}
           help="The language the activity instructions will be written in. The list shows the languages you teach (set in My students → Teaching profile). Type to add a one-off."
           value={params.language}
           options={languageOptions}
@@ -2827,9 +2838,9 @@ function ActivityParamsPanel({ params, onChange, majorOptions, languageOptions }
         />
         <DropdownChip
           icon={Clock}
-          label="Duration"
+          label={t("studio.chip.duration.label")}
           slot="duration"
-          emptyHint="Any length"
+          emptyHint={t("studio.chip.duration.empty")}
           help="How long, in minutes, the activity should run. Murchid uses this to calibrate the depth and number of stages."
           value={
             params.duration === "" || params.duration == null
@@ -2854,6 +2865,7 @@ function ActivityParamsPanel({ params, onChange, majorOptions, languageOptions }
 // Lesson plan settings — Grade + Major + Language + Section + Duration.
 // Schedule-for date row anchors the lesson on the calendar.
 function LessonParamsPanel({ params, onChange, gradeOptions, majorOptions, languageOptions, sectionOptions }) {
+  const t = useT();
   const set = (patch) => onChange((prev) => ({ ...prev, ...patch }));
   const setCount = [
     params.grade, params.major, params.language, params.section, params.duration,
@@ -2863,14 +2875,14 @@ function LessonParamsPanel({ params, onChange, gradeOptions, majorOptions, langu
     <div className="mb-3 rounded-2xl border border-line bg-paper-warm/40 px-3 sm:px-4 md:px-5 py-2.5 sm:py-3">
       <div className="flex items-end justify-between gap-3 mb-2.5">
         <div>
-          <p className="font-serif italic text-base text-muted mb-0.5">Lesson settings</p>
+          <p className="font-serif italic text-base text-muted mb-0.5">{t("studio.params.lesson")}</p>
           <p className="font-serif text-base text-ink leading-snug">
-            Pick the basics first <span className="italic text-muted">— or leave them blank and Murchid will figure it out.</span>
+            {t("studio.params.subtitleLead")} <span className="italic text-muted">{t("studio.params.subtitleTail")}</span>
           </p>
         </div>
         {setCount > 0 && (
           <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-accent flex-shrink-0">
-            {setCount} of 5 set
+            {t("studio.params.setCount5", { n: setCount })}
           </p>
         )}
       </div>
@@ -2878,9 +2890,9 @@ function LessonParamsPanel({ params, onChange, gradeOptions, majorOptions, langu
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
         <DropdownChip
           icon={GraduationCap}
-          label="Grade"
+          label={t("studio.chip.grade.label")}
           slot="grade"
-          emptyHint="Any grade"
+          emptyHint={t("studio.chip.grade.empty")}
           help="Which year group this lesson is for. The list shows the grades you teach (set in My students → Teaching profile). Type to add a one-off."
           value={params.grade}
           options={gradeOptions}
@@ -2888,9 +2900,9 @@ function LessonParamsPanel({ params, onChange, gradeOptions, majorOptions, langu
         />
         <DropdownChip
           icon={BookOpen}
-          label="Major"
+          label={t("studio.chip.major.label")}
           slot="major"
-          emptyHint="Any major"
+          emptyHint={t("studio.chip.major.empty")}
           help="The school subject this lesson covers. The list shows the majors you teach (My students → Teaching profile)."
           value={params.major}
           options={majorOptions}
@@ -2898,9 +2910,9 @@ function LessonParamsPanel({ params, onChange, gradeOptions, majorOptions, langu
         />
         <DropdownChip
           icon={Globe}
-          label="Language"
+          label={t("studio.chip.language.label")}
           slot="language"
-          emptyHint="Auto"
+          emptyHint={t("studio.chip.language.empty")}
           help="The language the lesson plan will be written in."
           value={params.language}
           options={languageOptions}
@@ -2908,9 +2920,9 @@ function LessonParamsPanel({ params, onChange, gradeOptions, majorOptions, langu
         />
         <DropdownChip
           icon={Users}
-          label="Section"
+          label={t("studio.chip.section.label")}
           slot="section"
-          emptyHint="All sections"
+          emptyHint={t("studio.chip.section.empty")}
           help="Which class section(s) this lesson is for. Pick one or several. The list shows the sections you teach."
           value={params.section}
           options={sectionOptions}
@@ -2919,9 +2931,9 @@ function LessonParamsPanel({ params, onChange, gradeOptions, majorOptions, langu
         />
         <DropdownChip
           icon={Clock}
-          label="Duration"
+          label={t("studio.chip.duration.label")}
           slot="duration"
-          emptyHint="Any length"
+          emptyHint={t("studio.chip.duration.empty")}
           help="How long, in minutes, the lesson should run. Murchid uses this to pace the warm-up, main activity, and exit ticket."
           value={
             params.duration === "" || params.duration == null
@@ -2946,6 +2958,7 @@ function LessonParamsPanel({ params, onChange, gradeOptions, majorOptions, langu
 // Homework settings — Grade + Major + Language + Section. The
 // schedule-for date doubles as the due date for the assignment.
 function HomeworkParamsPanel({ params, onChange, gradeOptions, majorOptions, languageOptions, sectionOptions }) {
+  const t = useT();
   const set = (patch) => onChange((prev) => ({ ...prev, ...patch }));
   const setCount = [
     params.grade, params.major, params.language, params.section,
@@ -2955,14 +2968,14 @@ function HomeworkParamsPanel({ params, onChange, gradeOptions, majorOptions, lan
     <div className="mb-3 rounded-2xl border border-line bg-paper-warm/40 px-3 sm:px-4 md:px-5 py-2.5 sm:py-3">
       <div className="flex items-end justify-between gap-3 mb-2.5">
         <div>
-          <p className="font-serif italic text-base text-muted mb-0.5">Homework settings</p>
+          <p className="font-serif italic text-base text-muted mb-0.5">{t("studio.params.homework")}</p>
           <p className="font-serif text-base text-ink leading-snug">
-            Pick the basics first <span className="italic text-muted">— or leave them blank and Murchid will figure it out.</span>
+            {t("studio.params.subtitleLead")} <span className="italic text-muted">{t("studio.params.subtitleTail")}</span>
           </p>
         </div>
         {setCount > 0 && (
           <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-accent flex-shrink-0">
-            {setCount} of 4 set
+            {t("studio.params.setCount4", { n: setCount })}
           </p>
         )}
       </div>
@@ -2970,9 +2983,9 @@ function HomeworkParamsPanel({ params, onChange, gradeOptions, majorOptions, lan
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
         <DropdownChip
           icon={GraduationCap}
-          label="Grade"
+          label={t("studio.chip.grade.label")}
           slot="grade"
-          emptyHint="Any grade"
+          emptyHint={t("studio.chip.grade.empty")}
           help="Which year group this homework is for. The list shows the grades you teach (set in My students → Teaching profile)."
           value={params.grade}
           options={gradeOptions}
@@ -2980,9 +2993,9 @@ function HomeworkParamsPanel({ params, onChange, gradeOptions, majorOptions, lan
         />
         <DropdownChip
           icon={BookOpen}
-          label="Major"
+          label={t("studio.chip.major.label")}
           slot="major"
-          emptyHint="Any major"
+          emptyHint={t("studio.chip.major.empty")}
           help="The school subject this homework covers. The list shows the majors you teach."
           value={params.major}
           options={majorOptions}
@@ -2990,9 +3003,9 @@ function HomeworkParamsPanel({ params, onChange, gradeOptions, majorOptions, lan
         />
         <DropdownChip
           icon={Globe}
-          label="Language"
+          label={t("studio.chip.language.label")}
           slot="language"
-          emptyHint="Auto"
+          emptyHint={t("studio.chip.language.empty")}
           help="The language the homework instructions will be written in."
           value={params.language}
           options={languageOptions}
@@ -3000,9 +3013,9 @@ function HomeworkParamsPanel({ params, onChange, gradeOptions, majorOptions, lan
         />
         <DropdownChip
           icon={Users}
-          label="Section"
+          label={t("studio.chip.section.label")}
           slot="section"
-          emptyHint="All sections"
+          emptyHint={t("studio.chip.section.empty")}
           help="Which class section(s) this homework is for. Pick one or several."
           value={params.section}
           options={sectionOptions}
@@ -3022,6 +3035,7 @@ function HomeworkParamsPanel({ params, onChange, gradeOptions, majorOptions, lan
 // Presentation settings — Grade + Major + Language + Section + Slides.
 // Schedule-for anchors the deck on the calendar.
 function PresentationParamsPanel({ params, onChange, gradeOptions, majorOptions, languageOptions, sectionOptions }) {
+  const t = useT();
   const set = (patch) => onChange((prev) => ({ ...prev, ...patch }));
   const setCount = [
     params.grade, params.major, params.language, params.section, params.slides,
@@ -3031,14 +3045,14 @@ function PresentationParamsPanel({ params, onChange, gradeOptions, majorOptions,
     <div className="mb-3 rounded-2xl border border-line bg-paper-warm/40 px-3 sm:px-4 md:px-5 py-2.5 sm:py-3">
       <div className="flex items-end justify-between gap-3 mb-2.5">
         <div>
-          <p className="font-serif italic text-base text-muted mb-0.5">Presentation settings</p>
+          <p className="font-serif italic text-base text-muted mb-0.5">{t("studio.params.presentation")}</p>
           <p className="font-serif text-base text-ink leading-snug">
-            Pick the basics first <span className="italic text-muted">— or leave them blank and Murchid will figure it out.</span>
+            {t("studio.params.subtitleLead")} <span className="italic text-muted">{t("studio.params.subtitleTail")}</span>
           </p>
         </div>
         {setCount > 0 && (
           <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-accent flex-shrink-0">
-            {setCount} of 5 set
+            {t("studio.params.setCount5", { n: setCount })}
           </p>
         )}
       </div>
@@ -3046,9 +3060,9 @@ function PresentationParamsPanel({ params, onChange, gradeOptions, majorOptions,
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
         <DropdownChip
           icon={GraduationCap}
-          label="Grade"
+          label={t("studio.chip.grade.label")}
           slot="grade"
-          emptyHint="Any grade"
+          emptyHint={t("studio.chip.grade.empty")}
           help="Which year group this deck is for. The list shows the grades you teach."
           value={params.grade}
           options={gradeOptions}
@@ -3056,9 +3070,9 @@ function PresentationParamsPanel({ params, onChange, gradeOptions, majorOptions,
         />
         <DropdownChip
           icon={BookOpen}
-          label="Major"
+          label={t("studio.chip.major.label")}
           slot="major"
-          emptyHint="Any major"
+          emptyHint={t("studio.chip.major.empty")}
           help="The school subject this deck covers. The list shows the majors you teach."
           value={params.major}
           options={majorOptions}
@@ -3066,9 +3080,9 @@ function PresentationParamsPanel({ params, onChange, gradeOptions, majorOptions,
         />
         <DropdownChip
           icon={Globe}
-          label="Language"
+          label={t("studio.chip.language.label")}
           slot="language"
-          emptyHint="Auto"
+          emptyHint={t("studio.chip.language.empty")}
           help="The language the slides will be written in."
           value={params.language}
           options={languageOptions}
@@ -3076,9 +3090,9 @@ function PresentationParamsPanel({ params, onChange, gradeOptions, majorOptions,
         />
         <DropdownChip
           icon={Users}
-          label="Section"
+          label={t("studio.chip.section.label")}
           slot="section"
-          emptyHint="All sections"
+          emptyHint={t("studio.chip.section.empty")}
           help="Which class section(s) this deck is for. Pick one or several."
           value={params.section}
           options={sectionOptions}
@@ -3087,9 +3101,9 @@ function PresentationParamsPanel({ params, onChange, gradeOptions, majorOptions,
         />
         <DropdownChip
           icon={Hash}
-          label="Slides"
+          label={t("studio.chip.slides.label")}
           slot="slides"
-          emptyHint="Murchid picks"
+          emptyHint={t("studio.chip.slides.empty")}
           help="Roughly how many slides the deck should have. Murchid will fit the scope to this count."
           value={
             params.slides === "" || params.slides == null
@@ -3111,12 +3125,13 @@ function PresentationParamsPanel({ params, onChange, gradeOptions, majorOptions,
 }
 
 function ScheduledDateRow({ value, onChange }) {
+  const t = useT();
   const todayISO = new Date().toISOString().slice(0, 10);
   return (
     <div className="mt-2 flex flex-wrap items-center gap-2 px-1">
       <span className="inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.16em] text-muted">
         <Calendar size={11} strokeWidth={1.75} />
-        Schedule for
+        {t("studio.schedule.label")}
         <HelpTip text="When students should sit this quiz. Saved with the quiz so it shows up in Schedule and Quizzes & Exams. Leave blank to decide later." />
       </span>
       <DatePicker
@@ -3131,7 +3146,7 @@ function ScheduledDateRow({ value, onChange }) {
           onClick={() => onChange("")}
           className="font-serif italic text-xs text-muted hover:text-accent transition-colors duration-150"
         >
-          Clear
+          {t("studio.schedule.clear")}
         </button>
       ) : (
         <button
@@ -3139,7 +3154,7 @@ function ScheduledDateRow({ value, onChange }) {
           onClick={() => onChange(todayISO)}
           className="font-serif italic text-xs text-muted hover:text-accent transition-colors duration-150"
         >
-          Today
+          {t("studio.schedule.today")}
         </button>
       )}
     </div>
@@ -3186,6 +3201,7 @@ function DropdownChip({
   // values get appended. Click-outside / Done closes.
   multi = false,
 }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState(value == null ? "" : String(value));
   const inputRef = useRef(null);
@@ -3270,7 +3286,7 @@ function DropdownChip({
   const isSet = Boolean(value) || value === 0;
   const display = isSet
     ? suffix ? `${value} ${suffix}` : value
-    : emptyHint || "Pick or type…";
+    : emptyHint || t("studio.combo.pickOrType");
 
   const hasWarning = Boolean(warning && !open);
   const cardClass = `w-full text-left rounded-lg border px-3 py-2 transition-all duration-150 ${
@@ -3366,8 +3382,8 @@ function DropdownChip({
             }}
             placeholder={
               multi
-                ? currentMulti.length > 0 ? "Add another…" : (emptyHint || "Pick or type…")
-                : (emptyHint || "Pick or type…")
+                ? currentMulti.length > 0 ? t("studio.combo.addAnother") : (emptyHint || t("studio.combo.pickOrType"))
+                : (emptyHint || t("studio.combo.pickOrType"))
             }
             className="w-full bg-transparent outline-none text-sm text-ink leading-tight placeholder:text-muted placeholder:italic placeholder:font-normal"
           />
@@ -3407,6 +3423,7 @@ function ComboboxMenu({
   onPick, onClose,
   multi, currentMulti = [], onToggle, onClear, onAddCustom,
 }) {
+  const t = useT();
   const trimmed = String(draft || "").trim();
   const isCustom =
     trimmed.length > 0 &&
@@ -3440,9 +3457,9 @@ function ComboboxMenu({
                   className="w-full flex items-center justify-between gap-3 px-3 py-2 text-left text-sm text-ink hover:bg-paper-warm/60"
                 >
                   <span className="truncate">
-                    {multi ? "Add " : "Use "}
+                    {multi ? t("studio.combo.add") : t("studio.combo.use")}
                     <span className="font-medium">&ldquo;{trimmed}&rdquo;</span>
-                    <span className="text-muted ml-1.5 text-[11px] italic">custom</span>
+                    <span className="text-muted ml-1.5 text-[11px] italic">{t("studio.combo.custom")}</span>
                   </span>
                   <Plus size={13} className="text-accent flex-shrink-0" />
                 </button>
@@ -3462,7 +3479,7 @@ function ComboboxMenu({
               }`}
             >
               <span className="italic">
-                {multi ? "Clear all — let Murchid choose" : "Any — let Murchid choose"}
+                {multi ? t("studio.combo.clearAllChoose") : t("studio.combo.anyChoose")}
               </span>
               {noneSelected && <Check size={13} className="text-accent" />}
             </button>
@@ -3470,7 +3487,7 @@ function ComboboxMenu({
           <li className="border-t border-line/60 my-1" />
 
           {options.length === 0 && !isCustom && (
-            <li className="px-3 py-2 text-sm text-muted italic">No matches</li>
+            <li className="px-3 py-2 text-sm text-muted italic">{t("studio.combo.noMatches")}</li>
           )}
 
           {options.map((opt) => {
@@ -3513,7 +3530,7 @@ function ComboboxMenu({
           <div className="border-t border-line/60 px-2 py-2 flex items-center justify-between gap-2 bg-paper">
             <span className="font-serif italic text-xs text-muted px-1">
               {currentMulti.length === 0
-                ? "Click to pick — multiple allowed"
+                ? t("studio.combo.multiHint")
                 : `${currentMulti.length} selected`}
             </span>
             <button
