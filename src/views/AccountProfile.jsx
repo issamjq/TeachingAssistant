@@ -1,15 +1,75 @@
 import React, { useState, useEffect } from "react";
-import { Mail, Phone, Globe, Pencil } from "lucide-react";
+import { Mail, Phone, Globe, Pencil, User, GraduationCap } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { NATIONALITIES } from "../lib/enums";
 import { Field, Modal, inputClasses, selectClasses, api } from "./_shared";
 import { getRole, setRole, ROLES, ROLE_LABELS, ROLE_DESCRIPTIONS } from "../lib/role";
+import { navigate } from "../lib/route";
+import DatabaseProfile from "./DatabaseProfile";
 
 const initials = (first, last) =>
   `${(first || "")[0] || ""}${(last || "")[0] || ""}`.toUpperCase();
 
-export default function AccountProfile() {
+// Settings page — tabbed. Tab 1 is the lightweight contact-info form
+// (name / email / phone / nationality). Tab 2 embeds the full teaching
+// profile that used to live inside "My students".
+//
+// `sub` comes from the URL (#/account/teaching → "teaching"). Anything
+// unrecognised falls back to the personal tab.
+export default function AccountProfile({ sub }) {
+  const active = sub === "teaching" ? "teaching" : "personal";
+  return (
+    <div>
+      <header className="mb-6">
+        <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-2 inline-flex items-center gap-2.5">
+          <span className="w-6 h-px bg-accent" /> Settings
+        </p>
+        <h2 className="font-serif text-4xl font-medium text-ink">
+          Your <em className="italic font-light text-accent">account</em>
+        </h2>
+      </header>
+
+      <Tabs active={active} />
+
+      {active === "personal" ? <PersonalDetails /> : <DatabaseProfile />}
+    </div>
+  );
+}
+
+function Tabs({ active }) {
+  const items = [
+    { key: "personal", label: "Personal details", icon: User, route: ["account"] },
+    { key: "teaching", label: "Teaching profile", icon: GraduationCap, route: ["account", "teaching"] },
+  ];
+  return (
+    <div className="flex flex-wrap items-center gap-1 border-b border-line mb-6">
+      {items.map(({ key, label, icon: Icon, route }) => {
+        const on = active === key;
+        return (
+          <button
+            key={key}
+            type="button"
+            onClick={() => navigate(route)}
+            aria-current={on ? "page" : undefined}
+            className={`inline-flex items-center gap-2 px-3 py-2.5 text-[13px] font-medium border-b-2 -mb-px transition-colors ${
+              on
+                ? "border-accent text-ink"
+                : "border-transparent text-muted hover:text-ink hover:border-line"
+            }`}
+          >
+            <Icon size={14} />
+            {label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// Personal details — the previous AccountProfile body, lifted into its
+// own component so the parent can decide which tab to render.
+function PersonalDetails() {
   const [me, setMe] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -34,21 +94,13 @@ export default function AccountProfile() {
 
   return (
     <div>
-      <div className="mb-8 flex flex-col md:flex-row md:items-end md:justify-between gap-4">
-        <div>
-          <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-2 inline-flex items-center gap-2.5">
-            <span className="w-6 h-px bg-accent" /> Account
-          </p>
-          <h2 className="font-serif text-4xl font-medium text-ink">
-            Personal <em className="italic font-light text-accent">details</em>
-          </h2>
-          <p className="text-muted mt-2">
-            How the school reaches you. Work details (majors, grades, registered date) live in My students.
-          </p>
-        </div>
+      <div className="mb-6 flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+        <p className="text-muted">
+          How the school reaches you. Languages, majors, and grades you teach live under the Teaching profile tab.
+        </p>
         {me && (
           <Button onClick={() => setEditing(true)}>
-            <Pencil size={14} className="mr-2" /> Edit account
+            <Pencil size={14} className="mr-2" /> Edit details
           </Button>
         )}
       </div>

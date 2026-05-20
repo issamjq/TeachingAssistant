@@ -1,13 +1,62 @@
+// My students — two tabs.
+//   Students : the roster (name + grade + section + actions). Existing
+//              DatabaseStudents component, untouched.
+//   Scores   : per-quiz, per-student score recording. New surface backed
+//              by /api/quiz-scores + /api/quizzes + /api/students.
+//
+// The "Teaching profile" used to live here as a third tab — moved into
+// Settings → Teaching profile so the Settings page owns all the
+// "about you" data.
 import React from "react";
-import DatabaseProfile from "./DatabaseProfile";
+import { Users, BarChart3 } from "lucide-react";
+import { navigate } from "../lib/route";
+import DatabaseStudents from "./DatabaseStudents";
+import DatabaseScores from "./DatabaseScores";
 
-// My students → Teaching profile is the only surface for now. The
-// Students / Attendance / Grades tabs are hidden until they're built
-// out; the tab bar is gone so the page renders the profile directly.
-export default function Database() {
+const TABS = [
+  { key: "students", label: "Students", icon: Users, route: ["database", "students"] },
+  { key: "scores",   label: "Scores",   icon: BarChart3, route: ["database", "scores"] },
+];
+
+export default function Database({ sub }) {
+  // Default tab is Students. Legacy /database/profile URLs (from before
+  // the Teaching-profile move) fall back to Students too.
+  const active = sub === "scores" ? "scores" : "students";
+
   return (
     <div>
-      <DatabaseProfile />
+      <header className="mb-6">
+        <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-2 inline-flex items-center gap-2.5">
+          <span className="w-6 h-px bg-accent" /> My students
+        </p>
+        <h2 className="font-serif text-4xl font-medium text-ink">
+          Your <em className="italic font-light text-accent">class</em>
+        </h2>
+      </header>
+
+      <div className="flex flex-wrap items-center gap-1 border-b border-line mb-6">
+        {TABS.map(({ key, label, icon: Icon, route }) => {
+          const on = active === key;
+          return (
+            <button
+              key={key}
+              type="button"
+              onClick={() => navigate(route)}
+              aria-current={on ? "page" : undefined}
+              className={`inline-flex items-center gap-2 px-3 py-2.5 text-[13px] font-medium border-b-2 -mb-px transition-colors ${
+                on
+                  ? "border-accent text-ink"
+                  : "border-transparent text-muted hover:text-ink hover:border-line"
+              }`}
+            >
+              <Icon size={14} />
+              {label}
+            </button>
+          );
+        })}
+      </div>
+
+      {active === "students" ? <DatabaseStudents /> : <DatabaseScores />}
     </div>
   );
 }

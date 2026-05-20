@@ -10,6 +10,7 @@ import quizzesRouter from "./routes/quizzes.js";
 import homeworkRouter from "./routes/homework.js";
 import attendanceRouter from "./routes/attendance.js";
 import gradesRouter from "./routes/grades.js";
+import quizScoresRouter from "./routes/quiz-scores.js";
 import presentationsRouter from "./routes/presentations.js";
 import activitiesRouter from "./routes/activities.js";
 import notificationsRouter from "./routes/notifications.js";
@@ -57,6 +58,7 @@ export function buildApp() {
   app.use("/api/homework", homeworkRouter);
   app.use("/api/attendance", attendanceRouter);
   app.use("/api/grades", gradesRouter);
+  app.use("/api/quiz-scores", quizScoresRouter);
   app.use("/api/presentations", presentationsRouter);
   app.use("/api/activities", activitiesRouter);
   app.use("/api/notifications", notificationsRouter);

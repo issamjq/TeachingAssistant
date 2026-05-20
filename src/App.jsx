@@ -194,7 +194,7 @@ export default function StudioApp({ onClose }) {
     // Top-level sections that have a default sub-tab pre-fill it so the
     // breadcrumbs and tabs show the right thing immediately.
     if (key === "lesson-plans") return navigate(["lesson-plans", "templates"]);
-    if (key === "database") return navigate(["database", "profile"]);
+    if (key === "database") return navigate(["database", "students"]);
     return navigate([key]);
   };
 
@@ -203,7 +203,7 @@ export default function StudioApp({ onClose }) {
 
   if (section === "account") {
     crumbs = [{ label: "Account" }];
-    mainContent = <AccountProfile />;
+    mainContent = <AccountProfile sub={sub} />;
   } else if (role === "admin") {
     crumbs = [{ label: "Admin console" }];
     mainContent = <AdminConsole />;
@@ -213,7 +213,7 @@ export default function StudioApp({ onClose }) {
   } else if (section === "dashboard") {
     mainContent = <Dashboard onJump={handleNavClick} />;
   } else if (section === "database") {
-    mainContent = <Database sub={sub || "profile"} />;
+    mainContent = <Database sub={sub || "students"} />;
   } else if (section === "schedule") {
     mainContent = <Schedule />;
   } else if (section === "planner") {
