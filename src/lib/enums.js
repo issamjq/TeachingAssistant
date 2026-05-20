@@ -43,7 +43,7 @@ export const QUIZ_DIFFICULTIES = ["Easy", "Medium", "Hard"];
 // Question-type mix for the AI to honour. Every option is a hard
 // constraint on which underlying type codes (mcq / short / tf) the model
 // is allowed to use. Three singles, three pairs, and "All three" — empty
-// chip value means Mudir picks freely.
+// chip value means Murchid picks freely.
 // "Identification" is the everyday name for short-answer recall
 // questions — kept in the UI; the backend prompt translates it to the
 // underlying type code (short).

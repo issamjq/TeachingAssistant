@@ -67,7 +67,7 @@ export default function TemplatesLibrary({ onNewTemplate, onUseTemplate, onEditT
   const [deleting, setDeleting] = useState(null);
   const [busy, setBusy] = useState(false);
   const [importing, setImporting] = useState(false);
-  const [viewMode, setViewMode] = useViewMode("mudir.view.templates", "cards");
+  const [viewMode, setViewMode] = useViewMode("murchid.view.templates", "cards");
   const [scope, setScope, scopeRange] = useDateScope();
   const fileInputRef = useRef(null);
 

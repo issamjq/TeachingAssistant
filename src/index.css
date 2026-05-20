@@ -173,49 +173,49 @@
   100% { transform: scale(1);    box-shadow: 0 0 0 0 rgba(200, 71, 43, 0); }
 }
 
-/* Mudir mascot — the AI co-pilot character. Subtle float + drop shadow
+/* Murchid mascot — the AI co-pilot character. Subtle float + drop shadow
    so the asset feels grounded on the cream surface. Reduced-motion
    freezes the float. */
-.mudir-mascot {
+.murchid-mascot {
   filter: drop-shadow(0 14px 22px rgba(15, 20, 16, 0.10))
           drop-shadow(0 4px 8px rgba(15, 20, 16, 0.06));
-  animation: mudir-mascot-float 4.6s ease-in-out infinite;
+  animation: murchid-mascot-float 4.6s ease-in-out infinite;
   user-select: none;
   -webkit-user-drag: none;
 }
-@keyframes mudir-mascot-float {
+@keyframes murchid-mascot-float {
   0%, 100% { transform: translateY(0); }
   50%      { transform: translateY(-6px); }
 }
 @media (prefers-reduced-motion: reduce) {
-  .mudir-mascot { animation: none; }
+  .murchid-mascot { animation: none; }
 }
 
 /* Premium sidebar — light, cream-paper surface that reads as a
    continuation of the main area, not a dark console.
 
    Motion language borrowed from the dashboard-animation handoff
-   (Quantro-style choreography), translated into Mudir's palette:
+   (Quantro-style choreography), translated into Murchid's palette:
      - items fade + slide-up in a 40ms stagger on mount
      - an absolute "rail" tracks the active item with a smooth
        cubic-bezier transition between positions
      - the brand mark gets a single-shot accent halo on mount and a
        soft scale on hover */
-.mudir-sidebar {
+.murchid-sidebar {
   background:
     linear-gradient(180deg, var(--color-paper-warm) 0%, var(--color-paper) 100%);
   border-right: 1px solid var(--color-line);
 }
 
-.mudir-sidebar-brand {
+.murchid-sidebar-brand {
   position: relative;
-  animation: mudir-sidebar-brand-in 700ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: murchid-sidebar-brand-in 700ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
-@keyframes mudir-sidebar-brand-in {
+@keyframes murchid-sidebar-brand-in {
   from { opacity: 0; transform: translateY(-6px); }
   to   { opacity: 1; transform: translateY(0); }
 }
-.mudir-sidebar-brand-mark {
+.murchid-sidebar-brand-mark {
   position: relative;
   display: inline-flex;
   align-items: center;
@@ -230,13 +230,13 @@
   font-size: 14px;
   transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1),
               box-shadow 220ms ease;
-  animation: mudir-sidebar-brand-halo 1400ms cubic-bezier(0.22, 1, 0.36, 1) 200ms both;
+  animation: murchid-sidebar-brand-halo 1400ms cubic-bezier(0.22, 1, 0.36, 1) 200ms both;
 }
-.mudir-sidebar-brand:hover .mudir-sidebar-brand-mark {
+.murchid-sidebar-brand:hover .murchid-sidebar-brand-mark {
   transform: rotate(-4deg) scale(1.04);
   box-shadow: 0 6px 18px rgba(200, 71, 43, 0.28);
 }
-@keyframes mudir-sidebar-brand-halo {
+@keyframes murchid-sidebar-brand-halo {
   0%   { box-shadow: 0 0 0 0 rgba(200, 71, 43, 0.0); }
   35%  { box-shadow: 0 0 0 8px rgba(200, 71, 43, 0.22); }
   100% { box-shadow: 0 0 0 0 rgba(200, 71, 43, 0); }
@@ -247,7 +247,7 @@
    with the Studio title + subtitle, and a full-width cream CTA at the
    bottom. The dark ink surface is painted by an animated 3-blob aurora
    (see ::before below) so the surface never reads as flat. */
-.mudir-studio-launcher {
+.murchid-studio-launcher {
   margin: 0 10px 14px;
   padding: 14px;
   border-radius: 18px;
@@ -275,16 +275,16 @@
     0 2px 6px rgba(15, 20, 16, 0.20);
   transition: transform 280ms cubic-bezier(0.22, 1, 0.36, 1),
               box-shadow 280ms ease;
-  animation: mudir-studio-launcher-in 640ms cubic-bezier(0.16, 1, 0.3, 1) 220ms both;
+  animation: murchid-studio-launcher-in 640ms cubic-bezier(0.16, 1, 0.3, 1) 220ms both;
 }
 
 /* Animated aurora layer behind the content. Three soft accent blobs in
-   Mudir's warm palette (accent red, accent-soft, gold) drift, scale,
+   Murchid's warm palette (accent red, accent-soft, gold) drift, scale,
    and rotate together on a 14s loop. The whole layer sits at z-index 0
    while the content children stack above naturally; isolation: isolate
    on the parent keeps the blur from leaking into the rest of the
    sidebar. */
-.mudir-studio-launcher::before {
+.murchid-studio-launcher::before {
   content: "";
   position: absolute;
   inset: -20%;
@@ -295,13 +295,13 @@
     radial-gradient(circle at 50% 95%, rgba(232, 122, 85, 0.30), transparent 32%);
   filter: blur(14px);
   pointer-events: none;
-  animation: mudir-studio-aurora 14s ease-in-out infinite;
+  animation: murchid-studio-aurora 14s ease-in-out infinite;
 }
-.mudir-studio-launcher:hover::before {
+.murchid-studio-launcher:hover::before {
   animation-duration: 9s;
 }
 
-@keyframes mudir-studio-aurora {
+@keyframes murchid-studio-aurora {
   0%, 100% {
     transform: translate(0, 0) scale(1) rotate(0deg);
   }
@@ -317,26 +317,26 @@
 }
 
 /* Make sure the inner pieces float above the aurora. */
-.mudir-studio-launcher-icon,
-.mudir-studio-launcher-text,
-.mudir-studio-launcher-arrow {
+.murchid-studio-launcher-icon,
+.murchid-studio-launcher-text,
+.murchid-studio-launcher-arrow {
   position: relative;
   z-index: 2;
 }
-.mudir-studio-launcher:hover {
+.murchid-studio-launcher:hover {
   transform: translateY(-2px);
   box-shadow:
     0 18px 38px rgba(15, 20, 16, 0.24),
     0 4px 10px rgba(15, 20, 16, 0.12);
 }
-.mudir-studio-launcher:active {
+.murchid-studio-launcher:active {
   transform: translateY(0);
 }
-.mudir-studio-launcher-active {
+.murchid-studio-launcher-active {
   outline: 2px solid var(--color-accent);
   outline-offset: 2px;
 }
-@keyframes mudir-studio-launcher-in {
+@keyframes murchid-studio-launcher-in {
   from { opacity: 0; transform: translateY(10px) scale(0.96); }
   to   { opacity: 1; transform: translateY(0) scale(1); }
 }
@@ -344,7 +344,7 @@
 /* Sheen sweep — sits between the aurora (z-index 0) and the content
    (z-index 2). On hover it sweeps left → right over the card so the
    teacher gets clear feedback that the button responded. */
-.mudir-studio-launcher::after {
+.murchid-studio-launcher::after {
   content: "";
   position: absolute;
   top: 0; bottom: 0; left: -40%;
@@ -360,24 +360,24 @@
   pointer-events: none;
   transition: left 900ms cubic-bezier(0.22, 1, 0.36, 1);
 }
-.mudir-studio-launcher:hover::after {
+.murchid-studio-launcher:hover::after {
   left: 110%;
 }
 
 /* Row 1 — icon + "Studio" title on the left, "AI" pill on the right. */
-.mudir-studio-launcher-head {
+.murchid-studio-launcher-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
   position: relative;
   z-index: 2;
 }
-.mudir-studio-launcher-brand {
+.murchid-studio-launcher-brand {
   display: inline-flex;
   align-items: center;
   gap: 9px;
 }
-.mudir-studio-launcher-icon {
+.murchid-studio-launcher-icon {
   height: 30px;
   width: 30px;
   border-radius: 9px;
@@ -389,19 +389,19 @@
   box-shadow:
     0 4px 12px rgba(200, 71, 43, 0.35),
     inset 0 0 0 1px rgba(255, 255, 255, 0.6);
-  animation: mudir-studio-launcher-pulse 2400ms ease-in-out infinite;
+  animation: murchid-studio-launcher-pulse 2400ms ease-in-out infinite;
   transition: transform 280ms cubic-bezier(0.22, 1, 0.36, 1);
 }
-.mudir-studio-launcher:hover .mudir-studio-launcher-icon {
+.murchid-studio-launcher:hover .murchid-studio-launcher-icon {
   transform: rotate(-6deg) scale(1.04);
 }
-@keyframes mudir-studio-launcher-pulse {
+@keyframes murchid-studio-launcher-pulse {
   0%, 100% { box-shadow: 0 4px 12px rgba(200, 71, 43, 0.35),
                           inset 0 0 0 1px rgba(255, 255, 255, 0.6); }
   50%      { box-shadow: 0 6px 18px rgba(200, 71, 43, 0.55),
                           inset 0 0 0 1px rgba(255, 255, 255, 0.8); }
 }
-.mudir-studio-launcher-title {
+.murchid-studio-launcher-title {
   font-family: var(--font-serif);
   font-size: 22px;
   font-weight: 600;
@@ -409,7 +409,7 @@
   color: var(--color-paper-cool);
   line-height: 1;
 }
-.mudir-studio-launcher-pill {
+.murchid-studio-launcher-pill {
   font-family: var(--font-sans);
   font-size: 10px;
   font-weight: 600;
@@ -422,14 +422,14 @@
 }
 
 /* Row 2 — subtitle + small tagline. */
-.mudir-studio-launcher-body {
+.murchid-studio-launcher-body {
   position: relative;
   z-index: 2;
   display: flex;
   flex-direction: column;
   gap: 2px;
 }
-.mudir-studio-launcher-subtitle {
+.murchid-studio-launcher-subtitle {
   font-family: var(--font-sans);
   font-size: 12px;
   font-weight: 400;
@@ -437,7 +437,7 @@
   letter-spacing: -0.005em;
   line-height: 1.3;
 }
-.mudir-studio-launcher-tagline {
+.murchid-studio-launcher-tagline {
   font-family: var(--font-sans);
   font-size: 11px;
   color: rgba(250, 246, 236, 0.55);
@@ -446,7 +446,7 @@
 }
 
 /* Row 3 — full-width white CTA at the bottom with arrow on the right. */
-.mudir-studio-launcher-cta {
+.murchid-studio-launcher-cta {
   position: relative;
   z-index: 2;
   display: flex;
@@ -467,21 +467,21 @@
     0 6px 14px rgba(40, 18, 10, 0.30);
   transition: background-color 200ms ease, transform 200ms ease;
 }
-.mudir-studio-launcher:hover .mudir-studio-launcher-cta {
+.murchid-studio-launcher:hover .murchid-studio-launcher-cta {
   background: #ffffff;
 }
-.mudir-studio-launcher-cta-arrow {
+.murchid-studio-launcher-cta-arrow {
   transition: transform 240ms cubic-bezier(0.22, 1, 0.36, 1);
 }
-.mudir-studio-launcher:hover .mudir-studio-launcher-cta-arrow {
+.murchid-studio-launcher:hover .murchid-studio-launcher-cta-arrow {
   transform: translateX(3px);
 }
 
-/* Mudir Premium upgrade card — bottom of the sidebar. Cream paper-cool
+/* Murchid Premium upgrade card — bottom of the sidebar. Cream paper-cool
    surface with a tiny crown badge, body copy, and a cream-on-accent
    CTA. Echoes the Studio launcher's structure at a smaller scale so
    the two read as a pair without competing. */
-.mudir-premium-card {
+.murchid-premium-card {
   margin: 0 12px 12px;
   padding: 14px 14px 12px;
   border-radius: 16px;
@@ -490,14 +490,14 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
-  animation: mudir-sidebar-item-in 560ms cubic-bezier(0.22, 1, 0.36, 1) 420ms both;
+  animation: murchid-sidebar-item-in 560ms cubic-bezier(0.22, 1, 0.36, 1) 420ms both;
 }
-.mudir-premium-card-head {
+.murchid-premium-card-head {
   display: flex;
   align-items: center;
   gap: 8px;
 }
-.mudir-premium-card-icon {
+.murchid-premium-card-icon {
   height: 22px;
   width: 22px;
   border-radius: 7px;
@@ -508,21 +508,21 @@
   justify-content: center;
   box-shadow: 0 3px 8px rgba(184, 137, 61, 0.30);
 }
-.mudir-premium-card-title {
+.murchid-premium-card-title {
   font-family: var(--font-serif);
   font-size: 14px;
   font-weight: 500;
   color: var(--color-ink);
   letter-spacing: -0.005em;
 }
-.mudir-premium-card-body {
+.murchid-premium-card-body {
   font-family: var(--font-serif);
   font-style: italic;
   font-size: 11.5px;
   color: var(--color-muted);
   line-height: 1.4;
 }
-.mudir-premium-card-cta {
+.murchid-premium-card-cta {
   margin-top: 2px;
   background: transparent;
   border: 0;
@@ -537,14 +537,14 @@
   cursor: pointer;
   transition: transform 200ms cubic-bezier(0.22, 1, 0.36, 1);
 }
-.mudir-premium-card-cta:hover {
+.murchid-premium-card-cta:hover {
   transform: translateX(2px);
 }
 
 /* Header user pill — avatar + chevron-down dropdown affordance. The
    full name + role moved out into the sidebar's account card, so the
    header stays compact. */
-.mudir-header-user {
+.murchid-header-user {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -555,11 +555,11 @@
   cursor: pointer;
   transition: background-color 200ms ease, border-color 200ms ease;
 }
-.mudir-header-user:hover {
+.murchid-header-user:hover {
   background: var(--color-paper);
   border-color: var(--color-line);
 }
-.mudir-header-user-avatar {
+.murchid-header-user-avatar {
   height: 34px;
   width: 34px;
   border-radius: 999px;
@@ -575,18 +575,18 @@
   flex-shrink: 0;
   transition: background-color 220ms ease;
 }
-.mudir-header-user:hover .mudir-header-user-avatar {
+.murchid-header-user:hover .murchid-header-user-avatar {
   background: var(--color-accent);
 }
 
-.mudir-sidebar-section {
+.murchid-sidebar-section {
   position: relative;
 }
-.mudir-sidebar-section + .mudir-sidebar-section {
+.murchid-sidebar-section + .murchid-sidebar-section {
   margin-top: 18px;
 }
 
-.mudir-sidebar-section-label {
+.murchid-sidebar-section-label {
   font-family: var(--font-serif);
   font-style: italic;
   font-size: 13px;
@@ -598,7 +598,7 @@
 /* Each nav button. Hover lifts -0.5px and slides text 2px right so the
    row feels picked-up rather than swapped. Active state gets paper-cool
    bg + ink text, plus an accent rail handled separately below. */
-.mudir-sidebar-item {
+.murchid-sidebar-item {
   position: relative;
   width: 100%;
   display: flex;
@@ -616,26 +616,26 @@
               color 200ms ease,
               transform 200ms cubic-bezier(0.22, 1, 0.36, 1);
   opacity: 0;
-  animation: mudir-sidebar-item-in 460ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: murchid-sidebar-item-in 460ms cubic-bezier(0.22, 1, 0.36, 1) both;
   animation-delay: calc(var(--mi, 0) * 40ms + 120ms);
 }
-@keyframes mudir-sidebar-item-in {
+@keyframes murchid-sidebar-item-in {
   from { opacity: 0; transform: translateX(-6px); }
   to   { opacity: 1; transform: translateX(0); }
 }
-.mudir-sidebar-item:hover {
+.murchid-sidebar-item:hover {
   background: rgba(255, 255, 255, 0.6);
   color: var(--color-ink);
   transform: translateX(2px);
 }
-.mudir-sidebar-item-active {
+.murchid-sidebar-item-active {
   background: var(--color-paper-cool);
   color: var(--color-ink);
   font-weight: 500;
   box-shadow: 0 1px 0 0 var(--color-line),
               0 8px 18px -10px rgba(15, 20, 16, 0.18);
 }
-.mudir-sidebar-item-active:hover {
+.murchid-sidebar-item-active:hover {
   background: var(--color-paper-cool);
   transform: translateX(0);
 }
@@ -644,7 +644,7 @@
    We render it as a pseudo-element on every item but only show it on
    the active one — and animate the scale-y from 0 to 1 on activation so
    it grows into place. */
-.mudir-sidebar-item::before {
+.murchid-sidebar-item::before {
   content: "";
   position: absolute;
   left: 4px;
@@ -659,14 +659,14 @@
   transition: transform 320ms cubic-bezier(0.22, 1, 0.36, 1),
               opacity 200ms ease;
 }
-.mudir-sidebar-item-active::before {
+.murchid-sidebar-item-active::before {
   transform: scaleY(1);
   opacity: 1;
 }
 
 /* Letter/icon badge inside an item. Small rounded square with the
    item's letter or icon. Active state flips to accent fill. */
-.mudir-sidebar-badge {
+.murchid-sidebar-badge {
   flex-shrink: 0;
   height: 26px;
   width: 26px;
@@ -686,10 +686,10 @@
               border-color 200ms ease,
               transform 200ms cubic-bezier(0.22, 1, 0.36, 1);
 }
-.mudir-sidebar-item:hover .mudir-sidebar-badge {
+.murchid-sidebar-item:hover .murchid-sidebar-badge {
   border-color: var(--color-ink-soft);
 }
-.mudir-sidebar-item-active .mudir-sidebar-badge {
+.murchid-sidebar-item-active .murchid-sidebar-badge {
   background: var(--color-ink);
   color: var(--color-paper-cool);
   border-color: var(--color-ink);
@@ -699,7 +699,7 @@
 /* The footer account card. Same paper-cool surface as the active nav
    item so it reads as one of the family. Hover lifts the avatar
    slightly for affordance. */
-.mudir-sidebar-account {
+.murchid-sidebar-account {
   margin: 0 8px 8px;
   padding: 10px;
   border-radius: 14px;
@@ -713,12 +713,12 @@
   transition: background-color 200ms ease,
               border-color 200ms ease,
               transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
-  animation: mudir-sidebar-item-in 520ms cubic-bezier(0.22, 1, 0.36, 1) 360ms both;
+  animation: murchid-sidebar-item-in 520ms cubic-bezier(0.22, 1, 0.36, 1) 360ms both;
 }
-.mudir-sidebar-account:hover {
+.murchid-sidebar-account:hover {
   border-color: var(--color-ink-soft);
 }
-.mudir-sidebar-account-avatar {
+.murchid-sidebar-account-avatar {
   flex-shrink: 0;
   height: 34px;
   width: 34px;
@@ -734,26 +734,26 @@
   justify-content: center;
   transition: transform 240ms cubic-bezier(0.22, 1, 0.36, 1);
 }
-.mudir-sidebar-account:hover .mudir-sidebar-account-avatar {
+.murchid-sidebar-account:hover .murchid-sidebar-account-avatar {
   transform: scale(1.05);
 }
-.mudir-sidebar-account-active {
+.murchid-sidebar-account-active {
   background: var(--color-paper);
   border-color: var(--color-accent);
 }
 
 /* Reduced-motion override for the new sidebar animations. */
 @media (prefers-reduced-motion: reduce) {
-  .mudir-sidebar-brand,
-  .mudir-sidebar-brand-mark,
-  .mudir-sidebar-item,
-  .mudir-sidebar-account,
-  .mudir-sidebar-item::before,
-  .mudir-studio-launcher,
-  .mudir-studio-launcher::before,
-  .mudir-studio-launcher::after,
-  .mudir-studio-launcher-icon,
-  .mudir-studio-launcher-arrow {
+  .murchid-sidebar-brand,
+  .murchid-sidebar-brand-mark,
+  .murchid-sidebar-item,
+  .murchid-sidebar-account,
+  .murchid-sidebar-item::before,
+  .murchid-studio-launcher,
+  .murchid-studio-launcher::before,
+  .murchid-studio-launcher::after,
+  .murchid-studio-launcher-icon,
+  .murchid-studio-launcher-arrow {
     animation: none !important;
     animation-duration: 1ms !important;
     animation-delay: 0ms !important;
@@ -846,7 +846,7 @@
 }
 
 /* Header search field — pill, faint border, kbd hint on the right. */
-.mudir-search {
+.murchid-search {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -856,7 +856,7 @@
   background: var(--color-paper);
   transition: border-color 200ms ease, background-color 200ms ease;
 }
-.mudir-search:focus-within {
+.murchid-search:focus-within {
   border-color: var(--color-ink);
   background: var(--color-paper-cool);
 }

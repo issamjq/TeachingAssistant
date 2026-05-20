@@ -4,7 +4,7 @@
 // react-markdown / remark. The model output is a constrained subset
 // (## headings, * / - bullets, 1. numbered lists, **bold**, *italic*) and
 // rolling our own keeps the bundle lean and the rendering style perfectly
-// aligned with the Mudir design system.
+// aligned with the Murchid design system.
 import React from "react";
 
 // --- parse ------------------------------------------------------------------

@@ -1,4 +1,4 @@
-# Mudir — Teacher Studio
+# Murchid — Teacher Studio
 
 An AI lesson director for teachers (KG–G12). React-only, standalone studio app.
 
@@ -31,7 +31,7 @@ The repo deploys as **two services**:
    - `DATABASE_URL` — your Neon connection string (same one in your local `.env`).
    - `ALLOWED_ORIGINS` — `https://<your-vercel-app>.vercel.app` (comma-separated if you have multiple). Leave unset only while testing.
    - `PORT` — Render sets this automatically; do not add it.
-4. Deploy. Render gives you a URL like `https://mudir-api.onrender.com`. Hit `/healthz` to confirm it's up.
+4. Deploy. Render gives you a URL like `https://murchid-api.onrender.com`. Hit `/healthz` to confirm it's up.
 
 > Free-tier Render web services sleep after 15 min idle and cold-start in ~30 s on the first request after waking.
 
@@ -49,7 +49,7 @@ If you change `VITE_API_URL` later, redeploy the frontend (Vite bakes env vars i
 
 Full project docs live in [`docs/`](docs/README.md). Start there for anything beyond running the app:
 
-- [Overview](docs/01-overview.md) — what Mudir is and who it's for
+- [Overview](docs/01-overview.md) — what Murchid is and who it's for
 - [Getting started](docs/02-getting-started.md) — prerequisites, env, scripts
 - [Tech stack](docs/03-tech-stack.md) — Vite 5, React 18, Tailwind v4, Neon Postgres
 - [Architecture](docs/04-architecture.md) — file layout, boot flow, view router

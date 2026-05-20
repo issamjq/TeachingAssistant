@@ -16,7 +16,7 @@ export default function Presentations({ onOpenPresentation }) {
   const [presenting, setPresenting] = useState(null);
   const [deleting, setDeleting] = useState(null);
   const [busy, setBusy] = useState(false);
-  const [viewMode, setViewMode] = useViewMode("mudir.view.presentations", "cards");
+  const [viewMode, setViewMode] = useViewMode("murchid.view.presentations", "cards");
   const [sortKey, setSortKey] = useState("updated_at-desc");
   const [scope, setScope, scopeRange] = useDateScope();
 

@@ -196,6 +196,7 @@ const EN = {
   "dr.new": "New lesson plan",
   // studio shell
   "studio.pdf": "PDF",
+  "studio.doc": "Word",
   "studio.copy": "Copy",
   "studio.copied": "Copied",
   "studio.save": "Save",
@@ -813,6 +814,7 @@ const AR = {
   "dr.empty": "لا مسودّات تطابق عوامل التصفية الحالية.",
   "dr.new": "خطة درس جديدة",
   "studio.pdf": "PDF",
+  "studio.doc": "وورد",
   "studio.copy": "نسخ",
   "studio.copied": "تم النسخ",
   "studio.save": "حفظ",

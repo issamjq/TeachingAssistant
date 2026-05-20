@@ -1106,6 +1106,129 @@ export default function Studio({ initialKind } = {}) {
 
   const exportPdf = () => window.print();
 
+  // Per-kind export formats. Lesson plans, quizzes, and homework can be
+  // shipped to either PDF or Word; presentations are slide decks so PDF is
+  // the only sensible static target. Derive from result.kind when available
+  // (post-generation) and fall back to the current selection.
+  const FORMATS_BY_KIND = {
+    lesson_plan:  ["pdf", "doc"],
+    quiz:         ["pdf", "doc"],
+    homework:     ["pdf", "doc"],
+    presentation: ["pdf"],
+  };
+  const exportKind = result?.kind || kind;
+  const availableFormats = FORMATS_BY_KIND[exportKind] || ["pdf"];
+
+  // Word export: build a Word-compatible HTML blob and save as .doc. No
+  // dependency required — Word opens HTML-as-doc natively. Quizzes get a
+  // structured render (cover meta + numbered questions); everything else
+  // walks the same markdown subset the studio renders on-screen.
+  const escapeHtml = (s) => String(s ?? "")
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+  const renderInlineHtml = (text) => {
+    let s = escapeHtml(text);
+    s = s.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+    s = s.replace(/(^|[^\*])\*([^*\n]+)\*/g, "$1<em>$2</em>");
+    s = s.replace(/`([^`]+)`/g, "<code>$1</code>");
+    return s;
+  };
+  const mdToDocHtml = (md) => {
+    if (!md) return "";
+    const lines = md.split(/\r?\n/);
+    const out = [];
+    let i = 0;
+    while (i < lines.length) {
+      const line = lines[i];
+      const h = line.match(/^(#{1,6})\s+(.*)$/);
+      if (h) {
+        const level = Math.min(h[1].length, 6);
+        out.push(`<h${level}>${renderInlineHtml(h[2])}</h${level}>`);
+        i++; continue;
+      }
+      if (/^\s*[\*\-]\s+/.test(line)) {
+        const items = [];
+        while (i < lines.length && /^\s*[\*\-]\s+/.test(lines[i])) {
+          items.push(`<li>${renderInlineHtml(lines[i].replace(/^\s*[\*\-]\s+/, ""))}</li>`);
+          i++;
+        }
+        out.push(`<ul>${items.join("")}</ul>`); continue;
+      }
+      if (/^\s*\d+\.\s+/.test(line)) {
+        const items = [];
+        while (i < lines.length && /^\s*\d+\.\s+/.test(lines[i])) {
+          items.push(`<li>${renderInlineHtml(lines[i].replace(/^\s*\d+\.\s+/, ""))}</li>`);
+          i++;
+        }
+        out.push(`<ol>${items.join("")}</ol>`); continue;
+      }
+      if (!line.trim()) { i++; continue; }
+      const para = [line];
+      i++;
+      while (i < lines.length && lines[i].trim() &&
+             !/^(#{1,6})\s+/.test(lines[i]) &&
+             !/^\s*[\*\-]\s+/.test(lines[i]) &&
+             !/^\s*\d+\.\s+/.test(lines[i])) {
+        para.push(lines[i]); i++;
+      }
+      out.push(`<p>${renderInlineHtml(para.join(" "))}</p>`);
+    }
+    return out.join("\n");
+  };
+  const quizToDocHtml = (q) => {
+    const parts = [];
+    parts.push(`<h1>${escapeHtml(q.title || "Untitled quiz")}</h1>`);
+    const meta = [
+      q.subject, q.grade, q.section, q.language, q.difficulty,
+      q.duration_minutes ? `${q.duration_minutes} min` : null,
+      q.total_marks ? `${q.total_marks} marks` : null,
+    ].filter(Boolean);
+    if (meta.length) parts.push(`<p><em>${meta.map(escapeHtml).join(" · ")}</em></p>`);
+    if (q.instructions) parts.push(`<p>${escapeHtml(q.instructions)}</p>`);
+    parts.push(`<h2>Questions</h2><ol>`);
+    for (const qq of (q.questions || [])) {
+      const marks = qq.marks ? ` <em>(${qq.marks} mark${qq.marks > 1 ? "s" : ""})</em>` : "";
+      let li = `<li><p><strong>${escapeHtml(qq.prompt || "")}</strong>${marks}</p>`;
+      if (qq.type === "mcq" && Array.isArray(qq.choices) && qq.choices.length) {
+        li += `<ul>` + qq.choices.map((c) =>
+          `<li>${escapeHtml(typeof c === "string" ? c : (c?.text ?? c?.label ?? ""))}</li>`
+        ).join("") + `</ul>`;
+      } else if (qq.type === "true_false") {
+        li += `<ul><li>True</li><li>False</li></ul>`;
+      } else {
+        li += `<p style="border-bottom:1px solid #999;height:2.5em;">&nbsp;</p>`;
+      }
+      parts.push(li + `</li>`);
+    }
+    parts.push(`</ol>`);
+    return parts.join("\n");
+  };
+  const sanitizeFilename = (s) => {
+    const cleaned = String(s || "Murchid document").replace(/[\/\\:*?"<>|]/g, "").trim();
+    return (cleaned.slice(0, 100) || "Murchid document");
+  };
+  const exportDoc = () => {
+    if (!result) return;
+    const body = (result.kind === "quiz" && result.quiz)
+      ? quizToDocHtml(result.quiz)
+      : mdToDocHtml(fullText());
+    if (!body) return;
+    const html =
+`<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
+<head><meta charset="utf-8"><title>${escapeHtml(docTitle)}</title>
+<style>body{font-family:Calibri,Arial,sans-serif;line-height:1.5;}h1{font-size:22pt;}h2{font-size:16pt;}h3{font-size:13pt;}p,li{font-size:11pt;}code{font-family:Consolas,monospace;background:#f3f3f3;padding:1px 4px;}</style>
+</head><body>${body}</body></html>`;
+    const blob = new Blob(["﻿", html], { type: "application/msword" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${sanitizeFilename(docTitle)}.doc`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   // Copy works as soon as there's any text — including mid-stream.
   const copyToClipboard = async () => {
     const text = fullText();
@@ -1378,15 +1501,28 @@ export default function Studio({ initialKind } = {}) {
             </p>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
-            <Button
-              variant="secondary"
-              onClick={exportPdf}
-              disabled={!result}
-              className="text-xs px-3 py-1.5"
-              title="Open the print dialog and choose Save as PDF"
-            >
-              <FileDown size={13} className="mr-1.5" /> {t("studio.pdf")}
-            </Button>
+            {availableFormats.includes("doc") && (
+              <Button
+                variant="secondary"
+                onClick={exportDoc}
+                disabled={!result}
+                className="text-xs px-3 py-1.5"
+                title="Download as a Microsoft Word document"
+              >
+                <FileText size={13} className="mr-1.5" /> {t("studio.doc")}
+              </Button>
+            )}
+            {availableFormats.includes("pdf") && (
+              <Button
+                variant="secondary"
+                onClick={exportPdf}
+                disabled={!result}
+                className="text-xs px-3 py-1.5"
+                title="Open the print dialog and choose Save as PDF"
+              >
+                <FileDown size={13} className="mr-1.5" /> {t("studio.pdf")}
+              </Button>
+            )}
             <Button
               variant="secondary"
               onClick={copyToClipboard}

@@ -1,7 +1,7 @@
 /* ─────────────────────────────────────────────────────────────────────
-   MUDIR — Landing page styles
+   MURCHID — Landing page styles
    Editorial calm. Desert Quiet palette. Everything is scoped under
-   .mudir-landing so it never leaks into the Studio (which uses the
+   .murchid-landing so it never leaks into the Studio (which uses the
    Tailwind @theme tokens from index.css). Tailwind utilities still
    apply globally; only these custom classes + CSS vars are scoped.
    ───────────────────────────────────────────────────────────────────── */
@@ -12,7 +12,7 @@ html { scroll-behavior: smooth; }
    section is centred in the viewport and "holds" the reader for a few
    wheel notches before releasing to the next one (see Landing). */
 
-.mudir-landing {
+.murchid-landing {
   --paper:       #F7F3EC;
   --paper-2:     #EDE5D6;
   --paper-3:     #E3D9C5;
@@ -37,21 +37,21 @@ html { scroll-behavior: smooth; }
   min-height: 100vh;
 }
 
-.mudir-landing.paper-noise {
+.murchid-landing.paper-noise {
   background-image:
     radial-gradient(circle at 1px 1px, rgba(42, 31, 23, 0.018) 1px, transparent 0);
   background-size: 24px 24px;
 }
 
-.mudir-landing .font-display {
+.murchid-landing .font-display {
   font-family: 'Fraunces', Georgia, serif;
   font-optical-sizing: auto;
   letter-spacing: -0.02em;
 }
 
-.mudir-landing .font-mono { font-family: 'JetBrains Mono', monospace; }
+.murchid-landing .font-mono { font-family: 'JetBrains Mono', monospace; }
 
-.mudir-landing .eyebrow {
+.murchid-landing .eyebrow {
   font-family: 'JetBrains Mono', monospace;
   font-size: 11px;
   letter-spacing: 0.14em;
@@ -59,13 +59,13 @@ html { scroll-behavior: smooth; }
   color: var(--ink-3);
 }
 
-.mudir-landing .link-quiet {
+.murchid-landing .link-quiet {
   position: relative;
   color: var(--ink);
   transition: color 0.3s ease;
   cursor: pointer;
 }
-.mudir-landing .link-quiet::after {
+.murchid-landing .link-quiet::after {
   content: '';
   position: absolute;
   left: 0; bottom: -2px;
@@ -75,50 +75,50 @@ html { scroll-behavior: smooth; }
   transform-origin: left;
   transition: transform 0.5s cubic-bezier(0.22, 1, 0.36, 1);
 }
-.mudir-landing .link-quiet:hover::after { transform: scaleX(1); }
+.murchid-landing .link-quiet:hover::after { transform: scaleX(1); }
 
-.mudir-landing .btn-primary {
+.murchid-landing .btn-primary {
   background: var(--ink);
   color: var(--paper);
   transition: background 0.3s ease, transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
   cursor: pointer;
 }
-.mudir-landing .btn-primary:hover { background: var(--ink-2); }
-.mudir-landing .btn-primary:active { transform: scale(0.98); }
+.murchid-landing .btn-primary:hover { background: var(--ink-2); }
+.murchid-landing .btn-primary:active { transform: scale(0.98); }
 
 /* Inverse of primary — for dark surfaces (e.g. the closing CTA).
    Same two colours, flipped. No third hue anywhere. */
-.mudir-landing .btn-invert {
+.murchid-landing .btn-invert {
   background: var(--paper);
   color: var(--ink);
   transition: background 0.3s ease, transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
   cursor: pointer;
 }
-.mudir-landing .btn-invert:hover { background: var(--paper-2); }
-.mudir-landing .btn-invert:active { transform: scale(0.98); }
+.murchid-landing .btn-invert:hover { background: var(--paper-2); }
+.murchid-landing .btn-invert:active { transform: scale(0.98); }
 
-.mudir-landing .btn-secondary {
+.murchid-landing .btn-secondary {
   background: transparent;
   color: var(--ink);
   border: 0.5px solid var(--line-strong);
   transition: background 0.3s ease, border-color 0.3s ease;
   cursor: pointer;
 }
-.mudir-landing .btn-secondary:hover {
+.murchid-landing .btn-secondary:hover {
   background: rgba(42, 31, 23, 0.04);
   border-color: var(--ink);
 }
 
-.mudir-landing .card {
+.murchid-landing .card {
   background: var(--paper);
   border: 0.5px solid var(--line);
   border-radius: 12px;
 }
 
-.mudir-landing .no-scrollbar::-webkit-scrollbar { display: none; }
-.mudir-landing .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+.murchid-landing .no-scrollbar::-webkit-scrollbar { display: none; }
+.murchid-landing .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
-.mudir-landing .glow-orb {
+.murchid-landing .glow-orb {
   position: absolute;
   width: 600px; height: 600px;
   border-radius: 50%;
@@ -128,46 +128,46 @@ html { scroll-behavior: smooth; }
   transition: transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-@keyframes mudir-marquee {
+@keyframes murchid-marquee {
   from { transform: translateX(0); }
   to   { transform: translateX(-50%); }
 }
-.mudir-landing .marquee-track {
-  animation: mudir-marquee 40s linear infinite;
+.murchid-landing .marquee-track {
+  animation: murchid-marquee 40s linear infinite;
   display: flex;
   width: max-content;
 }
 
-.mudir-landing ::selection { background: var(--clay); color: var(--paper); }
+.murchid-landing ::selection { background: var(--clay); color: var(--paper); }
 
-.mudir-landing *:focus-visible {
+.murchid-landing *:focus-visible {
   outline: 1.5px solid var(--clay);
   outline-offset: 3px;
   border-radius: 2px;
 }
 
-.mudir-landing .nav-blur {
+.murchid-landing .nav-blur {
   backdrop-filter: blur(12px) saturate(180%);
   -webkit-backdrop-filter: blur(12px) saturate(180%);
   background: rgba(247, 243, 236, 0.78);
 }
 
-.mudir-landing .workflow-line {
+.murchid-landing .workflow-line {
   background: linear-gradient(to bottom, var(--line-strong), transparent);
 }
 
-.mudir-landing .lift {
+.murchid-landing .lift {
   transition: transform 0.5s cubic-bezier(0.22, 1, 0.36, 1),
               border-color 0.3s ease;
 }
-.mudir-landing .lift:hover {
+.murchid-landing .lift:hover {
   transform: translateY(-2px);
   border-color: var(--line-strong);
 }
 
-.mudir-landing .dot { width: 10px; height: 10px; border-radius: 50%; }
+.murchid-landing .dot { width: 10px; height: 10px; border-radius: 50%; }
 
-.mudir-landing .ui-tab {
+.murchid-landing .ui-tab {
   font-family: 'Inter Tight', sans-serif;
   font-size: 13px;
   color: var(--ink-2);
@@ -175,22 +175,22 @@ html { scroll-behavior: smooth; }
   border-radius: 6px;
   transition: all 0.2s ease;
 }
-.mudir-landing .ui-tab.active {
+.murchid-landing .ui-tab.active {
   background: var(--paper-2);
   color: var(--ink);
 }
 
-.mudir-landing .mock-row {
+.murchid-landing .mock-row {
   border-radius: 8px;
   background: var(--paper-2);
   height: 12px;
 }
 
 /* The hero "product" mock is a faithful copy of the real Studio and
-   reuses the Studio's global classes. Inside .mudir-landing our scoped
+   reuses the Studio's global classes. Inside .murchid-landing our scoped
    `.font-mono` would force JetBrains Mono onto it; pin it back to the
    Studio's mono token so the preview matches the app exactly. */
-.mudir-landing .mudir-studio-frame .font-mono {
+.murchid-landing .murchid-studio-frame .font-mono {
   font-family: var(--font-mono);
 }
 
@@ -206,7 +206,7 @@ html { scroll-behavior: smooth; }
   from { opacity: 0; transform: translateY(10px) scale(0.992); }
   to   { opacity: 1; transform: translateY(0) scale(1); }
 }
-.mudir-landing .studioflow-scene {
+.murchid-landing .studioflow-scene {
   animation: studioflow-scene 460ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
@@ -217,11 +217,35 @@ html { scroll-behavior: smooth; }
    physically anchored. Section-level mirroring of the bespoke scroll
    animations is handled inline (logical props) per section.
    ───────────────────────────────────────────────────────────────────── */
-[dir="rtl"] .mudir-landing .link-quiet::after {
+[dir="rtl"] .murchid-landing .link-quiet::after {
   left: auto;
   right: 0;
   transform-origin: right;
 }
-[dir="rtl"] .mudir-landing {
+[dir="rtl"] .murchid-landing {
   font-feature-settings: normal;
+}
+
+/* ─────────────────────────────────────────────────────────────────────
+   Trial-CTA ambient animation. Runs continuously (no hover needed): a
+   slow diagonal shimmer sweeps across the dark pill, the warm clay
+   inner glow breathes softly, and the sparkle particles twinkle
+   independently. Pure CSS — no JS, no perf cost.
+   ───────────────────────────────────────────────────────────────────── */
+@keyframes murchid-trial-shimmer {
+  0%   { transform: translateX(-110%); }
+  100% { transform: translateX(220%); }
+}
+@keyframes murchid-trial-glow {
+  0%, 100% { opacity: 0.4; }
+  50%      { opacity: 0.85; }
+}
+@keyframes murchid-trial-twinkle {
+  0%, 100% { opacity: 0.2; }
+  50%      { opacity: 0.7; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .murchid-trial-shimmer,
+  .murchid-trial-glow,
+  .murchid-trial-twinkle { animation: none !important; }
 }

@@ -33,7 +33,7 @@ export default function ReusableDrafts({ onEditDraft, onNewLesson }) {
   const [deleting, setDeleting] = useState(null);
   const [busy, setBusy] = useState(false);
   const [bulkOpen, setBulkOpen] = useState(false);
-  const [viewMode, setViewMode] = useViewMode("mudir.view.drafts", "cards");
+  const [viewMode, setViewMode] = useViewMode("murchid.view.drafts", "cards");
   const [sortKey, setSortKey] = useState("last_edited-desc");
   const [scope, setScope, scopeRange] = useDateScope();
 

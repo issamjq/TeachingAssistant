@@ -3,7 +3,7 @@
 // accordingly. When real auth lands, replace this with the auth-claim role
 // and keep the same shape (`getRole()` / subscribe pattern).
 
-const KEY = "mudir_role";
+const KEY = "murchid_role";
 export const ROLES = ["teacher", "admin", "dev"];
 export const ROLE_LABELS = {
   teacher: "Teacher",

@@ -1,10 +1,10 @@
 # 01 — Overview
 
-## What Mudir is
+## What Murchid is
 
-**Mudir** ("director" in Arabic) is an AI lesson director for teachers. It helps a teacher prepare, organize, and reuse lesson plans — with AI-assisted drafting, templating, scheduling, and review.
+**Murchid** ("director" in Arabic) is an AI lesson director for teachers. It helps a teacher prepare, organize, and reuse lesson plans — with AI-assisted drafting, templating, scheduling, and review.
 
-The name *Mudir* refers to the **product**, not the AI assistant inside it.
+The name *Murchid* refers to the **product**, not the AI assistant inside it.
 
 ## Two surfaces, one app
 
@@ -23,7 +23,7 @@ The studio header has an × button that returns to the landing page. Top-level r
 
 ## Core idea
 
-A teacher's day involves preparing many lessons across subjects, grades, and class sections. Mudir:
+A teacher's day involves preparing many lessons across subjects, grades, and class sections. Murchid:
 
 1. **Templates** — reusable lesson skeletons (e.g. "Reading comprehension", "Lab experiment") with subject, duration, grade, flow, and tags. Pick one and turn it into a draft.
 2. **Drafts** — work-in-progress lesson plans, private to the teacher. Each has status (`In progress | Ready to use | Blocked | Paused`), progress %, and optional warnings (missing slides, lab time, etc.).

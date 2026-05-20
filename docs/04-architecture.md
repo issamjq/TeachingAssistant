@@ -6,7 +6,7 @@
 .
 ├── index.html              # Vite entry. <div id="root"> + Google Fonts links.
 ├── package.json
-├── vite.config.js          # Vite config + the `mudir-api` middleware plugin.
+├── vite.config.js          # Vite config + the `murchid-api` middleware plugin.
 ├── .env                    # DATABASE_URL (gitignored)
 │
 ├── db/
@@ -63,7 +63,7 @@ index.html
 
 ## Landing page
 
-`src/views/Landing.jsx` renders the full marketing surface — top nav, hero, problem, solution, eight-tools section, dashboard mockup, "Mudir drafts / you direct" split, screen mockups, "Try it" prototype, footer. All styles in `src/landing.css` (extracted verbatim from the original static HTML; class-scoped so it doesn't collide with studio Tailwind).
+`src/views/Landing.jsx` renders the full marketing surface — top nav, hero, problem, solution, eight-tools section, dashboard mockup, "Murchid drafts / you direct" split, screen mockups, "Try it" prototype, footer. All styles in `src/landing.css` (extracted verbatim from the original static HTML; class-scoped so it doesn't collide with studio Tailwind).
 
 Two effects to know about:
 

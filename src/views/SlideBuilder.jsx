@@ -5,7 +5,7 @@
 //     re-open a saved deck for editing; `PresentDeck` renders it full
 //     screen for teaching.
 // Photos are always real (Pexels search or the teacher's own upload),
-// never AI. Mudir editorial theme throughout.
+// never AI. Murchid editorial theme throughout.
 import React, { useMemo, useState, useEffect, useRef, useCallback } from "react";
 import {
   Plus, Trash2, ChevronUp, ChevronDown, Check, Image as ImageIcon,
@@ -1137,7 +1137,7 @@ function LineFormatBar({ label, fmt, onChange, onClose }) {
 
 // ── Custom background colour — presets row gets a "+" that opens this.
 // Any colour is allowed; text auto-contrasts via resolveTheme(). ──────
-const RECENTS_KEY = "mudir.slidebg.recents";
+const RECENTS_KEY = "murchid.slidebg.recents";
 function ColorControl({
   value, onChange, onApplyAll, onClear,
   label = "Custom colour", seedDefault = "#1f1b16", triggerKind = "bg",

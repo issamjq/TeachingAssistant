@@ -592,7 +592,7 @@ export function ChipMultiSelect({ value = [], onChange, options, allowCustom = f
 //
 // In dev, VITE_API_URL is unset so requests go to the same origin and hit
 // Vite's mounted Express app. In production, set VITE_API_URL on Vercel to
-// the Render backend URL (e.g. https://mudir-api.onrender.com) and every
+// the Render backend URL (e.g. https://murchid-api.onrender.com) and every
 // /api/* call will be redirected there.
 const API_BASE = (import.meta.env.VITE_API_URL || "").replace(/\/$/, "");
 

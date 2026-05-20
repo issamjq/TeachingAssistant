@@ -16,7 +16,7 @@ export default function Quizzes({ onOpenQuiz }) {
   const [error, setError] = useState(null);
   const [deleting, setDeleting] = useState(null);
   const [busy, setBusy] = useState(false);
-  const [viewMode, setViewMode] = useViewMode("mudir.view.quizzes", "cards");
+  const [viewMode, setViewMode] = useViewMode("murchid.view.quizzes", "cards");
   const [sortKey, setSortKey] = useState("scheduled_for-desc");
   const [scope, setScope, scopeRange] = useDateScope();
 

@@ -18,12 +18,12 @@
 //   "#/dev"                            → dev console (dev role)
 //
 // Anything that mutates state visible in the URL goes through `navigate(...)`,
-// which calls `pushState` and emits a `mudir:routechange` event so the
+// which calls `pushState` and emits a `murchid:routechange` event so the
 // `useRoute` hook re-renders. We listen to `popstate` too so the browser
 // back/forward buttons feel native.
 import { useEffect, useState } from "react";
 
-const EVT = "mudir:routechange";
+const EVT = "murchid:routechange";
 
 // Pluggable navigation guard. A view that has unsaved state can register a
 // function via setNavGuard(); on every navigate / replace / clearRoute call

@@ -37,7 +37,7 @@ function monthMatrix(anchor) {
   return cells[35].getMonth() !== m ? cells.slice(0, 35) : cells;
 }
 
-const PREF_KEY = "mudir.teaching-rail.collapsed";
+const PREF_KEY = "murchid.teaching-rail.collapsed";
 
 export default function TeachingRail() {
   const [collapsed, setCollapsed] = useState(() => {

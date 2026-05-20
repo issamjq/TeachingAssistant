@@ -9,7 +9,7 @@ import { buildApp } from "./backend/app.js";
 // One source of truth for /api/* routes — no behaviour drift between dev
 // and prod.
 const apiPlugin = {
-  name: "mudir-api",
+  name: "murchid-api",
   configureServer(server) {
     const app = buildApp();
     server.middlewares.use(app);

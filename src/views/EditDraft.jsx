@@ -248,7 +248,7 @@ export default function EditDraft({ draft: initial, onClose, onMarkReady }) {
             <CardContent className="p-6">
               <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-1">Attachments</p>
               <p className="text-xs text-muted mb-4">
-                Paste links to files in Drive, OneDrive, or anywhere else. Mudir doesn&rsquo;t host uploads itself yet.
+                Paste links to files in Drive, OneDrive, or anywhere else. Murchid doesn&rsquo;t host uploads itself yet.
               </p>
               <AttachmentsList
                 value={form.attachments}

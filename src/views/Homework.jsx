@@ -16,7 +16,7 @@ export default function Homework({ onOpenHomework }) {
   const [error, setError] = useState(null);
   const [deleting, setDeleting] = useState(null);
   const [busy, setBusy] = useState(false);
-  const [viewMode, setViewMode] = useViewMode("mudir.view.homework", "cards");
+  const [viewMode, setViewMode] = useViewMode("murchid.view.homework", "cards");
   const [sortKey, setSortKey] = useState("due_date-asc");
   const [scope, setScope, scopeRange] = useDateScope();
 

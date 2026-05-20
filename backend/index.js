@@ -13,25 +13,25 @@ import { runInit } from "./db/init.js";
 // server back online before fixing the script).
 async function boot() {
   if (process.env.SKIP_DB_INIT === "1") {
-    console.log("[mudir-api] SKIP_DB_INIT=1 — skipping schema init");
+    console.log("[murchid-api] SKIP_DB_INIT=1 — skipping schema init");
   } else {
     try {
-      console.log("[mudir-api] running schema init …");
+      console.log("[murchid-api] running schema init …");
       await runInit();
     } catch (err) {
-      console.error("[mudir-api] schema init failed:", err);
-      console.error("[mudir-api] starting server anyway — set SKIP_DB_INIT=1 to silence");
+      console.error("[murchid-api] schema init failed:", err);
+      console.error("[murchid-api] starting server anyway — set SKIP_DB_INIT=1 to silence");
     }
   }
 
   const app = buildApp();
   const port = Number(process.env.PORT) || 3001;
   app.listen(port, () => {
-    console.log(`[mudir-api] listening on :${port}`);
+    console.log(`[murchid-api] listening on :${port}`);
   });
 }
 
 boot().catch((err) => {
-  console.error("[mudir-api] boot failed:", err);
+  console.error("[murchid-api] boot failed:", err);
   process.exit(1);
 });

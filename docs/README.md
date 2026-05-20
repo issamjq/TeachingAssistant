@@ -1,10 +1,10 @@
-# Mudir docs
+# Murchid docs
 
 Full project documentation. Read in order if you're new; jump around once you have the shape.
 
 | # | Doc | What's inside |
 |---|-----|---------------|
-| 01 | [Overview](01-overview.md) | What Mudir is, who it's for, the product idea |
+| 01 | [Overview](01-overview.md) | What Murchid is, who it's for, the product idea |
 | 02 | [Getting started](02-getting-started.md) | Prerequisites, install, env, scripts |
 | 03 | [Tech stack](03-tech-stack.md) | Vite 5, React 18, Tailwind v4, Neon Postgres, Lucide |
 | 04 | [Architecture](04-architecture.md) | File layout, boot flow, view router, sidebar nav |

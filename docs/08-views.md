@@ -8,16 +8,16 @@ The app has two surfaces: the **Landing** (marketing) and the **Studio** (worksp
 
 The marketing landing page. Default view at `/`. Sections in order:
 
-1. **Top nav** — `Mudir` logomark, anchor links to each section, and a red "Lesson Planner →" CTA that calls `onOpenStudio` (passed from `main.jsx`) to switch into the studio.
+1. **Top nav** — `Murchid` logomark, anchor links to each section, and a red "Lesson Planner →" CTA that calls `onOpenStudio` (passed from `main.jsx`) to switch into the studio.
 2. **Hero** — "Lesson prep in *thirty* seconds." Three rotated lesson cards + a spinning "30s to ready" badge + a 4-stat strip.
 3. **Problem** — "Teachers don't have a *time* problem. They have a *prep* problem." Three big-number stats + a quote card.
-4. **Solution** (dark section) — Four flow steps: Tell Mudir → It generates → You refine → You teach.
-5. **Studio map** — Eight tool cards (Lesson Plans, Scheduling, Quizzes & Exams, Homework, Student Data, Subjects, Presentations, Activities) under the "Mudir Studio" hub badge.
+4. **Solution** (dark section) — Four flow steps: Tell Murchid → It generates → You refine → You teach.
+5. **Studio map** — Eight tool cards (Lesson Plans, Scheduling, Quizzes & Exams, Homework, Student Data, Subjects, Presentations, Activities) under the "Murchid Studio" hub badge.
 6. **Hub** — Static dashboard mockup mirroring the real studio dashboard.
-7. **Studio collab** — Side-by-side "Mudir's draft" / "Your version" panes showing inline edits, additions, and strikethroughs.
+7. **Studio collab** — Side-by-side "Murchid's draft" / "Your version" panes showing inline edits, additions, and strikethroughs.
 8. **Screens** — AI Generator mockup + Lesson Library mockup + a six-card "What's included" feature grid.
 9. **Try it** — embeds `LandingDemo` (see below) and a link to open the real studio.
-10. **Footer** — `المُدير` Arabic mark, big "Mudir" logo, tagline, credit.
+10. **Footer** — `المُدير` Arabic mark, big "Murchid" logo, tagline, credit.
 
 A reveal-on-scroll `IntersectionObserver` adds the `visible` class to each section as it enters the viewport.
 
