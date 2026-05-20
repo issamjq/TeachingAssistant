@@ -373,9 +373,27 @@ export default function ProfileForm({ onDone, onBack }) {
               </li>
             </ol>
 
-            <p className="text-[12px] text-muted italic">
-              {t("onb.students.skipNote")}
-            </p>
+            {/* Explicit Skip button — easier to spot than the small
+                italic line we used to have, and clearer than expecting
+                the teacher to interpret "Continue to plan" as "skip". */}
+            <div className="pt-1">
+              <button
+                type="button"
+                onClick={() => {
+                  setStudents([]);
+                  setImportError(null);
+                  setPendingProfile(data);
+                  setPendingStudents([]);
+                  onDone?.({ ...data, students: [] });
+                }}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-dashed border-line bg-paper-cool hover:border-ink hover:bg-paper-warm transition-colors text-[13px] font-medium text-ink"
+              >
+                {t("onb.students.skipBtn")}
+              </button>
+              <p className="text-[12px] text-muted mt-2 leading-snug">
+                {t("onb.students.skipNote")}
+              </p>
+            </div>
 
             {importError && (
               <p className="text-[12.5px] text-accent">{importError}</p>
