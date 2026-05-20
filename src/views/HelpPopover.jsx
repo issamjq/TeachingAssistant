@@ -5,7 +5,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import {
-  X, Send, Search, CheckCircle2, ChevronRight, ArrowLeft,
+  X, Send, Sparkles, CheckCircle2, ChevronRight, ArrowLeft,
   MessageSquare, HelpCircle,
 } from "lucide-react";
 import { useT, useI18n } from "../lib/i18n";
@@ -99,15 +99,52 @@ export default function HelpPopover({ open, onClose }) {
     return () => document.removeEventListener("keydown", onKey);
   }, [open, onClose]);
 
-  const filtered = useMemo(() => {
+  // Token-based scoring against article title + body. Title matches
+  // weigh 3× body matches. Returns scored articles ordered best→worst.
+  // Used both for live filtering (anything > 0) and for "Ask Murchid"
+  // (best-scoring article when the teacher hits Enter).
+  const scored = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return HELP_ARTICLES;
-    return HELP_ARTICLES.filter((a) => {
-      const title = (a.title[lang] || a.title.en).toLowerCase();
-      const body = (a.body[lang] || a.body.en).toLowerCase();
-      return title.includes(q) || body.includes(q);
-    });
+    if (!q) return HELP_ARTICLES.map((a) => ({ article: a, score: 0 }));
+    // Tokens: 2+ char words, deduped. Latin + Arabic word chars.
+    const tokens = Array.from(
+      new Set(q.split(/[^\p{L}\p{N}]+/u).filter((w) => w.length >= 2))
+    );
+    if (tokens.length === 0) return HELP_ARTICLES.map((a) => ({ article: a, score: 0 }));
+    return HELP_ARTICLES
+      .map((a) => {
+        const title = (a.title[lang] || a.title.en).toLowerCase();
+        const body = (a.body[lang] || a.body.en).toLowerCase();
+        let score = 0;
+        for (const tok of tokens) {
+          if (title.includes(tok)) score += 3;
+          if (body.includes(tok)) score += 1;
+        }
+        return { article: a, score };
+      })
+      .filter((x) => x.score > 0)
+      .sort((a, b) => b.score - a.score);
   }, [query, lang]);
+
+  const filtered = useMemo(
+    () => (query.trim() ? scored.map((s) => s.article) : HELP_ARTICLES),
+    [scored, query]
+  );
+
+  // "Ask Murchid": fire on Enter. Opens the top-scoring article as the
+  // bot's answer. If nothing scored above zero, route to Messages so
+  // the teacher can write to support instead.
+  const askMurchid = () => {
+    const q = query.trim();
+    if (!q) return;
+    if (scored.length > 0 && scored[0].score > 0) {
+      setOpenArticle(scored[0].article.id);
+    } else {
+      // No good match — pre-fill the message composer with the question.
+      setMessageDraft(q);
+      setTab("messages");
+    }
+  };
 
   if (!open) return null;
 
@@ -222,17 +259,35 @@ export default function HelpPopover({ open, onClose }) {
                 <Send size={16} className="text-accent rtl:rotate-180" />
               </a>
 
-              {/* Search + article list */}
+              {/* Ask Murchid — type a question, hit Enter to get the
+                  best-matching article inline. Typing also live-filters
+                  the list below. No LLM, just keyword scoring against
+                  the FAQ. */}
               <div className="rounded-xl border border-line bg-paper">
                 <div className="flex items-center gap-2 px-4 py-3 border-b border-line">
-                  <Search size={16} className="text-ink-soft flex-shrink-0" />
+                  <Sparkles size={15} className="text-accent flex-shrink-0" />
                   <input
                     type="text"
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
-                    placeholder={t("help.searchPlaceholder")}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        askMurchid();
+                      }
+                    }}
+                    placeholder={t("help.askPlaceholder")}
                     className="flex-1 bg-transparent text-sm text-ink placeholder:text-muted outline-none"
                   />
+                  {query.trim() && (
+                    <button
+                      type="button"
+                      onClick={askMurchid}
+                      className="text-[11px] font-medium text-accent hover:underline shrink-0"
+                    >
+                      {t("help.askEnter")}
+                    </button>
+                  )}
                 </div>
                 <ul>
                   {filtered.length === 0 ? (
