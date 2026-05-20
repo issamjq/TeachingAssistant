@@ -12,13 +12,16 @@
 //
 // Submit on step 3 writes a pending profile to localStorage and calls
 // onDone() so the funnel advances to the plan picker.
-import React, { useState } from "react";
-import { ChevronRight, ChevronLeft, Check } from "lucide-react";
+import React, { useRef, useState } from "react";
+import { ChevronRight, ChevronLeft, Check, Download, Upload, FileText, X } from "lucide-react";
 import { MAJORS, GRADE_LEVELS, QUIZ_LANGUAGES, QUIZ_SECTIONS } from "../../lib/enums";
-import { setPendingProfile, getPendingProfile } from "../../lib/account";
+import {
+  setPendingProfile, getPendingProfile,
+  setPendingStudents, getPendingStudents,
+} from "../../lib/account";
 import { useT, useI18n } from "../../lib/i18n";
 
-const STEPS = ["identity", "subjects", "scope"];
+const STEPS = ["identity", "subjects", "scope", "students"];
 
 const EMPTY = {
   firstName: "",
@@ -31,24 +34,135 @@ const EMPTY = {
   sections: [],
 };
 
+// CSV columns the teacher's roster template uses. Order matters — we
+// parse positionally so the template's header row is for human eyes,
+// not for column-matching. Optional columns can be left blank.
+const STUDENT_COLUMNS = [
+  "first_name",   // required
+  "last_name",    // required
+  "grade",        // required, free-text (matches GRADE_LEVELS)
+  "section",      // optional
+  "student_id",   // optional
+  "parent_email", // optional
+];
+
+const TEMPLATE_ROWS = [
+  ["Aisha",    "Al Mansoori", "Grade 6", "A", "S-101", "parent.almansoori@example.com"],
+  ["Khalid",   "Hassan",      "Grade 6", "A", "S-102", "parent.hassan@example.com"],
+  ["",         "",            "",        "",  "",      ""],
+];
+
+function escapeCsvCell(v) {
+  const s = String(v ?? "");
+  // Quote when the cell has comma, quote, or newline.
+  if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+  return s;
+}
+function rowsToCsv(headers, rows) {
+  const lines = [headers.map(escapeCsvCell).join(",")];
+  for (const r of rows) lines.push(r.map(escapeCsvCell).join(","));
+  return lines.join("\r\n");
+}
+function downloadCsv(filename, csv) {
+  const blob = new Blob([`﻿${csv}`], { type: "text/csv;charset=utf-8" }); // BOM so Excel sees UTF-8
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+
+// Minimal CSV parser — handles quoted cells, escaped quotes ("") and
+// CR/LF line endings. Skips the header row.
+function parseCsv(text) {
+  const cleaned = text.replace(/^﻿/, ""); // strip BOM
+  const rows = [];
+  let row = [];
+  let cell = "";
+  let inQuotes = false;
+  for (let i = 0; i < cleaned.length; i++) {
+    const c = cleaned[i];
+    if (inQuotes) {
+      if (c === '"' && cleaned[i + 1] === '"') { cell += '"'; i++; }
+      else if (c === '"') { inQuotes = false; }
+      else { cell += c; }
+    } else {
+      if (c === '"') { inQuotes = true; }
+      else if (c === ",") { row.push(cell); cell = ""; }
+      else if (c === "\r") { /* swallow */ }
+      else if (c === "\n") { row.push(cell); rows.push(row); row = []; cell = ""; }
+      else { cell += c; }
+    }
+  }
+  if (cell.length > 0 || row.length > 0) { row.push(cell); rows.push(row); }
+  return rows;
+}
+function parseStudentsCsv(text) {
+  const rows = parseCsv(text);
+  if (rows.length <= 1) return [];
+  return rows.slice(1)
+    .map((r) => ({
+      firstName:   (r[0] || "").trim(),
+      lastName:    (r[1] || "").trim(),
+      grade:       (r[2] || "").trim(),
+      section:     (r[3] || "").trim(),
+      studentId:   (r[4] || "").trim(),
+      parentEmail: (r[5] || "").trim(),
+    }))
+    .filter((s) => s.firstName && s.lastName);
+}
+
 export default function ProfileForm({ onDone, onBack }) {
   const t = useT();
   const { dir } = useI18n();
   const [stepIdx, setStepIdx] = useState(0);
   const [data, setData] = useState(() => ({ ...EMPTY, ...(getPendingProfile() || {}) }));
+  const [students, setStudents] = useState(() => getPendingStudents() || []);
+  const [importError, setImportError] = useState(null);
+  const fileInputRef = useRef(null);
 
   const step = STEPS[stepIdx];
   const last = stepIdx === STEPS.length - 1;
 
-  // Lightweight per-step validation — staff_id, bio, sections are all
-  // optional; the rest must have something so we don't end up with an
-  // empty teacher profile downstream.
+  // Lightweight per-step validation — staff_id, bio, sections, and
+  // the entire students step are optional; the rest must have
+  // something so we don't end up with an empty teacher profile.
   const valid =
     step === "identity"
       ? data.firstName.trim().length > 0 && data.lastName.trim().length > 0
       : step === "subjects"
         ? data.majors.length > 0 && data.languages.length > 0
-        : data.grades.length > 0;
+        : step === "scope"
+          ? data.grades.length > 0
+          : true; // students step — always valid (skippable)
+
+  const handleTemplateDownload = () => {
+    const csv = rowsToCsv(STUDENT_COLUMNS, TEMPLATE_ROWS);
+    downloadCsv("murchid-students-template.csv", csv);
+  };
+  const handleFile = (file) => {
+    if (!file) return;
+    setImportError(null);
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const text = String(reader.result || "");
+        const parsed = parseStudentsCsv(text);
+        if (parsed.length === 0) {
+          setImportError(t("onb.students.errEmpty"));
+          return;
+        }
+        setStudents(parsed);
+      } catch {
+        setImportError(t("onb.students.errParse"));
+      }
+    };
+    reader.onerror = () => setImportError(t("onb.students.errParse"));
+    reader.readAsText(file);
+  };
 
   const set = (patch) => setData((d) => ({ ...d, ...patch }));
   const toggleIn = (key, value) =>
@@ -62,7 +176,8 @@ export default function ProfileForm({ onDone, onBack }) {
     if (!valid) return;
     if (last) {
       setPendingProfile(data);
-      onDone?.(data);
+      setPendingStudents(students);
+      onDone?.({ ...data, students });
       return;
     }
     setStepIdx((i) => i + 1);
@@ -134,6 +249,8 @@ export default function ProfileForm({ onDone, onBack }) {
                 options={MAJORS}
                 selected={data.majors}
                 onToggle={(v) => toggleIn("majors", v)}
+                onSetAll={(next) => set({ majors: next })}
+                allLabel={t("onb.all.majors")}
               />
             </Field>
             <Field label={t("onb.fld.languages")} required>
@@ -141,6 +258,8 @@ export default function ProfileForm({ onDone, onBack }) {
                 options={QUIZ_LANGUAGES}
                 selected={data.languages}
                 onToggle={(v) => toggleIn("languages", v)}
+                onSetAll={(next) => set({ languages: next })}
+                allLabel={t("onb.all.languages")}
               />
             </Field>
           </div>
@@ -153,6 +272,8 @@ export default function ProfileForm({ onDone, onBack }) {
                 options={GRADE_LEVELS}
                 selected={data.grades}
                 onToggle={(v) => toggleIn("grades", v)}
+                onSetAll={(next) => set({ grades: next })}
+                allLabel={t("onb.all.grades")}
               />
             </Field>
             <Field label={t("onb.fld.sections")} hint={t("onb.fld.optional")}>
@@ -160,6 +281,8 @@ export default function ProfileForm({ onDone, onBack }) {
                 options={QUIZ_SECTIONS.filter((s) => s !== "All sections")}
                 selected={data.sections}
                 onToggle={(v) => toggleIn("sections", v)}
+                onSetAll={(next) => set({ sections: next })}
+                allLabel={t("onb.all.sections")}
               />
             </Field>
             <Field label={t("onb.fld.bio")} hint={t("onb.fld.optional")}>
@@ -171,6 +294,99 @@ export default function ProfileForm({ onDone, onBack }) {
                 placeholder={t("onb.ph.bio")}
               />
             </Field>
+          </div>
+        )}
+
+        {step === "students" && (
+          <div className="space-y-4">
+            <div className="grid sm:grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={handleTemplateDownload}
+                className="flex items-center gap-3 px-4 py-3 rounded-xl border border-line bg-paper-cool hover:border-ink/40 transition-colors text-start"
+              >
+                <span className="inline-flex h-10 w-10 rounded-lg bg-accent/10 text-accent items-center justify-center flex-shrink-0">
+                  <Download size={18} />
+                </span>
+                <span className="flex-1 min-w-0">
+                  <span className="block text-sm font-medium text-ink leading-tight">
+                    {t("onb.students.tplBtn")}
+                  </span>
+                  <span className="block text-[11.5px] text-muted leading-snug mt-0.5">
+                    {t("onb.students.tplHint")}
+                  </span>
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="flex items-center gap-3 px-4 py-3 rounded-xl border border-line bg-paper-cool hover:border-ink/40 transition-colors text-start"
+              >
+                <span className="inline-flex h-10 w-10 rounded-lg bg-ink/[0.06] text-ink items-center justify-center flex-shrink-0">
+                  <Upload size={18} />
+                </span>
+                <span className="flex-1 min-w-0">
+                  <span className="block text-sm font-medium text-ink leading-tight">
+                    {t("onb.students.uploadBtn")}
+                  </span>
+                  <span className="block text-[11.5px] text-muted leading-snug mt-0.5">
+                    {t("onb.students.uploadHint")}
+                  </span>
+                </span>
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".csv,text/csv"
+                onChange={(e) => handleFile(e.target.files?.[0])}
+                className="hidden"
+              />
+            </div>
+
+            {importError && (
+              <p className="text-[12px] text-accent">{importError}</p>
+            )}
+
+            {students.length > 0 ? (
+              <div className="rounded-xl border border-line bg-paper-cool overflow-hidden">
+                <div className="flex items-center justify-between gap-2 px-4 py-2.5 border-b border-line bg-paper-warm/40">
+                  <div className="flex items-center gap-2 text-[12.5px] text-ink">
+                    <FileText size={14} className="text-accent" />
+                    <span className="font-medium">
+                      {t("onb.students.parsed", { n: students.length })}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => { setStudents([]); setImportError(null); }}
+                    className="inline-flex items-center gap-1 text-[11.5px] text-muted hover:text-ink transition-colors"
+                  >
+                    <X size={12} /> {t("onb.students.clear")}
+                  </button>
+                </div>
+                <ul className="max-h-[180px] overflow-y-auto divide-y divide-line">
+                  {students.slice(0, 6).map((s, i) => (
+                    <li key={i} className="px-4 py-2 text-[12.5px] flex items-center gap-2">
+                      <span className="font-medium text-ink truncate">
+                        {s.firstName} {s.lastName}
+                      </span>
+                      <span className="text-muted flex-shrink-0">
+                        · {s.grade}{s.section ? ` ${s.section}` : ""}
+                      </span>
+                    </li>
+                  ))}
+                  {students.length > 6 && (
+                    <li className="px-4 py-2 text-[11.5px] italic text-muted">
+                      +{students.length - 6} {t("onb.students.more")}
+                    </li>
+                  )}
+                </ul>
+              </div>
+            ) : (
+              <p className="text-[12.5px] text-muted italic">
+                {t("onb.students.empty")}
+              </p>
+            )}
           </div>
         )}
 
@@ -235,10 +451,16 @@ function ProgressDots({ count, active }) {
   );
 }
 
+// Field used to be a <label> — that meant a click in the empty space
+// between chips bubbled to the label and toggled the first chip
+// underneath it (KG 1 for the grades row, Section A for sections).
+// A plain <div> avoids the label's "click anywhere to activate the
+// first focusable child" behaviour. Text inputs don't need the label
+// wrapper to be functional.
 function Field({ label, hint, required, children }) {
   return (
-    <label className="block">
-      <span className="flex items-baseline gap-2 mb-1.5">
+    <div>
+      <div className="flex items-baseline gap-2 mb-1.5">
         <span className="text-[13px] font-medium" style={{ color: "var(--ink)" }}>
           {label}
           {required && <span style={{ color: "var(--clay)" }}> *</span>}
@@ -248,15 +470,30 @@ function Field({ label, hint, required, children }) {
             {hint}
           </span>
         )}
-      </span>
+      </div>
       {children}
-    </label>
+    </div>
   );
 }
 
-function ChipPicker({ options, selected, onToggle }) {
+function ChipPicker({ options, selected, onToggle, onSetAll, allLabel }) {
+  const allOn = onSetAll && options.every((o) => selected.includes(o));
   return (
     <div className="flex flex-wrap gap-1.5">
+      {onSetAll && (
+        <button
+          type="button"
+          onClick={() => onSetAll(allOn ? [] : [...options])}
+          aria-pressed={allOn}
+          className={`px-3 py-1.5 rounded-full text-[12.5px] font-semibold border transition-colors ${
+            allOn
+              ? "bg-accent text-paper-cool border-accent"
+              : "bg-paper-cool text-accent border-accent hover:bg-accent/10"
+          }`}
+        >
+          {allLabel}
+        </button>
+      )}
       {options.map((opt) => {
         const on = selected.includes(opt);
         return (

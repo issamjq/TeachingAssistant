@@ -67,6 +67,24 @@ export const clearPendingProfile = () => {
   try { localStorage.removeItem(PROFILE_KEY); } catch { /* ignore */ }
 };
 
+// Pending student roster from onboarding's CSV-upload step. Survives
+// the plan-picker step and gets POSTed to /api/students the first time
+// the teacher opens My students (once Firebase auth is wired). For
+// now, lives in localStorage so the planner's My-students view can
+// surface what was imported during onboarding.
+const STUDENTS_KEY = "murchid.students.pending";
+export const setPendingStudents = (rows) => {
+  try { localStorage.setItem(STUDENTS_KEY, JSON.stringify(rows || [])); }
+  catch { /* ignore */ }
+};
+export const getPendingStudents = () => {
+  try { return JSON.parse(localStorage.getItem(STUDENTS_KEY) || "[]"); }
+  catch { return []; }
+};
+export const clearPendingStudents = () => {
+  try { localStorage.removeItem(STUDENTS_KEY); } catch { /* ignore */ }
+};
+
 export const onAccountChange = (fn) => {
   listeners.add(fn);
   return () => listeners.delete(fn);
