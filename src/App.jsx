@@ -25,8 +25,11 @@ import AdminConsole from "./views/AdminConsole";
 import DevConsole from "./views/DevConsole";
 import { getRole, onRoleChange, ROLE_LABELS } from "./lib/role";
 import { api } from "./views/_shared";
-import { useRoute, navigate, replace } from "./lib/route";
-import { useT, LangToggle } from "./lib/i18n";
+import { useRoute, navigate, replace, clearRoute } from "./lib/route";
+import { useT } from "./lib/i18n";
+import { useAccount, clearAccount } from "./lib/account";
+import AccountMenu from "./views/AccountMenu";
+import HelpPopover from "./views/HelpPopover";
 
 // Sectioned nav matching the 2026 mockup — italic Fraunces section
 // headers + small letter/icon badges next to each label. All routes
@@ -108,12 +111,18 @@ function NavBadge({ letter, icon, lucide: Lucide }) {
 export default function StudioApp({ onClose }) {
   const [role, setRoleState] = useState(getRole());
   const [navOpen, setNavOpen] = useState(false); // mobile drawer
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
+  const account = useAccount();
+  // Free-trial users (no paid account in storage) see "Upgrade plan".
+  // Once they pick a plan, the row hides automatically.
+  const showUpgrade = !account;
   const route = useRoute();
   const t = useT();
 
-  // Any route change closes the mobile drawer so the new screen is
-  // visible immediately after tapping a nav item.
-  useEffect(() => { setNavOpen(false); }, [route]);
+  // Any route change closes the mobile drawer + account menu so the
+  // new screen is visible immediately after tapping a nav item.
+  useEffect(() => { setNavOpen(false); setAccountMenuOpen(false); }, [route]);
   // Translate a nav/section key, falling back to its English label when
   // a key isn't in the dictionary yet (phased rollout).
   const navT = (key, fallback) => {
@@ -455,29 +464,41 @@ export default function StudioApp({ onClose }) {
           })()}
         </nav>
 
-        <div className="px-4 pb-2 pt-1 flex items-center justify-between">
-          <span className="font-mono text-[9.5px] uppercase tracking-[0.16em] text-muted">
-            {t("common.language")}
-          </span>
-          <LangToggle />
+        <div className="relative">
+          <button
+            onClick={() => setAccountMenuOpen((o) => !o)}
+            title={t("accountMenu.open")}
+            aria-haspopup="menu"
+            aria-expanded={accountMenuOpen}
+            className={`murchid-sidebar-account ${accountMenuOpen ? "murchid-sidebar-account-active" : ""}`}
+          >
+            <span className="murchid-sidebar-account-avatar">SA</span>
+            <div className="flex-1 min-w-0 text-start">
+              <p className="text-sm font-medium leading-tight truncate text-ink">
+                Sara
+              </p>
+              <p className="font-serif italic text-[11px] text-muted mt-0.5">
+                {t(`account.${role}`) === `account.${role}` ? ROLE_LABELS[role] : t(`account.${role}`)}
+              </p>
+            </div>
+            <ChevronRight size={14} className="text-muted flex-shrink-0 rtl:rotate-180" />
+          </button>
+          <AccountMenu
+            open={accountMenuOpen}
+            onClose={() => setAccountMenuOpen(false)}
+            user={account}
+            showUpgrade={showUpgrade}
+            onOpenSettings={() => navigate(["account"])}
+            onOpenHelp={() => setHelpOpen(true)}
+            onUpgrade={() => navigate(["signup"])}
+            onLogout={() => {
+              // Clear the local account + return to the marketing landing.
+              clearAccount();
+              clearRoute();
+              onClose?.();
+            }}
+          />
         </div>
-
-        <button
-          onClick={() => navigate(["account"])}
-          title="Open account"
-          className={`murchid-sidebar-account ${section === "account" ? "murchid-sidebar-account-active" : ""}`}
-        >
-          <span className="murchid-sidebar-account-avatar">SA</span>
-          <div className="flex-1 min-w-0 text-start">
-            <p className="text-sm font-medium leading-tight truncate text-ink">
-              Sara
-            </p>
-            <p className="font-serif italic text-[11px] text-muted mt-0.5">
-              {t(`account.${role}`) === `account.${role}` ? ROLE_LABELS[role] : t(`account.${role}`)}
-            </p>
-          </div>
-          <ChevronRight size={14} className="text-muted flex-shrink-0 rtl:rotate-180" />
-        </button>
     </>
   );
 
@@ -571,6 +592,8 @@ export default function StudioApp({ onClose }) {
           )}
         </div>
       </main>
+
+      <HelpPopover open={helpOpen} onClose={() => setHelpOpen(false)} />
     </div>
   );
 }
