@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useCallback } from "react";
+import React, { useEffect, useLayoutEffect, useRef, useState, useCallback } from "react";
 import { createPortal } from "react-dom";
 import {
   Accessibility, X, Type, Eye, Volume2, RotateCcw,
@@ -118,6 +118,18 @@ export default function AccessibilityWidget() {
     return () => document.removeEventListener("keydown", onKey);
   }, [open]);
 
+  // Defensive cleanup: when direction flips, sweep document.body for
+  // any stale launcher/panel nodes left over from the previous direction
+  // (React's portal + key={dir} should handle this, but a stale DOM node
+  // has been observed surviving a lang flip until a page refresh — this
+  // guarantees only the current direction's element remains).
+  useLayoutEffect(() => {
+    const stale = document.querySelectorAll(
+      `[data-a11y-node]:not([data-a11y-dir="${dir}"])`
+    );
+    stale.forEach((el) => el.remove());
+  }, [dir, open]);
+
   const set = useCallback((patch) => setS((p) => ({ ...p, ...patch })), []);
   const reset = useCallback(() => {
     window.speechSynthesis?.cancel();
@@ -139,6 +151,8 @@ export default function AccessibilityWidget() {
     <button
       key={dir}
       type="button"
+      data-a11y-node="launcher"
+      data-a11y-dir={dir}
       onClick={() => setOpen((o) => !o)}
       aria-label={t("a11y.open")}
       title={t("a11y.open")}
@@ -158,6 +172,8 @@ export default function AccessibilityWidget() {
   const panel = open && (
     <>
       <div
+        data-a11y-node="scrim"
+        data-a11y-dir={dir}
         onClick={() => setOpen(false)}
         style={{ position: "fixed", inset: 0, zIndex: 2147483000 }}
         aria-hidden="true"
@@ -167,6 +183,8 @@ export default function AccessibilityWidget() {
         role="dialog"
         aria-label={t("a11y.title")}
         dir={dir}
+        data-a11y-node="panel"
+        data-a11y-dir={dir}
         style={{
           position: "fixed",
           bottom: 88,
