@@ -5015,19 +5015,28 @@ function PageShell({ eyebrow, title, em, lead, onPage, children, narrow, centere
     <main
       className={
         centered
-          ? "min-h-[100dvh] flex items-center justify-center px-8 py-20"
+          // pt-28 / md:pt-32 = same nav clearance the non-centered shell
+          // uses, so the flex-centering happens in the space BELOW the
+          // fixed nav instead of behind it. pb-12 keeps a comfortable
+          // bottom margin without throwing off the visual center.
+          ? "min-h-[100dvh] flex items-center justify-center px-8 pt-28 md:pt-32 pb-12"
           : "pt-28 md:pt-32 pb-28 min-h-screen"
       }
     >
-      <div className={`${narrow ? "max-w-xl" : "max-w-3xl"} ${centered ? "w-full" : "mx-auto px-8"}`}>
-        <button
-          type="button"
-          onClick={() => onPage("home")}
-          className="link-quiet text-sm mb-10 inline-flex items-center gap-1.5"
-          style={{ color: "var(--ink-2)" }}
-        >
-          {t("lp.pg.back")}
-        </button>
+      <div className={`${narrow ? "max-w-xl" : "max-w-3xl"} mx-auto px-8 w-full ${centered ? "text-center" : ""}`}>
+        {/* Back to home stays on the leading edge even when the rest
+            of the panel is text-centered — wrap in a text-start div so
+            the parent's text-center doesn't pull the link to the middle. */}
+        <div className={centered ? "text-start" : ""}>
+          <button
+            type="button"
+            onClick={() => onPage("home")}
+            className="link-quiet text-sm mb-10 inline-flex items-center gap-1.5"
+            style={{ color: "var(--ink-2)" }}
+          >
+            {t("lp.pg.back")}
+          </button>
+        </div>
         <div className="eyebrow mb-6">{eyebrow}</div>
         <h1 className="font-display text-4xl md:text-5xl leading-[1.05] tracking-tight mb-6">
           {title}
@@ -5177,7 +5186,7 @@ function AuthPage({ onSignUp, onPage }) {
       narrow
       centered
     >
-      <div className="space-y-3 max-w-sm">
+      <div className="space-y-3 max-w-sm mx-auto">
         <ProviderButton
           icon={<GoogleMark />}
           label={t("lp.auth.google")}
@@ -5189,10 +5198,10 @@ function AuthPage({ onSignUp, onPage }) {
           onClick={() => onSignUp("outlook")}
         />
       </div>
-      <p className="text-xs mt-6" style={{ color: "var(--ink-3)" }}>
+      <p className="text-xs mt-6 text-center" style={{ color: "var(--ink-3)" }}>
         {t("lp.auth.only")}
       </p>
-      <p className="text-xs mt-2" style={{ color: "var(--ink-3)" }}>
+      <p className="text-xs mt-2 text-center" style={{ color: "var(--ink-3)" }}>
         {t("lp.auth.terms")}
       </p>
     </PageShell>
