@@ -1051,7 +1051,77 @@
     padding: 0 !important;
     background: transparent !important;
   }
+  /* Worksheet header — only used when printing quizzes / homework. The
+     teacher hands the print-out to students like a real school paper, so
+     it leads with a centered title, a meta strip, and fill-in-the-blank
+     fields (Name / Date / Grade / Section / Score). */
+  .ws-paper { color: #1a1814; margin-bottom: 1.5rem; }
+  .ws-paper .ws-title {
+    font-family: "Fraunces", Georgia, serif;
+    font-weight: 500;
+    font-size: 26pt;
+    text-align: center;
+    margin: 0 0 0.35rem 0;
+    line-height: 1.15;
+  }
+  .ws-paper .ws-title em {
+    font-style: italic;
+    color: #c8472b;
+  }
+  .ws-paper .ws-meta {
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 9pt;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    text-align: center;
+    color: #6b675e;
+    margin: 0 0 1rem 0;
+  }
+  .ws-paper .ws-rule {
+    border: 0;
+    border-top: 1.5px solid #1a1814;
+    margin: 0.5rem 0 0.9rem 0;
+  }
+  .ws-paper .ws-fields {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.55rem 1.25rem;
+    font-family: "Inter Tight", Inter, sans-serif;
+    font-size: 11pt;
+    margin-bottom: 0.85rem;
+  }
+  .ws-paper .ws-fields .ws-row {
+    display: flex;
+    align-items: baseline;
+    gap: 0.4rem;
+    min-width: 0;
+  }
+  .ws-paper .ws-fields .ws-label {
+    font-weight: 600;
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+  .ws-paper .ws-fields .ws-blank {
+    flex: 1;
+    border-bottom: 1px solid #1a1814;
+    min-height: 1.2em;
+  }
+  .ws-paper .ws-instr {
+    font-family: "Inter Tight", Inter, sans-serif;
+    font-size: 10.5pt;
+    font-style: italic;
+    color: #2a2620;
+    border-left: 2px solid #c8472b;
+    padding: 0.15rem 0 0.15rem 0.65rem;
+    margin: 0 0 1rem 0;
+  }
+  .ws-paper + * h1:first-child,
+  .ws-paper + * h2:first-child { margin-top: 0; }
 }
+/* Hide the worksheet header off-screen — it's a print-only artefact. The
+   teacher doesn't need to see the blank Name/Date strip while editing. */
+.ws-paper { display: none; }
+@media print { .ws-paper { display: block; } }
 
 /* ── Accessibility widget effects ──────────────────────────────────
    All visual transforms target #root only. The widget itself is

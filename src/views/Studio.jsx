@@ -1175,17 +1175,12 @@ export default function Studio({ initialKind } = {}) {
     }
     return out.join("\n");
   };
-  const quizToDocHtml = (q) => {
-    const parts = [];
-    parts.push(`<h1>${escapeHtml(q.title || "Untitled quiz")}</h1>`);
-    const meta = [
-      q.subject, q.grade, q.section, q.language, q.difficulty,
-      q.duration_minutes ? `${q.duration_minutes} min` : null,
-      q.total_marks ? `${q.total_marks} marks` : null,
-    ].filter(Boolean);
-    if (meta.length) parts.push(`<p><em>${meta.map(escapeHtml).join(" · ")}</em></p>`);
-    if (q.instructions) parts.push(`<p>${escapeHtml(q.instructions)}</p>`);
-    parts.push(`<h2>Questions</h2><ol>`);
+  // Just the numbered questions list — the title / meta / fill-in fields
+  // live in the worksheet header now (worksheetHtmlFor), so this renders
+  // ONLY the answerable content. MCQ choices become a bulleted list,
+  // True/False gets the two options, write-in types get a blank rule.
+  const quizQuestionsToDocHtml = (q) => {
+    const parts = [`<ol>`];
     for (const qq of (q.questions || [])) {
       const marks = qq.marks ? ` <em>(${qq.marks} mark${qq.marks > 1 ? "s" : ""})</em>` : "";
       let li = `<li><p><strong>${escapeHtml(qq.prompt || "")}</strong>${marks}</p>`;
@@ -1203,21 +1198,78 @@ export default function Studio({ initialKind } = {}) {
     parts.push(`</ol>`);
     return parts.join("\n");
   };
+  // Worksheet-style header for printable quiz / homework — leads with a
+  // centered title + JetBrains-mono meta strip, then blank fill-in rows
+  // (Name / Date / Grade / Section / Score) so the print-out hands out
+  // like a real school paper. Returns "" for lesson plans / presentations
+  // (those aren't student-facing).
+  const worksheetHtmlFor = (k, title, quiz) => {
+    if (k !== "quiz" && k !== "homework") return "";
+    const metaParts = quiz ? [
+      quiz.subject, quiz.grade, quiz.section,
+      quiz.difficulty,
+      quiz.duration_minutes ? `${quiz.duration_minutes} min` : null,
+      quiz.total_marks ? `${quiz.total_marks} marks` : null,
+    ].filter(Boolean) : [];
+    const metaLine = metaParts.length
+      ? `<p style="font-family:Consolas,'Courier New',monospace;font-size:9pt;letter-spacing:1.5pt;text-transform:uppercase;text-align:center;color:#6b675e;margin:0 0 8pt 0;">${metaParts.map(escapeHtml).join(" · ")}</p>`
+      : "";
+    const scoreSuffix = quiz?.total_marks ? ` / ${quiz.total_marks}` : "";
+    const instr = quiz?.instructions
+      ? `<p style="font-style:italic;border-left:2pt solid #c8472b;padding:3pt 0 3pt 10pt;margin:0 0 14pt 0;color:#2a2620;">${escapeHtml(quiz.instructions)}</p>`
+      : "";
+    const u = "_______________________"; // visible blank in Word
+    return `
+<div style="margin-bottom:14pt;">
+  <h1 style="font-family:Cambria,Georgia,'Times New Roman',serif;font-weight:500;font-size:24pt;text-align:center;margin:0 0 4pt 0;">${escapeHtml(title)}</h1>
+  ${metaLine}
+  <p style="border-top:1.5pt solid #1a1814;margin:6pt 0 10pt 0;height:0;line-height:0;">&nbsp;</p>
+  <table cellpadding="0" cellspacing="0" style="width:100%;font-family:Calibri,Arial,sans-serif;font-size:11pt;margin-bottom:10pt;border-collapse:collapse;">
+    <tr>
+      <td style="padding:4pt 12pt 4pt 0;width:50%;"><strong>${escapeHtml(t("ws.name"))}:</strong> ${u}</td>
+      <td style="padding:4pt 0;width:50%;"><strong>${escapeHtml(t("ws.date"))}:</strong> ${u}</td>
+    </tr>
+    <tr>
+      <td style="padding:4pt 12pt 4pt 0;"><strong>${escapeHtml(t("ws.grade"))}:</strong> ____________</td>
+      <td style="padding:4pt 0;"><strong>${escapeHtml(t("ws.section"))}:</strong> ____________</td>
+    </tr>
+    <tr>
+      <td colspan="2" style="padding:4pt 0;"><strong>${escapeHtml(t("ws.score"))}:</strong> ____________${escapeHtml(scoreSuffix)}</td>
+    </tr>
+  </table>
+  ${instr}
+</div>`;
+  };
+  // Drop a single leading "# Title" line so the worksheet header (which
+  // already prints the title centered) isn't followed by a duplicate H1.
+  const stripLeadingTitle = (md) => {
+    if (!md) return md;
+    return md.replace(/^\s*#{1,6}\s+[^\n]*\n+/, "");
+  };
   const sanitizeFilename = (s) => {
     const cleaned = String(s || "Murchid document").replace(/[\/\\:*?"<>|]/g, "").trim();
     return (cleaned.slice(0, 100) || "Murchid document");
   };
   const exportDoc = () => {
     if (!result) return;
-    const body = (result.kind === "quiz" && result.quiz)
-      ? quizToDocHtml(result.quiz)
-      : mdToDocHtml(fullText());
-    if (!body) return;
+    const k = result.kind;
+    const isWorksheet = k === "quiz" || k === "homework";
+    const header = isWorksheet
+      ? worksheetHtmlFor(k, docTitle, k === "quiz" ? result.quiz : null)
+      : "";
+    let body;
+    if (k === "quiz" && result.quiz) {
+      body = quizQuestionsToDocHtml(result.quiz);
+    } else {
+      const md = fullText();
+      body = mdToDocHtml(isWorksheet ? stripLeadingTitle(md) : md);
+    }
+    if (!header && !body) return;
     const html =
 `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
 <head><meta charset="utf-8"><title>${escapeHtml(docTitle)}</title>
 <style>body{font-family:Calibri,Arial,sans-serif;line-height:1.5;}h1{font-size:22pt;}h2{font-size:16pt;}h3{font-size:13pt;}p,li{font-size:11pt;}code{font-family:Consolas,monospace;background:#f3f3f3;padding:1px 4px;}</style>
-</head><body>${body}</body></html>`;
+</head><body>${header}${body}</body></html>`;
     const blob = new Blob(["﻿", html], { type: "application/msword" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -1750,8 +1802,18 @@ export default function Studio({ initialKind } = {}) {
             <div className="p-5 md:p-7 min-w-0">
               {/* Print-only block */}
               <div className="hidden print:block">
+                <WorksheetHeader
+                  kind={result?.kind || kind}
+                  title={docTitle}
+                  quiz={result?.kind === "quiz" ? result.quiz : null}
+                  t={t}
+                />
                 {sections.length > 0
-                  ? renderMarkdown(joinSections(sections))
+                  ? renderMarkdown(
+                      (result?.kind === "quiz" || result?.kind === "homework")
+                        ? stripLeadingTitle(joinSections(sections))
+                        : joinSections(sections)
+                    )
                   : <pre className="whitespace-pre-wrap font-sans">{streamingText}</pre>}
               </div>
 
@@ -2353,6 +2415,60 @@ export default function Studio({ initialKind } = {}) {
 }
 
 // --- helper components -----------------------------------------------------
+
+// Print-only worksheet header for quizzes and homework. Renders nothing
+// on-screen (toggled by the .ws-paper rule in index.css) but appears at
+// the top of the printed paper so the teacher's PDF hand-out has the
+// student fill-in row a real school paper has: Name / Date / Grade /
+// Section / Score. Lesson plans and presentations don't get a header —
+// those aren't student-facing.
+function WorksheetHeader({ kind, title, quiz, t }) {
+  if (kind !== "quiz" && kind !== "homework") return null;
+  const metaParts = quiz ? [
+    quiz.subject, quiz.grade, quiz.section,
+    quiz.difficulty,
+    quiz.duration_minutes ? `${quiz.duration_minutes} min` : null,
+    quiz.total_marks ? `${quiz.total_marks} marks` : null,
+  ].filter(Boolean) : [];
+  const totalMarks = quiz?.total_marks;
+  return (
+    <div className="ws-paper">
+      <h1 className="ws-title">{title}</h1>
+      {metaParts.length > 0 && (
+        <p className="ws-meta">{metaParts.join(" · ")}</p>
+      )}
+      <hr className="ws-rule" />
+      <div className="ws-fields">
+        <div className="ws-row">
+          <span className="ws-label">{t("ws.name")}:</span>
+          <span className="ws-blank" />
+        </div>
+        <div className="ws-row">
+          <span className="ws-label">{t("ws.date")}:</span>
+          <span className="ws-blank" />
+        </div>
+        <div className="ws-row">
+          <span className="ws-label">{t("ws.grade")}:</span>
+          <span className="ws-blank" />
+        </div>
+        <div className="ws-row">
+          <span className="ws-label">{t("ws.section")}:</span>
+          <span className="ws-blank" />
+        </div>
+        <div className="ws-row" style={{ gridColumn: "1 / -1" }}>
+          <span className="ws-label">{t("ws.score")}:</span>
+          <span className="ws-blank" />
+          {totalMarks ? (
+            <span style={{ flexShrink: 0, fontWeight: 600 }}>/ {totalMarks}</span>
+          ) : null}
+        </div>
+      </div>
+      {quiz?.instructions && (
+        <p className="ws-instr">{quiz.instructions}</p>
+      )}
+    </div>
+  );
+}
 
 function ActionChip({ children, onClick, disabled, title }) {
   return (
