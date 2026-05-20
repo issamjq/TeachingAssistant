@@ -436,26 +436,21 @@ export default function ProfileForm({ onDone, onBack }) {
               {last ? t("onb.finish") : t("onb.next")}
               {last ? <Check size={16} /> : <ChevronRight size={16} className="rtl:rotate-180" />}
             </button>
-            {/* Skip is only meaningful on the students step (last + optional). */}
+            {/* Skip — italic text link, like every other onboarding flow. */}
             {step === "students" && (
-              <>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setStudents([]);
-                    setImportError(null);
-                    setPendingProfile(data);
-                    setPendingStudents([]);
-                    onDone?.({ ...data, students: [] });
-                  }}
-                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg border border-dashed border-line bg-paper-cool hover:border-ink hover:bg-paper-warm transition-colors text-[12.5px] font-medium text-ink"
-                >
-                  {t("onb.students.skipBtn")}
-                </button>
-                <p className="text-[11.5px] text-muted leading-snug text-end max-w-[260px]">
-                  {t("onb.students.skipNote")}
-                </p>
-              </>
+              <button
+                type="button"
+                onClick={() => {
+                  setStudents([]);
+                  setImportError(null);
+                  setPendingProfile(data);
+                  setPendingStudents([]);
+                  onDone?.({ ...data, students: [] });
+                }}
+                className="font-serif italic text-sm text-ink-soft hover:text-ink hover:underline underline-offset-2 transition-colors"
+              >
+                {t("onb.students.skipBtn")}
+              </button>
             )}
           </div>
         </div>
