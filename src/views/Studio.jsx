@@ -1119,127 +1119,6 @@ export default function Studio({ initialKind } = {}) {
   const exportKind = result?.kind || kind;
   const availableFormats = FORMATS_BY_KIND[exportKind] || ["pdf"];
 
-  // Word export: build a Word-compatible HTML blob and save as .doc. No
-  // dependency required — Word opens HTML-as-doc natively. Quizzes get a
-  // structured render (cover meta + numbered questions); everything else
-  // walks the same markdown subset the studio renders on-screen.
-  const escapeHtml = (s) => String(s ?? "")
-    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
-  const renderInlineHtml = (text) => {
-    let s = escapeHtml(text);
-    s = s.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
-    s = s.replace(/(^|[^\*])\*([^*\n]+)\*/g, "$1<em>$2</em>");
-    s = s.replace(/`([^`]+)`/g, "<code>$1</code>");
-    return s;
-  };
-  const mdToDocHtml = (md) => {
-    if (!md) return "";
-    const lines = md.split(/\r?\n/);
-    const out = [];
-    let i = 0;
-    while (i < lines.length) {
-      const line = lines[i];
-      const h = line.match(/^(#{1,6})\s+(.*)$/);
-      if (h) {
-        const level = Math.min(h[1].length, 6);
-        out.push(`<h${level}>${renderInlineHtml(h[2])}</h${level}>`);
-        i++; continue;
-      }
-      if (/^\s*[\*\-]\s+/.test(line)) {
-        const items = [];
-        while (i < lines.length && /^\s*[\*\-]\s+/.test(lines[i])) {
-          items.push(`<li>${renderInlineHtml(lines[i].replace(/^\s*[\*\-]\s+/, ""))}</li>`);
-          i++;
-        }
-        out.push(`<ul>${items.join("")}</ul>`); continue;
-      }
-      if (/^\s*\d+\.\s+/.test(line)) {
-        const items = [];
-        while (i < lines.length && /^\s*\d+\.\s+/.test(lines[i])) {
-          items.push(`<li>${renderInlineHtml(lines[i].replace(/^\s*\d+\.\s+/, ""))}</li>`);
-          i++;
-        }
-        out.push(`<ol>${items.join("")}</ol>`); continue;
-      }
-      if (!line.trim()) { i++; continue; }
-      const para = [line];
-      i++;
-      while (i < lines.length && lines[i].trim() &&
-             !/^(#{1,6})\s+/.test(lines[i]) &&
-             !/^\s*[\*\-]\s+/.test(lines[i]) &&
-             !/^\s*\d+\.\s+/.test(lines[i])) {
-        para.push(lines[i]); i++;
-      }
-      out.push(`<p>${renderInlineHtml(para.join(" "))}</p>`);
-    }
-    return out.join("\n");
-  };
-  // Just the numbered questions list — the title / meta / fill-in fields
-  // live in the worksheet header now (worksheetHtmlFor), so this renders
-  // ONLY the answerable content. MCQ choices become a bulleted list,
-  // True/False gets the two options, write-in types get a blank rule.
-  const quizQuestionsToDocHtml = (q) => {
-    const parts = [`<ol>`];
-    for (const qq of (q.questions || [])) {
-      const marks = qq.marks ? ` <em>(${qq.marks} mark${qq.marks > 1 ? "s" : ""})</em>` : "";
-      let li = `<li><p><strong>${escapeHtml(qq.prompt || "")}</strong>${marks}</p>`;
-      if (qq.type === "mcq" && Array.isArray(qq.choices) && qq.choices.length) {
-        li += `<ul>` + qq.choices.map((c) =>
-          `<li>${escapeHtml(typeof c === "string" ? c : (c?.text ?? c?.label ?? ""))}</li>`
-        ).join("") + `</ul>`;
-      } else if (qq.type === "true_false") {
-        li += `<ul><li>True</li><li>False</li></ul>`;
-      } else {
-        li += `<p style="border-bottom:1px solid #999;height:2.5em;">&nbsp;</p>`;
-      }
-      parts.push(li + `</li>`);
-    }
-    parts.push(`</ol>`);
-    return parts.join("\n");
-  };
-  // Worksheet-style header for printable quiz / homework — leads with a
-  // centered title + JetBrains-mono meta strip, then blank fill-in rows
-  // (Name / Date / Grade / Section / Score) so the print-out hands out
-  // like a real school paper. Returns "" for lesson plans / presentations
-  // (those aren't student-facing).
-  const worksheetHtmlFor = (k, title, quiz) => {
-    if (k !== "quiz" && k !== "homework") return "";
-    const metaParts = quiz ? [
-      quiz.subject, quiz.grade, quiz.section,
-      quiz.difficulty,
-      quiz.duration_minutes ? `${quiz.duration_minutes} min` : null,
-      quiz.total_marks ? `${quiz.total_marks} marks` : null,
-    ].filter(Boolean) : [];
-    const metaLine = metaParts.length
-      ? `<p style="font-family:Consolas,'Courier New',monospace;font-size:9pt;letter-spacing:1.5pt;text-transform:uppercase;text-align:center;color:#6b675e;margin:0 0 8pt 0;">${metaParts.map(escapeHtml).join(" · ")}</p>`
-      : "";
-    const scoreSuffix = quiz?.total_marks ? ` / ${quiz.total_marks}` : "";
-    const instr = quiz?.instructions
-      ? `<p style="font-style:italic;border-left:2pt solid #c8472b;padding:3pt 0 3pt 10pt;margin:0 0 14pt 0;color:#2a2620;">${escapeHtml(quiz.instructions)}</p>`
-      : "";
-    const u = "_______________________"; // visible blank in Word
-    return `
-<div style="margin-bottom:14pt;">
-  <h1 style="font-family:Cambria,Georgia,'Times New Roman',serif;font-weight:500;font-size:24pt;text-align:center;margin:0 0 4pt 0;">${escapeHtml(title)}</h1>
-  ${metaLine}
-  <p style="border-top:1.5pt solid #1a1814;margin:6pt 0 10pt 0;height:0;line-height:0;">&nbsp;</p>
-  <table cellpadding="0" cellspacing="0" style="width:100%;font-family:Calibri,Arial,sans-serif;font-size:11pt;margin-bottom:10pt;border-collapse:collapse;">
-    <tr>
-      <td style="padding:4pt 12pt 4pt 0;width:50%;"><strong>${escapeHtml(t("ws.name"))}:</strong> ${u}</td>
-      <td style="padding:4pt 0;width:50%;"><strong>${escapeHtml(t("ws.date"))}:</strong> ${u}</td>
-    </tr>
-    <tr>
-      <td style="padding:4pt 12pt 4pt 0;"><strong>${escapeHtml(t("ws.grade"))}:</strong> ____________</td>
-      <td style="padding:4pt 0;"><strong>${escapeHtml(t("ws.section"))}:</strong> ____________</td>
-    </tr>
-    <tr>
-      <td colspan="2" style="padding:4pt 0;"><strong>${escapeHtml(t("ws.score"))}:</strong> ____________${escapeHtml(scoreSuffix)}</td>
-    </tr>
-  </table>
-  ${instr}
-</div>`;
-  };
   // Drop a single leading "# Title" line so the worksheet header (which
   // already prints the title centered) isn't followed by a duplicate H1.
   const stripLeadingTitle = (md) => {
@@ -1250,31 +1129,251 @@ export default function Studio({ initialKind } = {}) {
     const cleaned = String(s || "Murchid document").replace(/[\/\\:*?"<>|]/g, "").trim();
     return (cleaned.slice(0, 100) || "Murchid document");
   };
-  const exportDoc = () => {
+  // Real .docx — opens in Word, Pages, Google Docs, LibreOffice. The
+  // earlier HTML-as-.doc trick worked in Word only and Apple Pages
+  // refused to read it. `docx` is dynamic-imported so the package only
+  // ships when the teacher actually clicks Word.
+  const exportDoc = async () => {
     if (!result) return;
+    const docx = await import("docx");
+    const {
+      Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType,
+      Table, TableRow, TableCell, WidthType, BorderStyle, LevelFormat,
+    } = docx;
+    const NO_BORDERS = {
+      top:     { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
+      bottom:  { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
+      left:    { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
+      right:   { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
+      insideHorizontal: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
+      insideVertical:   { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
+    };
+
+    // markdown → docx runs (handles **bold**, *italic*)
+    const inlineRuns = (text) => {
+      const out = [];
+      let remaining = text || "";
+      while (remaining.length > 0) {
+        const bold = remaining.match(/^([\s\S]*?)\*\*([\s\S]+?)\*\*([\s\S]*)$/);
+        const italic = remaining.match(/^([\s\S]*?)\*([^*\n]+?)\*([\s\S]*)$/);
+        const candidates = [
+          bold && { kind: "bold", m: bold, start: bold[1].length },
+          italic && { kind: "italic", m: italic, start: italic[1].length },
+        ].filter(Boolean);
+        candidates.sort((a, b) => a.start - b.start);
+        const w = candidates[0];
+        if (!w) { out.push(new TextRun(remaining)); break; }
+        if (w.m[1]) out.push(new TextRun(w.m[1]));
+        if (w.kind === "bold")   out.push(new TextRun({ text: w.m[2], bold: true }));
+        else                     out.push(new TextRun({ text: w.m[2], italics: true }));
+        remaining = w.m[3];
+      }
+      return out.length ? out : [new TextRun("")];
+    };
+    // markdown body → docx paragraphs (subset matching renderMarkdown)
+    const headingFor = [
+      HeadingLevel.HEADING_1, HeadingLevel.HEADING_2, HeadingLevel.HEADING_3,
+      HeadingLevel.HEADING_4, HeadingLevel.HEADING_5, HeadingLevel.HEADING_6,
+    ];
+    const mdToDocxParagraphs = (md) => {
+      if (!md) return [];
+      const lines = md.split(/\r?\n/);
+      const out = [];
+      let i = 0;
+      while (i < lines.length) {
+        const line = lines[i];
+        const h = line.match(/^(#{1,6})\s+(.*)$/);
+        if (h) {
+          const level = Math.min(h[1].length, 6);
+          out.push(new Paragraph({
+            children: inlineRuns(h[2]),
+            heading: headingFor[level - 1],
+            spacing: { before: 200, after: 100 },
+          }));
+          i++; continue;
+        }
+        if (/^\s*[\*\-]\s+/.test(line)) {
+          while (i < lines.length && /^\s*[\*\-]\s+/.test(lines[i])) {
+            out.push(new Paragraph({
+              children: inlineRuns(lines[i].replace(/^\s*[\*\-]\s+/, "")),
+              bullet: { level: 0 },
+            }));
+            i++;
+          }
+          continue;
+        }
+        if (/^\s*\d+\.\s+/.test(line)) {
+          while (i < lines.length && /^\s*\d+\.\s+/.test(lines[i])) {
+            out.push(new Paragraph({
+              children: inlineRuns(lines[i].replace(/^\s*\d+\.\s+/, "")),
+              numbering: { reference: "studio-numbering", level: 0 },
+            }));
+            i++;
+          }
+          continue;
+        }
+        if (!line.trim()) { i++; continue; }
+        const para = [line]; i++;
+        while (i < lines.length && lines[i].trim() &&
+               !/^(#{1,6})\s+/.test(lines[i]) &&
+               !/^\s*[\*\-]\s+/.test(lines[i]) &&
+               !/^\s*\d+\.\s+/.test(lines[i])) {
+          para.push(lines[i]); i++;
+        }
+        out.push(new Paragraph({ children: inlineRuns(para.join(" ")) }));
+      }
+      return out;
+    };
+
+    const children = [];
     const k = result.kind;
     const isWorksheet = k === "quiz" || k === "homework";
-    const header = isWorksheet
-      ? worksheetHtmlFor(k, docTitle, k === "quiz" ? result.quiz : null)
-      : "";
-    let body;
+
+    // ---- worksheet header (quiz + homework only) ----
+    if (isWorksheet) {
+      // centered serif title
+      children.push(new Paragraph({
+        children: [new TextRun({ text: docTitle, size: 48, font: "Cambria" })],
+        alignment: AlignmentType.CENTER,
+        spacing: { after: 80 },
+      }));
+      // mono uppercase meta strip (quizzes only — homework has no params)
+      if (k === "quiz" && result.quiz) {
+        const q = result.quiz;
+        const metaParts = [
+          q.subject, q.grade, q.section, q.difficulty,
+          q.duration_minutes ? `${q.duration_minutes} min` : null,
+          q.total_marks ? `${q.total_marks} marks` : null,
+        ].filter(Boolean);
+        if (metaParts.length) {
+          children.push(new Paragraph({
+            children: [new TextRun({
+              text: metaParts.join(" · ").toUpperCase(),
+              size: 18, color: "6B675E", font: "Consolas",
+              characterSpacing: 30,
+            })],
+            alignment: AlignmentType.CENTER,
+            spacing: { after: 240 },
+          }));
+        }
+      }
+      // fill-in fields table — Name / Date on row 1, Grade / Section on row 2
+      const blank = "_______________________";
+      const fieldCell = (label) => new TableCell({
+        width: { size: 50, type: WidthType.PERCENTAGE },
+        borders: NO_BORDERS,
+        children: [new Paragraph({
+          children: [
+            new TextRun({ text: `${label}: `, bold: true }),
+            new TextRun({ text: blank }),
+          ],
+          spacing: { after: 80 },
+        })],
+      });
+      children.push(new Table({
+        width: { size: 100, type: WidthType.PERCENTAGE },
+        borders: NO_BORDERS,
+        rows: [
+          new TableRow({ children: [fieldCell(t("ws.name")),  fieldCell(t("ws.date"))] }),
+          new TableRow({ children: [fieldCell(t("ws.grade")), fieldCell(t("ws.section"))] }),
+        ],
+      }));
+      // score row — spans full width and shows " / N" when total_marks known
+      const totalMarks = result.quiz?.total_marks;
+      children.push(new Paragraph({
+        children: [
+          new TextRun({ text: `${t("ws.score")}: `, bold: true }),
+          new TextRun({ text: blank }),
+          ...(totalMarks ? [new TextRun({ text: ` / ${totalMarks}`, bold: true })] : []),
+        ],
+        spacing: { before: 80, after: 240 },
+      }));
+      // instructions pull-quote (quiz only)
+      if (k === "quiz" && result.quiz?.instructions) {
+        children.push(new Paragraph({
+          children: [new TextRun({ text: result.quiz.instructions, italics: true })],
+          spacing: { after: 240 },
+        }));
+      }
+    }
+
+    // ---- body ----
     if (k === "quiz" && result.quiz) {
-      body = quizQuestionsToDocHtml(result.quiz);
+      const questions = result.quiz.questions || [];
+      questions.forEach((qq, i) => {
+        const num = qq.position ?? i + 1;
+        const marks = qq.marks ? `  (${qq.marks} mark${qq.marks > 1 ? "s" : ""})` : "";
+        children.push(new Paragraph({
+          children: [
+            new TextRun({ text: `${num}. `, bold: true }),
+            new TextRun({ text: qq.prompt || "", bold: true }),
+            new TextRun({ text: marks, italics: true, color: "6B675E" }),
+          ],
+          spacing: { before: 200, after: 80 },
+        }));
+        if (qq.type === "mcq" && Array.isArray(qq.choices) && qq.choices.length) {
+          qq.choices.forEach((c, idx) => {
+            const letter = String.fromCharCode(65 + idx);
+            const tx = typeof c === "string" ? c : (c?.text ?? c?.label ?? "");
+            children.push(new Paragraph({
+              children: [
+                new TextRun({ text: `${letter}. `, bold: true }),
+                new TextRun({ text: tx }),
+              ],
+              indent: { left: 480 },
+              spacing: { after: 40 },
+            }));
+          });
+        } else if (qq.type === "true_false") {
+          children.push(new Paragraph({
+            children: [new TextRun({ text: "○ True       ○ False" })],
+            indent: { left: 480 },
+            spacing: { after: 80 },
+          }));
+        } else {
+          // write-in: three underline rules
+          for (let r = 0; r < 3; r++) {
+            children.push(new Paragraph({
+              children: [new TextRun({ text: " ".repeat(80) })],
+              border: { bottom: { color: "999999", space: 1, style: BorderStyle.SINGLE, size: 4 } },
+              spacing: { after: 120 },
+            }));
+          }
+        }
+      });
     } else {
       const md = fullText();
-      body = mdToDocHtml(isWorksheet ? stripLeadingTitle(md) : md);
+      children.push(...mdToDocxParagraphs(isWorksheet ? stripLeadingTitle(md) : md));
     }
-    if (!header && !body) return;
-    const html =
-`<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
-<head><meta charset="utf-8"><title>${escapeHtml(docTitle)}</title>
-<style>body{font-family:Calibri,Arial,sans-serif;line-height:1.5;}h1{font-size:22pt;}h2{font-size:16pt;}h3{font-size:13pt;}p,li{font-size:11pt;}code{font-family:Consolas,monospace;background:#f3f3f3;padding:1px 4px;}</style>
-</head><body>${header}${body}</body></html>`;
-    const blob = new Blob(["﻿", html], { type: "application/msword" });
+
+    const doc = new Document({
+      creator: "Murchid",
+      title: docTitle,
+      numbering: {
+        config: [{
+          reference: "studio-numbering",
+          levels: [{
+            level: 0,
+            format: LevelFormat.DECIMAL,
+            text: "%1.",
+            alignment: AlignmentType.START,
+            style: { paragraph: { indent: { left: 480, hanging: 360 } } },
+          }],
+        }],
+      },
+      styles: {
+        default: {
+          document: { run: { font: "Calibri", size: 22 } },
+        },
+      },
+      sections: [{ children }],
+    });
+
+    const blob = await Packer.toBlob(doc);
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `${sanitizeFilename(docTitle)}.doc`;
+    a.download = `${sanitizeFilename(docTitle)}.docx`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -1808,13 +1907,21 @@ export default function Studio({ initialKind } = {}) {
                   quiz={result?.kind === "quiz" ? result.quiz : null}
                   t={t}
                 />
-                {sections.length > 0
-                  ? renderMarkdown(
-                      (result?.kind === "quiz" || result?.kind === "homework")
-                        ? stripLeadingTitle(joinSections(sections))
-                        : joinSections(sections)
-                    )
-                  : <pre className="whitespace-pre-wrap font-sans">{streamingText}</pre>}
+                {result?.kind === "quiz" && result.quiz ? (
+                  // Quizzes don't keep markdown on their section rows
+                  // (each section carries a structured `question` instead),
+                  // so joinSections gives an empty string and renderMarkdown
+                  // prints nothing. Render the quiz directly from result.quiz.
+                  <QuizPrintBody quiz={result.quiz} />
+                ) : sections.length > 0 ? (
+                  renderMarkdown(
+                    result?.kind === "homework"
+                      ? stripLeadingTitle(joinSections(sections))
+                      : joinSections(sections)
+                  )
+                ) : (
+                  <pre className="whitespace-pre-wrap font-sans">{streamingText}</pre>
+                )}
               </div>
 
               <div className="print:hidden">
@@ -2467,6 +2574,52 @@ function WorksheetHeader({ kind, title, quiz, t }) {
         <p className="ws-instr">{quiz.instructions}</p>
       )}
     </div>
+  );
+}
+
+// Print-only structured render of a quiz, used when the user hits PDF
+// from the studio. Quiz sections don't carry markdown (each section
+// holds a structured `question` object instead), so the regular
+// renderMarkdown path produces an empty page. This walks result.quiz
+// directly and prints the same layout the .docx export uses.
+function QuizPrintBody({ quiz }) {
+  if (!quiz) return null;
+  const questions = quiz.questions || [];
+  return (
+    <ol className="quiz-print-list">
+      {questions.map((qq, i) => {
+        const num = qq.position ?? i + 1;
+        const isMcq = qq.type === "mcq" && Array.isArray(qq.choices) && qq.choices.length > 0;
+        const isTF  = qq.type === "true_false";
+        return (
+          <li key={qq.id ?? i} className="quiz-print-item">
+            <p className="quiz-print-prompt">
+              <strong>{num}. {qq.prompt || ""}</strong>
+              {qq.marks ? (
+                <em className="quiz-print-marks">
+                  &nbsp;&nbsp;({qq.marks} mark{qq.marks > 1 ? "s" : ""})
+                </em>
+              ) : null}
+            </p>
+            {isMcq ? (
+              <ol className="quiz-print-choices" type="A">
+                {qq.choices.map((c, idx) => (
+                  <li key={idx}>{typeof c === "string" ? c : (c?.text ?? c?.label ?? "")}</li>
+                ))}
+              </ol>
+            ) : isTF ? (
+              <p className="quiz-print-tf">○ True &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; ○ False</p>
+            ) : (
+              <>
+                <p className="quiz-print-blank">&nbsp;</p>
+                <p className="quiz-print-blank">&nbsp;</p>
+                <p className="quiz-print-blank">&nbsp;</p>
+              </>
+            )}
+          </li>
+        );
+      })}
+    </ol>
   );
 }
 
