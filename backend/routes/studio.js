@@ -114,7 +114,7 @@ function renderParamsLine(kind, params) {
 // the Anthropic prompt-cache prefix matches across calls (subject to the
 // model's minimum-prefix size). The user message carries the variable parts
 // (kind, teacher context, the user's free-text prompt).
-const SYSTEM_PROMPT = `You are Mudir's AI teaching co-pilot. You help individual school teachers (KG through Grade 12) draft lesson plans, quizzes, homework, classroom activities, presentation outlines, and student feedback.
+const SYSTEM_PROMPT = `You are Murchid's AI teaching co-pilot. You help individual school teachers (KG through Grade 12) draft lesson plans, quizzes, homework, classroom activities, presentation outlines, and student feedback.
 
 Voice and style:
 - Warm, professional, practical. Write like a senior teaching coach giving a colleague a focused starting draft they can refine.
@@ -122,6 +122,8 @@ Voice and style:
 - Match the grade level. KG–Grade 3: simple language, hands-on tasks, short attention spans. Grade 4–8: scaffolded explanations, structured group work. Grade 9–12: deeper analysis, independent inquiry, real-world application.
 - Use neutral, inclusive examples. Avoid politically loaded scenarios or culturally specific assumptions unless the teacher explicitly asks for them.
 - No filler. No "Of course!" or "Here is your lesson plan:" preamble. Start the artifact directly.
+- NEVER narrate your reasoning, acknowledge the teacher's request, or explain how you reconciled conflicting inputs (e.g. do NOT write "I notice your prompt is in Arabic but the constraints say English — I'll honor the constraints"). If the CONSTRAINTS and the PROMPT disagree, silently follow the CONSTRAINTS and produce the artifact in that voice. The output must read as if it was written by a teacher from scratch — no meta talk about why you wrote it that way.
+- Write the entire artifact in the LANGUAGE specified by CONSTRAINTS.Language. If that field is missing, write in the language the teacher's PROMPT is written in. Do not mix languages within the artifact.
 
 Output format — VERY IMPORTANT:
 - Return Markdown only. No HTML, no code fences around the whole document.
@@ -275,7 +277,7 @@ router.post("/generate", async (req, res) => {
       });
     }
 
-    const { prompt, kind, params } = req.body || {};
+    const { prompt, kind, params, enforceChips } = req.body || {};
     const attachments = Array.isArray(req.body?.attachments)
       ? req.body.attachments
       : (req.body?.attachment ? [req.body.attachment] : []);
@@ -299,10 +301,17 @@ router.post("/generate", async (req, res) => {
     const cur = await loadCurrentTeacher();
     // Pass teacher context inside the user message so the system prompt stays
     // byte-stable across calls (and therefore cache-eligible).
+    // When the client has detected a chip↔prompt conflict and the teacher
+    // chose "Use settings", the chips become strictly authoritative — we
+    // explicitly tell the model to override any conflicting Grade /
+    // Duration / Slides / Questions value in the prompt below.
+    const constraintsHeader = enforceChips
+      ? "CONSTRAINTS (AUTHORITATIVE — if any value in the PROMPT below conflicts with a CONSTRAINT here, FOLLOW THE CONSTRAINT and IGNORE the prompt's value)"
+      : "CONSTRAINTS (treat numeric counts as exact)";
     const userMessage =
       `KIND: ${k.toUpperCase()}\n` +
       `TEACHER CONTEXT: ${cur ? `id=${cur.id}, grades=${(cur.grade_levels || []).join(", ")}` : "none"}\n` +
-      `${paramsLine ? `CONSTRAINTS (treat numeric counts as exact): ${paramsLine}\n` : ""}` +
+      `${paramsLine ? `${constraintsHeader}: ${paramsLine}\n` : ""}` +
       `${attachments.length ? `\nNOTE: ${attachments.length} attachment(s) have been provided. Treat them as primary source material — base the output on what's in them.\n` : ""}` +
       `\nPROMPT:\n${promptText || "(no extra guidance — use the attached file(s) as the full source)"}`;
 
@@ -470,7 +479,7 @@ router.post("/quiz", async (req, res) => {
       });
     }
 
-    const { prompt, params } = req.body || {};
+    const { prompt, params, enforceChips } = req.body || {};
     const attachments = Array.isArray(req.body?.attachments)
       ? req.body.attachments
       : (req.body?.attachment ? [req.body.attachment] : []);
@@ -540,7 +549,7 @@ router.post("/quiz", async (req, res) => {
       }
     }
     const settingsBlock = settingsLines.length
-      ? `SETTINGS (teacher pre-set — honour these):\n${settingsLines.join("\n")}\n\n` +
+      ? `SETTINGS (teacher pre-set — honour these${enforceChips ? "; these OVERRIDE any conflicting value the prompt might mention" : ""}):\n${settingsLines.join("\n")}\n\n` +
         `IMPORTANT — sanity-check these settings before generating:\n` +
         `If any value is clearly in the wrong slot (e.g. a school subject like "Math" landed in the Grade field, or "Grade 8" landed in the Major field, or a difficulty word in Questions), silently swap them and proceed with the obviously-intended assignment. Do NOT mention the correction in the output. If a value is just impossible (negative count, garbage text), ignore that one field and pick a sensible default.\n\n`
       : "";

@@ -314,6 +314,72 @@ const pickAttachmentSuggestions = (kind, seed) => {
   return order.slice(0, 3).map((x) => x.s);
 };
 
+// Normalise Arabic-Indic digits (٠-٩) to ASCII digits so a regex written
+// with \d catches both "Grade 7" and "الصف ٧".
+const toAsciiDigits = (s) =>
+  String(s || "").replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 0x0660));
+
+// Detect plausible Grade / Duration / Slides / Questions mentions in the
+// teacher's free-text prompt, and flag a conflict when the chip is set
+// to a different value. Returns an array of { field, chip, prompt } —
+// empty when no conflicts. Field is an i18n key for the chip label.
+function detectChipPromptConflicts(promptText, params, kind) {
+  const out = [];
+  const text = toAsciiDigits(promptText);
+  if (!text || !params) return out;
+
+  // Grade — matches "Grade 7", "Grade 7-8", "grade 12", "الصف 7", "صف 7".
+  if (params.grade) {
+    const m = text.match(/\b(?:grade|الصف|صف)\s*(\d{1,2})\b/i);
+    if (m) {
+      const promptGrade = `Grade ${m[1]}`;
+      const chip = String(params.grade);
+      if (!chip.replace(/\s+/g, "").toLowerCase().includes(`grade${m[1]}`)) {
+        out.push({ field: "grade", chip, prompt: promptGrade });
+      }
+    }
+  }
+
+  // Duration — matches "45-minute", "45 min", "45 minutes", "45 mins",
+  // "45 دقيقة". Quiz/Lesson/Homework/Activity carry numeric duration.
+  if (params.duration) {
+    const m = text.match(/\b(\d{2,3})\s*[-\s]?(?:minute|minutes|min|mins|m|دقيقة|دقائق)\b/i);
+    if (m) {
+      const promptDur = Number(m[1]);
+      const chipDur = Number(params.duration);
+      if (chipDur && promptDur && chipDur !== promptDur) {
+        out.push({ field: "duration", chip: `${chipDur} min`, prompt: `${promptDur} min` });
+      }
+    }
+  }
+
+  // Slides — presentations only.
+  if (kind === "presentation" && params.slides) {
+    const m = text.match(/\b(\d{1,2})[-\s]?slides?\b/i);
+    if (m) {
+      const promptSl = Number(m[1]);
+      const chipSl = Number(params.slides);
+      if (chipSl && promptSl && chipSl !== promptSl) {
+        out.push({ field: "slides", chip: String(chipSl), prompt: String(promptSl) });
+      }
+    }
+  }
+
+  // Questions — quizzes only.
+  if (kind === "quiz" && params.questions) {
+    const m = text.match(/\b(\d{1,3})\s*questions?\b/i);
+    if (m) {
+      const promptQ = Number(m[1]);
+      const chipQ = Number(params.questions);
+      if (chipQ && promptQ && chipQ !== promptQ) {
+        out.push({ field: "questions", chip: String(chipQ), prompt: String(promptQ) });
+      }
+    }
+  }
+
+  return out;
+}
+
 export default function Studio({ initialKind } = {}) {
   // initialKind comes from the URL (#/studio/<kind>) so the Teaching
   // surfaces can deep-link straight to "Make a quiz", "Make a
@@ -379,6 +445,10 @@ export default function Studio({ initialKind } = {}) {
   const [sections, setSections] = useState([]);
   const [sectionIndex, setSectionIndex] = useState(0);
   const [error, setError] = useState(null);
+  // Pending generation gated on the chip/prompt conflict modal.
+  // Shape: { conflicts: [...], proceed: () => void } — non-null while
+  // the warning modal is open.
+  const [pendingConflicts, setPendingConflicts] = useState(null);
   const [copied, setCopied] = useState(false);
   const [saving, setSaving] = useState(false);
   const [savedDraftId, setSavedDraftId] = useState(null);
@@ -609,6 +679,36 @@ export default function Studio({ initialKind } = {}) {
     // teacher only attaches an image of a worksheet, an empty textarea
     // is a valid signal of "use the whole image".
     if (!prompt.trim() && attachments.length === 0) return;
+
+    // Before kicking off the fetch, scan the prompt for grade/duration/
+    // slides/questions mentions that conflict with the chip values. If
+    // any are found, gate the generation behind a modal so the teacher
+    // can either edit or explicitly accept chip-wins.
+    const isQuiz = kind === "quiz";
+    const paramsForKindRaw =
+      kind === "lesson_plan"   ? lessonParams       :
+      kind === "homework"      ? homeworkParams     :
+      kind === "activity"      ? activityParams     :
+      kind === "presentation"  ? presentationParams :
+      null;
+    const paramsToCheck = isQuiz ? quizParams : paramsForKindRaw;
+    const conflicts = detectChipPromptConflicts(prompt, paramsToCheck, kind);
+    if (conflicts.length > 0) {
+      // Hand the actual fetch to the modal — it'll call runGenerate(true)
+      // if the teacher picks "use chips", or just dismiss to let them edit.
+      setPendingConflicts({
+        conflicts,
+        proceed: () => {
+          setPendingConflicts(null);
+          runGenerate(true);
+        },
+      });
+      return;
+    }
+    runGenerate(false);
+  };
+
+  const runGenerate = async (enforceChips) => {
     abortRef.current?.abort();
     abortRef.current = new AbortController();
     setBusy(true); setError(null); setResult(null);
@@ -634,8 +734,8 @@ export default function Studio({ initialKind } = {}) {
       p ? { ...p, language: p.language || uiDefaultLang } : p;
     try {
       const body = isQuiz
-        ? { kind, prompt: prompt.trim(), params: withDefaultLang(quizParams), attachments }
-        : { kind, prompt: prompt.trim(), params: withDefaultLang(paramsForKind), attachments };
+        ? { kind, prompt: prompt.trim(), params: withDefaultLang(quizParams), attachments, enforceChips }
+        : { kind, prompt: prompt.trim(), params: withDefaultLang(paramsForKind), attachments, enforceChips };
       const res = await fetch(API_BASE + (isQuiz ? "/api/studio/quiz" : "/api/studio/generate"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1869,6 +1969,14 @@ export default function Studio({ initialKind } = {}) {
             }}
           />
         )}
+
+        {pendingConflicts && (
+          <ChipPromptConflictModal
+            conflicts={pendingConflicts.conflicts}
+            onUseChips={pendingConflicts.proceed}
+            onEdit={() => setPendingConflicts(null)}
+          />
+        )}
       </div>
     );
   }
@@ -2666,7 +2774,7 @@ function QuizParamsPanel({ params, onChange, gradeOptions, majorOptions, languag
           label={t("studio.chip.grade.label")}
           slot="grade"
           emptyHint={t("studio.chip.grade.empty")}
-          help="Which year group the quiz is for. The list shows the grades you teach (set in My students → Teaching profile). Type to add a one-off."
+          help={t("studio.chip.grade.help")}
           value={params.grade}
           options={gradeOptions}
           onChange={(v) => set({ grade: v })}
@@ -2678,7 +2786,7 @@ function QuizParamsPanel({ params, onChange, gradeOptions, majorOptions, languag
           label={t("studio.chip.major.label")}
           slot="major"
           emptyHint={t("studio.chip.major.empty")}
-          help="The school subject the quiz tests. The list shows the majors you teach (set in My students → Teaching profile). Type to add a one-off."
+          help={t("studio.chip.major.help")}
           value={params.major}
           options={majorOptions}
           onChange={(v) => set({ major: v })}
@@ -2690,7 +2798,7 @@ function QuizParamsPanel({ params, onChange, gradeOptions, majorOptions, languag
           label={t("studio.chip.language.label")}
           slot="language"
           emptyHint={t("studio.chip.language.empty")}
-          help="The language the quiz will be written in (questions, choices, answer key). The list shows the languages you teach (set in My students → Teaching profile). Type to add a one-off."
+          help={t("studio.chip.language.help")}
           value={params.language}
           options={languageOptions}
           onChange={(v) => set({ language: v })}
@@ -2700,7 +2808,7 @@ function QuizParamsPanel({ params, onChange, gradeOptions, majorOptions, languag
           label={t("studio.chip.section.label")}
           slot="section"
           emptyHint={t("studio.chip.section.empty")}
-          help="Which class section(s) the quiz is for. Pick one OR several (Grade 6 A AND B for the same quiz). The list shows the sections you teach (My students → Teaching profile). Type to add a one-off."
+          help={t("studio.chip.section.help")}
           value={params.section}
           options={sectionOptions}
           onChange={(v) => set({ section: v })}
@@ -2711,7 +2819,7 @@ function QuizParamsPanel({ params, onChange, gradeOptions, majorOptions, languag
           label={t("studio.chip.difficulty.label")}
           slot="difficulty"
           emptyHint={t("studio.chip.difficulty.empty")}
-          help="How hard the questions should be. Easy = recall + simple application; Medium = grade-appropriate problem solving; Hard = stretches the strongest students."
+          help={t("studio.chip.difficulty.help")}
           value={params.difficulty}
           options={QUIZ_DIFFICULTIES}
           onChange={(v) => set({ difficulty: v })}
@@ -2723,7 +2831,7 @@ function QuizParamsPanel({ params, onChange, gradeOptions, majorOptions, languag
           label={t("studio.chip.questions.label")}
           slot="questions"
           emptyHint={t("studio.chip.questions.empty")}
-          help="Exact number of questions to produce. This is a hard constraint — Murchid will fit the scope to this count."
+          help={t("studio.chip.questions.help")}
           value={
             params.questions === "" || params.questions == null
               ? ""
@@ -2740,7 +2848,7 @@ function QuizParamsPanel({ params, onChange, gradeOptions, majorOptions, languag
           label={t("studio.chip.duration.label")}
           slot="duration"
           emptyHint={t("studio.chip.duration.empty")}
-          help="How long, in minutes, a student should take to finish. Murchid uses this to calibrate question depth (a 15-min quiz is mostly recall; 60 min allows essay-style)."
+          help={t("studio.chip.duration.help")}
           value={
             params.duration === "" || params.duration == null
               ? ""
@@ -2758,7 +2866,7 @@ function QuizParamsPanel({ params, onChange, gradeOptions, majorOptions, languag
           label={t("studio.chip.types.label")}
           slot="types"
           emptyHint={t("studio.chip.types.empty")}
-          help="Which question formats Murchid is allowed to use. 'MCQ only' = every question is multiple choice. 'Identification only' = every question is short recall. 'MCQ + Identification' = mix those two. 'Mixed' = anything goes, including True/False."
+          help={t("studio.chip.types.help")}
           value={params.types}
           options={QUIZ_QUESTION_MIXES}
           onChange={(v) => set({ types: v })}
@@ -2811,7 +2919,7 @@ function ActivityParamsPanel({ params, onChange, majorOptions, languageOptions }
           label={t("studio.chip.type.label")}
           slot="type"
           emptyHint={t("studio.chip.type.empty")}
-          help="How students work on this activity — solo, in pairs, or in groups."
+          help={t("studio.chip.type.help")}
           value={params.type}
           options={ACTIVITY_TYPES}
           onChange={(v) => set({ type: v })}
@@ -2821,7 +2929,7 @@ function ActivityParamsPanel({ params, onChange, majorOptions, languageOptions }
           label={t("studio.chip.major.label")}
           slot="major"
           emptyHint={t("studio.chip.major.empty")}
-          help="The school subject the activity supports. The list shows the majors you teach (set in My students → Teaching profile). Type to add a one-off."
+          help={t("studio.chip.major.help")}
           value={params.major}
           options={majorOptions}
           onChange={(v) => set({ major: v })}
@@ -2831,7 +2939,7 @@ function ActivityParamsPanel({ params, onChange, majorOptions, languageOptions }
           label={t("studio.chip.language.label")}
           slot="language"
           emptyHint={t("studio.chip.language.empty")}
-          help="The language the activity instructions will be written in. The list shows the languages you teach (set in My students → Teaching profile). Type to add a one-off."
+          help={t("studio.chip.language.help")}
           value={params.language}
           options={languageOptions}
           onChange={(v) => set({ language: v })}
@@ -2841,7 +2949,7 @@ function ActivityParamsPanel({ params, onChange, majorOptions, languageOptions }
           label={t("studio.chip.duration.label")}
           slot="duration"
           emptyHint={t("studio.chip.duration.empty")}
-          help="How long, in minutes, the activity should run. Murchid uses this to calibrate the depth and number of stages."
+          help={t("studio.chip.duration.help")}
           value={
             params.duration === "" || params.duration == null
               ? ""
@@ -2893,7 +3001,7 @@ function LessonParamsPanel({ params, onChange, gradeOptions, majorOptions, langu
           label={t("studio.chip.grade.label")}
           slot="grade"
           emptyHint={t("studio.chip.grade.empty")}
-          help="Which year group this lesson is for. The list shows the grades you teach (set in My students → Teaching profile). Type to add a one-off."
+          help={t("studio.chip.grade.help")}
           value={params.grade}
           options={gradeOptions}
           onChange={(v) => set({ grade: v })}
@@ -2903,7 +3011,7 @@ function LessonParamsPanel({ params, onChange, gradeOptions, majorOptions, langu
           label={t("studio.chip.major.label")}
           slot="major"
           emptyHint={t("studio.chip.major.empty")}
-          help="The school subject this lesson covers. The list shows the majors you teach (My students → Teaching profile)."
+          help={t("studio.chip.major.help")}
           value={params.major}
           options={majorOptions}
           onChange={(v) => set({ major: v })}
@@ -2913,7 +3021,7 @@ function LessonParamsPanel({ params, onChange, gradeOptions, majorOptions, langu
           label={t("studio.chip.language.label")}
           slot="language"
           emptyHint={t("studio.chip.language.empty")}
-          help="The language the lesson plan will be written in."
+          help={t("studio.chip.language.help")}
           value={params.language}
           options={languageOptions}
           onChange={(v) => set({ language: v })}
@@ -2923,7 +3031,7 @@ function LessonParamsPanel({ params, onChange, gradeOptions, majorOptions, langu
           label={t("studio.chip.section.label")}
           slot="section"
           emptyHint={t("studio.chip.section.empty")}
-          help="Which class section(s) this lesson is for. Pick one or several. The list shows the sections you teach."
+          help={t("studio.chip.section.help")}
           value={params.section}
           options={sectionOptions}
           onChange={(v) => set({ section: v })}
@@ -2934,7 +3042,7 @@ function LessonParamsPanel({ params, onChange, gradeOptions, majorOptions, langu
           label={t("studio.chip.duration.label")}
           slot="duration"
           emptyHint={t("studio.chip.duration.empty")}
-          help="How long, in minutes, the lesson should run. Murchid uses this to pace the warm-up, main activity, and exit ticket."
+          help={t("studio.chip.duration.help")}
           value={
             params.duration === "" || params.duration == null
               ? ""
@@ -2986,7 +3094,7 @@ function HomeworkParamsPanel({ params, onChange, gradeOptions, majorOptions, lan
           label={t("studio.chip.grade.label")}
           slot="grade"
           emptyHint={t("studio.chip.grade.empty")}
-          help="Which year group this homework is for. The list shows the grades you teach (set in My students → Teaching profile)."
+          help={t("studio.chip.grade.help")}
           value={params.grade}
           options={gradeOptions}
           onChange={(v) => set({ grade: v })}
@@ -2996,7 +3104,7 @@ function HomeworkParamsPanel({ params, onChange, gradeOptions, majorOptions, lan
           label={t("studio.chip.major.label")}
           slot="major"
           emptyHint={t("studio.chip.major.empty")}
-          help="The school subject this homework covers. The list shows the majors you teach."
+          help={t("studio.chip.major.help")}
           value={params.major}
           options={majorOptions}
           onChange={(v) => set({ major: v })}
@@ -3006,7 +3114,7 @@ function HomeworkParamsPanel({ params, onChange, gradeOptions, majorOptions, lan
           label={t("studio.chip.language.label")}
           slot="language"
           emptyHint={t("studio.chip.language.empty")}
-          help="The language the homework instructions will be written in."
+          help={t("studio.chip.language.help")}
           value={params.language}
           options={languageOptions}
           onChange={(v) => set({ language: v })}
@@ -3016,7 +3124,7 @@ function HomeworkParamsPanel({ params, onChange, gradeOptions, majorOptions, lan
           label={t("studio.chip.section.label")}
           slot="section"
           emptyHint={t("studio.chip.section.empty")}
-          help="Which class section(s) this homework is for. Pick one or several."
+          help={t("studio.chip.section.help")}
           value={params.section}
           options={sectionOptions}
           onChange={(v) => set({ section: v })}
@@ -3063,7 +3171,7 @@ function PresentationParamsPanel({ params, onChange, gradeOptions, majorOptions,
           label={t("studio.chip.grade.label")}
           slot="grade"
           emptyHint={t("studio.chip.grade.empty")}
-          help="Which year group this deck is for. The list shows the grades you teach."
+          help={t("studio.chip.grade.help")}
           value={params.grade}
           options={gradeOptions}
           onChange={(v) => set({ grade: v })}
@@ -3073,7 +3181,7 @@ function PresentationParamsPanel({ params, onChange, gradeOptions, majorOptions,
           label={t("studio.chip.major.label")}
           slot="major"
           emptyHint={t("studio.chip.major.empty")}
-          help="The school subject this deck covers. The list shows the majors you teach."
+          help={t("studio.chip.major.help")}
           value={params.major}
           options={majorOptions}
           onChange={(v) => set({ major: v })}
@@ -3083,7 +3191,7 @@ function PresentationParamsPanel({ params, onChange, gradeOptions, majorOptions,
           label={t("studio.chip.language.label")}
           slot="language"
           emptyHint={t("studio.chip.language.empty")}
-          help="The language the slides will be written in."
+          help={t("studio.chip.language.help")}
           value={params.language}
           options={languageOptions}
           onChange={(v) => set({ language: v })}
@@ -3093,7 +3201,7 @@ function PresentationParamsPanel({ params, onChange, gradeOptions, majorOptions,
           label={t("studio.chip.section.label")}
           slot="section"
           emptyHint={t("studio.chip.section.empty")}
-          help="Which class section(s) this deck is for. Pick one or several."
+          help={t("studio.chip.section.help")}
           value={params.section}
           options={sectionOptions}
           onChange={(v) => set({ section: v })}
@@ -3104,7 +3212,7 @@ function PresentationParamsPanel({ params, onChange, gradeOptions, majorOptions,
           label={t("studio.chip.slides.label")}
           slot="slides"
           emptyHint={t("studio.chip.slides.empty")}
-          help="Roughly how many slides the deck should have. Murchid will fit the scope to this count."
+          help={t("studio.chip.slides.help")}
           value={
             params.slides === "" || params.slides == null
               ? ""
@@ -3549,6 +3657,66 @@ function ComboboxMenu({
 
 // Save-time confirmation. Surfaced only when the teacher edited at least
 // one correct_answer pre-save. Lists each changed question (was → now)
+// Warn the teacher when their free-text prompt mentions a Grade /
+// Duration / Slides / Questions value that disagrees with the chip
+// value above. "Use settings" makes the chips authoritative on this
+// generation; "Edit" closes the modal so they can fix the prompt.
+function ChipPromptConflictModal({ conflicts, onUseChips, onEdit }) {
+  const t = useT();
+  const fieldLabel = (f) => t(`studio.chip.${f}.label`);
+  return (
+    <div
+      className="fixed inset-0 z-[60] flex items-center justify-center p-4"
+      role="dialog"
+      aria-modal="true"
+    >
+      <div className="absolute inset-0 bg-ink/30 backdrop-blur-sm" onClick={onEdit} />
+      <div className="studio-menu-rise relative bg-paper-cool rounded-2xl border border-line shadow-2xl w-full max-w-md p-6 md:p-7">
+        <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent mb-2">
+          {t("studio.conflict.eyebrow")}
+        </p>
+        <h3 className="font-serif text-xl md:text-2xl font-medium text-ink leading-tight mb-3">
+          {t("studio.conflict.title")}
+        </h3>
+        <p className="text-sm text-ink-soft leading-relaxed mb-4">
+          {t("studio.conflict.body")}
+        </p>
+        <ul className="space-y-2 mb-5">
+          {conflicts.map((c, i) => (
+            <li
+              key={i}
+              className="rounded-lg border border-line bg-paper-warm/40 px-3 py-2 text-sm"
+            >
+              <p className="font-medium text-ink mb-0.5">{fieldLabel(c.field)}</p>
+              <p className="text-ink-soft leading-snug">
+                <span className="font-medium">{t("studio.conflict.chip")}:</span> {c.chip}
+                {" · "}
+                <span className="font-medium">{t("studio.conflict.prompt")}:</span> {c.prompt}
+              </p>
+            </li>
+          ))}
+        </ul>
+        <div className="flex flex-col-reverse sm:flex-row gap-2 sm:justify-end">
+          <button
+            type="button"
+            onClick={onEdit}
+            className="px-4 py-2 rounded-lg border border-line text-ink text-sm font-medium hover:bg-paper-warm transition-colors"
+          >
+            {t("studio.conflict.edit")}
+          </button>
+          <button
+            type="button"
+            onClick={onUseChips}
+            className="px-4 py-2 rounded-lg bg-accent text-paper-cool text-sm font-medium hover:bg-accent/90 transition-colors"
+          >
+            {t("studio.conflict.useChips")}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // so the teacher can double-check before the change is persisted to the
 // quiz_questions table. Cancel keeps editing; Confirm proceeds with the
 // real save call.
@@ -4001,6 +4169,7 @@ function TweakScopeToggle({ value, onChange, metaLocked, disabled }) {
 
 function HelpTip({ text }) {
   const [open, setOpen] = useState(false);
+  const { dir } = useI18n();
   return (
     <span
       className="relative inline-flex items-center"
@@ -4022,7 +4191,8 @@ function HelpTip({ text }) {
       {open && (
         <span
           role="tooltip"
-          className="studio-helptip absolute left-1/2 -translate-x-1/2 top-full mt-2 z-50 w-60 px-3 py-2.5 rounded-lg bg-ink text-paper-cool text-[11px] leading-relaxed shadow-xl pointer-events-none normal-case tracking-normal font-sans font-normal"
+          dir={dir}
+          className="studio-helptip absolute left-1/2 -translate-x-1/2 top-full mt-2 z-50 w-60 px-3 py-2.5 rounded-lg bg-ink text-paper-cool text-[11px] leading-relaxed shadow-xl pointer-events-none normal-case tracking-normal font-sans font-normal text-start"
         >
           <span className="absolute -top-1 left-1/2 -translate-x-1/2 w-2 h-2 rotate-45 bg-ink" />
           {text}
