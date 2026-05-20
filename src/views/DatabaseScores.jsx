@@ -9,8 +9,13 @@
 // Backend: GET /api/quizzes, GET /api/students?teacher=me,
 // GET /api/quiz-scores?quiz_id=<id>, POST /api/quiz-scores.
 import React, { useEffect, useMemo, useState } from "react";
-import { Save, Check } from "lucide-react";
+import { Save, Check, X, Search } from "lucide-react";
 import { api } from "./_shared";
+
+// "A" should match "Section A" (and vice-versa) so a quiz tagged with
+// the long form still surfaces students stored with the short form.
+const normSection = (s) =>
+  String(s || "").toLowerCase().replace(/^section\s+/, "").trim();
 
 export default function DatabaseScores() {
   const [quizzes, setQuizzes] = useState([]);
@@ -21,6 +26,8 @@ export default function DatabaseScores() {
   const [savingId, setSavingId] = useState(null);
   const [savedAt, setSavedAt] = useState({}); // student_id → ms timestamp
   const [error, setError] = useState(null);
+  const [matchOnly, setMatchOnly] = useState(true); // filter to quiz's grade+section
+  const [query, setQuery] = useState("");           // free-text name search
 
   // Load quizzes + students once.
   useEffect(() => {
@@ -36,8 +43,11 @@ export default function DatabaseScores() {
   }, []);
 
   // Whenever the picked quiz changes, fetch its existing scores so the
-  // grid pre-fills with what the teacher already entered before.
+  // grid pre-fills with what the teacher already entered before. Also
+  // reset the match-only filter so each new quiz starts narrowed to
+  // its own grade + section (the teacher can widen it again per quiz).
   useEffect(() => {
+    setMatchOnly(true);
     if (!quizId) { setScores({}); return; }
     setBusy(true);
     setError(null);
@@ -59,17 +69,43 @@ export default function DatabaseScores() {
 
   const quiz = useMemo(() => quizzes.find((q) => String(q.id) === String(quizId)), [quizzes, quizId]);
 
-  // Filter the roster to only the students who match the quiz's
-  // grade + section. If a quiz is grade-only (no section), include
-  // every section. If it's "all sections" it covers the whole grade.
+  // A student "matches" the quiz when their grade lines up AND their
+  // section either matches (loose — "A" == "Section A") or the quiz
+  // is for all sections / they have no section recorded.
+  const matchesQuiz = (s) => {
+    if (!quiz) return false;
+    if (quiz.grade && s.grade && quiz.grade !== s.grade) return false;
+    const qSec = quiz.section;
+    const sSec = s.section;
+    if (qSec && qSec !== "All sections" && sSec) {
+      if (normSection(qSec) !== normSection(sSec)) return false;
+    }
+    return true;
+  };
+
+  // Always show every student by default — teachers can score anyone
+  // regardless of grade/section. The matchOnly toggle narrows to the
+  // quiz's grade + section when on; the search box overlays on top.
   const eligible = useMemo(() => {
-    if (!quiz) return [];
-    return students.filter((s) => {
-      if (quiz.grade && s.grade && quiz.grade !== s.grade) return false;
-      if (quiz.section && quiz.section !== "All sections" && s.section && quiz.section !== s.section) return false;
-      return true;
-    });
-  }, [students, quiz]);
+    const q = query.trim().toLowerCase();
+    let list = students;
+    if (quiz && matchOnly) list = list.filter(matchesQuiz);
+    if (q) {
+      list = list.filter((s) =>
+        `${s.first_name || ""} ${s.last_name || ""}`.toLowerCase().includes(q)
+      );
+    }
+    return list;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [students, quiz, matchOnly, query]);
+
+  // How many of the all-students set match the quiz, so the filter
+  // chip can show "Matching 4 of 27" instead of just "Matching".
+  const matchCount = useMemo(
+    () => (quiz ? students.filter(matchesQuiz).length : 0),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [students, quiz]
+  );
 
   const setCell = (sid, patch) =>
     setScores((m) => ({ ...m, [sid]: { ...(m[sid] || {}), ...patch } }));
@@ -124,13 +160,46 @@ export default function DatabaseScores() {
             ))}
           </select>
         </div>
-        {quiz && (
-          <div className="text-[12px] text-muted">
-            {eligible.length} student{eligible.length === 1 ? "" : "s"} match this quiz's grade
-            {quiz.section && quiz.section !== "All sections" ? " + section" : ""}.
-          </div>
-        )}
       </div>
+
+      {/* Filter chip + name search — shown once a quiz is picked.
+          The chip pre-filters to the quiz's grade + section but
+          can be removed in one click to see every student. */}
+      {quizId && (
+        <div className="flex flex-wrap items-center gap-2">
+          {matchOnly ? (
+            <button
+              type="button"
+              onClick={() => setMatchOnly(false)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-accent/[0.10] text-accent border border-accent/30 text-[12px] font-medium hover:bg-accent/[0.16] transition-colors"
+              title="Click to show all students"
+            >
+              Matching {quiz?.grade}
+              {quiz?.section && quiz.section !== "All sections" ? ` · ${quiz.section}` : ""}
+              <span className="opacity-70">({matchCount} of {students.length})</span>
+              <X size={12} />
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setMatchOnly(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-paper-cool border border-line text-[12px] font-medium text-ink-soft hover:border-ink transition-colors"
+            >
+              Showing all {students.length} students — re-apply match
+            </button>
+          )}
+          <div className="relative flex-1 min-w-[180px] max-w-sm">
+            <Search size={14} className="absolute start-3 top-1/2 -translate-y-1/2 text-muted pointer-events-none" />
+            <input
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search by name…"
+              className="w-full ps-9 pe-3 py-1.5 rounded-full border border-line bg-paper-cool text-sm text-ink placeholder:text-muted outline-none focus:border-ink"
+            />
+          </div>
+        </div>
+      )}
 
       {error && (
         <div className="bg-paper border border-accent rounded-lg p-3 text-sm text-accent">
@@ -144,9 +213,21 @@ export default function DatabaseScores() {
         </p>
       )}
 
-      {quizId && !busy && eligible.length === 0 && (
+      {quizId && !busy && eligible.length === 0 && students.length === 0 && (
         <p className="text-sm text-muted italic">
-          No students match this quiz's grade and section. Add students under the Students tab first.
+          You don't have any students yet — add them under the Students tab first.
+        </p>
+      )}
+
+      {quizId && !busy && eligible.length === 0 && students.length > 0 && matchOnly && (
+        <p className="text-sm text-muted italic">
+          No students match this quiz's grade and section. Click the filter chip above to see every student instead.
+        </p>
+      )}
+
+      {quizId && !busy && eligible.length === 0 && students.length > 0 && !matchOnly && query && (
+        <p className="text-sm text-muted italic">
+          No students match "{query}".
         </p>
       )}
 
