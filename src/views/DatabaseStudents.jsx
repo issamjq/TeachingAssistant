@@ -127,9 +127,14 @@ export default function DatabaseStudents() {
         </Button>
       </div>
 
+      {/* Search + two filter selects. The selects use selectClasses
+          which carries w-full — fine on mobile (full column) but on
+          md+ we need to cap them so the search input keeps its
+          breathing room. md:w-48 + md:flex-none locks each select to
+          ~12rem and stops flex from stretching them. */}
       <div className="flex flex-col md:flex-row gap-3 mb-6">
-        <div className="flex-1 bg-paper-cool rounded-lg border border-line px-4 py-2.5 flex items-center gap-2">
-          <Search size={15} className="text-muted" />
+        <div className="flex-1 min-w-0 bg-paper-cool rounded-lg border border-line px-4 py-2.5 flex items-center gap-2">
+          <Search size={15} className="text-muted flex-shrink-0" />
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
@@ -140,7 +145,7 @@ export default function DatabaseStudents() {
         <select
           value={gradeFilter}
           onChange={(e) => setGradeFilter(e.target.value)}
-          className={selectClasses}
+          className={`${selectClasses} md:w-48 md:flex-none`}
         >
           <option value="">All grades</option>
           {GRADE_LEVELS.map((g) => (
@@ -152,7 +157,7 @@ export default function DatabaseStudents() {
         <select
           value={sectionFilter}
           onChange={(e) => setSectionFilter(e.target.value)}
-          className={selectClasses}
+          className={`${selectClasses} md:w-48 md:flex-none`}
         >
           <option value="">All sections</option>
           {sectionOptions.map((s) => (
