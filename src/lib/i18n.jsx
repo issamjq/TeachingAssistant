@@ -526,6 +526,8 @@ const EN = {
   "a11y.highlightLinksHint": "Outline every link and button",
   "a11y.stopAnimations": "Stop animations",
   "a11y.stopAnimationsHint": "Pause motion and transitions",
+  "a11y.readingMode": "Reading mode",
+  "a11y.readingModeHint": "Larger type, calmer line height, less UI chrome",
   "a11y.readAloud": "Read aloud",
   "a11y.readAloudOn": "Click any text to hear it",
   "a11y.readAloudHint": "Have the page read to you",
@@ -1150,6 +1152,8 @@ const AR = {
   "a11y.highlightLinksHint": "تحديد كل رابط وزر",
   "a11y.stopAnimations": "إيقاف الحركة",
   "a11y.stopAnimationsHint": "إيقاف الحركة والانتقالات",
+  "a11y.readingMode": "وضع القراءة",
+  "a11y.readingModeHint": "خط أكبر، مسافات أهدأ، واجهة أبسط",
   "a11y.readAloud": "قراءة بصوت",
   "a11y.readAloudOn": "انقر أي نص لسماعه",
   "a11y.readAloudHint": "اجعل الصفحة تُقرأ لك",
@@ -1285,8 +1289,17 @@ const I18nContext = createContext({
 function applyDocumentLang(lang) {
   if (typeof document === "undefined") return;
   const dir = RTL_LANGS.has(lang) ? "rtl" : "ltr";
-  document.documentElement.lang = lang;
-  document.documentElement.dir = dir;
+  const root = document.documentElement;
+  const prevDir = root.getAttribute("dir");
+  root.lang = lang;
+  root.dir = dir;
+  // Smooth direction flip — only animate when dir actually changes, and
+  // clean up the helper class on the next frame so static layouts
+  // remain transition-free.
+  if (prevDir && prevDir !== dir) {
+    root.classList.add("lang-transition");
+    window.setTimeout(() => root.classList.remove("lang-transition"), 360);
+  }
 }
 
 export function LanguageProvider({ children }) {
@@ -1343,7 +1356,7 @@ export function LangToggle({ className = "" }) {
   ];
   return (
     <div
-      className={`inline-flex items-center rounded-full border border-line bg-paper-cool p-0.5 ${className}`}
+      className={`inline-flex items-center rounded-full border border-[var(--color-border-subtle)] bg-[var(--color-surface-sunken)] p-1 ${className}`}
       role="group"
       aria-label="Language"
       dir="ltr"
@@ -1353,10 +1366,10 @@ export function LangToggle({ className = "" }) {
           key={o.v}
           type="button"
           onClick={() => setLang(o.v)}
-          className={`px-2.5 py-1 rounded-full text-[11px] font-medium leading-none transition ${
+          className={`min-w-[28px] h-7 px-2.5 rounded-full text-[12px] font-medium leading-none transition-colors duration-150 ${
             lang === o.v
-              ? "bg-ink text-paper-cool"
-              : "text-ink-soft hover:text-ink"
+              ? "bg-[var(--color-surface-card)] text-ink shadow-[var(--shadow-1)]"
+              : "text-muted hover:text-ink"
           }`}
           aria-pressed={lang === o.v}
         >

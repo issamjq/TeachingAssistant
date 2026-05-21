@@ -31,6 +31,7 @@ import { useT, LangToggle } from "./lib/i18n";
 import { useAccount, clearAccount } from "./lib/account";
 import AccountMenu from "./views/AccountMenu";
 import HelpPopover from "./views/HelpPopover";
+import { ThemeToggle } from "./components/ui/ThemeToggle";
 
 // Sectioned nav matching the 2026 mockup — italic Fraunces section
 // headers + small letter/icon badges next to each label. All routes
@@ -587,6 +588,7 @@ export default function StudioApp({ onClose }) {
           >
             Murchid
           </button>
+          <ThemeToggle />
           <LangToggle />
           {onClose && (
             <button
@@ -601,11 +603,9 @@ export default function StudioApp({ onClose }) {
         </div>
 
         <div
-          className={`relative flex-1 overflow-y-auto bg-[#fbf2e6] px-4 pt-4 pb-6 sm:px-6 md:pt-3 md:pb-2 ${
+          className={`relative flex-1 overflow-y-auto bg-paper px-4 pt-4 pb-6 sm:px-6 md:pt-3 md:pb-2 ${
             sidebarCollapsed ? "md:ps-16" : "md:ps-8"
-          } ${
-            onClose ? "md:pe-20" : "md:pe-8"
-          }`}
+          } md:pe-8`}
         >
           {sidebarCollapsed && (
             <button
@@ -618,15 +618,24 @@ export default function StudioApp({ onClose }) {
               <PanelLeftOpen size={16} className="rtl:rotate-180" />
             </button>
           )}
-          {onClose && (
-            <button
-              onClick={onClose}
-              title="Back to landing page"
-              className="hidden md:flex absolute top-3 end-8 z-20 h-9 w-9 rounded-md text-ink-soft hover:bg-accent hover:text-paper-cool items-center justify-center transition print:hidden"
-            >
-              <X size={15} />
-            </button>
-          )}
+          {/* Desktop control cluster — theme + lang + back-to-landing.
+              Top-end so it's reachable in one click from every screen,
+              respecting the design system's "theme toggle ≤ 1 click"
+              requirement. */}
+          <div className="hidden md:flex absolute top-3 end-3 z-20 items-center gap-2 print:hidden">
+            <ThemeToggle />
+            <LangToggle />
+            {onClose && (
+              <button
+                onClick={onClose}
+                title="Back to landing page"
+                aria-label="Back to landing page"
+                className="h-9 w-9 rounded-md text-ink-soft hover:bg-paper-warm hover:text-ink flex items-center justify-center transition"
+              >
+                <X size={15} />
+              </button>
+            )}
+          </div>
           {TEACHING_RAIL_SECTIONS.has(section) ? (
             <div className="lg:flex lg:gap-6 h-full">
               <div className="flex-1 min-w-0">{mainContent}</div>

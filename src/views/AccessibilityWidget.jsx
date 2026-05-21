@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import {
   Accessibility, X, Type, Eye, Volume2, RotateCcw,
   MousePointer2, Link2, Pause, Contrast, Droplet, Minus, Plus,
+  BookOpen,
 } from "lucide-react";
 import { useI18n } from "../lib/i18n.jsx";
 
@@ -27,6 +28,7 @@ const DEFAULTS = {
   highlightLinks: false,
   stopAnim: false,
   readAloud: false,
+  readingMode: false,
 };
 
 const ZOOMS = [1, 1.1, 1.2, 1.35, 1.5];
@@ -72,6 +74,9 @@ function applyToRoot(s) {
   cl.toggle("a11y-hl-links", s.highlightLinks);
   cl.toggle("a11y-stop-anim", s.stopAnim);
   cl.toggle("a11y-read-aloud", s.readAloud);
+  // Reading mode lives on <html> (not #root) so the body type-size /
+  // line-height bumps cascade everywhere, including portaled overlays.
+  document.documentElement.classList.toggle("reading-mode", !!s.readingMode);
 }
 
 const isDefault = (s) =>
@@ -169,11 +174,11 @@ export default function AccessibilityWidget() {
           : { left: "auto", right: 84 }),
         zIndex: 2147483000,
       }}
-      className="group inline-flex items-center gap-1.5 h-10 px-3.5 rounded-full bg-[#1a1814] text-[#faf6ec] text-[12px] font-medium tracking-wide shadow-[0_6px_18px_rgba(26,24,20,0.32)] ring-1 ring-white/15 hover:bg-[#c8472b] transition"
+      className="group inline-flex items-center gap-1.5 h-10 px-3.5 rounded-full bg-[var(--color-text-primary)] text-[var(--color-surface-card)] text-[12px] font-medium tracking-wide shadow-[0_6px_18px_rgba(26,24,20,0.32)] ring-1 ring-white/15 hover:bg-[var(--color-accent)] transition"
     >
       <span className="relative grid place-items-center w-2 h-2">
-        <span className="absolute inset-0 rounded-full bg-[#e87a55] animate-ping opacity-75" />
-        <span className="relative w-2 h-2 rounded-full bg-[#e87a55]" />
+        <span className="absolute inset-0 rounded-full bg-[var(--color-accent-soft)] animate-ping opacity-75" />
+        <span className="relative w-2 h-2 rounded-full bg-[var(--color-accent-soft)]" />
       </span>
       <span>{t("a11y.filtersOn")}</span>
       <span className="opacity-60 group-hover:opacity-100">·</span>
@@ -193,17 +198,17 @@ export default function AccessibilityWidget() {
       aria-label={t("a11y.open")}
       title={t("a11y.open")}
       style={{ position: "fixed", bottom: 20, ...side, zIndex: 2147483000 }}
-      className="grid place-items-center w-14 h-14 rounded-full bg-[#c8472b] text-white shadow-[0_8px_24px_rgba(26,24,20,0.32)] ring-2 ring-white/70 transition hover:scale-105 active:scale-95"
+      className="grid place-items-center w-14 h-14 rounded-full bg-[var(--color-accent)] text-white shadow-[0_8px_24px_rgba(26,24,20,0.32)] ring-2 ring-white/70 transition hover:scale-105 active:scale-95"
     >
       <Accessibility size={28} strokeWidth={2.2} />
       {dirty && (
         <>
           <span
-            className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full bg-[#e87a55] ring-2 ring-white animate-ping opacity-70"
+            className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full bg-[var(--color-accent-soft)] ring-2 ring-white animate-ping opacity-70"
             aria-hidden="true"
           />
           <span
-            className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full bg-[#6b7f5a] ring-2 ring-white"
+            className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full bg-[var(--color-success)] ring-2 ring-white"
             aria-hidden="true"
           />
         </>
@@ -235,10 +240,10 @@ export default function AccessibilityWidget() {
           width: 340,
           maxHeight: "min(78vh, 640px)",
         }}
-        className="flex flex-col rounded-2xl bg-[#faf6ec] text-[#1a1814] border border-[#d4c9b3] shadow-[0_24px_60px_rgba(26,24,20,0.34)] overflow-hidden"
+        className="flex flex-col rounded-2xl bg-[var(--color-surface-card)] text-[var(--color-text-primary)] border border-[var(--color-border-subtle)] shadow-[0_24px_60px_rgba(26,24,20,0.34)] overflow-hidden"
       >
-        <header className="flex items-start gap-3 px-5 pt-4 pb-3 border-b border-[#d4c9b3] bg-[#f4ede0]">
-          <span className="grid place-items-center w-9 h-9 rounded-full bg-[#c8472b] text-white shrink-0">
+        <header className="flex items-start gap-3 px-5 pt-4 pb-3 border-b border-[var(--color-border-subtle)] bg-[var(--color-surface-page)]">
+          <span className="grid place-items-center w-9 h-9 rounded-full bg-[var(--color-accent)] text-white shrink-0">
             <Accessibility size={20} strokeWidth={2.2} />
           </span>
           <div className="flex-1 min-w-0">
@@ -248,7 +253,7 @@ export default function AccessibilityWidget() {
             >
               {t("a11y.title")}
             </h2>
-            <p className="text-[11.5px] text-[#6b6354] leading-snug mt-0.5">
+            <p className="text-[11.5px] text-[var(--color-text-muted)] leading-snug mt-0.5">
               {t("a11y.subtitle")}
             </p>
           </div>
@@ -256,7 +261,7 @@ export default function AccessibilityWidget() {
             type="button"
             onClick={() => setOpen(false)}
             aria-label={t("a11y.done")}
-            className="grid place-items-center w-7 h-7 rounded-full text-[#6b6354] hover:bg-[#ede4d3] transition"
+            className="grid place-items-center w-7 h-7 rounded-full text-[var(--color-text-muted)] hover:bg-[var(--color-surface-sunken)] transition"
           >
             <X size={17} />
           </button>
@@ -265,7 +270,7 @@ export default function AccessibilityWidget() {
         <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2">
           {/* Quick profiles */}
           <div>
-            <p className="px-1 mb-1.5 text-[10.5px] font-semibold uppercase tracking-wider text-[#6b6354]">
+            <p className="px-1 mb-1.5 text-[10.5px] font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">
               {t("a11y.profilesTitle")}
             </p>
             <div className="grid grid-cols-3 gap-1.5">
@@ -408,6 +413,15 @@ export default function AccessibilityWidget() {
             tOff={t("a11y.off")}
           />
           <Toggle
+            icon={<BookOpen size={17} />}
+            label={t("a11y.readingMode")}
+            hint={t("a11y.readingModeHint")}
+            on={s.readingMode}
+            onToggle={() => set({ readingMode: !s.readingMode })}
+            tOn={t("a11y.on")}
+            tOff={t("a11y.off")}
+          />
+          <Toggle
             icon={<Volume2 size={17} />}
             label={t("a11y.readAloud")}
             hint={s.readAloud ? t("a11y.readAloudOn") : t("a11y.readAloudHint")}
@@ -420,19 +434,19 @@ export default function AccessibilityWidget() {
             <button
               type="button"
               onClick={stopReading}
-              className="w-full text-[12px] font-medium py-1.5 rounded-lg border border-[#d4c9b3] text-[#6b6354] hover:bg-[#ede4d3] transition"
+              className="w-full text-[12px] font-medium py-1.5 rounded-lg border border-[var(--color-border-subtle)] text-[var(--color-text-muted)] hover:bg-[var(--color-surface-sunken)] transition"
             >
               {t("a11y.stopReading")}
             </button>
           )}
         </div>
 
-        <footer className="px-4 py-3 border-t border-[#d4c9b3] bg-[#f4ede0] flex items-center gap-2">
+        <footer className="px-4 py-3 border-t border-[var(--color-border-subtle)] bg-[var(--color-surface-page)] flex items-center gap-2">
           <button
             type="button"
             onClick={reset}
             disabled={!dirty}
-            className="flex-1 inline-flex items-center justify-center gap-1.5 text-[12.5px] font-medium py-2 rounded-lg border border-[#d4c9b3] text-[#2d2a24] hover:bg-[#ede4d3] transition disabled:opacity-40 disabled:cursor-default"
+            className="flex-1 inline-flex items-center justify-center gap-1.5 text-[12.5px] font-medium py-2 rounded-lg border border-[var(--color-border-subtle)] text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-sunken)] transition disabled:opacity-40 disabled:cursor-default"
           >
             <RotateCcw size={14} />
             {t("a11y.reset")}
@@ -440,7 +454,7 @@ export default function AccessibilityWidget() {
           <button
             type="button"
             onClick={() => setOpen(false)}
-            className="flex-1 text-[12.5px] font-semibold py-2 rounded-lg bg-[#1a1814] text-[#faf6ec] hover:bg-[#2d2a24] transition"
+            className="flex-1 text-[12.5px] font-semibold py-2 rounded-lg bg-[var(--color-text-primary)] text-[var(--color-surface-card)] hover:bg-[var(--color-text-secondary)] transition"
           >
             {t("a11y.done")}
           </button>
@@ -508,7 +522,7 @@ function ProfileBtn({ label, onClick }) {
     <button
       type="button"
       onClick={onClick}
-      className="text-[11px] font-medium leading-tight px-1.5 py-2 rounded-lg border border-[#d4c9b3] bg-[#f4ede0] text-[#2d2a24] hover:border-[#c8472b] hover:text-[#c8472b] transition"
+      className="text-[11px] font-medium leading-tight px-1.5 py-2 rounded-lg border border-[var(--color-border-subtle)] bg-[var(--color-surface-page)] text-[var(--color-text-secondary)] hover:border-[var(--color-accent)] hover:text-[var(--color-accent)] transition"
     >
       {label}
     </button>
@@ -517,14 +531,14 @@ function ProfileBtn({ label, onClick }) {
 
 function Row({ icon, label, hint, children }) {
   return (
-    <div className="flex items-center gap-3 px-2.5 py-2 rounded-xl border border-[#e3dac6] bg-[#f4ede0]">
-      <span className="grid place-items-center w-7 h-7 rounded-lg bg-[#ede4d3] text-[#2d2a24] shrink-0">
+    <div className="flex items-center gap-3 px-2.5 py-2 rounded-xl border border-[#e3dac6] bg-[var(--color-surface-page)]">
+      <span className="grid place-items-center w-7 h-7 rounded-lg bg-[var(--color-surface-sunken)] text-[var(--color-text-secondary)] shrink-0">
         {icon}
       </span>
       <div className="flex-1 min-w-0">
         <p className="text-[13px] font-medium leading-tight">{label}</p>
         {hint && (
-          <p className="text-[11px] text-[#6b6354] leading-snug mt-0.5">{hint}</p>
+          <p className="text-[11px] text-[var(--color-text-muted)] leading-snug mt-0.5">{hint}</p>
         )}
       </div>
       {children}
@@ -541,7 +555,7 @@ function Toggle({ icon, label, hint, on, onToggle, tOn, tOff }) {
         aria-checked={on}
         onClick={onToggle}
         className={`relative shrink-0 w-12 h-7 rounded-full transition-colors ${
-          on ? "bg-[#6b7f5a]" : "bg-[#d4c9b3]"
+          on ? "bg-[var(--color-success)]" : "bg-[var(--color-border-subtle)]"
         }`}
       >
         <span
@@ -557,15 +571,15 @@ function Toggle({ icon, label, hint, on, onToggle, tOn, tOff }) {
 
 function Choice({ icon, label, hint, value, options, onChange }) {
   return (
-    <div className="px-2.5 py-2 rounded-xl border border-[#e3dac6] bg-[#f4ede0]">
+    <div className="px-2.5 py-2 rounded-xl border border-[#e3dac6] bg-[var(--color-surface-page)]">
       <div className="flex items-center gap-3">
-        <span className="grid place-items-center w-7 h-7 rounded-lg bg-[#ede4d3] text-[#2d2a24] shrink-0">
+        <span className="grid place-items-center w-7 h-7 rounded-lg bg-[var(--color-surface-sunken)] text-[var(--color-text-secondary)] shrink-0">
           {icon}
         </span>
         <div className="flex-1 min-w-0">
           <p className="text-[13px] font-medium leading-tight">{label}</p>
           {hint && (
-            <p className="text-[11px] text-[#6b6354] leading-snug mt-0.5">{hint}</p>
+            <p className="text-[11px] text-[var(--color-text-muted)] leading-snug mt-0.5">{hint}</p>
           )}
         </div>
       </div>
@@ -578,8 +592,8 @@ function Choice({ icon, label, hint, value, options, onChange }) {
             aria-pressed={value === o.v}
             className={`text-[11px] font-medium py-1.5 rounded-lg border transition ${
               value === o.v
-                ? "bg-[#1a1814] text-[#faf6ec] border-[#1a1814]"
-                : "bg-[#faf6ec] text-[#2d2a24] border-[#d4c9b3] hover:border-[#c8472b] hover:text-[#c8472b]"
+                ? "bg-[var(--color-text-primary)] text-[var(--color-surface-card)] border-[var(--color-text-primary)]"
+                : "bg-[var(--color-surface-card)] text-[var(--color-text-secondary)] border-[var(--color-border-subtle)] hover:border-[var(--color-accent)] hover:text-[var(--color-accent)]"
             }`}
           >
             {o.label}
@@ -599,7 +613,7 @@ function Stepper({ icon, label, hint, value, max, onChange }) {
           onClick={() => onChange(Math.max(0, value - 1))}
           disabled={value <= 0}
           aria-label="−"
-          className="grid place-items-center w-7 h-7 rounded-lg border border-[#d4c9b3] text-[#2d2a24] hover:bg-[#ede4d3] transition disabled:opacity-35"
+          className="grid place-items-center w-7 h-7 rounded-lg border border-[var(--color-border-subtle)] text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-sunken)] transition disabled:opacity-35"
         >
           <Minus size={14} />
         </button>
@@ -611,7 +625,7 @@ function Stepper({ icon, label, hint, value, max, onChange }) {
           onClick={() => onChange(Math.min(max, value + 1))}
           disabled={value >= max}
           aria-label="+"
-          className="grid place-items-center w-7 h-7 rounded-lg border border-[#d4c9b3] text-[#2d2a24] hover:bg-[#ede4d3] transition disabled:opacity-35"
+          className="grid place-items-center w-7 h-7 rounded-lg border border-[var(--color-border-subtle)] text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-sunken)] transition disabled:opacity-35"
         >
           <Plus size={14} />
         </button>

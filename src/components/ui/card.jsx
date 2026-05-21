@@ -1,14 +1,29 @@
 import React from "react";
 
-// Shared card frame — matches the Studio AI hero / Planner calendar
-// look: warm-gray hairline border + a soft drop shadow. Used across
-// the whole app so every "card" reads as the same object.
-export function Card({ className = "", children, ...props }) {
+// Card — Murchid v2.0. Single-level only. No card nested in card.
+// Default: border-only, no shadow. Hoverable variant adds shadow-2 +
+// lift on hover (use only when the card is clickable). Elevated
+// variant is for hero/modal-class containers — shadow-3, no border.
+export function Card({
+  className = "",
+  variant = "default",
+  children,
+  ...props
+}) {
+  const base = "rounded-[16px] bg-paper-cool";
+  const styles = {
+    default:
+      "border border-[var(--color-border-subtle)]",
+    hoverable:
+      "border border-[var(--color-border-subtle)] transition-[transform,box-shadow] duration-200 " +
+      "hover:-translate-y-[0.5px] hover:shadow-[var(--shadow-2)] cursor-pointer",
+    elevated:
+      "bg-[var(--color-surface-elevated)] shadow-[var(--shadow-3)]",
+    sunken:
+      "bg-[var(--color-surface-sunken)] border border-[var(--color-border-subtle)]",
+  };
   return (
-    <div
-      className={`bg-paper-cool rounded-2xl border border-[#e6dccb] shadow-[0_18px_44px_-22px_rgba(15,20,16,0.14)] ${className}`}
-      {...props}
-    >
+    <div className={[base, styles[variant] || styles.default, className].join(" ")} {...props}>
       {children}
     </div>
   );

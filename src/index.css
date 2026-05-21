@@ -1,25 +1,204 @@
 @import "tailwindcss";
 
-@theme {
-  --color-paper: #f4ede0;
-  --color-paper-warm: #ede4d3;
-  --color-paper-cool: #faf6ec;
-  --color-ink: #1a1814;
-  --color-ink-soft: #2d2a24;
-  --color-accent: #c8472b;
-  --color-accent-soft: #e87a55;
-  --color-gold: #b8893d;
-  --color-sage: #6b7f5a;
-  --color-line: #d4c9b3;
-  --color-muted: #6b6354;
+/* === Murchid Design System v2.0 — "Editorial Calm" =========================
+   Tokens are role-named and semantic. Swapping data-theme on <html>
+   re-skins every surface under every component using these vars.
+   See docs/11-design-system-v2.md for the full spec. */
 
-  --font-sans: "Inter Tight", ui-sans-serif, system-ui, sans-serif;
-  --font-serif: "Fraunces", Georgia, serif;
-  /* No more JetBrains Mono. Every `font-mono` utility now renders in
-     Inter Tight — eyebrows keep their uppercase + tracking styling,
-     but they share the same face as body copy so the whole project
-     reads as one type system instead of three. */
-  --font-mono: "Inter Tight", ui-sans-serif, system-ui, sans-serif;
+@theme {
+  /* ── Semantic surface + text + border ──────────────────────────── */
+  --color-surface-page: #F7F2E8;
+  --color-surface-card: #FDFAF3;
+  --color-surface-elevated: #FFFEF8;
+  --color-surface-sunken: #EFE9DC;
+  --color-text-primary: #1F1B14;
+  --color-text-secondary: #4A4338;
+  --color-text-muted: #7A715F;
+  --color-text-on-accent: #FDFAF3;
+  --color-border-subtle: #E5DDC9;
+  --color-border-strong: #C8BFA8;
+
+  /* ── Brand ────────────────────────────────────────────────────── */
+  --color-accent: #9C4F37;       /* clay-ember, calmer than v1 red */
+  --color-accent-soft: #D89E84;  /* tint backdrop / dark-mode accent */
+  --color-secondary: #5A7A4A;
+  --color-gold: #9E7E36;
+  --color-success: #5A7A4A;
+  --color-warning: #9E7E36;
+  --color-danger: #A8392A;
+  --color-focus-ring: #9C4F37;
+
+  /* ── Legacy aliases ────────────────────────────────────────────
+     Every existing class (bg-paper, text-ink, etc.) keeps working
+     but now resolves to the new palette. Removing these would
+     break ~50 component files. They stay. */
+  --color-paper: #F7F2E8;
+  --color-paper-warm: #EFE9DC;
+  --color-paper-cool: #FDFAF3;
+  --color-ink: #1F1B14;
+  --color-ink-soft: #4A4338;
+  --color-line: #E5DDC9;
+  --color-muted: #7A715F;
+  --color-sage: #5A7A4A;
+
+  /* ── Type ───────────────────────────────────────────────────── */
+  --font-sans: "Geist", "IBM Plex Sans Arabic", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Instrument Serif", "IBM Plex Sans Arabic", Georgia, serif;
+  --font-mono: "Geist Mono", "IBM Plex Sans Arabic", ui-monospace, monospace;
+  --font-arabic: "IBM Plex Sans Arabic", ui-sans-serif, system-ui, sans-serif;
+}
+
+/* Motion + elevation as plain CSS vars (not @theme — they don't need
+   to generate utility classes). */
+:root {
+  --duration-instant: 80ms;
+  --duration-fast: 150ms;
+  --duration-base: 240ms;
+  --duration-slow: 360ms;
+  --duration-marketing: 480ms;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+  --ease-in-out: cubic-bezier(0.45, 0, 0.55, 1);
+  --ease-natural: cubic-bezier(0.32, 0.72, 0, 1);
+
+  --shadow-1: 0 1px 2px rgba(31, 27, 20, 0.04);
+  --shadow-2: 0 4px 12px -4px rgba(31, 27, 20, 0.06);
+  --shadow-3: 0 8px 24px -8px rgba(31, 27, 20, 0.10);
+  --shadow-4: 0 16px 48px -16px rgba(31, 27, 20, 0.14);
+}
+
+/* ── Dark theme: "candlelit" ─────────────────────────────────────
+   Warm dark, NOT pure black, NOT navy. Foreground is warm cream,
+   never pure white — prevents halation on long teaching sessions. */
+[data-theme="dark"] {
+  --color-surface-page: #1A1714;
+  --color-surface-card: #22201C;
+  --color-surface-elevated: #2A2723;
+  --color-surface-sunken: #141210;
+  --color-text-primary: #F0E9D9;
+  --color-text-secondary: #C2B89E;
+  --color-text-muted: #8B8270;
+  --color-text-on-accent: #1A1714;
+  --color-border-subtle: #33302A;
+  --color-border-strong: #4D4940;
+  --color-accent: #D89E84;
+  --color-accent-soft: #5D3D2A;
+  --color-secondary: #92A878;
+  --color-gold: #D9B97A;
+  --color-success: #92A878;
+  --color-warning: #D9B97A;
+  --color-danger: #D17A6B;
+  --color-focus-ring: #D89E84;
+
+  --color-paper: #1A1714;
+  --color-paper-warm: #141210;
+  --color-paper-cool: #22201C;
+  --color-ink: #F0E9D9;
+  --color-ink-soft: #C2B89E;
+  --color-line: #33302A;
+  --color-muted: #8B8270;
+  --color-sage: #92A878;
+
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.30);
+  --shadow-2: 0 4px 12px -4px rgba(0, 0, 0, 0.40);
+  --shadow-3: 0 8px 24px -8px rgba(0, 0, 0, 0.50);
+  --shadow-4: 0 16px 48px -16px rgba(0, 0, 0, 0.60);
+
+  color-scheme: dark;
+}
+
+/* ── Global base ─────────────────────────────────────────────── */
+html, body, #root {
+  background: var(--color-surface-page);
+  color: var(--color-text-primary);
+}
+
+body {
+  font-family: var(--font-sans);
+  font-size: 16px;
+  line-height: 1.65;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  font-feature-settings: "cv11", "ss01";
+}
+
+@media (min-width: 768px) and (max-width: 1023px) {
+  body { font-size: 17px; }
+}
+
+/* Arabic: when the root has lang="ar" or dir="rtl", swap to the
+   bilingual face. Never force a Latin face onto Arabic. */
+html[lang="ar"] body,
+html[dir="rtl"] body {
+  font-family: var(--font-arabic);
+}
+html[lang="ar"] .font-serif,
+html[dir="rtl"] .font-serif {
+  font-family: var(--font-arabic);
+  font-weight: 200; /* serif italic → Arabic extralight for display */
+  font-style: normal;
+}
+
+/* Smooth direction flip when the LangToggle swaps */
+html.lang-transition * {
+  transition: transform 320ms var(--ease-out),
+              opacity 200ms var(--ease-out) !important;
+}
+
+/* Focus rings — visible, calm, NOT removed */
+:where(button, a, input, textarea, select, [tabindex]):focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--color-surface-page),
+              0 0 0 5px color-mix(in oklab, var(--color-focus-ring) 35%, transparent);
+  border-radius: var(--radius-sm);
+}
+
+/* Native scrollbar tuned to the warm theme */
+@supports (scrollbar-color: auto) {
+  html {
+    scrollbar-color: var(--color-border-strong) var(--color-surface-sunken);
+    scrollbar-width: thin;
+  }
+}
+
+/* ── Reading mode ──────────────────────────────────────────────── */
+.reading-mode body { font-size: 18px; line-height: 1.78; }
+.reading-mode .reading-target { max-width: 72ch; }
+.reading-mode .reading-hide { display: none !important; }
+
+/* ── Motion utilities for inline use ───────────────────────────── */
+.motion-base { transition: all var(--duration-base) var(--ease-out); }
+.motion-fast { transition: all var(--duration-fast) var(--ease-out); }
+
+/* ── Logical-property utilities (RTL-safe) ─────────────────────── */
+.ps-2 { padding-inline-start: 8px; }
+.pe-2 { padding-inline-end: 8px; }
+.ps-3 { padding-inline-start: 12px; }
+.pe-3 { padding-inline-end: 12px; }
+.ps-4 { padding-inline-start: 16px; }
+.pe-4 { padding-inline-end: 16px; }
+.ms-2 { margin-inline-start: 8px; }
+.me-2 { margin-inline-end: 8px; }
+.ms-3 { margin-inline-start: 12px; }
+.me-3 { margin-inline-end: 12px; }
+.ms-auto { margin-inline-start: auto; }
+.me-auto { margin-inline-end: auto; }
+.text-start { text-align: start; }
+.text-end { text-align: end; }
+.border-s { border-inline-start: 1px solid var(--color-border-subtle); }
+.border-e { border-inline-end: 1px solid var(--color-border-subtle); }
+/* Directional icons that should flip in RTL */
+html[dir="rtl"] .rtl-flip { transform: scaleX(-1); }
+
+/* Global reduced-motion guard — overrides every keyframe + transition */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    animation-delay: 0ms !important;
+    transition-duration: 1ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 /* AI Studio — per-section morph-in: fires every time the visible section
@@ -104,9 +283,9 @@
   animation: studio-section-halo 700ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 @keyframes studio-section-halo {
-  0%   { box-shadow: 0 0 0 0 rgba(200, 71, 43, 0.0); }
-  35%  { box-shadow: 0 0 0 6px rgba(200, 71, 43, 0.18); }
-  100% { box-shadow: 0 0 0 0 rgba(200, 71, 43, 0); }
+  0%   { box-shadow: 0 0 0 0 rgba(156, 79, 55, 0.0); }
+  35%  { box-shadow: 0 0 0 6px rgba(156, 79, 55, 0.18); }
+  100% { box-shadow: 0 0 0 0 rgba(156, 79, 55, 0); }
 }
 
 /* Refine bar — slides up the first time it mounts so it doesn't appear
@@ -168,9 +347,9 @@
   animation: studio-kind-pulse 700ms cubic-bezier(0.34, 1.18, 0.6, 1) both;
 }
 @keyframes studio-kind-pulse {
-  0%   { transform: scale(1);    box-shadow: 0 0 0 0 rgba(200, 71, 43, 0.45); }
-  35%  { transform: scale(1.04); box-shadow: 0 0 0 8px rgba(200, 71, 43, 0); }
-  100% { transform: scale(1);    box-shadow: 0 0 0 0 rgba(200, 71, 43, 0); }
+  0%   { transform: scale(1);    box-shadow: 0 0 0 0 rgba(156, 79, 55, 0.45); }
+  35%  { transform: scale(1.04); box-shadow: 0 0 0 8px rgba(156, 79, 55, 0); }
+  100% { transform: scale(1);    box-shadow: 0 0 0 0 rgba(156, 79, 55, 0); }
 }
 
 /* Murchid mascot — the AI co-pilot character. Subtle float + drop shadow
@@ -234,12 +413,12 @@
 }
 .murchid-sidebar-brand:hover .murchid-sidebar-brand-mark {
   transform: rotate(-4deg) scale(1.04);
-  box-shadow: 0 6px 18px rgba(200, 71, 43, 0.28);
+  box-shadow: 0 6px 18px rgba(156, 79, 55, 0.28);
 }
 @keyframes murchid-sidebar-brand-halo {
-  0%   { box-shadow: 0 0 0 0 rgba(200, 71, 43, 0.0); }
-  35%  { box-shadow: 0 0 0 8px rgba(200, 71, 43, 0.22); }
-  100% { box-shadow: 0 0 0 0 rgba(200, 71, 43, 0); }
+  0%   { box-shadow: 0 0 0 0 rgba(156, 79, 55, 0.0); }
+  35%  { box-shadow: 0 0 0 8px rgba(156, 79, 55, 0.22); }
+  100% { box-shadow: 0 0 0 0 rgba(156, 79, 55, 0); }
 }
 
 /* Studio launcher — vertical hero card matching the 2026 mockup. Three
@@ -254,8 +433,8 @@
   background:
     radial-gradient(circle at 1px 1px, rgba(250, 246, 236, 0.05) 1px, transparent 1.6px),
     radial-gradient(circle at 85% 15%,
-      rgba(200, 71, 43, 0.55) 0%,
-      rgba(200, 71, 43, 0.18) 35%,
+      rgba(156, 79, 55, 0.55) 0%,
+      rgba(156, 79, 55, 0.18) 35%,
       transparent 70%),
     linear-gradient(160deg, #2f1810 0%, #1a0c08 100%);
   background-size: 14px 14px, 100% 100%, 100% 100%;
@@ -290,9 +469,9 @@
   inset: -20%;
   z-index: 0;
   background:
-    radial-gradient(circle at 22% 28%, rgba(200, 71, 43, 0.55), transparent 32%),
-    radial-gradient(circle at 78% 70%, rgba(184, 137, 61, 0.40), transparent 36%),
-    radial-gradient(circle at 50% 95%, rgba(232, 122, 85, 0.30), transparent 32%);
+    radial-gradient(circle at 22% 28%, rgba(156, 79, 55, 0.55), transparent 32%),
+    radial-gradient(circle at 78% 70%, rgba(158, 126, 54, 0.40), transparent 36%),
+    radial-gradient(circle at 50% 95%, rgba(216, 158, 132, 0.30), transparent 32%);
   filter: blur(14px);
   pointer-events: none;
   animation: murchid-studio-aurora 14s ease-in-out infinite;
@@ -387,7 +566,7 @@
   align-items: center;
   justify-content: center;
   box-shadow:
-    0 4px 12px rgba(200, 71, 43, 0.35),
+    0 4px 12px rgba(156, 79, 55, 0.35),
     inset 0 0 0 1px rgba(255, 255, 255, 0.6);
   animation: murchid-studio-launcher-pulse 2400ms ease-in-out infinite;
   transition: transform 280ms cubic-bezier(0.22, 1, 0.36, 1);
@@ -396,9 +575,9 @@
   transform: rotate(-6deg) scale(1.04);
 }
 @keyframes murchid-studio-launcher-pulse {
-  0%, 100% { box-shadow: 0 4px 12px rgba(200, 71, 43, 0.35),
+  0%, 100% { box-shadow: 0 4px 12px rgba(156, 79, 55, 0.35),
                           inset 0 0 0 1px rgba(255, 255, 255, 0.6); }
-  50%      { box-shadow: 0 6px 18px rgba(200, 71, 43, 0.55),
+  50%      { box-shadow: 0 6px 18px rgba(156, 79, 55, 0.55),
                           inset 0 0 0 1px rgba(255, 255, 255, 0.8); }
 }
 .murchid-studio-launcher-title {
@@ -506,7 +685,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 3px 8px rgba(184, 137, 61, 0.30);
+  box-shadow: 0 3px 8px rgba(158, 126, 54, 0.30);
 }
 .murchid-premium-card-title {
   font-family: var(--font-serif);
@@ -794,12 +973,12 @@
 .planner-orb-ring-outer {
   width: 140px;
   height: 140px;
-  border-color: rgba(232, 122, 85, 0.30);
+  border-color: rgba(216, 158, 132, 0.30);
 }
 .planner-orb-ring-inner {
   width: 110px;
   height: 110px;
-  border-color: rgba(232, 122, 85, 0.45);
+  border-color: rgba(216, 158, 132, 0.45);
 }
 
 /* Soft accent halo glowing behind the sphere. */
@@ -808,7 +987,7 @@
   width: 80px;
   height: 80px;
   border-radius: 999px;
-  background: radial-gradient(circle, rgba(232, 122, 85, 0.55), rgba(232, 122, 85, 0) 70%);
+  background: radial-gradient(circle, rgba(216, 158, 132, 0.55), rgba(216, 158, 132, 0) 70%);
   filter: blur(6px);
 }
 
@@ -825,7 +1004,7 @@
     radial-gradient(circle at 32% 30%, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0) 38%),
     radial-gradient(circle at 65% 65%, var(--color-accent-soft) 0%, var(--color-accent) 65%, #6b2918 110%);
   box-shadow:
-    0 16px 50px rgba(200, 71, 43, 0.42),
+    0 16px 50px rgba(156, 79, 55, 0.42),
     inset 0 -10px 22px rgba(15, 20, 16, 0.40),
     inset 0 8px 16px rgba(255, 255, 255, 0.20);
 }
@@ -896,14 +1075,14 @@
    three primary surfaces feel like the same "object". Upcoming and
    Quick Actions intentionally keep the plainer border-line look. */
 .planner-card-frame {
-  border: 1px solid #e6dccb;
+  border: 1px solid #E5DDC9;
   box-shadow: 0 18px 44px -22px rgba(15, 20, 16, 0.14);
 }
 
 /* Planner hero card — single PNG background, no overlays. */
 .planner-hero {
   background: url("/planner-hero-bg.png") center/cover no-repeat;
-  border: 1px solid #e6dccb;
+  border: 1px solid #E5DDC9;
   box-shadow: 0 18px 44px -22px rgba(15, 20, 16, 0.14);
   position: relative;
   overflow: hidden;
@@ -924,9 +1103,9 @@
   gap: 9px;
   padding: 6px 12px;
   border-radius: 12px;
-  background-color: #fdf8ee;
+  background-color: #FDFAF3;
   background-image: none;
-  border: 1px solid #f0e6d2;
+  border: 1px solid #E5DDC9;
   cursor: pointer;
   text-align: left;
   min-width: 0;
@@ -939,7 +1118,7 @@
 .planner-hero-chip:hover {
   transform: translateY(-1px);
   box-shadow: 0 10px 20px -10px rgba(15, 20, 16, 0.18);
-  border-color: #e8ddca;
+  border-color: #C8BFA8;
 }
 
 /* Per-chip icon palette so the row reads as six distinct tools. Soft
@@ -958,13 +1137,13 @@
 .planner-hero-chip:hover .planner-hero-chip-icon {
   transform: scale(1.06) rotate(-3deg);
 }
-.planner-hero-chip-icon-accent      { background: rgba(200, 71, 43, 0.12);  color: var(--color-accent); }
-.planner-hero-chip-icon-accent-soft { background: rgba(232, 122, 85, 0.14); color: var(--color-accent); }
+.planner-hero-chip-icon-accent      { background: rgba(156, 79, 55, 0.12);  color: var(--color-accent); }
+.planner-hero-chip-icon-accent-soft { background: rgba(216, 158, 132, 0.14); color: var(--color-accent); }
 .planner-hero-chip-icon-sage        { background: rgba(107, 127, 90, 0.14); color: var(--color-sage); }
 .planner-hero-chip-icon-moss        { background: rgba(91, 139, 74, 0.14);  color: #5b8b4a; }
 .planner-hero-chip-icon-indigo      { background: rgba(91, 108, 203, 0.13); color: #5b6ccb; }
 .planner-hero-chip-icon-violet      { background: rgba(139, 92, 184, 0.13); color: #8b5cb8; }
-.planner-hero-chip-icon-gold        { background: rgba(184, 137, 61, 0.15); color: var(--color-gold); }
+.planner-hero-chip-icon-gold        { background: rgba(158, 126, 54, 0.15); color: var(--color-gold); }
 
 /* Planner — monthly calendar grid. Each cell fades up on mount with a
    short stagger by column position so the grid assembles itself rather
@@ -998,7 +1177,7 @@
   position: relative;
   box-shadow: inset 0 0 0 1.5px var(--color-accent);
   background:
-    radial-gradient(ellipse at top, rgba(200, 71, 43, 0.06), transparent 70%),
+    radial-gradient(ellipse at top, rgba(156, 79, 55, 0.06), transparent 70%),
     var(--color-paper-cool) !important;
 }
 
@@ -1055,7 +1234,7 @@
      teacher hands the print-out to students like a real school paper, so
      it leads with a centered title, a meta strip, and fill-in-the-blank
      fields (Name / Date / Grade / Section / Score). */
-  .ws-paper { color: #1a1814; margin-bottom: 1.5rem; }
+  .ws-paper { color: #1F1B14; margin-bottom: 1.5rem; }
   .ws-paper .ws-title {
     font-family: "Fraunces", Georgia, serif;
     font-weight: 500;
@@ -1066,7 +1245,7 @@
   }
   .ws-paper .ws-title em {
     font-style: italic;
-    color: #c8472b;
+    color: #9C4F37;
   }
   .ws-paper .ws-meta {
     font-family: "JetBrains Mono", ui-monospace, monospace;
@@ -1074,12 +1253,12 @@
     letter-spacing: 0.12em;
     text-transform: uppercase;
     text-align: center;
-    color: #6b675e;
+    color: #7A715F;
     margin: 0 0 1rem 0;
   }
   .ws-paper .ws-rule {
     border: 0;
-    border-top: 1.5px solid #1a1814;
+    border-top: 1.5px solid #1F1B14;
     margin: 0.5rem 0 0.9rem 0;
   }
   .ws-paper .ws-fields {
@@ -1103,7 +1282,7 @@
   }
   .ws-paper .ws-fields .ws-blank {
     flex: 1;
-    border-bottom: 1px solid #1a1814;
+    border-bottom: 1px solid #1F1B14;
     min-height: 1.2em;
   }
   .ws-paper .ws-instr {
@@ -1111,7 +1290,7 @@
     font-size: 10.5pt;
     font-style: italic;
     color: #2a2620;
-    border-left: 2px solid #c8472b;
+    border-left: 2px solid #9C4F37;
     padding: 0.15rem 0 0.15rem 0.65rem;
     margin: 0 0 1rem 0;
   }
@@ -1134,11 +1313,11 @@
     font-size: 11.5pt;
     line-height: 1.45;
     margin: 0 0 6pt 0;
-    color: #1a1814;
+    color: #1F1B14;
   }
   .quiz-print-marks {
     font-style: italic;
-    color: #6b675e;
+    color: #7A715F;
     font-weight: 400;
   }
   .quiz-print-choices {
@@ -1146,7 +1325,7 @@
     padding-left: 28pt;
     font-family: "Inter Tight", Inter, sans-serif;
     font-size: 11pt;
-    color: #1a1814;
+    color: #1F1B14;
   }
   .quiz-print-choices li { margin: 0 0 3pt 0; }
   .quiz-print-tf {
@@ -1224,7 +1403,7 @@
 #root.a11y-hl-links a,
 #root.a11y-hl-links button,
 #root.a11y-hl-links [role="button"] {
-  outline: 2px solid #c8472b !important;
+  outline: 2px solid #9C4F37 !important;
   outline-offset: 1px;
   border-radius: 3px;
 }
