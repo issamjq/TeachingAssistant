@@ -822,25 +822,27 @@ function ThisMonthOverviewCard({ events = [], monthDate, todayStart }) {
     { n: todo,      k: t("planner.todo"),      dot: "bg-accent"  },
   ];
   return (
-    <div className="rounded-xl border border-[#e6dccb] bg-[#fffdf6] px-3 py-2.5 shadow-[var(--shadow-1)] flex items-center gap-3">
-      <div className="flex items-baseline gap-1.5 mr-auto min-w-0">
+    <div className="rounded-xl border border-[#e6dccb] bg-[#fffdf6] px-3 py-2 shadow-[var(--shadow-1)] flex flex-wrap items-center gap-x-3 gap-y-1.5">
+      <span className="inline-flex items-center gap-1.5 whitespace-nowrap mr-auto">
         <span className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted">
           {monthLabel}
         </span>
-        <span className="inline-flex items-center gap-1 text-[11px] font-medium text-sage ml-1">
+        <span className="inline-flex items-center gap-1 text-[11px] font-medium text-sage">
           <TrendingUp size={11} strokeWidth={2.25} /> {pct}%
         </span>
+      </span>
+      <div className="flex items-center gap-3 flex-wrap">
+        {stats.map((s, i) => (
+          <React.Fragment key={s.k}>
+            {i > 0 && <span className="h-4 w-px bg-line/60 shrink-0" />}
+            <span className="inline-flex items-center gap-1.5 whitespace-nowrap shrink-0">
+              <span className={`h-1.5 w-1.5 rounded-full ${s.dot}`} />
+              <span className="font-serif text-base font-medium text-ink leading-none">{s.n}</span>
+              <span className="text-[10.5px] text-muted leading-none">{s.k}</span>
+            </span>
+          </React.Fragment>
+        ))}
       </div>
-      {stats.map((s, i) => (
-        <React.Fragment key={s.k}>
-          {i > 0 && <span className="h-5 w-px bg-line/60" />}
-          <div className="flex items-center gap-1.5">
-            <span className={`h-1.5 w-1.5 rounded-full ${s.dot}`} />
-            <span className="font-serif text-base font-medium text-ink leading-none">{s.n}</span>
-            <span className="text-[10.5px] text-muted leading-none">{s.k}</span>
-          </div>
-        </React.Fragment>
-      ))}
     </div>
   );
 }
