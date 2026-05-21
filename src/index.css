@@ -193,29 +193,15 @@ html[dir="rtl"] .rtl-flip { transform: scaleX(-1); }
   }
 }
 
-/* AI Studio — per-section morph-in: fires every time the visible section
-   changes (sidebar click or ←/→ arrow key). Quantro-style scale + blur
-   release with a soft cubic-out curve. The previous flip felt mechanical;
-   this reads as a single surface rising into focus. */
+/* AI Studio — per-section morph-in. Calmer than the old scale+blur:
+   PageTransition handles the page-level fade now, so this keyframe is
+   left as a near-no-op so legacy callers don't break. */
 .studio-card-flip-in {
-  animation: studio-card-morph-in 520ms cubic-bezier(0.16, 1, 0.3, 1) both;
-  transform-origin: 50% 58%;
-  will-change: transform, opacity, filter;
+  animation: studio-card-fade-in var(--duration-base) var(--ease-out) both;
 }
-@keyframes studio-card-morph-in {
-  from {
-    opacity: 0;
-    transform: scale(0.94);
-    filter: blur(6px);
-  }
-  60% {
-    filter: blur(0);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1);
-    filter: blur(0);
-  }
+@keyframes studio-card-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
 }
 
 /* Inner-content stagger: each direct child of .studio-card-stagger fades
@@ -275,9 +261,9 @@ html[dir="rtl"] .rtl-flip { transform: scaleX(-1); }
   animation: studio-section-halo 700ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 @keyframes studio-section-halo {
-  0%   { box-shadow: 0 0 0 0 rgba(200, 71, 43, 0.0); }
-  35%  { box-shadow: 0 0 0 6px rgba(200, 71, 43, 0.18); }
-  100% { box-shadow: 0 0 0 0 rgba(200, 71, 43, 0); }
+  0%   { box-shadow: 0 0 0 0 rgba(156, 79, 55, 0.0); }
+  35%  { box-shadow: 0 0 0 6px rgba(156, 79, 55, 0.18); }
+  100% { box-shadow: 0 0 0 0 rgba(156, 79, 55, 0); }
 }
 
 /* Refine bar — slides up the first time it mounts so it doesn't appear
@@ -339,9 +325,9 @@ html[dir="rtl"] .rtl-flip { transform: scaleX(-1); }
   animation: studio-kind-pulse 700ms cubic-bezier(0.34, 1.18, 0.6, 1) both;
 }
 @keyframes studio-kind-pulse {
-  0%   { transform: scale(1);    box-shadow: 0 0 0 0 rgba(200, 71, 43, 0.45); }
-  35%  { transform: scale(1.04); box-shadow: 0 0 0 8px rgba(200, 71, 43, 0); }
-  100% { transform: scale(1);    box-shadow: 0 0 0 0 rgba(200, 71, 43, 0); }
+  0%   { transform: scale(1);    box-shadow: 0 0 0 0 rgba(156, 79, 55, 0.45); }
+  35%  { transform: scale(1.04); box-shadow: 0 0 0 8px rgba(156, 79, 55, 0); }
+  100% { transform: scale(1);    box-shadow: 0 0 0 0 rgba(156, 79, 55, 0); }
 }
 
 /* Murchid mascot — the AI co-pilot character. Subtle float + drop shadow
@@ -373,279 +359,138 @@ html[dir="rtl"] .rtl-flip { transform: scaleX(-1); }
      - the brand mark gets a single-shot accent halo on mount and a
        soft scale on hover */
 .murchid-sidebar {
-  background:
-    linear-gradient(180deg, var(--color-paper-warm) 0%, var(--color-paper) 100%);
-  border-right: 1px solid var(--color-line);
+  background: var(--color-surface-card);
+  border-inline-end: 1px solid var(--color-border-subtle);
 }
 
-.murchid-sidebar-brand {
-  position: relative;
-  animation: murchid-sidebar-brand-in 700ms cubic-bezier(0.16, 1, 0.3, 1) both;
-}
-@keyframes murchid-sidebar-brand-in {
-  from { opacity: 0; transform: translateY(-6px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
+.murchid-sidebar-brand { position: relative; }
 .murchid-sidebar-brand-mark {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  height: 28px;
-  width: 28px;
+  display: inline-grid;
+  place-items: center;
+  height: 24px;
+  width: 24px;
   border-radius: 8px;
   background: var(--color-accent);
-  color: var(--color-paper-cool);
+  color: var(--color-surface-card);
   font-family: var(--font-serif);
-  font-weight: 600;
+  font-style: italic;
+  font-weight: 400;
   font-size: 14px;
-  transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1),
-              box-shadow 220ms ease;
-  animation: murchid-sidebar-brand-halo 1400ms cubic-bezier(0.22, 1, 0.36, 1) 200ms both;
+  line-height: 1;
+  transition: transform var(--duration-fast) var(--ease-out);
 }
 .murchid-sidebar-brand:hover .murchid-sidebar-brand-mark {
-  transform: rotate(-4deg) scale(1.04);
-  box-shadow: 0 6px 18px rgba(200, 71, 43, 0.28);
-}
-@keyframes murchid-sidebar-brand-halo {
-  0%   { box-shadow: 0 0 0 0 rgba(200, 71, 43, 0.0); }
-  35%  { box-shadow: 0 0 0 8px rgba(200, 71, 43, 0.22); }
-  100% { box-shadow: 0 0 0 0 rgba(200, 71, 43, 0); }
+  transform: scale(1.06);
 }
 
-/* Studio launcher — vertical hero card matching the 2026 mockup. Three
-   stacked rows: a header with a sparkle square + "AI" pill, a body
-   with the Studio title + subtitle, and a full-width cream CTA at the
-   bottom. The dark ink surface is painted by an animated 3-blob aurora
-   (see ::before below) so the surface never reads as flat. */
+/* Studio launcher — editorial calm (v3.0). The aurora-gradient version
+   was the "AI dashboard" tell; replaced with a quiet ink card: serif
+   italic title, a single accent dot, restrained typography. */
 .murchid-studio-launcher {
-  margin: 0 10px 14px;
-  padding: 14px;
-  border-radius: 18px;
-  background:
-    radial-gradient(circle at 1px 1px, rgba(250, 246, 236, 0.05) 1px, transparent 1.6px),
-    radial-gradient(circle at 85% 15%,
-      rgba(200, 71, 43, 0.55) 0%,
-      rgba(200, 71, 43, 0.18) 35%,
-      transparent 70%),
-    linear-gradient(160deg, #2f1810 0%, #1a0c08 100%);
-  background-size: 14px 14px, 100% 100%, 100% 100%;
-  color: var(--color-paper-cool);
+  position: relative;
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  width: calc(100% - 20px);
-  cursor: pointer;
+  gap: 14px;
+  width: calc(100% - 24px);
+  margin: 6px 12px 18px;
+  padding: 18px 18px 16px;
+  border-radius: 16px;
+  background: var(--color-text-primary);
+  color: var(--color-surface-card);
   border: 0;
-  text-align: left;
-  position: relative;
-  overflow: hidden;
+  text-align: start;
+  cursor: pointer;
   isolation: isolate;
-  box-shadow:
-    0 12px 28px rgba(40, 18, 10, 0.45),
-    0 2px 6px rgba(15, 20, 16, 0.20);
-  transition: transform 280ms cubic-bezier(0.22, 1, 0.36, 1),
-              box-shadow 280ms ease;
-  animation: murchid-studio-launcher-in 640ms cubic-bezier(0.16, 1, 0.3, 1) 220ms both;
+  transition:
+    transform var(--duration-fast) var(--ease-out),
+    box-shadow var(--duration-fast) ease;
+  animation: studio-launcher-in 480ms var(--ease-out) 180ms both;
 }
-
-/* Animated aurora layer behind the content. Three soft accent blobs in
-   Murchid's warm palette (accent red, accent-soft, gold) drift, scale,
-   and rotate together on a 14s loop. The whole layer sits at z-index 0
-   while the content children stack above naturally; isolation: isolate
-   on the parent keeps the blur from leaking into the rest of the
-   sidebar. */
-.murchid-studio-launcher::before {
-  content: "";
-  position: absolute;
-  inset: -20%;
-  z-index: 0;
-  background:
-    radial-gradient(circle at 22% 28%, rgba(200, 71, 43, 0.55), transparent 32%),
-    radial-gradient(circle at 78% 70%, rgba(184, 137, 61, 0.40), transparent 36%),
-    radial-gradient(circle at 50% 95%, rgba(232, 122, 85, 0.30), transparent 32%);
-  filter: blur(14px);
-  pointer-events: none;
-  animation: murchid-studio-aurora 14s ease-in-out infinite;
-}
-.murchid-studio-launcher:hover::before {
-  animation-duration: 9s;
-}
-
-@keyframes murchid-studio-aurora {
-  0%, 100% {
-    transform: translate(0, 0) scale(1) rotate(0deg);
-  }
-  25% {
-    transform: translate(-6%, 4%) scale(1.08) rotate(6deg);
-  }
-  50% {
-    transform: translate(4%, -3%) scale(1.04) rotate(-4deg);
-  }
-  75% {
-    transform: translate(6%, 3%) scale(0.96) rotate(8deg);
-  }
-}
-
-/* Make sure the inner pieces float above the aurora. */
-.murchid-studio-launcher-icon,
-.murchid-studio-launcher-text,
-.murchid-studio-launcher-arrow {
-  position: relative;
-  z-index: 2;
-}
-.murchid-studio-launcher:hover {
-  transform: translateY(-2px);
-  box-shadow:
-    0 18px 38px rgba(15, 20, 16, 0.24),
-    0 4px 10px rgba(15, 20, 16, 0.12);
-}
-.murchid-studio-launcher:active {
-  transform: translateY(0);
-}
+.murchid-studio-launcher:hover { transform: translateY(-1px); }
+.murchid-studio-launcher:active { transform: translateY(0); }
 .murchid-studio-launcher-active {
-  outline: 2px solid var(--color-accent);
+  outline: 1.5px solid var(--color-accent);
   outline-offset: 2px;
 }
-@keyframes murchid-studio-launcher-in {
-  from { opacity: 0; transform: translateY(10px) scale(0.96); }
-  to   { opacity: 1; transform: translateY(0) scale(1); }
+@keyframes studio-launcher-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
-
-/* Sheen sweep — sits between the aurora (z-index 0) and the content
-   (z-index 2). On hover it sweeps left → right over the card so the
-   teacher gets clear feedback that the button responded. */
-.murchid-studio-launcher::after {
-  content: "";
-  position: absolute;
-  top: 0; bottom: 0; left: -40%;
-  width: 40%;
-  z-index: 1;
-  background: linear-gradient(
-    100deg,
-    transparent 0%,
-    rgba(255, 255, 255, 0.08) 50%,
-    transparent 100%
-  );
-  transform: skewX(-12deg);
-  pointer-events: none;
-  transition: left 900ms cubic-bezier(0.22, 1, 0.36, 1);
-}
-.murchid-studio-launcher:hover::after {
-  left: 110%;
-}
-
-/* Row 1 — icon + "Studio" title on the left, "AI" pill on the right. */
 .murchid-studio-launcher-head {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   justify-content: space-between;
-  position: relative;
-  z-index: 2;
 }
 .murchid-studio-launcher-brand {
   display: inline-flex;
-  align-items: center;
-  gap: 9px;
+  align-items: baseline;
+  gap: 10px;
 }
 .murchid-studio-launcher-icon {
-  height: 30px;
-  width: 30px;
-  border-radius: 9px;
-  background: var(--color-paper-cool);
-  color: var(--color-accent);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow:
-    0 4px 12px rgba(200, 71, 43, 0.35),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.6);
-  animation: murchid-studio-launcher-pulse 2400ms ease-in-out infinite;
-  transition: transform 280ms cubic-bezier(0.22, 1, 0.36, 1);
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--color-accent);
+  transform: translateY(-3px);
 }
-.murchid-studio-launcher:hover .murchid-studio-launcher-icon {
-  transform: rotate(-6deg) scale(1.04);
-}
-@keyframes murchid-studio-launcher-pulse {
-  0%, 100% { box-shadow: 0 4px 12px rgba(200, 71, 43, 0.35),
-                          inset 0 0 0 1px rgba(255, 255, 255, 0.6); }
-  50%      { box-shadow: 0 6px 18px rgba(200, 71, 43, 0.55),
-                          inset 0 0 0 1px rgba(255, 255, 255, 0.8); }
-}
+.murchid-studio-launcher-icon > svg { display: none; }
 .murchid-studio-launcher-title {
   font-family: var(--font-serif);
-  font-size: 22px;
-  font-weight: 600;
-  letter-spacing: -0.015em;
-  color: var(--color-paper-cool);
+  font-style: italic;
+  font-size: 24px;
+  font-weight: 400;
+  letter-spacing: -0.01em;
+  color: var(--color-surface-card);
   line-height: 1;
 }
 .murchid-studio-launcher-pill {
-  font-family: var(--font-sans);
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  padding: 3px 9px;
-  border-radius: 999px;
-  background: rgba(250, 246, 236, 0.12);
-  color: var(--color-paper-cool);
-  border: 1px solid rgba(250, 246, 236, 0.30);
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(240, 233, 217, 0.55);
+  background: transparent;
+  border: 0;
+  padding: 0;
 }
-
-/* Row 2 — subtitle + small tagline. */
 .murchid-studio-launcher-body {
-  position: relative;
-  z-index: 2;
   display: flex;
   flex-direction: column;
   gap: 2px;
 }
 .murchid-studio-launcher-subtitle {
   font-family: var(--font-sans);
-  font-size: 12px;
+  font-size: 12.5px;
   font-weight: 400;
-  color: rgba(250, 246, 236, 0.85);
-  letter-spacing: -0.005em;
-  line-height: 1.3;
+  color: rgba(240, 233, 217, 0.78);
+  line-height: 1.4;
+  letter-spacing: -0.003em;
 }
-.murchid-studio-launcher-tagline {
-  font-family: var(--font-sans);
-  font-size: 11px;
-  color: rgba(250, 246, 236, 0.55);
-  letter-spacing: 0.005em;
-  line-height: 1.3;
-}
-
-/* Row 3 — full-width white CTA at the bottom with arrow on the right. */
+.murchid-studio-launcher-tagline { display: none; }
 .murchid-studio-launcher-cta {
-  position: relative;
-  z-index: 2;
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  justify-content: space-between;
   gap: 6px;
-  padding: 10px 14px;
   margin-top: 2px;
-  border-radius: 12px;
-  background: var(--color-paper-cool);
-  color: var(--color-ink);
+  padding: 0;
+  background: transparent;
+  border: 0;
+  color: var(--color-accent-soft);
   font-family: var(--font-sans);
-  font-size: 13px;
+  font-size: 12.5px;
   font-weight: 500;
-  letter-spacing: -0.005em;
-  box-shadow:
-    0 2px 0 rgba(0, 0, 0, 0.04),
-    0 6px 14px rgba(40, 18, 10, 0.30);
-  transition: background-color 200ms ease, transform 200ms ease;
-}
-.murchid-studio-launcher:hover .murchid-studio-launcher-cta {
-  background: #ffffff;
 }
 .murchid-studio-launcher-cta-arrow {
-  transition: transform 240ms cubic-bezier(0.22, 1, 0.36, 1);
+  transition: transform var(--duration-fast) var(--ease-out);
 }
 .murchid-studio-launcher:hover .murchid-studio-launcher-cta-arrow {
   transform: translateX(3px);
+}
+html[dir="rtl"] .murchid-studio-launcher-cta-arrow { transform: scaleX(-1); }
+html[dir="rtl"] .murchid-studio-launcher:hover .murchid-studio-launcher-cta-arrow {
+  transform: translateX(-3px) scaleX(-1);
 }
 
 /* Murchid Premium upgrade card — bottom of the sidebar. Cream paper-cool
@@ -677,7 +522,7 @@ html[dir="rtl"] .rtl-flip { transform: scaleX(-1); }
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 3px 8px rgba(184, 137, 61, 0.30);
+  box-shadow: 0 3px 8px rgba(158, 126, 54, 0.30);
 }
 .murchid-premium-card-title {
   font-family: var(--font-serif);
@@ -750,121 +595,77 @@ html[dir="rtl"] .rtl-flip { transform: scaleX(-1); }
   background: var(--color-accent);
 }
 
-.murchid-sidebar-section {
-  position: relative;
-}
-.murchid-sidebar-section + .murchid-sidebar-section {
-  margin-top: 18px;
-}
-
+.murchid-sidebar-section + .murchid-sidebar-section { margin-top: 14px; }
 .murchid-sidebar-section-label {
-  font-family: var(--font-serif);
-  font-style: italic;
-  font-size: 13px;
-  color: var(--color-muted);
-  padding: 0 14px 6px;
-  letter-spacing: 0.005em;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--color-text-muted);
+  padding: 0 16px 8px;
+}
+html[lang="ar"] .murchid-sidebar-section-label,
+html[dir="rtl"] .murchid-sidebar-section-label {
+  text-transform: none;
+  font-weight: 700;
+  letter-spacing: 0;
+  font-family: var(--font-arabic);
 }
 
-/* Each nav button. Hover lifts -0.5px and slides text 2px right so the
-   row feels picked-up rather than swapped. Active state gets paper-cool
-   bg + ink text, plus an accent rail handled separately below. */
 .murchid-sidebar-item {
   position: relative;
   width: 100%;
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 8px 12px 8px 16px;
-  border-radius: 10px;
+  padding: 7px 14px;
+  border-radius: 8px;
   font-size: 13.5px;
-  color: var(--color-ink-soft);
+  font-weight: 400;
+  color: var(--color-text-secondary);
   background: transparent;
   border: 0;
   cursor: pointer;
-  text-align: left;
-  transition: background-color 200ms ease,
-              color 200ms ease,
-              transform 200ms cubic-bezier(0.22, 1, 0.36, 1);
-  opacity: 0;
-  animation: murchid-sidebar-item-in 460ms cubic-bezier(0.22, 1, 0.36, 1) both;
-  animation-delay: calc(var(--mi, 0) * 40ms + 120ms);
+  text-align: start;
+  transition: background-color var(--duration-fast) var(--ease-out),
+              color var(--duration-fast) var(--ease-out);
+  animation: murchid-sidebar-item-in 320ms var(--ease-out) both;
+  animation-delay: calc(var(--mi, 0) * 24ms + 80ms);
 }
 @keyframes murchid-sidebar-item-in {
-  from { opacity: 0; transform: translateX(-6px); }
-  to   { opacity: 1; transform: translateX(0); }
+  from { opacity: 0; transform: translateY(-2px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 .murchid-sidebar-item:hover {
-  background: rgba(255, 255, 255, 0.6);
-  color: var(--color-ink);
-  transform: translateX(2px);
+  background: var(--color-surface-sunken);
+  color: var(--color-text-primary);
 }
 .murchid-sidebar-item-active {
-  background: var(--color-paper-cool);
-  color: var(--color-ink);
+  background: var(--color-surface-sunken);
+  color: var(--color-text-primary);
   font-weight: 500;
-  box-shadow: 0 1px 0 0 var(--color-line),
-              0 8px 18px -10px rgba(15, 20, 16, 0.18);
 }
-.murchid-sidebar-item-active:hover {
-  background: var(--color-paper-cool);
-  transform: translateX(0);
-}
+.murchid-sidebar-item::before { display: none; }
 
-/* The accent rail. A 3px stripe pinned to the left of the active item.
-   We render it as a pseudo-element on every item but only show it on
-   the active one — and animate the scale-y from 0 to 1 on activation so
-   it grows into place. */
-.murchid-sidebar-item::before {
-  content: "";
-  position: absolute;
-  left: 4px;
-  top: 6px;
-  bottom: 6px;
-  width: 3px;
-  border-radius: 999px;
-  background: var(--color-accent);
-  transform: scaleY(0);
-  transform-origin: center;
-  opacity: 0;
-  transition: transform 320ms cubic-bezier(0.22, 1, 0.36, 1),
-              opacity 200ms ease;
-}
-.murchid-sidebar-item-active::before {
-  transform: scaleY(1);
-  opacity: 1;
-}
-
-/* Letter/icon badge inside an item. Small rounded square with the
-   item's letter or icon. Active state flips to accent fill. */
 .murchid-sidebar-badge {
   flex-shrink: 0;
-  height: 26px;
-  width: 26px;
-  border-radius: 7px;
+  height: 22px;
+  width: 22px;
+  border-radius: 4px;
   font-family: var(--font-mono);
-  font-size: 11px;
-  font-weight: 500;
+  font-size: 10px;
+  font-weight: 600;
   letter-spacing: 0.04em;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--color-paper-cool);
-  color: var(--color-ink-soft);
-  border: 1px solid var(--color-line);
-  transition: background-color 200ms ease,
-              color 200ms ease,
-              border-color 200ms ease,
-              transform 200ms cubic-bezier(0.22, 1, 0.36, 1);
-}
-.murchid-sidebar-item:hover .murchid-sidebar-badge {
-  border-color: var(--color-ink-soft);
+  display: inline-grid;
+  place-items: center;
+  background: transparent;
+  color: var(--color-text-muted);
+  border: 0;
+  transition: color var(--duration-fast) var(--ease-out);
 }
 .murchid-sidebar-item-active .murchid-sidebar-badge {
-  background: var(--color-ink);
-  color: var(--color-paper-cool);
-  border-color: var(--color-ink);
-  transform: rotate(-3deg);
+  color: var(--color-accent);
 }
 
 /* The footer account card. Same paper-cool surface as the active nav
@@ -939,82 +740,8 @@ html[dir="rtl"] .rtl-flip { transform: scaleX(-1); }
   margin-bottom: 6px;
   min-height: 120px;
 }
-.planner-orb {
-  position: absolute;
-  right: 3%;
-  top: -6px;
-  width: 130px;
-  height: 130px;
-  pointer-events: none;
-  align-items: center;
-  justify-content: center;
-  animation: planner-orb-float 7s ease-in-out infinite;
-}
-@keyframes planner-orb-float {
-  0%, 100% { transform: translateY(0); }
-  50%      { transform: translateY(-6px); }
-}
-
-/* Two concentric ring borders. Outer larger, inner smaller. */
-.planner-orb-ring {
-  position: absolute;
-  border-radius: 999px;
-  border: 1px solid;
-  pointer-events: none;
-}
-.planner-orb-ring-outer {
-  width: 140px;
-  height: 140px;
-  border-color: rgba(232, 122, 85, 0.30);
-}
-.planner-orb-ring-inner {
-  width: 110px;
-  height: 110px;
-  border-color: rgba(232, 122, 85, 0.45);
-}
-
-/* Soft accent halo glowing behind the sphere. */
-.planner-orb-halo {
-  position: absolute;
-  width: 80px;
-  height: 80px;
-  border-radius: 999px;
-  background: radial-gradient(circle, rgba(232, 122, 85, 0.55), rgba(232, 122, 85, 0) 70%);
-  filter: blur(6px);
-}
-
-/* Central sphere — warm gradient ball with a Sparkles glyph inside. */
-.planner-orb-sphere {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 70px;
-  height: 70px;
-  border-radius: 999px;
-  background:
-    radial-gradient(circle at 32% 30%, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0) 38%),
-    radial-gradient(circle at 65% 65%, var(--color-accent-soft) 0%, var(--color-accent) 65%, #6b2918 110%);
-  box-shadow:
-    0 16px 50px rgba(200, 71, 43, 0.42),
-    inset 0 -10px 22px rgba(15, 20, 16, 0.40),
-    inset 0 8px 16px rgba(255, 255, 255, 0.20);
-}
-
-/* Today-cell sparkle — pinned to bottom-right of the today cell as a
-   tiny accent affordance. */
-.planner-cell-today-spark {
-  position: absolute;
-  right: 6px;
-  bottom: 6px;
-  color: var(--color-accent);
-  opacity: 0.85;
-  animation: planner-cell-today-spark 2.6s ease-in-out infinite;
-}
-@keyframes planner-cell-today-spark {
-  0%, 100% { transform: scale(1); opacity: 0.7; }
-  50%      { transform: scale(1.18); opacity: 1; }
-}
+/* Planner orb + today-sparkle decorative loops were cut for v3.0
+   (anti-slop checklist: no infinite decorative animations). */
 
 /* Header search field — pill, faint border, kbd hint on the right. */
 .murchid-search {
@@ -1067,18 +794,37 @@ html[dir="rtl"] .rtl-flip { transform: scaleX(-1); }
    three primary surfaces feel like the same "object". Upcoming and
    Quick Actions intentionally keep the plainer border-line look. */
 .planner-card-frame {
-  border: 1px solid #e6dccb;
+  border: 1px solid #E5DDC9;
   box-shadow: 0 18px 44px -22px rgba(15, 20, 16, 0.14);
 }
 
-/* Planner hero card — single PNG background, no overlays. */
+/* Planner hero card — editorial calm. PNG background was the
+   "AI dashboard backdrop" tell; replaced with a flat card-on-card
+   that lets the italic serif headline carry the page. */
 .planner-hero {
-  background: url("/planner-hero-bg.png") center/cover no-repeat;
-  border: 1px solid #e6dccb;
-  box-shadow: 0 18px 44px -22px rgba(15, 20, 16, 0.14);
+  background: var(--color-surface-card);
+  border: 1px solid var(--color-border-subtle);
   position: relative;
   overflow: hidden;
   isolation: isolate;
+}
+.planner-hero::before {
+  content: "";
+  position: absolute;
+  inset: auto -10% -40% auto;
+  width: 360px;
+  height: 360px;
+  z-index: 0;
+  border-radius: 999px;
+  background: radial-gradient(
+    circle,
+    color-mix(in oklab, var(--color-accent) 8%, transparent) 0%,
+    transparent 60%
+  );
+  pointer-events: none;
+}
+html[dir="rtl"] .planner-hero::before {
+  inset: auto auto -40% -10%;
 }
 
 .planner-hero > * {
@@ -1095,9 +841,9 @@ html[dir="rtl"] .rtl-flip { transform: scaleX(-1); }
   gap: 9px;
   padding: 6px 12px;
   border-radius: 12px;
-  background-color: #fdf8ee;
+  background-color: #FDFAF3;
   background-image: none;
-  border: 1px solid #f0e6d2;
+  border: 1px solid #E5DDC9;
   cursor: pointer;
   text-align: left;
   min-width: 0;
@@ -1110,7 +856,7 @@ html[dir="rtl"] .rtl-flip { transform: scaleX(-1); }
 .planner-hero-chip:hover {
   transform: translateY(-1px);
   box-shadow: 0 10px 20px -10px rgba(15, 20, 16, 0.18);
-  border-color: #e8ddca;
+  border-color: #C8BFA8;
 }
 
 /* Per-chip icon palette so the row reads as six distinct tools. Soft
@@ -1129,13 +875,13 @@ html[dir="rtl"] .rtl-flip { transform: scaleX(-1); }
 .planner-hero-chip:hover .planner-hero-chip-icon {
   transform: scale(1.06) rotate(-3deg);
 }
-.planner-hero-chip-icon-accent      { background: rgba(200, 71, 43, 0.12);  color: var(--color-accent); }
-.planner-hero-chip-icon-accent-soft { background: rgba(232, 122, 85, 0.14); color: var(--color-accent); }
+.planner-hero-chip-icon-accent      { background: rgba(156, 79, 55, 0.12);  color: var(--color-accent); }
+.planner-hero-chip-icon-accent-soft { background: rgba(216, 158, 132, 0.14); color: var(--color-accent); }
 .planner-hero-chip-icon-sage        { background: rgba(107, 127, 90, 0.14); color: var(--color-sage); }
 .planner-hero-chip-icon-moss        { background: rgba(91, 139, 74, 0.14);  color: #5b8b4a; }
 .planner-hero-chip-icon-indigo      { background: rgba(91, 108, 203, 0.13); color: #5b6ccb; }
 .planner-hero-chip-icon-violet      { background: rgba(139, 92, 184, 0.13); color: #8b5cb8; }
-.planner-hero-chip-icon-gold        { background: rgba(184, 137, 61, 0.15); color: var(--color-gold); }
+.planner-hero-chip-icon-gold        { background: rgba(158, 126, 54, 0.15); color: var(--color-gold); }
 
 /* Planner — monthly calendar grid. Each cell fades up on mount with a
    short stagger by column position so the grid assembles itself rather
@@ -1169,7 +915,7 @@ html[dir="rtl"] .rtl-flip { transform: scaleX(-1); }
   position: relative;
   box-shadow: inset 0 0 0 1.5px var(--color-accent);
   background:
-    radial-gradient(ellipse at top, rgba(200, 71, 43, 0.06), transparent 70%),
+    radial-gradient(ellipse at top, rgba(156, 79, 55, 0.06), transparent 70%),
     var(--color-paper-cool) !important;
 }
 
@@ -1226,7 +972,7 @@ html[dir="rtl"] .rtl-flip { transform: scaleX(-1); }
      teacher hands the print-out to students like a real school paper, so
      it leads with a centered title, a meta strip, and fill-in-the-blank
      fields (Name / Date / Grade / Section / Score). */
-  .ws-paper { color: #1a1814; margin-bottom: 1.5rem; }
+  .ws-paper { color: #1F1B14; margin-bottom: 1.5rem; }
   .ws-paper .ws-title {
     font-family: "Fraunces", Georgia, serif;
     font-weight: 500;
@@ -1237,7 +983,7 @@ html[dir="rtl"] .rtl-flip { transform: scaleX(-1); }
   }
   .ws-paper .ws-title em {
     font-style: italic;
-    color: #c8472b;
+    color: #9C4F37;
   }
   .ws-paper .ws-meta {
     font-family: "JetBrains Mono", ui-monospace, monospace;
@@ -1245,12 +991,12 @@ html[dir="rtl"] .rtl-flip { transform: scaleX(-1); }
     letter-spacing: 0.12em;
     text-transform: uppercase;
     text-align: center;
-    color: #6b675e;
+    color: #7A715F;
     margin: 0 0 1rem 0;
   }
   .ws-paper .ws-rule {
     border: 0;
-    border-top: 1.5px solid #1a1814;
+    border-top: 1.5px solid #1F1B14;
     margin: 0.5rem 0 0.9rem 0;
   }
   .ws-paper .ws-fields {
@@ -1274,7 +1020,7 @@ html[dir="rtl"] .rtl-flip { transform: scaleX(-1); }
   }
   .ws-paper .ws-fields .ws-blank {
     flex: 1;
-    border-bottom: 1px solid #1a1814;
+    border-bottom: 1px solid #1F1B14;
     min-height: 1.2em;
   }
   .ws-paper .ws-instr {
@@ -1282,7 +1028,7 @@ html[dir="rtl"] .rtl-flip { transform: scaleX(-1); }
     font-size: 10.5pt;
     font-style: italic;
     color: #2a2620;
-    border-left: 2px solid #c8472b;
+    border-left: 2px solid #9C4F37;
     padding: 0.15rem 0 0.15rem 0.65rem;
     margin: 0 0 1rem 0;
   }
@@ -1305,11 +1051,11 @@ html[dir="rtl"] .rtl-flip { transform: scaleX(-1); }
     font-size: 11.5pt;
     line-height: 1.45;
     margin: 0 0 6pt 0;
-    color: #1a1814;
+    color: #1F1B14;
   }
   .quiz-print-marks {
     font-style: italic;
-    color: #6b675e;
+    color: #7A715F;
     font-weight: 400;
   }
   .quiz-print-choices {
@@ -1317,7 +1063,7 @@ html[dir="rtl"] .rtl-flip { transform: scaleX(-1); }
     padding-left: 28pt;
     font-family: "Inter Tight", Inter, sans-serif;
     font-size: 11pt;
-    color: #1a1814;
+    color: #1F1B14;
   }
   .quiz-print-choices li { margin: 0 0 3pt 0; }
   .quiz-print-tf {
@@ -1395,7 +1141,7 @@ html[dir="rtl"] .rtl-flip { transform: scaleX(-1); }
 #root.a11y-hl-links a,
 #root.a11y-hl-links button,
 #root.a11y-hl-links [role="button"] {
-  outline: 2px solid #c8472b !important;
+  outline: 2px solid #9C4F37 !important;
   outline-offset: 1px;
   border-radius: 3px;
 }
