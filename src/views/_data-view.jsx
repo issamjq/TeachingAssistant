@@ -558,9 +558,9 @@ export function NewKindPopup({ kind, aiKind, onClose, onManual }) {
 export function DataCard({ onEdit, onDelete, className = "", children }) {
   return (
     <div
-      className={`relative rounded-2xl border border-[#e6dccb] bg-paper-cool shadow-[0_18px_44px_-22px_rgba(15,20,16,0.14)] hover:border-ink/30 hover:shadow-[0_22px_50px_-22px_rgba(15,20,16,0.22)] transition-all duration-200 p-5 flex flex-col ${className}`}
+      className={`relative rounded-2xl border border-[var(--color-border-subtle)] bg-paper-cool shadow-[var(--shadow-2)] hover:border-[var(--color-border-strong)] hover:shadow-[var(--shadow-3)] hover:-translate-y-[1px] transition-[transform,box-shadow,border-color] duration-200 p-5 flex flex-col ${className}`}
     >
-      <div className="absolute top-3 right-3 flex items-center gap-1">
+      <div className="absolute top-3 end-3 flex items-center gap-1">
         {onEdit && (
           <button
             type="button"
@@ -593,9 +593,27 @@ export function DataCard({ onEdit, onDelete, className = "", children }) {
 // A consistent grid for cards
 // ──────────────────────────────────────────────────────────────────
 export function CardsGrid({ children }) {
+  const items = React.Children.toArray(children);
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-      {children}
+      {items.map((child, i) => (
+        <div
+          key={i}
+          className="data-card-stagger"
+          style={{ animationDelay: `${Math.min(i * 40, 320)}ms` }}
+        >
+          {child}
+        </div>
+      ))}
+      <style>{`
+        .data-card-stagger {
+          animation: data-card-stagger 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
+        }
+        @keyframes data-card-stagger {
+          from { opacity: 0; transform: translateY(8px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+      `}</style>
     </div>
   );
 }

@@ -463,8 +463,8 @@ export default function ProfileForm({ onDone, onBack }) {
           width: 100%;
           padding: 0.625rem 0.875rem;
           border-radius: 0.625rem;
-          border: 1px solid var(--line-strong, #d4c9b3);
-          background: #fffdf6;
+          border: 1px solid var(--line-strong, #E5DDC9);
+          background: var(--color-surface-card);
           color: var(--ink);
           font-size: 0.9375rem;
           outline: none;
@@ -472,8 +472,8 @@ export default function ProfileForm({ onDone, onBack }) {
           font-family: inherit;
         }
         .onb-input:focus {
-          border-color: var(--clay, #c8472b);
-          box-shadow: 0 0 0 3px rgba(200, 71, 43, 0.12);
+          border-color: var(--clay, #9C4F37);
+          box-shadow: 0 0 0 3px rgba(156, 79, 55, 0.16);
         }
       `}</style>
     </div>
@@ -488,7 +488,7 @@ function ProgressDots({ count, active }) {
           key={i}
           className="h-1 flex-1 rounded-full transition-colors"
           style={{
-            background: i <= active ? "var(--clay, #c8472b)" : "var(--line-strong, #d4c9b3)",
+            background: i <= active ? "var(--clay, #9C4F37)" : "var(--line-strong, #E5DDC9)",
             opacity: i === active ? 1 : i < active ? 0.85 : 0.45,
           }}
         />
