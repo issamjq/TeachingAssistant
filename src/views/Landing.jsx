@@ -11,6 +11,7 @@ import { useT, useI18n, LangToggle } from "../lib/i18n";
 import { useAccount, setAccount, clearAccount, getPendingProfile, clearPendingProfile } from "../lib/account";
 import { PLANS } from "../lib/plans";
 import ProfileForm from "./onboarding/ProfileForm";
+import LandingHome from "./LandingHome";
 
 // Animations removed by request. These are no-op stand-ins for the
 // framer-motion API so the page renders fully static — no fades, no
@@ -186,36 +187,59 @@ const SectionDivider = ({ variant = "calm", flip = false, height = 120 }) => {
 // =====================================================================
 // NAV
 // =====================================================================
-const Nav = ({ onEnter, signedIn, onJump, onPage, onSignOut }) => {
+// The Nav sits fixed above every page. On the cinematic home it has
+// to live both over the dark drench hero (cream text, transparent bg)
+// and over the cream sections below (dark text, cream blur). The
+// `darkHero` prop tells the nav the page begins with a dark surface;
+// while `scrollY` is still inside that surface, the nav inverts.
+const Nav = ({ onEnter, signedIn, onJump, onPage, onSignOut, darkHero = false }) => {
   const t = useT();
   const [scrolled, setScrolled] = useState(false);
+  const [overDark, setOverDark] = useState(darkHero);
   useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 20);
-    window.addEventListener("scroll", onScroll);
+    const onScroll = () => {
+      const y = window.scrollY;
+      setScrolled(y > 20);
+      setOverDark(darkHero && y < window.innerHeight * 0.85);
+    };
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
-  }, []);
+  }, [darkHero]);
+
+  // Two colour scenarios. On the dark drench: cream chrome, no blur
+  // tint (a faint smoke shadow keeps the bar legible). On any cream
+  // surface: ink chrome with a cream backdrop blur once scrolled.
+  const onDark = overDark;
+  const fg = onDark ? "oklch(0.96 0.025 80 / 0.92)" : "var(--ink-2)";
+  const fgDot = onDark ? "var(--paper)" : "var(--paper)";
+  const dotBg = onDark ? "oklch(0.95 0.03 80 / 0.18)" : "var(--ink)";
+  const headerCls = scrolled
+    ? onDark
+      ? "nav-shade"
+      : "nav-blur border-b"
+    : "";
 
   return (
     <motion.header
       initial={{ y: -40, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
       transition={{ duration: 0.8, ease: EASE }}
-      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${
-        scrolled ? "nav-blur border-b" : ""
-      }`}
-      style={{ borderColor: scrolled ? "var(--line)" : "transparent" }}
+      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${headerCls}`}
+      style={{ borderColor: scrolled && !onDark ? "var(--line)" : "transparent" }}
     >
       <div className="max-w-[1280px] mx-auto px-8 py-3 flex items-center justify-between">
         <button
           type="button"
           onClick={() => onPage("home")}
           className="flex items-center gap-2.5"
+          style={{ color: fg }}
         >
           <div
             className="w-7 h-7 rounded-md flex items-center justify-center"
-            style={{ background: "var(--ink)" }}
+            style={{ background: dotBg, border: onDark ? "1px solid oklch(0.96 0.025 80 / 0.35)" : "none" }}
           >
-            <span className="font-display text-base" style={{ color: "var(--paper)" }}>
+            <span className="font-display text-base" style={{ color: fgDot }}>
               م
             </span>
           </div>
@@ -224,7 +248,7 @@ const Nav = ({ onEnter, signedIn, onJump, onPage, onSignOut }) => {
 
         <nav
           className="hidden md:flex items-center gap-10 text-sm"
-          style={{ color: "var(--ink-2)" }}
+          style={{ color: fg }}
         >
           <button type="button" onClick={() => onJump("how")} className="link-quiet">
             {t("lp.nav.how")}
@@ -247,7 +271,7 @@ const Nav = ({ onEnter, signedIn, onJump, onPage, onSignOut }) => {
               type="button"
               onClick={() => onPage("signup")}
               className="hidden sm:block text-sm link-quiet"
-              style={{ color: "var(--ink-2)" }}
+              style={{ color: fg }}
             >
               {t("lp.nav.signin")}
             </button>
@@ -257,7 +281,7 @@ const Nav = ({ onEnter, signedIn, onJump, onPage, onSignOut }) => {
               type="button"
               onClick={onSignOut}
               className="text-sm link-quiet"
-              style={{ color: "var(--ink-2)" }}
+              style={{ color: fg }}
             >
               {t("lp.nav.signout")}
             </button>
@@ -265,7 +289,7 @@ const Nav = ({ onEnter, signedIn, onJump, onPage, onSignOut }) => {
           <button
             type="button"
             onClick={onEnter}
-            className="btn-primary px-4 py-2 rounded-lg text-sm font-medium"
+            className={onDark ? "btn-invert px-4 py-2 rounded-lg text-sm font-medium" : "btn-primary px-4 py-2 rounded-lg text-sm font-medium"}
           >
             {signedIn ? t("lp.nav.openPlanner") : t("lp.cta.subscribe")}
           </button>
@@ -5551,15 +5575,9 @@ export default function Landing({ onOpenStudio }) {
 
   return (
     <div className="murchid-landing paper-noise">
-      <Nav onEnter={enter} signedIn={signedIn} onJump={jump} onPage={goPage} onSignOut={handleSignOut} />
+      <Nav onEnter={enter} signedIn={signedIn} onJump={jump} onPage={goPage} onSignOut={handleSignOut} darkHero={page === "home"} />
       {page === "home" ? (
-        <>
-          <HeroJourney onEnter={enter} signedIn={signedIn} />
-          <CommunityScroll />
-          <TeacherShowcase />
-          <Membership onEnter={enter} />
-          <CTA onEnter={enter} signedIn={signedIn} />
-        </>
+        <LandingHome onEnter={enter} signedIn={signedIn} />
       ) : (
         <MarketingPage
           page={page}
