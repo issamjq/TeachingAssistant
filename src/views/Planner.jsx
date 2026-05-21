@@ -645,17 +645,17 @@ function StudioHeroCard() {
     { key: "presentation", icon: Layout,        color: "accent-soft", studioKind: "presentation" },
   ];
   return (
-    <div className="planner-hero rounded-2xl p-4 md:p-5 relative overflow-hidden h-full flex flex-col justify-center">
+    <div className="planner-hero rounded-2xl p-5 md:p-7 relative overflow-hidden h-full flex flex-col justify-between">
       <div className="relative z-10">
-        <p className="inline-flex items-center gap-1.5 rounded-full bg-accent/[0.10] px-2.5 py-1 text-[11px] font-semibold text-accent mb-2.5">
-          <Sparkles size={11} strokeWidth={2.25} /> {t("planner.studioAI")}
+        <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted mb-3 inline-flex items-center gap-2">
+          <span className="w-4 h-px bg-accent" /> {t("planner.studioAI")}
         </p>
-        <h2 className="font-serif text-2xl md:text-[1.55rem] text-ink leading-[1.1] font-semibold tracking-tight">
+        <h2 className="font-serif text-[32px] md:text-[42px] text-ink leading-[1.0] tracking-[-0.015em]">
           {t("planner.heroA")}
-          <span className="italic font-medium text-accent">{t("planner.heroCreate")}</span>
+          <em className="italic text-accent">{t("planner.heroCreate")}</em>
           {t("planner.heroB")}
         </h2>
-        <p className="text-[12.5px] text-muted mt-1.5 max-w-xl leading-snug">
+        <p className="text-[13px] text-muted mt-3 max-w-md leading-relaxed">
           {t("planner.heroSub")}
         </p>
       </div>
