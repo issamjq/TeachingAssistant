@@ -31,6 +31,8 @@ import { useT, LangToggle } from "./lib/i18n";
 import { useAccount, clearAccount } from "./lib/account";
 import AccountMenu from "./views/AccountMenu";
 import HelpPopover from "./views/HelpPopover";
+import { ThemeToggle } from "./components/ui/ThemeToggle";
+import { PageTransition } from "./components/ui/PageTransition";
 
 // Sectioned nav matching the 2026 mockup — italic Fraunces section
 // headers + small letter/icon badges next to each label. All routes
@@ -587,6 +589,7 @@ export default function StudioApp({ onClose }) {
           >
             Murchid
           </button>
+          <ThemeToggle />
           <LangToggle />
           {onClose && (
             <button
@@ -600,43 +603,56 @@ export default function StudioApp({ onClose }) {
           )}
         </div>
 
-        <div
-          className={`relative flex-1 overflow-y-auto bg-[#fbf2e6] px-4 pt-4 pb-6 sm:px-6 md:pt-3 md:pb-2 ${
-            sidebarCollapsed ? "md:ps-16" : "md:ps-8"
-          } ${
-            onClose ? "md:pe-20" : "md:pe-8"
-          }`}
-        >
+        {/* Desktop top strip — global controls live here so section
+            toolbars (Planner Schedule/Today/prev/next, etc.) never
+            collide with them. */}
+        <div className="hidden md:flex items-center gap-2 h-10 px-4 border-b border-line bg-paper flex-shrink-0 print:hidden">
           {sidebarCollapsed && (
             <button
               type="button"
               onClick={toggleSidebar}
               title="Show sidebar"
               aria-label="Show sidebar"
-              className="hidden md:flex absolute top-3 start-3 z-20 h-9 w-9 rounded-md text-ink-soft hover:text-ink hover:bg-paper-warm items-center justify-center transition print:hidden"
+              className="h-8 w-8 rounded-md text-ink-soft hover:text-ink hover:bg-paper-warm flex items-center justify-center transition"
             >
-              <PanelLeftOpen size={16} className="rtl:rotate-180" />
+              <PanelLeftOpen size={15} className="rtl:rotate-180" />
             </button>
           )}
+          <span className="flex-1" />
+          <ThemeToggle />
+          <LangToggle />
           {onClose && (
             <button
               onClick={onClose}
               title="Back to landing page"
-              className="hidden md:flex absolute top-3 end-8 z-20 h-9 w-9 rounded-md text-ink-soft hover:bg-accent hover:text-paper-cool items-center justify-center transition print:hidden"
+              aria-label="Back to landing page"
+              className="h-8 w-8 rounded-md text-ink-soft hover:bg-paper-warm hover:text-ink flex items-center justify-center transition"
             >
-              <X size={15} />
+              <X size={14} />
             </button>
           )}
-          {TEACHING_RAIL_SECTIONS.has(section) ? (
-            <div className="lg:flex lg:gap-6 h-full">
-              <div className="flex-1 min-w-0">{mainContent}</div>
-              <div className="hidden lg:block flex-shrink-0">
-                <TeachingRail />
+        </div>
+
+        <div
+          className={`relative flex-1 bg-paper px-4 pt-3 pb-6 sm:px-6 md:pt-3 md:pb-2 md:ps-8 md:pe-8 ${
+            section === "planner" ? "overflow-hidden min-h-0" : "overflow-y-auto"
+          }`}
+        >
+          <PageTransition
+            pageKey={`${section}/${sub || ""}/${extraId || ""}`}
+            className={section === "planner" ? "h-full" : ""}
+          >
+            {TEACHING_RAIL_SECTIONS.has(section) ? (
+              <div className="lg:flex lg:gap-6 h-full">
+                <div className="flex-1 min-w-0">{mainContent}</div>
+                <div className="hidden lg:block flex-shrink-0">
+                  <TeachingRail />
+                </div>
               </div>
-            </div>
-          ) : (
-            mainContent
-          )}
+            ) : (
+              mainContent
+            )}
+          </PageTransition>
         </div>
       </main>
 

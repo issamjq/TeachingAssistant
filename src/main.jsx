@@ -5,11 +5,11 @@ import StudioApp from "./App.jsx";
 import Landing from "./views/Landing.jsx";
 import { useRoute, navigate, clearRoute } from "./lib/route.js";
 import { LanguageProvider } from "./lib/i18n.jsx";
+import { ThemeProvider } from "./lib/theme.jsx";
+import { ToastProvider } from "./components/ui/Toast.jsx";
+import { PageTransition } from "./components/ui/PageTransition.jsx";
 import AccessibilityWidget from "./views/AccessibilityWidget.jsx";
 
-// Top-level surface decided by the URL hash:
-//   no hash         → landing page
-//   any "#/..."     → studio
 function Root() {
   const route = useRoute();
   const inStudio = route !== null;
@@ -21,11 +21,13 @@ function Root() {
 
   return (
     <>
-      {inStudio ? (
-        <StudioApp onClose={() => clearRoute()} />
-      ) : (
-        <Landing onOpenStudio={() => navigate(["planner"])} />
-      )}
+      <PageTransition pageKey={inStudio ? "studio" : "landing"}>
+        {inStudio ? (
+          <StudioApp onClose={() => clearRoute()} />
+        ) : (
+          <Landing onOpenStudio={() => navigate(["planner"])} />
+        )}
+      </PageTransition>
       <AccessibilityWidget />
     </>
   );
@@ -33,8 +35,12 @@ function Root() {
 
 createRoot(document.getElementById("root")).render(
   <React.StrictMode>
-    <LanguageProvider>
-      <Root />
-    </LanguageProvider>
+    <ThemeProvider>
+      <LanguageProvider>
+        <ToastProvider>
+          <Root />
+        </ToastProvider>
+      </LanguageProvider>
+    </ThemeProvider>
   </React.StrictMode>
 );
