@@ -265,14 +265,14 @@ export default function Planner() {
       {/* ── Month hero — stacked headline + italic editorial caption.
           No eyebrow; the page header (sidebar nav) already says where
           you are. */}
-      <div className="mb-3">
-        <h1 className="font-serif text-3xl md:text-4xl font-semibold text-ink leading-none tracking-tight">
+      <div className="mb-2 flex items-baseline gap-3 flex-wrap">
+        <h1 className="font-serif text-2xl md:text-3xl font-semibold text-ink leading-none tracking-tight">
           <span key={monthLabel} className="studio-tick">
             {monthName}
           </span>{" "}
           <em className="italic font-medium text-accent">{anchor.getFullYear()}</em>
         </h1>
-        <p className="font-serif italic text-[13px] text-muted leading-snug mt-1.5">
+        <p className="font-serif italic text-[12px] text-muted leading-none">
           {t("planner.subtitle")}
         </p>
       </div>
@@ -817,55 +817,30 @@ function ThisMonthOverviewCard({ events = [], monthDate, todayStart }) {
     .toLocaleDateString(lang === "ar" ? "ar" : "en-US", { month: "short", year: "numeric" })
     .toUpperCase();
   const stats = [
-    { n: planned,   k: t("planner.planned"),   icon: CalendarDays,  iconBg: "bg-ink/[0.08]",    iconText: "text-ink" },
-    { n: completed, k: t("planner.completed"), icon: CheckCircle2,  iconBg: "bg-sage/[0.14]",   iconText: "text-sage" },
-    { n: todo,      k: t("planner.todo"),      icon: Clock,         iconBg: "bg-accent/[0.12]", iconText: "text-accent" },
+    { n: planned,   k: t("planner.planned"),   dot: "bg-ink"     },
+    { n: completed, k: t("planner.completed"), dot: "bg-sage"    },
+    { n: todo,      k: t("planner.todo"),      dot: "bg-accent"  },
   ];
   return (
-    <div className="h-full flex flex-col rounded-2xl border border-[#e6dccb] bg-[#fffdf6] p-4 shadow-[0_18px_44px_-22px_rgba(15,20,16,0.14)]">
-      <div className="flex items-start justify-between gap-2 mb-3">
-        <h3 className="font-serif text-[15px] font-medium text-ink leading-tight">
-          {t("planner.thisMonth")}
-        </h3>
-        <span className="font-mono text-[9.5px] uppercase tracking-[0.18em] text-muted mt-1 whitespace-nowrap">
+    <div className="rounded-xl border border-[#e6dccb] bg-[#fffdf6] px-3 py-2.5 shadow-[var(--shadow-1)] flex items-center gap-3">
+      <div className="flex items-baseline gap-1.5 mr-auto min-w-0">
+        <span className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted">
           {monthLabel}
         </span>
+        <span className="inline-flex items-center gap-1 text-[11px] font-medium text-sage ml-1">
+          <TrendingUp size={11} strokeWidth={2.25} /> {pct}%
+        </span>
       </div>
-
-      <div className="h-px bg-line/40 mb-3" />
-
-      <div className="grid grid-cols-3 gap-3">
-        {stats.map((s) => {
-          const Icon = s.icon;
-          return (
-            <div key={s.k}>
-              <span className={`inline-flex h-6 w-6 rounded-md items-center justify-center ${s.iconBg} ${s.iconText} mb-2`}>
-                <Icon size={12} strokeWidth={2.25} />
-              </span>
-              <p className="font-serif text-2xl font-medium text-ink leading-none">{s.n}</p>
-              <p className="text-[11px] text-muted mt-1.5">{s.k}</p>
-            </div>
-          );
-        })}
-      </div>
-
-      <div className="mt-auto pt-4">
-        <div className="flex items-center justify-between mb-1.5">
-          <span className="font-mono text-[9.5px] uppercase tracking-[0.18em] text-muted">
-            {t("planner.progress")}
-          </span>
-          <span className="inline-flex items-center gap-1 text-[11px] font-medium text-sage">
-            <TrendingUp size={11} strokeWidth={2.25} />
-            {pct}%
-          </span>
-        </div>
-        <div className="h-1.5 rounded-full bg-line/40 overflow-hidden">
-          <div
-            className="h-full rounded-full bg-gradient-to-r from-sage to-sage/70"
-            style={{ width: `${pct}%` }}
-          />
-        </div>
-      </div>
+      {stats.map((s, i) => (
+        <React.Fragment key={s.k}>
+          {i > 0 && <span className="h-5 w-px bg-line/60" />}
+          <div className="flex items-center gap-1.5">
+            <span className={`h-1.5 w-1.5 rounded-full ${s.dot}`} />
+            <span className="font-serif text-base font-medium text-ink leading-none">{s.n}</span>
+            <span className="text-[10.5px] text-muted leading-none">{s.k}</span>
+          </div>
+        </React.Fragment>
+      ))}
     </div>
   );
 }

@@ -289,9 +289,9 @@ select:focus-visible {
    day's list. */
 .planner-workload {
   position: relative;
-  margin-block-end: 12px;
-  padding: clamp(14px, 1.6vw, 20px) clamp(14px, 1.6vw, 22px) clamp(28px, 2.4vw, 36px);
-  border-radius: 16px;
+  margin-block-end: 8px;
+  padding: clamp(8px, 1vw, 12px) clamp(12px, 1.4vw, 18px) clamp(20px, 2vw, 26px);
+  border-radius: 14px;
   background:
     radial-gradient(ellipse at 0% 0%, oklch(0.92 0.05 70 / 0.6), transparent 60%),
     radial-gradient(ellipse at 100% 100%, oklch(0.85 0.06 50 / 0.4), transparent 60%),
@@ -306,11 +306,11 @@ select:focus-visible {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin-block-end: clamp(10px, 1.2vw, 14px);
+  margin-block-end: clamp(6px, 0.8vw, 10px);
 }
 .planner-workload-h {
   font-family: var(--font-serif);
-  font-size: clamp(13px, 1.1vw, 15px);
+  font-size: clamp(12px, 1vw, 14px);
   font-weight: 400;
   color: var(--color-ink-soft);
   letter-spacing: -0.01em;
@@ -324,7 +324,7 @@ select:focus-visible {
 }
 .planner-workload-meta {
   font-family: var(--font-sans);
-  font-size: 11px;
+  font-size: 10px;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   font-weight: 500;
@@ -336,7 +336,7 @@ select:focus-visible {
   grid-auto-flow: column;
   grid-auto-columns: 1fr;
   gap: 3px;
-  height: clamp(40px, 5vw, 56px);
+  height: clamp(28px, 3.2vw, 38px);
   align-items: end;
 }
 .planner-workload-bar {
