@@ -12,6 +12,12 @@
   --color-sage: #6b7f5a;
   --color-line: #d4c9b3;
   --color-muted: #6b6354;
+  /* Drench tones, kept in sync with the landing — used by ambient
+     surfaces in the studio (now-playing hero, focus rings, sparkles). */
+  --color-clay: oklch(0.56 0.13 36);
+  --color-clay-deep: oklch(0.42 0.13 30);
+  --color-amber: oklch(0.72 0.16 65);
+  --color-cream: oklch(0.96 0.025 80);
 
   --font-sans: "Inter Tight", ui-sans-serif, system-ui, sans-serif;
   --font-serif: "Fraunces", Georgia, serif;
@@ -20,6 +26,273 @@
      but they share the same face as body copy so the whole project
      reads as one type system instead of three. */
   --font-mono: "Inter Tight", ui-sans-serif, system-ui, sans-serif;
+
+  /* Motion easings + durations as design tokens. Components should
+     reach for these instead of hard-coding cubic-bezier strings. */
+  --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+  --ease-out-quint: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-out-expo:  cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-snap:      cubic-bezier(0.34, 1.18, 0.6, 1);
+  --dur-press:      120ms;
+  --dur-hover:      220ms;
+  --dur-transition: 420ms;
+  --dur-entrance:   720ms;
+
+  /* Elevation as multi-layer shadows (Jakub pattern) — shadows adapt
+     to any background, borders don't. */
+  --shadow-1: 0 1px 2px oklch(0.20 0.05 40 / 0.05),
+              0 0 0 1px oklch(0.20 0.05 40 / 0.04);
+  --shadow-2: 0 1px 2px oklch(0.20 0.05 40 / 0.06),
+              0 8px 24px oklch(0.20 0.05 40 / 0.08),
+              0 0 0 1px oklch(0.20 0.05 40 / 0.04);
+  --shadow-3: 0 2px 4px oklch(0.20 0.05 40 / 0.08),
+              0 24px 56px oklch(0.20 0.05 40 / 0.14),
+              0 0 0 1px oklch(0.20 0.05 40 / 0.05);
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   STUDIO 2026 — refreshed component utilities
+   Reusable classes that live alongside Tailwind. Adopted by the
+   pumped-up Button + Card primitives and by the dashboard's
+   now-playing hero. Sized fluidly with clamp() so every surface
+   scales from phone to ultra-wide.
+   ════════════════════════════════════════════════════════════════════ */
+
+/* ── Focus ring — one consistent look for every interactive control. */
+*:focus-visible {
+  outline: none;
+}
+.murchid-focus,
+button:focus-visible,
+[role="button"]:focus-visible,
+a:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* ── Pressable affordance for every clickable element. */
+.murchid-pressable {
+  transition: transform var(--dur-press) var(--ease-out-quart),
+              box-shadow var(--dur-hover) var(--ease-out-quart),
+              background-color var(--dur-hover) var(--ease-out-quart),
+              border-color var(--dur-hover) var(--ease-out-quart),
+              color var(--dur-hover) var(--ease-out-quart);
+}
+.murchid-pressable:active { transform: scale(0.97); }
+
+/* ── Lift utility — used on cards / tiles to give a tactile hover. */
+.murchid-lift {
+  transition: transform var(--dur-hover) var(--ease-out-quint),
+              box-shadow var(--dur-hover) var(--ease-out-quint);
+}
+.murchid-lift:hover { transform: translateY(-2px); box-shadow: var(--shadow-3); }
+
+/* ── Now-playing hero card on the Dashboard.
+   The Murchid surprise: a soft warm gradient surface that holds the
+   current class, a live time-remaining badge, and a CTA. Background
+   has a hand-painted feel via overlapping radial-gradient washes
+   and a subtle vignette. */
+.dash-nowcard {
+  position: relative;
+  isolation: isolate;
+  border-radius: clamp(18px, 2vw, 26px);
+  overflow: hidden;
+  padding: clamp(20px, 3.2vw, 40px);
+  color: var(--color-cream);
+  background:
+    radial-gradient(ellipse 80% 60% at 20% 20%, oklch(0.62 0.13 40), transparent 65%),
+    radial-gradient(ellipse 80% 60% at 100% 100%, oklch(0.38 0.10 25), transparent 70%),
+    var(--color-clay);
+  box-shadow: var(--shadow-2);
+}
+.dash-nowcard::after {
+  content: '';
+  position: absolute; inset: 0;
+  background-image:
+    radial-gradient(circle at 1px 1px, oklch(0.95 0.03 80 / 0.08) 0.6px, transparent 0);
+  background-size: 3px 3px;
+  mix-blend-mode: screen;
+  pointer-events: none;
+  z-index: 0;
+}
+.dash-nowcard > * { position: relative; z-index: 1; }
+.dash-nowcard-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--font-sans);
+  font-size: clamp(11px, 1vw, 13px);
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: oklch(0.95 0.03 80 / 0.78);
+}
+.dash-nowcard-eyebrow::before {
+  content: '';
+  width: 22px; height: 1px; background: currentColor; opacity: 0.5;
+}
+.dash-nowcard-h {
+  font-family: var(--font-serif);
+  font-weight: 300;
+  font-size: clamp(28px, 4.2vw, 56px);
+  line-height: 1.04;
+  letter-spacing: -0.028em;
+  margin: clamp(14px, 1.5vw, 20px) 0 clamp(8px, 1vw, 14px);
+  text-wrap: balance;
+}
+.dash-nowcard-h em {
+  font-style: italic;
+  color: oklch(0.88 0.13 62);
+}
+.dash-nowcard-meta {
+  font-family: var(--font-sans);
+  font-size: clamp(13px, 1.1vw, 16px);
+  color: oklch(0.95 0.03 80 / 0.75);
+  display: flex;
+  gap: clamp(12px, 2vw, 28px);
+  flex-wrap: wrap;
+}
+.dash-nowcard-meta b { font-weight: 500; color: var(--color-cream); }
+.dash-nowcard-pulse {
+  display: inline-block;
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: oklch(0.88 0.13 62);
+  box-shadow: 0 0 0 0 oklch(0.88 0.13 62 / 0.5);
+  animation: nowcard-pulse 1.8s ease-out infinite;
+  margin-inline-end: 8px;
+  vertical-align: middle;
+}
+@keyframes nowcard-pulse {
+  0%   { box-shadow: 0 0 0 0 oklch(0.88 0.13 62 / 0.5); }
+  70%  { box-shadow: 0 0 0 12px oklch(0.88 0.13 62 / 0); }
+  100% { box-shadow: 0 0 0 0 oklch(0.88 0.13 62 / 0); }
+}
+.dash-nowcard-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-block-start: clamp(20px, 2.5vw, 32px);
+  padding: 12px 22px;
+  border-radius: 999px;
+  background: var(--color-cream);
+  color: var(--color-clay-deep);
+  border: none;
+  font-family: var(--font-sans);
+  font-weight: 500;
+  font-size: clamp(13px, 1vw, 15px);
+  cursor: pointer;
+  transition: transform var(--dur-press) var(--ease-out-quart),
+              box-shadow var(--dur-hover) var(--ease-out-quart);
+  box-shadow: 0 1px 2px oklch(0.20 0.05 30 / 0.18),
+              0 12px 28px oklch(0.20 0.05 30 / 0.24);
+}
+.dash-nowcard-cta:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 1px 2px oklch(0.20 0.05 30 / 0.2),
+              0 18px 40px oklch(0.20 0.05 30 / 0.32);
+}
+.dash-nowcard-cta:active { transform: translateY(0); }
+.dash-nowcard-ghost {
+  margin-inline-start: 10px;
+  background: transparent;
+  color: oklch(0.95 0.03 80);
+  border: 1px solid oklch(0.95 0.03 80 / 0.3);
+  padding: 12px 18px;
+  border-radius: 999px;
+  font-family: var(--font-sans);
+  font-weight: 500;
+  font-size: clamp(13px, 1vw, 15px);
+  cursor: pointer;
+  transition: background var(--dur-hover) var(--ease-out-quart), border-color var(--dur-hover) var(--ease-out-quart);
+}
+.dash-nowcard-ghost:hover {
+  background: oklch(0.95 0.03 80 / 0.08);
+  border-color: oklch(0.95 0.03 80 / 0.6);
+}
+
+/* ── Dashboard KPI tiles — quieter than the now-card. */
+.dash-kpi {
+  border-radius: 16px;
+  background: var(--color-paper-cool);
+  padding: clamp(16px, 2vw, 22px);
+  box-shadow: var(--shadow-1);
+  transition: transform var(--dur-hover) var(--ease-out-quint),
+              box-shadow var(--dur-hover) var(--ease-out-quint);
+}
+.dash-kpi:hover { transform: translateY(-1px); box-shadow: var(--shadow-2); }
+.dash-kpi-label {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  font-weight: 500;
+  color: var(--color-muted);
+  margin-block-end: 8px;
+}
+.dash-kpi-value {
+  font-family: var(--font-serif);
+  font-weight: 300;
+  font-size: clamp(36px, 4vw, 56px);
+  line-height: 1;
+  letter-spacing: -0.04em;
+  color: var(--color-ink);
+}
+.dash-kpi-value em {
+  font-style: italic;
+  color: var(--color-accent);
+}
+.dash-kpi-cap {
+  font-family: var(--font-sans);
+  font-size: 13px;
+  color: var(--color-ink-soft);
+  margin-block-start: 8px;
+  line-height: 1.4;
+}
+
+/* ── Planner — today-cell glow.
+   The today date cell pulses softly so the teacher always finds their
+   anchor instantly. Reduced-motion freezes the pulse. */
+.planner-today-glow {
+  position: relative;
+  isolation: isolate;
+}
+.planner-today-glow::before {
+  content: '';
+  position: absolute; inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(circle at 50% 0%, oklch(0.85 0.14 55 / 0.32), transparent 70%);
+  pointer-events: none;
+  z-index: 0;
+  animation: planner-today-breathe 4.8s ease-in-out infinite;
+}
+@keyframes planner-today-breathe {
+  0%, 100% { opacity: 0.35; }
+  50%      { opacity: 0.95; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .planner-today-glow::before { animation: none; opacity: 0.6; }
+}
+
+/* ── Responsive container for the studio main area.
+   Padding scales with viewport so the same component reads right at
+   phone, tablet, and ultra-wide widths. */
+.murchid-container {
+  padding-inline: clamp(16px, 3.5vw, 40px);
+  padding-block: clamp(16px, 3vw, 32px);
+}
+
+/* ── Reduced motion: shut down the noisy decorative animations. */
+@media (prefers-reduced-motion: reduce) {
+  .dash-nowcard-pulse,
+  .dash-nowcard-cta {
+    animation: none !important;
+    transition: none !important;
+  }
 }
 
 /* AI Studio — per-section morph-in: fires every time the visible section
@@ -1000,6 +1273,16 @@
   background:
     radial-gradient(ellipse at top, rgba(200, 71, 43, 0.06), transparent 70%),
     var(--color-paper-cool) !important;
+  animation: planner-today-breath 5.4s ease-in-out infinite;
+}
+@keyframes planner-today-breath {
+  0%, 100% { box-shadow: inset 0 0 0 1.5px var(--color-accent),
+                          0 0 0 0 rgba(200, 71, 43, 0); }
+  50%      { box-shadow: inset 0 0 0 1.5px var(--color-accent),
+                          0 0 0 10px rgba(200, 71, 43, 0.08); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .planner-cell-today { animation: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {
