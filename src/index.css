@@ -1,25 +1,196 @@
 @import "tailwindcss";
 
-@theme {
-  --color-paper: #f4ede0;
-  --color-paper-warm: #ede4d3;
-  --color-paper-cool: #faf6ec;
-  --color-ink: #1a1814;
-  --color-ink-soft: #2d2a24;
-  --color-accent: #c8472b;
-  --color-accent-soft: #e87a55;
-  --color-gold: #b8893d;
-  --color-sage: #6b7f5a;
-  --color-line: #d4c9b3;
-  --color-muted: #6b6354;
+/* === Murchid Design System v3.0 — "The Teacher's Atelier" ====================
+   Tokens are role-named and semantic. Swapping data-theme on <html>
+   re-skins every surface using these vars.
+   See docs/superpowers/specs/2026-05-21-teachers-atelier-design.md. */
 
-  --font-sans: "Inter Tight", ui-sans-serif, system-ui, sans-serif;
-  --font-serif: "Fraunces", Georgia, serif;
-  /* No more JetBrains Mono. Every `font-mono` utility now renders in
-     Inter Tight — eyebrows keep their uppercase + tracking styling,
-     but they share the same face as body copy so the whole project
-     reads as one type system instead of three. */
-  --font-mono: "Inter Tight", ui-sans-serif, system-ui, sans-serif;
+@theme {
+  /* ── Semantic surfaces + text + border ─────────────────────────── */
+  --color-surface-page: #F7F2E8;
+  --color-surface-card: #FDFAF3;
+  --color-surface-elevated: #FFFEF8;
+  --color-surface-sunken: #EFE9DC;
+  --color-text-primary: #1F1B14;
+  --color-text-secondary: #4A4338;
+  --color-text-muted: #7A715F;
+  --color-text-on-accent: #FDFAF3;
+  --color-border-subtle: #E5DDC9;
+  --color-border-strong: #C8BFA8;
+
+  /* ── Brand ────────────────────────────────────────────────────── */
+  --color-accent: #9C4F37;
+  --color-accent-soft: #D89E84;
+  --color-secondary: #5A7A4A;
+  --color-gold: #9E7E36;
+  --color-success: #5A7A4A;
+  --color-warning: #9E7E36;
+  --color-danger: #A8392A;
+  --color-focus-ring: #9C4F37;
+
+  /* ── Legacy aliases (preserved so bg-paper / text-ink etc. still
+       resolve, but now point at the new palette). */
+  --color-paper: #F7F2E8;
+  --color-paper-warm: #EFE9DC;
+  --color-paper-cool: #FDFAF3;
+  --color-ink: #1F1B14;
+  --color-ink-soft: #4A4338;
+  --color-line: #E5DDC9;
+  --color-muted: #7A715F;
+  --color-sage: #5A7A4A;
+
+  /* ── Type ────────────────────────────────────────────────────── */
+  --font-sans: "Geist", "IBM Plex Sans Arabic", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Instrument Serif", "IBM Plex Sans Arabic", Georgia, serif;
+  --font-mono: "Geist Mono", "IBM Plex Sans Arabic", ui-monospace, monospace;
+  --font-arabic: "IBM Plex Sans Arabic", ui-sans-serif, system-ui, sans-serif;
+}
+
+/* Motion + elevation as plain CSS vars (not @theme — they don't need
+   to generate utility classes). */
+:root {
+  --duration-instant: 80ms;
+  --duration-fast: 150ms;
+  --duration-base: 240ms;
+  --duration-slow: 360ms;
+  --duration-marketing: 480ms;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+  --ease-in-out: cubic-bezier(0.45, 0, 0.55, 1);
+  --ease-natural: cubic-bezier(0.32, 0.72, 0, 1);
+
+  --shadow-1: 0 1px 2px rgba(31, 27, 20, 0.04);
+  --shadow-2: 0 4px 12px -4px rgba(31, 27, 20, 0.06);
+  --shadow-3: 0 8px 24px -8px rgba(31, 27, 20, 0.10);
+  --shadow-4: 0 16px 48px -16px rgba(31, 27, 20, 0.14);
+}
+
+/* ── Dark theme: "candlelit" ─────────────────────────────────────
+   Warm dark, NOT pure black, NOT navy. Foreground is warm cream,
+   never pure white — prevents halation on long teaching sessions. */
+[data-theme="dark"] {
+  --color-surface-page: #1A1714;
+  --color-surface-card: #22201C;
+  --color-surface-elevated: #2A2723;
+  --color-surface-sunken: #141210;
+  --color-text-primary: #F0E9D9;
+  --color-text-secondary: #C2B89E;
+  --color-text-muted: #8B8270;
+  --color-text-on-accent: #1A1714;
+  --color-border-subtle: #33302A;
+  --color-border-strong: #4D4940;
+  --color-accent: #D89E84;
+  --color-accent-soft: #5D3D2A;
+  --color-secondary: #92A878;
+  --color-gold: #D9B97A;
+  --color-success: #92A878;
+  --color-warning: #D9B97A;
+  --color-danger: #D17A6B;
+  --color-focus-ring: #D89E84;
+
+  --color-paper: #1A1714;
+  --color-paper-warm: #141210;
+  --color-paper-cool: #22201C;
+  --color-ink: #F0E9D9;
+  --color-ink-soft: #C2B89E;
+  --color-line: #33302A;
+  --color-muted: #8B8270;
+  --color-sage: #92A878;
+
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.30);
+  --shadow-2: 0 4px 12px -4px rgba(0, 0, 0, 0.40);
+  --shadow-3: 0 8px 24px -8px rgba(0, 0, 0, 0.50);
+  --shadow-4: 0 16px 48px -16px rgba(0, 0, 0, 0.60);
+
+  color-scheme: dark;
+}
+
+/* ── Global base ─────────────────────────────────────────────── */
+html, body, #root {
+  background: var(--color-surface-page);
+  color: var(--color-text-primary);
+}
+
+body {
+  font-family: var(--font-sans);
+  font-size: 16px;
+  line-height: 1.65;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  font-feature-settings: "cv11", "ss01";
+}
+
+@media (min-width: 768px) and (max-width: 1023px) {
+  body { font-size: 17px; }
+}
+
+html[lang="ar"] body,
+html[dir="rtl"] body {
+  font-family: var(--font-arabic);
+}
+html[lang="ar"] .font-serif,
+html[dir="rtl"] .font-serif {
+  font-family: var(--font-arabic);
+  font-weight: 200;
+  font-style: normal;
+}
+
+html.lang-transition * {
+  transition: transform 320ms var(--ease-out),
+              opacity 200ms var(--ease-out) !important;
+}
+
+:where(button, a, input, textarea, select, [tabindex]):focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--color-surface-page),
+              0 0 0 5px color-mix(in oklab, var(--color-focus-ring) 35%, transparent);
+  border-radius: 8px;
+}
+
+@supports (scrollbar-color: auto) {
+  html {
+    scrollbar-color: var(--color-border-strong) var(--color-surface-sunken);
+    scrollbar-width: thin;
+  }
+}
+
+/* ── Reading mode ──────────────────────────────────────────────── */
+.reading-mode body { font-size: 18px; line-height: 1.78; }
+.reading-mode .reading-target { max-width: 72ch; }
+.reading-mode .reading-hide { display: none !important; }
+
+/* ── Motion utilities ───────────────────────────────────────────── */
+.motion-base { transition: all var(--duration-base) var(--ease-out); }
+.motion-fast { transition: all var(--duration-fast) var(--ease-out); }
+
+/* ── Logical-property utilities (RTL-safe) ─────────────────────── */
+.ps-2 { padding-inline-start: 8px; }
+.pe-2 { padding-inline-end: 8px; }
+.ps-3 { padding-inline-start: 12px; }
+.pe-3 { padding-inline-end: 12px; }
+.ps-4 { padding-inline-start: 16px; }
+.pe-4 { padding-inline-end: 16px; }
+.ms-2 { margin-inline-start: 8px; }
+.me-2 { margin-inline-end: 8px; }
+.ms-3 { margin-inline-start: 12px; }
+.me-3 { margin-inline-end: 12px; }
+.ms-auto { margin-inline-start: auto; }
+.me-auto { margin-inline-end: auto; }
+.text-start { text-align: start; }
+.text-end { text-align: end; }
+.border-s { border-inline-start: 1px solid var(--color-border-subtle); }
+.border-e { border-inline-end: 1px solid var(--color-border-subtle); }
+html[dir="rtl"] .rtl-flip { transform: scaleX(-1); }
+
+/* Global reduced-motion guard — overrides every keyframe + transition */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    animation-delay: 0ms !important;
+    transition-duration: 1ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 /* AI Studio — per-section morph-in: fires every time the visible section
