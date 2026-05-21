@@ -723,33 +723,14 @@ function PulseCard({ events, monthDate, todayStart }) {
   ).length;
   const ahead = Math.max(0, planned - done);
 
-  // Bucket events into ISO-week buckets (Mon–Sun) for the sparkline.
-  // Five buckets covers every calendar month layout.
-  const weeks = useMemo(() => {
-    const buckets = [0, 0, 0, 0, 0, 0];
-    const firstOfMonth = new Date(y, m, 1);
-    for (const e of monthEvents) {
-      const d = new Date(`${e.date}T00:00:00`);
-      const dayOfMonth = d.getDate();
-      // Offset from first of month, in days
-      const offset = dayOfMonth - 1 + ((firstOfMonth.getDay() + 6) % 7);
-      const week = Math.min(5, Math.floor(offset / 7));
-      buckets[week] += 1;
-    }
-    // Drop the empty trailing weeks so the sparkline doesn't show
-    // hollow rails past the end of the month.
-    while (buckets.length > 1 && buckets[buckets.length - 1] === 0) buckets.pop();
-    return buckets;
-  }, [monthEvents, y, m]);
-  const sparkMax = Math.max(1, ...weeks);
-
-  // The narrative sentence — chooses tone by load.
+  // One-line narrative — the only piece of editorial voice we keep.
+  // The right-rail "This Month Overview" already carries the numeric
+  // breakdown, and the workload strip above already shows distribution,
+  // so the pulse stays minimal: kicker + sentence + 4 launcher chips.
   let headline;
   if (planned === 0) {
     headline = (
-      <>
-        Your month is <em>open</em>. Pick a topic — the studio will draft the rest.
-      </>
+      <>Your month is <em>open</em>. Pick a topic — the studio drafts the rest.</>
     );
   } else if (ahead === 0) {
     headline = (
@@ -758,7 +739,6 @@ function PulseCard({ events, monthDate, todayStart }) {
       </>
     );
   } else {
-    // Find the heaviest weekday
     const dayCounts = {};
     for (const e of monthEvents) {
       const d = new Date(`${e.date}T00:00:00`);
@@ -768,8 +748,8 @@ function PulseCard({ events, monthDate, todayStart }) {
     const heaviest = Object.entries(dayCounts).sort((a, b) => b[1] - a[1])[0]?.[0];
     headline = (
       <>
-        <em>{ahead}</em> {ahead === 1 ? "thing" : "things"} ahead this month.
-        {heaviest ? <> Heaviest day is <b>{heaviest}</b>.</> : null}
+        <em>{ahead}</em> {ahead === 1 ? "thing" : "things"} ahead.
+        {heaviest ? <> Heaviest: <b>{heaviest}</b>.</> : null}
       </>
     );
   }
@@ -783,40 +763,12 @@ function PulseCard({ events, monthDate, todayStart }) {
 
   return (
     <section className="planner-pulse" aria-label="Month pulse">
-      <div>
+      <div className="planner-pulse-text">
         <span className="planner-pulse-kicker">
-          <Sparkles size={11} strokeWidth={2.25} /> {t("planner.studioAI")}
+          <Sparkles size={10} strokeWidth={2.25} /> {t("planner.studioAI")}
         </span>
-        <h2 className="planner-pulse-h" style={{ marginBlockStart: 10 }}>
-          {headline}
-        </h2>
+        <h2 className="planner-pulse-h">{headline}</h2>
       </div>
-
-      <div className="planner-pulse-stats">
-        <div className="planner-pulse-stat">
-          <div className="planner-pulse-stat-n">{planned}<em>•</em></div>
-          <div className="planner-pulse-stat-l">{t("planner.planned") || "Planned"}</div>
-        </div>
-        <div className="planner-pulse-stat">
-          <div className="planner-pulse-stat-n">{done}<em>•</em></div>
-          <div className="planner-pulse-stat-l">{t("planner.completed") || "Done"}</div>
-        </div>
-        <div className="planner-pulse-stat">
-          <div className="planner-pulse-stat-n">{ahead}<em>•</em></div>
-          <div className="planner-pulse-stat-l">{t("planner.todo") || "Ahead"}</div>
-        </div>
-        {weeks.length > 1 && (
-          <div className="planner-pulse-spark" aria-hidden="true">
-            {weeks.map((n, i) => (
-              <span
-                key={i}
-                style={{ height: `${(n / sparkMax) * 100 || 6}%` }}
-              />
-            ))}
-          </div>
-        )}
-      </div>
-
       <div className="planner-pulse-chips">
         {chips.map((c) => {
           const Icon = c.icon;
@@ -826,9 +778,10 @@ function PulseCard({ events, monthDate, todayStart }) {
               type="button"
               onClick={() => navigate(["studio", c.studioKind])}
               className="planner-pulse-chip"
+              title={`${t(`hero.${c.key}.verb`)} ${t(`hero.${c.key}.noun`)}`}
             >
               <span className={`planner-pulse-chip-icon t-${c.tone}`}>
-                <Icon size={14} strokeWidth={2} />
+                <Icon size={13} strokeWidth={2} />
               </span>
               <span className="planner-pulse-chip-meta">
                 <span className="planner-pulse-chip-verb">{t(`hero.${c.key}.verb`)}</span>

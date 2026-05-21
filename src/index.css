@@ -424,134 +424,77 @@ select:focus-visible {
   .planner-workload-bar::before { transition: none; }
 }
 
-/* ── Pulse hero card — replaces the old "Studio AI" hero on the
-   planner. Editorial headline narrates the month, mini sparkline
-   shows weekly distribution, four Studio chips sit at the bottom.
-   Surface gets the drench ambient so the planner has a brand
-   moment without overpowering the calendar. */
+/* ── Pulse hero — compact horizontal strip. Single-line narrative on
+   the left, four Studio launcher chips on the right. Sized so the
+   calendar grid below claims most of the page height. */
 .planner-pulse {
   position: relative;
-  display: flex;
-  flex-direction: column;
-  gap: clamp(14px, 1.6vw, 22px);
-  padding: clamp(18px, 2vw, 26px);
-  border-radius: 18px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: clamp(12px, 2vw, 24px);
+  padding: clamp(10px, 1.2vw, 14px) clamp(14px, 1.6vw, 18px);
+  border-radius: 14px;
   background:
-    radial-gradient(ellipse at 100% 0%, oklch(0.85 0.13 60 / 0.18), transparent 50%),
-    radial-gradient(ellipse at 0% 100%, oklch(0.55 0.13 36 / 0.10), transparent 55%),
+    radial-gradient(ellipse at 100% 0%, oklch(0.85 0.13 60 / 0.14), transparent 50%),
+    radial-gradient(ellipse at 0% 100%, oklch(0.55 0.13 36 / 0.08), transparent 55%),
     var(--color-paper-cool);
   border: 1px solid var(--color-line);
   box-shadow: var(--shadow-1);
   overflow: hidden;
   isolation: isolate;
-  height: 100%;
-}
-.planner-pulse::after {
-  content: '';
-  position: absolute;
-  inset: -40% -20% auto auto;
-  width: 56%; height: 56%;
-  background: radial-gradient(circle, oklch(0.78 0.18 70 / 0.20), transparent 70%);
-  pointer-events: none;
-  z-index: 0;
 }
 .planner-pulse > * { position: relative; z-index: 1; }
+.planner-pulse-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
 .planner-pulse-kicker {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   font-family: var(--font-sans);
-  font-size: 11px;
-  font-weight: 500;
+  font-size: 9.5px;
+  font-weight: 600;
   letter-spacing: 0.16em;
   text-transform: uppercase;
   color: var(--color-accent);
 }
 .planner-pulse-kicker::before {
   content: '';
-  width: 22px; height: 1px; background: currentColor;
+  width: 16px; height: 1px; background: currentColor;
 }
 .planner-pulse-h {
   font-family: var(--font-serif);
-  font-weight: 300;
-  font-size: clamp(22px, 2.2vw, 32px);
-  line-height: 1.1;
-  letter-spacing: -0.02em;
+  font-weight: 400;
+  font-size: clamp(14px, 1.4vw, 18px);
+  line-height: 1.2;
+  letter-spacing: -0.012em;
   color: var(--color-ink);
   margin: 0;
-  text-wrap: balance;
 }
 .planner-pulse-h em {
   font-style: italic;
   color: var(--color-accent);
 }
 .planner-pulse-h b {
-  font-weight: 400;
+  font-weight: 500;
   font-style: normal;
 }
-.planner-pulse-stats {
-  display: flex;
-  gap: clamp(14px, 2vw, 28px);
-  flex-wrap: wrap;
-  align-items: end;
-}
-.planner-pulse-stat {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-.planner-pulse-stat-n {
-  font-family: var(--font-serif);
-  font-weight: 300;
-  font-size: clamp(28px, 3vw, 40px);
-  line-height: 1;
-  letter-spacing: -0.04em;
-  color: var(--color-ink);
-}
-.planner-pulse-stat-n em {
-  font-style: italic;
-  color: var(--color-accent);
-}
-.planner-pulse-stat-l {
-  font-family: var(--font-sans);
-  font-size: 11px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  font-weight: 500;
-  color: var(--color-muted);
-}
-.planner-pulse-spark {
-  display: flex;
-  gap: 4px;
-  align-items: end;
-  height: 32px;
-  margin-inline-start: auto;
-}
-.planner-pulse-spark > span {
-  width: 8px;
-  border-radius: 3px 3px 1px 1px;
-  background: linear-gradient(
-    to top,
-    oklch(0.55 0.13 36 / 0.4),
-    oklch(0.72 0.16 65 / 0.75)
-  );
-  transition: height 460ms var(--ease-out-quint);
-}
 .planner-pulse-chips {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-}
-@media (min-width: 640px) {
-  .planner-pulse-chips { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  display: flex;
+  gap: 6px;
+  flex-wrap: nowrap;
 }
 .planner-pulse-chip {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
-  border-radius: 12px;
-  background: oklch(0.96 0.025 80 / 0.7);
+  gap: 8px;
+  padding: 6px 10px 6px 6px;
+  border-radius: 10px;
+  background: oklch(0.96 0.025 80 / 0.75);
   border: 1px solid oklch(0.20 0.05 40 / 0.06);
   cursor: pointer;
   text-align: start;
@@ -566,8 +509,8 @@ select:focus-visible {
 }
 .planner-pulse-chip:active { transform: translateY(0); }
 .planner-pulse-chip-icon {
-  width: 32px; height: 32px;
-  border-radius: 9px;
+  width: 24px; height: 24px;
+  border-radius: 7px;
   display: grid;
   place-items: center;
   flex-shrink: 0;
@@ -580,19 +523,31 @@ select:focus-visible {
   display: flex;
   flex-direction: column;
   min-width: 0;
+  line-height: 1;
 }
 .planner-pulse-chip-verb {
   font-family: var(--font-sans);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
   color: var(--color-ink);
-  line-height: 1.1;
 }
 .planner-pulse-chip-noun {
   font-family: var(--font-sans);
-  font-size: 10.5px;
+  font-size: 9.5px;
   color: var(--color-muted);
   margin-block-start: 2px;
+}
+/* When the row is too tight, collapse to two-row layout and hide the
+   noun line on chips so they stay legible. */
+@media (max-width: 1180px) {
+  .planner-pulse {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .planner-pulse-chips { justify-content: flex-start; }
+}
+@media (max-width: 640px) {
+  .planner-pulse-chip-noun { display: none; }
+  .planner-pulse-chips { flex-wrap: wrap; }
 }
 
 /* ── Today drench corner — applied to the today calendar cell on top
