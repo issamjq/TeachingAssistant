@@ -1,251 +1,77 @@
 /* ─────────────────────────────────────────────────────────────────────
-   MURCHID — Landing page styles
-   Editorial calm. Desert Quiet palette. Everything is scoped under
-   .murchid-landing so it never leaks into the Studio (which uses the
-   Tailwind @theme tokens from index.css). Tailwind utilities still
-   apply globally; only these custom classes + CSS vars are scoped.
+   MURCHID — Landing v3.1 styles
+   Slim scope. The new Landing.jsx mostly uses Tailwind utilities + the
+   global @theme tokens; this file only provides the .murchid-landing
+   root scope + the marquee animation + small Arabic typography helpers.
    ───────────────────────────────────────────────────────────────────── */
 
 html { scroll-behavior: smooth; }
 
-/* .snap-stop is the marker the JS scroll-pager looks for. Each marked
-   section is centred in the viewport and "holds" the reader for a few
-   wheel notches before releasing to the next one (see Landing). */
-
 .murchid-landing {
-  --paper:       #F7F3EC;
-  --paper-2:     #EDE5D6;
-  --paper-3:     #E3D9C5;
-  --ink:         #2A1F17;
-  --ink-2:       #6E5C4A;
-  --ink-3:       #9B8B76;
-  --clay:        #B5754E;
-  --clay-deep:   #8E5435;
-  --sage:        #7A8F6E;
-  --brick:       #A0392A;
-  --brick-deep:  #7A2A1E;
-  --brick-soft:  #D87B6A;
-  --line:        rgba(42, 31, 23, 0.08);
-  --line-strong: rgba(42, 31, 23, 0.14);
+  --paper:        #F7F2E8;
+  --paper-2:      #EFE9DC;
+  --paper-3:      #E5DDC9;
+  --ink:          #1F1B14;
+  --ink-2:        #4A4338;
+  --ink-3:        #7A715F;
+  --clay:         #9C4F37;
+  --clay-soft:    #D89E84;
+  --sage:         #5A7A4A;
+  --line:         rgba(31, 27, 20, 0.08);
+  --line-strong:  rgba(31, 27, 20, 0.14);
 
-  font-family: 'Inter Tight', system-ui, sans-serif;
   background: var(--paper);
   color: var(--ink);
-  font-feature-settings: 'cv11', 'ss01', 'ss03';
+  font-family: 'Geist', 'IBM Plex Sans Arabic', system-ui, sans-serif;
+  font-feature-settings: 'cv11', 'ss01';
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   min-height: 100vh;
 }
 
-.murchid-landing.paper-noise {
-  background-image:
-    radial-gradient(circle at 1px 1px, rgba(42, 31, 23, 0.018) 1px, transparent 0);
-  background-size: 24px 24px;
+/* Arabic on the landing scope. The body sans + display serif both
+   collapse to IBM Plex Sans Arabic when the page is in RTL, with the
+   display weight dropped to 200 so it visually matches the italic
+   serif of the Latin side. */
+html[lang="ar"] .murchid-landing,
+html[dir="rtl"] .murchid-landing {
+  font-family: 'IBM Plex Sans Arabic', system-ui, sans-serif;
+}
+html[lang="ar"] .murchid-landing .font-serif,
+html[dir="rtl"] .murchid-landing .font-serif {
+  font-family: 'IBM Plex Sans Arabic', system-ui, sans-serif;
+  font-weight: 200;
+  font-style: normal;
 }
 
-.murchid-landing .font-display {
-  font-family: 'Fraunces', Georgia, serif;
-  font-optical-sizing: auto;
-  letter-spacing: -0.02em;
-}
-
-.murchid-landing .font-mono { font-family: 'JetBrains Mono', monospace; }
-
-.murchid-landing .eyebrow {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 11px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--ink-3);
-}
-
-.murchid-landing .link-quiet {
-  position: relative;
-  color: var(--ink);
-  transition: color 0.3s ease;
-  cursor: pointer;
-}
-.murchid-landing .link-quiet::after {
-  content: '';
-  position: absolute;
-  left: 0; bottom: -2px;
-  width: 100%; height: 1px;
-  background: var(--ink);
-  transform: scaleX(0);
-  transform-origin: left;
-  transition: transform 0.5s cubic-bezier(0.22, 1, 0.36, 1);
-}
-.murchid-landing .link-quiet:hover::after { transform: scaleX(1); }
-
-.murchid-landing .btn-primary {
-  background: var(--ink);
-  color: var(--paper);
-  transition: background 0.3s ease, transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
-  cursor: pointer;
-}
-.murchid-landing .btn-primary:hover { background: var(--ink-2); }
-.murchid-landing .btn-primary:active { transform: scale(0.98); }
-
-/* Inverse of primary — for dark surfaces (e.g. the closing CTA).
-   Same two colours, flipped. No third hue anywhere. */
-.murchid-landing .btn-invert {
-  background: var(--paper);
-  color: var(--ink);
-  transition: background 0.3s ease, transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
-  cursor: pointer;
-}
-.murchid-landing .btn-invert:hover { background: var(--paper-2); }
-.murchid-landing .btn-invert:active { transform: scale(0.98); }
-
-.murchid-landing .btn-secondary {
-  background: transparent;
-  color: var(--ink);
-  border: 0.5px solid var(--line-strong);
-  transition: background 0.3s ease, border-color 0.3s ease;
-  cursor: pointer;
-}
-.murchid-landing .btn-secondary:hover {
-  background: rgba(42, 31, 23, 0.04);
-  border-color: var(--ink);
-}
-
-.murchid-landing .card {
-  background: var(--paper);
-  border: 0.5px solid var(--line);
-  border-radius: 12px;
-}
-
-.murchid-landing .no-scrollbar::-webkit-scrollbar { display: none; }
-.murchid-landing .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-
-.murchid-landing .glow-orb {
-  position: absolute;
-  width: 600px; height: 600px;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(181, 117, 78, 0.08) 0%, transparent 70%);
-  pointer-events: none;
-  filter: blur(40px);
-  transition: transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
-}
-
+/* ─── Marquee — used by SocialProof. 40s linear loop, paused on
+       reduced-motion. ────────────────────────────────────────────── */
 @keyframes murchid-marquee {
   from { transform: translateX(0); }
   to   { transform: translateX(-50%); }
 }
 .murchid-landing .marquee-track {
-  animation: murchid-marquee 40s linear infinite;
   display: flex;
   width: max-content;
-}
-
-.murchid-landing ::selection { background: var(--clay); color: var(--paper); }
-
-.murchid-landing *:focus-visible {
-  outline: 1.5px solid var(--clay);
-  outline-offset: 3px;
-  border-radius: 2px;
-}
-
-.murchid-landing .nav-blur {
-  backdrop-filter: blur(12px) saturate(180%);
-  -webkit-backdrop-filter: blur(12px) saturate(180%);
-  background: rgba(247, 243, 236, 0.78);
-}
-
-.murchid-landing .workflow-line {
-  background: linear-gradient(to bottom, var(--line-strong), transparent);
-}
-
-.murchid-landing .lift {
-  transition: transform 0.5s cubic-bezier(0.22, 1, 0.36, 1),
-              border-color 0.3s ease;
-}
-.murchid-landing .lift:hover {
-  transform: translateY(-2px);
-  border-color: var(--line-strong);
-}
-
-.murchid-landing .dot { width: 10px; height: 10px; border-radius: 50%; }
-
-.murchid-landing .ui-tab {
-  font-family: 'Inter Tight', sans-serif;
-  font-size: 13px;
-  color: var(--ink-2);
-  padding: 6px 12px;
-  border-radius: 6px;
-  transition: all 0.2s ease;
-}
-.murchid-landing .ui-tab.active {
-  background: var(--paper-2);
-  color: var(--ink);
-}
-
-.murchid-landing .mock-row {
-  border-radius: 8px;
-  background: var(--paper-2);
-  height: 12px;
-}
-
-/* The hero "product" mock is a faithful copy of the real Studio and
-   reuses the Studio's global classes. Inside .murchid-landing our scoped
-   `.font-mono` would force JetBrains Mono onto it; pin it back to the
-   Studio's mono token so the preview matches the app exactly. */
-.murchid-landing .murchid-studio-frame .font-mono {
-  font-family: var(--font-mono);
-}
-
-/* Streaming-outline rows in the Studio-flow "building" step. */
-@keyframes studioflow-line {
-  from { opacity: 0; transform: translateY(6px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-
-/* Scene change in the continuous Studio-flow "video" — a quick
-   cross-dissolve so the take reads as one recording, not a slideshow. */
-@keyframes studioflow-scene {
-  from { opacity: 0; transform: translateY(10px) scale(0.992); }
-  to   { opacity: 1; transform: translateY(0) scale(1); }
-}
-.murchid-landing .studioflow-scene {
-  animation: studioflow-scene 460ms cubic-bezier(0.22, 1, 0.36, 1) both;
-}
-
-/* ─────────────────────────────────────────────────────────────────────
-   RTL — Arabic. The i18n provider sets <html dir="rtl"> when Arabic is
-   selected, so text flow, flex rows and logical properties mirror
-   automatically. These rules flip the few styles that are still
-   physically anchored. Section-level mirroring of the bespoke scroll
-   animations is handled inline (logical props) per section.
-   ───────────────────────────────────────────────────────────────────── */
-[dir="rtl"] .murchid-landing .link-quiet::after {
-  left: auto;
-  right: 0;
-  transform-origin: right;
-}
-[dir="rtl"] .murchid-landing {
-  font-feature-settings: normal;
-}
-
-/* ─────────────────────────────────────────────────────────────────────
-   Trial-CTA ambient animation. Runs continuously (no hover needed): a
-   slow diagonal shimmer sweeps across the dark pill, the warm clay
-   inner glow breathes softly, and the sparkle particles twinkle
-   independently. Pure CSS — no JS, no perf cost.
-   ───────────────────────────────────────────────────────────────────── */
-@keyframes murchid-trial-shimmer {
-  0%   { transform: translateX(-110%); }
-  100% { transform: translateX(220%); }
-}
-@keyframes murchid-trial-glow {
-  0%, 100% { opacity: 0.4; }
-  50%      { opacity: 0.85; }
-}
-@keyframes murchid-trial-twinkle {
-  0%, 100% { opacity: 0.2; }
-  50%      { opacity: 0.7; }
+  animation: murchid-marquee 40s linear infinite;
 }
 @media (prefers-reduced-motion: reduce) {
-  .murchid-trial-shimmer,
-  .murchid-trial-glow,
-  .murchid-trial-twinkle { animation: none !important; }
+  .murchid-landing .marquee-track { animation: none; }
+}
+html[dir="rtl"] .murchid-landing .marquee-track {
+  animation-direction: reverse;
+}
+
+/* Selection — clay highlight on cream surfaces. */
+.murchid-landing ::selection {
+  background: var(--clay);
+  color: var(--paper);
+}
+
+/* Focus ring — visible, calm. Matches the rest of the app. */
+.murchid-landing *:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--paper),
+              0 0 0 5px color-mix(in oklab, var(--clay) 35%, transparent);
+  border-radius: 6px;
 }
