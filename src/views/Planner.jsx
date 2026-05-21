@@ -262,29 +262,27 @@ export default function Planner() {
   return (
     <div className="planner-view relative max-w-[1400px] mx-auto pb-0 h-full flex flex-col">
 
-      {/* ── Month hero — stacked headline + italic editorial caption.
-          No eyebrow; the page header (sidebar nav) already says where
-          you are. */}
-      <div className="mb-3">
-        <h1 className="font-serif text-3xl md:text-4xl font-semibold text-ink leading-none tracking-tight">
-          <span key={monthLabel} className="studio-tick">
-            {monthName}
-          </span>{" "}
-          <em className="italic font-medium text-accent">{anchor.getFullYear()}</em>
-        </h1>
-        <p className="font-serif italic text-[13px] text-muted leading-snug mt-1.5">
-          {t("planner.subtitle")}
-        </p>
+      {/* ── Month hero (bento). Big italic Instrument Serif headline on
+          the start side, compact month-at-a-glance mini-strip on the end. */}
+      <div className="mb-3 flex items-end gap-4 flex-wrap">
+        <div className="min-w-0">
+          <h1 className="font-serif text-[36px] md:text-[44px] lg:text-[52px] text-ink leading-[0.95] tracking-[-0.015em]">
+            <span key={monthLabel} className="studio-tick">{monthName}</span>{" "}
+            <em className="italic text-accent font-normal">{anchor.getFullYear()}</em>
+          </h1>
+          <p className="font-serif italic text-[13px] text-muted leading-snug mt-2">
+            {t("planner.subtitle")}
+          </p>
+        </div>
+        <span className="flex-1" />
+        <PlannerAtAGlance events={events} monthDate={anchor} todayStart={todayStart} />
       </div>
 
-      {/* 2-row grid:
-            Row 1: top blocks (Studio AI hero on the left, AI Insights on
-                   the right) — both stretch to the same height via
-                   items-stretch + grid-rows-[auto_1fr].
-            Row 2: calendar (left, flex-1 to fill) + Upcoming +
-                   QuickActions stack (right, also flex-1).
-          The filter chip row + small calendar header live ABOVE the
-          grid so they don't break the column alignment. */}
+      {/* v3.0 layout: calendar fills the remaining viewport, then a
+          single quiet AI margin card sits below it. The v1.1 4-card
+          cluster (StudioHero / ThisMonth / Upcoming / QuickActions) is
+          gone — its content is absorbed into the bento hero above and
+          the AI margin card below. */}
 
       {/* ── Filter chip row — All + one per category. Sits above the
           grid so both columns inside the grid start at the same Y. */}
@@ -360,136 +358,98 @@ export default function Planner() {
         </button>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] grid-rows-[auto_1fr] gap-x-6 gap-y-3 items-stretch flex-1 min-h-0">
-        {/* Row 1: Studio AI hero (left) + AI Insights (right), heights
-            match via items-stretch. */}
-        <div className="min-w-0">
-          <StudioHeroCard />
-        </div>
-        <div className="min-w-0">
-          <ThisMonthOverviewCard events={events} monthDate={anchor} todayStart={todayStart} />
-        </div>
-
-        {/* Row 2: Calendar (left, fills remaining height) + Upcoming +
-            QuickActions stack (right, also fills). */}
-        <div className="min-w-0 min-h-0 flex flex-col">
-
-      {/* The grid. paper-cool surface, rounded-2xl, soft shadow. Day
-          headers in mono-uppercase, body cells in a 7-column grid. */}
-      <div className="planner-grid planner-card-frame rounded-2xl bg-paper-cool overflow-hidden flex-1 flex flex-col min-h-0">
-        <div className="grid grid-cols-7 border-b border-line bg-[#fffdf6] flex-shrink-0">
-          {weekdayLabels.map((d, i) => (
-            <div
-              key={i}
-              className="font-mono text-[9.5px] uppercase tracking-[0.18em] text-muted px-2 py-1.5 text-center"
-            >
-              {d}
-            </div>
-          ))}
-        </div>
-        <div
-          className="grid grid-cols-7 flex-1 auto-rows-fr"
-          style={{ gridTemplateRows: `repeat(${grid.length / 7}, 1fr)` }}
-        >
-          {grid.map((d, i) => {
-            const inMonth = d.getMonth() === anchor.getMonth();
-            const isToday = sameYMD(d, today);
-            const isPast = !isToday && d < todayStart;
-            const dayEvents = eventsByDate.get(isoKey(d)) || [];
-            const shown = dayEvents.slice(0, 2);
-            const overflow = dayEvents.length - shown.length;
-            const lastRowStart = grid.length - 7;
-            return (
+      <div className="flex-1 min-h-0 flex flex-col gap-3">
+        <div className="planner-grid planner-card-frame rounded-2xl bg-paper-cool overflow-hidden flex-1 flex flex-col min-h-0">
+          <div className="grid grid-cols-7 border-b border-line bg-paper-cool flex-shrink-0">
+            {weekdayLabels.map((d, i) => (
               <div
                 key={i}
-                role="button"
-                tabIndex={0}
-                onClick={() => setDayListDate(isoKey(d))}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault();
-                    setDayListDate(isoKey(d));
-                  }
-                }}
-                className={`planner-cell border-b border-r border-line/70 px-1.5 pt-1 pb-1 min-h-[60px] flex flex-col gap-0.5 cursor-pointer transition-colors duration-150 ${
-                  inMonth
-                    ? isPast
-                      ? "bg-paper-cool/50"
-                      : "bg-paper-cool"
-                    : "bg-paper-warm/40 text-muted/60"
-                } hover:bg-paper-warm/50 focus:outline-none focus:ring-2 focus:ring-accent/40 focus:ring-inset ${
-                  isToday ? "planner-cell-today" : ""
-                } ${(i + 1) % 7 === 0 ? "border-r-0" : ""} ${i >= lastRowStart ? "border-b-0" : ""}`}
-                style={{ animationDelay: `${(i % 14) * 18}ms` }}
+                className="font-mono text-[9.5px] uppercase tracking-[0.18em] text-muted px-2 py-1.5 text-center"
               >
-                <div className="flex items-start justify-between gap-1">
-                  <span
-                    className={`font-mono text-[11px] leading-none ${
-                      isToday
-                        ? "h-6 w-6 rounded-full bg-accent text-paper-cool flex items-center justify-center font-medium text-[11.5px]"
-                        : inMonth
-                          ? isPast
-                            ? "text-muted/70"
-                            : "text-ink-soft"
-                          : "text-muted/60"
-                    }`}
-                  >
-                    {d.getDate()}
-                  </span>
-                  {dayEvents.length > 0 && (
-                    <span className="font-mono text-[10px] text-muted">
-                      {dayEvents.length}
-                    </span>
-                  )}
-                </div>
-                <div className={`flex-1 flex flex-col gap-1 min-h-0 ${isPast ? "opacity-60" : ""}`}>
-                  {shown.map((e) => {
-                    const cat = CATEGORIES.find((c) => c.key === e.kind);
-                    const s = COLOR_STYLES[cat?.color || "ink"];
-                    return (
-                      <span
-                        key={e.id}
-                        title={`${cat?.label || e.kind} · ${e.title}${e.time ? ` · ${e.time}` : ""}`}
-                        className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md ${s.chipBg} ${s.chipText} text-[10.5px] leading-tight pointer-events-none`}
-                      >
-                        <span className={`h-1 w-1 flex-shrink-0 rounded-full ${s.dot}`} />
-                        <span className="truncate">{e.title}</span>
-                      </span>
-                    );
-                  })}
-                  {overflow > 0 && (
-                    <span className="font-serif italic text-[10.5px] text-muted px-1.5">
-                      +{overflow} more
-                    </span>
-                  )}
-                </div>
-                {isToday && (
-                  <span className="planner-cell-today-spark" aria-hidden>
-                    <Sparkles size={11} strokeWidth={2} />
-                  </span>
-                )}
+                {d}
               </div>
-            );
-          })}
-        </div>
-      </div>
+            ))}
+          </div>
+          <div
+            className="grid grid-cols-7 flex-1 auto-rows-fr"
+            style={{ gridTemplateRows: `repeat(${grid.length / 7}, 1fr)` }}
+          >
+            {grid.map((d, i) => {
+              const inMonth = d.getMonth() === anchor.getMonth();
+              const isToday = sameYMD(d, today);
+              const isPast = !isToday && d < todayStart;
+              const dayEvents = eventsByDate.get(isoKey(d)) || [];
+              const shown = dayEvents.slice(0, 2);
+              const overflow = dayEvents.length - shown.length;
+              const lastRowStart = grid.length - 7;
+              return (
+                <div
+                  key={i}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => setDayListDate(isoKey(d))}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      setDayListDate(isoKey(d));
+                    }
+                  }}
+                  className={`planner-cell border-b border-e border-line/70 px-2 pt-1.5 pb-1.5 min-h-[64px] flex flex-col gap-1 cursor-pointer transition-[background-color] duration-150 ${
+                    inMonth
+                      ? isPast ? "bg-paper-cool/50" : "bg-paper-cool"
+                      : "bg-paper-warm/40 text-muted/60"
+                  } hover:bg-paper-warm/50 focus:outline-none focus:ring-2 focus:ring-accent/40 focus:ring-inset ${
+                    isToday ? "planner-cell-today" : ""
+                  } ${(i + 1) % 7 === 0 ? "border-e-0" : ""} ${i >= lastRowStart ? "border-b-0" : ""}`}
+                  style={{ animationDelay: `${(i % 14) * 18}ms` }}
+                >
+                  <div className="flex items-start justify-between gap-1">
+                    <span
+                      className={`font-mono text-[11px] leading-none ${
+                        isToday
+                          ? "h-6 w-6 rounded-full bg-accent text-paper-cool flex items-center justify-center font-medium text-[11.5px]"
+                          : inMonth
+                            ? isPast ? "text-muted/70" : "text-ink-soft"
+                            : "text-muted/60"
+                      }`}
+                    >
+                      {d.getDate()}
+                    </span>
+                    {dayEvents.length > 0 && (
+                      <span className="font-mono text-[10px] text-muted">{dayEvents.length}</span>
+                    )}
+                  </div>
+                  <div className={`flex-1 flex flex-col gap-1 min-h-0 ${isPast ? "opacity-60" : ""}`}>
+                    {shown.map((e) => {
+                      const cat = CATEGORIES.find((c) => c.key === e.kind);
+                      const s = COLOR_STYLES[cat?.color || "ink"];
+                      return (
+                        <span
+                          key={e.id}
+                          title={`${cat?.label || e.kind} · ${e.title}${e.time ? ` · ${e.time}` : ""}`}
+                          className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md ${s.chipBg} ${s.chipText} text-[10.5px] leading-tight pointer-events-none`}
+                        >
+                          <span className={`h-1 w-1 flex-shrink-0 rounded-full ${s.dot}`} />
+                          <span className="truncate">{e.title}</span>
+                        </span>
+                      );
+                    })}
+                    {overflow > 0 && (
+                      <span className="font-serif italic text-[10.5px] text-muted px-1.5">
+                        +{overflow} more
+                      </span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
 
-        {/* Row 2 right: Upcoming + Quick Actions stack, fills the same
-            vertical space as the calendar to its left. Upcoming takes
-            flex-1 so any extra height grows the list, and Quick Actions
-            stays pinned to the bottom edge — keeping its bottom flush
-            with the calendar's bottom. */}
-        <div className="min-w-0 min-h-0 flex flex-col gap-3">
-          <UpcomingCard
-            events={events
-              .filter((e) => e.date >= isoKey(today))
-              .sort((a, b) => (a.date + (a.time || "")).localeCompare(b.date + (b.time || "")))
-              .slice(0, 4)}
-            className="flex-1 min-h-0"
-          />
-          <QuickActionsCard />
-        </div>
+        {/* AI margin card — quiet, sits below the calendar, replaces
+            the v1.1 StudioHero / ThisMonth / Upcoming / QuickActions
+            4-card cluster. */}
+        <AIMarginCard />
       </div>
 
       {dayListDate && (
@@ -843,6 +803,85 @@ function QuickActionsCard() {
               </span>
               <span className="flex-1 text-left text-[12.5px] font-medium text-ink">{a.label}</span>
               <Plus size={13} strokeWidth={2} className="text-muted flex-shrink-0" />
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ───────────────────────────────────────────────────────────────────────
+// v3.0 — PlannerAtAGlance. Compact mini-strip that sits in the trailing
+// corner of the month hero. Three stats: planned / completed / to-do.
+// Tabular figures so the numbers don't shift width when they tick.
+// ───────────────────────────────────────────────────────────────────────
+function PlannerAtAGlance({ events = [], monthDate, todayStart }) {
+  const t = useT();
+  const monthEvents = useMemo(() => {
+    const y = monthDate.getFullYear();
+    const m = monthDate.getMonth();
+    return events.filter((e) => {
+      const d = new Date(e.date);
+      return d.getFullYear() === y && d.getMonth() === m;
+    });
+  }, [events, monthDate]);
+  const planned = monthEvents.length;
+  const completed = monthEvents.filter((e) => new Date(e.date) < todayStart).length;
+  const todo = planned - completed;
+  const stats = [
+    { label: t("planner.planned"),   value: planned },
+    { label: t("planner.completed"), value: completed },
+    { label: t("planner.todo"),      value: todo },
+  ];
+  return (
+    <div className="flex items-baseline gap-5 shrink-0">
+      {stats.map((s, i) => (
+        <div key={i} className="text-end">
+          <div className="font-serif text-[28px] leading-none text-ink tabular-nums">
+            {s.value}
+          </div>
+          <div className="font-mono text-[9.5px] uppercase tracking-[0.14em] text-muted mt-1">
+            {s.label}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ───────────────────────────────────────────────────────────────────────
+// v3.0 — AIMarginCard. The single quiet AI card that replaces the v1.1
+// StudioHero / ThisMonthOverview / Upcoming / QuickActions cluster.
+// Reads as an editor's marginal note. Lives below the calendar.
+// ───────────────────────────────────────────────────────────────────────
+function AIMarginCard() {
+  const t = useT();
+  const verbs = [
+    { key: "lesson",       icon: BookOpen,      kind: "lesson_plan" },
+    { key: "quiz",         icon: GraduationCap, kind: "quiz" },
+    { key: "homework",     icon: ClipboardList, kind: "homework" },
+    { key: "presentation", icon: Layout,        kind: "presentation" },
+  ];
+  return (
+    <div className="rounded-2xl border border-[var(--color-border-subtle)] bg-paper-cool px-5 py-4 flex items-center gap-5 flex-wrap">
+      <div className="min-w-0 flex-1">
+        <p className="font-serif italic text-[15px] text-ink leading-snug">
+          Murchid is ready. <span className="text-muted">What would you like to draft today?</span>
+        </p>
+      </div>
+      <div className="flex items-center gap-2 flex-wrap">
+        {verbs.map((v) => {
+          const Icon = v.icon;
+          return (
+            <button
+              key={v.key}
+              type="button"
+              onClick={() => navigate(["studio", v.kind])}
+              className="inline-flex items-center gap-1.5 h-8 px-3 rounded-full border border-[var(--color-border-subtle)] bg-[var(--color-surface-card)] hover:border-accent hover:bg-[color-mix(in_oklab,var(--color-accent)_8%,transparent)] text-ink-soft hover:text-ink text-[12.5px] font-medium transition-colors duration-150"
+            >
+              <Icon size={13} strokeWidth={2} className="text-accent" />
+              {t(`hero.${v.key}.noun`)}
             </button>
           );
         })}
