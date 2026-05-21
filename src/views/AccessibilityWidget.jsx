@@ -147,6 +147,42 @@ export default function AccessibilityWidget() {
     : { left: "auto", right: 20 };
   const dirty = !isDefault(s);
 
+  // Pill that appears next to the launcher whenever any filter / setting is
+  // off-default. It surfaces the state (so the teacher knows the page is
+  // being transformed by the widget — not a bug) and offers a single tap
+  // to clear everything without opening the panel. The pill sits 64px to
+  // the inside of the launcher so it doesn't cover the button itself.
+  const resetChip = dirty && (
+    <button
+      key={`reset-chip-${dir}`}
+      type="button"
+      data-a11y-node="reset-chip"
+      data-a11y-dir={dir}
+      onClick={reset}
+      aria-label={t("a11y.reset")}
+      title={t("a11y.reset")}
+      style={{
+        position: "fixed",
+        bottom: 26,
+        ...(dir === "rtl"
+          ? { right: "auto", left: 84 }
+          : { left: "auto", right: 84 }),
+        zIndex: 2147483000,
+      }}
+      className="group inline-flex items-center gap-1.5 h-10 px-3.5 rounded-full bg-[#1a1814] text-[#faf6ec] text-[12px] font-medium tracking-wide shadow-[0_6px_18px_rgba(26,24,20,0.32)] ring-1 ring-white/15 hover:bg-[#c8472b] transition"
+    >
+      <span className="relative grid place-items-center w-2 h-2">
+        <span className="absolute inset-0 rounded-full bg-[#e87a55] animate-ping opacity-75" />
+        <span className="relative w-2 h-2 rounded-full bg-[#e87a55]" />
+      </span>
+      <span>{t("a11y.filtersOn")}</span>
+      <span className="opacity-60 group-hover:opacity-100">·</span>
+      <span className="underline-offset-2 group-hover:underline">
+        {t("a11y.resetShort")}
+      </span>
+    </button>
+  );
+
   const launcher = (
     <button
       key={dir}
@@ -161,10 +197,16 @@ export default function AccessibilityWidget() {
     >
       <Accessibility size={28} strokeWidth={2.2} />
       {dirty && (
-        <span
-          className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-[#6b7f5a] ring-2 ring-white"
-          aria-hidden="true"
-        />
+        <>
+          <span
+            className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full bg-[#e87a55] ring-2 ring-white animate-ping opacity-70"
+            aria-hidden="true"
+          />
+          <span
+            className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full bg-[#6b7f5a] ring-2 ring-white"
+            aria-hidden="true"
+          />
+        </>
       )}
     </button>
   );
@@ -410,6 +452,7 @@ export default function AccessibilityWidget() {
   return createPortal(
     <>
       <ColorBlindDefs />
+      {resetChip}
       {launcher}
       {panel}
     </>,
