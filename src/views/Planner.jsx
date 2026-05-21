@@ -672,7 +672,7 @@ function ThisMonthOverviewCard({ events = [], monthDate, todayStart }) {
     { n: todo,      k: t("planner.todo"),      icon: Clock,         iconBg: "bg-accent/[0.12]", iconText: "text-accent" },
   ];
   return (
-    <div className="h-full flex flex-col rounded-2xl border border-[#e6dccb] bg-[#fffdf6] p-4 shadow-[0_18px_44px_-22px_rgba(15,20,16,0.14)]">
+    <div className="h-full flex flex-col rounded-2xl border border-[#E5DDC9] bg-[#FDFAF3] p-4 shadow-[0_18px_44px_-22px_rgba(15,20,16,0.14)]">
       <div className="flex items-start justify-between gap-2 mb-3">
         <h3 className="font-serif text-[15px] font-medium text-ink leading-tight">
           {t("planner.thisMonth")}

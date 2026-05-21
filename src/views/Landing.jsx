@@ -4266,7 +4266,7 @@ function FlowPlanner() {
             >
               <div
                 className={`planner-hero-chip ${
-                  c.hot ? "ring-2 ring-accent ring-offset-2 ring-offset-[#fbf2e6]" : ""
+                  c.hot ? "ring-2 ring-accent ring-offset-2 ring-offset-paper" : ""
                 }`}
               >
                 <span className={`planner-hero-chip-icon planner-hero-chip-icon-${c.color}`}>
