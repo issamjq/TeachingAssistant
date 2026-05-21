@@ -32,6 +32,7 @@ import { useAccount, clearAccount } from "./lib/account";
 import AccountMenu from "./views/AccountMenu";
 import HelpPopover from "./views/HelpPopover";
 import { ThemeToggle } from "./components/ui/ThemeToggle";
+import { PageTransition } from "./components/ui/PageTransition";
 
 // Sectioned nav matching the 2026 mockup — italic Fraunces section
 // headers + small letter/icon badges next to each label. All routes
@@ -636,16 +637,18 @@ export default function StudioApp({ onClose }) {
               </button>
             )}
           </div>
-          {TEACHING_RAIL_SECTIONS.has(section) ? (
-            <div className="lg:flex lg:gap-6 h-full">
-              <div className="flex-1 min-w-0">{mainContent}</div>
-              <div className="hidden lg:block flex-shrink-0">
-                <TeachingRail />
+          <PageTransition pageKey={`${section}/${sub || ""}/${extraId || ""}`}>
+            {TEACHING_RAIL_SECTIONS.has(section) ? (
+              <div className="lg:flex lg:gap-6 h-full">
+                <div className="flex-1 min-w-0">{mainContent}</div>
+                <div className="hidden lg:block flex-shrink-0">
+                  <TeachingRail />
+                </div>
               </div>
-            </div>
-          ) : (
-            mainContent
-          )}
+            ) : (
+              mainContent
+            )}
+          </PageTransition>
         </div>
       </main>
 
