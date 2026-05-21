@@ -278,6 +278,341 @@ select:focus-visible {
   .planner-today-glow::before { animation: none; opacity: 0.6; }
 }
 
+/* ════════════════════════════════════════════════════════════════════
+   PLANNER 2026 — workload strip, pulse card, drenched today corner
+   ════════════════════════════════════════════════════════════════════ */
+
+/* ── Workload strip — a horizontal heat-bar above the calendar. One
+   vertical column per day of the displayed month; height encodes
+   event count. Today's column glows in the drench palette. Hover
+   reveals the date in a floating chip. Click a column to open that
+   day's list. */
+.planner-workload {
+  position: relative;
+  margin-block-end: 12px;
+  padding: clamp(14px, 1.6vw, 20px) clamp(14px, 1.6vw, 22px) clamp(28px, 2.4vw, 36px);
+  border-radius: 16px;
+  background:
+    radial-gradient(ellipse at 0% 0%, oklch(0.92 0.05 70 / 0.6), transparent 60%),
+    radial-gradient(ellipse at 100% 100%, oklch(0.85 0.06 50 / 0.4), transparent 60%),
+    var(--color-paper-cool);
+  border: 1px solid var(--color-line);
+  box-shadow: var(--shadow-1);
+  overflow: hidden;
+  isolation: isolate;
+}
+.planner-workload-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-block-end: clamp(10px, 1.2vw, 14px);
+}
+.planner-workload-h {
+  font-family: var(--font-serif);
+  font-size: clamp(13px, 1.1vw, 15px);
+  font-weight: 400;
+  color: var(--color-ink-soft);
+  letter-spacing: -0.01em;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.planner-workload-h em {
+  font-style: italic;
+  color: var(--color-accent);
+}
+.planner-workload-meta {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-weight: 500;
+  color: var(--color-muted);
+}
+.planner-workload-bars {
+  position: relative;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: 3px;
+  height: clamp(40px, 5vw, 56px);
+  align-items: end;
+}
+.planner-workload-bar {
+  position: relative;
+  height: 100%;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  transition: filter 200ms var(--ease-out-quart);
+}
+.planner-workload-bar::before {
+  content: '';
+  display: block;
+  width: 100%;
+  height: var(--h, 8%);
+  min-height: 4px;
+  border-radius: 4px 4px 2px 2px;
+  background: linear-gradient(
+    to top,
+    oklch(0.55 0.13 36 / 0.35),
+    oklch(0.62 0.13 40 / 0.65)
+  );
+  transition: height 520ms var(--ease-out-quint), background 200ms var(--ease-out-quart);
+}
+.planner-workload-bar.is-empty::before {
+  background: oklch(0.55 0.13 36 / 0.12);
+  height: 5px;
+}
+.planner-workload-bar.is-past::before {
+  background: linear-gradient(
+    to top,
+    oklch(0.55 0.13 36 / 0.16),
+    oklch(0.55 0.13 36 / 0.28)
+  );
+}
+.planner-workload-bar.is-today::before {
+  background: linear-gradient(
+    to top,
+    oklch(0.42 0.13 30),
+    oklch(0.72 0.16 65)
+  );
+  box-shadow:
+    0 0 0 1px oklch(0.42 0.13 30 / 0.4),
+    0 0 16px oklch(0.72 0.16 65 / 0.5);
+  height: max(var(--h, 8%), 50%);
+  animation: planner-workload-today 2.6s ease-in-out infinite;
+}
+@keyframes planner-workload-today {
+  0%, 100% { filter: brightness(1); }
+  50%      { filter: brightness(1.15); }
+}
+.planner-workload-bar:hover::before {
+  background: linear-gradient(
+    to top,
+    oklch(0.55 0.13 36 / 0.7),
+    oklch(0.85 0.14 55 / 0.95)
+  );
+}
+.planner-workload-day {
+  position: absolute;
+  bottom: clamp(-22px, -2vw, -26px);
+  font-family: var(--font-sans);
+  font-size: clamp(9px, 0.9vw, 11px);
+  font-weight: 500;
+  color: var(--color-muted);
+  white-space: nowrap;
+}
+.planner-workload-bar.is-today .planner-workload-day {
+  color: var(--color-accent);
+  font-weight: 700;
+}
+/* Only label every 5th day so the row stays readable. */
+.planner-workload-bar:not([data-show="1"]) .planner-workload-day {
+  display: none;
+}
+.planner-workload-bar.is-today .planner-workload-day {
+  display: inline-block;
+}
+@media (prefers-reduced-motion: reduce) {
+  .planner-workload-bar.is-today::before { animation: none; }
+  .planner-workload-bar::before { transition: none; }
+}
+
+/* ── Pulse hero card — replaces the old "Studio AI" hero on the
+   planner. Editorial headline narrates the month, mini sparkline
+   shows weekly distribution, four Studio chips sit at the bottom.
+   Surface gets the drench ambient so the planner has a brand
+   moment without overpowering the calendar. */
+.planner-pulse {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: clamp(14px, 1.6vw, 22px);
+  padding: clamp(18px, 2vw, 26px);
+  border-radius: 18px;
+  background:
+    radial-gradient(ellipse at 100% 0%, oklch(0.85 0.13 60 / 0.18), transparent 50%),
+    radial-gradient(ellipse at 0% 100%, oklch(0.55 0.13 36 / 0.10), transparent 55%),
+    var(--color-paper-cool);
+  border: 1px solid var(--color-line);
+  box-shadow: var(--shadow-1);
+  overflow: hidden;
+  isolation: isolate;
+  height: 100%;
+}
+.planner-pulse::after {
+  content: '';
+  position: absolute;
+  inset: -40% -20% auto auto;
+  width: 56%; height: 56%;
+  background: radial-gradient(circle, oklch(0.78 0.18 70 / 0.20), transparent 70%);
+  pointer-events: none;
+  z-index: 0;
+}
+.planner-pulse > * { position: relative; z-index: 1; }
+.planner-pulse-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--color-accent);
+}
+.planner-pulse-kicker::before {
+  content: '';
+  width: 22px; height: 1px; background: currentColor;
+}
+.planner-pulse-h {
+  font-family: var(--font-serif);
+  font-weight: 300;
+  font-size: clamp(22px, 2.2vw, 32px);
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  color: var(--color-ink);
+  margin: 0;
+  text-wrap: balance;
+}
+.planner-pulse-h em {
+  font-style: italic;
+  color: var(--color-accent);
+}
+.planner-pulse-h b {
+  font-weight: 400;
+  font-style: normal;
+}
+.planner-pulse-stats {
+  display: flex;
+  gap: clamp(14px, 2vw, 28px);
+  flex-wrap: wrap;
+  align-items: end;
+}
+.planner-pulse-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.planner-pulse-stat-n {
+  font-family: var(--font-serif);
+  font-weight: 300;
+  font-size: clamp(28px, 3vw, 40px);
+  line-height: 1;
+  letter-spacing: -0.04em;
+  color: var(--color-ink);
+}
+.planner-pulse-stat-n em {
+  font-style: italic;
+  color: var(--color-accent);
+}
+.planner-pulse-stat-l {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-weight: 500;
+  color: var(--color-muted);
+}
+.planner-pulse-spark {
+  display: flex;
+  gap: 4px;
+  align-items: end;
+  height: 32px;
+  margin-inline-start: auto;
+}
+.planner-pulse-spark > span {
+  width: 8px;
+  border-radius: 3px 3px 1px 1px;
+  background: linear-gradient(
+    to top,
+    oklch(0.55 0.13 36 / 0.4),
+    oklch(0.72 0.16 65 / 0.75)
+  );
+  transition: height 460ms var(--ease-out-quint);
+}
+.planner-pulse-chips {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+@media (min-width: 640px) {
+  .planner-pulse-chips { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+.planner-pulse-chip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: oklch(0.96 0.025 80 / 0.7);
+  border: 1px solid oklch(0.20 0.05 40 / 0.06);
+  cursor: pointer;
+  text-align: start;
+  transition: transform var(--dur-hover) var(--ease-out-quart),
+              background var(--dur-hover) var(--ease-out-quart),
+              border-color var(--dur-hover) var(--ease-out-quart);
+}
+.planner-pulse-chip:hover {
+  transform: translateY(-1px);
+  background: var(--color-cream);
+  border-color: oklch(0.55 0.13 36 / 0.3);
+}
+.planner-pulse-chip:active { transform: translateY(0); }
+.planner-pulse-chip-icon {
+  width: 32px; height: 32px;
+  border-radius: 9px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+.planner-pulse-chip-icon.t-accent { background: oklch(0.85 0.13 60 / 0.22); color: var(--color-accent); }
+.planner-pulse-chip-icon.t-sage   { background: oklch(0.72 0.10 145 / 0.22); color: var(--color-sage); }
+.planner-pulse-chip-icon.t-gold   { background: oklch(0.82 0.13 78 / 0.30); color: var(--color-gold); }
+.planner-pulse-chip-icon.t-soft   { background: oklch(0.78 0.13 50 / 0.22); color: var(--color-accent-soft); }
+.planner-pulse-chip-meta {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.planner-pulse-chip-verb {
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-ink);
+  line-height: 1.1;
+}
+.planner-pulse-chip-noun {
+  font-family: var(--font-sans);
+  font-size: 10.5px;
+  color: var(--color-muted);
+  margin-block-start: 2px;
+}
+
+/* ── Today drench corner — applied to the today calendar cell on top
+   of the existing accent ring. A diagonal warm wash in the corner
+   makes "now" unmistakable. */
+.planner-cell-today::after {
+  content: '';
+  position: absolute;
+  top: 0; right: 0;
+  width: 38%; height: 38%;
+  background: linear-gradient(
+    225deg,
+    oklch(0.62 0.13 40 / 0.32),
+    transparent 70%
+  );
+  border-top-right-radius: inherit;
+  pointer-events: none;
+  z-index: 1;
+}
+
 /* ── Responsive container for the studio main area.
    Padding scales with viewport so the same component reads right at
    phone, tablet, and ultra-wide widths. */

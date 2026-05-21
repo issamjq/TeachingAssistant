@@ -277,6 +277,16 @@ export default function Planner() {
         </p>
       </div>
 
+      {/* Workload strip — month-at-a-glance heat-bar. Click any column
+          to open that day's list. */}
+      <WorkloadStrip
+        days={grid}
+        eventsByDate={eventsByDate}
+        anchor={anchor}
+        todayStart={todayStart}
+        onDayClick={setDayListDate}
+      />
+
       {/* 2-row grid:
             Row 1: top blocks (Studio AI hero on the left, AI Insights on
                    the right) — both stretch to the same height via
@@ -364,7 +374,7 @@ export default function Planner() {
         {/* Row 1: Studio AI hero (left) + AI Insights (right), heights
             match via items-stretch. */}
         <div className="min-w-0">
-          <StudioHeroCard />
+          <PulseCard events={events} monthDate={anchor} todayStart={todayStart} />
         </div>
         <div className="min-w-0">
           <ThisMonthOverviewCard events={events} monthDate={anchor} todayStart={todayStart} />
@@ -631,57 +641,204 @@ function DayListPopup({ date, dayEvents, onClose, onSelect, onNew }) {
 // 6 quick-action chips. Each chip routes to /studio (the picker
 // pre-selects the kind in a later wire-up).
 // ───────────────────────────────────────────────────────────────────────
-function StudioHeroCard() {
+// ───────────────────────────────────────────────────────────────────────
+// WorkloadStrip — horizontal heat-bar above the calendar, one column
+// per day of the displayed month. Bar height encodes event count;
+// today glows in the drench palette; click any column to open that
+// day's list. A teacher reads the month's intensity at a glance.
+// ───────────────────────────────────────────────────────────────────────
+function WorkloadStrip({ days, eventsByDate, anchor, todayStart, onDayClick }) {
   const t = useT();
-  // verb + noun two-line label, with a per-chip soft-tinted icon tile so
-  // the row reads as six distinct tools instead of one repeated chip.
-  // studioKind = the Studio kind to deep-link to (#/studio/<kind>).
-  // null → land on Studio with its default picker (no kind to preset
-  // for Analyze / Ask).
-  const chips = [
-    { key: "lesson",       icon: BookOpen,      color: "accent",      studioKind: "lesson_plan" },
-    { key: "quiz",         icon: GraduationCap, color: "sage",        studioKind: "quiz" },
-    { key: "homework",     icon: ClipboardList, color: "gold",        studioKind: "homework" },
-    { key: "presentation", icon: Layout,        color: "accent-soft", studioKind: "presentation" },
-  ];
+  // Drop padding days from neighboring months — we only want a strip
+  // for the displayed month itself.
+  const monthDays = days.filter((d) => d.getMonth() === anchor.getMonth());
+  const counts = monthDays.map((d) => (eventsByDate.get(isoKey(d)) || []).length);
+  const max = Math.max(1, ...counts);
+  const total = counts.reduce((a, b) => a + b, 0);
+  const today = new Date();
+  // Label every 5th day so the row reads cleanly. Today always labels.
+  const labelEvery = 5;
+
   return (
-    <div className="planner-hero rounded-2xl p-4 md:p-5 relative overflow-hidden h-full flex flex-col justify-center">
-      <div className="relative z-10">
-        <p className="inline-flex items-center gap-1.5 rounded-full bg-accent/[0.10] px-2.5 py-1 text-[11px] font-semibold text-accent mb-2.5">
+    <section className="planner-workload" aria-label="Month workload">
+      <div className="planner-workload-head">
+        <p className="planner-workload-h">
+          <em>Workload</em>
+          <span style={{ color: "var(--color-muted)", fontStyle: "italic" }}>
+            · {total} {total === 1 ? "item" : "items"} across {monthDays.length} days
+          </span>
+        </p>
+        <span className="planner-workload-meta">
+          {t("planner.thisMonth") || "This month"}
+        </span>
+      </div>
+      <div className="planner-workload-bars">
+        {monthDays.map((d, i) => {
+          const c = counts[i];
+          const h = (c / max) * 100;
+          const isToday = sameYMD(d, today);
+          const isPast = !isToday && d < todayStart;
+          const showLabel = isToday || (i % labelEvery === 0) || i === monthDays.length - 1;
+          const cls = [
+            "planner-workload-bar",
+            isToday ? "is-today" : "",
+            isPast ? "is-past" : "",
+            c === 0 ? "is-empty" : "",
+          ].filter(Boolean).join(" ");
+          return (
+            <button
+              key={i}
+              type="button"
+              onClick={() => onDayClick(isoKey(d))}
+              className={cls}
+              data-show={showLabel ? "1" : "0"}
+              style={{ "--h": `${Math.max(8, h)}%` }}
+              title={`${d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })} · ${c} item${c === 1 ? "" : "s"}`}
+              aria-label={`${d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })}, ${c} item${c === 1 ? "" : "s"}`}
+            >
+              <span className="planner-workload-day">{d.getDate()}</span>
+            </button>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+// ───────────────────────────────────────────────────────────────────────
+// PulseCard — the new planner hero. Narrates the month in one
+// sentence, surfaces three stats (planned / done / ahead), shows a
+// per-week sparkline, then offers the four Studio shortcuts as
+// chips below. Replaces the old "Studio AI" hero.
+// ───────────────────────────────────────────────────────────────────────
+function PulseCard({ events, monthDate, todayStart }) {
+  const t = useT();
+  const y = monthDate.getFullYear();
+  const m = monthDate.getMonth();
+  const monthKey = `${y}-${String(m + 1).padStart(2, "0")}`;
+  const monthEvents = events.filter((e) => (e.date || "").slice(0, 7) === monthKey);
+  const planned = monthEvents.length;
+  const done = monthEvents.filter(
+    (e) => new Date(`${e.date}T00:00:00`) < todayStart
+  ).length;
+  const ahead = Math.max(0, planned - done);
+
+  // Bucket events into ISO-week buckets (Mon–Sun) for the sparkline.
+  // Five buckets covers every calendar month layout.
+  const weeks = useMemo(() => {
+    const buckets = [0, 0, 0, 0, 0, 0];
+    const firstOfMonth = new Date(y, m, 1);
+    for (const e of monthEvents) {
+      const d = new Date(`${e.date}T00:00:00`);
+      const dayOfMonth = d.getDate();
+      // Offset from first of month, in days
+      const offset = dayOfMonth - 1 + ((firstOfMonth.getDay() + 6) % 7);
+      const week = Math.min(5, Math.floor(offset / 7));
+      buckets[week] += 1;
+    }
+    // Drop the empty trailing weeks so the sparkline doesn't show
+    // hollow rails past the end of the month.
+    while (buckets.length > 1 && buckets[buckets.length - 1] === 0) buckets.pop();
+    return buckets;
+  }, [monthEvents, y, m]);
+  const sparkMax = Math.max(1, ...weeks);
+
+  // The narrative sentence — chooses tone by load.
+  let headline;
+  if (planned === 0) {
+    headline = (
+      <>
+        Your month is <em>open</em>. Pick a topic — the studio will draft the rest.
+      </>
+    );
+  } else if (ahead === 0) {
+    headline = (
+      <>
+        <em>{planned}</em> {planned === 1 ? "item" : "items"} this month — <b>all in the rear-view</b>.
+      </>
+    );
+  } else {
+    // Find the heaviest weekday
+    const dayCounts = {};
+    for (const e of monthEvents) {
+      const d = new Date(`${e.date}T00:00:00`);
+      const wd = d.toLocaleDateString(undefined, { weekday: "long" });
+      dayCounts[wd] = (dayCounts[wd] || 0) + 1;
+    }
+    const heaviest = Object.entries(dayCounts).sort((a, b) => b[1] - a[1])[0]?.[0];
+    headline = (
+      <>
+        <em>{ahead}</em> {ahead === 1 ? "thing" : "things"} ahead this month.
+        {heaviest ? <> Heaviest day is <b>{heaviest}</b>.</> : null}
+      </>
+    );
+  }
+
+  const chips = [
+    { key: "lesson",       icon: BookOpen,      tone: "accent", studioKind: "lesson_plan" },
+    { key: "quiz",         icon: GraduationCap, tone: "sage",   studioKind: "quiz" },
+    { key: "homework",     icon: ClipboardList, tone: "gold",   studioKind: "homework" },
+    { key: "presentation", icon: Layout,        tone: "soft",   studioKind: "presentation" },
+  ];
+
+  return (
+    <section className="planner-pulse" aria-label="Month pulse">
+      <div>
+        <span className="planner-pulse-kicker">
           <Sparkles size={11} strokeWidth={2.25} /> {t("planner.studioAI")}
-        </p>
-        <h2 className="font-serif text-2xl md:text-[1.55rem] text-ink leading-[1.1] font-semibold tracking-tight">
-          {t("planner.heroA")}
-          <span className="italic font-medium text-accent">{t("planner.heroCreate")}</span>
-          {t("planner.heroB")}
+        </span>
+        <h2 className="planner-pulse-h" style={{ marginBlockStart: 10 }}>
+          {headline}
         </h2>
-        <p className="text-[12.5px] text-muted mt-1.5 max-w-xl leading-snug">
-          {t("planner.heroSub")}
-        </p>
       </div>
 
-      <div className="relative z-10 mt-4 grid grid-cols-2 md:grid-cols-4 gap-2.5">
+      <div className="planner-pulse-stats">
+        <div className="planner-pulse-stat">
+          <div className="planner-pulse-stat-n">{planned}<em>•</em></div>
+          <div className="planner-pulse-stat-l">{t("planner.planned") || "Planned"}</div>
+        </div>
+        <div className="planner-pulse-stat">
+          <div className="planner-pulse-stat-n">{done}<em>•</em></div>
+          <div className="planner-pulse-stat-l">{t("planner.completed") || "Done"}</div>
+        </div>
+        <div className="planner-pulse-stat">
+          <div className="planner-pulse-stat-n">{ahead}<em>•</em></div>
+          <div className="planner-pulse-stat-l">{t("planner.todo") || "Ahead"}</div>
+        </div>
+        {weeks.length > 1 && (
+          <div className="planner-pulse-spark" aria-hidden="true">
+            {weeks.map((n, i) => (
+              <span
+                key={i}
+                style={{ height: `${(n / sparkMax) * 100 || 6}%` }}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="planner-pulse-chips">
         {chips.map((c) => {
           const Icon = c.icon;
           return (
             <button
               key={c.key}
               type="button"
-              onClick={() => navigate(c.studioKind ? ["studio", c.studioKind] : ["studio"])}
-              className="planner-hero-chip group"
+              onClick={() => navigate(["studio", c.studioKind])}
+              className="planner-pulse-chip"
             >
-              <span className={`planner-hero-chip-icon planner-hero-chip-icon-${c.color}`}>
-                <Icon size={13} strokeWidth={2} />
+              <span className={`planner-pulse-chip-icon t-${c.tone}`}>
+                <Icon size={14} strokeWidth={2} />
               </span>
-              <span className="flex flex-col min-w-0 text-start leading-[1.1]">
-                <span className="text-[10.5px] font-semibold text-ink whitespace-nowrap">{t(`hero.${c.key}.verb`)}</span>
-                <span className="text-[9px] text-muted whitespace-nowrap">{t(`hero.${c.key}.noun`)}</span>
+              <span className="planner-pulse-chip-meta">
+                <span className="planner-pulse-chip-verb">{t(`hero.${c.key}.verb`)}</span>
+                <span className="planner-pulse-chip-noun">{t(`hero.${c.key}.noun`)}</span>
               </span>
             </button>
           );
         })}
       </div>
-    </div>
+    </section>
   );
 }
 
