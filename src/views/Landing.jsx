@@ -373,7 +373,7 @@ function HeroCardFace({ kind }) {
   return (
     <div
       className={SHELL}
-      style={{ ...SH, background: "#fffdf6", borderColor: "var(--line)", color: "var(--ink)" }}
+      style={{ ...SH, background: "#FDFAF3", borderColor: "var(--line)", color: "var(--ink)" }}
     >
       <div className="flex items-center justify-between mb-3">
         <span className={`${EBC}`} style={{ color: "var(--clay)" }}>
@@ -449,7 +449,7 @@ function Bubble({ label, bg, style }) {
           position: "relative",
           background: bg,
           color: "#F7F3EC",
-          fontFamily: "'JetBrains Mono', monospace",
+          fontFamily: "'Geist Mono', monospace",
           fontSize: 11,
           letterSpacing: "0.03em",
           padding: "7px 13px",
@@ -1920,7 +1920,7 @@ const ShowcaseScroll = () => {
                     top: 23,
                     transform: "translateY(-50%)",
                     color: "var(--paper)",
-                    fontFamily: "'Fraunces', serif",
+                    fontFamily: "'Instrument Serif', serif",
                     fontSize: 17,
                   }}
                 >
@@ -2637,7 +2637,7 @@ const ProductMock = ({ onOpenStudio }) => {
                 </div>
 
                 <div className="min-w-0">
-                  <div className="h-full flex flex-col rounded-2xl border border-[#e6dccb] bg-[#fffdf6] p-4 shadow-[0_18px_44px_-22px_rgba(15,20,16,0.14)]">
+                  <div className="h-full flex flex-col rounded-2xl border border-[#E5DDC9] bg-[#FDFAF3] p-4 shadow-[0_18px_44px_-22px_rgba(15,20,16,0.14)]">
                     <div className="flex items-start justify-between gap-2 mb-3">
                       <h3 className="font-serif text-[15px] font-medium text-ink leading-tight">
                         This Month Overview
@@ -2687,7 +2687,7 @@ const ProductMock = ({ onOpenStudio }) => {
 
                 <div className="min-w-0 min-h-0 flex flex-col">
                   <div className="planner-grid planner-card-frame rounded-2xl bg-paper-cool overflow-hidden flex-1 flex flex-col min-h-0">
-                    <div className="grid grid-cols-7 border-b border-line bg-[#fffdf6] flex-shrink-0">
+                    <div className="grid grid-cols-7 border-b border-line bg-[#FDFAF3] flex-shrink-0">
                       {weekdayLabels.map((d) => (
                         <div
                           key={d}
@@ -2873,7 +2873,7 @@ const EB = "font-mono text-[10px] uppercase tracking-[0.18em] text-muted";
 function Win({ title, children }) {
   return (
     <div className="murchid-studio-frame rounded-2xl overflow-hidden border border-line bg-paper-cool shadow-[0_40px_90px_-30px_rgba(26,24,20,0.32)]">
-      <div className="flex items-center gap-2 px-4 py-2.5 border-b border-line bg-[#fffdf6]">
+      <div className="flex items-center gap-2 px-4 py-2.5 border-b border-line bg-[#FDFAF3]">
         <span className="h-2.5 w-2.5 rounded-full bg-line" />
         <span className="h-2.5 w-2.5 rounded-full bg-line" />
         <span className="h-2.5 w-2.5 rounded-full bg-line" />
@@ -2945,7 +2945,7 @@ function DGrid({ children }) {
 // meta, dashed-top stat row, pencil + trash in the corner).
 function DCard({ status, title, meta, stats }) {
   return (
-    <div className="relative rounded-2xl border border-[#e6dccb] bg-paper-cool shadow-[0_18px_44px_-22px_rgba(15,20,16,0.14)] p-4 flex flex-col">
+    <div className="relative rounded-2xl border border-[#E5DDC9] bg-paper-cool shadow-[0_18px_44px_-22px_rgba(15,20,16,0.14)] p-4 flex flex-col">
       <div className="absolute top-3 right-3 flex items-center gap-1">
         <span className="h-6 w-6 rounded-md border border-line bg-paper-cool flex items-center justify-center">
           <Pencil size={11} className="text-ink-soft" />
@@ -3266,7 +3266,7 @@ function GalleryDoc({ k, title, meta, tag, tone }) {
   return (
     <div
       className="relative h-full w-full rounded-2xl overflow-hidden flex flex-col p-4 border"
-      style={{ background: "#fffdf6", borderColor: "var(--line)", color: "var(--ink)" }}
+      style={{ background: "#FDFAF3", borderColor: "var(--line)", color: "var(--ink)" }}
     >
       <span
         className="font-mono text-[9px] uppercase tracking-[0.16em] px-1.5 py-0.5 rounded self-start"
@@ -3584,7 +3584,7 @@ function useLoop(period) {
 function MiniWin({ label, chip, ChipIcon, refProp, children }) {
   return (
     <div ref={refProp} className="border-b border-line">
-      <div className="flex items-center gap-1.5 px-3 py-2 border-b border-line bg-[#fffdf6]">
+      <div className="flex items-center gap-1.5 px-3 py-2 border-b border-line bg-[#FDFAF3]">
         <span className="h-1.5 w-1.5 rounded-full bg-line" />
         <span className="h-1.5 w-1.5 rounded-full bg-line" />
         <span className="h-1.5 w-1.5 rounded-full bg-line" />
@@ -3669,7 +3669,7 @@ const DECK_THUMBS = [
   { bg: "#1e3a44", art: "#7fc6c0" },
   { bg: "#dce8ee", art: "#2f7d95" },
   { bg: "#5f7256", art: "#f0d9a8" },
-  { bg: "#fffdf6", art: "#c8472b" },
+  { bg: "#FDFAF3", art: "#9C4F37" },
   { bg: "#f0d79a", art: "#b3442b" },
   { bg: "#b3442b", art: "#ffe6d2" },
   { bg: "#3a2740", art: "#d39bd0" },
@@ -4049,7 +4049,7 @@ function PlanCardFace({ plan, featured, t, cur }) {
     <div
       className="h-full w-full rounded-[24px] p-5 flex flex-col text-start"
       style={{
-        background: featured ? "var(--clay)" : "#fffdf6",
+        background: featured ? "var(--clay)" : "#FDFAF3",
         color: featured ? "var(--paper)" : "var(--ink)",
         border: "0.5px solid " + (featured ? "var(--clay)" : "var(--line-strong)"),
         boxShadow: "0 26px 54px -26px rgba(26,24,20,0.42)",
@@ -4482,7 +4482,7 @@ function FlowResult() {
     { bg: "#1e3a44", art: "#7fc6c0" },
     { bg: "#dce8ee", art: "#2f7d95" },
     { bg: "#5f7256", art: "#f0d9a8" },
-    { bg: "#fffdf6", art: "#c8472b" },
+    { bg: "#FDFAF3", art: "#9C4F37" },
     { bg: "#f0d79a", art: "#b3442b" },
     { bg: "#b3442b", art: "#ffe6d2" },
     { bg: "#3a2740", art: "#d39bd0" },
@@ -4689,7 +4689,7 @@ const StudioFlow = () => {
                 >
                   <path
                     d="M5 3l14 7-6 2-2 6z"
-                    fill="#1a1814"
+                    fill="#1F1B14"
                     stroke="#fff"
                     strokeWidth="1.6"
                   />
@@ -5240,7 +5240,7 @@ function OnboardingPage({ onChoosePlan, onPage }) {
               key={p.id}
               className="rounded-[24px] p-5 flex flex-col gap-4"
               style={{
-                background: featured ? "var(--clay)" : "#fffdf6",
+                background: featured ? "var(--clay)" : "#FDFAF3",
                 color: featured ? "var(--paper)" : "var(--ink)",
                 border:
                   "0.5px solid " + (featured ? "var(--clay)" : "var(--line-strong)"),

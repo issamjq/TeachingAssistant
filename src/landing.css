@@ -13,25 +13,27 @@ html { scroll-behavior: smooth; }
    wheel notches before releasing to the next one (see Landing). */
 
 .murchid-landing {
-  --paper:       #F7F3EC;
-  --paper-2:     #EDE5D6;
-  --paper-3:     #E3D9C5;
-  --ink:         #2A1F17;
-  --ink-2:       #6E5C4A;
-  --ink-3:       #9B8B76;
-  --clay:        #B5754E;
-  --clay-deep:   #8E5435;
-  --sage:        #7A8F6E;
-  --brick:       #A0392A;
+  /* Landing scope maps onto the v2.0 semantic tokens. Kept named the
+     same as before so existing .murchid-landing rules don't churn. */
+  --paper:       #F7F2E8;
+  --paper-2:     #EFE9DC;
+  --paper-3:     #E5DDC9;
+  --ink:         #1F1B14;
+  --ink-2:       #4A4338;
+  --ink-3:       #7A715F;
+  --clay:        #9C4F37;   /* primary accent — ember */
+  --clay-deep:   #6F3324;
+  --sage:        #5A7A4A;
+  --brick:       #A8392A;
   --brick-deep:  #7A2A1E;
-  --brick-soft:  #D87B6A;
-  --line:        rgba(42, 31, 23, 0.08);
-  --line-strong: rgba(42, 31, 23, 0.14);
+  --brick-soft:  #D89E84;
+  --line:        rgba(31, 27, 20, 0.08);
+  --line-strong: rgba(31, 27, 20, 0.14);
 
-  font-family: 'Inter Tight', system-ui, sans-serif;
+  font-family: 'Geist', 'IBM Plex Sans Arabic', system-ui, sans-serif;
   background: var(--paper);
   color: var(--ink);
-  font-feature-settings: 'cv11', 'ss01', 'ss03';
+  font-feature-settings: 'cv11', 'ss01';
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   min-height: 100vh;
@@ -44,19 +46,39 @@ html { scroll-behavior: smooth; }
 }
 
 .murchid-landing .font-display {
-  font-family: 'Fraunces', Georgia, serif;
+  font-family: 'Instrument Serif', 'IBM Plex Sans Arabic', Georgia, serif;
   font-optical-sizing: auto;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.015em;
 }
 
-.murchid-landing .font-mono { font-family: 'JetBrains Mono', monospace; }
+.murchid-landing .font-mono { font-family: 'Geist Mono', 'IBM Plex Sans Arabic', monospace; }
 
 .murchid-landing .eyebrow {
-  font-family: 'JetBrains Mono', monospace;
+  font-family: 'Geist Mono', 'IBM Plex Sans Arabic', monospace;
   font-size: 11px;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--ink-3);
+}
+
+/* Arabic on the landing scope: swap the editorial serif for IBM Plex
+   Sans Arabic (extralight) so headlines feel weight-equal across
+   scripts. Eyebrows drop uppercase (AR has no case) and bump weight. */
+html[lang="ar"] .murchid-landing,
+html[dir="rtl"] .murchid-landing {
+  font-family: 'IBM Plex Sans Arabic', system-ui, sans-serif;
+}
+html[lang="ar"] .murchid-landing .font-display,
+html[dir="rtl"] .murchid-landing .font-display {
+  font-family: 'IBM Plex Sans Arabic', system-ui, sans-serif;
+  font-weight: 200;
+  font-style: normal;
+}
+html[lang="ar"] .murchid-landing .eyebrow,
+html[dir="rtl"] .murchid-landing .eyebrow {
+  text-transform: none;
+  font-weight: 700;
+  letter-spacing: 0;
 }
 
 .murchid-landing .link-quiet {
@@ -168,7 +190,7 @@ html { scroll-behavior: smooth; }
 .murchid-landing .dot { width: 10px; height: 10px; border-radius: 50%; }
 
 .murchid-landing .ui-tab {
-  font-family: 'Inter Tight', sans-serif;
+  font-family: 'Geist', 'IBM Plex Sans Arabic', sans-serif;
   font-size: 13px;
   color: var(--ink-2);
   padding: 6px 12px;
