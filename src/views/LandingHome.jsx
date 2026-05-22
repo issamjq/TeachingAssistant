@@ -14,6 +14,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useT, useI18n } from "../lib/i18n";
 import { PLANS } from "../lib/plans";
+import HeroJourney from "./HeroJourney";
 
 // ── reveal hook ────────────────────────────────────────────────────
 // Adds `.in` to the element when it crosses the viewport. Used by
@@ -650,13 +651,15 @@ function FinalCTA({ onEnter, signedIn }) {
 }
 
 // ── exported home composition ──────────────────────────────────────
+// HeroJourney (lifted from v1.1) slots between CinemaHero and Voices.
+// It's one pinned scroll section that re-stages the same six cards
+// across three acts. The Manifest / Stage / Lineup components stay
+// parked above (unrendered) in case any are wanted back later.
 export default function LandingHome({ onEnter, signedIn }) {
   return (
     <>
       <CinemaHero onEnter={onEnter} signedIn={signedIn} />
-      <Manifest />
-      <Stage onEnter={onEnter} />
-      <Lineup onEnter={onEnter} />
+      <HeroJourney onEnter={onEnter} signedIn={signedIn} />
       <Voices />
       <Plans onEnter={onEnter} />
       <FinalCTA onEnter={onEnter} signedIn={signedIn} />
