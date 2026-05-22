@@ -265,25 +265,12 @@ export default function Planner() {
       {/* ── Month hero — stacked headline + italic editorial caption.
           No eyebrow; the page header (sidebar nav) already says where
           you are. */}
-      <div className="mb-2 flex items-baseline gap-3 flex-wrap">
-        <h1 className="font-serif text-2xl md:text-3xl font-semibold text-ink leading-none tracking-tight">
-          <span key={monthLabel} className="studio-tick">
-            {monthName}
-          </span>{" "}
-          <em className="italic font-medium text-accent">{anchor.getFullYear()}</em>
-        </h1>
-        <p className="font-serif italic text-[12px] text-muted leading-none">
-          {t("planner.subtitle")}
-        </p>
-      </div>
-
-      {/* 2-row grid:
-            Row 1: top blocks (Pulse on the left, ThisMonth on the right).
-            Row 2: calendar (left, flex-1 to fill) + Upcoming +
-                   QuickActions stack (right, also flex-1).
-          The filter chips + month-nav now live INSIDE the calendar
-          card itself (planner-cal-toolbar) so the calendar reads as
-          a single self-contained surface. */}
+      {/* 2-row grid. The page-level "May 2026" title now lives directly
+          above the calendar card (planner-cal-title) instead of at the
+          page top — the month label belongs to the calendar that
+          renders it. The ◀ Today ▶ + Schedule controls moved to the
+          right-rail This Month Overview strip so the filter chips can
+          claim the full calendar-toolbar width. */}
 
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] grid-rows-[auto_1fr] gap-x-6 gap-y-3 items-stretch flex-1 min-h-0">
         {/* Row 1: Studio AI hero (left) + AI Insights (right), heights
@@ -292,21 +279,39 @@ export default function Planner() {
           <PulseCard events={events} monthDate={anchor} todayStart={todayStart} />
         </div>
         <div className="min-w-0">
-          <ThisMonthOverviewCard events={events} monthDate={anchor} todayStart={todayStart} />
+          <ThisMonthOverviewCard
+            events={events}
+            monthDate={anchor}
+            todayStart={todayStart}
+            onPrev={goPrev}
+            onNext={goNext}
+            onToday={goToday}
+            onSchedule={() => { setEditingEntry(null); setShowSchedule(true); }}
+            t={t}
+          />
         </div>
 
         {/* Row 2: Calendar (left, fills remaining height) + Upcoming +
             QuickActions stack (right, also fills). */}
         <div className="min-w-0 min-h-0 flex flex-col">
 
-      {/* The grid. paper-cool surface, rounded-2xl, soft shadow. The
-          calendar's own toolbar lives at the top (filter chips + nav),
-          the weekday header sits below it, then the day cells. */}
+      {/* Calendar section header — big italic "May 2026" + subtitle.
+          Replaces the old page H1; the title now sits adjacent to the
+          surface it labels. */}
+      <div className="planner-cal-title">
+        <h2 className="planner-cal-title-h">
+          <span key={monthLabel} className="studio-tick">{monthName}</span>{" "}
+          <em>{anchor.getFullYear()}</em>
+        </h2>
+        <p className="planner-cal-title-sub">{t("planner.subtitle")}</p>
+      </div>
+
+      {/* The grid. The calendar's toolbar (filter chips only) lives at
+          the top of the card, then the weekday header, then day cells.
+          Month-nav controls live in the right-rail This Month strip. */}
       <div className="planner-grid planner-card-frame rounded-2xl bg-paper-cool overflow-hidden flex-1 flex flex-col min-h-0">
 
-        {/* ── Calendar toolbar — filter chips on the left, month nav
-            (◀ Today ▶) and Schedule on the right. Chips scroll
-            horizontally on narrow widths with a soft fade-out edge. */}
+        {/* Filter chips only — no fade mask needed, all chips fit. */}
         <div className="planner-cal-toolbar">
           <div className="planner-cal-filters">
             <button
@@ -335,40 +340,6 @@ export default function Planner() {
                 </button>
               );
             })}
-          </div>
-          <div className="planner-cal-nav">
-            <button
-              type="button"
-              onClick={goPrev}
-              aria-label={t("planner.prevMonth")}
-              className="planner-cal-icon-btn"
-            >
-              <ChevronLeft size={15} />
-            </button>
-            <button
-              type="button"
-              onClick={goToday}
-              className="planner-cal-today"
-            >
-              {t("planner.today")}
-            </button>
-            <button
-              type="button"
-              onClick={goNext}
-              aria-label={t("planner.nextMonth")}
-              className="planner-cal-icon-btn"
-            >
-              <ChevronRight size={15} />
-            </button>
-            <span className="planner-cal-divider" aria-hidden="true" />
-            <button
-              type="button"
-              onClick={() => { setEditingEntry(null); setShowSchedule(true); }}
-              className="planner-cal-schedule"
-            >
-              <Plus size={13} strokeWidth={2.5} />
-              <span>{t("planner.schedule")}</span>
-            </button>
           </div>
         </div>
 
@@ -720,9 +691,9 @@ function PulseCard({ events, monthDate, todayStart }) {
 // AI Insights — big "On track" headline in sage green, soft chart
 // glow below, 3-stat row underneath.
 // ───────────────────────────────────────────────────────────────────────
-function ThisMonthOverviewCard({ events = [], monthDate, todayStart }) {
-  const t = useT();
-  const { lang } = useI18n();
+function ThisMonthOverviewCard({ events = [], monthDate, todayStart, onPrev, onNext, onToday, onSchedule, t: tProp }) {
+  const tHook = useT();
+  const t = tProp || tHook;
   const y = monthDate.getFullYear();
   const m = monthDate.getMonth();
   const monthKey = `${y}-${String(m + 1).padStart(2, "0")}`;
@@ -734,23 +705,16 @@ function ThisMonthOverviewCard({ events = [], monthDate, todayStart }) {
   ).length;
   const todo = Math.max(0, planned - completed);
   const pct = planned ? Math.round((completed / planned) * 100) : 0;
-  const monthLabel = monthDate
-    .toLocaleDateString(lang === "ar" ? "ar" : "en-US", { month: "short", year: "numeric" })
-    .toUpperCase();
   const stats = [
     { n: planned,   k: t("planner.planned"),   dot: "bg-ink"     },
     { n: completed, k: t("planner.completed"), dot: "bg-sage"    },
     { n: todo,      k: t("planner.todo"),      dot: "bg-accent"  },
   ];
   return (
-    <div className="rounded-xl border border-[#e6dccb] bg-[#fffdf6] px-3 py-2 shadow-[var(--shadow-1)] flex flex-wrap items-center gap-x-3 gap-y-1.5">
-      <span className="inline-flex items-center gap-1.5 whitespace-nowrap mr-auto">
-        <span className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted">
-          {monthLabel}
-        </span>
-        <span className="inline-flex items-center gap-1 text-[11px] font-medium text-sage">
-          <TrendingUp size={11} strokeWidth={2.25} /> {pct}%
-        </span>
+    <div className="rounded-xl border border-[#e6dccb] bg-[#fffdf6] px-3 py-2 shadow-[var(--shadow-1)] flex flex-wrap items-center gap-x-3 gap-y-2">
+      {/* Percent + 3 stat triplets. */}
+      <span className="inline-flex items-center gap-1 text-[11px] font-medium text-sage whitespace-nowrap shrink-0">
+        <TrendingUp size={11} strokeWidth={2.25} /> {pct}%
       </span>
       <div className="flex items-center gap-3 flex-wrap">
         {stats.map((s, i) => (
@@ -764,6 +728,46 @@ function ThisMonthOverviewCard({ events = [], monthDate, todayStart }) {
           </React.Fragment>
         ))}
       </div>
+
+      {/* Month-nav + Schedule — migrated out of the calendar toolbar
+          so the filter chips can claim the full calendar width. */}
+      {(onPrev || onNext || onToday || onSchedule) && (
+        <div className="planner-cal-nav ml-auto shrink-0">
+          <button
+            type="button"
+            onClick={onPrev}
+            aria-label={t("planner.prevMonth")}
+            className="planner-cal-icon-btn"
+          >
+            <ChevronLeft size={14} />
+          </button>
+          <button
+            type="button"
+            onClick={onToday}
+            className="planner-cal-today"
+          >
+            {t("planner.today")}
+          </button>
+          <button
+            type="button"
+            onClick={onNext}
+            aria-label={t("planner.nextMonth")}
+            className="planner-cal-icon-btn"
+          >
+            <ChevronRight size={14} />
+          </button>
+          <span className="planner-cal-divider" aria-hidden="true" />
+          <button
+            type="button"
+            onClick={onSchedule}
+            className="planner-cal-schedule"
+            aria-label={t("planner.schedule")}
+          >
+            <Plus size={13} strokeWidth={2.5} />
+            <span>{t("planner.schedule")}</span>
+          </button>
+        </div>
+      )}
     </div>
   );
 }

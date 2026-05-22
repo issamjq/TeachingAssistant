@@ -408,10 +408,43 @@ select:focus-visible {
   }
 }
 
-/* ── Calendar embedded toolbar — filter chips + month nav live inside
-   the calendar card itself so it reads as one self-contained surface.
-   Filters scroll horizontally on narrow widths with a soft fade-out
-   mask on the right edge. Nav stays pinned, never wraps. */
+/* ── Calendar section title — "May 2026" big italic Fraunces, sits
+   directly above the calendar card so the month label is adjacent to
+   the surface it labels (and to its nav, now in the right-rail strip). */
+.planner-cal-title {
+  display: flex;
+  align-items: baseline;
+  gap: clamp(10px, 1.6vw, 18px);
+  flex-wrap: wrap;
+  margin-block-end: 6px;
+}
+.planner-cal-title-h {
+  font-family: var(--font-serif);
+  font-size: clamp(22px, 2.6vw, 36px);
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  color: var(--color-ink);
+  margin: 0;
+}
+.planner-cal-title-h em {
+  font-style: italic;
+  font-weight: 400;
+  color: var(--color-accent);
+}
+.planner-cal-title-sub {
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: clamp(11px, 1vw, 13px);
+  color: var(--color-muted);
+  line-height: 1.2;
+  margin: 0;
+}
+
+/* ── Calendar embedded toolbar — filter chips (nav controls have moved
+   to the right-rail This Month strip). All chips now fit on a single
+   row at most widths; fade-out mask still helps if the user is in a
+   very narrow viewport. */
 .planner-cal-toolbar {
   position: relative;
   display: flex;
