@@ -615,14 +615,14 @@ function PulseCard({ events, monthDate, todayStart }) {
   ).length;
   const ahead = Math.max(0, planned - done);
 
-  // One-line narrative — the only piece of editorial voice we keep.
-  // The right-rail "This Month Overview" already carries the numeric
-  // breakdown, and the workload strip above already shows distribution,
-  // so the pulse stays minimal: kicker + sentence + 4 launcher chips.
+  // One-line narrative. All three states sized to roughly the same
+  // word count so the card lands at the same height regardless of
+  // data — the empty-state line used to be the longest and grew the
+  // card by an extra row.
   let headline;
   if (planned === 0) {
     headline = (
-      <>Your month is <em>open</em>. Pick a topic — the studio drafts the rest.</>
+      <>Your month is <em>open</em> — pick a topic to start.</>
     );
   } else if (ahead === 0) {
     headline = (

@@ -284,7 +284,9 @@ select:focus-visible {
 
 /* ── Pulse hero — the planner's brand moment. A tall card with the
    planner-hero-bg.png texture, holding the STUDIO AI kicker, a
-   narrative headline, and the four Studio launcher chips. */
+   narrative headline, and the four Studio launcher chips. Height is
+   fixed (not min-height) so the card stays the same shape whether
+   the empty-state copy or the populated-month copy is rendered. */
 .planner-pulse {
   position: relative;
   display: flex;
@@ -297,7 +299,7 @@ select:focus-visible {
   box-shadow: var(--shadow-1);
   overflow: hidden;
   isolation: isolate;
-  min-height: clamp(180px, 18vw, 220px);
+  height: clamp(190px, 18vw, 220px);
   background:
     linear-gradient(105deg, oklch(0.97 0.03 78 / 0.78) 0%, oklch(0.97 0.03 78 / 0.4) 55%, transparent 100%),
     url("/planner-hero-bg.png") center/cover no-repeat,
@@ -335,6 +337,13 @@ select:focus-visible {
   color: var(--color-ink);
   margin: 0;
   text-wrap: balance;
+  /* Cap at 2 lines so any future copy variant can't push the card
+     taller than its fixed height. Webkit-only line clamp; falls back
+     to overflow:hidden in other engines, which still prevents growth. */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 .planner-pulse-h em {
   font-style: italic;
