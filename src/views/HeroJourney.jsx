@@ -102,7 +102,7 @@ const C_CLAY = "#B5754E";
 // Real Murchid cards that fan out, then collapse + shrink as you scroll.
 
 // ── Card faces + headlines + bubbles (verbatim from v1.1) ──────
-function HeroCardFace({ kind }) {
+export function HeroCardFace({ kind }) {
   const SHELL =
     "w-[230px] h-[300px] rounded-2xl border overflow-hidden flex flex-col p-5";
   const SH = { boxShadow: "0 30px 60px -28px rgba(26,24,20,0.45)" };
@@ -187,7 +187,7 @@ function HeroCardFace({ kind }) {
   );
 }
 
-const HERO_CARDS = ["lesson", "quiz", "deck", "presentation", "activity", "homework"];
+export const HERO_CARDS = ["lesson", "quiz", "deck", "presentation", "activity", "homework"];
 
 // Phase-C headline — each token fades + un-blurs + colour-shifts in turn.
 // Per-language word lists so the reveal works in EN and AR (RTL).

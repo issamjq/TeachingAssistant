@@ -526,6 +526,37 @@ html { scroll-behavior: smooth; }
   background: linear-gradient(to bottom, currentColor, transparent);
 }
 
+/* The card arc that fills the bottom half of the cinema hero. Same
+   positions as HeroJourney's act-A starting frame so the cards stay
+   in place visually as the user scrolls from the hero into the
+   pinned-scroll choreography. */
+.cinema-cards {
+  position: relative;
+  height: clamp(280px, 38vh, 420px);
+  pointer-events: none;
+  animation: cm-rise 1000ms 900ms var(--easeOutE) backwards;
+}
+.cinema-card {
+  position: absolute;
+  inset-block-start: 50%;
+  inset-inline-start: 50%;
+  will-change: transform;
+}
+/* Cards sit on a cream surface in HeroJourney; on the cinema drench
+   we keep them at full saturation but soften their outer shadow so
+   they don't read as cut-outs floating over the clay. */
+.cinema-cards .w-\[230px\] {
+  box-shadow: 0 32px 64px -28px oklch(0.18 0.05 30 / 0.55) !important;
+}
+/* On narrow viewports the 230px-wide cards overrun. Scale the whole
+   arc down proportionally so it still reads as a fan. */
+@media (max-width: 900px) {
+  .cinema-cards { transform: scale(0.7); transform-origin: 50% 50%; }
+}
+@media (max-width: 560px) {
+  .cinema-cards { transform: scale(0.5); transform-origin: 50% 50%; }
+}
+
 @keyframes cm-rise   { from { opacity: 0; transform: translateY(36px); filter: blur(14px); } to { opacity: 1; transform: none; filter: none; } }
 @keyframes cm-rise-s { from { opacity: 0; transform: translateY(14px); filter: blur(6px); }  to { opacity: 1; transform: none; filter: none; } }
 @keyframes cm-fade   { from { opacity: 0; } to { opacity: 0.6; } }

@@ -14,7 +14,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useT, useI18n } from "../lib/i18n";
 import { PLANS } from "../lib/plans";
-import HeroJourney from "./HeroJourney";
+import HeroJourney, { HERO_CARDS, HeroCardFace } from "./HeroJourney";
 
 // ── reveal hook ────────────────────────────────────────────────────
 // Adds `.in` to the element when it crosses the viewport. Used by
@@ -49,11 +49,43 @@ function useReveal({ threshold = 0.18, once = true, margin = "0px 0px -10% 0px" 
 }
 
 // ── 1. CINEMA HERO ─────────────────────────────────────────────────
-// Full-viewport drench. Two ambient orbs breathe in the background.
-// One oversized word — `Murchid` (Latin) or `مرشد` (Arabic) — anchors
-// the page; the other script sits beneath as a counter-line. The
-// word scales/translates with scroll so the transition into the
-// manifest section feels like a camera pull.
+// Full-viewport drench. The big bilingual Murchid mark anchors the
+// top; the bottom half of the section is filled by the same six
+// Murchid cards that HeroJourney animates through three acts. They
+// sit here in their rest (arc) position so the journey appears to
+// begin in this section — when the user scrolls into HeroJourney
+// directly below, the cards visually carry over without a seam.
+function CinemaHeroCardArc() {
+  const { isRTL } = useI18n();
+  const N = HERO_CARDS.length;
+  const mid = (N - 1) / 2;
+  return (
+    <div className="cinema-cards" aria-hidden="true">
+      {HERO_CARDS.map((kind, i) => {
+        const o = i - mid;
+        // Identical math to HeroJourney's act-A starting frame (p=0)
+        // so the cards sit in the exact same arc and the transition
+        // into HeroJourney is invisible. RTL mirrors the arc.
+        const xa = o * 150 * (isRTL ? -1 : 1);
+        const ya = (mid * mid - o * o) * 12;
+        const ra = o * 9 * (isRTL ? -1 : 1);
+        return (
+          <div
+            key={kind}
+            className="cinema-card"
+            style={{
+              transform: `translate(-50%, -50%) translate(${xa}px, ${ya}px) rotate(${ra}deg)`,
+              zIndex: 10 + i,
+            }}
+          >
+            <HeroCardFace kind={kind} />
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function CinemaHero({ onEnter, signedIn }) {
   const t = useT();
   const { isRTL } = useI18n();
@@ -74,19 +106,9 @@ function CinemaHero({ onEnter, signedIn }) {
     };
   }, []);
 
-  const onPillMove = (e) => {
-    const r = e.currentTarget.getBoundingClientRect();
-    e.currentTarget.style.setProperty("--mx", `${((e.clientX - r.left) / r.width) * 100}%`);
-    e.currentTarget.style.setProperty("--my", `${((e.clientY - r.top) / r.height) * 100}%`);
-  };
-
   const wordStyle = {
     transform: `translateY(${-s * 80}px) scale(${1 - s * 0.1})`,
     opacity: 1 - s * 0.6,
-  };
-  const subStyle = {
-    transform: `translateY(${-s * 40}px)`,
-    opacity: 1 - s * 0.8,
   };
 
   return (
@@ -111,34 +133,7 @@ function CinemaHero({ onEnter, signedIn }) {
           </span>
         </div>
 
-        <div style={subStyle}>
-          <p className="cinema-lede">{t("ch.hero.lede")}</p>
-          <div className="cinema-cta-row" style={{ marginBlockStart: "clamp(28px, 4vh, 40px)" }}>
-            <button
-              type="button"
-              className="cinema-pill"
-              onClick={onEnter}
-              onMouseMove={onPillMove}
-            >
-              {signedIn ? t("landing.nav.openPlanner") : t("ch.hero.cta")}
-            </button>
-            <button
-              type="button"
-              className="cinema-ghost"
-              onClick={() => {
-                const el = document.getElementById("ch-stage");
-                if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
-              }}
-            >
-              {t("landing.hero.ctaGhost")}
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <div className="cinema-hint" aria-hidden="true">
-        <span>{t("ch.hero.scroll")}</span>
-        <span className="cinema-hint-line" />
+        <CinemaHeroCardArc />
       </div>
     </section>
   );
