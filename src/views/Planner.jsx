@@ -277,98 +277,13 @@ export default function Planner() {
         </p>
       </div>
 
-      {/* Workload strip — month-at-a-glance heat-bar. Click any column
-          to open that day's list. */}
-      <WorkloadStrip
-        days={grid}
-        eventsByDate={eventsByDate}
-        anchor={anchor}
-        todayStart={todayStart}
-        onDayClick={setDayListDate}
-      />
-
       {/* 2-row grid:
-            Row 1: top blocks (Studio AI hero on the left, AI Insights on
-                   the right) — both stretch to the same height via
-                   items-stretch + grid-rows-[auto_1fr].
+            Row 1: top blocks (Pulse on the left, ThisMonth on the right).
             Row 2: calendar (left, flex-1 to fill) + Upcoming +
                    QuickActions stack (right, also flex-1).
-          The filter chip row + small calendar header live ABOVE the
-          grid so they don't break the column alignment. */}
-
-      {/* ── Filter chip row — All + one per category. Sits above the
-          grid so both columns inside the grid start at the same Y. */}
-      <div className="flex flex-wrap items-center gap-1.5 mb-2 shrink-0">
-        <button
-          type="button"
-          onClick={toggleAll}
-          className={`planner-nav-btn inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[11.5px] font-medium ${
-            allOn
-              ? "bg-ink text-paper-cool border-ink shadow-sm"
-              : "bg-paper-cool text-ink border-line hover:border-ink"
-          }`}
-        >
-          <span className={`inline-flex h-3.5 w-3.5 rounded items-center justify-center text-[8px] ${
-            allOn ? "bg-paper-cool/20" : "bg-ink/10"
-          }`}>▦</span>
-          {t("planner.all")}
-        </button>
-        {CATEGORIES.map((c) => {
-          const Icon = c.icon;
-          const on = visible.has(c.key);
-          const s = COLOR_STYLES[c.color];
-          return (
-            <button
-              key={c.key}
-              type="button"
-              onClick={() => toggleCategory(c.key)}
-              className={`planner-nav-btn inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[11.5px] ${
-                on
-                  ? `${s.chipBg} ${s.chipText} border-transparent`
-                  : "bg-paper-cool text-muted border-line hover:border-ink/40"
-              }`}
-            >
-              <Icon size={12} strokeWidth={1.75} />
-              {t(`nav.${c.key}`)}
-            </button>
-          );
-        })}
-        <span className="flex-1" />
-        {/* Calendar nav — Schedule + Today + prev/next inline on the same
-            row so the grid below starts flush. Schedule opens a blurred
-            modal over the Planner. */}
-        <button
-          type="button"
-          onClick={() => { setEditingEntry(null); setShowSchedule(true); }}
-          className="planner-nav-btn inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-accent/30 bg-accent/[0.10] hover:bg-accent/[0.18] hover:border-accent/50 text-accent text-[11.5px] font-semibold shadow-sm"
-        >
-          <Plus size={13} strokeWidth={2.5} />
-          {t("planner.schedule")}
-        </button>
-        <button
-          type="button"
-          onClick={goToday}
-          className="planner-nav-btn px-2.5 py-1 rounded-lg border border-line bg-paper-cool hover:border-ink hover:bg-paper-warm font-serif italic text-xs text-ink"
-        >
-          {t("planner.today")}
-        </button>
-        <button
-          type="button"
-          onClick={goPrev}
-          aria-label={t("planner.prevMonth")}
-          className="planner-nav-btn h-7 w-7 rounded-lg border border-line bg-paper-cool hover:border-ink hover:bg-paper-warm flex items-center justify-center"
-        >
-          <ChevronLeft size={15} />
-        </button>
-        <button
-          type="button"
-          onClick={goNext}
-          aria-label={t("planner.nextMonth")}
-          className="planner-nav-btn h-7 w-7 rounded-lg border border-line bg-paper-cool hover:border-ink hover:bg-paper-warm flex items-center justify-center"
-        >
-          <ChevronRight size={15} />
-        </button>
-      </div>
+          The filter chips + month-nav now live INSIDE the calendar
+          card itself (planner-cal-toolbar) so the calendar reads as
+          a single self-contained surface. */}
 
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] grid-rows-[auto_1fr] gap-x-6 gap-y-3 items-stretch flex-1 min-h-0">
         {/* Row 1: Studio AI hero (left) + AI Insights (right), heights
@@ -384,9 +299,79 @@ export default function Planner() {
             QuickActions stack (right, also fills). */}
         <div className="min-w-0 min-h-0 flex flex-col">
 
-      {/* The grid. paper-cool surface, rounded-2xl, soft shadow. Day
-          headers in mono-uppercase, body cells in a 7-column grid. */}
+      {/* The grid. paper-cool surface, rounded-2xl, soft shadow. The
+          calendar's own toolbar lives at the top (filter chips + nav),
+          the weekday header sits below it, then the day cells. */}
       <div className="planner-grid planner-card-frame rounded-2xl bg-paper-cool overflow-hidden flex-1 flex flex-col min-h-0">
+
+        {/* ── Calendar toolbar — filter chips on the left, month nav
+            (◀ Today ▶) and Schedule on the right. Chips scroll
+            horizontally on narrow widths with a soft fade-out edge. */}
+        <div className="planner-cal-toolbar">
+          <div className="planner-cal-filters">
+            <button
+              type="button"
+              onClick={toggleAll}
+              aria-pressed={allOn}
+              className={`planner-cal-chip ${allOn ? "is-all-on" : ""}`}
+            >
+              <span className="planner-cal-chip-tile">▦</span>
+              {t("planner.all")}
+            </button>
+            {CATEGORIES.map((c) => {
+              const Icon = c.icon;
+              const on = visible.has(c.key);
+              const s = COLOR_STYLES[c.color];
+              return (
+                <button
+                  key={c.key}
+                  type="button"
+                  onClick={() => toggleCategory(c.key)}
+                  aria-pressed={on}
+                  className={`planner-cal-chip ${on ? `${s.chipBg} ${s.chipText} is-on` : ""}`}
+                >
+                  <Icon size={12} strokeWidth={1.75} />
+                  {t(`nav.${c.key}`)}
+                </button>
+              );
+            })}
+          </div>
+          <div className="planner-cal-nav">
+            <button
+              type="button"
+              onClick={goPrev}
+              aria-label={t("planner.prevMonth")}
+              className="planner-cal-icon-btn"
+            >
+              <ChevronLeft size={15} />
+            </button>
+            <button
+              type="button"
+              onClick={goToday}
+              className="planner-cal-today"
+            >
+              {t("planner.today")}
+            </button>
+            <button
+              type="button"
+              onClick={goNext}
+              aria-label={t("planner.nextMonth")}
+              className="planner-cal-icon-btn"
+            >
+              <ChevronRight size={15} />
+            </button>
+            <span className="planner-cal-divider" aria-hidden="true" />
+            <button
+              type="button"
+              onClick={() => { setEditingEntry(null); setShowSchedule(true); }}
+              className="planner-cal-schedule"
+            >
+              <Plus size={13} strokeWidth={2.5} />
+              <span>{t("planner.schedule")}</span>
+            </button>
+          </div>
+        </div>
+
         <div className="grid grid-cols-7 border-b border-line bg-[#fffdf6] flex-shrink-0">
           {weekdayLabels.map((d, i) => (
             <div
@@ -641,70 +626,6 @@ function DayListPopup({ date, dayEvents, onClose, onSelect, onNew }) {
 // 6 quick-action chips. Each chip routes to /studio (the picker
 // pre-selects the kind in a later wire-up).
 // ───────────────────────────────────────────────────────────────────────
-// ───────────────────────────────────────────────────────────────────────
-// WorkloadStrip — horizontal heat-bar above the calendar, one column
-// per day of the displayed month. Bar height encodes event count;
-// today glows in the drench palette; click any column to open that
-// day's list. A teacher reads the month's intensity at a glance.
-// ───────────────────────────────────────────────────────────────────────
-function WorkloadStrip({ days, eventsByDate, anchor, todayStart, onDayClick }) {
-  const t = useT();
-  // Drop padding days from neighboring months — we only want a strip
-  // for the displayed month itself.
-  const monthDays = days.filter((d) => d.getMonth() === anchor.getMonth());
-  const counts = monthDays.map((d) => (eventsByDate.get(isoKey(d)) || []).length);
-  const max = Math.max(1, ...counts);
-  const total = counts.reduce((a, b) => a + b, 0);
-  const today = new Date();
-  // Label every 5th day so the row reads cleanly. Today always labels.
-  const labelEvery = 5;
-
-  return (
-    <section className="planner-workload" aria-label="Month workload">
-      <div className="planner-workload-head">
-        <p className="planner-workload-h">
-          <em>Workload</em>
-          <span style={{ color: "var(--color-muted)", fontStyle: "italic" }}>
-            · {total} {total === 1 ? "item" : "items"} across {monthDays.length} days
-          </span>
-        </p>
-        <span className="planner-workload-meta">
-          {t("planner.thisMonth") || "This month"}
-        </span>
-      </div>
-      <div className="planner-workload-bars">
-        {monthDays.map((d, i) => {
-          const c = counts[i];
-          const h = (c / max) * 100;
-          const isToday = sameYMD(d, today);
-          const isPast = !isToday && d < todayStart;
-          const showLabel = isToday || (i % labelEvery === 0) || i === monthDays.length - 1;
-          const cls = [
-            "planner-workload-bar",
-            isToday ? "is-today" : "",
-            isPast ? "is-past" : "",
-            c === 0 ? "is-empty" : "",
-          ].filter(Boolean).join(" ");
-          return (
-            <button
-              key={i}
-              type="button"
-              onClick={() => onDayClick(isoKey(d))}
-              className={cls}
-              data-show={showLabel ? "1" : "0"}
-              style={{ "--h": `${Math.max(8, h)}%` }}
-              title={`${d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })} · ${c} item${c === 1 ? "" : "s"}`}
-              aria-label={`${d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })}, ${c} item${c === 1 ? "" : "s"}`}
-            >
-              <span className="planner-workload-day">{d.getDate()}</span>
-            </button>
-          );
-        })}
-      </div>
-    </section>
-  );
-}
-
 // ───────────────────────────────────────────────────────────────────────
 // PulseCard — the new planner hero. Narrates the month in one
 // sentence, surfaces three stats (planned / done / ahead), shows a

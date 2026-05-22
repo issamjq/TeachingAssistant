@@ -279,201 +279,62 @@ select:focus-visible {
 }
 
 /* ════════════════════════════════════════════════════════════════════
-   PLANNER 2026 — workload strip, pulse card, drenched today corner
+   PLANNER 2026 — pulse hero card + drenched today cell corner
    ════════════════════════════════════════════════════════════════════ */
 
-/* ── Workload strip — a horizontal heat-bar above the calendar. One
-   vertical column per day of the displayed month; height encodes
-   event count. Today's column glows in the drench palette. Hover
-   reveals the date in a floating chip. Click a column to open that
-   day's list. */
-.planner-workload {
-  position: relative;
-  margin-block-end: 8px;
-  padding: clamp(8px, 1vw, 12px) clamp(12px, 1.4vw, 18px) clamp(20px, 2vw, 26px);
-  border-radius: 14px;
-  background:
-    radial-gradient(ellipse at 0% 0%, oklch(0.92 0.05 70 / 0.6), transparent 60%),
-    radial-gradient(ellipse at 100% 100%, oklch(0.85 0.06 50 / 0.4), transparent 60%),
-    var(--color-paper-cool);
-  border: 1px solid var(--color-line);
-  box-shadow: var(--shadow-1);
-  overflow: hidden;
-  isolation: isolate;
-}
-.planner-workload-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-block-end: clamp(6px, 0.8vw, 10px);
-}
-.planner-workload-h {
-  font-family: var(--font-serif);
-  font-size: clamp(12px, 1vw, 14px);
-  font-weight: 400;
-  color: var(--color-ink-soft);
-  letter-spacing: -0.01em;
-  display: inline-flex;
-  align-items: baseline;
-  gap: 8px;
-}
-.planner-workload-h em {
-  font-style: italic;
-  color: var(--color-accent);
-}
-.planner-workload-meta {
-  font-family: var(--font-sans);
-  font-size: 10px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  font-weight: 500;
-  color: var(--color-muted);
-}
-.planner-workload-bars {
-  position: relative;
-  display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: 1fr;
-  gap: 3px;
-  height: clamp(28px, 3.2vw, 38px);
-  align-items: end;
-}
-.planner-workload-bar {
-  position: relative;
-  height: 100%;
-  border: 0;
-  background: transparent;
-  cursor: pointer;
-  padding: 0;
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  transition: filter 200ms var(--ease-out-quart);
-}
-.planner-workload-bar::before {
-  content: '';
-  display: block;
-  width: 100%;
-  height: var(--h, 8%);
-  min-height: 4px;
-  border-radius: 4px 4px 2px 2px;
-  background: linear-gradient(
-    to top,
-    oklch(0.55 0.13 36 / 0.35),
-    oklch(0.62 0.13 40 / 0.65)
-  );
-  transition: height 520ms var(--ease-out-quint), background 200ms var(--ease-out-quart);
-}
-.planner-workload-bar.is-empty::before {
-  background: oklch(0.55 0.13 36 / 0.12);
-  height: 5px;
-}
-.planner-workload-bar.is-past::before {
-  background: linear-gradient(
-    to top,
-    oklch(0.55 0.13 36 / 0.16),
-    oklch(0.55 0.13 36 / 0.28)
-  );
-}
-.planner-workload-bar.is-today::before {
-  background: linear-gradient(
-    to top,
-    oklch(0.42 0.13 30),
-    oklch(0.72 0.16 65)
-  );
-  box-shadow:
-    0 0 0 1px oklch(0.42 0.13 30 / 0.4),
-    0 0 16px oklch(0.72 0.16 65 / 0.5);
-  height: max(var(--h, 8%), 50%);
-  animation: planner-workload-today 2.6s ease-in-out infinite;
-}
-@keyframes planner-workload-today {
-  0%, 100% { filter: brightness(1); }
-  50%      { filter: brightness(1.15); }
-}
-.planner-workload-bar:hover::before {
-  background: linear-gradient(
-    to top,
-    oklch(0.55 0.13 36 / 0.7),
-    oklch(0.85 0.14 55 / 0.95)
-  );
-}
-.planner-workload-day {
-  position: absolute;
-  bottom: clamp(-22px, -2vw, -26px);
-  font-family: var(--font-sans);
-  font-size: clamp(9px, 0.9vw, 11px);
-  font-weight: 500;
-  color: var(--color-muted);
-  white-space: nowrap;
-}
-.planner-workload-bar.is-today .planner-workload-day {
-  color: var(--color-accent);
-  font-weight: 700;
-}
-/* Only label every 5th day so the row stays readable. */
-.planner-workload-bar:not([data-show="1"]) .planner-workload-day {
-  display: none;
-}
-.planner-workload-bar.is-today .planner-workload-day {
-  display: inline-block;
-}
-@media (prefers-reduced-motion: reduce) {
-  .planner-workload-bar.is-today::before { animation: none; }
-  .planner-workload-bar::before { transition: none; }
-}
-
-/* ── Pulse hero — compact horizontal strip. Single-line narrative on
-   the left, four Studio launcher chips on the right. Sized so the
-   calendar grid below claims most of the page height. */
+/* ── Pulse hero — the planner's brand moment. A tall card with the
+   planner-hero-bg.png texture, holding the STUDIO AI kicker, a
+   narrative headline, and the four Studio launcher chips. */
 .planner-pulse {
   position: relative;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: clamp(12px, 2vw, 24px);
-  padding: clamp(10px, 1.2vw, 14px) clamp(14px, 1.6vw, 18px);
-  border-radius: 14px;
-  background:
-    radial-gradient(ellipse at 100% 0%, oklch(0.85 0.13 60 / 0.14), transparent 50%),
-    radial-gradient(ellipse at 0% 100%, oklch(0.55 0.13 36 / 0.08), transparent 55%),
-    var(--color-paper-cool);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: clamp(14px, 1.8vw, 22px);
+  padding: clamp(18px, 2.2vw, 30px);
+  border-radius: 18px;
   border: 1px solid var(--color-line);
   box-shadow: var(--shadow-1);
   overflow: hidden;
   isolation: isolate;
+  min-height: clamp(180px, 18vw, 220px);
+  background:
+    linear-gradient(105deg, oklch(0.97 0.03 78 / 0.78) 0%, oklch(0.97 0.03 78 / 0.4) 55%, transparent 100%),
+    url("/planner-hero-bg.png") center/cover no-repeat,
+    var(--color-paper-cool);
 }
 .planner-pulse > * { position: relative; z-index: 1; }
 .planner-pulse-text {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: clamp(8px, 1vw, 14px);
   min-width: 0;
+  max-width: 38ch;
 }
 .planner-pulse-kicker {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   font-family: var(--font-sans);
-  font-size: 9.5px;
+  font-size: 10.5px;
   font-weight: 600;
-  letter-spacing: 0.16em;
+  letter-spacing: 0.18em;
   text-transform: uppercase;
   color: var(--color-accent);
 }
 .planner-pulse-kicker::before {
   content: '';
-  width: 16px; height: 1px; background: currentColor;
+  width: 20px; height: 1px; background: currentColor;
 }
 .planner-pulse-h {
   font-family: var(--font-serif);
   font-weight: 400;
-  font-size: clamp(14px, 1.4vw, 18px);
-  line-height: 1.2;
-  letter-spacing: -0.012em;
+  font-size: clamp(20px, 2.2vw, 30px);
+  line-height: 1.15;
+  letter-spacing: -0.02em;
   color: var(--color-ink);
   margin: 0;
+  text-wrap: balance;
 }
 .planner-pulse-h em {
   font-style: italic;
@@ -484,33 +345,37 @@ select:focus-visible {
   font-style: normal;
 }
 .planner-pulse-chips {
-  display: flex;
-  gap: 6px;
-  flex-wrap: nowrap;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: clamp(6px, 0.8vw, 10px);
 }
 .planner-pulse-chip {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px 10px 6px 6px;
-  border-radius: 10px;
-  background: oklch(0.96 0.025 80 / 0.75);
-  border: 1px solid oklch(0.20 0.05 40 / 0.06);
+  gap: 10px;
+  padding: 10px 14px 10px 10px;
+  border-radius: 12px;
+  background: oklch(0.97 0.02 75 / 0.78);
+  border: 1px solid oklch(0.20 0.05 40 / 0.08);
   cursor: pointer;
   text-align: start;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
   transition: transform var(--dur-hover) var(--ease-out-quart),
               background var(--dur-hover) var(--ease-out-quart),
-              border-color var(--dur-hover) var(--ease-out-quart);
+              border-color var(--dur-hover) var(--ease-out-quart),
+              box-shadow var(--dur-hover) var(--ease-out-quart);
 }
 .planner-pulse-chip:hover {
-  transform: translateY(-1px);
+  transform: translateY(-2px);
   background: var(--color-cream);
   border-color: oklch(0.55 0.13 36 / 0.3);
+  box-shadow: var(--shadow-2);
 }
 .planner-pulse-chip:active { transform: translateY(0); }
 .planner-pulse-chip-icon {
-  width: 24px; height: 24px;
-  border-radius: 7px;
+  width: 30px; height: 30px;
+  border-radius: 9px;
   display: grid;
   place-items: center;
   flex-shrink: 0;
@@ -523,31 +388,187 @@ select:focus-visible {
   display: flex;
   flex-direction: column;
   min-width: 0;
-  line-height: 1;
+  line-height: 1.1;
 }
 .planner-pulse-chip-verb {
   font-family: var(--font-sans);
-  font-size: 11px;
+  font-size: 12.5px;
   font-weight: 600;
   color: var(--color-ink);
 }
 .planner-pulse-chip-noun {
   font-family: var(--font-sans);
-  font-size: 9.5px;
+  font-size: 10.5px;
   color: var(--color-muted);
-  margin-block-start: 2px;
-}
-/* When the row is too tight, collapse to two-row layout and hide the
-   noun line on chips so they stay legible. */
-@media (max-width: 1180px) {
-  .planner-pulse {
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .planner-pulse-chips { justify-content: flex-start; }
+  margin-block-start: 3px;
 }
 @media (max-width: 640px) {
-  .planner-pulse-chip-noun { display: none; }
-  .planner-pulse-chips { flex-wrap: wrap; }
+  .planner-pulse-chips {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* ── Calendar embedded toolbar — filter chips + month nav live inside
+   the calendar card itself so it reads as one self-contained surface.
+   Filters scroll horizontally on narrow widths with a soft fade-out
+   mask on the right edge. Nav stays pinned, never wraps. */
+.planner-cal-toolbar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 10px 8px 12px;
+  border-block-end: 1px solid var(--color-line);
+  background:
+    linear-gradient(to bottom, oklch(0.97 0.02 75 / 0.6), transparent),
+    var(--color-paper-cool);
+  flex-shrink: 0;
+  min-height: 44px;
+}
+.planner-cal-filters {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  flex: 1;
+  min-width: 0;
+  padding-block: 2px;
+  mask-image: linear-gradient(to right, black 0, black calc(100% - 18px), transparent 100%);
+  -webkit-mask-image: linear-gradient(to right, black 0, black calc(100% - 18px), transparent 100%);
+}
+.planner-cal-filters::-webkit-scrollbar { display: none; }
+
+.planner-cal-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--color-line);
+  background: var(--color-paper-cool);
+  color: var(--color-muted);
+  font-family: var(--font-sans);
+  font-size: 11.5px;
+  font-weight: 500;
+  white-space: nowrap;
+  flex-shrink: 0;
+  cursor: pointer;
+  transition:
+    transform 180ms var(--ease-out-quart),
+    background-color 180ms var(--ease-out-quart),
+    border-color 180ms var(--ease-out-quart),
+    color 180ms var(--ease-out-quart),
+    box-shadow 180ms var(--ease-out-quart);
+}
+.planner-cal-chip:hover {
+  border-color: oklch(0.18 0.03 30 / 0.4);
+  color: var(--color-ink);
+}
+.planner-cal-chip:active { transform: scale(0.97); }
+.planner-cal-chip.is-on {
+  border-color: transparent;
+  font-weight: 500;
+}
+.planner-cal-chip.is-all-on {
+  background: var(--color-ink);
+  color: var(--color-paper-cool);
+  border-color: var(--color-ink);
+  box-shadow: var(--shadow-1);
+}
+.planner-cal-chip-tile {
+  display: inline-flex;
+  width: 14px; height: 14px;
+  align-items: center;
+  justify-content: center;
+  font-size: 8px;
+  border-radius: 3px;
+  background: oklch(0.18 0.03 40 / 0.08);
+}
+.planner-cal-chip.is-all-on .planner-cal-chip-tile {
+  background: oklch(0.96 0.025 80 / 0.18);
+}
+
+.planner-cal-nav {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.planner-cal-icon-btn {
+  height: 28px; width: 28px;
+  border-radius: 8px;
+  border: 1px solid var(--color-line);
+  background: var(--color-paper-cool);
+  color: var(--color-ink-soft);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition:
+    background-color 180ms var(--ease-out-quart),
+    border-color 180ms var(--ease-out-quart),
+    color 180ms var(--ease-out-quart),
+    transform 180ms var(--ease-out-quart);
+}
+.planner-cal-icon-btn:hover {
+  background: var(--color-paper-warm);
+  border-color: oklch(0.18 0.03 30 / 0.4);
+  color: var(--color-ink);
+}
+.planner-cal-icon-btn:active { transform: scale(0.94); }
+.planner-cal-today {
+  padding: 5px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--color-line);
+  background: var(--color-paper-cool);
+  color: var(--color-ink);
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background-color 180ms var(--ease-out-quart),
+              border-color 180ms var(--ease-out-quart);
+}
+.planner-cal-today:hover {
+  background: var(--color-paper-warm);
+  border-color: oklch(0.18 0.03 30 / 0.4);
+}
+.planner-cal-divider {
+  display: inline-block;
+  height: 20px;
+  width: 1px;
+  background: var(--color-line);
+  margin-inline: 4px;
+}
+.planner-cal-schedule {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px 5px 10px;
+  border-radius: 8px;
+  border: 1px solid oklch(0.55 0.13 36 / 0.35);
+  background: oklch(0.55 0.13 36 / 0.10);
+  color: var(--color-accent);
+  font-family: var(--font-sans);
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 180ms var(--ease-out-quart),
+              border-color 180ms var(--ease-out-quart),
+              transform 180ms var(--ease-out-quart);
+}
+.planner-cal-schedule:hover {
+  background: oklch(0.55 0.13 36 / 0.18);
+  border-color: oklch(0.55 0.13 36 / 0.55);
+}
+.planner-cal-schedule:active { transform: scale(0.97); }
+/* Phone: hide the Schedule label, keep the + icon as an icon-only
+   action so the toolbar stays one row. */
+@media (max-width: 520px) {
+  .planner-cal-schedule { padding: 5px 8px; }
+  .planner-cal-schedule > span { display: none; }
+  .planner-cal-today { padding: 5px 8px; font-size: 11.5px; }
 }
 
 /* ── Today drench corner — applied to the today calendar cell on top
