@@ -11,10 +11,10 @@
 // clamp() and grid auto-fit; nothing breakpoint-snapped. All motion
 // is honored by prefers-reduced-motion (see landing.css).
 // =====================================================================
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef } from "react";
 import { useT, useI18n } from "../lib/i18n";
 import { PLANS } from "../lib/plans";
-import HeroJourney, { HERO_CARDS, HeroCardFace } from "./HeroJourney";
+import HeroJourney from "./HeroJourney";
 
 // ── reveal hook ────────────────────────────────────────────────────
 // Adds `.in` to the element when it crosses the viewport. Used by
@@ -49,95 +49,12 @@ function useReveal({ threshold = 0.18, once = true, margin = "0px 0px -10% 0px" 
 }
 
 // ── 1. CINEMA HERO ─────────────────────────────────────────────────
-// Full-viewport drench. The big bilingual Murchid mark anchors the
-// top; the bottom half of the section is filled by the same six
-// Murchid cards that HeroJourney animates through three acts. They
-// sit here in their rest (arc) position so the journey appears to
-// begin in this section — when the user scrolls into HeroJourney
-// directly below, the cards visually carry over without a seam.
-function CinemaHeroCardArc() {
-  const { isRTL } = useI18n();
-  const N = HERO_CARDS.length;
-  const mid = (N - 1) / 2;
-  return (
-    <div className="cinema-cards" aria-hidden="true">
-      {HERO_CARDS.map((kind, i) => {
-        const o = i - mid;
-        // Identical math to HeroJourney's act-A starting frame (p=0)
-        // so the cards sit in the exact same arc and the transition
-        // into HeroJourney is invisible. RTL mirrors the arc.
-        const xa = o * 150 * (isRTL ? -1 : 1);
-        const ya = (mid * mid - o * o) * 12;
-        const ra = o * 9 * (isRTL ? -1 : 1);
-        return (
-          <div
-            key={kind}
-            className="cinema-card"
-            style={{
-              transform: `translate(-50%, -50%) translate(${xa}px, ${ya}px) rotate(${ra}deg)`,
-              zIndex: 10 + i,
-            }}
-          >
-            <HeroCardFace kind={kind} />
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-function CinemaHero({ onEnter, signedIn }) {
-  const t = useT();
-  const { isRTL } = useI18n();
-  const [s, setS] = useState(0);
-  useEffect(() => {
-    let raf = 0;
-    const onScroll = () => {
-      cancelAnimationFrame(raf);
-      raf = requestAnimationFrame(() => {
-        const v = Math.max(0, Math.min(1, window.scrollY / 700));
-        setS(v);
-      });
-    };
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => {
-      window.removeEventListener("scroll", onScroll);
-      cancelAnimationFrame(raf);
-    };
-  }, []);
-
-  const wordStyle = {
-    transform: `translateY(${-s * 80}px) scale(${1 - s * 0.1})`,
-    opacity: 1 - s * 0.6,
-  };
-
-  return (
-    <section className="cinema-stage">
-      <div className="cinema-grain" aria-hidden="true" />
-      <div className="cinema-orb cinema-orb-a" aria-hidden="true" />
-      <div className="cinema-orb cinema-orb-b" aria-hidden="true" />
-
-      <div className="cinema-shell">
-        <div>
-          <span className="cinema-eyebrow">{t("landing.hero.eyebrow")}</span>
-        </div>
-
-        <div className="cinema-word-wrap" style={wordStyle}>
-          {isRTL ? (
-            <h1 className="cinema-word cinema-word--ar">مرشد</h1>
-          ) : (
-            <h1 className="cinema-word">Mu<em>r</em>chid</h1>
-          )}
-          <span className="cinema-word-alt">
-            {isRTL ? "Murchid · مرشد" : "مرشد · Murchid"}
-          </span>
-        </div>
-
-        <CinemaHeroCardArc />
-      </div>
-    </section>
-  );
-}
+// The Murchid wordmark hero is now the opening frame of HeroJourney
+// itself — the cards' floating journey begins right under the mark,
+// rather than in a separate section below it. The standalone
+// CinemaHero / CinemaHeroCardArc that used to live here were folded
+// into HeroJourney.jsx (Scene A + the receding cinema drench), so
+// nothing renders here anymore. See ./HeroJourney.
 
 // ── 2. MANIFEST ────────────────────────────────────────────────────
 // A long bilingual sentence that materializes word-by-word as the
@@ -646,14 +563,14 @@ function FinalCTA({ onEnter, signedIn }) {
 }
 
 // ── exported home composition ──────────────────────────────────────
-// HeroJourney (lifted from v1.1) slots between CinemaHero and Voices.
-// It's one pinned scroll section that re-stages the same six cards
-// across three acts. The Manifest / Stage / Lineup components stay
-// parked above (unrendered) in case any are wanted back later.
+// HeroJourney now opens the page: it's one pinned scroll section that
+// starts on the Murchid wordmark hero (the warm drench) and re-stages
+// the same six cards across three acts as you scroll. The Manifest /
+// Stage / Lineup components stay parked above (unrendered) in case any
+// are wanted back later.
 export default function LandingHome({ onEnter, signedIn }) {
   return (
     <>
-      <CinemaHero onEnter={onEnter} signedIn={signedIn} />
       <HeroJourney onEnter={onEnter} signedIn={signedIn} />
       <Voices />
       <Plans onEnter={onEnter} />

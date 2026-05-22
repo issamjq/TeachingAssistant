@@ -362,6 +362,32 @@ html { scroll-behavior: smooth; }
   to { transform: translate(-6vw, -8vw) scale(1.15); }
 }
 
+/* The Murchid hero drench, now living inside HeroJourney's pinned stage.
+   Full-bleed warm backdrop behind the opening frame; its opacity is
+   scrubbed to 0 as the journey begins (see bgT in HeroJourney.jsx) so the
+   cream page shows through for the deck / cascade / Library-folder acts. */
+.cinema-drench {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 80% 60% at 50% 18%, oklch(0.62 0.13 40), transparent 70%),
+    radial-gradient(circle at 85% 90%, oklch(0.38 0.10 22), transparent 60%),
+    var(--cm-clay);
+}
+/* Mobile counterpart — non-scrubbed; just the warm backdrop behind the
+   wordmark hero at the top of the static (no-scrub) mobile layout. */
+.cinema-drench-static {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  color: var(--cm-cream);
+  background:
+    radial-gradient(ellipse 92% 52% at 50% 22%, oklch(0.62 0.13 40), transparent 70%),
+    var(--cm-clay);
+}
+
 .cinema-shell {
   position: relative;
   z-index: 2;

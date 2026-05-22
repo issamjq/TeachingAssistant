@@ -177,12 +177,6 @@ export function HeroCardFace({ kind }) {
           ))}
         </div>
       )}
-      <span
-        className="mt-auto self-start text-[10px] font-mono px-2 py-1 rounded"
-        style={{ background: "var(--paper-2)", color: "var(--ink-3)" }}
-      >
-        Drafted by Murchid
-      </span>
     </div>
   );
 }
@@ -422,7 +416,7 @@ const HoneyDrop = React.memo(function HoneyDrop({ active, dx = -380, dy = 268 })
 
 // ── The Hero Journey itself (verbatim from v1.1) ───────────────
 const HeroJourney = ({ onEnter, signedIn }) => {
-  const { t, lang } = useI18n();
+  const { t, lang, isRTL } = useI18n();
   const ctaLabel = signedIn ? t("lp.nav.openPlanner") : t("lp.cta.subscribe");
   const C_HEAD = lang === "ar" ? C_HEAD_AR : C_HEAD_EN;
   const trackRef = useRef(null);
@@ -457,10 +451,12 @@ const HeroJourney = ({ onEnter, signedIn }) => {
   // All pure functions of scroll `p` — one timeline, no dead seam.
   const heroOut = seg(p, 0.05, 0.15); // hero title leaves
   const heroE = easeInOut(heroOut);
+  const bgT = easeInOut(seg(p, 0.02, 0.17)); // warm drench → cream page.
+  // Lands cream at p≈0.17 (~85vh of scroll), exactly where the Nav flips
+  // from its over-dark (cream chrome) state to ink chrome.
   const collapseT = easeInOut(seg(p, 0.07, 0.22)); // arc → deck
   const fanT = easeInOut(seg(p, 0.22, 0.4)); // deck → cascade (+slide right)
   const fileT = easeInOut(seg(p, 0.5, 0.74)); // cascade → Library folder
-  const bubbleA = 1 - seg(p, 0.03, 0.12); // phase-A pills fade
   const cIn = easeInOut(seg(p, 0.26, 0.38)); // phase-C frame arrives
   const pc = seg(p, 0.28, 0.46); // phase-C word-reveal scrub
   const cBody = clamp01((pc - 0.55) / 0.3); // C sub + buttons
@@ -473,8 +469,6 @@ const HeroJourney = ({ onEnter, signedIn }) => {
   // "…and teach it.") begins to reveal. Length-based so EN & AR match.
   const subAndIdx = Math.max(0, VISION_SUB.length - 3);
   const honeyActive = p > 0.56 + 0.26 * (0.3 + subAndIdx * 0.02); // ≈0.70 EN
-  const bWin = clamp01((p - 0.82) / 0.05); // @head.of.year
-  const bob = Math.sin(p * Math.PI * 2) * 6; // gentle pill float
 
   const ARROW = (
     <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
@@ -492,10 +486,22 @@ const HeroJourney = ({ onEnter, signedIn }) => {
     <section ref={trackRef} className="relative min-h-screen lg:h-[600vh]">
       {/* ---------- DESKTOP — one pinned, continuous choreography ---------- */}
       <div className="hidden lg:block lg:sticky lg:top-0 lg:h-screen overflow-hidden">
-        <div className="relative max-w-[1280px] mx-auto px-8 h-screen">
-          {/* Scene A — hero title */}
+        {/* Cinema drench — the Murchid hero's warm backdrop. It recedes to
+            the cream page as the journey begins (bgT), so the deck-collapse,
+            cascade and Library-folder acts read on paper the way they were
+            designed. The opening frame is therefore the hero itself. */}
+        <div className="cinema-drench" aria-hidden="true" style={{ opacity: 1 - bgT }}>
+          <div className="cinema-grain" />
+          <div className="cinema-orb cinema-orb-a" />
+          <div className="cinema-orb cinema-orb-b" />
+        </div>
+        <div className="relative z-[1] max-w-[1280px] mx-auto px-8 h-screen">
+          {/* Scene A — the Murchid hero. The big bilingual wordmark is the
+              opening frame; it rises out (heroOut) as the cards leave their
+              arc and the journey takes over. Cream-on-drench, mirroring the
+              old standalone CinemaHero so nothing is lost in the merge. */}
           <div
-            className="absolute left-1/2 top-[18vh] w-full max-w-3xl text-center will-change-transform"
+            className="absolute left-1/2 top-[9vh] w-full max-w-[1180px] text-center will-change-transform"
             style={{
               transform: `translateX(-50%) translateY(${heroE * -80}px)`,
               opacity: 1 - heroOut,
@@ -503,17 +509,23 @@ const HeroJourney = ({ onEnter, signedIn }) => {
               zIndex: 6,
             }}
           >
-            <div className="flex items-center justify-center gap-3 mb-6">
-              <span className="w-6 h-px" style={{ background: "var(--ink-3)" }} />
-              <span className="eyebrow">{t("lp.hero.eyebrow")}</span>
+            <div>
+              <span className="cinema-eyebrow">{t("landing.hero.eyebrow")}</span>
             </div>
-            <h1 className="font-display text-[clamp(44px,5.6vw,92px)] leading-[0.98] tracking-tight">
-              {t("lp.hero.h1a")}{" "}
-              <em style={{ color: "var(--clay)", fontStyle: "italic" }}>
-                {t("lp.hero.brand")}
-              </em>{" "}
-              <span style={{ color: "var(--ink-2)" }}>{t("lp.hero.h1b")}</span>
-            </h1>
+            <div className="cinema-word-wrap">
+              {isRTL ? (
+                <h1 className="cinema-word cinema-word--ar" style={{ color: "var(--cm-cream)" }}>
+                  مرشد
+                </h1>
+              ) : (
+                <h1 className="cinema-word" style={{ color: "var(--cm-cream)" }}>
+                  Mu<em>r</em>chid
+                </h1>
+              )}
+              <span className="cinema-word-alt">
+                {isRTL ? "Murchid · مرشد" : "مرشد · Murchid"}
+              </span>
+            </div>
           </div>
 
           {/* Scene C — "Plan, draft, & teach…" (left column) */}
@@ -805,9 +817,10 @@ const HeroJourney = ({ onEnter, signedIn }) => {
               // 2 lines as the English one and the deeper inner cards
               // would otherwise clip past the bottom of the viewport.
               const xa = o * 150;
-              const ya = (mid * mid - o * o) * 12 + 150;
+              const ya = (mid * mid - o * o) * 12 + 150; // sits in the lower
+              // half, clearing the big Murchid wordmark in Scene A.
               const ra = o * 9;
-              const sa = 1;
+              const sa = 0.74; // scaled down so the whole arc fits in view
               // B — tight centred deck
               const xb = o * 6;
               const yb = o * 2;
@@ -847,94 +860,51 @@ const HeroJourney = ({ onEnter, signedIn }) => {
             })}
           </div>
 
-          {/* Floating handle bubbles */}
-          {/* Bubble positions use logical inset properties so the whole
-              cluster mirrors automatically in Arabic/RTL. The head.of.year
-              bubble's translateX is flipped explicitly since CSS has no
-              logical translate. */}
-          <Bubble
-            label="@ms.layla"
-            bg="var(--sage)"
-            style={{
-              insetInlineStart: "21%",
-              top: "29%",
-              opacity: bubbleA,
-              transform: `translateY(${bob}px)`,
-              transition: "opacity 0.15s linear",
-              zIndex: 30,
-            }}
-          />
-          <Bubble
-            label="@mr.idris"
-            bg="var(--clay)"
-            style={{
-              insetInlineEnd: "21%",
-              top: "25%",
-              opacity: bubbleA,
-              transform: `translateY(${-bob}px)`,
-              transition: "opacity 0.15s linear",
-              zIndex: 30,
-            }}
-          />
-          <Bubble
-            label="@head.of.science"
-            bg="var(--brick)"
-            style={{
-              insetInlineEnd: "15%",
-              top: "30%",
-              opacity: clamp01((pc - 0.4) / 0.28) * (1 - cOut),
-              transform: `translateY(${bob}px)`,
-              zIndex: 30,
-            }}
-          />
-          <Bubble
-            label="@head.of.year"
-            bg="var(--sage)"
-            style={{
-              insetInlineStart: "50%",
-              top: "24%",
-              opacity: bWin,
-              transform: `translateX(${lang === "ar" ? -120 : 120}px) translateY(${bob}px)`,
-              zIndex: 30,
-            }}
-          />
+          {/* Floating @handle bubbles removed by request — the hero reads
+              cleaner without them. The Bubble component is kept in the file
+              in case any are wanted back during the cascade / folder acts. */}
         </div>
       </div>
 
       {/* ---------- MOBILE — static (no scrub) ---------- */}
-      <div className="lg:hidden px-6 pt-28 pb-12">
-        <div className="flex items-center gap-3 mb-6">
-          <span className="w-6 h-px" style={{ background: "var(--ink-3)" }} />
-          <span className="eyebrow">{t("lp.hero.eyebrow")}</span>
+      <div className="lg:hidden">
+        {/* Murchid wordmark hero on the warm drench — the opening frame,
+            mirroring desktop. The card lineup + vision sit on the cream
+            page below it. */}
+        <div className="cinema-drench-static text-center px-6 pt-28 pb-16">
+          <div>
+            <span className="cinema-eyebrow">{t("landing.hero.eyebrow")}</span>
+          </div>
+          <div className="cinema-word-wrap">
+            {isRTL ? (
+              <h1
+                className="cinema-word cinema-word--ar"
+                style={{ fontSize: "clamp(72px, 24vw, 160px)" }}
+              >
+                مرشد
+              </h1>
+            ) : (
+              <h1
+                className="cinema-word"
+                style={{ fontSize: "clamp(56px, 18vw, 120px)", lineHeight: 0.9 }}
+              >
+                Mu<em>r</em>chid
+              </h1>
+            )}
+            <span className="cinema-word-alt">
+              {isRTL ? "Murchid · مرشد" : "مرشد · Murchid"}
+            </span>
+          </div>
+          <div className="flex flex-wrap items-center justify-center gap-3 mt-9">
+            <button type="button" onClick={onEnter} className="cinema-pill">
+              {ctaLabel}
+            </button>
+            <a href="#how" className="cinema-ghost">
+              {t("lp.hero.seeHow")}
+            </a>
+          </div>
         </div>
-        <h1 className="font-display text-[clamp(40px,11vw,64px)] leading-[1.0] tracking-tight mb-6">
-          {t("lp.hero.h1a")}{" "}
-          <em style={{ color: "var(--clay)", fontStyle: "italic" }}>
-            {t("lp.hero.brand")}
-          </em>{" "}
-          <span style={{ color: "var(--ink-2)" }}>{t("lp.hero.h1b")}</span>
-        </h1>
-        <p
-          className="text-base leading-relaxed mb-7"
-          style={{ color: "var(--ink-2)" }}
-        >
-          {t("lp.hero.mobileSub")}
-        </p>
-        <div className="flex flex-wrap items-center gap-3 mb-12">
-          <button
-            type="button"
-            onClick={onEnter}
-            className="btn-primary px-6 py-3.5 rounded-lg text-sm font-medium"
-          >
-            {ctaLabel}
-          </button>
-          <a
-            href="#how"
-            className="btn-secondary px-6 py-3.5 rounded-lg text-sm font-medium"
-          >
-            {t("lp.hero.seeHow")}
-          </a>
-        </div>
+        <div className="px-6 pt-14 pb-12">
         <div className="relative h-[320px] mb-16">
           {HERO_CARDS.slice(0, 5).map((kind, i) => {
             const o = i - 2;
@@ -982,6 +952,7 @@ const HeroJourney = ({ onEnter, signedIn }) => {
               <HeroCardFace kind={kind} />
             </div>
           ))}
+        </div>
         </div>
       </div>
     </section>
