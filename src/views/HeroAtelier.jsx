@@ -47,6 +47,8 @@ export default function HeroAtelier({ onEnter, signedIn }) {
   const dir = isRTL ? -1 : 1;
   const trackRef = useRef(null);
   const [p, setP] = useState(0);
+  // Viewport width drives the responsive index row (pitch + card scale).
+  const [vw, setVw] = useState(() => (typeof window !== "undefined" ? window.innerWidth : 1280));
 
   useEffect(() => {
     let raf = 0;
@@ -59,6 +61,7 @@ export default function HeroAtelier({ onEnter, signedIn }) {
         const r = el.getBoundingClientRect();
         const span = r.height - window.innerHeight;
         setP(span > 0 ? clamp01(-r.top / span) : 0);
+        setVw(window.innerWidth);
       });
     };
     onScroll();
@@ -83,23 +86,37 @@ export default function HeroAtelier({ onEnter, signedIn }) {
   const ctaLabel = signedIn ? t("landing.nav.openPlanner") : t("ch.hero.cta");
   const tagline = useTaglineWords(t);
 
+  // ── Responsive index row ─────────────────────────────────────────
+  // The six cards + their 01–06 labels scale and tighten to fit (and stay
+  // centred) from the 1024px pin breakpoint up to the design width —
+  // bigger than before on a normal desktop, never overflowing a small one.
+  const ROW_SCALE = 0.84; // card scale at the full design width
+  const ROW_PITCH = 210; // gap between card centres at the full width
+  const ROW_W = ROW_PITCH * (N - 1) + 230 * ROW_SCALE; // ≈ row footprint
+  const k = Math.min(1, (vw - 120) / ROW_W); // shrink-to-fit factor
+  const pitch = ROW_PITCH * k; // shared by the cards AND the toc labels
+  const cardScaleB = ROW_SCALE * k;
+  const yb = 132; // row centre, just below the pin centre
+  // Anchor the labels + title to the actual card top so the whole
+  // title→labels→cards group stays one centred block at any scale.
+  const cardTopY = yb - (345 * cardScaleB) / 2;
+  const tocBottomY = cardTopY - 14; // labels sit just above the cards
+  const headBottomY = tocBottomY - 104; // title sits above the labels
+
   // Shared card transform — fan (hero) lerped to row (index).
   const cardStyle = (i) => {
     const o = i - MID;
-    // A — confident fan, low in the frame, clear of the lockup above.
+    // A — confident fan, lifted clear of the lockup above.
     const xa = o * 128 * dir;
-    const ya = 240 + (MID * MID - o * o) * 10;
+    const ya = 204 + (MID * MID - o * o) * 10;
     const ra = o * 6 * dir;
-    const sa = 0.64;
-    // B — clean contact-sheet row, upright. Large so the section fills the
-    // screen; wider pitch so the six still fit, nudged lower to centre.
-    const xb = o * 180 * dir;
-    const yb = 130;
-    const sb = 0.7;
+    const sa = 0.67;
+    // B — clean contact-sheet row, upright + responsive.
+    const xb = o * pitch * dir;
     const x = lerp(xa, xb, cardsT);
     const y = lerp(ya, yb, cardsT);
     const r = lerp(ra, 0, cardsT);
-    const s = lerp(sa, sb, cardsT);
+    const s = lerp(sa, cardScaleB, cardsT);
     return {
       transform: `translate(-50%, -50%) translate(${x}px, ${y}px) rotate(${r}deg) scale(${s})`,
       zIndex: 20 + i,
@@ -176,8 +193,8 @@ export default function HeroAtelier({ onEnter, signedIn }) {
           className="atl-index-head"
           style={{
             opacity: headIn,
-            // Bottom-anchored above centre → a small clean gap above the labels.
-            transform: `translate(-50%, calc(-100% - 92px)) translateY(${(1 - headIn) * 24}px)`,
+            // Bottom-anchored to the card top → a clean gap above the labels.
+            transform: `translate(-50%, -100%) translateY(${headBottomY}px) translateY(${(1 - headIn) * 24}px)`,
           }}
         >
           <span className="atl-index-over">{t("atl.index.over")}</span>
@@ -214,7 +231,7 @@ export default function HeroAtelier({ onEnter, signedIn }) {
             <div
               key={kind}
               className="atl-toc-item"
-              style={{ transform: `translate(-50%, -100%) translate(${(i - MID) * 180 * dir}px, 17px)` }}
+              style={{ transform: `translate(-50%, -100%) translate(${(i - MID) * pitch * dir}px, ${tocBottomY}px)` }}
             >
               <span className="atl-toc-num">{String(i + 1).padStart(2, "0")}</span>
               <span className="atl-toc-label">{t(`atl.art.${kind}`)}</span>

@@ -120,33 +120,29 @@ function GeoArt({ stroke, fill }) {
 // arc), "b" = a Math lesson (the index). Same six card *types*, different
 // artifacts — so the page reads "one studio, any topic".
 export function HeroCardFace({ kind, variant = "a" }) {
+  const { isRTL } = useI18n();
   const SHELL =
     "w-[230px] h-[300px] rounded-2xl border overflow-hidden flex flex-col p-5";
   const SH = { boxShadow: "0 30px 60px -28px rgba(26,24,20,0.45)" };
   const EBC = "font-mono text-[10px] uppercase tracking-[0.16em]";
 
   // Each of the six card slots is a fully-designed scene (PNG) that fills
-  // the whole face. The slot *keys* below stay the original artifact ids
-  // (so the scroll animation + React keys never move) — the displayed
-  // concept is now a product tour: lesson→Quizzes, quiz→Homework,
-  // deck→Presentations, presentation→Planner, activity→Activities,
-  // homework→AI Studio. Set A ("1st section" / hero arc) → /s1.N.png;
-  // set B ("2nd section" / index) → /s2.N.png, N = the slot's 1-based
-  // position. The 2:3 art object-covers the shared 230×300 frame so all
-  // six read as one width (a sliver trimmed top/bottom).
-  const CARD_IMG = {
-    lesson:       { a: "/s1.1.png", b: "/s2.1.png" },
-    quiz:         { a: "/s1.2.png", b: "/s2.2.png" },
-    deck:         { a: "/s1.3.png", b: "/s2.3.png" },
-    presentation: { a: "/s1.4.png", b: "/s2.4.png" },
-    activity:     { a: "/s1.5.png", b: "/s2.5.png" },
-    homework:     { a: "/s1.6.png", b: "/s2.6.png" },
-  };
-  const cardImg = (CARD_IMG[kind] || {})[variant];
-  if (cardImg) {
+  // the whole face. The slot *keys* stay the original artifact ids (so the
+  // scroll animation + React keys never move) — the displayed concept is a
+  // product tour: lesson→Quizzes, quiz→Homework, deck→Presentations,
+  // presentation→Planner, activity→Activities, homework→AI Studio, in this
+  // 1-based order. Variant picks the section: a ("1st" / hero arc) → s1.N,
+  // b ("2nd" / index) → s2.N. The text is baked into the art, so RTL swaps
+  // to the Arabic build under /ar. The frame is the art's native 2:3
+  // (230×345) — object-cover fills it with no crop and no letterbox.
+  const SLOT = { lesson: 1, quiz: 2, deck: 3, presentation: 4, activity: 5, homework: 6 };
+  const slot = SLOT[kind];
+  if (slot) {
+    const section = variant === "b" ? 2 : 1;
+    const cardImg = `${isRTL ? "/ar" : ""}/s${section}.${slot}.png`;
     return (
       <div
-        className="w-[230px] h-[300px] rounded-2xl border overflow-hidden relative"
+        className="w-[230px] h-[345px] rounded-2xl border overflow-hidden relative"
         style={{ ...SH, borderColor: "var(--line)" }}
       >
         <img src={cardImg} alt="" className="absolute inset-0 w-full h-full object-cover" />

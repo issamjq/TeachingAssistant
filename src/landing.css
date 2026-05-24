@@ -1074,6 +1074,13 @@ html { scroll-behavior: smooth; }
 .voices-row:hover .voices-track { animation-play-state: paused; }
 @keyframes voices-l { from { transform: translateX(0); } to { transform: translateX(-50%); } }
 @keyframes voices-r { from { transform: translateX(-50%); } to { transform: translateX(0); } }
+/* RTL: the loop is a physical translateX. The overflow row must stay LTR so
+   the wide track anchors at the LEFT (overflowing right) — otherwise RTL
+   right-anchors it and sliding left tears open a growing gap (empty cards).
+   Direction is set on the row (not the track) because the row is what
+   positions the track box. The card *content* stays RTL so Arabic reads right. */
+[dir="rtl"] .voices-row { direction: ltr; }
+[dir="rtl"] .voices-card { direction: rtl; }
 
 .voices-card {
   flex: 0 0 auto;
@@ -1425,7 +1432,12 @@ html { scroll-behavior: smooth; }
 }
 .atl-word--ar {
   font-family: 'Amiri', 'Fraunces', serif; font-weight: 400;
-  font-size: clamp(76px, 18vw, 300px); letter-spacing: 0;
+  font-size: clamp(64px, 13vw, 216px); letter-spacing: 0;
+  /* Amiri runs taller and deeper than the Latin Fraunces. Keep a roomy
+     line-height so the glyphs never overlap the meaning line beneath, but
+     size it close to the Latin so the lockup isn't so tall that the CTA
+     drops into the card fan below. */
+  line-height: 1.04; margin-block-end: clamp(2px, 0.5vh, 8px);
 }
 .atl-meaning {
   position: relative; z-index: 1;
@@ -1528,21 +1540,21 @@ html { scroll-behavior: smooth; }
 }
 .atl-toc-num {
   font-family: 'Fraunces', Georgia, serif; font-style: italic;
-  font-size: clamp(18px, 1.8vw, 26px); color: oklch(0.86 0.13 60); line-height: 1;
+  font-size: clamp(22px, 2vw, 30px); color: oklch(0.86 0.13 60); line-height: 1;
 }
 .atl-toc-label {
-  font-family: 'JetBrains Mono', monospace; font-size: 10.5px;
-  letter-spacing: 0.14em; text-transform: uppercase; color: oklch(0.95 0.03 80 / 0.75);
+  font-family: 'JetBrains Mono', monospace; font-size: 12px;
+  letter-spacing: 0.14em; text-transform: uppercase; color: oklch(0.95 0.03 80 / 0.8);
   white-space: nowrap;
 }
 .atl-toc-desc {
-  margin-block-start: 2px;
+  margin-block-start: 3px;
   font-family: 'Inter Tight', system-ui, sans-serif;
-  font-size: 11px; line-height: 1.3; text-align: center;
-  color: oklch(0.95 0.03 80 / 0.58); max-width: 130px;
-  /* Fixed height so every label block is identical → the 01–06 numbers and
-     labels stay aligned on a clean row regardless of description length. */
-  height: 2.7em; overflow: hidden;
+  font-size: 12.5px; line-height: 1.4; text-align: center;
+  color: oklch(0.95 0.03 80 / 0.62);
+  /* One line, no wrap — copy is kept short so it never collides with the
+     neighbouring label even at the tightest (1024px) pitch. */
+  white-space: nowrap;
 }
 
 /* ── Mobile (static) ── */
@@ -1586,7 +1598,8 @@ html { scroll-behavior: smooth; }
 }
 .atl-m-cell-tag .atl-toc-num { font-size: 16px; }
 .atl-m-thumb {
-  height: 176px; width: 100%; display: flex; justify-content: center;
+  /* 2:3 card (230×345) scaled 0.62 ≈ 214 tall — fit it fully, no crop. */
+  height: 214px; width: 100%; display: flex; justify-content: center;
   align-items: flex-start; overflow: hidden;
 }
 .atl-m-thumb > div { transform: scale(0.62); transform-origin: top center; }
