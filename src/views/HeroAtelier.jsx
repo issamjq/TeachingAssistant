@@ -72,9 +72,11 @@ export default function HeroAtelier({ onEnter, signedIn }) {
   }, []);
 
   // ── Choreography — all pure functions of scroll `p` ──────────────
-  const bgT = easeInOut(seg(p, 0.06, 0.34)); // warm drench → cream page
+  // The drench stays full-opacity now (the index lives ON the warm gradient,
+  // matching Voices / membership / final CTA), so there's no bleach-to-cream.
   const lockOut = easeInOut(seg(p, 0.05, 0.30)); // masthead + lockup recede
   const cardsT = easeInOut(seg(p, 0.12, 0.62)); // fan → editorial index row
+  const swap = easeInOut(clamp01((p - 0.28) / 0.2)); // card set A → B, blur crossfade
   const headIn = seg(p, 0.42, 0.66); // index header reveal
   const tocIn = seg(p, 0.52, 0.8); // 01–06 contents labels
 
@@ -108,7 +110,7 @@ export default function HeroAtelier({ onEnter, signedIn }) {
       {/* ───────────── DESKTOP — pinned title sequence ───────────── */}
       <div className="atl-pin">
         {/* Warm drench that bleaches to the cream page as the act begins */}
-        <div className="atl-drench" aria-hidden="true" style={{ opacity: 1 - bgT }}>
+        <div className="atl-drench" aria-hidden="true">
           <span className="cinema-grain" />
           <span className="cinema-orb cinema-orb-a" />
           <span className="cinema-orb cinema-orb-b" />
@@ -181,11 +183,24 @@ export default function HeroAtelier({ onEnter, signedIn }) {
         </div>
 
         {/* The ONE card layer — fan → contents row */}
+        {/* Each slot holds two faces: set A (Science — the hero arc) and set
+            B (Math — the index). They cross-fade with a blur as you scroll
+            between the two, so the six "images" swap mid-journey. */}
         <div className="atl-cards">
           {HERO_CARDS.map((kind, i) => (
             <div key={kind} className="atl-card" style={cardStyle(i)}>
               <div className="atl-card-in" style={{ "--i": i }}>
-                <HeroCardFace kind={kind} />
+                <div className="atl-stack">
+                  <div className="atl-face" style={{ opacity: 1 - swap, filter: `blur(${swap * 9}px)` }}>
+                    <HeroCardFace kind={kind} />
+                  </div>
+                  <div
+                    className="atl-face atl-face--b"
+                    style={{ opacity: swap, filter: `blur(${(1 - swap) * 9}px)` }}
+                  >
+                    <HeroCardFace kind={kind} variant="b" />
+                  </div>
+                </div>
               </div>
             </div>
           ))}

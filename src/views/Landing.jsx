@@ -200,7 +200,22 @@ const Nav = ({ onEnter, signedIn, onJump, onPage, onSignOut, darkHero = false })
     const onScroll = () => {
       const y = window.scrollY;
       setScrolled(y > 20);
-      setOverDark(darkHero && y < window.innerHeight * 0.85);
+      // The home page is warm drench (dark) throughout EXCEPT the cream
+      // Showreel. Keep the nav light over the drench, and flip to ink chrome
+      // only while the Showreel crosses the nav line.
+      if (!darkHero) {
+        setOverDark(false);
+        return;
+      }
+      // Cream/light sections the nav must go ink over (everything else is the
+      // warm drench): the Showreel and the membership/Plans block.
+      const lightSections = document.querySelectorAll(".film-stage, .plans-stage");
+      let overLight = false;
+      lightSections.forEach((el) => {
+        const r = el.getBoundingClientRect();
+        if (r.top <= 70 && r.bottom >= 70) overLight = true;
+      });
+      setOverDark(!overLight);
     };
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });

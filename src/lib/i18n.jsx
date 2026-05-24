@@ -102,6 +102,15 @@ const EN = {
   "atl.art.presentation": "Presentation",
   "atl.art.activity": "Activity",
   "atl.art.homework": "Homework",
+  // ── product film / showreel (film.*) ─────────────────────────────
+  "film.eyebrow": "Watch it draft",
+  "film.title.a": "From one line,",
+  "film.title.em": "the whole lesson.",
+  "film.sub": "Type a topic. Murchid drafts the plan, quiz, slides, activity, and homework — while you watch.",
+  "film.windowTitle": "murchid · studio",
+  "film.prompt": "Photosynthesis · Grade 6 · 45 min",
+  "film.drafting": "Murchid is drafting…",
+  "film.ready": "Ready · 0:38",
   "ch.manifest.kicker": "The shift",
   "ch.manifest.body":
     "On Sunday night, you opened a |em|blank|/em| document. By Monday morning, you had a |em|week's worth|/em| of plans, slides, quizzes, and homework. You didn't write any of it. You |em|directed|/em| it.",
@@ -830,6 +839,15 @@ const AR = {
   "atl.art.presentation": "عرض تقديمي",
   "atl.art.activity": "نشاط",
   "atl.art.homework": "واجب",
+  // ── product film / showreel (film.*) ─────────────────────────────
+  "film.eyebrow": "شاهِدها تُصاغ",
+  "film.title.a": "من سطرٍ واحد،",
+  "film.title.em": "الدرس كاملًا.",
+  "film.sub": "اكتب موضوعًا، فيصوغ Murchid الخطة والاختبار والشرائح والنشاط والواجب — وأنت تُشاهد.",
+  "film.windowTitle": "مُرشِد · استوديو",
+  "film.prompt": "التمثيل الضوئي · الصف السادس · ٤٥ دقيقة",
+  "film.drafting": "يُصيغ Murchid الآن…",
+  "film.ready": "جاهز · ٠:٣٨",
   "ch.manifest.kicker": "التحوّل",
   "ch.manifest.body":
     "ليلة الأحد، فتحتَ مستندًا |em|فارغًا|/em|. صباح الاثنين، كان أمامك تخطيط |em|أسبوع كامل|/em|، وشرائح، واختبارات، وواجبات. لم تكتب شيئًا منها. أنت |em|وجّهتها|/em|.",

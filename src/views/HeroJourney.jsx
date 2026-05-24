@@ -102,17 +102,41 @@ const C_CLAY = "#B5754E";
 // Real Murchid cards that fan out, then collapse + shrink as you scroll.
 
 // ── Card faces + headlines + bubbles (verbatim from v1.1) ──────
-export function HeroCardFace({ kind }) {
+// Abstract geometric art for the variant-B deck / presentation faces (a
+// different "image" from the SlideArt weather scene used by variant A).
+function GeoArt({ stroke, fill }) {
+  return (
+    <svg viewBox="0 0 200 150" className="w-full h-full" preserveAspectRatio="xMidYMid slice" aria-hidden>
+      <circle cx="150" cy="44" r="28" fill={fill} opacity="0.5" />
+      <rect x="34" y="64" width="52" height="52" rx="8" fill={fill} opacity="0.45" transform="rotate(-10 60 90)" />
+      <polygon points="104,124 138,68 172,124" fill={stroke} opacity="0.75" />
+      <line x1="28" y1="40" x2="92" y2="40" stroke={stroke} strokeWidth="3" strokeLinecap="round" opacity="0.6" />
+      <circle cx="120" cy="96" r="9" fill="none" stroke={stroke} strokeWidth="2.5" opacity="0.6" />
+    </svg>
+  );
+}
+
+// `variant` swaps the whole content set: "a" = the Science lesson (hero
+// arc), "b" = a Math lesson (the index). Same six card *types*, different
+// artifacts — so the page reads "one studio, any topic".
+export function HeroCardFace({ kind, variant = "a" }) {
   const SHELL =
     "w-[230px] h-[300px] rounded-2xl border overflow-hidden flex flex-col p-5";
   const SH = { boxShadow: "0 30px 60px -28px rgba(26,24,20,0.45)" };
   const EBC = "font-mono text-[10px] uppercase tracking-[0.16em]";
 
   if (kind === "deck" || kind === "presentation") {
-    const t =
-      kind === "deck"
-        ? { bg: "#1e3a44", tx: "#eaf3f4", soft: "#a8c4c8", dot: "#7fc6c0", k: "Slide deck", title: "The Water Cycle" }
-        : { bg: "#5f7256", tx: "#f8f5ec", soft: "#dde3d2", dot: "#f0d9a8", k: "Presentation", title: "Photosynthesis" };
+    const DECK = {
+      a: {
+        deck: { bg: "#1e3a44", tx: "#eaf3f4", soft: "#a8c4c8", dot: "#7fc6c0", k: "Slide deck", title: "The Water Cycle", art: "slide" },
+        presentation: { bg: "#5f7256", tx: "#f8f5ec", soft: "#dde3d2", dot: "#f0d9a8", k: "Presentation", title: "Photosynthesis", art: "slide" },
+      },
+      b: {
+        deck: { bg: "#3a3550", tx: "#efeaf6", soft: "#bcb2cf", dot: "#c8a8e2", k: "Slide deck", title: "Symmetry", art: "geo" },
+        presentation: { bg: "#6b4a32", tx: "#f6efe6", soft: "#dcc9b4", dot: "#e8b87f", k: "Presentation", title: "Place value", art: "geo" },
+      },
+    };
+    const t = (DECK[variant] || DECK.a)[kind];
     return (
       <div
         className={`${SHELL} relative`}
@@ -124,19 +148,29 @@ export function HeroCardFace({ kind }) {
         <h4 className="font-display text-2xl leading-tight mt-2">{t.title}</h4>
         <span className="mt-2 h-1 w-10 rounded-full" style={{ background: t.dot }} />
         <div className="absolute right-0 bottom-0 w-32 h-32 opacity-90">
-          <SlideArt stroke={t.dot} fill={t.soft} full />
+          {t.art === "geo" ? <GeoArt stroke={t.dot} fill={t.soft} /> : <SlideArt stroke={t.dot} fill={t.soft} full />}
         </div>
       </div>
     );
   }
 
-  const META = {
-    lesson: { k: "Lesson plan", title: "Photosynthesis", icon: BookOpen, rows: ["00–05  Starter", "15–35  Worksheet", "45–50  Exit ticket"] },
-    quiz: { k: "Quiz", title: "Cell respiration", icon: GraduationCap, rows: ["1  Which organelle…", "2  Word equation…", "3  Why anaerobic…"] },
-    activity: { k: "Activity", title: "Group debate", icon: Sparkles, rows: ["Pair · 10 min", "Group · 20 min", "Solo · exit slip"] },
-    homework: { k: "Homework", title: "Worksheet 4", icon: ClipboardList, rows: ["Due Thursday · 7A"] },
-    worksheet: { k: "Worksheet", title: "Three levels", icon: FileText, rows: ["Foundation · 8 Qs", "Core · 10 Qs", "Extension · 12 Qs"] },
-  }[kind] || {};
+  const META_SETS = {
+    a: {
+      lesson: { k: "Lesson plan", title: "Photosynthesis", icon: BookOpen, rows: ["00–05  Starter", "15–35  Worksheet", "45–50  Exit ticket"] },
+      quiz: { k: "Quiz", title: "Cell respiration", icon: GraduationCap, rows: ["1  Which organelle…", "2  Word equation…", "3  Why anaerobic…"] },
+      activity: { k: "Activity", title: "Group debate", icon: Sparkles, rows: ["Pair · 10 min", "Group · 20 min", "Solo · exit slip"] },
+      homework: { k: "Homework", title: "Worksheet 4", icon: ClipboardList, rows: ["Due Thursday · 7A"], submitted: "18 / 28 submitted", pct: 64 },
+      worksheet: { k: "Worksheet", title: "Three levels", icon: FileText, rows: ["Foundation · 8 Qs", "Core · 10 Qs", "Extension · 12 Qs"] },
+    },
+    b: {
+      lesson: { k: "Lesson plan", title: "Fractions", icon: BookOpen, rows: ["Do-now · halves", "Build · number line", "Exit · 3 problems"] },
+      quiz: { k: "Quiz", title: "Times tables", icon: GraduationCap, rows: ["1  7 × 8 = ?", "2  Missing factor…", "3  Word problem…"] },
+      activity: { k: "Activity", title: "Number talk", icon: Sparkles, rows: ["Pair · 8 min", "Class · 15 min", "Solo · reflect"] },
+      homework: { k: "Homework", title: "Workbook p.42", icon: ClipboardList, rows: ["Due Monday · 4B"], submitted: "20 / 26 submitted", pct: 77 },
+      worksheet: { k: "Worksheet", title: "Three tiers", icon: FileText, rows: ["Support · 6 Qs", "Core · 9 Qs", "Stretch · 12 Qs"] },
+    },
+  };
+  const META = (META_SETS[variant] || META_SETS.a)[kind] || {};
   const Icon = META.icon || BookOpen;
   return (
     <div
@@ -161,15 +195,15 @@ export function HeroCardFace({ kind }) {
             {META.rows[0]}
           </div>
           <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "var(--paper-3)" }}>
-            <div className="h-full rounded-full" style={{ width: "64%", background: "var(--sage)" }} />
+            <div className="h-full rounded-full" style={{ width: `${META.pct || 64}%`, background: "var(--sage)" }} />
           </div>
           <div className="text-[12px] mt-2" style={{ color: "var(--ink-3)" }}>
-            18 / 28 submitted
+            {META.submitted || "18 / 28 submitted"}
           </div>
         </div>
       ) : (
         <div className="flex flex-col gap-2.5">
-          {META.rows.map((r) => (
+          {(META.rows || []).map((r) => (
             <div key={r} className="flex items-center gap-2 text-[12px]" style={{ color: "var(--ink-2)" }}>
               <span className="h-1 w-1 rounded-full flex-shrink-0" style={{ background: "var(--clay)" }} />
               <span className="truncate">{r}</span>

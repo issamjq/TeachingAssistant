@@ -140,10 +140,12 @@ html { scroll-behavior: smooth; }
 
 .murchid-landing ::selection { background: var(--clay); color: var(--paper); }
 
+/* Keyboard-only focus ring (does not show on mouse clicks). Soft, brand-
+   tinted, and follows each element's own shape — no forced corner radius,
+   so pills/cards keep their curve instead of getting a hard rectangle. */
 .murchid-landing *:focus-visible {
-  outline: 1.5px solid var(--clay);
-  outline-offset: 3px;
-  border-radius: 2px;
+  outline: 2px solid oklch(0.56 0.13 36 / 0.6);
+  outline-offset: 2px;
 }
 
 .murchid-landing .nav-blur {
@@ -1116,7 +1118,12 @@ html { scroll-behavior: smooth; }
 /* ─── 6. PLANS ─────────────────────────────────────────────────── */
 .plans-stage {
   position: relative;
-  background: var(--cm-cream);
+  /* Warm cream — matches the Showreel (the other cream section): the points
+     grain + a warm top glow over cream. */
+  background:
+    radial-gradient(circle at 1px 1px, oklch(0.18 0.03 30 / 0.13) 0.6px, transparent 0) 0 0 / 3px 3px,
+    radial-gradient(ellipse 90% 60% at 50% 0%, oklch(0.92 0.04 75), transparent 70%),
+    var(--cm-cream);
   color: var(--cm-ink);
   padding-block: clamp(100px, 16vh, 180px);
   padding-inline: clamp(20px, 5vw, 56px);
@@ -1152,9 +1159,9 @@ html { scroll-behavior: smooth; }
   border-radius: clamp(18px, 2vw, 26px);
   padding: clamp(24px, 2.8vw, 36px);
   position: relative;
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 18px;
-  align-content: start;
   transition: transform 600ms var(--easeOutE), box-shadow 600ms var(--easeOutE);
 }
 .plans-card.featured {
@@ -1162,10 +1169,9 @@ html { scroll-behavior: smooth; }
     radial-gradient(ellipse at 0% 0%, oklch(0.60 0.14 38), transparent 60%),
     var(--cm-clay-d);
   color: var(--cm-cream);
-  transform: translateY(-12px);
   box-shadow: 0 1px 2px oklch(0.18 0.05 30 / 0.1), 0 32px 72px oklch(0.18 0.05 30 / 0.22);
 }
-.plans-card.featured:hover { transform: translateY(-16px); }
+.plans-card.featured:hover { transform: translateY(-8px); }
 .plans-card:hover {
   transform: translateY(-4px);
   box-shadow: 0 1px 2px oklch(0.18 0.05 30 / 0.06), 0 24px 56px oklch(0.18 0.05 30 / 0.12);
@@ -1215,7 +1221,7 @@ html { scroll-behavior: smooth; }
 }
 .plans-card.featured .plans-bill { color: oklch(0.95 0.03 80 / 0.7); }
 .plans-cta {
-  margin-block-start: 8px;
+  margin-block-start: auto;
   padding: 12px 20px;
   border-radius: 999px;
   background: var(--cm-ink);
@@ -1239,10 +1245,11 @@ html { scroll-behavior: smooth; }
 /* ─── 7. FINAL CTA ─────────────────────────────────────────────── */
 .final-stage {
   position: relative;
+  /* Hero drench (orange → maroon) — matches the hero / Voices / index. */
   background:
-    radial-gradient(ellipse 90% 60% at 50% 80%, oklch(0.60 0.13 38), transparent 70%),
-    radial-gradient(circle at 80% 0%, oklch(0.40 0.10 22), transparent 60%),
-    var(--cm-clay-d);
+    radial-gradient(ellipse 92% 64% at 50% 14%, oklch(0.64 0.13 42), transparent 72%),
+    radial-gradient(circle at 86% 92%, oklch(0.36 0.10 22), transparent 60%),
+    var(--cm-clay);
   color: var(--cm-cream);
   padding-block: clamp(120px, 18vh, 200px);
   padding-inline: clamp(20px, 5vw, 56px);
@@ -1316,7 +1323,17 @@ html { scroll-behavior: smooth; }
    cream as the six artifacts deal out of a fan and resolve into a
    magazine contents index. Motion = pure function of scroll.
    ════════════════════════════════════════════════════════════════════ */
-.atl { position: relative; background: var(--cm-cream); }
+.atl {
+  position: relative;
+  /* Murchid "points" grain + the Showreel's warm cream glow, centred and
+     broad so it sits behind the index act (which renders mid-scroll) and
+     doesn't drift. Matches Plans + Showreel. The hero drench covers it up
+     top, then fades to reveal the warm cream index. */
+  background:
+    radial-gradient(circle at 1px 1px, oklch(0.18 0.03 30 / 0.13) 0.6px, transparent 0) 0 0 / 3px 3px,
+    radial-gradient(ellipse 120% 90% at 50% 50%, oklch(0.92 0.04 75), transparent 85%),
+    var(--cm-cream);
+}
 .atl-pin { display: none; }
 .atl-mobile { display: block; }
 @media (min-width: 1024px) {
@@ -1471,14 +1488,14 @@ html { scroll-behavior: smooth; }
   display: inline-block; margin-block-end: 14px;
   font-family: 'JetBrains Mono', monospace;
   font-size: clamp(11px, 1vw, 13px); letter-spacing: 0.2em;
-  text-transform: uppercase; color: var(--cm-clay-d);
+  text-transform: uppercase; color: oklch(0.86 0.13 60);
 }
 .atl-index-title {
   font-family: 'Fraunces', Georgia, serif; font-weight: 300;
   font-size: clamp(28px, 4.2vw, 60px); line-height: 1.04;
-  letter-spacing: -0.025em; color: var(--cm-ink); margin: 0;
+  letter-spacing: -0.025em; color: var(--cm-cream); margin: 0;
 }
-.atl-index-title em { font-style: italic; color: var(--cm-clay-d); }
+.atl-index-title em { font-style: italic; color: oklch(0.86 0.13 60); }
 
 /* Card layer — fan → contents row */
 .atl-cards { position: absolute; z-index: 20; left: 50%; top: 50%; }
@@ -1489,6 +1506,10 @@ html { scroll-behavior: smooth; }
   animation-delay: calc(0.55s + var(--i) * 70ms);
 }
 .atl-card-in > div { box-shadow: 0 36px 70px -30px oklch(0.16 0.05 28 / 0.6); }
+/* Two stacked card faces (set A + set B) that blur-crossfade on scroll. */
+.atl-stack { position: relative; }
+.atl-face { will-change: opacity, filter; }
+.atl-face--b { position: absolute; inset: 0; }
 
 /* Contents numbering — above each card once in the row */
 .atl-toc { position: absolute; z-index: 21; left: 50%; top: 50%; pointer-events: none; }
@@ -1498,11 +1519,11 @@ html { scroll-behavior: smooth; }
 }
 .atl-toc-num {
   font-family: 'Fraunces', Georgia, serif; font-style: italic;
-  font-size: clamp(18px, 1.8vw, 26px); color: var(--cm-clay-d); line-height: 1;
+  font-size: clamp(18px, 1.8vw, 26px); color: oklch(0.86 0.13 60); line-height: 1;
 }
 .atl-toc-label {
   font-family: 'JetBrains Mono', monospace; font-size: 10.5px;
-  letter-spacing: 0.14em; text-transform: uppercase; color: var(--cm-ink-2);
+  letter-spacing: 0.14em; text-transform: uppercase; color: oklch(0.95 0.03 80 / 0.75);
   white-space: nowrap;
 }
 
@@ -1612,6 +1633,170 @@ html { scroll-behavior: smooth; }
 .nav-cta:hover { transform: translateY(-1px); box-shadow: 0 1px 2px oklch(0.18 0.05 30 / 0.2), 0 16px 34px oklch(0.18 0.05 30 / 0.3); }
 .nav-cta:hover svg { transform: translateX(var(--cta-nudge, 3px)); }
 
+/* ════════════════════════════════════════════════════════════════════
+   VOICES — pinned (2026). The testimonials hold while the heading and
+   the two rails scrub in; the rails keep their auto-marquee underneath.
+   Desktop-only pin — phones flow normally. The clip lives on .voices-pin,
+   NOT the track: overflow on a sticky element's ancestor breaks the pin.
+   ════════════════════════════════════════════════════════════════════ */
+.voices-pin-track {
+  position: relative;
+  /* Hero drench (orange → maroon) + the same dark points grain. */
+  background:
+    radial-gradient(circle at 1px 1px, oklch(0.2 0.05 28 / 0.12) 0.6px, transparent 0) 0 0 / 3px 3px,
+    radial-gradient(ellipse 92% 64% at 50% 14%, oklch(0.64 0.13 42), transparent 72%),
+    radial-gradient(circle at 86% 92%, oklch(0.36 0.10 22), transparent 60%),
+    var(--cm-clay);
+  color: var(--cm-cream);
+}
+.voices-pin {
+  position: relative; overflow: hidden; isolation: isolate;
+  padding-block: clamp(72px, 12vh, 130px);
+}
+.voices-pin::before {
+  content: ''; position: absolute; inset: 0; z-index: 0; pointer-events: none;
+  background:
+    radial-gradient(ellipse 80% 60% at 50% 100%, oklch(0.55 0.13 35), transparent 65%),
+    radial-gradient(ellipse 60% 40% at 0% 0%, oklch(0.45 0.13 28), transparent 60%);
+}
+.voices-pin > * { position: relative; z-index: 1; }
+@media (min-width: 1024px) {
+  .voices-pin-track { height: 130vh; }
+  .voices-pin {
+    position: sticky; top: 0; height: 100vh;
+    display: flex; flex-direction: column; justify-content: center;
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   FILM / SHOWREEL (2026) — "Watch it draft". A cinematic dark stage with a
+   framed studio screen that auto-plays a loop: prompt → streaming lines →
+   the six artifacts check off → "Ready". The frame + caption reveal on
+   scroll (inline styles); the demo loop is pure CSS so it plays on its own.
+   ════════════════════════════════════════════════════════════════════ */
+.film-stage {
+  position: relative; overflow: hidden; isolation: isolate;
+  color: var(--cm-ink);
+  padding-block: clamp(96px, 16vh, 184px);
+  padding-inline: clamp(20px, 5vw, 56px);
+  /* Cream stage (matches the Plans section above) with a soft warm glow up
+     top. The dark device bezel frames the screen against the paper. */
+  background:
+    radial-gradient(ellipse 90% 60% at 50% 0%, oklch(0.92 0.04 75), transparent 70%),
+    var(--cm-cream);
+}
+.film-grain {
+  position: absolute; inset: 0; z-index: 0; pointer-events: none; opacity: 0.14;
+  background-image: radial-gradient(circle at 1px 1px, oklch(0.1 0.02 30 / 0.5) 0.6px, transparent 0);
+  background-size: 3px 3px; mix-blend-mode: multiply;
+}
+.film-shell {
+  position: relative; z-index: 1; max-width: 1040px; margin: 0 auto;
+  display: grid; justify-items: center; gap: clamp(34px, 6vh, 60px);
+}
+.film-head { text-align: center; max-width: 720px; }
+.film-eyebrow {
+  display: inline-flex; align-items: center; gap: 10px;
+  font-family: 'JetBrains Mono', monospace; font-size: clamp(11px, 1vw, 13px);
+  letter-spacing: 0.24em; text-transform: uppercase; color: var(--cm-clay-d);
+}
+.film-eyebrow::before { content: ''; width: 24px; height: 1px; background: currentColor; opacity: 0.6; }
+.film-title {
+  font-family: 'Fraunces', Georgia, serif; font-weight: 300;
+  font-size: clamp(32px, 5vw, 66px); line-height: 1.02; letter-spacing: -0.03em;
+  margin: 18px 0 0;
+}
+.film-title em { font-style: italic; color: var(--cm-clay-d); }
+.film-sub {
+  font-family: 'Inter Tight', system-ui, sans-serif; font-size: clamp(15px, 1.2vw, 17px);
+  line-height: 1.55; color: var(--cm-ink-2); max-width: 46ch; margin: 18px auto 0;
+}
+
+.film-frame { width: min(860px, 100%); will-change: transform; }
+.film-bezel {
+  position: relative; border-radius: clamp(16px, 2vw, 26px);
+  padding: clamp(12px, 1.6vw, 20px);
+  background: linear-gradient(180deg, oklch(0.27 0.04 40), oklch(0.18 0.03 38));
+  border: 1px solid oklch(0.96 0.03 80 / 0.12);
+  box-shadow: inset 0 1px 0 oklch(0.96 0.03 80 / 0.08), 0 50px 120px -42px oklch(0.1 0.05 28 / 0.7);
+}
+.film-rec {
+  position: absolute; top: clamp(16px, 1.9vw, 24px); inset-inline-end: clamp(18px, 2.1vw, 28px);
+  z-index: 3; display: inline-flex; align-items: center; gap: 7px;
+  font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 0.2em;
+  color: oklch(0.95 0.03 80 / 0.55);
+}
+.film-rec-dot { width: 7px; height: 7px; border-radius: 50%; background: oklch(0.62 0.2 25); animation: film-recdot 1.6s ease-in-out infinite; }
+.film-screen {
+  position: relative; overflow: hidden; border-radius: clamp(10px, 1.4vw, 16px);
+  background: var(--cm-cream); color: var(--cm-ink);
+  padding: clamp(20px, 3vw, 36px); min-height: clamp(320px, 44vh, 460px);
+  display: flex; flex-direction: column; gap: clamp(13px, 1.9vh, 20px);
+}
+.film-screen::after {
+  content: ''; position: absolute; inset-inline: 0; top: 0; height: 42%; z-index: 2; pointer-events: none;
+  background: linear-gradient(180deg, oklch(0.86 0.13 60 / 0.14), transparent);
+  animation: film-scan 7s ease-in-out infinite;
+}
+.film-titlebar { display: flex; align-items: center; gap: 7px; }
+.film-titlebar .film-dot { width: 9px; height: 9px; border-radius: 50%; background: oklch(0.18 0.03 40 / 0.18); }
+.film-windowtitle {
+  margin-inline-start: 10px; font-family: 'JetBrains Mono', monospace; font-size: 11px;
+  letter-spacing: 0.1em; color: var(--cm-ink-3);
+}
+.film-prompt {
+  display: flex; align-items: center; gap: 10px;
+  padding-block-end: clamp(12px, 1.6vh, 18px); border-block-end: 1px solid oklch(0.18 0.03 40 / 0.1);
+}
+.film-prompt-label {
+  font-family: 'Inter Tight', system-ui, sans-serif; font-size: clamp(15px, 1.4vw, 19px);
+  font-weight: 500; color: var(--cm-ink);
+}
+.film-caret { width: 2px; height: 1.1em; background: var(--cm-clay-d); animation: film-caret 1s steps(1) infinite; }
+.film-status {
+  font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.14em;
+  text-transform: uppercase; color: var(--cm-clay-d);
+}
+.film-lines { display: grid; gap: 10px; }
+.film-line {
+  height: 10px; border-radius: 5px; background-size: 200% 100%;
+  background-image: linear-gradient(90deg, oklch(0.88 0.045 72), oklch(0.93 0.03 75) 40%, oklch(0.88 0.045 72) 70%);
+  animation: film-skeleton 1.8s linear infinite; animation-delay: calc(var(--i) * 0.18s);
+}
+.film-line:nth-child(1) { width: 92%; }
+.film-line:nth-child(2) { width: 78%; }
+.film-line:nth-child(3) { width: 86%; }
+.film-line:nth-child(4) { width: 62%; }
+.film-chips { display: flex; flex-wrap: wrap; gap: 10px; margin-block-start: auto; }
+.film-chip {
+  display: inline-flex; align-items: center; gap: 8px; padding: 7px 14px; border-radius: 999px;
+  background: var(--cm-cream-2); border: 1px solid oklch(0.18 0.03 40 / 0.1);
+  font-family: 'Inter Tight', system-ui, sans-serif; font-size: 12.5px; color: var(--cm-ink-2);
+  opacity: 0.35; animation: film-chip-cycle 7s ease-in-out infinite; animation-delay: calc(var(--i) * 0.5s);
+}
+.film-check {
+  width: 15px; height: 15px; border-radius: 50%; background: var(--cm-sage);
+  display: inline-grid; place-items: center; transform: scale(0);
+  animation: film-check-cycle 7s ease-in-out infinite; animation-delay: calc(var(--i) * 0.5s);
+}
+.film-check::after {
+  content: ''; width: 4px; height: 7px; margin-top: -1px;
+  border: 1.5px solid var(--cm-cream); border-top: 0; border-inline-start: 0;
+  transform: rotate(45deg);
+}
+.film-ready {
+  font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.16em;
+  text-transform: uppercase; color: var(--cm-sage); opacity: 0;
+  animation: film-ready-cycle 7s ease-in-out infinite;
+}
+@keyframes film-recdot { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
+@keyframes film-caret { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
+@keyframes film-skeleton { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+@keyframes film-scan { 0% { transform: translateY(-110%); opacity: 0; } 22% { opacity: 1; } 60% { transform: translateY(280%); opacity: 0; } 100% { opacity: 0; } }
+@keyframes film-chip-cycle { 0%, 6% { opacity: 0.35; } 15%, 88% { opacity: 1; } 96%, 100% { opacity: 0.35; } }
+@keyframes film-check-cycle { 0%, 6% { transform: scale(0); } 16%, 100% { transform: scale(1); } }
+@keyframes film-ready-cycle { 0%, 72% { opacity: 0; transform: translateY(6px); } 82%, 96% { opacity: 1; transform: translateY(0); } 100% { opacity: 0; } }
+
 /* ─── reduced motion ───────────────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
   .cinema-stage *,
@@ -1641,4 +1826,12 @@ html { scroll-behavior: smooth; }
   }
   .atl-watermark { animation: none !important; }
   .atl-scroll-line::after { animation: none !important; }
+  /* Un-pin the scrubbed sections so there's no empty scroll runway. */
+  .voices-pin-track { height: auto !important; }
+  .voices-pin { position: static !important; height: auto !important; }
+  /* Film: freeze on a finished frame instead of looping the demo. */
+  .film-rec-dot, .film-caret, .film-line, .film-screen::after { animation: none !important; }
+  .film-chip { opacity: 1 !important; animation: none !important; }
+  .film-check { transform: scale(1) !important; animation: none !important; }
+  .film-ready { opacity: 1 !important; transform: none !important; animation: none !important; }
 }

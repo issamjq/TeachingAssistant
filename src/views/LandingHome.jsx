@@ -11,10 +11,11 @@
 // clamp() and grid auto-fit; nothing breakpoint-snapped. All motion
 // is honored by prefers-reduced-motion (see landing.css).
 // =====================================================================
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useT, useI18n } from "../lib/i18n";
 import { PLANS } from "../lib/plans";
 import HeroAtelier from "./HeroAtelier";
+import Showreel from "./Showreel";
 
 // ── reveal hook ────────────────────────────────────────────────────
 // Adds `.in` to the element when it crosses the viewport. Used by
@@ -46,6 +47,46 @@ function useReveal({ threshold = 0.18, once = true, margin = "0px 0px -10% 0px" 
     return () => obs.disconnect();
   }, [threshold, once, margin]);
   return ref;
+}
+
+// ── scroll-driven motion helpers ───────────────────────────────────
+const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
+const lerp = (a, b, t) => a + (b - a) * t;
+const easeInOut = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+const prefersReduced = () =>
+  typeof window !== "undefined" &&
+  window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+// Viewport-pass progress 0→1: 0 as the element's top reaches the viewport
+// bottom, 1 as its bottom reaches the top. Drives scroll-linked reveals on
+// normal-flow sections (no pin) — motion always tied to scroll position.
+function useViewportProgress(ref) {
+  const [vp, setVp] = useState(0);
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+    if (prefersReduced()) { setVp(1); return undefined; }
+    let raf = 0;
+    const onScroll = () => {
+      if (raf) return;
+      raf = requestAnimationFrame(() => {
+        raf = 0;
+        const el = ref.current;
+        if (!el) return;
+        const r = el.getBoundingClientRect();
+        const vh = window.innerHeight;
+        setVp(clamp01((vh - r.top) / (vh + r.height)));
+      });
+    };
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll);
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onScroll);
+      if (raf) cancelAnimationFrame(raf);
+    };
+  }, [ref]);
+  return vp;
 }
 
 // ── 1. CINEMA HERO ─────────────────────────────────────────────────
@@ -436,31 +477,54 @@ function VoicesCard({ voice, t }) {
   );
 }
 
+// Pinned like the hero: while the section holds, the heading and the two
+// rails scrub in (heading rises, rails counter-slide from opposite edges),
+// then settle into their auto-marquee. Desktop-only pin; on phones it flows
+// normally (rev = 1) so there's no scroll-jacking on touch.
 function Voices() {
   const t = useT();
-  const headRef = useReveal({ threshold: 0.3 });
+  const trackRef = useRef(null);
+  // Tie the reveal to the section ENTERING the viewport (not the pinned
+  // scrub). The heading + rails fade/slide in as the section rises into
+  // view — so you see it the moment you reach it — and the short pin just
+  // holds the beat afterward (marquee running). Fixes the dead-scroll gap.
+  const vp = useViewportProgress(trackRef);
   // Split into two rails for visual rhythm; second rail goes the other way.
   const railA = [...VOICES, ...VOICES];
   const railBSrc = [...VOICES].reverse();
   const railB = [...railBSrc, ...railBSrc];
 
+  const headIn = clamp01((vp - 0.14) / 0.16);
+  const railsIn = easeInOut(clamp01((vp - 0.18) / 0.2));
+
   return (
-    <section className="voices-stage">
-      <div ref={headRef} className="voices-shell cm-reveal">
-        <h2 className="voices-h1">
-          {t("ch.voices.h1.a")} <em>{t("ch.voices.h1.em")}</em> {t("ch.voices.h1.b")}
-        </h2>
-        <p className="voices-sub">{t("ch.voices.sub")}</p>
-      </div>
-      <div className="voices-rails">
-        <div className="voices-row">
-          <div className="voices-track">
-            {railA.map((v, i) => <VoicesCard key={`a-${i}`} voice={v} t={t} />)}
-          </div>
+    <section ref={trackRef} className="voices-pin-track">
+      <div className="voices-pin">
+        <div
+          className="voices-shell"
+          style={{ opacity: headIn, transform: `translateY(${lerp(34, 0, headIn)}px)` }}
+        >
+          <h2 className="voices-h1">
+            {t("ch.voices.h1.a")} <em>{t("ch.voices.h1.em")}</em> {t("ch.voices.h1.b")}
+          </h2>
+          <p className="voices-sub">{t("ch.voices.sub")}</p>
         </div>
-        <div className="voices-row rev">
-          <div className="voices-track">
-            {railB.map((v, i) => <VoicesCard key={`b-${i}`} voice={v} t={t} />)}
+        <div className="voices-rails">
+          <div
+            className="voices-row"
+            style={{ opacity: railsIn, transform: `translateX(${lerp(-120, 0, railsIn)}px)` }}
+          >
+            <div className="voices-track">
+              {railA.map((v, i) => <VoicesCard key={`a-${i}`} voice={v} t={t} />)}
+            </div>
+          </div>
+          <div
+            className="voices-row rev"
+            style={{ opacity: railsIn, transform: `translateX(${lerp(120, 0, railsIn)}px)` }}
+          >
+            <div className="voices-track">
+              {railB.map((v, i) => <VoicesCard key={`b-${i}`} voice={v} t={t} />)}
+            </div>
           </div>
         </div>
       </div>
@@ -469,9 +533,8 @@ function Voices() {
 }
 
 // ── 6. PLANS ───────────────────────────────────────────────────────
-function PlanCard({ p, i, onEnter }) {
+function PlanCard({ p, i, vp, onEnter }) {
   const t = useT();
-  const ref = useReveal({ threshold: 0.2 });
   const featured = !!p.best;
   const cur = t("lp.plan.aed");
   const billed =
@@ -480,11 +543,16 @@ function PlanCard({ p, i, onEnter }) {
       : p.cycle === "q"
       ? t("lp.plan.billed.q", { total: p.total, cur })
       : t("lp.plan.billed.mo");
+  // Scroll-linked reveal, staggered per card. The featured card rests at
+  // translateY(-12px) in CSS, so reveal into that offset — and once fully
+  // in, drop the inline transform so the CSS hover-lift takes over again.
+  const r = easeInOut(clamp01((vp - 0.06 - i * 0.05) / 0.3));
+  const revealStyle =
+    r >= 1 ? { opacity: 1 } : { opacity: r, transform: `translateY(${lerp(56, 0, r)}px)` };
   return (
     <article
-      ref={ref}
-      className={`plans-card cm-reveal${featured ? " featured" : ""}`}
-      data-d={i + 1}
+      className={`plans-card${featured ? " featured" : ""}`}
+      style={revealStyle}
     >
       {featured && <div className="plans-badge">{t("lp.plan.best")}</div>}
       <div className="plans-name">{t(`lp.plan.name.${p.id}`)}</div>
@@ -509,12 +577,17 @@ function PlanCard({ p, i, onEnter }) {
 
 function Plans({ onEnter }) {
   const t = useT();
-  const headRef = useReveal({ threshold: 0.3 });
+  const ref = useRef(null);
+  const vp = useViewportProgress(ref);
+  const headR = easeInOut(clamp01((vp - 0.02) / 0.3));
 
   return (
-    <section className="plans-stage" id="ch-plans">
+    <section ref={ref} className="plans-stage" id="ch-plans">
       <div className="plans-shell">
-        <header ref={headRef} className="plans-head cm-reveal">
+        <header
+          className="plans-head"
+          style={{ opacity: headR, transform: `translateY(${lerp(40, 0, headR)}px)` }}
+        >
           <h2 className="plans-h1">
             {t("ch.plans.h1.a")} <em>{t("ch.plans.h1.em")}</em>
           </h2>
@@ -522,7 +595,7 @@ function Plans({ onEnter }) {
         </header>
         <div className="plans-grid">
           {PLANS.map((p, i) => (
-            <PlanCard key={p.id} p={p} i={i} onEnter={onEnter} />
+            <PlanCard key={p.id} p={p} i={i} vp={vp} onEnter={onEnter} />
           ))}
         </div>
       </div>
@@ -533,10 +606,12 @@ function Plans({ onEnter }) {
 // ── 7. FINAL CTA ───────────────────────────────────────────────────
 function FinalCTA({ onEnter, signedIn }) {
   const t = useT();
-  const ref = useReveal({ threshold: 0.3 });
+  const ref = useRef(null);
+  const vp = useViewportProgress(ref);
+  const r = easeInOut(clamp01((vp - 0.02) / 0.32));
   return (
-    <section className="final-stage">
-      <div ref={ref} className="final-shell cm-reveal">
+    <section ref={ref} className="final-stage">
+      <div className="final-shell" style={{ opacity: r, transform: `translateY(${lerp(46, 0, r)}px)` }}>
         <div className="final-kicker">{t("ch.final.kicker")}</div>
         <h2 className="final-q">
           {t("ch.final.q.a")} <em>{t("ch.final.q.em")}</em> {t("ch.final.q.b")}
@@ -573,6 +648,7 @@ export default function LandingHome({ onEnter, signedIn }) {
   return (
     <>
       <HeroAtelier onEnter={onEnter} signedIn={signedIn} />
+      <Showreel />
       <Voices />
       <Plans onEnter={onEnter} />
       <FinalCTA onEnter={onEnter} signedIn={signedIn} />

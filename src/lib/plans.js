@@ -12,8 +12,8 @@ export const CURRENCY = "AED";
 
 export const PLANS = [
   { id: "monthly",   perMonth: "29.99", total: "29.99",  savePct: 0,  cycle: "mo" },
-  { id: "quarterly", perMonth: "26.99", total: "80.99",  savePct: 10, cycle: "q"  },
-  { id: "annual",    perMonth: "22.49", total: "269.99", savePct: 25, cycle: "yr", best: true },
+  { id: "quarterly", perMonth: "26.99", total: "80.99",  savePct: 10, cycle: "q",  best: true },
+  { id: "annual",    perMonth: "22.49", total: "269.99", savePct: 25, cycle: "yr" },
 ];
 
 export const PLAN_IDS = PLANS.map((p) => p.id);
