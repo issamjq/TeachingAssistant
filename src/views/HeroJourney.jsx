@@ -154,13 +154,15 @@ export function HeroCardFace({ kind, variant = "a" }) {
     );
   }
 
-  // Test: full-bleed image in the first (lesson) card — set A → s1.1, set B → s2.1.
+  // Test: full image in the first (lesson) card — set A → s1.1, set B → s2.1.
+  // The card matches the images' 2:3 ratio (200×300) so they fill it exactly,
+  // with no crop and no letterbox bars.
   const LESSON_IMG = { a: "/s1.1.png", b: "/s2.1.png" };
   if (kind === "lesson" && LESSON_IMG[variant]) {
     return (
       <div
-        className={`${SHELL} relative`}
-        style={{ ...SH, padding: 0, background: "#fffdf6", borderColor: "var(--line)" }}
+        className="w-[200px] h-[300px] rounded-2xl border overflow-hidden relative"
+        style={{ ...SH, borderColor: "var(--line)" }}
       >
         <img src={LESSON_IMG[variant]} alt="" className="absolute inset-0 w-full h-full object-cover" />
       </div>
