@@ -1487,8 +1487,11 @@ html { scroll-behavior: smooth; }
 /* First act — editorial index */
 .atl-index-head {
   position: absolute; z-index: 6; left: 50%;
-  top: clamp(19vh, 23vh, 26vh);
-  width: min(92vw, 900px); text-align: center;
+  /* Anchored relative to the pin centre (not the top) and bottom-aligned via
+     the inline transform, so the title sits just above the labels and the
+     whole title+labels+cards group reads as one centred block. */
+  top: 50%;
+  width: min(94vw, 1040px); text-align: center;
 }
 .atl-index-over {
   display: inline-block; margin-block-end: 14px;

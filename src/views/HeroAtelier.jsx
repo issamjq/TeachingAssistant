@@ -94,7 +94,7 @@ export default function HeroAtelier({ onEnter, signedIn }) {
     // B — clean contact-sheet row, upright. Large so the section fills the
     // screen; wider pitch so the six still fit, nudged lower to centre.
     const xb = o * 180 * dir;
-    const yb = 90;
+    const yb = 130;
     const sb = 0.7;
     const x = lerp(xa, xb, cardsT);
     const y = lerp(ya, yb, cardsT);
@@ -176,7 +176,8 @@ export default function HeroAtelier({ onEnter, signedIn }) {
           className="atl-index-head"
           style={{
             opacity: headIn,
-            transform: `translate(-50%, 0) translateY(${(1 - headIn) * 24}px)`,
+            // Bottom-anchored above centre → a small clean gap above the labels.
+            transform: `translate(-50%, calc(-100% - 92px)) translateY(${(1 - headIn) * 24}px)`,
           }}
         >
           <span className="atl-index-over">{t("atl.index.over")}</span>
@@ -213,7 +214,7 @@ export default function HeroAtelier({ onEnter, signedIn }) {
             <div
               key={kind}
               className="atl-toc-item"
-              style={{ transform: `translate(-50%, -100%) translate(${(i - MID) * 180 * dir}px, -24px)` }}
+              style={{ transform: `translate(-50%, -100%) translate(${(i - MID) * 180 * dir}px, 17px)` }}
             >
               <span className="atl-toc-num">{String(i + 1).padStart(2, "0")}</span>
               <span className="atl-toc-label">{t(`atl.art.${kind}`)}</span>
