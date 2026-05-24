@@ -220,78 +220,89 @@ const Nav = ({ onEnter, signedIn, onJump, onPage, onSignOut, darkHero = false })
       : "nav-blur border-b"
     : "";
 
+  // Editorial chrome. The index links + underline take a warm accent
+  // (amber on the drench, clay on the cream page); the CTA pill inverts
+  // its fill with the surface. `isRTL` flips the CTA arrow + hover nudge.
+  const { isRTL } = useI18n();
+  const accent = onDark ? "oklch(0.86 0.13 60)" : "var(--clay)";
+  const ctaStyle = onDark
+    ? { background: "var(--paper)", color: "var(--cm-clay-dd)" }
+    : { background: "var(--ink)", color: "var(--paper)" };
+  const navItems = [
+    { key: "lp.nav.how", to: "how" },
+    { key: "lp.nav.features", to: "features" },
+    { key: "lp.nav.aistudio", to: "how" },
+    { key: "lp.nav.build", to: "philosophy" },
+  ];
+  const ctaArrow = isRTL
+    ? "M11.5 7 H3 M6.5 3.5 L3 7 L6.5 10.5"
+    : "M2.5 7 H11 M7.5 3.5 L11 7 L7.5 10.5";
+
   return (
     <motion.header
       initial={{ y: -40, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
       transition={{ duration: 0.8, ease: EASE }}
       className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${headerCls}`}
-      style={{ borderColor: scrolled && !onDark ? "var(--line)" : "transparent" }}
+      style={{
+        borderColor: scrolled && !onDark ? "var(--line)" : "transparent",
+        ["--nav-accent"]: accent,
+      }}
     >
-      <div className="max-w-[1280px] mx-auto px-8 py-3 flex items-center justify-between">
-        <button
-          type="button"
-          onClick={() => onPage("home")}
-          className="flex items-center gap-2.5"
-          style={{ color: fg }}
-        >
-          <div
-            className="w-7 h-7 rounded-md flex items-center justify-center"
-            style={{ background: dotBg, border: onDark ? "1px solid oklch(0.96 0.025 80 / 0.35)" : "none" }}
+      <div className="max-w-[1280px] mx-auto px-8 h-16 flex items-center justify-between">
+        {/* Brand */}
+        <button type="button" onClick={() => onPage("home")} className="nav-brand" style={{ color: fg }}>
+          <span
+            className="nav-mark"
+            style={{
+              background: dotBg,
+              color: fgDot,
+              border: onDark ? "1px solid oklch(0.96 0.025 80 / 0.35)" : "none",
+            }}
           >
-            <span className="font-display text-base" style={{ color: fgDot }}>
-              م
-            </span>
-          </div>
-          <span className="font-display text-xl tracking-tight">Murchid</span>
+            م
+          </span>
+          <span className="nav-wordmark">Murchid</span>
         </button>
 
-        <nav
-          className="hidden md:flex items-center gap-10 text-sm"
-          style={{ color: fg }}
-        >
-          <button type="button" onClick={() => onJump("how")} className="link-quiet">
-            {t("lp.nav.how")}
-          </button>
-          <button type="button" onClick={() => onJump("features")} className="link-quiet">
-            {t("lp.nav.features")}
-          </button>
-          <button type="button" onClick={() => onJump("how")} className="link-quiet">
-            {t("lp.nav.aistudio")}
-          </button>
-          <button type="button" onClick={() => onJump("philosophy")} className="link-quiet">
-            {t("lp.nav.build")}
-          </button>
+        {/* Editorial index */}
+        <nav className="hidden md:flex items-center gap-9" style={{ color: fg }}>
+          {navItems.map((it, i) => (
+            <button key={it.key + i} type="button" onClick={() => onJump(it.to)} className="nav-link">
+              <span className="nav-link-num">{String(i + 1).padStart(2, "0")}</span>
+              <span className="nav-link-label">{t(it.key)}</span>
+            </button>
+          ))}
         </nav>
 
-        <div className="flex items-center gap-3">
+        {/* Controls */}
+        <div className="flex items-center gap-3 md:gap-4">
           <LangToggle />
           {!signedIn && (
             <button
               type="button"
               onClick={() => onPage("signup")}
-              className="hidden sm:block text-sm link-quiet"
+              className="hidden sm:block nav-quiet"
               style={{ color: fg }}
             >
               {t("lp.nav.signin")}
             </button>
           )}
           {signedIn && (
-            <button
-              type="button"
-              onClick={onSignOut}
-              className="text-sm link-quiet"
-              style={{ color: fg }}
-            >
+            <button type="button" onClick={onSignOut} className="hidden sm:block nav-quiet" style={{ color: fg }}>
               {t("lp.nav.signout")}
             </button>
           )}
           <button
             type="button"
             onClick={onEnter}
-            className={onDark ? "btn-invert px-4 py-2 rounded-lg text-sm font-medium" : "btn-primary px-4 py-2 rounded-lg text-sm font-medium"}
+            className="nav-cta"
+            style={{ ...ctaStyle, ["--cta-nudge"]: isRTL ? "-3px" : "3px" }}
           >
-            {signedIn ? t("lp.nav.openPlanner") : t("lp.cta.subscribe")}
+            <span>{signedIn ? t("lp.nav.openPlanner") : t("lp.cta.subscribe")}</span>
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+              <path d={ctaArrow} stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
           </button>
         </div>
       </div>

@@ -83,6 +83,25 @@ export default function AccessibilityWidget() {
   const [s, setS] = useState(loadSettings);
   const panelRef = useRef(null);
 
+  // Portal into one stable, reused container instead of loose into
+  // <body>. Portaling straight into document.body lets a hot-reload (dev)
+  // or a dir flip orphan the old launcher node; two stacked drop-shadows
+  // then read as a dark halo behind the button until the page is
+  // refreshed. Reusing #a11y-root — and clearing any leftover children on
+  // (re)mount — keeps exactly one launcher in the DOM.
+  const portalRoot = useState(() => {
+    if (typeof document === "undefined") return null;
+    let node = document.getElementById("a11y-root");
+    if (node) {
+      node.replaceChildren(); // drop orphans from a previous (hot-reloaded) tree
+    } else {
+      node = document.createElement("div");
+      node.id = "a11y-root";
+      document.body.appendChild(node);
+    }
+    return node;
+  })[0];
+
   // Persist + apply on every change.
   useEffect(() => {
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(s)); } catch { /* ignore */ }
@@ -193,7 +212,7 @@ export default function AccessibilityWidget() {
       aria-label={t("a11y.open")}
       title={t("a11y.open")}
       style={{ position: "fixed", bottom: 20, ...side, zIndex: 2147483000 }}
-      className="grid place-items-center w-14 h-14 rounded-full bg-[#c8472b] text-white shadow-[0_8px_24px_rgba(26,24,20,0.32)] ring-2 ring-white/70 transition hover:scale-105 active:scale-95"
+      className="grid place-items-center w-14 h-14 rounded-full bg-[#faf6ec] text-[#c8472b] shadow-[0_8px_24px_rgba(26,24,20,0.32)] ring-2 ring-[#c8472b]/25 transition hover:scale-105 active:scale-95"
     >
       <Accessibility size={28} strokeWidth={2.2} />
       {dirty && (
@@ -449,6 +468,7 @@ export default function AccessibilityWidget() {
     </>
   );
 
+  if (!portalRoot) return null;
   return createPortal(
     <>
       <ColorBlindDefs />
@@ -456,7 +476,7 @@ export default function AccessibilityWidget() {
       {launcher}
       {panel}
     </>,
-    document.body
+    portalRoot
   );
 }
 

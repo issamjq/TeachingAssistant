@@ -14,7 +14,7 @@
 import React, { useEffect, useRef } from "react";
 import { useT, useI18n } from "../lib/i18n";
 import { PLANS } from "../lib/plans";
-import HeroJourney from "./HeroJourney";
+import HeroAtelier from "./HeroAtelier";
 
 // ── reveal hook ────────────────────────────────────────────────────
 // Adds `.in` to the element when it crosses the viewport. Used by
@@ -563,15 +563,16 @@ function FinalCTA({ onEnter, signedIn }) {
 }
 
 // ── exported home composition ──────────────────────────────────────
-// HeroJourney now opens the page: it's one pinned scroll section that
-// starts on the Murchid wordmark hero (the warm drench) and re-stages
-// the same six cards across three acts as you scroll. The Manifest /
-// Stage / Lineup components stay parked above (unrendered) in case any
-// are wanted back later.
+// HeroAtelier (2026) opens the page: a bilingual editorial title
+// sequence — the Murchid/مرشد masthead on a warm drench that bleaches
+// to cream as the six artifacts deal out and resolve into a contents
+// index. The older HeroJourney is parked (snapshot v1.2) and its card
+// faces are reused by HeroAtelier. Manifest / Stage / Lineup stay
+// parked above (unrendered) in case any are wanted back later.
 export default function LandingHome({ onEnter, signedIn }) {
   return (
     <>
-      <HeroJourney onEnter={onEnter} signedIn={signedIn} />
+      <HeroAtelier onEnter={onEnter} signedIn={signedIn} />
       <Voices />
       <Plans onEnter={onEnter} />
       <FinalCTA onEnter={onEnter} signedIn={signedIn} />

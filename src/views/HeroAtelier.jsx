@@ -1,0 +1,260 @@
+// =====================================================================
+// Murchid — Hero Atelier (2026 editorial title sequence)
+//
+// A bilingual editorial masthead. The signature is the type duality:
+// a colossal Fraunces "Murchid" interlocked with a large Amiri "مرشد"
+// watermark — the Latin and Arabic scripts in dialogue as one mark,
+// fitting for a UAE-first product whose name *means* "the one who
+// guides".
+//
+// ONE pinned scroll act: the warm drench bleaches to cream as the
+// masthead recedes and the six teaching artifacts deal out of a fan,
+// then resolve into an editorial INDEX — a magazine contents page
+// (01 — Lesson plan, 02 — Quiz, …).
+//
+// Motion is a pure function of scroll (rAF → `p`), the same no-library
+// technique the rest of the landing uses. Bilingual via useT(); RTL is
+// mirrored through `dir` and logical CSS. Honors prefers-reduced-motion
+// (entrance animations are CSS, which the media query disables; the
+// scroll scrub falls back to the at-rest opening frame).
+// =====================================================================
+import React, { useEffect, useRef, useState } from "react";
+import { useT, useI18n } from "../lib/i18n";
+import { HERO_CARDS, HeroCardFace } from "./HeroJourney";
+
+const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
+const seg = (p, a, b) => clamp01((p - a) / (b - a));
+const lerp = (a, b, t) => a + (b - a) * t;
+const easeInOut = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+
+const N = HERO_CARDS.length; // 6
+const MID = (N - 1) / 2; // 2.5
+
+// Build the value line "The teacher directs. Murchid drafts." as a
+// word list so each token can stagger in on load. The brand word is
+// flagged so it renders in clay italic.
+function useTaglineWords(t) {
+  const out = [];
+  for (const w of t("lp.hero.h1a").split(/\s+/)) if (w) out.push({ w, brand: false });
+  out.push({ w: t("lp.hero.brand"), brand: true });
+  for (const w of t("lp.hero.h1b").split(/\s+/)) if (w) out.push({ w, brand: false });
+  return out;
+}
+
+export default function HeroAtelier({ onEnter, signedIn }) {
+  const t = useT();
+  const { isRTL } = useI18n();
+  const dir = isRTL ? -1 : 1;
+  const trackRef = useRef(null);
+  const [p, setP] = useState(0);
+
+  useEffect(() => {
+    let raf = 0;
+    const onScroll = () => {
+      if (raf) return;
+      raf = requestAnimationFrame(() => {
+        raf = 0;
+        const el = trackRef.current;
+        if (!el) return;
+        const r = el.getBoundingClientRect();
+        const span = r.height - window.innerHeight;
+        setP(span > 0 ? clamp01(-r.top / span) : 0);
+      });
+    };
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll);
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onScroll);
+      if (raf) cancelAnimationFrame(raf);
+    };
+  }, []);
+
+  // ── Choreography — all pure functions of scroll `p` ──────────────
+  const bgT = easeInOut(seg(p, 0.06, 0.34)); // warm drench → cream page
+  const lockOut = easeInOut(seg(p, 0.05, 0.30)); // masthead + lockup recede
+  const cardsT = easeInOut(seg(p, 0.12, 0.62)); // fan → editorial index row
+  const headIn = seg(p, 0.42, 0.66); // index header reveal
+  const tocIn = seg(p, 0.52, 0.8); // 01–06 contents labels
+
+  const ctaLabel = signedIn ? t("landing.nav.openPlanner") : t("ch.hero.cta");
+  const tagline = useTaglineWords(t);
+
+  // Shared card transform — fan (hero) lerped to row (index).
+  const cardStyle = (i) => {
+    const o = i - MID;
+    // A — confident fan, low in the frame, clear of the lockup above.
+    const xa = o * 128 * dir;
+    const ya = 240 + (MID * MID - o * o) * 10;
+    const ra = o * 6 * dir;
+    const sa = 0.64;
+    // B — clean contact-sheet row, upright, centred a touch low.
+    const xb = o * 150 * dir;
+    const yb = 64;
+    const sb = 0.5;
+    const x = lerp(xa, xb, cardsT);
+    const y = lerp(ya, yb, cardsT);
+    const r = lerp(ra, 0, cardsT);
+    const s = lerp(sa, sb, cardsT);
+    return {
+      transform: `translate(-50%, -50%) translate(${x}px, ${y}px) rotate(${r}deg) scale(${s})`,
+      zIndex: 20 + i,
+    };
+  };
+
+  return (
+    <section ref={trackRef} className="atl">
+      {/* ───────────── DESKTOP — pinned title sequence ───────────── */}
+      <div className="atl-pin">
+        {/* Warm drench that bleaches to the cream page as the act begins */}
+        <div className="atl-drench" aria-hidden="true" style={{ opacity: 1 - bgT }}>
+          <span className="cinema-grain" />
+          <span className="cinema-orb cinema-orb-a" />
+          <span className="cinema-orb cinema-orb-b" />
+        </div>
+
+        {/* Editorial spine — a magazine gutter caption */}
+        <span className="atl-spine" aria-hidden="true" style={{ opacity: 1 - lockOut }}>
+          MURCHID — EST. 2026
+        </span>
+
+        {/* Masthead bar */}
+        <div
+          className="atl-masthead"
+          style={{ opacity: 1 - lockOut, transform: `translateY(${lockOut * -28}px)` }}
+        >
+          <span className="atl-rule" />
+          <span className="atl-eyebrow">{t("landing.hero.eyebrow")}</span>
+          <span className="atl-meta" dir="ltr">
+            مرشد · NO. 01
+          </span>
+        </div>
+
+        {/* The bilingual lockup — the signature */}
+        <div
+          className="atl-lockup"
+          style={{
+            opacity: 1 - lockOut,
+            transform: `translate(-50%, 0) translateY(${lockOut * -64}px) scale(${1 - lockOut * 0.05})`,
+          }}
+        >
+          <span className="atl-watermark" aria-hidden="true">
+            مرشد
+          </span>
+          {isRTL ? (
+            <h1 className="atl-word atl-word--ar">مرشد</h1>
+          ) : (
+            <h1 className="atl-word">
+              Mu<em>r</em>chid
+            </h1>
+          )}
+          <div className="atl-meaning">{t("atl.meaning")}</div>
+          <h2 className="atl-tagline" dir={isRTL ? "rtl" : "ltr"}>
+            {tagline.map((tok, i) => (
+              <span className="atl-tw" style={{ "--i": i }} key={i}>
+                {tok.brand ? <em>{tok.w}</em> : tok.w}{" "}
+              </span>
+            ))}
+          </h2>
+          <div className="atl-cta-row">
+            <button type="button" className="atl-pill" onClick={onEnter}>
+              {ctaLabel}
+            </button>
+            <span className="atl-scroll">
+              {t("ch.hero.scroll")}
+              <span className="atl-scroll-line" />
+            </span>
+          </div>
+        </div>
+
+        {/* First act — editorial index header (resolves on the cream page) */}
+        <div
+          className="atl-index-head"
+          style={{
+            opacity: headIn,
+            transform: `translate(-50%, 0) translateY(${(1 - headIn) * 24}px)`,
+          }}
+        >
+          <span className="atl-index-over">{t("atl.index.over")}</span>
+          <h2 className="atl-index-title">{t("atl.index.title")}</h2>
+        </div>
+
+        {/* The ONE card layer — fan → contents row */}
+        <div className="atl-cards">
+          {HERO_CARDS.map((kind, i) => (
+            <div key={kind} className="atl-card" style={cardStyle(i)}>
+              <div className="atl-card-in" style={{ "--i": i }}>
+                <HeroCardFace kind={kind} />
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Contents numbering — sits above each card once it's in the row */}
+        <div className="atl-toc" style={{ opacity: tocIn }} aria-hidden={tocIn < 0.5}>
+          {HERO_CARDS.map((kind, i) => (
+            <div
+              key={kind}
+              className="atl-toc-item"
+              style={{ transform: `translate(-50%, -50%) translate(${(i - MID) * 150 * dir}px, -56px)` }}
+            >
+              <span className="atl-toc-num">{String(i + 1).padStart(2, "0")}</span>
+              <span className="atl-toc-label">{t(`atl.art.${kind}`)}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ───────────── MOBILE — static (no scrub) ───────────── */}
+      <div className="atl-mobile">
+        <div className="atl-m-hero">
+          <span className="cinema-grain" aria-hidden="true" />
+          <div className="atl-m-masthead">
+            <span className="atl-rule" />
+            <span className="atl-eyebrow">{t("landing.hero.eyebrow")}</span>
+          </div>
+          <div className="atl-m-lockup">
+            <span className="atl-watermark atl-watermark--m" aria-hidden="true">
+              مرشد
+            </span>
+            {isRTL ? (
+              <h1 className="atl-word atl-word--ar">مرشد</h1>
+            ) : (
+              <h1 className="atl-word">
+                Mu<em>r</em>chid
+              </h1>
+            )}
+            <div className="atl-meaning">{t("atl.meaning")}</div>
+            <h2 className="atl-tagline" dir={isRTL ? "rtl" : "ltr"}>
+              {tagline.map((tok, i) => (
+                <span key={i}>{tok.brand ? <em>{tok.w}</em> : tok.w} </span>
+              ))}
+            </h2>
+            <button type="button" className="atl-pill" onClick={onEnter}>
+              {ctaLabel}
+            </button>
+          </div>
+        </div>
+
+        <div className="atl-m-index">
+          <span className="atl-index-over">{t("atl.index.over")}</span>
+          <h2 className="atl-index-title">{t("atl.index.title")}</h2>
+          <div className="atl-m-grid">
+            {HERO_CARDS.map((kind, i) => (
+              <div key={kind} className="atl-m-cell">
+                <span className="atl-m-cell-tag">
+                  <span className="atl-toc-num">{String(i + 1).padStart(2, "0")}</span>
+                  {t(`atl.art.${kind}`)}
+                </span>
+                <div className="atl-m-thumb">
+                  <HeroCardFace kind={kind} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}

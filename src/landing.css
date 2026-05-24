@@ -1309,6 +1309,309 @@ html { scroll-behavior: smooth; }
   justify-content: center;
 }
 
+/* ════════════════════════════════════════════════════════════════════
+   HERO ATELIER (2026) — bilingual editorial title sequence
+   src/views/HeroAtelier.jsx. A colossal Fraunces "Murchid" interlocked
+   with an Amiri "مرشد" watermark over a warm drench that bleaches to
+   cream as the six artifacts deal out of a fan and resolve into a
+   magazine contents index. Motion = pure function of scroll.
+   ════════════════════════════════════════════════════════════════════ */
+.atl { position: relative; background: var(--cm-cream); }
+.atl-pin { display: none; }
+.atl-mobile { display: block; }
+@media (min-width: 1024px) {
+  .atl { height: 300vh; }
+  .atl-pin {
+    display: block; position: sticky; top: 0;
+    height: 100vh; overflow: hidden; isolation: isolate;
+  }
+  .atl-mobile { display: none; }
+}
+
+/* Warm drench — recedes via inline opacity. Reuses cinema-grain/orb. */
+.atl-drench {
+  position: absolute; inset: 0; z-index: 0; pointer-events: none;
+  background:
+    radial-gradient(ellipse 92% 64% at 50% 14%, oklch(0.64 0.13 42), transparent 72%),
+    radial-gradient(circle at 86% 92%, oklch(0.36 0.10 22), transparent 60%),
+    var(--cm-clay);
+}
+
+/* Editorial gutter caption — a magazine spine */
+.atl-spine {
+  position: absolute; z-index: 3; top: 50%;
+  inset-inline-start: clamp(14px, 2.4vw, 40px);
+  writing-mode: vertical-rl; transform: translateY(-50%) rotate(180deg);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px; letter-spacing: 0.34em; text-transform: uppercase;
+  color: oklch(0.96 0.03 80 / 0.5); pointer-events: none;
+}
+
+/* Masthead */
+.atl-masthead {
+  position: absolute; z-index: 4;
+  inset-inline: clamp(28px, 6vw, 88px);
+  top: clamp(80px, 11vh, 124px);
+  display: flex; align-items: center; justify-content: space-between;
+}
+.atl-rule {
+  position: absolute; inset-inline: 0; top: -16px; height: 1px;
+  background: oklch(0.96 0.03 80 / 0.3);
+  transform-origin: inline-start;
+  animation: atl-draw 1.1s 0.2s var(--easeOutE) backwards;
+}
+.atl-eyebrow, .atl-meta {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: clamp(10px, 0.95vw, 12.5px);
+  letter-spacing: 0.22em; text-transform: uppercase;
+  animation: atl-fade 1s 0.5s var(--easeOutE) backwards;
+}
+.atl-eyebrow { color: oklch(0.96 0.04 80 / 0.78); }
+.atl-meta { color: oklch(0.96 0.04 80 / 0.5); }
+
+/* The bilingual lockup — the signature */
+.atl-lockup {
+  position: absolute; z-index: 5; left: 50%;
+  top: clamp(14vh, 16vh, 19vh);
+  width: min(94vw, 1180px);
+  text-align: center;
+  display: grid; justify-items: center;
+}
+.atl-watermark {
+  position: absolute; z-index: 0; top: 50%; left: 50%;
+  transform: translate(-50%, -46%);
+  font-family: 'Amiri', 'Fraunces', serif; font-weight: 400;
+  font-size: clamp(200px, 36vw, 560px); line-height: 1;
+  color: oklch(0.98 0.02 80); opacity: 0.10;
+  white-space: nowrap; pointer-events: none; user-select: none;
+  animation: atl-wm 1.6s 0.1s var(--easeOutE) backwards;
+}
+.atl-word {
+  position: relative; z-index: 1; margin: 0;
+  font-family: 'Fraunces', Georgia, serif; font-weight: 300;
+  font-optical-sizing: auto;
+  font-variation-settings: 'opsz' 144, 'SOFT' 60;
+  font-size: clamp(64px, 14vw, 224px);
+  line-height: 0.86; letter-spacing: -0.04em;
+  color: var(--cm-cream);
+  animation: atl-rise 1.2s 0.35s var(--easeOutE) backwards;
+}
+.atl-word em {
+  font-style: italic; font-weight: 200;
+  color: oklch(0.86 0.13 60); padding-inline: 0.02em;
+}
+.atl-word--ar {
+  font-family: 'Amiri', 'Fraunces', serif; font-weight: 400;
+  font-size: clamp(76px, 18vw, 300px); letter-spacing: 0;
+}
+.atl-meaning {
+  position: relative; z-index: 1;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: clamp(11px, 1.05vw, 14px); letter-spacing: 0.1em;
+  color: oklch(0.96 0.04 80 / 0.72);
+  margin-block-start: clamp(10px, 1.6vh, 20px);
+  animation: atl-rise-soft 0.9s 0.7s var(--easeOutE) backwards;
+}
+.atl-tagline {
+  position: relative; z-index: 1;
+  font-family: 'Fraunces', Georgia, serif; font-weight: 300;
+  font-size: clamp(20px, 2.6vw, 40px); line-height: 1.12;
+  letter-spacing: -0.02em; color: oklch(0.97 0.025 80);
+  max-width: 22ch; text-wrap: balance;
+  margin-block-start: clamp(14px, 2.2vh, 28px);
+}
+.atl-tagline em { font-style: italic; color: oklch(0.86 0.13 60); }
+.atl-tw {
+  display: inline-block; margin-inline-end: 0.26em; opacity: 0;
+  filter: blur(8px); transform: translateY(14px);
+  animation: atl-word-in 0.7s var(--easeOutE) forwards;
+  animation-delay: calc(0.9s + var(--i) * 88ms);
+}
+.atl-cta-row {
+  display: flex; align-items: center; gap: clamp(16px, 2vw, 28px);
+  margin-block-start: clamp(20px, 3vh, 40px);
+  animation: atl-rise 0.8s 1.45s var(--easeOutE) backwards;
+}
+.atl-pill {
+  background: var(--cm-cream); color: var(--cm-clay-dd); border: none;
+  padding: 14px 30px; border-radius: 999px; cursor: pointer;
+  font-family: 'Inter Tight', system-ui, sans-serif; font-weight: 500;
+  font-size: clamp(14px, 1.05vw, 16px); letter-spacing: -0.005em;
+  box-shadow: 0 1px 2px oklch(0.18 0.05 30 / 0.18), 0 14px 34px oklch(0.18 0.05 30 / 0.3);
+  transition: transform 0.5s var(--easeOutE), box-shadow 0.5s var(--easeOutE);
+}
+.atl-pill:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 1px 2px oklch(0.18 0.05 30 / 0.2), 0 20px 46px oklch(0.18 0.05 30 / 0.38);
+}
+.atl-pill:active { transform: translateY(0); }
+.atl-scroll {
+  display: inline-flex; align-items: center; gap: 10px;
+  font-family: 'JetBrains Mono', monospace; font-size: 11px;
+  letter-spacing: 0.24em; text-transform: uppercase;
+  color: oklch(0.96 0.03 80 / 0.62);
+}
+.atl-scroll-line {
+  position: relative; display: block; width: 34px; height: 1px;
+  background: oklch(0.96 0.03 80 / 0.4); overflow: hidden;
+}
+.atl-scroll-line::after {
+  content: ''; position: absolute; inset: 0; width: 42%;
+  background: oklch(0.98 0.02 80);
+  animation: atl-shimmer 1.9s var(--easeOutE) infinite;
+}
+
+/* First act — editorial index */
+.atl-index-head {
+  position: absolute; z-index: 6; left: 50%;
+  top: clamp(19vh, 23vh, 26vh);
+  width: min(92vw, 900px); text-align: center;
+}
+.atl-index-over {
+  display: inline-block; margin-block-end: 14px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: clamp(11px, 1vw, 13px); letter-spacing: 0.2em;
+  text-transform: uppercase; color: var(--cm-clay-d);
+}
+.atl-index-title {
+  font-family: 'Fraunces', Georgia, serif; font-weight: 300;
+  font-size: clamp(28px, 4.2vw, 60px); line-height: 1.04;
+  letter-spacing: -0.025em; color: var(--cm-ink); margin: 0;
+}
+.atl-index-title em { font-style: italic; color: var(--cm-clay-d); }
+
+/* Card layer — fan → contents row */
+.atl-cards { position: absolute; z-index: 20; left: 50%; top: 50%; }
+.atl-card { position: absolute; left: 0; top: 0; will-change: transform; }
+.atl-card-in {
+  opacity: 0; transform: translateY(64px);
+  animation: atl-deal 0.9s var(--easeOutE) forwards;
+  animation-delay: calc(0.55s + var(--i) * 70ms);
+}
+.atl-card-in > div { box-shadow: 0 36px 70px -30px oklch(0.16 0.05 28 / 0.6); }
+
+/* Contents numbering — above each card once in the row */
+.atl-toc { position: absolute; z-index: 21; left: 50%; top: 50%; pointer-events: none; }
+.atl-toc-item {
+  position: absolute; left: 0; top: 0;
+  display: flex; flex-direction: column; align-items: center; gap: 3px;
+}
+.atl-toc-num {
+  font-family: 'Fraunces', Georgia, serif; font-style: italic;
+  font-size: clamp(18px, 1.8vw, 26px); color: var(--cm-clay-d); line-height: 1;
+}
+.atl-toc-label {
+  font-family: 'JetBrains Mono', monospace; font-size: 10.5px;
+  letter-spacing: 0.14em; text-transform: uppercase; color: var(--cm-ink-2);
+  white-space: nowrap;
+}
+
+/* ── Mobile (static) ── */
+.atl-m-hero {
+  position: relative; overflow: hidden; isolation: isolate; text-align: center;
+  color: var(--cm-cream);
+  padding: clamp(96px, 16vh, 140px) 24px clamp(48px, 8vh, 80px);
+  background:
+    radial-gradient(ellipse 120% 58% at 50% 14%, oklch(0.64 0.13 42), transparent 72%),
+    var(--cm-clay);
+}
+.atl-m-masthead {
+  display: flex; flex-direction: column; align-items: center; gap: 16px;
+  margin-block-end: clamp(20px, 5vh, 44px);
+}
+.atl-m-masthead .atl-rule {
+  position: static; width: 46px; height: 1px; transform: none; animation: none;
+}
+.atl-m-lockup { position: relative; }
+.atl-watermark--m { font-size: clamp(180px, 64vw, 340px); animation: none; }
+.atl-m-lockup .atl-tagline { margin-inline: auto; }
+.atl-m-lockup .atl-pill { margin-block-start: clamp(22px, 4vh, 36px); }
+.atl-m-index {
+  background: var(--cm-cream); text-align: center;
+  padding: clamp(44px, 9vh, 80px) 24px clamp(56px, 10vh, 88px);
+}
+.atl-m-grid {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: clamp(14px, 3vw, 22px); margin-block-start: clamp(28px, 5vh, 44px);
+}
+.atl-m-cell {
+  border: 1px solid oklch(0.18 0.03 40 / 0.1); border-radius: 18px;
+  background: var(--cm-cream-2); padding: 16px 16px 0;
+  display: flex; flex-direction: column; align-items: center; overflow: hidden;
+}
+.atl-m-cell-tag {
+  display: inline-flex; align-items: center; gap: 8px; align-self: flex-start;
+  font-family: 'JetBrains Mono', monospace; font-size: 10.5px;
+  letter-spacing: 0.12em; text-transform: uppercase; color: var(--cm-ink-2);
+  margin-block-end: 10px;
+}
+.atl-m-cell-tag .atl-toc-num { font-size: 16px; }
+.atl-m-thumb {
+  height: 176px; width: 100%; display: flex; justify-content: center;
+  align-items: flex-start; overflow: hidden;
+}
+.atl-m-thumb > div { transform: scale(0.62); transform-origin: top center; }
+
+/* ── Atelier keyframes ── */
+@keyframes atl-rise { from { opacity: 0; transform: translateY(46px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes atl-rise-soft { from { opacity: 0; transform: translateY(20px); filter: blur(8px); } to { opacity: 1; transform: translateY(0); filter: blur(0); } }
+@keyframes atl-draw { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+@keyframes atl-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes atl-wm { from { opacity: 0; transform: translate(-50%, -46%) scale(0.92); } to { opacity: 0.10; transform: translate(-50%, -46%) scale(1); } }
+@keyframes atl-word-in { from { opacity: 0; filter: blur(8px); transform: translateY(14px); } to { opacity: 1; filter: blur(0); transform: translateY(0); } }
+@keyframes atl-deal { from { opacity: 0; transform: translateY(64px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes atl-shimmer { from { transform: translateX(-110%); } to { transform: translateX(150%); } }
+
+/* ════════════════════════════════════════════════════════════════════
+   NAV — editorial masthead (2026). Monospace index links with a
+   draw-in clay underline, a Fraunces wordmark, and a surface-adaptive
+   CTA pill. Colours (fg / accent / pill) are set inline by <Nav> so the
+   bar inverts between the warm drench and the cream page.
+   ════════════════════════════════════════════════════════════════════ */
+.nav-brand { display: inline-flex; align-items: center; gap: 10px; }
+.nav-mark {
+  display: grid; place-items: center; width: 30px; height: 30px;
+  border-radius: 9px; font-family: 'Fraunces', Georgia, serif;
+  font-size: 17px; line-height: 1;
+}
+.nav-wordmark {
+  font-family: 'Fraunces', Georgia, serif; font-weight: 400;
+  font-size: 21px; letter-spacing: -0.01em;
+}
+.nav-link {
+  position: relative; display: inline-flex; align-items: baseline; gap: 7px;
+  padding-block: 6px; color: inherit; opacity: 0.82;
+  font-family: 'JetBrains Mono', monospace; font-size: 12px;
+  letter-spacing: 0.13em; text-transform: uppercase;
+  transition: opacity 0.3s var(--easeOutE);
+}
+.nav-link:hover { opacity: 1; }
+.nav-link-num { font-size: 9.5px; letter-spacing: 0.04em; color: var(--nav-accent); }
+.nav-link::after {
+  content: ''; position: absolute; inset-inline-start: 0; bottom: -1px;
+  height: 1.5px; width: 100%; background: var(--nav-accent);
+  transform: scaleX(0); transform-origin: inline-start;
+  transition: transform 0.42s var(--easeOutE);
+}
+.nav-link:hover::after, .nav-link:focus-visible::after { transform: scaleX(1); }
+.nav-quiet {
+  font-family: 'JetBrains Mono', monospace; font-size: 11.5px;
+  letter-spacing: 0.13em; text-transform: uppercase; opacity: 0.72;
+  transition: opacity 0.3s var(--easeOutE);
+}
+.nav-quiet:hover { opacity: 1; }
+.nav-cta {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 9px 18px; border-radius: 999px; border: none; cursor: pointer;
+  font-family: 'Inter Tight', system-ui, sans-serif; font-weight: 500;
+  font-size: 13.5px; letter-spacing: -0.005em;
+  box-shadow: 0 1px 2px oklch(0.18 0.05 30 / 0.16), 0 10px 26px oklch(0.18 0.05 30 / 0.22);
+  transition: transform 0.5s var(--easeOutE), box-shadow 0.5s var(--easeOutE);
+}
+.nav-cta svg { transition: transform 0.4s var(--easeOutE); }
+.nav-cta:hover { transform: translateY(-1px); box-shadow: 0 1px 2px oklch(0.18 0.05 30 / 0.2), 0 16px 34px oklch(0.18 0.05 30 / 0.3); }
+.nav-cta:hover svg { transform: translateX(var(--cta-nudge, 3px)); }
+
 /* ─── reduced motion ───────────────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
   .cinema-stage *,
@@ -1326,4 +1629,16 @@ html { scroll-behavior: smooth; }
     opacity: 1 !important;
   }
   .cm-reveal { transform: none; }
+  /* Atelier — kill entrance animations but keep scroll-positioned
+     transforms (those live in inline styles, not here). */
+  .atl-word, .atl-meaning, .atl-eyebrow, .atl-meta, .atl-rule,
+  .atl-cta-row, .atl-tw, .atl-card-in {
+    animation: none !important;
+    transition: none !important;
+    transform: none !important;
+    filter: none !important;
+    opacity: 1 !important;
+  }
+  .atl-watermark { animation: none !important; }
+  .atl-scroll-line::after { animation: none !important; }
 }

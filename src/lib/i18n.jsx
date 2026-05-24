@@ -92,6 +92,16 @@ const EN = {
   "ch.hero.lede": "Lesson prep, the way you wished it worked.",
   "ch.hero.cta": "Try the studio →",
   "ch.hero.scroll": "Scroll",
+  // ── 2026 editorial hero (atl.*) ──────────────────────────────────
+  "atl.meaning": "Murchid · مُرشِد — the one who guides",
+  "atl.index.over": "One topic in. Six artifacts out.",
+  "atl.index.title": "Everything a lesson needs, drafted.",
+  "atl.art.lesson": "Lesson plan",
+  "atl.art.quiz": "Quiz",
+  "atl.art.deck": "Slide deck",
+  "atl.art.presentation": "Presentation",
+  "atl.art.activity": "Activity",
+  "atl.art.homework": "Homework",
   "ch.manifest.kicker": "The shift",
   "ch.manifest.body":
     "On Sunday night, you opened a |em|blank|/em| document. By Monday morning, you had a |em|week's worth|/em| of plans, slides, quizzes, and homework. You didn't write any of it. You |em|directed|/em| it.",
@@ -810,6 +820,16 @@ const AR = {
   "ch.hero.lede": "تحضير الدرس، بالطريقة التي تمنّيتها دائمًا.",
   "ch.hero.cta": "جرّب الاستوديو ←",
   "ch.hero.scroll": "مرّر",
+  // ── 2026 editorial hero (atl.*) ──────────────────────────────────
+  "atl.meaning": "Murchid · مُرشِد — مَن يدلّك على الطريق",
+  "atl.index.over": "موضوعٌ واحد. ستّة مُخرجات.",
+  "atl.index.title": "كل ما يحتاجه الدرس، مَصُوغًا.",
+  "atl.art.lesson": "خطة درس",
+  "atl.art.quiz": "اختبار",
+  "atl.art.deck": "شرائح",
+  "atl.art.presentation": "عرض تقديمي",
+  "atl.art.activity": "نشاط",
+  "atl.art.homework": "واجب",
   "ch.manifest.kicker": "التحوّل",
   "ch.manifest.body":
     "ليلة الأحد، فتحتَ مستندًا |em|فارغًا|/em|. صباح الاثنين، كان أمامك تخطيط |em|أسبوع كامل|/em|، وشرائح، واختبارات، وواجبات. لم تكتب شيئًا منها. أنت |em|وجّهتها|/em|.",
