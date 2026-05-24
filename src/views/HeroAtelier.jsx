@@ -91,10 +91,11 @@ export default function HeroAtelier({ onEnter, signedIn }) {
     const ya = 240 + (MID * MID - o * o) * 10;
     const ra = o * 6 * dir;
     const sa = 0.64;
-    // B — clean contact-sheet row, upright, centred a touch low.
-    const xb = o * 150 * dir;
-    const yb = 64;
-    const sb = 0.5;
+    // B — clean contact-sheet row, upright. Bigger (≈ the hero-arc size) so
+    // the cards read without zooming; wider pitch so the six still fit.
+    const xb = o * 165 * dir;
+    const yb = 80;
+    const sb = 0.6;
     const x = lerp(xa, xb, cardsT);
     const y = lerp(ya, yb, cardsT);
     const r = lerp(ra, 0, cardsT);
@@ -212,7 +213,7 @@ export default function HeroAtelier({ onEnter, signedIn }) {
             <div
               key={kind}
               className="atl-toc-item"
-              style={{ transform: `translate(-50%, -100%) translate(${(i - MID) * 150 * dir}px, -18px)` }}
+              style={{ transform: `translate(-50%, -100%) translate(${(i - MID) * 165 * dir}px, -18px)` }}
             >
               <span className="atl-toc-num">{String(i + 1).padStart(2, "0")}</span>
               <span className="atl-toc-label">{t(`atl.art.${kind}`)}</span>
