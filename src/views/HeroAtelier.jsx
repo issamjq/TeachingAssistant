@@ -212,10 +212,11 @@ export default function HeroAtelier({ onEnter, signedIn }) {
             <div
               key={kind}
               className="atl-toc-item"
-              style={{ transform: `translate(-50%, -50%) translate(${(i - MID) * 150 * dir}px, -56px)` }}
+              style={{ transform: `translate(-50%, -100%) translate(${(i - MID) * 150 * dir}px, -18px)` }}
             >
               <span className="atl-toc-num">{String(i + 1).padStart(2, "0")}</span>
               <span className="atl-toc-label">{t(`atl.art.${kind}`)}</span>
+              <span className="atl-toc-desc">{t(`atl.desc.${kind}`)}</span>
             </div>
           ))}
         </div>

@@ -91,24 +91,33 @@ export default function Showreel() {
                 <span className="film-caret" aria-hidden="true" />
               </div>
 
-              <div className="film-status">{t("film.drafting")}</div>
-
-              <div className="film-lines" aria-hidden="true">
-                {[0, 1, 2, 3].map((i) => (
-                  <span key={i} className="film-line" style={{ "--i": i }} />
-                ))}
+              <div className="film-statusrow" aria-hidden="true">
+                <span className="film-status">{t("film.drafting")}</span>
+                <span className="film-count">6 / 6</span>
+              </div>
+              <div className="film-progress" aria-hidden="true">
+                <span className="film-progress-bar" />
               </div>
 
-              <div className="film-chips" aria-hidden="true">
+              {/* The six artifacts materialize as mini previews — visible
+                  proof of output, not placeholder bars. */}
+              <div className="film-tiles" aria-hidden="true">
                 {ART.map((k, i) => (
-                  <span key={k} className="film-chip" style={{ "--i": i }}>
-                    <span className="film-check" />
-                    {t(`atl.art.${k}`)}
-                  </span>
+                  <div key={k} className="film-tile" style={{ "--i": i }}>
+                    <span className="film-tile-head">
+                      <span className="film-tile-name">{t(`atl.art.${k}`)}</span>
+                      <span className="film-tile-check" />
+                    </span>
+                    <span className="film-tile-line" />
+                    <span className="film-tile-line short" />
+                  </div>
                 ))}
               </div>
 
-              <div className="film-ready">{t("film.ready")}</div>
+              <div className="film-footer">
+                <span className="film-ready">{t("film.ready")}</span>
+                <span className="film-cred">{t("film.cred")}</span>
+              </div>
             </div>
           </div>
         </div>

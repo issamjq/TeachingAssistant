@@ -1118,6 +1118,12 @@ html { scroll-behavior: smooth; }
 /* ─── 6. PLANS ─────────────────────────────────────────────────── */
 .plans-stage {
   position: relative;
+  /* Fill the viewport (centred) so the section reads as a clean full screen
+     when reached — no neighbouring section colour bleeding in at top/bottom. */
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
   /* Warm cream — matches the Showreel (the other cream section): the points
      grain + a warm top glow over cream. */
   background:
@@ -1128,7 +1134,7 @@ html { scroll-behavior: smooth; }
   padding-block: clamp(100px, 16vh, 180px);
   padding-inline: clamp(20px, 5vw, 56px);
 }
-.plans-shell { max-width: 1200px; margin: 0 auto; }
+.plans-shell { width: 100%; max-width: 1200px; margin: 0 auto; }
 .plans-head { text-align: center; margin-block-end: clamp(48px, 7vh, 72px); }
 .plans-h1 {
   font-family: 'Fraunces', Georgia, serif;
@@ -1526,6 +1532,15 @@ html { scroll-behavior: smooth; }
   letter-spacing: 0.14em; text-transform: uppercase; color: oklch(0.95 0.03 80 / 0.75);
   white-space: nowrap;
 }
+.atl-toc-desc {
+  margin-block-start: 2px;
+  font-family: 'Inter Tight', system-ui, sans-serif;
+  font-size: 11px; line-height: 1.3; text-align: center;
+  color: oklch(0.95 0.03 80 / 0.58); max-width: 130px;
+  /* Fixed height so every label block is identical → the 01–06 numbers and
+     labels stay aligned on a clean row regardless of description length. */
+  height: 2.7em; overflow: hidden;
+}
 
 /* ── Mobile (static) ── */
 .atl-m-hero {
@@ -1789,6 +1804,77 @@ html { scroll-behavior: smooth; }
   text-transform: uppercase; color: var(--cm-sage); opacity: 0;
   animation: film-ready-cycle 7s ease-in-out infinite;
 }
+.film-footer { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.film-cred {
+  font-family: 'JetBrains Mono', monospace; font-size: 10.5px; letter-spacing: 0.1em;
+  text-transform: uppercase; color: var(--cm-clay-d); opacity: 0;
+  animation: film-ready-cycle 7s ease-in-out infinite;
+}
+/* Real drafted lines that stream into the demo (substance, not placeholder). */
+.film-draft { display: grid; gap: 11px; }
+.film-draft-line {
+  display: flex; align-items: baseline; gap: 12px;
+  opacity: 0; transform: translateY(5px);
+  animation: film-draft-cycle 7s ease-in-out infinite;
+  animation-delay: calc(0.3s + var(--i) * 0.45s);
+}
+.film-draft-label {
+  flex: 0 0 auto; min-width: 96px;
+  font-family: 'JetBrains Mono', monospace; font-size: 10.5px;
+  letter-spacing: 0.08em; text-transform: uppercase; color: var(--cm-clay-d);
+}
+.film-draft-text {
+  font-family: 'Inter Tight', system-ui, sans-serif; font-size: clamp(13px, 1.1vw, 15px);
+  color: var(--cm-ink); line-height: 1.4;
+}
+@keyframes film-draft-cycle {
+  0%, 4% { opacity: 0; transform: translateY(5px); }
+  12%, 90% { opacity: 1; transform: translateY(0); }
+  98%, 100% { opacity: 0; transform: translateY(5px); }
+}
+/* Generation progress + the six artifacts materializing as preview tiles. */
+.film-statusrow { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.film-count {
+  font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.1em;
+  color: var(--cm-sage); opacity: 0; animation: film-ready-cycle 7s ease-in-out infinite;
+}
+.film-progress { height: 4px; border-radius: 999px; overflow: hidden; background: oklch(0.18 0.03 40 / 0.08); }
+.film-progress-bar {
+  display: block; height: 100%; width: 0; border-radius: 999px;
+  background: linear-gradient(90deg, var(--cm-clay-d), var(--cm-amber));
+  animation: film-progress-cycle 7s ease-in-out infinite;
+}
+@keyframes film-progress-cycle { 0%, 5% { width: 0; } 78%, 92% { width: 100%; } 100% { width: 100%; } }
+.film-tiles { display: flex; flex-wrap: wrap; gap: 8px; margin-block-start: auto; }
+.film-tile {
+  flex: 1 1 110px; min-width: 110px;
+  background: var(--cm-cream-2); border: 1px solid oklch(0.18 0.03 40 / 0.1);
+  border-radius: 10px; padding: 10px 11px;
+  display: flex; flex-direction: column; gap: 7px;
+  opacity: 0; transform: translateY(8px);
+  animation: film-tile-in 7s ease-in-out infinite; animation-delay: calc(0.6s + var(--i) * 0.42s);
+}
+.film-tile-head { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+.film-tile-name {
+  font-family: 'JetBrains Mono', monospace; font-size: 9px; letter-spacing: 0.06em;
+  text-transform: uppercase; color: var(--cm-clay-d);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.film-tile-check {
+  flex: 0 0 auto; width: 13px; height: 13px; border-radius: 50%;
+  background: var(--cm-sage); display: inline-grid; place-items: center;
+}
+.film-tile-check::after {
+  content: ''; width: 3.5px; height: 6px; margin-top: -1px;
+  border: 1.5px solid var(--cm-cream); border-top: 0; border-inline-start: 0; transform: rotate(45deg);
+}
+.film-tile-line { height: 5px; border-radius: 3px; background: oklch(0.18 0.03 40 / 0.1); }
+.film-tile-line.short { width: 58%; }
+@keyframes film-tile-in {
+  0%, 5% { opacity: 0; transform: translateY(8px); }
+  16%, 92% { opacity: 1; transform: translateY(0); }
+  100% { opacity: 0; transform: translateY(8px); }
+}
 @keyframes film-recdot { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
 @keyframes film-caret { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
 @keyframes film-skeleton { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
@@ -1834,4 +1920,8 @@ html { scroll-behavior: smooth; }
   .film-chip { opacity: 1 !important; animation: none !important; }
   .film-check { transform: scale(1) !important; animation: none !important; }
   .film-ready { opacity: 1 !important; transform: none !important; animation: none !important; }
+  .film-cred { opacity: 1 !important; animation: none !important; }
+  .film-draft-line { opacity: 1 !important; transform: none !important; animation: none !important; }
+  .film-tile, .film-count { opacity: 1 !important; transform: none !important; animation: none !important; }
+  .film-progress-bar { width: 100% !important; animation: none !important; }
 }

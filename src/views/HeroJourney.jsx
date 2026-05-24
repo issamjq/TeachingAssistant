@@ -154,6 +154,19 @@ export function HeroCardFace({ kind, variant = "a" }) {
     );
   }
 
+  // Test: full-bleed image in the first (lesson) card — set A → s1.1, set B → s2.1.
+  const LESSON_IMG = { a: "/s1.1.png", b: "/s2.1.png" };
+  if (kind === "lesson" && LESSON_IMG[variant]) {
+    return (
+      <div
+        className={`${SHELL} relative`}
+        style={{ ...SH, padding: 0, background: "#fffdf6", borderColor: "var(--line)" }}
+      >
+        <img src={LESSON_IMG[variant]} alt="" className="absolute inset-0 w-full h-full object-cover" />
+      </div>
+    );
+  }
+
   const META_SETS = {
     a: {
       lesson: { k: "Lesson plan", title: "Photosynthesis", icon: BookOpen, rows: ["00–05  Starter", "15–35  Worksheet", "45–50  Exit ticket"] },
