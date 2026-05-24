@@ -125,6 +125,35 @@ export function HeroCardFace({ kind, variant = "a" }) {
   const SH = { boxShadow: "0 30px 60px -28px rgba(26,24,20,0.45)" };
   const EBC = "font-mono text-[10px] uppercase tracking-[0.16em]";
 
+  // Each of the six card slots is a fully-designed scene (PNG) that fills
+  // the whole face. The slot *keys* below stay the original artifact ids
+  // (so the scroll animation + React keys never move) — the displayed
+  // concept is now a product tour: lesson→Quizzes, quiz→Homework,
+  // deck→Presentations, presentation→Planner, activity→Activities,
+  // homework→AI Studio. Set A ("1st section" / hero arc) → /s1.N.png;
+  // set B ("2nd section" / index) → /s2.N.png, N = the slot's 1-based
+  // position. The 2:3 art object-covers the shared 230×300 frame so all
+  // six read as one width (a sliver trimmed top/bottom).
+  const CARD_IMG = {
+    lesson:       { a: "/s1.1.png", b: "/s2.1.png" },
+    quiz:         { a: "/s1.2.png", b: "/s2.2.png" },
+    deck:         { a: "/s1.3.png", b: "/s2.3.png" },
+    presentation: { a: "/s1.4.png", b: "/s2.4.png" },
+    activity:     { a: "/s1.5.png", b: "/s2.5.png" },
+    homework:     { a: "/s1.6.png", b: "/s2.6.png" },
+  };
+  const cardImg = (CARD_IMG[kind] || {})[variant];
+  if (cardImg) {
+    return (
+      <div
+        className="w-[230px] h-[300px] rounded-2xl border overflow-hidden relative"
+        style={{ ...SH, borderColor: "var(--line)" }}
+      >
+        <img src={cardImg} alt="" className="absolute inset-0 w-full h-full object-cover" />
+      </div>
+    );
+  }
+
   if (kind === "deck" || kind === "presentation") {
     const DECK = {
       a: {
@@ -150,21 +179,6 @@ export function HeroCardFace({ kind, variant = "a" }) {
         <div className="absolute right-0 bottom-0 w-32 h-32 opacity-90">
           {t.art === "geo" ? <GeoArt stroke={t.dot} fill={t.soft} /> : <SlideArt stroke={t.dot} fill={t.soft} full />}
         </div>
-      </div>
-    );
-  }
-
-  // Image in the first (lesson) card — set A → s1.1, set B → s2.1. Same
-  // 230×300 frame as every other card; the 2:3 image fills it via object-cover
-  // (centred, a sliver trimmed top/bottom) so all six cards are one width.
-  const LESSON_IMG = { a: "/s1.1.png", b: "/s2.1.png" };
-  if (kind === "lesson" && LESSON_IMG[variant]) {
-    return (
-      <div
-        className="w-[230px] h-[300px] rounded-2xl border overflow-hidden relative"
-        style={{ ...SH, borderColor: "var(--line)" }}
-      >
-        <img src={LESSON_IMG[variant]} alt="" className="absolute inset-0 w-full h-full object-cover" />
       </div>
     );
   }
