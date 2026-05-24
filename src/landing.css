@@ -1498,7 +1498,7 @@ html { scroll-behavior: smooth; }
 }
 .atl-index-title {
   font-family: 'Fraunces', Georgia, serif; font-weight: 300;
-  font-size: clamp(28px, 4.2vw, 60px); line-height: 1.04;
+  font-size: clamp(32px, 4.8vw, 72px); line-height: 1.04;
   letter-spacing: -0.025em; color: var(--cm-cream); margin: 0;
 }
 .atl-index-title em { font-style: italic; color: oklch(0.86 0.13 60); }
