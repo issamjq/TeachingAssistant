@@ -5117,7 +5117,11 @@ function PageShell({ eyebrow, title, em, lead, onPage, children, narrow, centere
           // fixed nav instead of behind it. pb-12 keeps a comfortable
           // bottom margin without throwing off the visual center.
           ? "min-h-[100dvh] flex items-center justify-center px-8 pt-28 md:pt-32 pb-12"
-          : "pt-28 md:pt-32 pb-28 min-h-screen"
+          : compact
+            // `compact` packs the page into ~one viewport (used by the plan
+            // picker): less nav gap + tight bottom padding.
+            ? "pt-20 md:pt-24 pb-8 min-h-screen"
+            : "pt-28 md:pt-32 pb-28 min-h-screen"
       }
     >
       <div className={`${narrow ? "max-w-xl" : wide ? "max-w-5xl" : "max-w-3xl"} mx-auto px-8 w-full ${centered ? "text-center" : ""}`}>
@@ -5128,20 +5132,20 @@ function PageShell({ eyebrow, title, em, lead, onPage, children, narrow, centere
           <button
             type="button"
             onClick={() => onPage("home")}
-            className="link-quiet text-sm mb-10 inline-flex items-center gap-1.5"
+            className={`link-quiet text-sm inline-flex items-center gap-1.5 ${compact ? "mb-5" : "mb-10"}`}
             style={{ color: "var(--ink-2)" }}
           >
             {t("lp.pg.back")}
           </button>
         </div>
-        <div className="eyebrow mb-6">{eyebrow}</div>
-        <h1 className="font-display text-4xl md:text-5xl leading-[1.05] tracking-tight mb-6">
+        <div className={`eyebrow ${compact ? "mb-3" : "mb-6"}`}>{eyebrow}</div>
+        <h1 className={`font-display ${compact ? "text-3xl md:text-4xl mb-3" : "text-4xl md:text-5xl mb-6"} leading-[1.05] tracking-tight`}>
           {title}
           {em && <em style={{ color: "var(--clay)" }}> {em}</em>}
         </h1>
         {lead && (
           <p
-            className="text-xl leading-relaxed mb-12"
+            className={`leading-relaxed ${compact ? "text-lg mb-6" : "text-xl mb-12"}`}
             style={{ color: "var(--ink-2)" }}
           >
             {lead}
@@ -5318,12 +5322,13 @@ function OnboardingPage({ onChoosePlan, onPage }) {
       lead={t("lp.ob.lead")}
       onPage={onPage}
       wide
+      compact
     >
       {/* Plan cards — same visual treatment as the Membership section
           (clay/orange "Popular" middle card, cream side cards) but laid
           out in a clean selectable grid with a "Choose plan" CTA and a
           7-day free-trial line on each card. */}
-      <div className="plans-grid">
+      <div className="plans-grid plan-picker-grid">
         {PLANS.map((p) => {
           const featured = !!p.best;
           const billed =
@@ -5365,7 +5370,7 @@ function OnboardingPage({ onChoosePlan, onPage }) {
           quietly animating on their own (shimmer + breathe + twinkle)
           so the button feels alive without needing hover. */}
       <div
-        className="group relative mt-7 w-full rounded-[24px] overflow-hidden flex flex-wrap items-center justify-between gap-x-6 gap-y-4 px-7 py-5"
+        className="group relative mt-5 w-full rounded-[24px] overflow-hidden flex flex-wrap items-center justify-between gap-x-6 gap-y-4 px-7 py-4"
         style={{
           background:
             "radial-gradient(ellipse 92% 64% at 50% 14%, oklch(0.64 0.13 42), transparent 72%), radial-gradient(circle at 86% 92%, oklch(0.36 0.10 22), transparent 60%), var(--cm-clay)",
@@ -5424,7 +5429,7 @@ function OnboardingPage({ onChoosePlan, onPage }) {
           {t("lp.plan.trialCta")}
         </button>
       </div>
-      <p className="text-xs mt-8" style={{ color: "var(--ink-3)" }}>
+      <p className="text-xs mt-5" style={{ color: "var(--ink-3)" }}>
         {t("lp.ob.note")}
       </p>
     </PageShell>

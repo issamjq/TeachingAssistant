@@ -1276,6 +1276,12 @@ html { scroll-behavior: smooth; }
     rgba(204, 106, 34, 0) 360deg);
 }
 
+/* Plan-picker page packs into one viewport — compact the cards a touch vs the
+   home Membership section (smaller padding, gap, price number, button). */
+.plan-picker-grid .plans-card { padding: clamp(18px, 2vw, 26px); gap: 12px; }
+.plan-picker-grid .plans-price-n { font-size: clamp(38px, 4vw, 50px); }
+.plan-picker-grid .plans-cta { padding: 12px 20px; }
+
 /* ─── 7. FINAL CTA ─────────────────────────────────────────────── */
 .final-stage {
   position: relative;
