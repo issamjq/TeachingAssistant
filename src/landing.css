@@ -1262,7 +1262,6 @@ html { scroll-behavior: smooth; }
   transition: background 300ms var(--easeOutE), transform 300ms var(--easeOutE), box-shadow 300ms var(--easeOutE);
 }
 .plans-cta:hover {
-  background: var(--cm-ink-2);
   transform: translateY(-2px);
   box-shadow: 0 2px 4px oklch(0.18 0.05 30 / 0.18), 0 16px 36px oklch(0.18 0.05 30 / 0.26);
 }
