@@ -586,7 +586,7 @@ export default function StudioApp({ onClose }) {
             aria-label="Go home"
           >
             <MurchidLogo
-              className="h-7 w-auto text-ink"
+              className="h-[50px] w-auto text-ink"
               style={{ "--murchid-logo-accent": "#8e5435" }}
             />
           </button>

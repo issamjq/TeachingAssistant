@@ -269,7 +269,7 @@ const Nav = ({ onEnter, signedIn, onJump, onPage, onSignOut, darkHero = false })
         {/* Brand */}
         <button type="button" onClick={() => onPage("home")} className="nav-brand" style={{ color: fg }} aria-label="Murchid — home">
           <MurchidLogo
-            className="h-8 w-auto"
+            className="h-[50px] w-auto"
             style={{ "--murchid-logo-accent": onDark ? "#fcb979" : "#8e5435" }}
           />
         </button>
@@ -4964,7 +4964,7 @@ const Footer = ({ onEnter, signedIn, onJump, onPage }) => {
           <div className="col-span-12 md:col-span-5">
             <div className="flex items-center mb-5">
               <MurchidLogo
-                className="h-9 w-auto text-ink"
+                className="h-[50px] w-auto text-ink"
                 style={{ "--murchid-logo-accent": "#8e5435" }}
               />
             </div>
