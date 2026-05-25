@@ -270,7 +270,7 @@ const Nav = ({ onEnter, signedIn, onJump, onPage, onSignOut, darkHero = false })
         <button type="button" onClick={() => onPage("home")} className="nav-brand" style={{ color: fg }} aria-label="Murchid — home">
           <MurchidLogo
             className="h-[50px] w-auto"
-            style={{ "--murchid-logo-accent": onDark ? "#fcb979" : "#8e5435" }}
+            style={{ "--murchid-logo-accent": onDark ? "#fcb979" : "#8e5435", transform: "translateY(5px)" }}
           />
         </button>
 
