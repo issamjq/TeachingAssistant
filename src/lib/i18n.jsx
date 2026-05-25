@@ -1641,7 +1641,7 @@ export function LangToggle({ className = "" }) {
   const { lang, setLang } = useI18n();
   const opts = [
     { v: "en", label: "EN" },
-    { v: "ar", label: "ع" },
+    { v: "ar", label: "Ar" },
   ];
   return (
     <div
