@@ -5324,64 +5324,35 @@ function OnboardingPage({ onChoosePlan, onPage }) {
           7-day free-trial line on each card. */}
       <div className="grid gap-5 sm:grid-cols-3 max-w-4xl mx-auto">
         {PLANS.map((p) => {
-          const featured = p.id === "quarterly";
-          const [intp, decp] = String(p.perMonth).split(".");
-          const note =
-            p.id === "monthly"
-              ? t("lp.plan.billed.mo")
-              : p.id === "annual"
-                ? t("lp.plan.yearOff", { n: p.savePct })
-                : t("lp.plan.save", { n: p.savePct });
+          const featured = !!p.best;
+          const billed =
+            p.cycle === "yr"
+              ? t("lp.plan.billed.yr", { total: p.total, cur })
+              : p.cycle === "q"
+                ? t("lp.plan.billed.q", { total: p.total, cur })
+                : t("lp.plan.billed.mo");
           return (
-            <div
-              key={p.id}
-              className="rounded-[24px] p-5 flex flex-col gap-4"
-              style={{
-                background: featured ? "var(--clay)" : "#fffdf6",
-                color: featured ? "var(--paper)" : "var(--ink)",
-                border:
-                  "0.5px solid " + (featured ? "var(--clay)" : "var(--line-strong)"),
-                boxShadow: "0 26px 54px -26px rgba(26,24,20,0.42)",
-              }}
-            >
-              <div className="flex items-center justify-between gap-2">
-                <span className="font-display text-base leading-none">
-                  {t(`lp.plan.name.${p.id}`)}
-                </span>
-                {featured && (
-                  <span
-                    className="px-2.5 py-1 rounded-full text-[9.5px] font-semibold flex-shrink-0"
-                    style={{ background: "var(--paper)", color: "var(--ink)" }}
-                  >
-                    {t("lp.plan.popular")}
-                  </span>
-                )}
+            <article key={p.id} className={`plans-card${featured ? " featured" : ""}`}>
+              {featured && <div className="plans-badge">{t("lp.plan.popular")}</div>}
+              <div className="plans-name">{t(`lp.plan.name.${p.id}`)}</div>
+              <div className="plans-price">
+                <span className="plans-price-n">{p.perMonth}</span>
+                <span className="plans-price-c">{cur} {t("lp.plan.perMo")}</span>
               </div>
-              <div>
-                <div className="flex items-start gap-1">
-                  <span className="text-[12px] mt-1.5" style={{ opacity: 0.7 }}>
-                    {cur}
-                  </span>
-                  <span className="font-display text-[44px] leading-none">{intp}</span>
-                  <span className="text-base mt-1">.{decp}</span>
+              <div className="plans-bill">{billed}</div>
+              {p.savePct > 0 && (
+                <div className="plans-bill" style={{ opacity: 0.85 }}>
+                  {t("lp.plan.save", { n: p.savePct })}
                 </div>
-                <div
-                  className="text-[11.5px] mt-2"
-                  style={{ color: featured ? "rgba(247,243,236,0.72)" : "var(--ink-3)" }}
-                >
-                  {note}
-                </div>
-              </div>
+              )}
               <button
                 type="button"
+                className="plans-cta"
                 onClick={() => onChoosePlan(p.id)}
-                className={`mt-auto w-full px-5 py-3 rounded-lg text-sm font-medium transition ${
-                  featured ? "btn-invert" : "btn-primary"
-                }`}
               >
                 {t("lp.plan.choose")}
               </button>
-            </div>
+            </article>
           );
         })}
       </div>
@@ -5397,7 +5368,8 @@ function OnboardingPage({ onChoosePlan, onPage }) {
         onClick={() => onChoosePlan("quarterly")}
         className="group relative mt-7 w-full max-w-4xl mx-auto rounded-[24px] overflow-hidden flex flex-col items-center justify-center gap-0.5 px-7 py-2.5 transition-transform duration-300 hover:-translate-y-0.5"
         style={{
-          background: "#3A2C21",
+          background:
+            "radial-gradient(ellipse 92% 64% at 50% 14%, oklch(0.64 0.13 42), transparent 72%), radial-gradient(circle at 86% 92%, oklch(0.36 0.10 22), transparent 60%), var(--cm-clay)",
           color: "var(--paper)",
           boxShadow:
             "0 14px 30px -12px rgba(26,24,20,0.55), inset 0 1px 0 rgba(255,255,255,0.08)",
