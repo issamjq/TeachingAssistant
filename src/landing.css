@@ -1247,7 +1247,7 @@ html { scroll-behavior: smooth; }
 .plans-card.featured .plans-bill { color: oklch(0.95 0.03 80 / 0.7); }
 .plans-cta {
   margin-block-start: auto;
-  padding: 12px 20px;
+  padding: 14px 20px;
   border-radius: 999px;
   background: var(--cm-ink);
   color: var(--cm-cream);
