@@ -7,6 +7,9 @@ import {
   DataPageHeader, DataCard, CardsGrid, useViewMode,
   useDateScope, filterByDateScope,
 } from "./_data-view";
+import { ExportMenu } from "@/components/ui/export-menu";
+import { SkeletonCards, SkeletonList } from "@/components/ui/skeleton";
+import { quizToDoc } from "../lib/toDoc";
 import { useT } from "../lib/i18n";
 
 export default function Quizzes({ onOpenQuiz }) {
@@ -37,6 +40,19 @@ export default function Quizzes({ onOpenQuiz }) {
   });
   useEffect(() => { setSort({ key: sortField, dir: sortDir }); }, [sortKey, setSort, sortField, sortDir]);
   const sorted = filterByDateScope(sortedAll, scopeRange, (q) => q.scheduled_for);
+
+  // Build the export doc for a row — the list only has summary fields, so
+  // pull the full quiz + its questions before mapping.
+  const buildQuizDoc = async (q) => {
+    const [full, questions] = await Promise.all([
+      api(`/api/quizzes/${q.id}`).catch(() => q),
+      api(`/api/quizzes/${q.id}/questions`).catch(() => []),
+    ]);
+    return quizToDoc(full || q, questions || [], t);
+  };
+  const quizExport = (q) => (
+    <ExportMenu compact formats={["pdf", "doc"]} buildDoc={() => buildQuizDoc(q)} />
+  );
 
   const confirmDelete = async () => {
     setBusy(true);
@@ -88,6 +104,8 @@ export default function Quizzes({ onOpenQuiz }) {
         {loading ? t("chip.loading") : <>{sorted.length} {t("q.eyebrow")}</>}
       </p>
 
+      {loading && (viewMode === "cards" ? <SkeletonCards /> : <SkeletonList />)}
+
       {!loading && sorted.length === 0 && (
         <div className="rounded-2xl border border-dashed border-line p-12 text-center text-muted">
           {t("q.empty")}
@@ -101,6 +119,7 @@ export default function Quizzes({ onOpenQuiz }) {
               key={q.id}
               onEdit={() => onOpenQuiz?.(q)}
               onDelete={() => setDeleting(q)}
+              exportNode={quizExport(q)}
             >
               <button
                 type="button"
@@ -170,7 +189,7 @@ export default function Quizzes({ onOpenQuiz }) {
                       </span>
                     </td>
                     <td className="py-4 px-5 text-right" onClick={(e) => e.stopPropagation()}>
-                      <ListRowActions onEdit={() => onOpenQuiz?.(q)} onDelete={() => setDeleting(q)} />
+                      <ListRowActions onEdit={() => onOpenQuiz?.(q)} onDelete={() => setDeleting(q)} exportNode={quizExport(q)} />
                     </td>
                   </tr>
                 ))}
@@ -211,9 +230,10 @@ function fmtShortDate(v) {
 }
 
 // Same edit/delete affordance as DataCard but inline for list rows.
-function ListRowActions({ onEdit, onDelete }) {
+function ListRowActions({ onEdit, onDelete, exportNode }) {
   return (
     <span className="inline-flex items-center gap-1">
+      {exportNode}
       <button
         type="button"
         onClick={onEdit}

@@ -2,7 +2,10 @@ import React, { useEffect, useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { ExportMenu } from "@/components/ui/export-menu";
 import { Field, inputClasses, selectClasses, api, useTeacherClasses, DatePicker } from "./_shared";
+import { quizToDoc } from "../lib/toDoc";
+import { useT } from "../lib/i18n";
 
 const QUESTION_TYPES = [
   { value: "mcq",   label: "Multiple choice" },
@@ -12,6 +15,7 @@ const QUESTION_TYPES = [
 ];
 
 export default function QuizBuilder({ quiz, onClose }) {
+  const t = useT();
   const { grades: teacherGrades, sections: teacherSections } = useTeacherClasses();
   const [meta, setMeta] = useState({
     title: quiz?.title || "",
@@ -109,7 +113,13 @@ export default function QuizBuilder({ quiz, onClose }) {
             {quizId ? meta.title || "Untitled quiz" : <>Build a <em className="italic font-light text-accent">quiz</em></>}
           </h2>
         </div>
-        <div className="flex gap-3">
+        <div className="flex gap-3 items-center">
+          {quizId && (
+            <ExportMenu
+              formats={["pdf", "doc"]}
+              buildDoc={() => quizToDoc(meta, questions, t)}
+            />
+          )}
           <Button variant="secondary" onClick={onClose}>Back to quizzes</Button>
           <Button onClick={saveMeta} disabled={savingMeta}>
             {savingMeta ? "Saving…" : quizId ? "Save changes" : "Create quiz"}

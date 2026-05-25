@@ -1115,6 +1115,7 @@ export default function Studio({ initialKind } = {}) {
     quiz:         ["pdf", "doc"],
     homework:     ["pdf", "doc"],
     presentation: ["pdf"],
+    activity:     ["pdf"],
   };
   const exportKind = result?.kind || kind;
   const availableFormats = FORMATS_BY_KIND[exportKind] || ["pdf"];

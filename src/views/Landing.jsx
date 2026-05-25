@@ -12,6 +12,7 @@ import { useAccount, setAccount, clearAccount, getPendingProfile, clearPendingPr
 import { PLANS } from "../lib/plans";
 import ProfileForm from "./onboarding/ProfileForm";
 import LandingHome from "./LandingHome";
+import MurchidLogo from "../components/MurchidLogo";
 
 // Animations removed by request. These are no-op stand-ins for the
 // framer-motion API so the page renders fully static — no fades, no
@@ -266,18 +267,11 @@ const Nav = ({ onEnter, signedIn, onJump, onPage, onSignOut, darkHero = false })
     >
       <div className="max-w-[1280px] mx-auto px-8 h-16 flex items-center justify-between">
         {/* Brand */}
-        <button type="button" onClick={() => onPage("home")} className="nav-brand" style={{ color: fg }}>
-          <span
-            className="nav-mark"
-            style={{
-              background: dotBg,
-              color: fgDot,
-              border: onDark ? "1px solid oklch(0.96 0.025 80 / 0.35)" : "none",
-            }}
-          >
-            م
-          </span>
-          <span className="nav-wordmark">Murchid</span>
+        <button type="button" onClick={() => onPage("home")} className="nav-brand" style={{ color: fg }} aria-label="Murchid — home">
+          <MurchidLogo
+            className="h-8 w-auto"
+            style={{ "--murchid-logo-accent": onDark ? "#fcb979" : "#8e5435" }}
+          />
         </button>
 
         {/* Editorial index */}
@@ -2480,13 +2474,11 @@ const ProductMock = ({ onOpenStudio }) => {
       >
         {/* ── SIDEBAR ─────────────────────────────────────────────── */}
         <aside className="murchid-sidebar w-64 flex flex-col flex-shrink-0 h-full">
-          <div className="murchid-sidebar-brand flex items-center gap-3 px-5 pt-6 pb-4 text-left">
-            <span className="murchid-sidebar-brand-mark" aria-hidden>
-              M
-            </span>
-            <span className="font-serif text-[1.4rem] font-medium text-ink leading-none">
-              Murchid
-            </span>
+          <div className="murchid-sidebar-brand flex items-center px-5 pt-6 pb-4 text-left">
+            <MurchidLogo
+              className="h-11 w-auto text-ink"
+              style={{ "--murchid-logo-accent": "#8e5435" }}
+            />
           </div>
 
           <button
@@ -4970,19 +4962,11 @@ const Footer = ({ onEnter, signedIn, onJump, onPage }) => {
       <div className="max-w-[1280px] mx-auto px-8">
         <div className="grid grid-cols-12 gap-8 mb-16">
           <div className="col-span-12 md:col-span-5">
-            <div className="flex items-center gap-2.5 mb-5">
-              <div
-                className="w-7 h-7 rounded-md flex items-center justify-center"
-                style={{ background: "var(--ink)" }}
-              >
-                <span
-                  className="font-display text-base"
-                  style={{ color: "var(--paper)" }}
-                >
-                  م
-                </span>
-              </div>
-              <span className="font-display text-xl">Murchid</span>
+            <div className="flex items-center mb-5">
+              <MurchidLogo
+                className="h-9 w-auto text-ink"
+                style={{ "--murchid-logo-accent": "#8e5435" }}
+              />
             </div>
             <p className="font-display text-2xl leading-tight max-w-sm mb-6">
               {t("lp.foot.tagline")}

@@ -31,6 +31,7 @@ import { useT, LangToggle } from "./lib/i18n";
 import { useAccount, clearAccount } from "./lib/account";
 import AccountMenu from "./views/AccountMenu";
 import HelpPopover from "./views/HelpPopover";
+import MurchidLogo from "./components/MurchidLogo";
 
 // Sectioned nav matching the 2026 mockup — italic Fraunces section
 // headers + small letter/icon badges next to each label. All routes
@@ -397,15 +398,13 @@ export default function StudioApp({ onClose }) {
         <div className="flex items-center pe-2">
         <button
           onClick={() => navigate([DEFAULT_ROUTE[role]])}
-          className="murchid-sidebar-brand flex-1 flex items-center gap-3 px-5 pt-6 pb-4 text-left"
+          className="murchid-sidebar-brand flex-1 flex items-center px-5 pt-6 pb-4 text-left"
           aria-label="Go home"
         >
-          <span className="murchid-sidebar-brand-mark" aria-hidden>
-            M
-          </span>
-          <span className="font-serif text-[1.4rem] font-medium text-ink leading-none">
-            Murchid
-          </span>
+          <MurchidLogo
+            className="h-11 w-auto text-ink"
+            style={{ "--murchid-logo-accent": "#8e5435" }}
+          />
         </button>
         <button
           type="button"
@@ -533,7 +532,7 @@ export default function StudioApp({ onClose }) {
   );
 
   return (
-    <div className="h-[100dvh] bg-paper flex text-ink font-sans overflow-hidden">
+    <div className="murchid-studio-app h-[100dvh] bg-paper flex text-ink font-sans overflow-hidden">
       {/* Desktop / iPad-landscape rail — collapsible (state persists). */}
       <aside
         className={`murchid-sidebar w-64 flex-col flex-shrink-0 h-full print:hidden ${
@@ -583,9 +582,13 @@ export default function StudioApp({ onClose }) {
           </button>
           <button
             onClick={() => navigate([DEFAULT_ROUTE[role]])}
-            className="font-serif text-lg font-medium text-ink leading-none flex-1 text-start truncate"
+            className="flex-1 flex items-center text-start min-w-0"
+            aria-label="Go home"
           >
-            Murchid
+            <MurchidLogo
+              className="h-7 w-auto text-ink"
+              style={{ "--murchid-logo-accent": "#8e5435" }}
+            />
           </button>
           <LangToggle />
           {onClose && (

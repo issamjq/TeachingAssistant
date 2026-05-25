@@ -8,6 +8,9 @@ import {
   DataPageHeader, DataCard, CardsGrid, useViewMode,
   useDateScope, filterByDateScope,
 } from "./_data-view";
+import { ExportMenu } from "@/components/ui/export-menu";
+import { SkeletonCards, SkeletonList } from "@/components/ui/skeleton";
+import { activityToDoc } from "../lib/toDoc";
 import { useT } from "../lib/i18n";
 
 export default function Activities({ onOpenActivity }) {
@@ -43,6 +46,14 @@ export default function Activities({ onOpenActivity }) {
       .catch((err) => { setError(err.message); setLoading(false); });
   };
   useEffect(reload, []);
+
+  const activityExport = (a) => (
+    <ExportMenu
+      compact
+      formats={["pdf"]}
+      buildDoc={async () => activityToDoc(await api(`/api/activities/${a.id}`).catch(() => a), t)}
+    />
+  );
 
   const confirmDelete = async () => {
     setBusy(true);
@@ -88,7 +99,7 @@ export default function Activities({ onOpenActivity }) {
         </div>
       )}
 
-      {loading && <p className="font-mono text-[10px] uppercase tracking-wider text-muted">{t("chip.loading")}</p>}
+      {loading && (viewMode === "cards" ? <SkeletonCards /> : <SkeletonList />)}
 
       {!loading && visibleItems.length === 0 && (
         <div className="rounded-2xl border border-dashed border-line p-12 text-center text-muted">
@@ -105,6 +116,7 @@ export default function Activities({ onOpenActivity }) {
               key={a.id}
               onEdit={() => onOpenActivity?.(a)}
               onDelete={() => setDeleting(a)}
+              exportNode={activityExport(a)}
             >
               <button
                 type="button"
@@ -167,7 +179,7 @@ export default function Activities({ onOpenActivity }) {
                   <td className="py-4 text-ink-soft">{a.duration_minutes ? `${a.duration_minutes} min` : "—"}</td>
                   <td className="py-4 text-ink-soft text-xs">{timeAgo(a.updated_at)}</td>
                   <td className="py-4 px-5 text-right" onClick={(e) => e.stopPropagation()}>
-                    <ListRowActions onEdit={() => onOpenActivity?.(a)} onDelete={() => setDeleting(a)} />
+                    <ListRowActions onEdit={() => onOpenActivity?.(a)} onDelete={() => setDeleting(a)} exportNode={activityExport(a)} />
                   </td>
                 </tr>
               ))}
@@ -265,9 +277,10 @@ function CompletionsModal({ activity, onClose }) {
   );
 }
 
-function ListRowActions({ onEdit, onDelete }) {
+function ListRowActions({ onEdit, onDelete, exportNode }) {
   return (
     <span className="inline-flex items-center gap-1">
+      {exportNode}
       <button type="button" onClick={onEdit} aria-label="Edit"
         className="h-7 w-7 rounded-md border border-line bg-paper-cool hover:bg-paper-warm hover:border-ink flex items-center justify-center transition">
         <Pencil size={12} strokeWidth={2} className="text-ink-soft" />

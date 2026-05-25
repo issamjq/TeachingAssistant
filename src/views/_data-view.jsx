@@ -555,12 +555,13 @@ export function NewKindPopup({ kind, aiKind, onClose, onManual }) {
 // ──────────────────────────────────────────────────────────────────
 // Card wrapper — pencil + trash always visible top-right
 // ──────────────────────────────────────────────────────────────────
-export function DataCard({ onEdit, onDelete, className = "", children }) {
+export function DataCard({ onEdit, onDelete, exportNode, className = "", children }) {
   return (
     <div
       className={`relative rounded-2xl border border-[#e6dccb] bg-paper-cool shadow-[0_18px_44px_-22px_rgba(15,20,16,0.14)] hover:border-ink/30 hover:shadow-[0_22px_50px_-22px_rgba(15,20,16,0.22)] transition-all duration-200 p-5 flex flex-col ${className}`}
     >
       <div className="absolute top-3 right-3 flex items-center gap-1">
+        {exportNode}
         {onEdit && (
           <button
             type="button"

@@ -159,8 +159,13 @@ export default function HeroAtelier({ onEnter, signedIn }) {
             transform: `translate(-50%, 0) translateY(${lockOut * -64}px) scale(${1 - lockOut * 0.05})`,
           }}
         >
-          <span className="atl-watermark" aria-hidden="true">
-            مرشد
+          {/* The watermark mirrors the foreground in the *other* script:
+              Latin page → Arabic مرشد behind; Arabic page → Latin Murchid. */}
+          <span
+            className={`atl-watermark${isRTL ? " atl-watermark--latin" : ""}`}
+            aria-hidden="true"
+          >
+            {isRTL ? "Murchid" : "مرشد"}
           </span>
           {isRTL ? (
             <h1 className="atl-word atl-word--ar">مرشد</h1>
@@ -250,8 +255,11 @@ export default function HeroAtelier({ onEnter, signedIn }) {
             <span className="atl-eyebrow">{t("landing.hero.eyebrow")}</span>
           </div>
           <div className="atl-m-lockup">
-            <span className="atl-watermark atl-watermark--m" aria-hidden="true">
-              مرشد
+            <span
+              className={`atl-watermark atl-watermark--m${isRTL ? " atl-watermark--latin" : ""}`}
+              aria-hidden="true"
+            >
+              {isRTL ? "Murchid" : "مرشد"}
             </span>
             {isRTL ? (
               <h1 className="atl-word atl-word--ar">مرشد</h1>

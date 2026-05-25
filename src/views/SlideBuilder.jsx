@@ -13,6 +13,9 @@ import {
   ChevronLeft, ChevronRight,
 } from "lucide-react";
 import { api, DatePicker } from "./_shared";
+import { ExportMenu } from "@/components/ui/export-menu";
+import { presentationToDoc } from "../lib/toDoc";
+import { useT } from "../lib/i18n";
 
 const API_BASE = (import.meta.env.VITE_API_URL || "").replace(/\/$/, "");
 const resolveSrc = (u) =>
@@ -270,6 +273,7 @@ function slidesForSave(slides) {
 export default function SlideBuilder({
   markdown, deck, presentationId, meta, presentationParams, onSaved, onClose,
 }) {
+  const t = useT();
   const initial = useMemo(
     () => (deck ? deck : parsePresentation(markdown)),
     [deck, markdown]
@@ -427,6 +431,11 @@ export default function SlideBuilder({
               <Check size={13} /> Saved
             </span>
           )}
+          <ExportMenu
+            compact
+            formats={["pdf"]}
+            buildDoc={() => presentationToDoc({ deckTitle, slides }, meta || {}, t)}
+          />
           <button
             type="button"
             onClick={save}

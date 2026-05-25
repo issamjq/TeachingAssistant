@@ -11,9 +11,12 @@ import React from "react";
 // occasional brand moment (the Dashboard's now-playing CTA, the Planner
 // schedule button).
 
+// rounded-full → the landing's signature pill shape (the hero "Open the
+// planner" CTA). Echoing it here makes every studio action read as part
+// of the same family. Square icon sizes become clean circles.
 const base =
   "murchid-pressable murchid-focus inline-flex items-center justify-center gap-1.5 " +
-  "font-medium leading-none rounded-xl whitespace-nowrap select-none " +
+  "font-medium leading-none rounded-full whitespace-nowrap select-none " +
   "disabled:opacity-50 disabled:pointer-events-none";
 
 // Sizes shape padding + font-size, not visual style.
@@ -29,7 +32,8 @@ const sizes = {
 
 const variants = {
   primary:
-    "bg-ink text-paper-cool hover:bg-ink-soft active:bg-ink",
+    "bg-ink text-paper-cool hover:bg-ink-soft active:bg-ink " +
+    "shadow-[var(--shadow-2)] hover:shadow-[var(--shadow-3)]",
   secondary:
     "bg-paper-cool text-ink border border-line hover:border-ink/40 hover:bg-paper-warm",
   // Subtle tertiary action — fades into the surface, comes alive on hover.

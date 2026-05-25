@@ -260,7 +260,7 @@ export default function Planner() {
   };
 
   return (
-    <div className="planner-view relative max-w-[1400px] mx-auto pb-0 h-full flex flex-col">
+    <div className="planner-view relative max-w-[1400px] mx-auto pb-0 flex flex-col lg:h-full">
 
       {/* ── Month hero — stacked headline + italic editorial caption.
           No eyebrow; the page header (sidebar nav) already says where
@@ -272,7 +272,7 @@ export default function Planner() {
           right-rail This Month Overview strip so the filter chips can
           claim the full calendar-toolbar width. */}
 
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] grid-rows-[auto_1fr] gap-x-6 gap-y-3 items-stretch flex-1 min-h-0">
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] grid-rows-[auto_1fr] gap-x-6 gap-y-3 items-stretch lg:flex-1 lg:min-h-0">
         {/* Row 1: Studio AI hero (left) + AI Insights (right), heights
             match via items-stretch. */}
         <div className="min-w-0">
@@ -309,7 +309,7 @@ export default function Planner() {
       {/* The grid. The calendar's toolbar (filter chips only) lives at
           the top of the card, then the weekday header, then day cells.
           Month-nav controls live in the right-rail This Month strip. */}
-      <div className="planner-grid planner-card-frame rounded-2xl bg-paper-cool overflow-hidden flex-1 flex flex-col min-h-0">
+      <div className="planner-grid planner-card-frame rounded-2xl bg-paper-cool overflow-hidden flex-1 flex flex-col min-h-[26rem] lg:min-h-0">
 
         {/* Filter chips only — no fade mask needed, all chips fit. */}
         <div className="planner-cal-toolbar">

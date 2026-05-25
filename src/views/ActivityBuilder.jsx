@@ -1,15 +1,19 @@
 import React, { useEffect, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { ExportMenu } from "@/components/ui/export-menu";
 import {
   Field, inputClasses, selectClasses, api, DatePicker,
 } from "./_shared";
+import { activityToDoc } from "../lib/toDoc";
+import { useT } from "../lib/i18n";
 
 // Full-page activity builder — same routed pattern as QuizBuilder. The
 // Activities list routes by id, so when an id is present we re-fetch the
 // full row and seed the form from the server. A brand-new activity has no
 // id until the first save.
 export default function ActivityBuilder({ activity, onClose }) {
+  const t = useT();
   const [acId, setAcId] = useState(activity?.id || null);
   const [form, setForm] = useState({
     title: activity?.title || "",
@@ -68,7 +72,10 @@ export default function ActivityBuilder({ activity, onClose }) {
             {acId ? form.title || "Untitled activity" : <>Plan an <em className="italic font-light text-accent">activity</em></>}
           </h2>
         </div>
-        <div className="flex gap-3">
+        <div className="flex gap-3 items-center">
+          {acId && (
+            <ExportMenu formats={["pdf"]} buildDoc={() => activityToDoc(form, t)} />
+          )}
           <Button variant="secondary" onClick={onClose}>Back to activities</Button>
           <Button onClick={save} disabled={saving}>
             {saving ? "Saving…" : acId ? "Save changes" : "Create activity"}

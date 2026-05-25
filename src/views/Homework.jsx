@@ -7,6 +7,9 @@ import {
   DataPageHeader, DataCard, CardsGrid, useViewMode,
   useDateScope, filterByDateScope,
 } from "./_data-view";
+import { ExportMenu } from "@/components/ui/export-menu";
+import { SkeletonCards, SkeletonList } from "@/components/ui/skeleton";
+import { homeworkToDoc } from "../lib/toDoc";
 import { useT } from "../lib/i18n";
 
 export default function Homework({ onOpenHomework }) {
@@ -35,6 +38,14 @@ export default function Homework({ onOpenHomework }) {
   });
   useEffect(() => { setSort({ key: sortField, dir: sortDir }); }, [sortKey, setSort, sortField, sortDir]);
   const sorted = filterByDateScope(sortedAll, scopeRange, (h) => h.due_date);
+
+  const hwExport = (h) => (
+    <ExportMenu
+      compact
+      formats={["pdf", "doc"]}
+      buildDoc={async () => homeworkToDoc(await api(`/api/homework/${h.id}`).catch(() => h), t)}
+    />
+  );
 
   const confirmDelete = async () => {
     setBusy(true);
@@ -85,6 +96,8 @@ export default function Homework({ onOpenHomework }) {
         {loading ? t("chip.loading") : <>{sorted.length} {t("hw.eyebrow")}</>}
       </p>
 
+      {loading && (viewMode === "cards" ? <SkeletonCards /> : <SkeletonList />)}
+
       {!loading && sorted.length === 0 && (
         <div className="rounded-2xl border border-dashed border-line p-12 text-center text-muted">
           {t("hw.empty")}
@@ -98,6 +111,7 @@ export default function Homework({ onOpenHomework }) {
               key={h.id}
               onEdit={() => onOpenHomework?.(h)}
               onDelete={() => setDeleting(h)}
+              exportNode={hwExport(h)}
             >
               <button
                 type="button"
@@ -160,7 +174,7 @@ export default function Homework({ onOpenHomework }) {
                       </span>
                     </td>
                     <td className="py-4 px-5 text-right" onClick={(e) => e.stopPropagation()}>
-                      <ListRowActions onEdit={() => onOpenHomework?.(h)} onDelete={() => setDeleting(h)} />
+                      <ListRowActions onEdit={() => onOpenHomework?.(h)} onDelete={() => setDeleting(h)} exportNode={hwExport(h)} />
                     </td>
                   </tr>
                 ))}
@@ -198,9 +212,10 @@ function fmtShortDate(v) {
   return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
-function ListRowActions({ onEdit, onDelete }) {
+function ListRowActions({ onEdit, onDelete, exportNode }) {
   return (
     <span className="inline-flex items-center gap-1">
+      {exportNode}
       <button type="button" onClick={onEdit} aria-label="Edit"
         className="h-7 w-7 rounded-md border border-line bg-paper-cool hover:bg-paper-warm hover:border-ink flex items-center justify-center transition">
         <Pencil size={12} strokeWidth={2} className="text-ink-soft" />

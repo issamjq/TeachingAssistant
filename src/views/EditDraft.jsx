@@ -2,7 +2,10 @@ import React, { useEffect, useState } from "react";
 import { Save, CheckCircle2, Trash2, Plus } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { ExportMenu } from "@/components/ui/export-menu";
 import { Field, AttachmentsList, inputClasses, selectClasses, api, useTeacherClasses, DatePicker } from "./_shared";
+import { lessonPlanToDoc } from "../lib/toDoc";
+import { useT } from "../lib/i18n";
 
 const STATUSES = ["In progress", "Ready to use", "Blocked", "Paused"];
 
@@ -19,6 +22,7 @@ const ensureArray = (v) => {
 // id; if no id is present we POST a new one on first save and then track its
 // id for subsequent saves.
 export default function EditDraft({ draft: initial, onClose, onMarkReady }) {
+  const t = useT();
   const { grades: teacherGrades, sections: teacherSections } = useTeacherClasses();
   const [draftId, setDraftId] = useState(initial?.id || null);
   const [form, setForm] = useState(() => ({
@@ -109,7 +113,13 @@ export default function EditDraft({ draft: initial, onClose, onMarkReady }) {
               : draftId ? "Loaded from Neon" : "Unsaved — click Save to persist"}
           </p>
         </div>
-        <div className="flex gap-3">
+        <div className="flex gap-3 items-center">
+          {form.name && (
+            <ExportMenu
+              formats={["pdf", "doc"]}
+              buildDoc={() => lessonPlanToDoc(form, t)}
+            />
+          )}
           <Button variant="secondary" onClick={onClose} disabled={saving}>Close</Button>
           <Button variant="secondary" onClick={() => persist()} disabled={saving}>
             <Save size={14} className="mr-2" /> {saving ? "Saving…" : "Save"}

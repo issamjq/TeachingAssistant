@@ -10,6 +10,9 @@ import {
   selectClasses,
 } from "./_shared";
 import { DataPageHeader, useViewMode, useDateScope, filterByDateScope } from "./_data-view";
+import { ExportMenu } from "@/components/ui/export-menu";
+import { SkeletonCards, SkeletonList } from "@/components/ui/skeleton";
+import { lessonPlanToDoc } from "../lib/toDoc";
 import { MAJORS } from "../lib/enums";
 import { useT } from "../lib/i18n";
 
@@ -147,6 +150,28 @@ export default function TemplatesLibrary({ onNewTemplate, onUseTemplate, onEditT
     return filterByDateScope(sorted, scopeRange, (t) => t.updated_at);
   }, [query, templates, subjectFilter, gradeFilter, sortKey, scopeRange]);
 
+  // Defined at component scope so `t` here is the translator — inside the
+  // card/list `.map((t) => …)` below `t` is shadowed by the template row.
+  const templateExport = (tpl) => (
+    <ExportMenu
+      compact
+      formats={["pdf", "doc"]}
+      buildDoc={() =>
+        lessonPlanToDoc(
+          {
+            name: tpl.name,
+            subject: tpl.subject,
+            grade: tpl.grade,
+            duration_minutes: tpl.duration,
+            objectives: tpl.objectives,
+            main_activity: tpl.flow,
+          },
+          t
+        )
+      }
+    />
+  );
+
   const confirmDelete = async () => {
     setBusy(true);
     try {
@@ -248,7 +273,9 @@ export default function TemplatesLibrary({ onNewTemplate, onUseTemplate, onEditT
         )}
       </p>
 
-      {viewMode === "cards" && (
+      {loading && (viewMode === "cards" ? <SkeletonCards /> : <SkeletonList />)}
+
+      {!loading && viewMode === "cards" && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
           {filtered.map((t) => (
             <Card key={t.id} className="hover:border-ink transition flex flex-col">
@@ -260,6 +287,7 @@ export default function TemplatesLibrary({ onNewTemplate, onUseTemplate, onEditT
                       {t.starred && <Star size={13} className="text-accent fill-accent" />}
                       used {t.used_count}×
                     </div>
+                    {templateExport(t)}
                     <RowActions
                       onEdit={onEditTemplate ? () => onEditTemplate(t) : undefined}
                       onDelete={() => setDeleting(t)}
@@ -311,7 +339,7 @@ export default function TemplatesLibrary({ onNewTemplate, onUseTemplate, onEditT
         </div>
       )}
 
-      {viewMode === "list" && (
+      {!loading && viewMode === "list" && (
         <div className="rounded-2xl border border-line bg-paper-cool overflow-hidden">
           <table className="w-full text-sm">
             <thead>
@@ -335,10 +363,13 @@ export default function TemplatesLibrary({ onNewTemplate, onUseTemplate, onEditT
                   <td className="py-4 text-ink-soft">{t.used_count || 0}×</td>
                   <td className="py-4 text-ink-soft text-xs">{timeAgo(t.updated_at)}</td>
                   <td className="py-4 px-5 text-right" onClick={(e) => e.stopPropagation()}>
-                    <RowActions
-                      onEdit={onEditTemplate ? () => onEditTemplate(t) : undefined}
-                      onDelete={() => setDeleting(t)}
-                    />
+                    <span className="inline-flex items-center gap-1">
+                      {templateExport(t)}
+                      <RowActions
+                        onEdit={onEditTemplate ? () => onEditTemplate(t) : undefined}
+                        onDelete={() => setDeleting(t)}
+                      />
+                    </span>
                   </td>
                 </tr>
               ))}

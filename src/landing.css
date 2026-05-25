@@ -1125,12 +1125,6 @@ html { scroll-behavior: smooth; }
 /* ─── 6. PLANS ─────────────────────────────────────────────────── */
 .plans-stage {
   position: relative;
-  /* Fill the viewport (centred) so the section reads as a clean full screen
-     when reached — no neighbouring section colour bleeding in at top/bottom. */
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
   /* Warm cream — matches the Showreel (the other cream section): the points
      grain + a warm top glow over cream. */
   background:
@@ -1138,8 +1132,26 @@ html { scroll-behavior: smooth; }
     radial-gradient(ellipse 90% 60% at 50% 0%, oklch(0.92 0.04 75), transparent 70%),
     var(--cm-cream);
   color: var(--cm-ink);
+}
+.plans-pin {
+  position: relative;
+  /* Fill the viewport (centred) so the section reads as a clean full screen
+     when reached — no neighbouring section colour bleeding in at top/bottom. */
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
   padding-block: clamp(100px, 16vh, 180px);
   padding-inline: clamp(20px, 5vw, 56px);
+}
+/* Desktop: brief pin — the stage is a tall track, the content sticks for the
+   extra height so scrolling "stops" on the section. Phones flow normally. */
+@media (min-width: 1024px) {
+  .plans-stage { height: 130vh; }
+  .plans-pin {
+    position: sticky; top: 0; height: 100vh; min-height: 0;
+    padding-block: clamp(48px, 8vh, 96px);
+  }
 }
 .plans-shell { width: 100%; max-width: 1200px; margin: 0 auto; }
 .plans-head { text-align: center; margin-block-end: clamp(48px, 7vh, 72px); }
@@ -1264,13 +1276,29 @@ html { scroll-behavior: smooth; }
     radial-gradient(circle at 86% 92%, oklch(0.36 0.10 22), transparent 60%),
     var(--cm-clay);
   color: var(--cm-cream);
-  padding-block: clamp(120px, 18vh, 200px);
-  padding-inline: clamp(20px, 5vw, 56px);
+}
+.final-pin {
+  position: relative;
+  /* overflow/isolation live HERE (the sticky element), not on the track —
+     overflow on a sticky ancestor breaks the pin. */
   overflow: hidden;
   isolation: isolate;
   text-align: center;
+  min-height: 100vh;
+  display: flex; flex-direction: column; justify-content: center;
+  padding-block: clamp(120px, 18vh, 200px);
+  padding-inline: clamp(20px, 5vw, 56px);
 }
-.final-stage::after {
+/* Desktop: brief pin — track is tall, content sticks for the extra height so
+   scrolling "stops" on the section. Phones flow normally. */
+@media (min-width: 1024px) {
+  .final-stage { height: 130vh; }
+  .final-pin {
+    position: sticky; top: 0; height: 100vh; min-height: 0;
+    padding-block: clamp(48px, 8vh, 96px);
+  }
+}
+.final-pin::after {
   content: '';
   position: absolute; inset: 0;
   background-image:
@@ -1415,6 +1443,16 @@ html { scroll-behavior: smooth; }
   color: oklch(0.98 0.02 80); opacity: 0.10;
   white-space: nowrap; pointer-events: none; user-select: none;
   animation: atl-wm 1.6s 0.1s var(--easeOutE) backwards;
+}
+/* Arabic page: the watermark is the Latin "Murchid" (mirroring the Arabic
+   foreground). Latin is far wider than مرشد, so use Fraunces + a smaller size
+   so the whole word reads as a backdrop instead of overflowing. */
+.atl-watermark--latin {
+  font-family: 'Fraunces', Georgia, serif;
+  font-size: clamp(90px, 18vw, 320px); letter-spacing: -0.04em;
+}
+.atl-watermark--m.atl-watermark--latin {
+  font-size: clamp(64px, 22vw, 180px);
 }
 .atl-word {
   position: relative; z-index: 1; margin: 0;
@@ -1706,15 +1744,29 @@ html { scroll-behavior: smooth; }
    scroll (inline styles); the demo loop is pure CSS so it plays on its own.
    ════════════════════════════════════════════════════════════════════ */
 .film-stage {
-  position: relative; overflow: hidden; isolation: isolate;
+  position: relative;
   color: var(--cm-ink);
-  padding-block: clamp(96px, 16vh, 184px);
-  padding-inline: clamp(20px, 5vw, 56px);
-  /* Cream stage (matches the Plans section above) with a soft warm glow up
-     top. The dark device bezel frames the screen against the paper. */
+  /* Cream stage (matches the Plans section) with a soft warm glow up top.
+     The dark device bezel frames the screen against the paper. */
   background:
     radial-gradient(ellipse 90% 60% at 50% 0%, oklch(0.92 0.04 75), transparent 70%),
     var(--cm-cream);
+}
+.film-pin {
+  position: relative; overflow: hidden; isolation: isolate;
+  min-height: 100vh;
+  display: flex; flex-direction: column; justify-content: center;
+  padding-block: clamp(96px, 16vh, 184px);
+  padding-inline: clamp(20px, 5vw, 56px);
+}
+/* Desktop: brief pin — track is tall, content sticks for the extra height so
+   scrolling "stops" on the section. Phones flow normally. */
+@media (min-width: 1024px) {
+  .film-stage { height: 130vh; }
+  .film-pin {
+    position: sticky; top: 0; height: 100vh; min-height: 0;
+    padding-block: clamp(48px, 8vh, 96px);
+  }
 }
 .film-grain {
   position: absolute; inset: 0; z-index: 0; pointer-events: none; opacity: 0.14;
@@ -1722,7 +1774,9 @@ html { scroll-behavior: smooth; }
   background-size: 3px 3px; mix-blend-mode: multiply;
 }
 .film-shell {
-  position: relative; z-index: 1; max-width: 1040px; margin: 0 auto;
+  /* width:100% so the shell fills to its max-width and never shrink-wraps a
+     short prompt — keeps the frame (tablet) ONE size for every kind. */
+  position: relative; z-index: 1; width: 100%; max-width: 1040px; margin: 0 auto;
   display: grid; justify-items: center; gap: clamp(34px, 6vh, 60px);
 }
 .film-head { text-align: center; max-width: 720px; }
@@ -1761,8 +1815,10 @@ html { scroll-behavior: smooth; }
 .film-screen {
   position: relative; overflow: hidden; border-radius: clamp(10px, 1.4vw, 16px);
   background: var(--cm-cream); color: var(--cm-ink);
-  padding: clamp(20px, 3vw, 36px); min-height: clamp(320px, 44vh, 460px);
-  display: flex; flex-direction: column; gap: clamp(13px, 1.9vh, 20px);
+  /* Fixed height (not min-height) so the tablet is ONE size for every kind /
+     phase — no resizing between compose, drafting, and the various results. */
+  padding: clamp(20px, 3vw, 36px); height: clamp(392px, 55vh, 548px);
+  display: flex; flex-direction: column; gap: clamp(11px, 1.5vh, 16px);
 }
 .film-screen::after {
   content: ''; position: absolute; inset-inline: 0; top: 0; height: 42%; z-index: 2; pointer-events: none;
@@ -1817,14 +1873,264 @@ html { scroll-behavior: smooth; }
 }
 .film-ready {
   font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.16em;
-  text-transform: uppercase; color: var(--cm-sage); opacity: 0;
-  animation: film-ready-cycle 7s ease-in-out infinite;
+  text-transform: uppercase; color: var(--cm-sage); opacity: 1;
 }
 .film-footer { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
 .film-cred {
   font-family: 'JetBrains Mono', monospace; font-size: 10.5px; letter-spacing: 0.1em;
-  text-transform: uppercase; color: var(--cm-clay-d); opacity: 0;
-  animation: film-ready-cycle 7s ease-in-out infinite;
+  text-transform: uppercase; color: var(--cm-clay-d); opacity: 0.7;
+}
+/* ── Studio compose mockup (recreates the AI Studio screen) + kind tabs ── */
+/* The prompt box transforms through the flow: compose → drafting → result. */
+.film-compose-body, .film-drafting, .film-result {
+  flex: 1 1 auto; min-height: 0;
+  display: flex; flex-direction: column;
+  animation: film-fade 0.4s var(--easeOutE);
+}
+.film-compose-body { gap: clamp(12px, 1.8vh, 18px); }
+.film-drafting { justify-content: center; gap: 16px; }
+.film-result { gap: clamp(8px, 1.2vh, 13px); }
+.film-compose-head {
+  margin: 0;
+  font-family: 'Fraunces', Georgia, serif; font-weight: 300;
+  font-size: clamp(19px, 2.3vw, 30px); line-height: 1.25; letter-spacing: -0.015em;
+  color: var(--cm-ink);
+}
+.film-kindpill {
+  display: inline-flex; align-items: center; gap: 7px; vertical-align: middle;
+  padding: 2px 12px; border-radius: 10px;
+  background: var(--cm-ink); color: var(--cm-cream);
+  font-family: 'Inter Tight', system-ui, sans-serif; font-weight: 600; font-size: 0.66em;
+}
+.film-promptbox {
+  flex: 1 1 auto; min-height: 0;
+  display: flex; flex-direction: column; gap: clamp(12px, 1.8vh, 18px);
+  border: 1px solid oklch(0.18 0.03 40 / 0.14); border-radius: 14px;
+  background: oklch(0.99 0.01 80 / 0.45); padding: clamp(15px, 2vw, 22px);
+}
+.film-prompttext {
+  flex: 1 1 auto; margin: 0;
+  font-family: 'Inter Tight', system-ui, sans-serif;
+  font-size: clamp(14px, 1.45vw, 18px); line-height: 1.5; color: var(--cm-ink);
+}
+.film-prompttext .film-caret { display: inline-block; vertical-align: text-bottom; margin-inline-start: 2px; }
+.film-composebar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.film-oneliner {
+  display: inline-flex; align-items: center; padding: 6px 13px; border-radius: 999px;
+  background: var(--cm-cream-2); border: 1px solid oklch(0.18 0.03 40 / 0.12);
+  font-family: 'Inter Tight', system-ui, sans-serif; font-size: 12px; color: var(--cm-ink-2);
+}
+.film-willfill {
+  font-family: 'Fraunces', Georgia, serif; font-style: italic;
+  font-size: 13px; color: var(--cm-ink-3); margin-inline-start: auto;
+}
+.film-makeit {
+  display: inline-flex; align-items: center; gap: 8px; padding: 9px 18px; border-radius: 999px;
+  background: oklch(0.86 0.13 60 / 0.18); border: 1px solid oklch(0.62 0.13 40 / 0.5);
+  color: var(--cm-clay-d); font-family: 'Inter Tight', system-ui, sans-serif;
+  font-weight: 600; font-size: 13px; cursor: pointer;
+}
+/* Drafting phase — "Murchid is drafting…" with a spinner + shimmer lines. */
+.film-drafting-label {
+  display: inline-flex; align-items: center; gap: 9px;
+  font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.14em;
+  text-transform: uppercase; color: var(--cm-clay-d);
+}
+.film-spinner {
+  width: 13px; height: 13px; border-radius: 50%; flex: 0 0 auto;
+  border: 2px solid oklch(0.62 0.13 40 / 0.28); border-top-color: var(--cm-clay-d);
+  animation: film-spin 0.7s linear infinite;
+}
+@keyframes film-spin { to { transform: rotate(360deg); } }
+.film-skel { display: grid; gap: 11px; }
+.film-skel > span {
+  height: 11px; border-radius: 6px; background-size: 200% 100%;
+  background-image: linear-gradient(90deg, oklch(0.88 0.045 72), oklch(0.94 0.03 75) 40%, oklch(0.88 0.045 72) 70%);
+  animation: film-skeleton 1.4s linear infinite;
+}
+.film-skel > span:nth-child(1) { width: 94%; }
+.film-skel > span:nth-child(2) { width: 80%; }
+.film-skel > span:nth-child(3) { width: 88%; }
+.film-skel > span:nth-child(4) { width: 62%; }
+/* Result phase — the finished artifact, rows staggering in. */
+.film-result-head {
+  display: inline-flex; align-items: center; gap: 9px;
+  font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.12em;
+  text-transform: uppercase; color: var(--cm-sage);
+}
+.film-result-check {
+  flex: 0 0 auto; width: 16px; height: 16px; border-radius: 50%;
+  background: var(--cm-sage); display: inline-grid; place-items: center;
+}
+.film-result-check::after {
+  content: ''; width: 4px; height: 7px; margin-top: -1px;
+  border: 1.6px solid var(--cm-cream); border-top: 0; border-inline-start: 0; transform: rotate(45deg);
+}
+.film-result-rows { list-style: none; margin: 0; padding: 0; display: grid; gap: clamp(6px, 1vh, 10px); }
+.film-result-row {
+  display: flex; align-items: baseline; gap: 14px;
+  opacity: 0; transform: translateY(6px);
+  animation: film-fade 0.4s var(--easeOutE) forwards; animation-delay: calc(var(--i) * 0.08s);
+}
+.film-result-tag {
+  flex: 0 0 auto; min-width: 52px;
+  font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.04em; color: var(--cm-clay-d);
+}
+.film-result-text {
+  font-family: 'Inter Tight', system-ui, sans-serif; font-size: clamp(13px, 1.2vw, 15.5px);
+  color: var(--cm-ink); line-height: 1.4;
+}
+/* Lesson result — a lesson-plan doc: title + chips + objective + agenda. */
+.film-lp-top { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.film-lp-title {
+  font-family: 'Fraunces', Georgia, serif; font-weight: 300;
+  font-size: clamp(20px, 2.3vw, 30px); line-height: 1; color: var(--cm-ink);
+}
+.film-lp-chip {
+  font-family: 'Inter Tight', system-ui, sans-serif; font-size: 11.5px;
+  padding: 3px 11px; border-radius: 999px; color: var(--cm-ink-2);
+  background: var(--cm-cream-2); border: 1px solid oklch(0.18 0.03 40 / 0.12);
+}
+.film-lp-obj {
+  font-family: 'Inter Tight', system-ui, sans-serif; font-size: clamp(12.5px, 1.1vw, 14px);
+  color: var(--cm-ink-2);
+}
+/* Quiz result — questions with answer options (correct one highlighted). */
+.film-qz { gap: clamp(10px, 1.6vh, 16px); }
+.film-qz-q {
+  display: flex; flex-direction: column; gap: 7px;
+  opacity: 0; transform: translateY(6px);
+  animation: film-fade 0.4s var(--easeOutE) forwards; animation-delay: calc(var(--i) * 0.12s);
+}
+.film-qz-stem { display: flex; align-items: baseline; gap: 10px; }
+.film-qz-tag {
+  flex: 0 0 auto; min-width: 26px;
+  font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--cm-clay-d);
+}
+.film-qz-text {
+  flex: 1 1 auto;
+  font-family: 'Inter Tight', system-ui, sans-serif; font-size: clamp(13px, 1.2vw, 15.5px);
+  color: var(--cm-ink); line-height: 1.35;
+}
+.film-qz-badge {
+  flex: 0 0 auto; font-family: 'JetBrains Mono', monospace; font-size: 9px;
+  letter-spacing: 0.1em; text-transform: uppercase; color: var(--cm-ink-3);
+  border: 1px solid oklch(0.18 0.03 40 / 0.12); border-radius: 6px; padding: 2px 7px;
+}
+.film-qz-opts { display: flex; flex-wrap: wrap; gap: 7px; padding-inline-start: 36px; }
+.film-qz-opt {
+  font-family: 'Inter Tight', system-ui, sans-serif; font-size: 12px;
+  padding: 4px 12px; border-radius: 999px; color: var(--cm-ink-2);
+  background: var(--cm-cream-2); border: 1px solid oklch(0.18 0.03 40 / 0.12);
+}
+.film-qz-opt.is-correct {
+  color: oklch(0.45 0.09 150); font-weight: 600;
+  background: oklch(0.72 0.12 150 / 0.16); border-color: oklch(0.6 0.1 150 / 0.5);
+}
+/* Homework result — a worksheet: title + due, numbered tasks, assignment footer. */
+.film-hw-top { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.film-hw-title {
+  font-family: 'Fraunces', Georgia, serif; font-weight: 300;
+  font-size: clamp(20px, 2.3vw, 30px); line-height: 1; color: var(--cm-ink);
+}
+.film-hw-due {
+  flex: 0 0 auto; font-family: 'JetBrains Mono', monospace; font-size: 11px;
+  letter-spacing: 0.08em; text-transform: uppercase; color: var(--cm-clay-d);
+}
+.film-hw-footer {
+  margin-block-start: auto; font-family: 'JetBrains Mono', monospace; font-size: 10.5px;
+  letter-spacing: 0.06em; text-transform: uppercase; color: var(--cm-ink-3);
+}
+/* Presentation result — a live slide editor: thumbnail rail, a canvas whose
+   background a cursor "edits" from the swatch panel (cursor + bg are synced). */
+.film-deck { gap: clamp(10px, 1.4vh, 14px); }
+.film-deck-stage { flex: 1 1 auto; min-height: 0; display: flex; gap: clamp(10px, 1.4vw, 16px); }
+.film-deck-rail { flex: 0 0 auto; width: 34px; display: flex; flex-direction: column; gap: 7px; }
+.film-deck-thumb {
+  flex: 1 1 0; border-radius: 5px; background: oklch(0.93 0.02 80);
+  border: 1px solid oklch(0.18 0.03 40 / 0.12);
+}
+.film-deck-thumb.is-active { border-color: var(--cm-clay-d); box-shadow: 0 0 0 2px oklch(0.62 0.13 40 / 0.28); }
+.film-deck-canvas {
+  flex: 1 1 auto; min-width: 0; position: relative; overflow: hidden;
+  border-radius: 12px; border: 1px solid oklch(0.18 0.03 40 / 0.12);
+  display: flex; flex-direction: column; justify-content: center; gap: 8px;
+  padding: clamp(16px, 2.4vw, 30px);
+  background-color: oklch(0.88 0.08 200);
+  animation: film-deck-bg 5.4s linear infinite;
+}
+.film-deck-no {
+  font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 0.16em;
+  color: oklch(0.2 0.04 40 / 0.5);
+}
+.film-deck-slide-title {
+  font-family: 'Fraunces', Georgia, serif; font-weight: 300;
+  font-size: clamp(20px, 2.6vw, 34px); line-height: 1.1; color: oklch(0.2 0.05 35);
+}
+.film-deck-slide-art {
+  margin-block-start: 6px; height: clamp(32px, 6.5vh, 60px); width: 68%; border-radius: 8px;
+  background: linear-gradient(120deg, oklch(0.99 0.01 80 / 0.85), oklch(0.86 0.05 60 / 0.45));
+  border: 1px solid oklch(1 0 0 / 0.4);
+}
+.film-deck-panel {
+  flex: 0 0 auto; width: clamp(126px, 16vw, 168px);
+  display: flex; flex-direction: column; justify-content: center; gap: 9px;
+}
+.film-deck-panel-label {
+  font-family: 'JetBrains Mono', monospace; font-size: 9px; letter-spacing: 0.14em;
+  text-transform: uppercase; color: var(--cm-ink-3);
+}
+/* Colour swatches are language-neutral — keep LTR so the cursor stays aligned
+   over them in Arabic too (the cursor animates physical left → right). */
+.film-deck-swatches { position: relative; display: flex; gap: 10px; width: max-content; direction: ltr; }
+.film-deck-sw { width: 22px; height: 22px; border-radius: 6px; border: 1px solid oklch(0.18 0.03 40 / 0.16); }
+.film-deck-sw.s1 { background: oklch(0.78 0.12 200); }
+.film-deck-sw.s2 { background: oklch(0.82 0.15 60); }
+.film-deck-sw.s3 { background: oklch(0.78 0.12 150); }
+.film-deck-sw.s4 { background: oklch(0.72 0.13 300); }
+.film-deck-cursor {
+  position: absolute; top: 13px; left: 9%;
+  filter: drop-shadow(0 1px 2px oklch(0.1 0.05 28 / 0.4));
+  animation: film-deck-cursor 5.4s ease-in-out infinite;
+}
+.film-deck-controls { display: grid; gap: 6px; }
+.film-deck-controls > span { height: 8px; border-radius: 4px; background: oklch(0.18 0.03 40 / 0.1); }
+.film-deck-controls > span:nth-child(2) { width: 68%; }
+@keyframes film-deck-bg {
+  0%, 22% { background-color: oklch(0.88 0.08 200); }
+  25%, 47% { background-color: oklch(0.87 0.11 60); }
+  50%, 72% { background-color: oklch(0.88 0.09 150); }
+  75%, 98% { background-color: oklch(0.86 0.10 300); }
+  100% { background-color: oklch(0.88 0.08 200); }
+}
+@keyframes film-deck-cursor {
+  0%, 18% { left: 9%; }
+  25%, 43% { left: 36%; }
+  50%, 68% { left: 64%; }
+  75%, 98% { left: 91%; }
+  100% { left: 9%; }
+}
+.film-switch { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.film-switch-label {
+  flex: 0 0 auto;
+  font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 0.16em;
+  text-transform: uppercase; color: var(--cm-ink-3);
+}
+.film-tabs { display: flex; flex-wrap: wrap; gap: 8px; }
+.film-tab {
+  display: inline-flex; align-items: center; gap: 7px; padding: 7px 14px; border-radius: 999px;
+  background: var(--cm-cream-2); border: 1px solid oklch(0.18 0.03 40 / 0.12);
+  font-family: 'Inter Tight', system-ui, sans-serif; font-size: 12.5px; font-weight: 500;
+  color: var(--cm-ink-2); cursor: pointer; opacity: 0.55;
+  transition: opacity 0.3s var(--easeOutE), background 0.3s var(--easeOutE),
+    border-color 0.3s var(--easeOutE), color 0.3s var(--easeOutE);
+}
+.film-tab svg { opacity: 0.85; }
+.film-tab:hover { opacity: 0.85; }
+.film-tab.is-active {
+  opacity: 1; color: var(--cm-clay-d);
+  background: oklch(0.86 0.13 60 / 0.16);
+  border-color: oklch(0.62 0.13 40 / 0.5);
 }
 /* Real drafted lines that stream into the demo (substance, not placeholder). */
 .film-draft { display: grid; gap: 11px; }
@@ -1858,9 +2164,13 @@ html { scroll-behavior: smooth; }
 .film-progress-bar {
   display: block; height: 100%; width: 0; border-radius: 999px;
   background: linear-gradient(90deg, var(--cm-clay-d), var(--cm-amber));
-  animation: film-progress-cycle 7s ease-in-out infinite;
+  /* Dwell: fills over the active tab's hold time, then the demo advances.
+     Duration is set inline; re-mounting on tab change restarts it. */
+  animation: film-dwell linear forwards;
 }
 @keyframes film-progress-cycle { 0%, 5% { width: 0; } 78%, 92% { width: 100%; } 100% { width: 100%; } }
+@keyframes film-dwell { from { width: 0; } to { width: 100%; } }
+@keyframes film-fade { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 .film-tiles { display: flex; flex-wrap: wrap; gap: 8px; margin-block-start: auto; }
 .film-tile {
   flex: 1 1 110px; min-width: 110px;
@@ -1940,4 +2250,11 @@ html { scroll-behavior: smooth; }
   .film-draft-line { opacity: 1 !important; transform: none !important; animation: none !important; }
   .film-tile, .film-count { opacity: 1 !important; transform: none !important; animation: none !important; }
   .film-progress-bar { width: 100% !important; animation: none !important; }
+  .film-compose-body, .film-drafting, .film-result { animation: none !important; }
+  .film-result-row, .film-qz-q { opacity: 1 !important; transform: none !important; animation: none !important; }
+  .film-spinner, .film-skel > span { animation: none !important; }
+  .film-deck-canvas, .film-deck-cursor { animation: none !important; }
+  /* Un-pin the other scrubbed sections too (no empty scroll runway). */
+  .plans-stage, .final-stage, .film-stage { height: auto !important; }
+  .plans-pin, .final-pin, .film-pin { position: static !important; height: auto !important; }
 }

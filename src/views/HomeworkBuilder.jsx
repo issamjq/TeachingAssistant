@@ -1,16 +1,20 @@
 import React, { useEffect, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { ExportMenu } from "@/components/ui/export-menu";
 import {
   Field, AttachmentsList, inputClasses, selectClasses, api,
   useTeacherClasses, DatePicker,
 } from "./_shared";
+import { homeworkToDoc } from "../lib/toDoc";
+import { useT } from "../lib/i18n";
 
 // Full-page homework builder — same routed pattern as QuizBuilder. Callers
 // may hand us just `{ id }` (the Homework list routes by id), so when an id
 // is present we always re-fetch the full row and seed the form from the
 // server. A brand-new homework has no id until the first save.
 export default function HomeworkBuilder({ homework, onClose }) {
+  const t = useT();
   const { grades: teacherGrades, sections: teacherSections } = useTeacherClasses();
   const [hwId, setHwId] = useState(homework?.id || null);
   const [form, setForm] = useState({
@@ -71,7 +75,13 @@ export default function HomeworkBuilder({ homework, onClose }) {
             {hwId ? form.title || "Untitled homework" : <>Assign <em className="italic font-light text-accent">homework</em></>}
           </h2>
         </div>
-        <div className="flex gap-3">
+        <div className="flex gap-3 items-center">
+          {hwId && (
+            <ExportMenu
+              formats={["pdf", "doc"]}
+              buildDoc={() => homeworkToDoc(form, t)}
+            />
+          )}
           <Button variant="secondary" onClick={onClose}>Back to homework</Button>
           <Button onClick={save} disabled={saving}>
             {saving ? "Saving…" : hwId ? "Save changes" : "Create homework"}

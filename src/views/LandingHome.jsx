@@ -583,20 +583,22 @@ function Plans({ onEnter }) {
 
   return (
     <section ref={ref} className="plans-stage" id="ch-plans">
-      <div className="plans-shell">
-        <header
-          className="plans-head"
-          style={{ opacity: headR, transform: `translateY(${lerp(40, 0, headR)}px)` }}
-        >
-          <h2 className="plans-h1">
-            {t("ch.plans.h1.a")} <em>{t("ch.plans.h1.em")}</em>
-          </h2>
-          <p className="plans-sub">{t("ch.plans.sub")}</p>
-        </header>
-        <div className="plans-grid">
-          {PLANS.map((p, i) => (
-            <PlanCard key={p.id} p={p} i={i} vp={vp} onEnter={onEnter} />
-          ))}
+      <div className="plans-pin">
+        <div className="plans-shell">
+          <header
+            className="plans-head"
+            style={{ opacity: headR, transform: `translateY(${lerp(40, 0, headR)}px)` }}
+          >
+            <h2 className="plans-h1">
+              {t("ch.plans.h1.a")} <em>{t("ch.plans.h1.em")}</em>
+            </h2>
+            <p className="plans-sub">{t("ch.plans.sub")}</p>
+          </header>
+          <div className="plans-grid">
+            {PLANS.map((p, i) => (
+              <PlanCard key={p.id} p={p} i={i} vp={vp} onEnter={onEnter} />
+            ))}
+          </div>
         </div>
       </div>
     </section>
@@ -611,26 +613,28 @@ function FinalCTA({ onEnter, signedIn }) {
   const r = easeInOut(clamp01((vp - 0.02) / 0.32));
   return (
     <section ref={ref} className="final-stage">
-      <div className="final-shell" style={{ opacity: r, transform: `translateY(${lerp(46, 0, r)}px)` }}>
-        <div className="final-kicker">{t("ch.final.kicker")}</div>
-        <h2 className="final-q">
-          {t("ch.final.q.a")} <em>{t("ch.final.q.em")}</em> {t("ch.final.q.b")}
-        </h2>
-        <p className="final-sub">{t("ch.final.sub")}</p>
-        <div className="final-cta-row">
-          <button type="button" className="cinema-pill" onClick={onEnter}>
-            {signedIn ? t("landing.nav.openPlanner") : t("ch.final.cta")}
-          </button>
-          <button
-            type="button"
-            className="cinema-ghost"
-            onClick={() => {
-              const el = document.getElementById("ch-plans");
-              if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
-            }}
-          >
-            {t("ch.final.ctaGhost")}
-          </button>
+      <div className="final-pin">
+        <div className="final-shell" style={{ opacity: r, transform: `translateY(${lerp(46, 0, r)}px)` }}>
+          <div className="final-kicker">{t("ch.final.kicker")}</div>
+          <h2 className="final-q">
+            {t("ch.final.q.a")} <em>{t("ch.final.q.em")}</em> {t("ch.final.q.b")}
+          </h2>
+          <p className="final-sub">{t("ch.final.sub")}</p>
+          <div className="final-cta-row">
+            <button type="button" className="cinema-pill" onClick={onEnter}>
+              {signedIn ? t("landing.nav.openPlanner") : t("ch.final.cta")}
+            </button>
+            <button
+              type="button"
+              className="cinema-ghost"
+              onClick={() => {
+                const el = document.getElementById("ch-plans");
+                if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+              }}
+            >
+              {t("ch.final.ctaGhost")}
+            </button>
+          </div>
         </div>
       </div>
     </section>
