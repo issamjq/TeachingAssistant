@@ -1519,23 +1519,36 @@ html { scroll-behavior: smooth; }
   box-shadow: 0 1px 2px oklch(0.18 0.05 30 / 0.2), 0 20px 46px oklch(0.18 0.05 30 / 0.38);
 }
 .atl-pill:active { transform: translateY(0); }
-/* Spinning line border — a light-orange arc travels around the pill's edge.
-   @property animates the conic gradient's start angle so the ring stays put
-   and only the bright arc moves; masked to a 2px ring (gradient-border trick). */
+/* Spinning line border on HOVER — a light-orange "comet" arc sweeps around the
+   pill's edge. The conic gradient is masked to a 2.5px ring via the gradient-
+   border trick: two mask layers (border-box minus content-box) with the
+   exclude/xor composite, written BOTH standard and -webkit so it actually
+   clips (the missing standard layers were why nothing showed before).
+   @property makes the angle animatable so only the arc moves; spin is paused
+   until hover. */
 @property --atl-pill-a { syntax: "<angle>"; inherits: false; initial-value: 0deg; }
 .atl-pill::before {
-  content: ""; position: absolute; inset: 0; border-radius: inherit; padding: 2px;
+  content: ""; position: absolute; inset: 0; border-radius: inherit; padding: 2.5px;
   background: conic-gradient(from var(--atl-pill-a),
-    transparent 0deg 248deg,
-    #fcb979 300deg, #ffe2b8 328deg, #fcb979 352deg,
-    transparent 360deg);
+    rgba(252, 185, 121, 0) 0deg,
+    rgba(252, 185, 121, 0) 215deg,
+    #fcb979 315deg, #ffe6c0 342deg,
+    rgba(252, 185, 121, 0) 360deg);
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-  -webkit-mask-composite: xor; mask-composite: exclude;
-  animation: atl-pill-spin 2.6s linear infinite;
-  pointer-events: none; z-index: 1;
+          mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+          mask-composite: exclude;
+  opacity: 0;
+  transition: opacity 0.35s var(--easeOutE);
+  animation: atl-pill-spin 2.4s linear infinite;
+  animation-play-state: paused;
+  pointer-events: none;
 }
+.atl-pill:hover::before { opacity: 1; animation-play-state: running; }
 @keyframes atl-pill-spin { to { --atl-pill-a: 360deg; } }
-@media (prefers-reduced-motion: reduce) { .atl-pill::before { animation: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .atl-pill:hover::before { animation: none; }
+}
 .atl-scroll {
   display: inline-flex; align-items: center; gap: 10px;
   font-family: 'JetBrains Mono', monospace; font-size: 11px;
