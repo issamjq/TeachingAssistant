@@ -533,13 +533,18 @@ export default function StudioApp({ onClose }) {
 
   return (
     <div className="murchid-studio-app h-[100dvh] bg-paper flex text-ink font-sans overflow-hidden">
-      {/* Desktop / iPad-landscape rail — collapsible (state persists). */}
+      {/* Desktop / iPad-landscape rail — collapsible (state persists).
+          Collapsing animates the width 256px ↔ 0 (overflow-hidden clips the
+          fixed-width inner column so its contents don't reflow mid-slide)
+          instead of snapping display:none. */}
       <aside
-        className={`murchid-sidebar w-64 flex-col flex-shrink-0 h-full print:hidden ${
-          sidebarCollapsed ? "hidden" : "hidden md:flex"
+        className={`murchid-sidebar flex-shrink-0 h-full overflow-hidden print:hidden hidden md:block transition-[width] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none ${
+          sidebarCollapsed ? "md:w-0" : "md:w-64"
         }`}
       >
-        {sidebarBody}
+        <div className="w-64 h-full flex flex-col">
+          {sidebarBody}
+        </div>
       </aside>
 
       {/* Mobile / iPad-portrait drawer — the sidebar slides in over a
@@ -604,7 +609,7 @@ export default function StudioApp({ onClose }) {
         </div>
 
         <div
-          className={`relative flex-1 overflow-y-auto bg-[#fbf2e6] px-4 pt-4 pb-6 sm:px-6 md:pt-3 md:pb-2 ${
+          className={`relative flex-1 overflow-y-auto bg-[#fbf2e6] px-4 pt-4 pb-6 sm:px-6 md:pt-3 md:pb-2 transition-[padding] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none ${
             sidebarCollapsed ? "md:ps-16" : "md:ps-8"
           } ${
             onClose ? "md:pe-20" : "md:pe-8"
