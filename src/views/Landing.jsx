@@ -2476,7 +2476,7 @@ const ProductMock = ({ onOpenStudio }) => {
         <aside className="murchid-sidebar w-64 flex flex-col flex-shrink-0 h-full">
           <div className="murchid-sidebar-brand flex items-center px-5 pt-6 pb-4 text-left">
             <MurchidLogo
-              className="h-11 w-auto text-ink"
+              className="h-[50px] w-auto text-ink"
               style={{ "--murchid-logo-accent": "#8e5435" }}
             />
           </div>
