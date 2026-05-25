@@ -4,7 +4,7 @@ import {
   CalendarDays, GraduationCap, ClipboardList, Presentation, Layout,
   Users, MessageCircle, CheckCircle2, Clock, TrendingUp, FileText,
   Pencil, Trash2, ArrowUpDown, Calendar, LayoutGrid, List,
-  Paperclip, Send, Layers, Play,
+  Paperclip, Send, Layers, Play, LogOut,
 } from "lucide-react";
 import "../landing.css";
 import { useT, useI18n, LangToggle } from "../lib/i18n";
@@ -193,6 +193,68 @@ const SectionDivider = ({ variant = "calm", flip = false, height = 120 }) => {
 // and over the cream sections below (dark text, cream blur). The
 // `darkHero` prop tells the nav the page begins with a dark surface;
 // while `scrollY` is still inside that surface, the nav inverts.
+// Signed-in account control in the nav: an avatar (user initial) that opens a
+// small dropdown — name header + "Open the planner" + "Sign out". Replaces the
+// bare "SIGN OUT" text link. Closes on outside-click / Escape.
+function NavProfile({ onEnter, onSignOut }) {
+  const t = useT();
+  const account = useAccount();
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    const onKey = (e) => { if (e.key === "Escape") setOpen(false); };
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+  const prof = account?.profile || {};
+  const name = [prof.firstName, prof.lastName].filter(Boolean).join(" ") || account?.email || "Account";
+  const initial = (prof.firstName?.[0] || account?.email?.[0] || "U").toUpperCase();
+  return (
+    <div className="nav-profile" ref={ref}>
+      <button
+        type="button"
+        className="nav-avatar"
+        onClick={() => setOpen((o) => !o)}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label={name}
+        title={name}
+      >
+        {initial}
+      </button>
+      {open && (
+        <div className="nav-profile-menu" role="menu">
+          <div className="nav-profile-name">{name}</div>
+          <button
+            type="button"
+            role="menuitem"
+            className="nav-profile-item"
+            onClick={() => { setOpen(false); onEnter(); }}
+          >
+            <ArrowRight size={15} strokeWidth={2} />
+            {t("lp.nav.openPlanner")}
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            className="nav-profile-item nav-profile-danger"
+            onClick={() => { setOpen(false); onSignOut(); }}
+          >
+            <LogOut size={15} strokeWidth={2} />
+            {t("lp.nav.signout")}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 const Nav = ({ onEnter, signedIn, onJump, onPage, onSignOut, darkHero = false }) => {
   const t = useT();
   const [scrolled, setScrolled] = useState(false);
@@ -301,9 +363,7 @@ const Nav = ({ onEnter, signedIn, onJump, onPage, onSignOut, darkHero = false })
             </button>
           )}
           {signedIn && (
-            <button type="button" onClick={onSignOut} className="hidden sm:block nav-quiet" style={{ color: fg }}>
-              {t("lp.nav.signout")}
-            </button>
+            <NavProfile onEnter={onEnter} onSignOut={onSignOut} />
           )}
           <button
             type="button"
