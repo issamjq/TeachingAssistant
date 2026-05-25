@@ -244,11 +244,14 @@ const Nav = ({ onEnter, signedIn, onJump, onPage, onSignOut, darkHero = false })
   const ctaStyle = onDark
     ? { background: "var(--paper)", color: "var(--cm-clay-dd)" }
     : { background: "var(--ink)", color: "var(--paper)" };
+  // Anchors point at the sections the redesigned home actually renders
+  // (HeroAtelier index → Showreel → Voices → Plans). See sec-* ids in
+  // LandingHome.jsx + HeroAtelier.jsx.
   const navItems = [
-    { key: "lp.nav.how", to: "how" },
-    { key: "lp.nav.features", to: "features" },
-    { key: "lp.nav.aistudio", to: "how" },
-    { key: "lp.nav.build", to: "philosophy" },
+    { key: "lp.nav.features", to: "sec-features" },
+    { key: "lp.nav.how", to: "sec-how" },
+    { key: "lp.nav.voices", to: "sec-voices" },
+    { key: "lp.nav.pricing", to: "sec-pricing" },
   ];
   const ctaArrow = isRTL
     ? "M11.5 7 H3 M6.5 3.5 L3 7 L6.5 10.5"
@@ -4979,9 +4982,9 @@ const Footer = ({ onEnter, signedIn, onJump, onPage }) => {
           <div className="col-span-6 md:col-span-2">
             <div className="eyebrow mb-4">{t("lp.foot.product")}</div>
             <ul className="space-y-2.5 text-sm" style={{ color: "var(--ink-2)" }}>
-              <li><FLink onClick={() => onJump("features")}>{t("lp.nav.features")}</FLink></li>
-              <li><FLink onClick={() => onJump("how")}>{t("lp.nav.how")}</FLink></li>
-              <li><FLink onClick={() => onJump("how")}>{t("lp.nav.aistudio")}</FLink></li>
+              <li><FLink onClick={() => onJump("sec-features")}>{t("lp.nav.features")}</FLink></li>
+              <li><FLink onClick={() => onJump("sec-how")}>{t("lp.nav.how")}</FLink></li>
+              <li><FLink onClick={() => onJump("sec-voices")}>{t("lp.nav.voices")}</FLink></li>
               <li><FLink onClick={() => onPage("pricing")}>{t("lp.foot.pricing")}</FLink></li>
             </ul>
           </div>
@@ -5574,12 +5577,13 @@ export default function Landing({ onOpenStudio }) {
   const jump = (id) => {
     const doScroll = () => {
       const el = document.getElementById(id);
-      if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
     };
     if (page === "home") doScroll();
     else {
       setPage("home");
-      setTimeout(doScroll, 90);
+      // Wait for the home sections to mount before scrolling to the anchor.
+      setTimeout(doScroll, 120);
     }
   };
 

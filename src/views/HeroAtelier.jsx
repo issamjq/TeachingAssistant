@@ -125,6 +125,14 @@ export default function HeroAtelier({ onEnter, signedIn }) {
 
   return (
     <section ref={trackRef} className="atl">
+      {/* Scroll target for the nav "Features" link. Sits ~halfway down the
+          pinned track, which is the scroll depth where the "Six tools"
+          index is fully revealed (p ≈ 0.75). */}
+      <span
+        id="sec-features"
+        aria-hidden="true"
+        style={{ position: "absolute", top: "50%", left: 0, width: 1, height: 1, scrollMarginTop: "64px" }}
+      />
       {/* ───────────── DESKTOP — pinned title sequence ───────────── */}
       <div className="atl-pin">
         {/* Warm drench that bleaches to the cream page as the act begins */}

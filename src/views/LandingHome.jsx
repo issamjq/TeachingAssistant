@@ -652,8 +652,14 @@ export default function LandingHome({ onEnter, signedIn }) {
   return (
     <>
       <HeroAtelier onEnter={onEnter} signedIn={signedIn} />
+      {/* Nav scroll anchors — sit in normal flow just before each section so
+          the nav links land at the section's start (sec-features lives in
+          HeroAtelier). scrollMarginTop clears the fixed nav bar. */}
+      <span id="sec-how" aria-hidden="true" style={{ display: "block", scrollMarginTop: "64px" }} />
       <Showreel />
+      <span id="sec-voices" aria-hidden="true" style={{ display: "block", scrollMarginTop: "64px" }} />
       <Voices />
+      <span id="sec-pricing" aria-hidden="true" style={{ display: "block", scrollMarginTop: "64px" }} />
       <Plans onEnter={onEnter} />
       <FinalCTA onEnter={onEnter} signedIn={signedIn} />
     </>
