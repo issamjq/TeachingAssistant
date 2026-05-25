@@ -1508,6 +1508,7 @@ html { scroll-behavior: smooth; }
 .atl-pill {
   background: var(--cm-cream); color: var(--cm-clay-dd); border: none;
   padding: 14px 30px; border-radius: 999px; cursor: pointer;
+  position: relative; isolation: isolate;
   font-family: 'Inter Tight', system-ui, sans-serif; font-weight: 500;
   font-size: clamp(14px, 1.05vw, 16px); letter-spacing: -0.005em;
   box-shadow: 0 1px 2px oklch(0.18 0.05 30 / 0.18), 0 14px 34px oklch(0.18 0.05 30 / 0.3);
@@ -1518,6 +1519,23 @@ html { scroll-behavior: smooth; }
   box-shadow: 0 1px 2px oklch(0.18 0.05 30 / 0.2), 0 20px 46px oklch(0.18 0.05 30 / 0.38);
 }
 .atl-pill:active { transform: translateY(0); }
+/* Spinning line border — a light-orange arc travels around the pill's edge.
+   @property animates the conic gradient's start angle so the ring stays put
+   and only the bright arc moves; masked to a 2px ring (gradient-border trick). */
+@property --atl-pill-a { syntax: "<angle>"; inherits: false; initial-value: 0deg; }
+.atl-pill::before {
+  content: ""; position: absolute; inset: 0; border-radius: inherit; padding: 2px;
+  background: conic-gradient(from var(--atl-pill-a),
+    transparent 0deg 248deg,
+    #fcb979 300deg, #ffe2b8 328deg, #fcb979 352deg,
+    transparent 360deg);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor; mask-composite: exclude;
+  animation: atl-pill-spin 2.6s linear infinite;
+  pointer-events: none; z-index: 1;
+}
+@keyframes atl-pill-spin { to { --atl-pill-a: 360deg; } }
+@media (prefers-reduced-motion: reduce) { .atl-pill::before { animation: none; } }
 .atl-scroll {
   display: inline-flex; align-items: center; gap: 10px;
   font-family: 'JetBrains Mono', monospace; font-size: 11px;
@@ -1765,7 +1783,8 @@ html { scroll-behavior: smooth; }
   .film-stage { height: 130vh; }
   .film-pin {
     position: sticky; top: 0; height: 100vh; min-height: 0;
-    padding-block: clamp(48px, 8vh, 96px);
+    /* Tighter band so the head + tablet fit one viewport on laptop heights. */
+    padding-block: clamp(20px, 4vh, 52px);
   }
 }
 .film-grain {
@@ -1777,7 +1796,7 @@ html { scroll-behavior: smooth; }
   /* width:100% so the shell fills to its max-width and never shrink-wraps a
      short prompt — keeps the frame (tablet) ONE size for every kind. */
   position: relative; z-index: 1; width: 100%; max-width: 1040px; margin: 0 auto;
-  display: grid; justify-items: center; gap: clamp(34px, 6vh, 60px);
+  display: grid; justify-items: center; gap: clamp(16px, 3vh, 34px);
 }
 .film-head { text-align: center; max-width: 720px; }
 .film-eyebrow {
@@ -1788,13 +1807,13 @@ html { scroll-behavior: smooth; }
 .film-eyebrow::before { content: ''; width: 24px; height: 1px; background: currentColor; opacity: 0.6; }
 .film-title {
   font-family: 'Fraunces', Georgia, serif; font-weight: 300;
-  font-size: clamp(32px, 5vw, 66px); line-height: 1.02; letter-spacing: -0.03em;
-  margin: 18px 0 0;
+  font-size: clamp(30px, 4vw, 50px); line-height: 1.04; letter-spacing: -0.03em;
+  margin: 10px 0 0;
 }
 .film-title em { font-style: italic; color: var(--cm-clay-d); }
 .film-sub {
-  font-family: 'Inter Tight', system-ui, sans-serif; font-size: clamp(15px, 1.2vw, 17px);
-  line-height: 1.55; color: var(--cm-ink-2); max-width: 46ch; margin: 18px auto 0;
+  font-family: 'Inter Tight', system-ui, sans-serif; font-size: clamp(14px, 1.1vw, 16px);
+  line-height: 1.5; color: var(--cm-ink-2); max-width: 46ch; margin: 10px auto 0;
 }
 
 .film-frame { width: min(860px, 100%); will-change: transform; }
@@ -1817,7 +1836,7 @@ html { scroll-behavior: smooth; }
   background: var(--cm-cream); color: var(--cm-ink);
   /* Fixed height (not min-height) so the tablet is ONE size for every kind /
      phase — no resizing between compose, drafting, and the various results. */
-  padding: clamp(20px, 3vw, 36px); height: clamp(392px, 55vh, 548px);
+  padding: clamp(20px, 3vw, 36px); height: clamp(410px, 52vh, 520px);
   display: flex; flex-direction: column; gap: clamp(11px, 1.5vh, 16px);
 }
 .film-screen::after {
