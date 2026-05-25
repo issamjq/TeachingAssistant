@@ -1257,10 +1257,16 @@ html { scroll-behavior: smooth; }
   font-size: 14px;
   cursor: pointer;
   text-align: center;
-  transition: background 300ms var(--easeOutE), transform 200ms var(--easeOutE);
+  position: relative; isolation: isolate;
+  box-shadow: 0 1px 2px oklch(0.18 0.05 30 / 0.14), 0 10px 24px oklch(0.18 0.05 30 / 0.18);
+  transition: background 300ms var(--easeOutE), transform 300ms var(--easeOutE), box-shadow 300ms var(--easeOutE);
 }
-.plans-cta:hover { background: var(--cm-ink-2); }
-.plans-cta:active { transform: scale(0.98); }
+.plans-cta:hover {
+  background: var(--cm-ink-2);
+  transform: translateY(-2px);
+  box-shadow: 0 2px 4px oklch(0.18 0.05 30 / 0.18), 0 16px 36px oklch(0.18 0.05 30 / 0.26);
+}
+.plans-cta:active { transform: translateY(0); }
 .plans-card.featured .plans-cta {
   background: var(--cm-cream);
   color: var(--cm-clay-dd);
@@ -1527,7 +1533,9 @@ html { scroll-behavior: smooth; }
    @property makes the angle animatable so only the arc moves; spin is paused
    until hover. */
 @property --atl-pill-a { syntax: "<angle>"; inherits: false; initial-value: 0deg; }
-.atl-pill::before {
+.atl-pill::before,
+.cinema-pill::before,
+.plans-cta::before {
   content: ""; position: absolute; inset: 0; border-radius: inherit; padding: 2.5px;
   background: conic-gradient(from var(--atl-pill-a),
     rgba(252, 185, 121, 0) 0deg,
@@ -1544,10 +1552,14 @@ html { scroll-behavior: smooth; }
   animation-play-state: paused;
   pointer-events: none;
 }
-.atl-pill:hover::before { opacity: 1; animation-play-state: running; }
+.atl-pill:hover::before,
+.cinema-pill:hover::before,
+.plans-cta:hover::before { opacity: 1; animation-play-state: running; }
 @keyframes atl-pill-spin { to { --atl-pill-a: 360deg; } }
 @media (prefers-reduced-motion: reduce) {
-  .atl-pill:hover::before { animation: none; }
+  .atl-pill:hover::before,
+  .cinema-pill:hover::before,
+  .plans-cta:hover::before { animation: none; }
 }
 .atl-scroll {
   display: inline-flex; align-items: center; gap: 10px;
