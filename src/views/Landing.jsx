@@ -5103,7 +5103,7 @@ const fieldStyle = {
   color: "var(--ink)",
 };
 
-function PageShell({ eyebrow, title, em, lead, onPage, children, narrow, centered }) {
+function PageShell({ eyebrow, title, em, lead, onPage, children, narrow, centered, wide }) {
   const t = useT();
   // `centered` switches the shell to a vertically-centered flex layout
   // — used by short pages like AuthPage that otherwise float at the
@@ -5120,7 +5120,7 @@ function PageShell({ eyebrow, title, em, lead, onPage, children, narrow, centere
           : "pt-28 md:pt-32 pb-28 min-h-screen"
       }
     >
-      <div className={`${narrow ? "max-w-xl" : "max-w-3xl"} mx-auto px-8 w-full ${centered ? "text-center" : ""}`}>
+      <div className={`${narrow ? "max-w-xl" : wide ? "max-w-5xl" : "max-w-3xl"} mx-auto px-8 w-full ${centered ? "text-center" : ""}`}>
         {/* Back to home stays on the leading edge even when the rest
             of the panel is text-centered — wrap in a text-start div so
             the parent's text-center doesn't pull the link to the middle. */}
@@ -5317,12 +5317,13 @@ function OnboardingPage({ onChoosePlan, onPage }) {
       em={t("lp.ob.titleEm")}
       lead={t("lp.ob.lead")}
       onPage={onPage}
+      wide
     >
       {/* Plan cards — same visual treatment as the Membership section
           (clay/orange "Popular" middle card, cream side cards) but laid
           out in a clean selectable grid with a "Choose plan" CTA and a
           7-day free-trial line on each card. */}
-      <div className="grid gap-5 sm:grid-cols-3 max-w-4xl mx-auto">
+      <div className="plans-grid">
         {PLANS.map((p) => {
           const featured = !!p.best;
           const billed =
@@ -5366,7 +5367,7 @@ function OnboardingPage({ onChoosePlan, onPage }) {
       <button
         type="button"
         onClick={() => onChoosePlan("quarterly")}
-        className="group relative mt-7 w-full max-w-4xl mx-auto rounded-[24px] overflow-hidden flex flex-col items-center justify-center gap-0.5 px-7 py-2.5 transition-transform duration-300 hover:-translate-y-0.5"
+        className="group relative mt-7 w-full rounded-[24px] overflow-hidden flex flex-col items-center justify-center gap-0.5 px-7 py-2.5 transition-transform duration-300 hover:-translate-y-0.5"
         style={{
           background:
             "radial-gradient(ellipse 92% 64% at 50% 14%, oklch(0.64 0.13 42), transparent 72%), radial-gradient(circle at 86% 92%, oklch(0.36 0.10 22), transparent 60%), var(--cm-clay)",
