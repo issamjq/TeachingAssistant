@@ -5364,10 +5364,8 @@ function OnboardingPage({ onChoosePlan, onPage }) {
           glow inside + a sprinkle of subtle sparkle particles, all
           quietly animating on their own (shimmer + breathe + twinkle)
           so the button feels alive without needing hover. */}
-      <button
-        type="button"
-        onClick={() => onChoosePlan("quarterly")}
-        className="group relative mt-7 w-full rounded-[24px] overflow-hidden flex flex-col items-center justify-center gap-0.5 px-7 py-2.5 transition-transform duration-300 hover:-translate-y-0.5"
+      <div
+        className="group relative mt-7 w-full rounded-[24px] overflow-hidden flex flex-wrap items-center justify-between gap-x-6 gap-y-4 px-7 py-5"
         style={{
           background:
             "radial-gradient(ellipse 92% 64% at 50% 14%, oklch(0.64 0.13 42), transparent 72%), radial-gradient(circle at 86% 92%, oklch(0.36 0.10 22), transparent 60%), var(--cm-clay)",
@@ -5376,8 +5374,7 @@ function OnboardingPage({ onChoosePlan, onPage }) {
             "0 14px 30px -12px rgba(26,24,20,0.55), inset 0 1px 0 rgba(255,255,255,0.08)",
         }}
       >
-        {/* Warm-clay inner glow — breathes continuously (slow opacity
-            cycle), intensifies further on hover */}
+        {/* Warm-clay inner glow — breathes continuously, intensifies on hover */}
         <span
           aria-hidden="true"
           className="murchid-trial-glow absolute inset-0 pointer-events-none transition-opacity duration-500 group-hover:!opacity-100"
@@ -5387,8 +5384,7 @@ function OnboardingPage({ onChoosePlan, onPage }) {
             animation: "murchid-trial-glow 4.5s ease-in-out infinite",
           }}
         />
-        {/* Slow diagonal shimmer — a soft highlight sweeps across the
-            pill ~every 6s, giving the dark surface a "live" sheen */}
+        {/* Slow diagonal shimmer sweeping across the bar */}
         <span
           aria-hidden="true"
           className="murchid-trial-shimmer absolute inset-y-0 -left-1/2 w-1/2 pointer-events-none"
@@ -5398,27 +5394,36 @@ function OnboardingPage({ onChoosePlan, onPage }) {
             animation: "murchid-trial-shimmer 6s linear infinite",
           }}
         />
-        {/* Subtle sparkle particles spread across the wider canvas —
-            each twinkles independently via a staggered delay */}
+        {/* Subtle sparkle particles, each twinkling on a staggered delay */}
         <span aria-hidden="true" className="murchid-trial-twinkle absolute top-3 start-[10%] w-0.5 h-0.5 rounded-full" style={{ background: "var(--paper)", animation: "murchid-trial-twinkle 3.6s ease-in-out infinite", animationDelay: "0s" }} />
         <span aria-hidden="true" className="murchid-trial-twinkle absolute bottom-3 end-[16%] w-px h-px rounded-full" style={{ background: "var(--paper)", animation: "murchid-trial-twinkle 4.2s ease-in-out infinite", animationDelay: "-0.8s" }} />
         <span aria-hidden="true" className="murchid-trial-twinkle absolute top-4 end-[8%] w-0.5 h-0.5 rounded-full" style={{ background: "var(--paper)", animation: "murchid-trial-twinkle 3.2s ease-in-out infinite", animationDelay: "-1.6s" }} />
         <span aria-hidden="true" className="murchid-trial-twinkle absolute top-2 start-[38%] w-px h-px rounded-full" style={{ background: "var(--paper)", animation: "murchid-trial-twinkle 4s ease-in-out infinite", animationDelay: "-2.2s" }} />
         <span aria-hidden="true" className="murchid-trial-twinkle absolute bottom-4 start-[8%] w-0.5 h-0.5 rounded-full" style={{ background: "var(--paper)", animation: "murchid-trial-twinkle 3.8s ease-in-out infinite", animationDelay: "-1.1s" }} />
         <span aria-hidden="true" className="murchid-trial-twinkle absolute bottom-2 start-[60%] w-px h-px rounded-full" style={{ background: "var(--paper)", animation: "murchid-trial-twinkle 4.4s ease-in-out infinite", animationDelay: "-0.4s" }} />
-        <div className="relative inline-flex items-center gap-2.5">
-          <Sparkles size={16} strokeWidth={2} style={{ color: "var(--clay)" }} />
-          <span className="text-sm font-medium tracking-tight">
-            {t("lp.plan.trialTitle")}
-          </span>
+
+        {/* Left — title + subtitle, left-aligned */}
+        <div className="relative min-w-0 text-start">
+          <div className="inline-flex items-center gap-2.5">
+            <Sparkles size={18} strokeWidth={2} style={{ color: "var(--paper)" }} />
+            <span className="font-display text-lg md:text-xl leading-tight">
+              {t("lp.plan.trialTitle")}
+            </span>
+          </div>
+          <p className="text-[12.5px] mt-1.5" style={{ color: "rgba(247,243,236,0.66)" }}>
+            {t("lp.plan.trialNote")}
+          </p>
         </div>
-        <p
-          className="relative text-[11px]"
-          style={{ color: "rgba(247,243,236,0.6)" }}
+
+        {/* Right — the CTA button (cream pill, same family as the hero) */}
+        <button
+          type="button"
+          onClick={() => onChoosePlan("quarterly")}
+          className="cinema-pill flex-shrink-0"
         >
-          {t("lp.plan.trialNote")}
-        </p>
-      </button>
+          {t("lp.plan.trialCta")}
+        </button>
+      </div>
       <p className="text-xs mt-8" style={{ color: "var(--ink-3)" }}>
         {t("lp.ob.note")}
       </p>
