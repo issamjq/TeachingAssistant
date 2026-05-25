@@ -275,7 +275,7 @@ const Nav = ({ onEnter, signedIn, onJump, onPage, onSignOut, darkHero = false })
         </button>
 
         {/* Editorial index */}
-        <nav className="hidden md:flex items-center gap-9" style={{ color: fg }}>
+        <nav className="hidden md:flex items-center gap-9" style={{ color: fg, transform: "translateY(8px)" }}>
           {navItems.map((it, i) => (
             <button key={it.key + i} type="button" onClick={() => onJump(it.to)} className="nav-link">
               <span className="nav-link-num">{String(i + 1).padStart(2, "0")}</span>
@@ -285,7 +285,7 @@ const Nav = ({ onEnter, signedIn, onJump, onPage, onSignOut, darkHero = false })
         </nav>
 
         {/* Controls */}
-        <div className="flex items-center gap-3 md:gap-4">
+        <div className="flex items-center gap-3 md:gap-4" style={{ transform: "translateY(8px)" }}>
           <LangToggle />
           {!signedIn && (
             <button
