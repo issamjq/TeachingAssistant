@@ -1271,6 +1271,17 @@ html { scroll-behavior: smooth; }
   color: var(--cm-clay-dd);
 }
 .plans-card.featured .plans-cta:hover { background: oklch(0.92 0.04 75); }
+/* The light-orange hover ring barely shows on the featured button's cream
+   surface, so give it a thicker line and a deeper, more saturated orange arc
+   for contrast (only this button; the dark plan buttons keep the light arc). */
+.plans-card.featured .plans-cta::before {
+  padding: 3.5px;
+  background: conic-gradient(from var(--atl-pill-a),
+    rgba(204, 106, 34, 0) 0deg,
+    rgba(204, 106, 34, 0) 205deg,
+    #c8651e 300deg, #f0973f 338deg,
+    rgba(204, 106, 34, 0) 360deg);
+}
 
 /* ─── 7. FINAL CTA ─────────────────────────────────────────────── */
 .final-stage {
