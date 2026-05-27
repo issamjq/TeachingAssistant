@@ -5103,7 +5103,7 @@ const fieldStyle = {
   color: "var(--ink)",
 };
 
-function PageShell({ eyebrow, title, em, lead, onPage, children, narrow, centered, wide }) {
+function PageShell({ eyebrow, title, em, lead, onPage, children, narrow, centered, wide, compact }) {
   const t = useT();
   // `centered` switches the shell to a vertically-centered flex layout
   // — used by short pages like AuthPage that otherwise float at the
