@@ -20,6 +20,8 @@ import {
   setPendingStudents, getPendingStudents,
 } from "../../lib/account";
 import { useT, useI18n } from "../../lib/i18n";
+import Avatar from "../../components/Avatar";
+import { AVATARS } from "../../lib/avatars";
 
 const STEPS = ["identity", "subjects", "scope", "students"];
 
@@ -27,6 +29,7 @@ const EMPTY = {
   firstName: "",
   lastName: "",
   staffId: "",
+  avatar: "",
   bio: "",
   majors: [],
   languages: [],
@@ -210,6 +213,7 @@ export default function ProfileForm({ onDone, onBack }) {
         </p>
 
         {step === "identity" && (
+          <div className="space-y-6">
           <div className="grid sm:grid-cols-2 gap-4">
             <Field label={t("onb.fld.firstName")} required>
               <input
@@ -239,6 +243,38 @@ export default function ProfileForm({ onDone, onBack }) {
                 placeholder={t("onb.ph.staffId")}
               />
             </Field>
+          </div>
+          <Field label={t("onb.fld.avatar")} hint={t("onb.fld.optional")}>
+            <div className="flex flex-wrap gap-3">
+              {AVATARS.map((a) => {
+                const on = data.avatar === a.id;
+                return (
+                  <button
+                    key={a.id}
+                    type="button"
+                    onClick={() => set({ avatar: on ? "" : a.id })}
+                    aria-pressed={on}
+                    aria-label="Choose avatar"
+                    style={{
+                      padding: 0,
+                      border: 0,
+                      background: "none",
+                      cursor: "pointer",
+                      borderRadius: "50%",
+                      lineHeight: 0,
+                      transition: "box-shadow 150ms, transform 150ms",
+                      boxShadow: on
+                        ? "0 0 0 3px var(--clay)"
+                        : "0 0 0 1px var(--line-strong)",
+                      transform: on ? "scale(1.05)" : "none",
+                    }}
+                  >
+                    <Avatar avatarId={a.id} size={56} />
+                  </button>
+                );
+              })}
+            </div>
+          </Field>
           </div>
         )}
 

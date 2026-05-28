@@ -13,6 +13,7 @@ import { PLANS } from "../lib/plans";
 import ProfileForm from "./onboarding/ProfileForm";
 import LandingHome from "./LandingHome";
 import MurchidLogo from "../components/MurchidLogo";
+import Avatar from "../components/Avatar";
 
 // Animations removed by request. These are no-op stand-ins for the
 // framer-motion API so the page renders fully static — no fades, no
@@ -226,7 +227,7 @@ function NavProfile({ onEnter, onSignOut }) {
         aria-label={name}
         title={name}
       >
-        {initial}
+        <Avatar avatarId={prof.avatar} initial={initial} size={38} />
       </button>
       {open && (
         <div className="nav-profile-menu" role="menu">
@@ -365,17 +366,21 @@ const Nav = ({ onEnter, signedIn, onJump, onPage, onSignOut, darkHero = false })
           {signedIn && (
             <NavProfile onEnter={onEnter} onSignOut={onSignOut} />
           )}
-          <button
-            type="button"
-            onClick={onEnter}
-            className="nav-cta"
-            style={{ ...ctaStyle, ["--cta-nudge"]: isRTL ? "-3px" : "3px" }}
-          >
-            <span>{signedIn ? t("lp.nav.openPlanner") : t("lp.cta.subscribe")}</span>
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-              <path d={ctaArrow} stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </button>
+          {/* Signed-in users reach the planner from the profile dropdown, so
+              the nav CTA only shows the Subscribe action when signed out. */}
+          {!signedIn && (
+            <button
+              type="button"
+              onClick={onEnter}
+              className="nav-cta"
+              style={{ ...ctaStyle, ["--cta-nudge"]: isRTL ? "-3px" : "3px" }}
+            >
+              <span>{t("lp.cta.subscribe")}</span>
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+                <path d={ctaArrow} stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
+          )}
         </div>
       </div>
     </motion.header>

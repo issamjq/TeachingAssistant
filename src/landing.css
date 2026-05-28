@@ -1757,12 +1757,8 @@ html { scroll-behavior: smooth; }
 /* Nav account control — avatar + dropdown (Open the planner / Sign out). */
 .nav-profile { position: relative; display: inline-flex; }
 .nav-avatar {
-  width: 38px; height: 38px; border-radius: 50%;
-  display: inline-flex; align-items: center; justify-content: center;
-  background: var(--clay-deep); color: var(--paper);
-  border: 1px solid oklch(0.96 0.025 80 / 0.28);
-  font-family: 'Inter Tight', system-ui, sans-serif; font-weight: 600; font-size: 15px;
-  cursor: pointer;
+  border: 0; background: none; padding: 0; cursor: pointer;
+  border-radius: 50%; line-height: 0; flex-shrink: 0;
   transition: transform 0.2s var(--easeOutE), box-shadow 0.2s var(--easeOutE);
 }
 .nav-avatar:hover { transform: translateY(-1px); box-shadow: 0 6px 16px oklch(0.18 0.05 30 / 0.28); }

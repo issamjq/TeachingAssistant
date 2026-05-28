@@ -32,6 +32,7 @@ import { useAccount, clearAccount } from "./lib/account";
 import AccountMenu from "./views/AccountMenu";
 import HelpPopover from "./views/HelpPopover";
 import MurchidLogo from "./components/MurchidLogo";
+import Avatar from "./components/Avatar";
 
 // Sectioned nav matching the 2026 mockup — italic Fraunces section
 // headers + small letter/icon badges next to each label. All routes
@@ -501,7 +502,7 @@ export default function StudioApp({ onClose }) {
             aria-expanded={accountMenuOpen}
             className={`murchid-sidebar-account ${accountMenuOpen ? "murchid-sidebar-account-active" : ""}`}
           >
-            <span className="murchid-sidebar-account-avatar">SA</span>
+            <Avatar avatarId={account?.profile?.avatar} initial="SA" size={34} className="murchid-sidebar-account-avatar" />
             <div className="flex-1 min-w-0 text-start">
               <p className="text-sm font-medium leading-tight truncate text-ink">
                 Sara
