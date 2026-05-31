@@ -181,7 +181,23 @@ export async function exportDocx(doc) {
   };
 
   const kids = [];
-  kids.push(para({ text: doc.title || "Untitled", heading: HeadingLevel.TITLE }));
+  // Title is built as a bold/large run instead of HeadingLevel.TITLE because
+  // the TITLE style centers the paragraph and a style-level alignment beats
+  // per-paragraph alignment, so RTL titles ended up centered with whitespace
+  // on both sides instead of flush-right like the PDF. Building it manually
+  // lets para()'s bidi + right-alignment actually take effect.
+  {
+    const titleText = doc.title || "Untitled";
+    kids.push(
+      para(
+        {
+          children: [tr({ text: titleText, bold: true, size: 56 }, isRtl(titleText))],
+          spacing: { after: 240 },
+        },
+        titleText
+      )
+    );
+  }
   if (doc.subtitle)
     kids.push(
       para(
