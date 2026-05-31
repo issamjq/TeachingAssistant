@@ -1994,27 +1994,44 @@ select:focus-visible {
      one slide per landscape A4 page, so a teacher's "PDF" matches the
      visual deck they edited — not the text outline printDoc would
      produce. */
-  @page { size: A4 landscape; margin: 0.6cm; }
+  @page { size: A4 landscape; margin: 0.5cm; }
+
+  /* CRITICAL: tell the browser to preserve background colors, inline
+     background colors on style="", gradient overlays, and tinted img
+     <div> overlays through the print path. Chrome / Safari / Firefox
+     all strip these by default to save ink, which kills the editorial
+     color story on every slide (yellow Honey theme → white paper, dark
+     Ink theme → white paper, full-bleed cover photo overlay → invisible).
+     Apply to .deck-print-page and ALL descendants so theme backgrounds,
+     image overlays, gradient washes, and the per-slide tint layers all
+     survive. */
+  .deck-print-page,
+  .deck-print-page * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
+  }
+
+  /* One slide per landscape page. page-break-inside: avoid keeps a
+     slide from being split across two sheets if rendering ever drifts. */
   .deck-print-page {
-    box-sizing: border-box;
     width: 100%;
-    height: 18cm;            /* fills A4 landscape inside the @page margin */
     page-break-after: always;
     page-break-inside: avoid;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    overflow: hidden;
+    box-sizing: border-box;
   }
   .deck-print-page:last-child { page-break-after: auto; }
-  /* SlideCanvas is a 16:9 box. In print, fill the page width and let
-     aspect-ratio carry the height — drop the on-screen shadow + rounded
-     border so it reads like a finished slide, not a UI card. */
+
+  /* SlideCanvas's outer div carries aspect-[16/9] already (Tailwind), so
+     give it the full page width and let aspect-ratio drive the height.
+     Don't override height — that breaks the absolute-positioned children
+     (cover background image, full-bleed photos, overlays) which need a
+     properly sized positioned parent. Just drop the on-screen drop
+     shadow so the slide reads as a finished page, not a UI card. */
   .deck-print-page > div {
     width: 100% !important;
     max-width: none !important;
-    height: auto !important;
-    aspect-ratio: 16 / 9;
+    aspect-ratio: 16 / 9 !important;
     box-shadow: none !important;
     border: 1px solid #e6dccb !important;
     border-radius: 4px !important;
