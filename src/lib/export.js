@@ -142,6 +142,12 @@ function downloadBlob(blob, filename) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
+// Arabic / Hebrew / Persian / Urdu / Syriac / Thaana / N'Ko — anything Word
+// treats as a complex (RTL) script. Per-paragraph detection means a mixed
+// EN/AR doc keeps each paragraph aligned to its own dominant script.
+const RTL_RE = /[֐-ࣿיִ-﷿ﹰ-ﻼ]/;
+const isRtl = (s) => RTL_RE.test(String(s ?? ""));
+
 export async function exportDocx(doc) {
   const docx = await import("docx");
   const { Document, Packer, Paragraph, TextRun, HeadingLevel } = docx;
@@ -154,85 +160,140 @@ export async function exportDocx(doc) {
   const MUTED = "6E5C4A";
   const CLAY = "B5754E";
 
+  // Build a TextRun that knows whether it sits in an RTL paragraph. The
+  // `rightToLeft` flag emits w:rtl so Word treats the run as complex script
+  // and bidi-orders it correctly.
+  const tr = (textOrOpts, rtl) => {
+    const base = typeof textOrOpts === "string" ? { text: textOrOpts } : textOrOpts;
+    return new TextRun({ ...base, ...(rtl ? { rightToLeft: true } : {}) });
+  };
+  // Paragraph with bidirectional set when its text contains RTL script.
+  const para = (opts, refText) => {
+    const probe = refText != null ? refText : opts.text;
+    const rtl = isRtl(probe);
+    return new Paragraph({ ...opts, ...(rtl ? { bidirectional: true } : {}) });
+  };
+
   const kids = [];
-  kids.push(new Paragraph({ text: doc.title || "Untitled", heading: HeadingLevel.TITLE }));
+  kids.push(para({ text: doc.title || "Untitled", heading: HeadingLevel.TITLE }));
   if (doc.subtitle)
     kids.push(
-      new Paragraph({ children: [new TextRun({ text: doc.subtitle, italics: true, color: MUTED })] })
+      para(
+        { children: [tr({ text: doc.subtitle, italics: true, color: MUTED }, isRtl(doc.subtitle))] },
+        doc.subtitle
+      )
     );
   const metaItems = (doc.meta || []).filter((m) => m && m.value != null && String(m.value).trim() !== "");
-  if (metaItems.length)
+  if (metaItems.length) {
+    const metaText = metaItems.map((m) => `${m.label} ${m.value}`).join(" ");
+    const metaRtl = isRtl(metaText);
     kids.push(
-      new Paragraph({
-        children: metaItems.flatMap((m, i) => [
-          ...(i ? [new TextRun({ text: "    •    ", color: CLAY })] : []),
-          new TextRun({ text: `${m.label}: `, bold: true }),
-          new TextRun(String(m.value)),
-        ]),
-      })
+      para(
+        {
+          children: metaItems.flatMap((m, i) => [
+            ...(i ? [tr({ text: "    •    ", color: CLAY }, metaRtl)] : []),
+            tr({ text: `${m.label}: `, bold: true }, metaRtl),
+            tr(String(m.value), metaRtl),
+          ]),
+        },
+        metaText
+      )
     );
+  }
   kids.push(new Paragraph({ text: "" }));
 
   for (const b of doc.blocks || []) {
     switch (b?.type) {
       case "heading":
         kids.push(
-          new Paragraph({ text: b.text || "", heading: HEADINGS[Math.min((b.level || 2) - 1, 3)] })
+          para({ text: b.text || "", heading: HEADINGS[Math.min((b.level || 2) - 1, 3)] })
         );
         break;
       case "paragraph":
-        (String(b.text || "").split(/\r?\n/)).forEach((line) =>
-          kids.push(new Paragraph({ children: [new TextRun(line)] }))
-        );
+        (String(b.text || "").split(/\r?\n/)).forEach((line) => {
+          const rtl = isRtl(line);
+          kids.push(para({ children: [tr(line, rtl)] }, line));
+        });
         break;
-      case "note":
+      case "note": {
+        const rtl = isRtl(b.text);
         kids.push(
-          new Paragraph({ children: [new TextRun({ text: b.text || "", italics: true, color: MUTED })] })
+          para(
+            { children: [tr({ text: b.text || "", italics: true, color: MUTED }, rtl)] },
+            b.text
+          )
         );
         break;
+      }
       case "list":
         (b.items || [])
           .filter((it) => it != null && String(it).trim() !== "")
-          .forEach((it, i) =>
-            kids.push(
-              b.ordered
-                ? new Paragraph({ children: [new TextRun(`${i + 1}. ${it}`)], indent: { left: 360 } })
-                : new Paragraph({ text: String(it), bullet: { level: 0 } })
-            )
-          );
+          .forEach((it, i) => {
+            const rtl = isRtl(it);
+            if (b.ordered) {
+              kids.push(
+                para(
+                  { children: [tr(`${i + 1}. ${it}`, rtl)], indent: { left: 360 } },
+                  it
+                )
+              );
+            } else {
+              kids.push(para({ text: String(it), bullet: { level: 0 } }, it));
+            }
+          });
         break;
       case "qa": {
+        const qText = `${b.prompt || ""} ${(b.choices || []).join(" ")} ${b.answer || ""}`;
+        const qRtl = isRtl(qText);
         kids.push(
-          new Paragraph({
-            children: [
-              new TextRun({ text: `${b.n}. `, bold: true }),
-              new TextRun(b.prompt || ""),
-              ...(b.marks != null
-                ? [
-                    new TextRun({
-                      text: `   (${b.marks} ${b.marksLabel || (b.marks == 1 ? "mark" : "marks")})`,
-                      italics: true,
-                      color: MUTED,
-                    }),
-                  ]
-                : []),
-            ],
-          })
-        );
-        (b.choices || []).forEach((c, i) =>
-          kids.push(
-            new Paragraph({ children: [new TextRun(`${String.fromCharCode(65 + i)}. ${c}`)], indent: { left: 480 } })
+          para(
+            {
+              children: [
+                tr({ text: `${b.n}. `, bold: true }, qRtl),
+                tr(b.prompt || "", qRtl),
+                ...(b.marks != null
+                  ? [
+                      tr(
+                        {
+                          text: `   (${b.marks} ${b.marksLabel || (b.marks == 1 ? "mark" : "marks")})`,
+                          italics: true,
+                          color: MUTED,
+                        },
+                        qRtl
+                      ),
+                    ]
+                  : []),
+              ],
+            },
+            qText
           )
         );
-        if (b.answer)
+        (b.choices || []).forEach((c, i) => {
+          const cRtl = isRtl(c) || qRtl;
           kids.push(
-            new Paragraph({
-              children: [
-                new TextRun({ text: `${b.answerLabel || "Answer"}: `, bold: true }),
-                new TextRun(b.answer),
-              ],
-            })
+            para(
+              {
+                children: [tr(`${String.fromCharCode(65 + i)}. ${c}`, cRtl)],
+                indent: { left: 480 },
+              },
+              c
+            )
           );
+        });
+        if (b.answer) {
+          const aRtl = isRtl(b.answer) || qRtl;
+          kids.push(
+            para(
+              {
+                children: [
+                  tr({ text: `${b.answerLabel || "Answer"}: `, bold: true }, aRtl),
+                  tr(b.answer, aRtl),
+                ],
+              },
+              b.answer
+            )
+          );
+        }
         kids.push(new Paragraph({ text: "" }));
         break;
       }
