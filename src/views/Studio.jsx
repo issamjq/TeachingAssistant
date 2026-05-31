@@ -2146,19 +2146,13 @@ export default function Studio({ initialKind } = {}) {
                         </div>
                       )}
                     </div>
-                    {/* Quiz questions render the prompt prominently inside
-                        the card (un-truncated, with marks + type chips), so
-                        echoing it as a big h3 above only steals viewport and
-                        clips long prompts. Hide the h3 for quiz_question
-                        sections; every other kind still needs the heading. */}
-                    {currentSection?.kind !== "quiz_question" && (
-                      <h3
-                        className="font-serif text-2xl md:text-3xl font-medium text-ink mb-5 leading-tight"
-                        dir={quizRtl ? "rtl" : undefined}
-                      >
-                        {currentSection?.title}
-                      </h3>
-                    )}
+                    {/* Every section kind renders its own title inside the
+                        card (StudioCard, QuizMetaCard, QuizQuestionCard),
+                        so the big h3 above was always a duplicate that
+                        also clipped long titles at the panel edge. Drop
+                        it across the board — lesson, homework, activity,
+                        presentation, and quiz all rely on the in-card
+                        title now. */}
 
                     {/* Section content — keyed so the in-animation fires
                         on each navigation. Quiz sections render a typed
