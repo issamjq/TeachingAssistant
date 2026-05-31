@@ -2316,7 +2316,7 @@ export default function Studio({ initialKind } = {}) {
             <div>
               <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-accent inline-flex items-center gap-1.5">
                 <Sparkles size={11} strokeWidth={1.75} /> {t("studio.refine")}
-                <HelpTip text="Type a plain-English instruction and Murchid will rewrite. Examples: 'make this harder', 'replace with a word problem', 'translate the whole quiz to Arabic'. Pick This question or Whole quiz on the left to choose the scope." />
+                <HelpTip text={t("studio.refine.help")} />
               </p>
               <p className="font-serif italic text-[11.5px] text-muted leading-tight mt-0.5">
                 {result?.kind === "quiz"
@@ -3822,7 +3822,7 @@ function ScheduledDateRow({ value, onChange, score, onScoreChange }) {
         <span className="inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.16em] text-muted">
           <Calendar size={11} strokeWidth={1.75} />
           {t("studio.schedule.label")}
-          <HelpTip text="When students should sit this quiz. Saved with the quiz so it shows up in Schedule and Quizzes & Exams. Leave blank to decide later." />
+          <HelpTip text={t("studio.schedule.help")} />
         </span>
         <DatePicker
           value={value ? String(value).slice(0, 10) : ""}
@@ -3854,7 +3854,7 @@ function ScheduledDateRow({ value, onChange, score, onScoreChange }) {
           <span className="inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.16em] text-muted">
             <Award size={11} strokeWidth={1.75} />
             {t("studio.schedule.score")}
-            <HelpTip text="Total marks for the whole quiz. Required — prints on the PDF and Word hand-out as 'Score: ____ / N' for the teacher to fill in." />
+            <HelpTip text={t("studio.score.help")} />
           </span>
           <input
             type="number"
@@ -3891,7 +3891,7 @@ function InstructionsRow({ mode, text, onModeChange, onTextChange }) {
         <span className="inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.16em] text-muted">
           <ClipboardList size={11} strokeWidth={1.75} />
           {t("studio.instructions.label")}
-          <HelpTip text="The instruction line printed at the top of the PDF and Word hand-out. Auto lets Murchid write it; Custom uses your own wording; None leaves it off." />
+          <HelpTip text={t("studio.instructions.help")} />
         </span>
         <div className="inline-flex rounded-md border border-line overflow-hidden">
           {OPTIONS.map(([v, label], i) => (
