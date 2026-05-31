@@ -114,6 +114,13 @@ const EN = {
   "film.eyebrow": "Watch it draft",
   "film.title.a": "From one line,",
   "film.title.em": "the whole lesson.",
+  // The em's last word retypes to match the kind the showreel is drafting.
+  "film.title.before": "the whole ",
+  "film.title.after": "",
+  "film.title.word.presentation": "presentation.",
+  "film.title.word.lesson_plan": "lesson.",
+  "film.title.word.quiz": "quiz.",
+  "film.title.word.homework": "homework.",
   "film.sub": "Type a topic. Murchid drafts the plan, quiz, slides, activity, and homework — while you watch.",
   "film.windowTitle": "murchid · studio",
   "film.prompt": "Photosynthesis · Grade 6 · 45 min",
@@ -356,6 +363,7 @@ const EN = {
   "ws.grade": "Grade",
   "ws.section": "Section",
   "ws.date": "Date",
+  "ws.major": "Major",
   "ws.score": "Score",
   "ws.instructions": "Instructions",
   "studio.copied": "Copied",
@@ -566,6 +574,9 @@ const EN = {
   "onb.scope.title": "Who do you",
   "onb.scope.titleEm": "teach?",
   "onb.scope.lead": "Pick the grades and sections you currently cover. You can add or change these any time from My students → Teaching profile.",
+  "onb.fld.gender": "I am a",
+  "onb.gender.man": "Man",
+  "onb.gender.woman": "Woman",
   "onb.fld.avatar": "Pick your avatar",
   "onb.fld.firstName": "First name",
   "onb.fld.lastName": "Last name",
@@ -701,7 +712,28 @@ const EN = {
     "Optional focus — e.g. \"only the formulas\" or \"skip the diagrams\". Leave blank to use the whole file(s).",
   "studio.caption.withFile": "Murchid will use the whole file(s)",
   "studio.caption.willFill": "Murchid will fill the rest",
+  "studio.caption.pickAll": "Choose every setting to continue",
   "studio.makeIt": "Make it",
+  "studio.marks.balanced": "All {total} marks assigned",
+  "studio.marks.left": "{remaining} of {total} marks left to assign",
+  "studio.marks.over": "{over} marks over the {total} total",
+  "studio.qmarks.label": "Marks",
+  "studio.qmarks.inc": "Add a mark",
+  "studio.qmarks.dec": "Remove a mark",
+  "studio.cover.title": "Cover",
+  "studio.cover.titlePlaceholder": "Quiz title",
+  "studio.cover.subject": "Subject",
+  "studio.cover.grade": "Grade",
+  "studio.cover.language": "Language",
+  "studio.cover.section": "Section",
+  "studio.cover.difficulty": "Difficulty",
+  "studio.cover.duration": "Duration",
+  "studio.cover.scheduled": "Scheduled",
+  "studio.cover.min": "min",
+  "studio.cover.questions": "{n} questions",
+  "studio.cover.marks": "{n} marks",
+  "studio.cover.instructions": "Instructions",
+  "studio.cover.instrPlaceholder": "Click here to write instructions for your students",
   // chip ↔ prompt conflict warning
   "studio.conflict.eyebrow": "Heads up",
   "studio.conflict.title": "Your settings and prompt disagree.",
@@ -744,11 +776,10 @@ const EN = {
   "studio.params.lesson": "Lesson settings",
   "studio.params.homework": "Homework settings",
   "studio.params.presentation": "Presentation settings",
-  "studio.params.subtitleLead": "Pick the basics first",
-  "studio.params.subtitleTail": "— or leave them blank and Murchid will figure it out.",
-  "studio.params.setCount8": "{n} of 8 set",
-  "studio.params.setCount5": "{n} of 5 set",
-  "studio.params.setCount4": "{n} of 4 set",
+  "studio.params.subtitleLead": "Set every field",
+  "studio.params.subtitleTail": "— Murchid needs them all to build exactly what you want.",
+  "studio.params.setCountN": "{n} of {total} set",
+  "studio.params.allSet": "All set",
   // DropdownChip — labels
   "studio.chip.grade.label": "Grade",
   "studio.chip.grade.empty": "Any grade",
@@ -784,11 +815,16 @@ const EN = {
   "studio.schedule.label": "Schedule for",
   "studio.schedule.today": "Today",
   "studio.schedule.clear": "Clear",
+  "studio.schedule.score": "Score",
+  "studio.schedule.scorePlaceholder": "e.g. 20",
+  "studio.instructions.label": "Instructions",
+  "studio.instructions.auto": "Auto",
+  "studio.instructions.custom": "Custom",
+  "studio.instructions.none": "None",
+  "studio.instructions.placeholder": "e.g. Read each question carefully. Show your working for short-answer questions.",
   // Combobox internals
   "studio.combo.pickOrType": "Pick or type…",
   "studio.combo.addAnother": "Add another…",
-  "studio.combo.anyChoose": "Any — let Murchid choose",
-  "studio.combo.clearAllChoose": "Clear all — let Murchid choose",
   "studio.combo.noMatches": "No matches",
   "studio.combo.custom": "custom",
   "studio.combo.use": "Use ",
@@ -899,6 +935,12 @@ const AR = {
   "film.eyebrow": "شاهِدها تُصاغ",
   "film.title.a": "من سطرٍ واحد،",
   "film.title.em": "الدرس كاملًا.",
+  "film.title.before": "",
+  "film.title.after": " كاملًا.",
+  "film.title.word.presentation": "العرض",
+  "film.title.word.lesson_plan": "الدرس",
+  "film.title.word.quiz": "الاختبار",
+  "film.title.word.homework": "الواجب",
   "film.sub": "اكتب موضوعًا، فيصوغ Murchid الخطة والاختبار والشرائح والنشاط والواجب — وأنت تُشاهد.",
   "film.windowTitle": "مُرشِد · استوديو",
   "film.prompt": "التمثيل الضوئي · الصف السادس · ٤٥ دقيقة",
@@ -1134,6 +1176,7 @@ const AR = {
   "ws.grade": "الصف",
   "ws.section": "الشعبة",
   "ws.date": "التاريخ",
+  "ws.major": "المادة",
   "ws.score": "الدرجة",
   "ws.instructions": "التعليمات",
   "studio.copied": "تم النسخ",
@@ -1343,6 +1386,9 @@ const AR = {
   "onb.scope.title": "من",
   "onb.scope.titleEm": "تُدرّس؟",
   "onb.scope.lead": "اختر الصفوف والشعب التي تُدرّسها حاليًا. يمكنك تعديل ذلك لاحقًا من «طلابي ← الملف التدريسي».",
+  "onb.fld.gender": "أنا",
+  "onb.gender.man": "رجل",
+  "onb.gender.woman": "امرأة",
   "onb.fld.avatar": "اختر صورتك",
   "onb.fld.firstName": "الاسم",
   "onb.fld.lastName": "اسم العائلة",
@@ -1477,7 +1523,28 @@ const AR = {
     "تركيز اختياري — مثال: «الصِيَغ فقط» أو «تجاوز الرسوم». اتركه فارغًا لاستخدام الملف(ات) كاملةً.",
   "studio.caption.withFile": "سيستخدم مرشد الملف(ات) كاملةً",
   "studio.caption.willFill": "سيُكمل مرشد الباقي",
+  "studio.caption.pickAll": "اختر كل الإعدادات للمتابعة",
   "studio.makeIt": "أنشئ",
+  "studio.marks.balanced": "تم توزيع كل الدرجات ({total})",
+  "studio.marks.left": "تبقّى {remaining} من {total} درجة للتوزيع",
+  "studio.marks.over": "{over} درجة فوق المجموع ({total})",
+  "studio.qmarks.label": "الدرجة",
+  "studio.qmarks.inc": "زيادة درجة",
+  "studio.qmarks.dec": "إنقاص درجة",
+  "studio.cover.title": "الغلاف",
+  "studio.cover.titlePlaceholder": "عنوان الاختبار",
+  "studio.cover.subject": "المادة",
+  "studio.cover.grade": "الصف",
+  "studio.cover.language": "اللغة",
+  "studio.cover.section": "الشعبة",
+  "studio.cover.difficulty": "المستوى",
+  "studio.cover.duration": "المدة",
+  "studio.cover.scheduled": "الموعد",
+  "studio.cover.min": "دقيقة",
+  "studio.cover.questions": "{n} أسئلة",
+  "studio.cover.marks": "{n} درجة",
+  "studio.cover.instructions": "التعليمات",
+  "studio.cover.instrPlaceholder": "اضغط هنا لكتابة تعليمات لطلابك",
   // chip ↔ prompt conflict warning
   "studio.conflict.eyebrow": "انتبه",
   "studio.conflict.title": "إعداداتك ونصّ الطلب مختلفان.",
@@ -1520,11 +1587,10 @@ const AR = {
   "studio.params.lesson": "إعدادات الدرس",
   "studio.params.homework": "إعدادات الواجب",
   "studio.params.presentation": "إعدادات العرض",
-  "studio.params.subtitleLead": "اختر الأساسيات أولًا",
-  "studio.params.subtitleTail": "— أو اتركها فارغة وسيتولّى مرشد الباقي.",
-  "studio.params.setCount8": "{n} من 8 محدّد",
-  "studio.params.setCount5": "{n} من 5 محدّد",
-  "studio.params.setCount4": "{n} من 4 محدّد",
+  "studio.params.subtitleLead": "اضبط كل الحقول",
+  "studio.params.subtitleTail": "— يحتاجها مرشد جميعًا لإنشاء ما تريده بدقة.",
+  "studio.params.setCountN": "{n} من {total} محدّد",
+  "studio.params.allSet": "اكتمل",
   // DropdownChip — labels
   "studio.chip.grade.label": "الصف",
   "studio.chip.grade.empty": "أي صف",
@@ -1560,11 +1626,16 @@ const AR = {
   "studio.schedule.label": "جدولة لـ",
   "studio.schedule.today": "اليوم",
   "studio.schedule.clear": "مسح",
+  "studio.schedule.score": "الدرجة",
+  "studio.schedule.scorePlaceholder": "مثال: 20",
+  "studio.instructions.label": "التعليمات",
+  "studio.instructions.auto": "تلقائي",
+  "studio.instructions.custom": "مخصص",
+  "studio.instructions.none": "بدون",
+  "studio.instructions.placeholder": "مثال: اقرأ كل سؤال بعناية. اعرض خطوات حلّك لأسئلة الإجابة القصيرة.",
   // Combobox internals
   "studio.combo.pickOrType": "اختر أو اكتب…",
   "studio.combo.addAnother": "أضف آخر…",
-  "studio.combo.anyChoose": "أي — دع مرشد يختار",
-  "studio.combo.clearAllChoose": "امسح الكل — دع مرشد يختار",
   "studio.combo.noMatches": "لا توجد نتائج",
   "studio.combo.custom": "مخصص",
   "studio.combo.use": "استخدم ",
@@ -1580,6 +1651,28 @@ const AR = {
 };
 
 const DICTS = { en: EN, ar: AR };
+
+// True when a quiz's output language reads right-to-left. Among the quiz
+// languages only Arabic has a full dictionary + RTL layout here; the value
+// arrives either as the code "ar" or the display name "Arabic".
+export const isArabicLang = (lang) => lang === "ar" || lang === "Arabic";
+
+// Translate a key into an EXPLICIT language, independent of the UI toggle.
+// Used for exports (PDF / Word) where the worksheet titles must match the
+// quiz's own language, not whatever the app is currently set to. Only en/ar
+// dictionaries exist, so anything that isn't Arabic falls back to English.
+export function tIn(lang, key, vars) {
+  const dict = (isArabicLang(lang) ? DICTS.ar : DICTS.en) || EN;
+  let s = dict[key];
+  if (s == null) s = EN[key];
+  if (s == null) return key;
+  if (vars) {
+    for (const [k, val] of Object.entries(vars)) {
+      s = s.replace(new RegExp(`\\{${k}\\}`, "g"), String(val));
+    }
+  }
+  return s;
+}
 
 // ── Context ───────────────────────────────────────────────────────
 const I18nContext = createContext({

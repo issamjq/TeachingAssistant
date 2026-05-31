@@ -4,12 +4,13 @@ import {
   Sparkles, FileText, ClipboardList, GraduationCap,
   Layers, Users, Calendar, Save, Copy, Check, X, RotateCcw, FileDown,
   Send, Paperclip, Plus, Wand2, RefreshCw, Zap, Dices, ChevronDown,
-  BookOpen, Gauge, Hash, Clock, Globe, HelpCircle, ListChecks,
+  BookOpen, Gauge, Hash, Clock, Globe, HelpCircle, ListChecks, Award, Minus,
+  Pencil,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { api, DatePicker } from "./_shared";
-import { useT, useI18n } from "../lib/i18n";
+import { useT, useI18n, tIn, isArabicLang } from "../lib/i18n";
 import { parseSections, joinSections, renderMarkdown } from "../lib/markdown";
 import StudioCard from "./StudioCard";
 import SlideBuilder from "./SlideBuilder";
@@ -116,10 +117,10 @@ const recentLabel = (s) => {
   return head.length <= 28 ? head : head.slice(0, 26).trim() + "…";
 };
 
-// Pre-prompt parameters the teacher can lock in before a quiz is generated.
-// Every field is optional — if left empty the AI infers from the prompt.
-// Default to empty (not 10 / 30 / Medium) so the chip placeholder reads
-// "Pick…" and the teacher sees them as actual choices, not pre-decisions.
+// Pre-prompt parameters the teacher locks in before a quiz is generated.
+// Every chip is required (see REQUIRED_CHIPS) — generation is gated until
+// they're all set. Default to empty (not 10 / 30 / Medium) so the chip
+// placeholder reads "Pick…" and the teacher makes a real choice.
 const QUIZ_PARAMS_DEFAULTS = {
   grade: "",       // from GRADE_LEVELS
   major: "",       // from MAJORS (this codebase's school-subject list)
@@ -130,12 +131,15 @@ const QUIZ_PARAMS_DEFAULTS = {
   difficulty: "",  // from QUIZ_DIFFICULTIES
   types: "",       // from QUIZ_QUESTION_MIXES — which question types to include
   scheduled_for: "", // YYYY-MM-DD — when this quiz should run (cover-only meta)
+  total_marks: "", // teacher-set total score; prints as "Score: ___ / N"
+  instructions_mode: "none", // "auto" | "custom" | "none" — the worksheet instruction line
+  instructions: "",          // teacher's own line, used when instructions_mode === "custom"
 };
 
 // Activity pre-prompt panel mirrors the quiz settings layout but with
 // activity-specific labels. Per the chip rules, activities have NO
 // grade or section — only Type, Major, Language, Duration. Same idea:
-// every field is optional, Murchid infers from the prompt when blank.
+// all four are required before Murchid will build.
 const ACTIVITY_TYPES = ["Individual", "Pair", "Group"];
 const ACTIVITY_DURATIONS = [10, 15, 20, 30, 45, 60];
 const ACTIVITY_PARAMS_DEFAULTS = {
@@ -423,8 +427,8 @@ export default function Studio({ initialKind } = {}) {
   // quiz object arrives in the final `done` event (backend restructures
   // the finished markdown) and drives the editable cards.
   const [streamingText, setStreamingText] = useState("");
-  // Pre-prompt knobs the teacher can lock in before generating a quiz.
-  // Every field is optional — left as "" / null the AI infers from prose.
+  // Pre-prompt knobs the teacher locks in before generating a quiz.
+  // Every chip is required (REQUIRED_CHIPS) — generation is gated until set.
   // Only surfaced when kind === "quiz".
   const [quizParams, setQuizParams] = useState(QUIZ_PARAMS_DEFAULTS);
   const [activityParams, setActivityParams] = useState(ACTIVITY_PARAMS_DEFAULTS);
@@ -551,13 +555,13 @@ export default function Studio({ initialKind } = {}) {
       const questions = (prev.quiz.questions || []).map((q, i) =>
         i === index ? { ...q, ...patch } : q
       );
-      const totalMarks = questions.reduce(
-        (s, q) => s + (Number(q.marks) || 0),
-        0
-      );
+      // total_marks is the teacher's intended total (set on the Score field
+      // and fixed). Per-question marks are allocated against it — they must
+      // add up to total_marks before the quiz can be exported — so we do NOT
+      // overwrite total_marks with the running sum here.
       return {
         ...prev,
-        quiz: { ...prev.quiz, questions, total_marks: totalMarks },
+        quiz: { ...prev.quiz, questions },
       };
     });
     setIsDirty(true);
@@ -692,6 +696,10 @@ export default function Studio({ initialKind } = {}) {
       kind === "presentation"  ? presentationParams :
       null;
     const paramsToCheck = isQuiz ? quizParams : paramsForKindRaw;
+    // Every setting must be chosen first — the teacher fills all chips, so
+    // Murchid never guesses the basics. The button mirrors this guard, but
+    // Cmd+Enter routes here directly, so enforce it here too.
+    if (!chipsComplete(kind, paramsToCheck)) return;
     const conflicts = detectChipPromptConflicts(prompt, paramsToCheck, kind);
     if (conflicts.length > 0) {
       // Hand the actual fetch to the modal — it'll call runGenerate(true)
@@ -799,9 +807,25 @@ export default function Studio({ initialKind } = {}) {
               // we commit. The AI doesn't generate this field — it's purely
               // a planning value the teacher set on the picker — but it has
               // to ride along on result.quiz so the save payload picks it up.
+              // Worksheet instruction line: "auto" keeps what the AI wrote,
+              // "custom" swaps in the teacher's own text, "none" drops it.
+              const instrMode = quizParams.instructions_mode || "none";
+              const instrOverride =
+                instrMode === "custom"
+                  ? { instructions: quizParams.instructions || "" }
+                  : instrMode === "none"
+                  ? { instructions: "" }
+                  : {};
               const aiQuiz = {
                 ...payload.quiz,
+                ...instrOverride,
+                // Keep the chosen output language on the quiz so the export
+                // worksheet titles can match it (Arabic quiz → Arabic, RTL).
+                language: payload.quiz.language || quizParams.language || uiDefaultLang,
                 ...(quizParams.scheduled_for ? { scheduled_for: quizParams.scheduled_for } : {}),
+                ...(quizParams.total_marks !== "" && quizParams.total_marks != null
+                  ? { total_marks: Number(quizParams.total_marks) }
+                  : {}),
               };
               setResult({
                 kind: "quiz",
@@ -1104,7 +1128,10 @@ export default function Studio({ initialKind } = {}) {
   // Always derive from sections so manual edits + regenerations flow through.
   const fullText = () => (sections.length ? joinSections(sections) : streamingText);
 
-  const exportPdf = () => window.print();
+  const exportPdf = () => {
+    if (exportBlocked) return;
+    window.print();
+  };
 
   // Per-kind export formats. Lesson plans, quizzes, and homework can be
   // shipped to either PDF or Word; presentations are slide decks so PDF is
@@ -1119,6 +1146,38 @@ export default function Studio({ initialKind } = {}) {
   };
   const exportKind = result?.kind || kind;
   const availableFormats = FORMATS_BY_KIND[exportKind] || ["pdf"];
+
+  // The current kind's settings bag + whether every required chip is set.
+  // Gates the "Make it" button so the teacher chooses everything first.
+  const currentKindParams =
+    kind === "quiz"         ? quizParams         :
+    kind === "lesson_plan"  ? lessonParams       :
+    kind === "homework"     ? homeworkParams     :
+    kind === "activity"     ? activityParams     :
+    kind === "presentation" ? presentationParams :
+    null;
+  const paramsComplete = chipsComplete(kind, currentKindParams);
+
+  // Per-question marks allocation. total_marks is the teacher's fixed total
+  // (Score field); the per-question marks must add up to it before the quiz
+  // can be exported, so the teacher consciously weights every question.
+  const quizMarks = (() => {
+    if (result?.kind !== "quiz" || !result.quiz) return null;
+    const qs = result.quiz.questions || [];
+    const total = Number(result.quiz.total_marks) || 0;
+    const allocated = qs.reduce((s, q) => s + (Number(q.marks) || 0), 0);
+    return {
+      total,
+      allocated,
+      remaining: total - allocated,
+      count: qs.length,
+      balanced: total > 0 && qs.length > 0 && allocated === total,
+    };
+  })();
+  // Block PDF / Word export until every mark is allocated to a question.
+  const exportBlocked = !!quizMarks && quizMarks.total > 0 && !quizMarks.balanced;
+  // The on-screen quiz preview reads right-to-left for an Arabic quiz.
+  const quizRtl = result?.kind === "quiz" && isArabicLang(result.quiz?.language);
 
   // Drop a single leading "# Title" line so the worksheet header (which
   // already prints the title centered) isn't followed by a duplicate H1.
@@ -1135,17 +1194,17 @@ export default function Studio({ initialKind } = {}) {
   // refused to read it. `docx` is dynamic-imported so the package only
   // ships when the teacher actually clicks Word.
   const exportDoc = async () => {
-    if (!result) return;
+    if (!result || exportBlocked) return;
     const docx = await import("docx");
     const {
       Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType,
-      Table, TableRow, TableCell, WidthType, BorderStyle, LevelFormat,
+      BorderStyle, LevelFormat, Table, TableRow, TableCell, WidthType, TableLayoutType,
     } = docx;
     const NO_BORDERS = {
-      top:     { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
-      bottom:  { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
-      left:    { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
-      right:   { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
+      top:    { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
+      bottom: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
+      left:   { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
+      right:  { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
       insideHorizontal: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
       insideVertical:   { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
     };
@@ -1231,113 +1290,160 @@ export default function Studio({ initialKind } = {}) {
     const isWorksheet = k === "quiz" || k === "homework";
 
     // ---- worksheet header (quiz + homework only) ----
+    // Titles follow the QUIZ's own language (not the app toggle): Arabic
+    // quiz → Arabic titles, laid out right-to-left; everything else English.
+    const q = result.quiz || {};
+    const qLang = q.language;
+    const rtl = isArabicLang(qLang);
+    const L = (key) => tIn(qLang, key);
+    // Use PHYSICAL alignment for Arabic: AlignmentType.START / END are
+    // supposed to flip based on paragraph direction, but Microsoft Word
+    // (and Apple Pages) don't reliably honor jc="start" inside a bidi
+    // paragraph — text comes out left-aligned even when bidirectional is
+    // set. Map to RIGHT/LEFT explicitly so every viewer obeys.
+    const align = rtl ? AlignmentType.RIGHT : undefined;
     if (isWorksheet) {
-      // centered serif title
+      // centered serif title, underlined full-width like the PDF worksheet
       children.push(new Paragraph({
-        children: [new TextRun({ text: docTitle, size: 48, font: "Cambria" })],
+        children: [new TextRun({ text: docTitle, size: 48, font: "Georgia", rightToLeft: rtl })],
         alignment: AlignmentType.CENTER,
-        spacing: { after: 80 },
+        bidirectional: rtl,
+        spacing: { after: 160 },
+        border: { bottom: { color: "1A1814", size: 8, space: 10, style: BorderStyle.SINGLE } },
       }));
-      // mono uppercase meta strip (quizzes only — homework has no params)
-      if (k === "quiz" && result.quiz) {
-        const q = result.quiz;
-        const metaParts = [
-          q.subject, q.grade, q.section, q.difficulty,
-          q.duration_minutes ? `${q.duration_minutes} min` : null,
-          q.total_marks ? `${q.total_marks} marks` : null,
-        ].filter(Boolean);
-        if (metaParts.length) {
-          children.push(new Paragraph({
-            children: [new TextRun({
-              text: metaParts.join(" · ").toUpperCase(),
-              size: 18, color: "6B675E", font: "Consolas",
-              characterSpacing: 30,
-            })],
-            alignment: AlignmentType.CENTER,
-            spacing: { after: 240 },
-          }));
-        }
-      }
-      // fill-in fields table — Name / Date on row 1, Grade / Section on row 2
-      const blank = "_______________________";
-      const fieldCell = (label) => new TableCell({
-        width: { size: 50, type: WidthType.PERCENTAGE },
+      // breathing room under the title rule, before the fill-in fields
+      children.push(new Paragraph({ children: [new TextRun({ text: "" })] }));
+      // Fill-in fields — Date / Grade / Section / Major are pre-filled with
+      // what the teacher already set; Name and Score stay blank for the
+      // student / grading. LTR uses a tab stop at the page midpoint for two
+      // columns (a docx table collapses in Pages/Preview). RTL drops to one
+      // right-aligned column per line — RTL tab stops are unreliable.
+      const scheduled = q.scheduled_for ? String(q.scheduled_for).slice(0, 10) : "";
+      const totalMarks = q.total_marks;
+      const blank = "______________";
+      const scoreExtra = totalMarks ? [new TextRun({ text: ` / ${totalMarks}`, bold: true })] : [];
+      const fieldRuns = (label, value, extra = []) => [
+        new TextRun({ text: `${label}: `, bold: true, rightToLeft: rtl }),
+        value ? new TextRun({ text: String(value), bold: true }) : new TextRun({ text: blank }),
+        ...extra,
+      ];
+      const rows = [
+        [{ label: L("ws.name"), value: "" }, { label: L("ws.date"), value: scheduled }],
+        [{ label: L("ws.grade"), value: trimFieldPrefix(q.grade, "Grade") }, { label: L("ws.section"), value: trimFieldPrefix(q.section, "Section") }],
+        [{ label: L("ws.major"), value: q.subject }, { label: L("ws.score"), value: "", extra: scoreExtra }],
+      ];
+      // Two-column header via a fixed-width borderless TABLE — same structure
+      // for English and Arabic. Tab stops are ignored by some .docx viewers
+      // (Pages / Quick Look), so a table is the only reliable way to pin the
+      // outer column to the page edge. The primary column (Name/Grade/Major)
+      // is wide and hugs the outer edge; the secondary column (Date/Section/
+      // Score) is narrower and hugs the inner... For Arabic the whole table is
+      // laid right-to-left (visuallyRightToLeft) so it mirrors the English.
+      // outer column hugs the leading edge, secondary hugs the far edge.
+      // For LTR: outer=LEFT, secondary=RIGHT. For RTL: outer=RIGHT, secondary=LEFT.
+      // (START/END are spec'd as direction-aware but Word/Pages don't honor
+      // them reliably inside bidi paragraphs — use physical alignment.)
+      const outerAlign = rtl ? AlignmentType.RIGHT : AlignmentType.LEFT;
+      const innerAlign = rtl ? AlignmentType.LEFT : AlignmentType.RIGHT;
+      const cell = (runs, width, outer) => new TableCell({
+        width: { size: width, type: WidthType.DXA },
         borders: NO_BORDERS,
+        margins: { top: 30, bottom: 30, left: 0, right: 0 },
         children: [new Paragraph({
-          children: [
-            new TextRun({ text: `${label}: `, bold: true }),
-            new TextRun({ text: blank }),
-          ],
-          spacing: { after: 80 },
+          bidirectional: rtl,
+          alignment: outer ? outerAlign : innerAlign,
+          children: runs,
         })],
       });
       children.push(new Table({
-        width: { size: 100, type: WidthType.PERCENTAGE },
+        width: { size: 9360, type: WidthType.DXA },
+        layout: TableLayoutType.FIXED,
+        columnWidths: [5760, 3600],
         borders: NO_BORDERS,
-        rows: [
-          new TableRow({ children: [fieldCell(t("ws.name")),  fieldCell(t("ws.date"))] }),
-          new TableRow({ children: [fieldCell(t("ws.grade")), fieldCell(t("ws.section"))] }),
-        ],
+        visuallyRightToLeft: rtl,
+        rows: rows.map(([f1, f2]) => new TableRow({
+          children: [
+            cell(fieldRuns(f1.label, f1.value, f1.extra), 5760, true),
+            cell(fieldRuns(f2.label, f2.value, f2.extra), 3600, false),
+          ],
+        })),
       }));
-      // score row — spans full width and shows " / N" when total_marks known
-      const totalMarks = result.quiz?.total_marks;
-      children.push(new Paragraph({
-        children: [
-          new TextRun({ text: `${t("ws.score")}: `, bold: true }),
-          new TextRun({ text: blank }),
-          ...(totalMarks ? [new TextRun({ text: ` / ${totalMarks}`, bold: true })] : []),
-        ],
-        spacing: { before: 80, after: 240 },
-      }));
-      // instructions pull-quote (quiz only)
-      if (k === "quiz" && result.quiz?.instructions) {
+      // instructions pull-quote (quiz only) — with a gap above it so it
+      // doesn't sit right on the Major / Score line.
+      if (k === "quiz" && q.instructions) {
+        children.push(new Paragraph({ children: [new TextRun({ text: "" })] }));
         children.push(new Paragraph({
-          children: [new TextRun({ text: result.quiz.instructions, italics: true })],
-          spacing: { after: 240 },
+          alignment: align,
+          bidirectional: rtl,
+          children: [
+            new TextRun({ text: `${L("ws.instructions")}: `, bold: true, rightToLeft: rtl }),
+            new TextRun({ text: q.instructions, italics: true }),
+          ],
+          spacing: { before: 120, after: 240 },
         }));
       }
+      // gap between the header block and the first question
+      children.push(new Paragraph({ children: [new TextRun({ text: "" })] }));
     }
 
     // ---- body ----
+    // Question text comes from the AI in the quiz's language; align / indent
+    // it to match (right-to-left for Arabic) and translate the fixed bits.
+    const indentInside = rtl ? { right: 480 } : { left: 480 };
     if (k === "quiz" && result.quiz) {
       const questions = result.quiz.questions || [];
       questions.forEach((qq, i) => {
+        // blank line between questions so they don't run together
+        if (i > 0) children.push(new Paragraph({ children: [new TextRun({ text: "" })] }));
         const num = qq.position ?? i + 1;
-        const marks = qq.marks ? `  (${qq.marks} mark${qq.marks > 1 ? "s" : ""})` : "";
+        const marks = qq.marks
+          ? `  (${qq.marks} ${qq.marks > 1 ? L("export.marks") : L("export.mark")})`
+          : "";
         children.push(new Paragraph({
+          alignment: align,
+          bidirectional: rtl,
           children: [
-            new TextRun({ text: `${num}. `, bold: true }),
-            new TextRun({ text: qq.prompt || "", bold: true }),
-            new TextRun({ text: marks, italics: true, color: "6B675E" }),
+            new TextRun({ text: `${num}. `, bold: true, rightToLeft: rtl }),
+            new TextRun({ text: qq.prompt || "", bold: true, rightToLeft: rtl }),
+            new TextRun({ text: marks, italics: true, color: "6B675E", rightToLeft: rtl }),
           ],
-          spacing: { before: 200, after: 80 },
+          spacing: { before: 80, after: 80 },
         }));
+        // blank line between the question and its answers (MCQ options /
+        // True-False / write-in lines). Paragraph spacing alone is ignored by
+        // some .docx viewers, so use a real empty paragraph.
+        children.push(new Paragraph({ children: [new TextRun({ text: "" })] }));
         if (qq.type === "mcq" && Array.isArray(qq.choices) && qq.choices.length) {
-          qq.choices.forEach((c, idx) => {
-            const letter = String.fromCharCode(65 + idx);
+          // Each option gets an empty bubble for the student to tick.
+          qq.choices.forEach((c) => {
             const tx = typeof c === "string" ? c : (c?.text ?? c?.label ?? "");
             children.push(new Paragraph({
+              alignment: align,
+              bidirectional: rtl,
               children: [
-                new TextRun({ text: `${letter}. `, bold: true }),
-                new TextRun({ text: tx }),
+                new TextRun({ text: "○  ", rightToLeft: rtl }),
+                new TextRun({ text: tx, rightToLeft: rtl }),
               ],
-              indent: { left: 480 },
-              spacing: { after: 40 },
+              indent: indentInside,
+              spacing: { after: 100 },
             }));
           });
-        } else if (qq.type === "true_false") {
+        } else if (qq.type === "tf" || qq.type === "true_false") {
           children.push(new Paragraph({
-            children: [new TextRun({ text: "○ True       ○ False" })],
-            indent: { left: 480 },
-            spacing: { after: 80 },
+            alignment: align,
+            bidirectional: rtl,
+            children: [new TextRun({ text: `○ ${L("export.true")}       ○ ${L("export.false")}`, rightToLeft: rtl })],
+            indent: indentInside,
+            spacing: { after: 140 },
           }));
         } else {
-          // write-in: three underline rules
+          // write-in: real underscore lines the student writes on
           for (let r = 0; r < 3; r++) {
             children.push(new Paragraph({
-              children: [new TextRun({ text: " ".repeat(80) })],
-              border: { bottom: { color: "999999", space: 1, style: BorderStyle.SINGLE, size: 4 } },
-              spacing: { after: 120 },
+              children: [new TextRun({ text: "_".repeat(60) })],
+              alignment: align,
+              bidirectional: rtl,
+              spacing: { before: 60, after: 220 },
             }));
           }
         }
@@ -1364,7 +1470,7 @@ export default function Studio({ initialKind } = {}) {
       },
       styles: {
         default: {
-          document: { run: { font: "Calibri", size: 22 } },
+          document: { run: { font: "Arial", size: 22 } },
         },
       },
       sections: [{ children }],
@@ -1653,13 +1759,34 @@ export default function Studio({ initialKind } = {}) {
             </p>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
+            {quizMarks && quizMarks.total > 0 && (
+              <span
+                className={`text-xs font-medium px-2.5 py-1 rounded-full border inline-flex items-center gap-1.5 ${
+                  quizMarks.balanced
+                    ? "border-sage/40 text-sage bg-sage/[0.06]"
+                    : "border-accent/40 text-accent bg-accent/[0.06]"
+                }`}
+                title={
+                  quizMarks.balanced
+                    ? "All marks are assigned — you can export."
+                    : "Assign every mark across the questions (edit each question's marks) before you can export to PDF or Word."
+                }
+              >
+                {quizMarks.balanced && <Check size={12} strokeWidth={2.5} />}
+                {quizMarks.balanced
+                  ? t("studio.marks.balanced", { total: quizMarks.total })
+                  : quizMarks.remaining >= 0
+                  ? t("studio.marks.left", { remaining: quizMarks.remaining, total: quizMarks.total })
+                  : t("studio.marks.over", { over: -quizMarks.remaining, total: quizMarks.total })}
+              </span>
+            )}
             {availableFormats.includes("doc") && (
               <Button
                 variant="secondary"
                 onClick={exportDoc}
-                disabled={!result}
+                disabled={!result || exportBlocked}
                 className="text-xs px-3 py-1.5"
-                title="Download as a Microsoft Word document"
+                title={exportBlocked ? "Assign all marks to the questions first" : "Download as a Microsoft Word document"}
               >
                 <FileText size={13} className="mr-1.5" /> {t("studio.doc")}
               </Button>
@@ -1668,9 +1795,9 @@ export default function Studio({ initialKind } = {}) {
               <Button
                 variant="secondary"
                 onClick={exportPdf}
-                disabled={!result}
+                disabled={!result || exportBlocked}
                 className="text-xs px-3 py-1.5"
-                title="Open the print dialog and choose Save as PDF"
+                title={exportBlocked ? "Assign all marks to the questions first" : "Open the print dialog and choose Save as PDF"}
               >
                 <FileDown size={13} className="mr-1.5" /> {t("studio.pdf")}
               </Button>
@@ -1859,9 +1986,11 @@ export default function Studio({ initialKind } = {}) {
                               </span>
                             )}
                             <span className={`block text-[12.5px] font-medium text-ink leading-snug ${
-                              (isQuiz && s.kind === "quiz_question") || isSlide ? "line-clamp-2" : "truncate"
+                              isSlide ? "line-clamp-2" : "truncate"
                             }`}>
-                              {primaryLabel}
+                              {isQuiz && s.kind === "quiz_question"
+                                ? previewWords(primaryLabel, 4)
+                                : primaryLabel}
                             </span>
                           </span>
                           {s.regenerating || s.streaming ? (
@@ -1906,7 +2035,6 @@ export default function Studio({ initialKind } = {}) {
                   kind={result?.kind || kind}
                   title={docTitle}
                   quiz={result?.kind === "quiz" ? result.quiz : null}
-                  t={t}
                 />
                 {result?.kind === "quiz" && result.quiz ? (
                   // Quizzes don't keep markdown on their section rows
@@ -2018,7 +2146,10 @@ export default function Studio({ initialKind } = {}) {
                         </div>
                       )}
                     </div>
-                    <h3 className="font-serif text-2xl md:text-3xl font-medium text-ink mb-5 leading-tight">
+                    <h3
+                      className="font-serif text-2xl md:text-3xl font-medium text-ink mb-5 leading-tight"
+                      dir={quizRtl ? "rtl" : undefined}
+                    >
                       {currentSection?.title}
                     </h3>
 
@@ -2074,13 +2205,16 @@ export default function Studio({ initialKind } = {}) {
                           // (prompt + choices + answer fill in live).
                           // Settled question: the editable card.
                           currentSection.streaming ? (
-                            <LiveQuestionCard q={currentSection.question} busy={busy} />
+                            <LiveQuestionCard q={currentSection.question} busy={busy} rtl={quizRtl} />
                           ) : (
                             <QuizQuestionCard
                               question={currentSection.question}
                               index={sectionIndex - 1}
                               onUpdate={(patch) => updateQuestion(sectionIndex - 1, patch)}
                               disabled={quizScopeBusy}
+                              rtl={quizRtl}
+                              marksTotal={quizMarks?.total || 0}
+                              marksRemaining={quizMarks?.remaining ?? 0}
                             />
                           )
                         ) : (
@@ -2460,15 +2594,17 @@ export default function Studio({ initialKind } = {}) {
             )}
           </div>
           <div className="flex items-center gap-3">
-            <p className="hidden sm:block text-xs text-muted italic">
-              {hasAttach && !prompt.trim()
+            <p className={`hidden sm:block text-xs italic ${paramsComplete ? "text-muted" : "text-accent"}`}>
+              {!paramsComplete
+                ? t("studio.caption.pickAll")
+                : hasAttach && !prompt.trim()
                 ? t("studio.caption.withFile")
                 : t("studio.caption.willFill")}
             </p>
             <Button
               variant="danger"
               onClick={generate}
-              disabled={!prompt.trim() && !hasAttach}
+              disabled={(!prompt.trim() && !hasAttach) || !paramsComplete}
               className="hover:scale-[1.02] active:scale-[0.99] transition-transform duration-200 px-4 py-2 text-sm"
             >
               <Send size={14} className="mr-1.5" />
@@ -2530,46 +2666,44 @@ export default function Studio({ initialKind } = {}) {
 // student fill-in row a real school paper has: Name / Date / Grade /
 // Section / Score. Lesson plans and presentations don't get a header —
 // those aren't student-facing.
-function WorksheetHeader({ kind, title, quiz, t }) {
+// Strip a redundant leading label word so "Grade 6" prints as "Grade: 6"
+// and "Section A" as "Section: A" ("All sections" / "KG 1" stay whole).
+const trimFieldPrefix = (v, word) =>
+  String(v ?? "").replace(new RegExp(`^${word}\\s+`, "i"), "").trim();
+
+function WorksheetHeader({ kind, title, quiz }) {
   if (kind !== "quiz" && kind !== "homework") return null;
-  const metaParts = quiz ? [
-    quiz.subject, quiz.grade, quiz.section,
-    quiz.difficulty,
-    quiz.duration_minutes ? `${quiz.duration_minutes} min` : null,
-    quiz.total_marks ? `${quiz.total_marks} marks` : null,
-  ].filter(Boolean) : [];
+  // Titles follow the QUIZ's own language (not the app toggle): an Arabic
+  // quiz prints Arabic titles, right-to-left; everything else is English.
+  const lang = quiz?.language;
+  const rtl = isArabicLang(lang);
+  const L = (key) => tIn(lang, key);
   const totalMarks = quiz?.total_marks;
+  const scheduled = quiz?.scheduled_for ? String(quiz.scheduled_for).slice(0, 10) : "";
+  // Date / Grade / Section / Major are pre-filled with what the teacher
+  // already set; Name and Score stay blank for the student / grading.
+  const field = (label, value, after) => (
+    <div className="ws-row">
+      <span className="ws-label">{label}:</span>
+      {value ? <span className="ws-value">{value}</span> : <span className="ws-blank" />}
+      {after}
+    </div>
+  );
   return (
-    <div className="ws-paper">
+    <div className="ws-paper" dir={rtl ? "rtl" : "ltr"}>
       <h1 className="ws-title">{title}</h1>
-      {metaParts.length > 0 && (
-        <p className="ws-meta">{metaParts.join(" · ")}</p>
-      )}
       <hr className="ws-rule" />
       <div className="ws-fields">
-        <div className="ws-row">
-          <span className="ws-label">{t("ws.name")}:</span>
-          <span className="ws-blank" />
-        </div>
-        <div className="ws-row">
-          <span className="ws-label">{t("ws.date")}:</span>
-          <span className="ws-blank" />
-        </div>
-        <div className="ws-row">
-          <span className="ws-label">{t("ws.grade")}:</span>
-          <span className="ws-blank" />
-        </div>
-        <div className="ws-row">
-          <span className="ws-label">{t("ws.section")}:</span>
-          <span className="ws-blank" />
-        </div>
-        <div className="ws-row" style={{ gridColumn: "1 / -1" }}>
-          <span className="ws-label">{t("ws.score")}:</span>
-          <span className="ws-blank" />
-          {totalMarks ? (
-            <span style={{ flexShrink: 0, fontWeight: 600 }}>/ {totalMarks}</span>
-          ) : null}
-        </div>
+        {field(L("ws.name"), "")}
+        {field(L("ws.date"), scheduled)}
+        {field(L("ws.grade"), trimFieldPrefix(quiz?.grade, "Grade"))}
+        {field(L("ws.section"), trimFieldPrefix(quiz?.section, "Section"))}
+        {field(L("ws.major"), quiz?.subject)}
+        {field(
+          L("ws.score"),
+          "",
+          totalMarks ? <span style={{ flexShrink: 0, fontWeight: 600 }}>/ {totalMarks}</span> : null
+        )}
       </div>
       {quiz?.instructions && (
         <p className="ws-instr">{quiz.instructions}</p>
@@ -2586,30 +2720,35 @@ function WorksheetHeader({ kind, title, quiz, t }) {
 function QuizPrintBody({ quiz }) {
   if (!quiz) return null;
   const questions = quiz.questions || [];
+  const lang = quiz.language;
+  const L = (key) => tIn(lang, key);
   return (
-    <ol className="quiz-print-list">
+    <ol className="quiz-print-list" dir={isArabicLang(lang) ? "rtl" : "ltr"}>
       {questions.map((qq, i) => {
         const num = qq.position ?? i + 1;
         const isMcq = qq.type === "mcq" && Array.isArray(qq.choices) && qq.choices.length > 0;
-        const isTF  = qq.type === "true_false";
+        const isTF  = qq.type === "tf" || qq.type === "true_false";
         return (
           <li key={qq.id ?? i} className="quiz-print-item">
             <p className="quiz-print-prompt">
               <strong>{num}. {qq.prompt || ""}</strong>
               {qq.marks ? (
                 <em className="quiz-print-marks">
-                  &nbsp;&nbsp;({qq.marks} mark{qq.marks > 1 ? "s" : ""})
+                  &nbsp;&nbsp;({qq.marks} {qq.marks > 1 ? L("export.marks") : L("export.mark")})
                 </em>
               ) : null}
             </p>
             {isMcq ? (
-              <ol className="quiz-print-choices" type="A">
+              <ul className="quiz-print-choices">
                 {qq.choices.map((c, idx) => (
-                  <li key={idx}>{typeof c === "string" ? c : (c?.text ?? c?.label ?? "")}</li>
+                  <li key={idx}>
+                    <span className="quiz-print-bubble">○</span>
+                    {typeof c === "string" ? c : (c?.text ?? c?.label ?? "")}
+                  </li>
                 ))}
-              </ol>
+              </ul>
             ) : isTF ? (
-              <p className="quiz-print-tf">○ True &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; ○ False</p>
+              <p className="quiz-print-tf">○ {L("export.true")} &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; ○ {L("export.false")}</p>
             ) : (
               <>
                 <p className="quiz-print-blank">&nbsp;</p>
@@ -2947,7 +3086,7 @@ function StreamingCoverCard({ meta, busy, hintPrompt }) {
   );
 }
 
-function LiveQuestionCard({ q, busy }) {
+function LiveQuestionCard({ q, busy, rtl = false }) {
   const t = useT();
   const inflight = !q.complete && busy;
   const typeLabel = QUIZ_TYPE_LABELS[q.type] || (q.type ? q.type : null);
@@ -2957,6 +3096,7 @@ function LiveQuestionCard({ q, busy }) {
       : null;
   return (
     <div
+      dir={rtl ? "rtl" : undefined}
       className={`rounded-xl border bg-paper-cool px-4 py-3 transition-colors duration-200 ${
         inflight ? "border-accent/60 shadow-[0_0_0_3px_rgba(200,71,43,0.08)]" : "border-line"
       }`}
@@ -3064,6 +3204,14 @@ function truncate(s, n) {
   return (space > n * 0.6 ? cut.slice(0, space) : cut) + "…";
 }
 
+// Keep only the first N words (+ "…") — for the sidebar question previews,
+// which only need a glance label since the full prompt shows on the right.
+function previewWords(s, n = 4) {
+  const words = String(s || "").trim().split(/\s+/).filter(Boolean);
+  if (words.length <= n) return words.join(" ");
+  return words.slice(0, n).join(" ") + "…";
+}
+
 // Heuristics to spot the most common chip mix-ups. Each function takes
 // the chip's current value, the whole `params`, and the option list it's
 // drawing from. Returns:
@@ -3085,6 +3233,25 @@ const looksLikeMajor = (v) =>
   MAJORS.some((m) => m.toLowerCase() === v.trim().toLowerCase());
 
 const looksLikeInteger = (v) => /^\d+$/.test(String(v).trim());
+
+// Per-kind required selections. The teacher must set every one of these
+// before Studio will generate — no nulls, no "Murchid guesses the basics".
+// The ONLY field allowed to stay empty is the schedule-for date (the
+// teacher may decide when to run it later). The instruction line isn't
+// listed because it always carries a mode ("none" by default), never null.
+const REQUIRED_CHIPS = {
+  quiz:         ["grade", "major", "language", "section", "difficulty", "questions", "duration", "types", "total_marks"],
+  lesson_plan:  ["grade", "major", "language", "section", "duration"],
+  homework:     ["grade", "major", "language", "section"],
+  activity:     ["type", "major", "language", "duration"],
+  presentation: ["grade", "major", "language", "section", "slides"],
+};
+const chipIsSet = (v) => v !== "" && v != null;
+const chipsComplete = (kind, params) => {
+  const req = REQUIRED_CHIPS[kind];
+  if (!req || !params) return true;
+  return req.every((k) => chipIsSet(params[k]));
+};
 
 const CHIP_VALIDATORS = {
   grade: (v) => {
@@ -3131,19 +3298,32 @@ const CHIP_VALIDATORS = {
   },
 };
 
+// Progress badge shown in each settings panel's header. Always visible:
+// counts how many of the required chips are set, and flips to a green
+// "All set" with a check once the teacher has chosen everything.
+function SetCountBadge({ count, total }) {
+  const t = useT();
+  const done = count >= total;
+  return (
+    <p className={`font-mono text-[10px] uppercase tracking-[0.14em] flex-shrink-0 inline-flex items-center gap-1 ${done ? "text-sage" : "text-accent"}`}>
+      {done && <Check size={11} strokeWidth={2.5} />}
+      {done ? t("studio.params.allSet") : t("studio.params.setCountN", { n: count, total })}
+    </p>
+  );
+}
+
 // Pre-prompt panel that sits ABOVE the input card. Big, clearly chunked
 // settings block with a header so it doesn't read as decoration. Each
 // field is a dropdown chip with an icon, an uppercase label, and a value
 // area; the chip is sized big enough that an empty state ("Pick a grade")
-// is impossible to miss. Every chip is optional — leave any blank and
-// the AI infers from the prompt.
+// is impossible to miss. Every chip is required — the teacher chooses
+// everything before Murchid will build.
 function QuizParamsPanel({ params, onChange, gradeOptions, majorOptions, languageOptions, sectionOptions }) {
   const t = useT();
   const set = (patch) => onChange((prev) => ({ ...prev, ...patch }));
-  const setCount = [
-    params.grade, params.major, params.language, params.section,
-    params.difficulty, params.questions, params.duration, params.types,
-  ].filter((v) => v !== "" && v != null).length;
+  // Count straight off REQUIRED_CHIPS.quiz (8 chips + Score) so the badge
+  // and the "Make it" gate never disagree about what "all set" means.
+  const setCount = REQUIRED_CHIPS.quiz.filter((k) => chipIsSet(params[k])).length;
 
   // Move this chip's current value into `targetSlot` and clear ours.
   // If `targetSlot` already has a value, swap them so nothing is lost.
@@ -3167,11 +3347,7 @@ function QuizParamsPanel({ params, onChange, gradeOptions, majorOptions, languag
             {t("studio.params.subtitleLead")} <span className="italic text-muted">{t("studio.params.subtitleTail")}</span>
           </p>
         </div>
-        {setCount > 0 && (
-          <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-accent flex-shrink-0">
-            {t("studio.params.setCount8", { n: setCount })}
-          </p>
-        )}
+        <SetCountBadge count={setCount} total={REQUIRED_CHIPS.quiz.length} />
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
@@ -3285,6 +3461,14 @@ function QuizParamsPanel({ params, onChange, gradeOptions, majorOptions, languag
       <ScheduledDateRow
         value={params.scheduled_for}
         onChange={(v) => set({ scheduled_for: v })}
+        score={params.total_marks}
+        onScoreChange={(v) => set({ total_marks: v })}
+      />
+      <InstructionsRow
+        mode={params.instructions_mode}
+        text={params.instructions}
+        onModeChange={(v) => set({ instructions_mode: v })}
+        onTextChange={(v) => set({ instructions: v })}
       />
     </div>
   );
@@ -3312,11 +3496,7 @@ function ActivityParamsPanel({ params, onChange, majorOptions, languageOptions }
             {t("studio.params.subtitleLead")} <span className="italic text-muted">{t("studio.params.subtitleTail")}</span>
           </p>
         </div>
-        {setCount > 0 && (
-          <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-accent flex-shrink-0">
-            {t("studio.params.setCount4", { n: setCount })}
-          </p>
-        )}
+        <SetCountBadge count={setCount} total={4} />
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
@@ -3394,11 +3574,7 @@ function LessonParamsPanel({ params, onChange, gradeOptions, majorOptions, langu
             {t("studio.params.subtitleLead")} <span className="italic text-muted">{t("studio.params.subtitleTail")}</span>
           </p>
         </div>
-        {setCount > 0 && (
-          <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-accent flex-shrink-0">
-            {t("studio.params.setCount5", { n: setCount })}
-          </p>
-        )}
+        <SetCountBadge count={setCount} total={5} />
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
@@ -3487,11 +3663,7 @@ function HomeworkParamsPanel({ params, onChange, gradeOptions, majorOptions, lan
             {t("studio.params.subtitleLead")} <span className="italic text-muted">{t("studio.params.subtitleTail")}</span>
           </p>
         </div>
-        {setCount > 0 && (
-          <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-accent flex-shrink-0">
-            {t("studio.params.setCount4", { n: setCount })}
-          </p>
-        )}
+        <SetCountBadge count={setCount} total={4} />
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
@@ -3564,11 +3736,7 @@ function PresentationParamsPanel({ params, onChange, gradeOptions, majorOptions,
             {t("studio.params.subtitleLead")} <span className="italic text-muted">{t("studio.params.subtitleTail")}</span>
           </p>
         </div>
-        {setCount > 0 && (
-          <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-accent flex-shrink-0">
-            {t("studio.params.setCount5", { n: setCount })}
-          </p>
-        )}
+        <SetCountBadge count={setCount} total={5} />
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
@@ -3638,38 +3806,109 @@ function PresentationParamsPanel({ params, onChange, gradeOptions, majorOptions,
   );
 }
 
-function ScheduledDateRow({ value, onChange }) {
+function ScheduledDateRow({ value, onChange, score, onScoreChange }) {
   const t = useT();
   const todayISO = new Date().toISOString().slice(0, 10);
   return (
-    <div className="mt-2 flex flex-wrap items-center gap-2 px-1">
-      <span className="inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.16em] text-muted">
-        <Calendar size={11} strokeWidth={1.75} />
-        {t("studio.schedule.label")}
-        <HelpTip text="When students should sit this quiz. Saved with the quiz so it shows up in Schedule and Quizzes & Exams. Leave blank to decide later." />
+    <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2 px-1">
+      <span className="inline-flex items-center gap-2">
+        <span className="inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.16em] text-muted">
+          <Calendar size={11} strokeWidth={1.75} />
+          {t("studio.schedule.label")}
+          <HelpTip text="When students should sit this quiz. Saved with the quiz so it shows up in Schedule and Quizzes & Exams. Leave blank to decide later." />
+        </span>
+        <DatePicker
+          value={value ? String(value).slice(0, 10) : ""}
+          min={todayISO}
+          onChange={(v) => onChange(v || "")}
+          className="bg-paper-cool border border-line rounded-md px-2.5 py-1 text-sm text-ink outline-none focus:border-ink transition-colors duration-150 min-w-[160px]"
+        />
+        {value ? (
+          <button
+            type="button"
+            onClick={() => onChange("")}
+            className="font-serif italic text-xs text-muted hover:text-accent transition-colors duration-150"
+          >
+            {t("studio.schedule.clear")}
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={() => onChange(todayISO)}
+            className="font-serif italic text-xs text-muted hover:text-accent transition-colors duration-150"
+          >
+            {t("studio.schedule.today")}
+          </button>
+        )}
       </span>
-      <DatePicker
-        value={value ? String(value).slice(0, 10) : ""}
-        min={todayISO}
-        onChange={(v) => onChange(v || "")}
-        className="bg-paper-cool border border-line rounded-md px-2.5 py-1 text-sm text-ink outline-none focus:border-ink transition-colors duration-150 min-w-[160px]"
-      />
-      {value ? (
-        <button
-          type="button"
-          onClick={() => onChange("")}
-          className="font-serif italic text-xs text-muted hover:text-accent transition-colors duration-150"
-        >
-          {t("studio.schedule.clear")}
-        </button>
-      ) : (
-        <button
-          type="button"
-          onClick={() => onChange(todayISO)}
-          className="font-serif italic text-xs text-muted hover:text-accent transition-colors duration-150"
-        >
-          {t("studio.schedule.today")}
-        </button>
+
+      {onScoreChange && (
+        <span className="inline-flex items-center gap-2">
+          <span className="inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.16em] text-muted">
+            <Award size={11} strokeWidth={1.75} />
+            {t("studio.schedule.score")}
+            <HelpTip text="Total marks for the whole quiz. Required — prints on the PDF and Word hand-out as 'Score: ____ / N' for the teacher to fill in." />
+          </span>
+          <input
+            type="number"
+            min="1"
+            inputMode="numeric"
+            value={score ?? ""}
+            onChange={(e) => onScoreChange(e.target.value)}
+            placeholder={t("studio.schedule.scorePlaceholder")}
+            className={`w-20 bg-paper-cool border rounded-md px-2.5 py-1 text-sm text-ink outline-none focus:border-ink transition-colors duration-150 normal-case tracking-normal font-sans ${
+              chipIsSet(score) ? "border-line" : "border-dashed border-accent/60"
+            }`}
+          />
+        </span>
+      )}
+    </div>
+  );
+}
+
+// The instruction line printed at the top of the quiz hand-out ("Read each
+// question carefully…"). Three modes: Auto (Murchid writes it), Custom (the
+// teacher's own text, revealed in a textarea), or None (omit it). Defaults
+// to None — the teacher opts into Auto or Custom.
+function InstructionsRow({ mode, text, onModeChange, onTextChange }) {
+  const t = useT();
+  const m = mode || "none";
+  const OPTIONS = [
+    ["auto", t("studio.instructions.auto")],
+    ["custom", t("studio.instructions.custom")],
+    ["none", t("studio.instructions.none")],
+  ];
+  return (
+    <div className="mt-2 px-1">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <span className="inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.16em] text-muted">
+          <ClipboardList size={11} strokeWidth={1.75} />
+          {t("studio.instructions.label")}
+          <HelpTip text="The instruction line printed at the top of the PDF and Word hand-out. Auto lets Murchid write it; Custom uses your own wording; None leaves it off." />
+        </span>
+        <div className="inline-flex rounded-md border border-line overflow-hidden">
+          {OPTIONS.map(([v, label], i) => (
+            <button
+              key={v}
+              type="button"
+              onClick={() => onModeChange(v)}
+              className={`px-3 py-1 text-xs font-sans transition-colors duration-150 ${i > 0 ? "border-s border-line" : ""} ${
+                m === v ? "bg-ink text-paper-cool" : "bg-paper-cool text-muted hover:text-ink hover:bg-paper-warm"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+      {m === "custom" && (
+        <textarea
+          rows={2}
+          value={text ?? ""}
+          onChange={(e) => onTextChange(e.target.value)}
+          placeholder={t("studio.instructions.placeholder")}
+          className="mt-2 w-full bg-paper-cool border border-line rounded-md px-2.5 py-1.5 text-sm text-ink outline-none focus:border-ink transition-colors duration-150 resize-y"
+        />
       )}
     </div>
   );
@@ -3764,10 +4003,6 @@ function DropdownChip({
       : [...currentMulti, opt];
     onChange(joinMulti(next));
     setDraft(""); // ready to filter / add the next
-  };
-  const clearMulti = () => {
-    onChange("");
-    setDraft("");
   };
   const addCustomMulti = (raw) => {
     const v = String(raw || "").trim();
@@ -3915,7 +4150,6 @@ function DropdownChip({
           currentMulti={currentMulti}
           onPick={commit}
           onToggle={toggleMulti}
-          onClear={clearMulti}
           onAddCustom={addCustomMulti}
           onClose={() => (multi ? setOpen(false) : commit(draft))}
         />
@@ -3924,18 +4158,19 @@ function DropdownChip({
   );
 }
 
-// Filtered menu that opens under a DropdownChip. Shows three regions:
+// Filtered menu that opens under a DropdownChip. Shows two regions:
 //   1. "Use \"<draft>\" (custom)" — when the draft text doesn't match
 //      any preset; lets the teacher commit (single) or append (multi)
 //      a free-form value.
-//   2. "Any — let Murchid choose" — clears the field.
-//   3. The filtered preset options.
+//   2. The filtered preset options.
+// There is no "let Murchid choose" / clear option: every chip is required,
+// so the teacher always lands on a concrete value.
 // In multi mode, clicking an option toggles it in the joined value
 // without closing the menu; "Done" at the bottom closes.
 function ComboboxMenu({
   value, draft, options, allOptions, suffix,
   onPick, onClose,
-  multi, currentMulti = [], onToggle, onClear, onAddCustom,
+  multi, currentMulti = [], onToggle, onAddCustom,
 }) {
   const t = useT();
   const trimmed = String(draft || "").trim();
@@ -3946,7 +4181,6 @@ function ComboboxMenu({
     multi
       ? currentMulti.some((x) => String(x).toLowerCase() === String(opt).toLowerCase())
       : String(opt) === String(value);
-  const noneSelected = multi ? currentMulti.length === 0 : !value;
 
   return (
     <>
@@ -3981,24 +4215,6 @@ function ComboboxMenu({
               <li className="border-t border-line/60 my-1" />
             </>
           )}
-
-          <li>
-            <button
-              type="button"
-              onClick={() => multi ? onClear() : onPick("")}
-              className={`w-full flex items-center justify-between gap-3 px-3 py-2 text-left text-sm transition-colors duration-100 ${
-                noneSelected
-                  ? "bg-paper-warm text-ink font-medium"
-                  : "text-ink-soft hover:bg-paper-warm/60"
-              }`}
-            >
-              <span className="italic">
-                {multi ? t("studio.combo.clearAllChoose") : t("studio.combo.anyChoose")}
-              </span>
-              {noneSelected && <Check size={13} className="text-accent" />}
-            </button>
-          </li>
-          <li className="border-t border-line/60 my-1" />
 
           {options.length === 0 && !isCustom && (
             <li className="px-3 py-2 text-sm text-muted italic">{t("studio.combo.noMatches")}</li>
@@ -4285,6 +4501,7 @@ function LeaveStudioConfirm({ busy, isDirty, savedDraftId, onStay, onLeave }) {
 }
 
 function QuizMetaCard({ quiz, onUpdate, disabled = false }) {
+  const t = useT();
   if (!quiz) return null;
   const totalQ = (quiz.questions || []).length;
   // The meta chips (Subject, Grade, Language, Section, Difficulty, Duration)
@@ -4292,41 +4509,44 @@ function QuizMetaCard({ quiz, onUpdate, disabled = false }) {
   // Re-editing them mid-draft makes no sense (the body wouldn't match) so
   // they render read-only here. Only title and instructions stay editable.
   return (
-    <div className="rounded-2xl border border-line bg-paper-cool p-5 md:p-6 studio-card-stagger">
-      <p className="font-serif italic text-base text-muted mb-2">Cover</p>
+    <div
+      className="rounded-2xl border border-line bg-paper-cool p-5 md:p-6 studio-card-stagger"
+      dir={isArabicLang(quiz.language) ? "rtl" : undefined}
+    >
+      <p className="font-serif italic text-base text-muted mb-2">{t("studio.cover.title")}</p>
       <EditableText
         value={quiz.title || ""}
         onChange={(v) => onUpdate({ title: v })}
-        placeholder="Quiz title"
+        placeholder={t("studio.cover.titlePlaceholder")}
         disabled={disabled}
         className="font-serif text-2xl md:text-3xl font-medium text-ink leading-tight mb-4 w-full"
       />
       <div className="flex flex-wrap items-baseline gap-x-4 gap-y-2 text-sm text-ink-soft mb-5">
-        <ReadOnlyMeta label="Subject" value={quiz.subject} />
-        <ReadOnlyMeta label="Grade" value={quiz.grade} />
-        <ReadOnlyMeta label="Language" value={quiz.language} />
-        <ReadOnlyMeta label="Section" value={quiz.section} />
-        <ReadOnlyMeta label="Difficulty" value={quiz.difficulty} />
+        <ReadOnlyMeta label={t("studio.cover.subject")} value={quiz.subject} />
+        <ReadOnlyMeta label={t("studio.cover.grade")} value={quiz.grade} />
+        <ReadOnlyMeta label={t("studio.cover.language")} value={quiz.language} />
+        <ReadOnlyMeta label={t("studio.cover.section")} value={quiz.section} />
+        <ReadOnlyMeta label={t("studio.cover.difficulty")} value={quiz.difficulty} />
         <ReadOnlyMeta
-          label="Duration"
+          label={t("studio.cover.duration")}
           value={quiz.duration_minutes}
-          suffix={quiz.duration_minutes ? "min" : null}
+          suffix={quiz.duration_minutes ? t("studio.cover.min") : null}
         />
         <ReadOnlyMeta
-          label="Scheduled"
+          label={t("studio.cover.scheduled")}
           value={quiz.scheduled_for ? formatScheduledDate(quiz.scheduled_for) : null}
         />
         <span className="font-serif italic text-muted">
-          · {totalQ} question{totalQ === 1 ? "" : "s"} · <span className="text-ink not-italic font-medium">{quiz.total_marks ?? 0} marks</span>
+          · {t("studio.cover.questions", { n: totalQ })} · <span className="text-ink not-italic font-medium">{t("studio.cover.marks", { n: quiz.total_marks ?? 0 })}</span>
         </span>
       </div>
 
       <div>
-        <p className="font-serif italic text-base text-muted mb-1.5">Instructions</p>
+        <p className="font-serif italic text-base text-muted mb-1.5">{t("studio.cover.instructions")}</p>
         <EditableTextarea
           value={quiz.instructions || ""}
           onChange={(v) => onUpdate({ instructions: v })}
-          placeholder="Add instructions for students…"
+          placeholder={t("studio.cover.instrPlaceholder")}
           rows={2}
           disabled={disabled}
           className="text-sm text-ink-soft leading-relaxed w-full"
@@ -4336,7 +4556,8 @@ function QuizMetaCard({ quiz, onUpdate, disabled = false }) {
   );
 }
 
-function QuizQuestionCard({ question, index, onUpdate, disabled = false }) {
+function QuizQuestionCard({ question, index, onUpdate, disabled = false, rtl = false, marksTotal = 0, marksRemaining = 0 }) {
+  const t = useT();
   const [showAnswer, setShowAnswer] = useState(false);
   if (!question) return null;
   const typeLabel = QUIZ_TYPE_LABELS[question.type] || question.type;
@@ -4355,27 +4576,66 @@ function QuizQuestionCard({ question, index, onUpdate, disabled = false }) {
   const safeUpdate = (patch) => { if (!disabled) onUpdate(patch); };
 
   return (
-    <div className="rounded-2xl border border-line bg-paper-cool p-5 md:p-6 studio-card-stagger">
+    <div className="rounded-2xl border border-line bg-paper-cool p-5 md:p-6 studio-card-stagger" dir={rtl ? "rtl" : undefined}>
       <div className="flex items-center justify-between gap-3 mb-3">
         <span className="font-serif italic text-base text-muted">
           Question {question.position ?? index + 1}
         </span>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2.5">
           <span className="px-2 py-0.5 rounded-full border border-line bg-paper text-[11px] text-ink-soft">
             {typeLabel}
           </span>
-          <span className="font-mono text-[11px] text-muted inline-flex items-center gap-1">
-            <EditableNumber
-              value={question.marks ?? 1}
-              onChange={(v) => safeUpdate({ marks: Math.max(1, Number(v) || 1) })}
-              min={1}
-              disabled={disabled}
-              className="w-8 text-right"
-            />
-            <span>mark{question.marks === 1 ? "" : "s"}</span>
+          {/* Per-question marks — an explicit labelled stepper so teachers
+              see at a glance they can weight each question (no hidden
+              click-to-edit). */}
+          <span className="inline-flex items-center gap-1.5" dir="ltr">
+            <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted">
+              {t("studio.qmarks.label")}
+            </span>
+            <span className="inline-flex items-center h-7 rounded-lg border border-line bg-paper overflow-hidden">
+              <button
+                type="button"
+                onClick={() => safeUpdate({ marks: Math.max(1, (Number(question.marks) || 1) - 1) })}
+                disabled={disabled || (Number(question.marks) || 1) <= 1}
+                aria-label={t("studio.qmarks.dec")}
+                className="px-2 h-full grid place-items-center text-ink-soft hover:bg-paper-warm hover:text-ink disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              >
+                <Minus size={12} strokeWidth={2.5} />
+              </button>
+              <input
+                type="number"
+                value={question.marks ?? 1}
+                onChange={(e) => safeUpdate({ marks: Math.max(1, Number(e.target.value) || 1) })}
+                min={1}
+                disabled={disabled}
+                aria-label={t("studio.qmarks.label")}
+                className="w-9 h-full text-center text-sm font-semibold text-ink bg-paper-warm/40 border-x border-line outline-none focus:bg-paper [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none disabled:cursor-not-allowed"
+              />
+              <button
+                type="button"
+                onClick={() => safeUpdate({ marks: (Number(question.marks) || 1) + 1 })}
+                disabled={disabled}
+                aria-label={t("studio.qmarks.inc")}
+                className="px-2 h-full grid place-items-center text-ink-soft hover:bg-paper-warm hover:text-ink disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              >
+                <Plus size={12} strokeWidth={2.5} />
+              </button>
+            </span>
           </span>
         </div>
       </div>
+
+      {/* Running allocation: the per-question marks must add up to the
+          quiz total before it can be exported. */}
+      {marksTotal > 0 && (
+        <p className={`text-[11.5px] mb-3 -mt-1 ${marksRemaining === 0 ? "text-sage" : "text-accent"}`}>
+          {marksRemaining === 0
+            ? t("studio.marks.balanced", { total: marksTotal })
+            : marksRemaining > 0
+            ? t("studio.marks.left", { remaining: marksRemaining, total: marksTotal })
+            : t("studio.marks.over", { over: -marksRemaining, total: marksTotal })}
+        </p>
+      )}
 
       <EditableTextarea
         value={question.prompt || ""}
@@ -4405,9 +4665,9 @@ function QuizQuestionCard({ question, index, onUpdate, disabled = false }) {
                   type="button"
                   onClick={() => safeUpdate({ correct_answer: letter })}
                   disabled={disabled}
-                  title={isCorrect ? "This is the correct answer" : "Mark as correct"}
+                  title={showAnswer && isCorrect ? "This is the correct answer" : "Mark as correct"}
                   className={`flex-shrink-0 h-6 w-6 rounded-md font-mono text-[11px] flex items-center justify-center transition-colors duration-200 disabled:cursor-not-allowed ${
-                    isCorrect
+                    showHighlight
                       ? "bg-accent text-paper-cool"
                       : "bg-paper-warm text-ink-soft hover:bg-paper-warm/80 hover:text-ink"
                   }`}
@@ -4443,10 +4703,8 @@ function QuizQuestionCard({ question, index, onUpdate, disabled = false }) {
                 onClick={() => safeUpdate({ correct_answer: value })}
                 disabled={disabled}
                 className={`px-3 py-1.5 rounded-lg border text-sm transition-colors duration-200 disabled:cursor-not-allowed ${
-                  isCorrect
-                    ? showHighlight
-                      ? "border-accent bg-accent/[0.06] text-accent font-medium"
-                      : "border-ink bg-paper text-ink font-medium"
+                  showHighlight
+                    ? "border-accent bg-accent/[0.06] text-accent font-medium"
                     : "border-line bg-paper text-ink-soft hover:border-ink"
                 }`}
               >
@@ -4632,22 +4890,41 @@ function EditableTextarea({ value, onChange, placeholder, rows = 2, disabled = f
   // value change by zeroing the height then snapping back to scrollHeight.
   // A min-height (derived from `rows`) keeps short prompts from collapsing.
   const ref = useRef(null);
+  const isEmpty = !value || !String(value).trim();
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
     el.style.height = "auto";
     el.style.height = `${el.scrollHeight}px`;
   }, [value]);
+  // Empty state shows a dashed border + soft fill + pencil icon so teachers
+  // can see at a glance that this is a place they can type. Once they've
+  // written anything, the field reverts to the clean editorial look so the
+  // saved content reads like a finished document.
   return (
-    <textarea
-      ref={ref}
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      placeholder={placeholder}
-      rows={rows}
-      disabled={disabled}
-      className={`bg-transparent outline-none rounded-md p-2 -m-2 border border-transparent hover:border-line/60 focus:border-ink focus:bg-paper resize-none overflow-hidden transition-colors duration-150 placeholder:text-muted whitespace-pre-wrap disabled:cursor-not-allowed disabled:hover:border-transparent ${className}`}
-    />
+    <div className="relative -m-2">
+      <textarea
+        ref={ref}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        rows={rows}
+        disabled={disabled}
+        className={`block bg-transparent outline-none rounded-md p-2 border ${
+          isEmpty && !disabled
+            ? "border-dashed border-line bg-paper-warm/50 cursor-text"
+            : "border-transparent"
+        } hover:border-line/60 focus:border-solid focus:border-ink focus:bg-paper resize-none overflow-hidden transition-colors duration-150 placeholder:text-muted whitespace-pre-wrap disabled:cursor-not-allowed disabled:hover:border-transparent ${className}`}
+      />
+      {isEmpty && !disabled && (
+        <Pencil
+          size={13}
+          strokeWidth={1.75}
+          aria-hidden
+          className="absolute top-2.5 end-2.5 text-muted/70 pointer-events-none"
+        />
+      )}
+    </div>
   );
 }
 
