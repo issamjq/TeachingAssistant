@@ -2448,7 +2448,11 @@ export default function Studio({ initialKind } = {}) {
         </div>
         <div className="flex-1 min-w-0 pt-0.5 sm:pt-1">
           <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-1.5 sm:mb-2">{t("studio.eyebrow")}</p>
-          <p className="font-serif text-lg sm:text-xl md:text-2xl lg:text-[1.75rem] text-ink leading-[1.4] sm:leading-[1.45]">
+          {/* Use a <div> instead of a <p> here because InlineKindPicker
+              opens a popover that contains its own <p> and <ul>, and
+              <p> cannot legally contain those — React logged
+              validateDOMNesting warnings. Same typography classes apply. */}
+          <div className="font-serif text-lg sm:text-xl md:text-2xl lg:text-[1.75rem] text-ink leading-[1.4] sm:leading-[1.45]">
             {/* Keep "{verb} a [pill]" as a no-break unit so the kind pill
                 never lands on its own line under "Make a". The suffix
                 wraps naturally on narrow widths. */}
@@ -2467,7 +2471,7 @@ export default function Studio({ initialKind } = {}) {
             </span>
             {". "}
             {t(`kind.${active?.value}.suffix`)}
-          </p>
+          </div>
         </div>
       </div>
 
