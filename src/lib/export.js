@@ -167,16 +167,21 @@ export async function exportDocx(doc) {
     const base = typeof textOrOpts === "string" ? { text: textOrOpts } : textOrOpts;
     return new TextRun({ ...base, ...(rtl ? { rightToLeft: true } : {}) });
   };
-  // Paragraph with bidirectional + explicit right alignment when RTL.
-  // `bidirectional` alone is enough in modern Word, but older Word builds and
-  // LibreOffice still need an explicit <w:jc w:val="right"/> or they leave the
-  // paragraph left-aligned. Setting both is the bullet-proof combination.
+  // Paragraph with bidirectional + alignment=START when RTL.
+  //
+  // OOXML pitfall: inside a <w:bidi/> paragraph, <w:jc w:val="right"/> can be
+  // treated as the *logical* end of the line (i.e. visual LEFT in RTL) by
+  // some renderers (Google Docs in particular, older Word builds, LibreOffice
+  // in places). `start` is the always-correct value — it means "natural
+  // beginning of the line," which is the right margin in RTL and the left
+  // margin in LTR. Since we only apply this when the text is RTL, start gives
+  // us right-margin alignment unambiguously.
   const para = (opts, refText) => {
     const probe = refText != null ? refText : opts.text;
     const rtl = isRtl(probe);
     return new Paragraph({
       ...opts,
-      ...(rtl ? { bidirectional: true, alignment: AlignmentType.RIGHT } : {}),
+      ...(rtl ? { bidirectional: true, alignment: AlignmentType.START } : {}),
     });
   };
 
