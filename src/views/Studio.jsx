@@ -2665,6 +2665,19 @@ export default function Studio({ initialKind } = {}) {
         </div>
       )}
 
+      {/* Conflict modal must render in the picker view too. Without this,
+          clicking Make it on a fresh kind (no prior result) silently
+          no-ops when a chip↔prompt conflict is detected — generate()
+          sets pendingConflicts but the modal was only mounted inside
+          the result-view return block, so nothing showed up. */}
+      {pendingConflicts && (
+        <ChipPromptConflictModal
+          conflicts={pendingConflicts.conflicts}
+          onUseChips={pendingConflicts.proceed}
+          onEdit={() => setPendingConflicts(null)}
+        />
+      )}
+
     </div>
   );
 }
