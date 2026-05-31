@@ -10,7 +10,7 @@ import React, { useMemo, useState, useEffect, useRef, useCallback } from "react"
 import {
   Plus, Trash2, ChevronUp, ChevronDown, Check, Image as ImageIcon,
   Search, Upload, X, Sparkles, Presentation as DeckIcon, Loader2,
-  ChevronLeft, ChevronRight, FileDown,
+  ChevronLeft, ChevronRight, FileDown, Pencil,
 } from "lucide-react";
 import { api, DatePicker } from "./_shared";
 import { useT } from "../lib/i18n";
@@ -528,12 +528,27 @@ export default function SlideBuilder({
           <span className="inline-flex h-7 w-7 rounded-lg bg-accent/[0.12] text-accent items-center justify-center flex-shrink-0">
             <DeckIcon size={14} strokeWidth={2} />
           </span>
-          <input
-            value={deckTitle}
-            onChange={(e) => setDeckTitle(e.target.value)}
-            className="font-serif text-xl md:text-2xl font-medium text-ink bg-transparent outline-none focus:border-b focus:border-line min-w-0 flex-1"
-            aria-label="Deck title"
-          />
+          {/* Wrap the title input in a relative box with a dashed border +
+              pencil icon so teachers can see at a glance that it's
+              editable. The title used to look like static text — the only
+              cue you could click it was an underline on focus, which you
+              never saw until after you clicked. */}
+          <span className="relative inline-flex items-center flex-1 min-w-0 group">
+            <input
+              value={deckTitle}
+              onChange={(e) => setDeckTitle(e.target.value)}
+              title="Click to edit the presentation title"
+              placeholder="Click to name your presentation"
+              className="font-serif text-xl md:text-2xl font-medium text-ink bg-paper-warm/40 border border-dashed border-line hover:border-ink/40 focus:border-solid focus:border-ink focus:bg-paper outline-none rounded-md px-2.5 py-1 pe-8 min-w-0 w-full transition-colors duration-150 placeholder:text-muted/70 cursor-text"
+              aria-label="Deck title"
+            />
+            <Pencil
+              size={13}
+              strokeWidth={1.75}
+              aria-hidden
+              className="absolute end-2 top-1/2 -translate-y-1/2 text-muted/70 group-focus-within:opacity-0 pointer-events-none transition-opacity"
+            />
+          </span>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
           {anySuggested && (
