@@ -650,11 +650,15 @@ export default function SlideBuilder({
             const sideImage = imgSrc && (layout === "text-image" || layout === "image-text");
             const imageOnLeft = layout === "image-text";
             const bgImage = imgSrc && (layout === "title" || layout === "full-image");
-            // On a tinted photo background the body text needs to be near-white
-            // to stay legible; otherwise it follows the theme tokens.
-            const titleColor = bgImage ? "#ffffff" : t.text;
-            const bodyColor = bgImage ? "rgba(255,255,255,0.85)" : t.soft;
-            const numColor = bgImage ? "rgba(255,255,255,0.85)" : t.soft;
+            // Match SlideCanvas's color resolution exactly so a per-slide
+            // textColor override (e.g. red text on a paper bg) shows up in
+            // the rail too — previously the thumbnail always used the
+            // theme default, so a teacher picking red text saw the change
+            // only in the right pane.
+            const hasTxt = isHex(s.textColor);
+            const titleColor = hasTxt ? s.textColor : (bgImage ? "#ffffff" : t.text);
+            const bodyColor = hasTxt ? hexToRgba(s.textColor, 0.78) : (bgImage ? "rgba(255,255,255,0.85)" : t.soft);
+            const numColor = bodyColor;
             const titleAlign =
               layout === "title" ? "flex flex-col items-center justify-center text-center" :
               layout === "full-image" ? "flex flex-col justify-end" :
@@ -693,13 +697,19 @@ export default function SlideBuilder({
                 )}
                 <div className={`absolute inset-0 p-2 ${titleAlign} ${textInset}`}>
                   <span className="font-mono text-[9px] absolute top-1.5 right-2" style={{ color: numColor }}>{i + 1}</span>
-                  <p className="font-serif text-[11px] font-medium leading-tight line-clamp-2 pr-4" style={{ color: titleColor }}>
+                  <p className={`font-serif text-[11px] font-medium leading-tight line-clamp-2 ${layout === "title" ? "" : "pr-4"}`} style={{ color: titleColor }}>
                     {s.title || "Untitled"}
                   </p>
-                  {/* Cover slides keep the layout focused on the title;
-                      every other layout shows a short summary of the bullets. */}
-                  {layout !== "title" && (
-                    <p className="text-[8.5px] mt-1 line-clamp-3 leading-snug" style={{ color: bodyColor }}>
+                  {/* Bullets summary. Centered on Cover (matches the
+                      canvas's centred subtitle line); aligned to the
+                      text column on every other layout. */}
+                  {(s.bullets || []).filter(Boolean).length > 0 && (
+                    <p
+                      className={`text-[8.5px] mt-1 line-clamp-3 leading-snug ${
+                        layout === "title" ? "text-center max-w-[90%] mx-auto" : ""
+                      }`}
+                      style={{ color: bodyColor }}
+                    >
                       {(s.bullets || []).filter(Boolean).join(" · ")}
                     </p>
                   )}
