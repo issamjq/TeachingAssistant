@@ -2146,12 +2146,19 @@ export default function Studio({ initialKind } = {}) {
                         </div>
                       )}
                     </div>
-                    <h3
-                      className="font-serif text-2xl md:text-3xl font-medium text-ink mb-5 leading-tight"
-                      dir={quizRtl ? "rtl" : undefined}
-                    >
-                      {currentSection?.title}
-                    </h3>
+                    {/* Quiz questions render the prompt prominently inside
+                        the card (un-truncated, with marks + type chips), so
+                        echoing it as a big h3 above only steals viewport and
+                        clips long prompts. Hide the h3 for quiz_question
+                        sections; every other kind still needs the heading. */}
+                    {currentSection?.kind !== "quiz_question" && (
+                      <h3
+                        className="font-serif text-2xl md:text-3xl font-medium text-ink mb-5 leading-tight"
+                        dir={quizRtl ? "rtl" : undefined}
+                      >
+                        {currentSection?.title}
+                      </h3>
+                    )}
 
                     {/* Section content — keyed so the in-animation fires
                         on each navigation. Quiz sections render a typed
@@ -4691,8 +4698,8 @@ function QuizQuestionCard({ question, index, onUpdate, disabled = false, rtl = f
       {question.type === "tf" && (
         <div className="flex gap-2 mb-4">
           {[
-            { label: "True", value: true },
-            { label: "False", value: false },
+            { label: t("export.true"), value: true },
+            { label: t("export.false"), value: false },
           ].map(({ label, value }) => {
             const isCorrect = question.correct_answer === value;
             const showHighlight = showAnswer && isCorrect;

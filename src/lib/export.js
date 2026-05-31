@@ -150,7 +150,7 @@ const isRtl = (s) => RTL_RE.test(String(s ?? ""));
 
 export async function exportDocx(doc) {
   const docx = await import("docx");
-  const { Document, Packer, Paragraph, TextRun, HeadingLevel } = docx;
+  const { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType } = docx;
   const HEADINGS = [
     HeadingLevel.HEADING_1,
     HeadingLevel.HEADING_2,
@@ -167,11 +167,17 @@ export async function exportDocx(doc) {
     const base = typeof textOrOpts === "string" ? { text: textOrOpts } : textOrOpts;
     return new TextRun({ ...base, ...(rtl ? { rightToLeft: true } : {}) });
   };
-  // Paragraph with bidirectional set when its text contains RTL script.
+  // Paragraph with bidirectional + explicit right alignment when RTL.
+  // `bidirectional` alone is enough in modern Word, but older Word builds and
+  // LibreOffice still need an explicit <w:jc w:val="right"/> or they leave the
+  // paragraph left-aligned. Setting both is the bullet-proof combination.
   const para = (opts, refText) => {
     const probe = refText != null ? refText : opts.text;
     const rtl = isRtl(probe);
-    return new Paragraph({ ...opts, ...(rtl ? { bidirectional: true } : {}) });
+    return new Paragraph({
+      ...opts,
+      ...(rtl ? { bidirectional: true, alignment: AlignmentType.RIGHT } : {}),
+    });
   };
 
   const kids = [];
