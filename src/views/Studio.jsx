@@ -163,13 +163,15 @@ const LESSON_PARAMS_DEFAULTS = {
 };
 
 // Homework pre-prompt panel — Grade + Major + Language + Section, plus
-// a "Schedule for" date that doubles as the due date.
+// a "Schedule for" date that doubles as the due date and an OPTIONAL
+// total score (only printed on the hand-out when the teacher fills it in).
 const HOMEWORK_PARAMS_DEFAULTS = {
   grade: "",
   major: "",
   language: "",
   section: "",
   scheduled_for: "", // YYYY-MM-DD (interpreted as the due date)
+  total_marks: "",   // optional — when set, prints as "Score: ___ / N"
 };
 
 // Presentation pre-prompt panel — Grade + Major + Language + Section +
@@ -1287,13 +1289,24 @@ export default function Studio({ initialKind } = {}) {
 
     const children = [];
     const k = result.kind;
-    const isWorksheet = k === "quiz" || k === "homework";
+    // Quiz, homework, AND lesson all get the worksheet-style header. Lesson
+    // is a teacher-facing doc but still benefits from the Name / Grade /
+    // Section / Major / Date row at the top — same layout, just no Score.
+    const isWorksheet = k === "quiz" || k === "homework" || k === "lesson_plan";
 
-    // ---- worksheet header (quiz + homework only) ----
-    // Titles follow the QUIZ's own language (not the app toggle): Arabic
-    // quiz → Arabic titles, laid out right-to-left; everything else English.
-    const q = result.quiz || {};
-    const qLang = q.language;
+    // ---- worksheet header (quiz + homework + lesson) ----
+    // Titles follow the OUTPUT's own language (not the app toggle): Arabic
+    // → Arabic titles laid out right-to-left; everything else English.
+    // For non-quiz kinds the AI's structured object doesn't exist, so pull
+    // grade/section/major/scheduled/score off the chip params (mapped so
+    // `major` reads as `subject` to match the worksheet field label).
+    const fromParams = (p) => p ? { ...p, subject: p.major } : {};
+    const headerMeta =
+      k === "quiz"       ? (result.quiz || {}) :
+      k === "homework"   ? fromParams(homeworkParams) :
+      k === "lesson_plan"? fromParams(lessonParams) :
+      {};
+    const qLang = headerMeta.language;
     const rtl = isArabicLang(qLang);
     const L = (key) => tIn(qLang, key);
     // Use PHYSICAL alignment for Arabic: AlignmentType.START / END are
@@ -1318,8 +1331,8 @@ export default function Studio({ initialKind } = {}) {
       // student / grading. LTR uses a tab stop at the page midpoint for two
       // columns (a docx table collapses in Pages/Preview). RTL drops to one
       // right-aligned column per line — RTL tab stops are unreliable.
-      const scheduled = q.scheduled_for ? String(q.scheduled_for).slice(0, 10) : "";
-      const totalMarks = q.total_marks;
+      const scheduled = headerMeta.scheduled_for ? String(headerMeta.scheduled_for).slice(0, 10) : "";
+      const totalMarks = headerMeta.total_marks;
       const blank = "______________";
       const scoreExtra = totalMarks ? [new TextRun({ text: ` / ${totalMarks}`, bold: true })] : [];
       const fieldRuns = (label, value, extra = []) => [
@@ -1327,10 +1340,17 @@ export default function Studio({ initialKind } = {}) {
         value ? new TextRun({ text: String(value), bold: true }) : new TextRun({ text: blank }),
         ...extra,
       ];
+      // Score row only appears for quiz (always) and homework (when the
+      // teacher set a total). For lesson_plan we drop the Major/Score row
+      // down to a Major-only row so the page doesn't carry an unused Score
+      // line — lessons aren't student-facing assessments.
+      const showScore = scoreVisibleFor(k, totalMarks);
       const rows = [
         [{ label: L("ws.name"), value: "" }, { label: L("ws.date"), value: scheduled }],
-        [{ label: L("ws.grade"), value: trimFieldPrefix(q.grade, "Grade") }, { label: L("ws.section"), value: trimFieldPrefix(q.section, "Section") }],
-        [{ label: L("ws.major"), value: q.subject }, { label: L("ws.score"), value: "", extra: scoreExtra }],
+        [{ label: L("ws.grade"), value: trimFieldPrefix(headerMeta.grade, "Grade") }, { label: L("ws.section"), value: trimFieldPrefix(headerMeta.section, "Section") }],
+        showScore
+          ? [{ label: L("ws.major"), value: headerMeta.subject }, { label: L("ws.score"), value: "", extra: scoreExtra }]
+          : [{ label: L("ws.major"), value: headerMeta.subject }, null],
       ];
       // Two-column header via a fixed-width borderless TABLE — same structure
       // for English and Arabic. Tab stops are ignored by some .docx viewers
@@ -1364,20 +1384,25 @@ export default function Studio({ initialKind } = {}) {
         rows: rows.map(([f1, f2]) => new TableRow({
           children: [
             cell(fieldRuns(f1.label, f1.value, f1.extra), 5760, true),
-            cell(fieldRuns(f2.label, f2.value, f2.extra), 3600, false),
+            // Second cell may be null when a row carries a single field
+            // (lesson_plan drops the Score field, leaving Major alone).
+            // Emit an empty cell so the table stays a 2-column grid.
+            f2
+              ? cell(fieldRuns(f2.label, f2.value, f2.extra), 3600, false)
+              : cell([new TextRun({ text: "" })], 3600, false),
           ],
         })),
       }));
       // instructions pull-quote (quiz only) — with a gap above it so it
       // doesn't sit right on the Major / Score line.
-      if (k === "quiz" && q.instructions) {
+      if (k === "quiz" && headerMeta.instructions) {
         children.push(new Paragraph({ children: [new TextRun({ text: "" })] }));
         children.push(new Paragraph({
           alignment: align,
           bidirectional: rtl,
           children: [
             new TextRun({ text: `${L("ws.instructions")}: `, bold: true, rightToLeft: rtl }),
-            new TextRun({ text: q.instructions, italics: true }),
+            new TextRun({ text: headerMeta.instructions, italics: true }),
           ],
           spacing: { before: 120, after: 240 },
         }));
@@ -2034,7 +2059,18 @@ export default function Studio({ initialKind } = {}) {
                 <WorksheetHeader
                   kind={result?.kind || kind}
                   title={docTitle}
-                  quiz={result?.kind === "quiz" ? result.quiz : null}
+                  meta={(() => {
+                    // Quiz uses the AI's structured quiz object as-is.
+                    // Homework / lesson use the chip params bag, with the
+                    // `major` chip surfaced as `subject` so the worksheet
+                    // header's Major field renders without a special case.
+                    const k = result?.kind || kind;
+                    if (k === "quiz") return result?.quiz;
+                    const fromParams = (p) => p ? { ...p, subject: p.major } : null;
+                    if (k === "homework") return fromParams(homeworkParams);
+                    if (k === "lesson_plan") return fromParams(lessonParams);
+                    return null;
+                  })()}
                 />
                 {result?.kind === "quiz" && result.quiz ? (
                   // Quizzes don't keep markdown on their section rows
@@ -2044,7 +2080,11 @@ export default function Studio({ initialKind } = {}) {
                   <QuizPrintBody quiz={result.quiz} />
                 ) : sections.length > 0 ? (
                   renderMarkdown(
-                    result?.kind === "homework"
+                    // Homework and lesson_plan get a worksheet header above
+                    // (with the title centered + underlined), so drop any
+                    // leading H1 from the markdown body to avoid printing
+                    // the title twice. Other kinds keep their full markdown.
+                    (result?.kind === "homework" || result?.kind === "lesson_plan")
                       ? stripLeadingTitle(joinSections(sections))
                       : joinSections(sections)
                   )
@@ -2689,15 +2729,26 @@ export default function Studio({ initialKind } = {}) {
 const trimFieldPrefix = (v, word) =>
   String(v ?? "").replace(new RegExp(`^${word}\\s+`, "i"), "").trim();
 
-function WorksheetHeader({ kind, title, quiz }) {
-  if (kind !== "quiz" && kind !== "homework") return null;
-  // Titles follow the QUIZ's own language (not the app toggle): an Arabic
-  // quiz prints Arabic titles, right-to-left; everything else is English.
-  const lang = quiz?.language;
+// Score visibility per kind:
+//   - quiz:        always (with / N when total is set)
+//   - homework:    only when total_marks is set (it's optional on homework)
+//   - lesson_plan: never (lessons aren't student-facing assessments)
+const scoreVisibleFor = (kind, totalMarks) =>
+  kind === "quiz" || (kind === "homework" && totalMarks != null && totalMarks !== "");
+
+function WorksheetHeader({ kind, title, meta }) {
+  if (kind !== "quiz" && kind !== "homework" && kind !== "lesson_plan") return null;
+  // Titles follow the OUTPUT's own language (not the app toggle): an Arabic
+  // quiz/homework/lesson prints Arabic titles, right-to-left; everything
+  // else is English. `meta` is a unified bag — for quiz it's the AI's quiz
+  // object, for homework/lesson it's the chip params with `subject` mapped
+  // from `major`.
+  const lang = meta?.language;
   const rtl = isArabicLang(lang);
   const L = (key) => tIn(lang, key);
-  const totalMarks = quiz?.total_marks;
-  const scheduled = quiz?.scheduled_for ? String(quiz.scheduled_for).slice(0, 10) : "";
+  const totalMarks = meta?.total_marks;
+  const scheduled = meta?.scheduled_for ? String(meta.scheduled_for).slice(0, 10) : "";
+  const showScore = scoreVisibleFor(kind, totalMarks);
   // Date / Grade / Section / Major are pre-filled with what the teacher
   // already set; Name and Score stay blank for the student / grading.
   const field = (label, value, after) => (
@@ -2714,17 +2765,17 @@ function WorksheetHeader({ kind, title, quiz }) {
       <div className="ws-fields">
         {field(L("ws.name"), "")}
         {field(L("ws.date"), scheduled)}
-        {field(L("ws.grade"), trimFieldPrefix(quiz?.grade, "Grade"))}
-        {field(L("ws.section"), trimFieldPrefix(quiz?.section, "Section"))}
-        {field(L("ws.major"), quiz?.subject)}
-        {field(
+        {field(L("ws.grade"), trimFieldPrefix(meta?.grade, "Grade"))}
+        {field(L("ws.section"), trimFieldPrefix(meta?.section, "Section"))}
+        {field(L("ws.major"), meta?.subject)}
+        {showScore && field(
           L("ws.score"),
           "",
           totalMarks ? <span style={{ flexShrink: 0, fontWeight: 600 }}>/ {totalMarks}</span> : null
         )}
       </div>
-      {quiz?.instructions && (
-        <p className="ws-instr">{quiz.instructions}</p>
+      {meta?.instructions && (
+        <p className="ws-instr">{meta.instructions}</p>
       )}
     </div>
   );
@@ -3731,6 +3782,9 @@ function HomeworkParamsPanel({ params, onChange, gradeOptions, majorOptions, lan
       <ScheduledDateRow
         value={params.scheduled_for}
         onChange={(v) => set({ scheduled_for: v })}
+        score={params.total_marks}
+        onScoreChange={(v) => set({ total_marks: v })}
+        scoreOptional
       />
     </div>
   );
@@ -3824,7 +3878,10 @@ function PresentationParamsPanel({ params, onChange, gradeOptions, majorOptions,
   );
 }
 
-function ScheduledDateRow({ value, onChange, score, onScoreChange }) {
+// `scoreOptional` — when true (homework), an empty score input renders with a
+// muted dashed border instead of the accent-red dashed border that signals
+// "this field is required and unset" on the quiz panel.
+function ScheduledDateRow({ value, onChange, score, onScoreChange, scoreOptional = false }) {
   const t = useT();
   const todayISO = new Date().toISOString().slice(0, 10);
   return (
@@ -3875,7 +3932,11 @@ function ScheduledDateRow({ value, onChange, score, onScoreChange }) {
             onChange={(e) => onScoreChange(e.target.value)}
             placeholder={t("studio.schedule.scorePlaceholder")}
             className={`w-20 bg-paper-cool border rounded-md px-2.5 py-1 text-sm text-ink outline-none focus:border-ink transition-colors duration-150 normal-case tracking-normal font-sans ${
-              chipIsSet(score) ? "border-line" : "border-dashed border-accent/60"
+              chipIsSet(score)
+                ? "border-line"
+                : scoreOptional
+                ? "border-dashed border-line"
+                : "border-dashed border-accent/60"
             }`}
           />
         </span>
