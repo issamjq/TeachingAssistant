@@ -10,11 +10,9 @@ import React, { useMemo, useState, useEffect, useRef, useCallback } from "react"
 import {
   Plus, Trash2, ChevronUp, ChevronDown, Check, Image as ImageIcon,
   Search, Upload, X, Sparkles, Presentation as DeckIcon, Loader2,
-  ChevronLeft, ChevronRight,
+  ChevronLeft, ChevronRight, FileDown,
 } from "lucide-react";
 import { api, DatePicker } from "./_shared";
-import { ExportMenu } from "@/components/ui/export-menu";
-import { presentationToDoc } from "../lib/toDoc";
 import { useT } from "../lib/i18n";
 
 const API_BASE = (import.meta.env.VITE_API_URL || "").replace(/\/$/, "");
@@ -46,6 +44,107 @@ const LAYOUTS = [
   { key: "full-image", label: "Full photo" },
 ];
 const LAYOUT_KEYS = LAYOUTS.map((l) => l.key);
+
+// Tiny schematic preview of a slide layout, drawn with plain bars/boxes so
+// the teacher recognises each option at a glance (like the thumbnails in a
+// native layout picker).
+function LayoutThumb({ layout }) {
+  const bar = "block rounded-[1px] bg-ink-soft/70";
+  const box = "block rounded-[2px] bg-ink-soft/30";
+  return (
+    <span className="block w-full aspect-[4/3] rounded-md border border-line bg-paper p-1.5 overflow-hidden">
+      {layout === "title" && (
+        <span className="flex flex-col items-center justify-center h-full gap-1">
+          <span className={`${bar} h-1.5 w-3/5`} />
+          <span className={`${bar} h-1 w-2/5 opacity-50`} />
+        </span>
+      )}
+      {layout === "text" && (
+        <span className="flex flex-col justify-center h-full gap-[3px]">
+          <span className={`${bar} h-1 w-full`} />
+          <span className={`${bar} h-1 w-5/6`} />
+          <span className={`${bar} h-1 w-3/4`} />
+        </span>
+      )}
+      {layout === "text-image" && (
+        <span className="flex h-full gap-1.5">
+          <span className="flex flex-col justify-center gap-[3px] flex-1">
+            <span className={`${bar} h-1 w-full`} />
+            <span className={`${bar} h-1 w-4/5`} />
+            <span className={`${bar} h-1 w-3/5`} />
+          </span>
+          <span className={`${box} w-2/5 h-full`} />
+        </span>
+      )}
+      {layout === "image-text" && (
+        <span className="flex h-full gap-1.5">
+          <span className={`${box} w-2/5 h-full`} />
+          <span className="flex flex-col justify-center gap-[3px] flex-1">
+            <span className={`${bar} h-1 w-full`} />
+            <span className={`${bar} h-1 w-4/5`} />
+            <span className={`${bar} h-1 w-3/5`} />
+          </span>
+        </span>
+      )}
+      {layout === "full-image" && <span className={`${box} h-full w-full`} />}
+    </span>
+  );
+}
+
+// Popover layout picker: a compact trigger showing the current layout that
+// opens a grid of labelled thumbnails — replaces the long inline button row.
+function LayoutPicker({ value, onChange }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  const current = LAYOUTS.find((l) => l.key === value) || LAYOUTS[0];
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    const onKey = (e) => { if (e.key === "Escape") setOpen(false); };
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+  return (
+    <span ref={ref} className="relative inline-flex">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] border border-line bg-paper-cool text-ink hover:border-ink transition"
+      >
+        {current.label}
+        <ChevronDown size={12} className={`transition-transform duration-200 ${open ? "rotate-180" : ""}`} />
+      </button>
+      {open && (
+        <div className="absolute left-0 top-full mt-1.5 z-50 w-[252px] rounded-2xl border border-line bg-paper-cool shadow-[0_18px_44px_-18px_rgba(15,20,16,0.32)] p-2 animate-[popIn_160ms_cubic-bezier(0.22,1,0.36,1)]">
+          <div className="grid grid-cols-3 gap-1.5">
+            {LAYOUTS.map((l) => {
+              const isActive = l.key === value;
+              return (
+                <button
+                  key={l.key}
+                  type="button"
+                  onClick={() => { onChange(l.key); setOpen(false); }}
+                  className={`group flex flex-col gap-1 rounded-lg border p-1.5 transition ${
+                    isActive ? "border-accent bg-accent/[0.06]" : "border-transparent hover:border-line hover:bg-paper-warm/60"
+                  }`}
+                >
+                  <LayoutThumb layout={l.key} />
+                  <span className={`text-[10px] leading-tight text-center ${isActive ? "text-accent font-medium" : "text-ink-soft"}`}>
+                    {l.label}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </span>
+  );
+}
 
 const isHex = (v) => typeof v === "string" && /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(v);
 
@@ -400,6 +499,29 @@ export default function SlideBuilder({
 
   return (
     <div>
+      {/* Print-only slide deck — hidden on screen, becomes the only thing
+          the page prints. Each slide is wrapped in .deck-print-page which
+          forces a page break after it, so a 5-slide deck prints as 5
+          landscape pages with the same visual SlideCanvas the teacher
+          sees in the editor. CSS lives at the bottom of src/index.css
+          under @media print { .deck-print-page ... }. */}
+      <div className="hidden print:block">
+        {slides.map((s, i) => (
+          <div key={s.id || i} className="deck-print-page">
+            <SlideCanvas
+              slide={s}
+              theme={resolveTheme(s.bg)}
+              index={i}
+              total={slides.length}
+              editable={false}
+            />
+          </div>
+        ))}
+      </div>
+
+      {/* Screen editor — hidden during print so the slide stack above is
+          the only thing the browser captures. */}
+      <div className="print:hidden">
       {/* Header */}
       <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
         <div className="flex items-center gap-2 min-w-0">
@@ -431,11 +553,21 @@ export default function SlideBuilder({
               <Check size={13} /> Saved
             </span>
           )}
-          <ExportMenu
-            compact
-            formats={["pdf"]}
-            buildDoc={() => presentationToDoc({ deckTitle, slides }, meta || {}, t)}
-          />
+          {/* Direct print → Save as PDF. Each slide renders as a full
+              landscape page via the print-only deck stack below + the
+              .deck-print-page CSS in index.css. The old ExportMenu path
+              used printDoc which produced a text outline (one page with
+              all slides as bullets) — not what a teacher expects from a
+              "PDF" button on a slide deck. */}
+          <button
+            type="button"
+            onClick={() => window.print()}
+            title="Save as PDF — one slide per page"
+            aria-label="Save as PDF"
+            className="h-9 w-9 rounded-lg border border-line bg-paper-cool hover:bg-paper-warm hover:border-ink text-ink-soft flex items-center justify-center transition"
+          >
+            <FileDown size={14} />
+          </button>
           <button
             type="button"
             onClick={save}
@@ -552,14 +684,7 @@ export default function SlideBuilder({
           <div className="flex flex-wrap items-center gap-x-5 gap-y-2 mb-3 px-1">
             <div className="flex items-center gap-1.5">
               <span className="font-mono text-[9.5px] uppercase tracking-[0.15em] text-muted mr-1">Layout</span>
-              {LAYOUTS.map((l) => (
-                <button key={l.key} type="button" onClick={() => patchActive({ layout: l.key })}
-                  className={`px-2.5 py-1 rounded-md text-[11px] border transition ${
-                    cur?.layout === l.key ? "bg-ink text-paper-cool border-ink" : "bg-paper-cool text-ink-soft border-line hover:border-ink"
-                  }`}>
-                  {l.label}
-                </button>
-              ))}
+              <LayoutPicker value={cur?.layout} onChange={(layout) => patchActive({ layout })} />
             </div>
             <div className="flex items-center gap-1.5 flex-wrap">
               <span className="font-mono text-[9.5px] uppercase tracking-[0.15em] text-muted mr-1">Background</span>
@@ -678,6 +803,7 @@ export default function SlideBuilder({
           onPick={(image) => { patchActive({ image }); setPicker(false); }}
         />
       )}
+      </div>
     </div>
   );
 }

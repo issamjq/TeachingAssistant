@@ -1705,6 +1705,11 @@ select:focus-visible {
    the cream paper aesthetic — printers want white background to save ink,
    and shadows / coloured borders look weird on paper. */
 @media print {
+  /* The floating accessibility ("assist tools") launcher is portaled to a
+     body-level #a11y-root, so the in-place studio print path doesn't catch
+     it the way the body.murchid-printing rule does. It's a screen-only
+     affordance — never print it on any path. */
+  #a11y-root { display: none !important; }
   html, body, #root { height: auto !important; overflow: visible !important; background: #fff !important; }
   .h-screen { height: auto !important; }
   .overflow-hidden, .overflow-y-auto { overflow: visible !important; max-height: none !important; }
@@ -1736,15 +1741,6 @@ select:focus-visible {
     font-style: italic;
     color: #c8472b;
   }
-  .ws-paper .ws-meta {
-    font-family: "JetBrains Mono", ui-monospace, monospace;
-    font-size: 9pt;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    text-align: center;
-    color: #6b675e;
-    margin: 0 0 1rem 0;
-  }
   .ws-paper .ws-rule {
     border: 0;
     border-top: 1.5px solid #1a1814;
@@ -1774,13 +1770,23 @@ select:focus-visible {
     border-bottom: 1px solid #1a1814;
     min-height: 1.2em;
   }
+  /* Pre-filled field value (Date / Grade / Section / Major) — sits on the
+     same baseline rule as a blank, but carries the teacher's value. */
+  .ws-paper .ws-fields .ws-value {
+    flex: 1;
+    border-bottom: 1px solid #1a1814;
+    min-height: 1.2em;
+    padding-inline-start: 0.2rem;
+    font-weight: 600;
+  }
   .ws-paper .ws-instr {
     font-family: "Inter Tight", Inter, sans-serif;
     font-size: 10.5pt;
     font-style: italic;
     color: #2a2620;
-    border-left: 2px solid #c8472b;
-    padding: 0.15rem 0 0.15rem 0.65rem;
+    border-inline-start: 2px solid #c8472b;
+    padding: 0.15rem 0;
+    padding-inline-start: 0.65rem;
     margin: 0 0 1rem 0;
   }
   .ws-paper + * h1:first-child,
@@ -1801,7 +1807,7 @@ select:focus-visible {
     font-family: "Inter Tight", Inter, sans-serif;
     font-size: 11.5pt;
     line-height: 1.45;
-    margin: 0 0 6pt 0;
+    margin: 0 0 11pt 0;
     color: #1a1814;
   }
   .quiz-print-marks {
@@ -1810,15 +1816,29 @@ select:focus-visible {
     font-weight: 400;
   }
   .quiz-print-choices {
-    margin: 4pt 0 0 0;
-    padding-left: 28pt;
+    list-style: none;
+    margin: 6pt 0 0 0;
+    padding-inline-start: 22pt;
     font-family: "Inter Tight", Inter, sans-serif;
     font-size: 11pt;
     color: #1a1814;
   }
-  .quiz-print-choices li { margin: 0 0 3pt 0; }
+  .quiz-print-choices li {
+    margin: 0 0 7pt 0;
+    display: flex;
+    align-items: baseline;
+    gap: 8pt;
+  }
+  /* Empty answer bubble the student ticks for each MCQ option. */
+  .quiz-print-bubble {
+    flex-shrink: 0;
+    font-size: 12pt;
+    line-height: 1;
+    color: #1a1814;
+  }
   .quiz-print-tf {
-    margin: 4pt 0 0 16pt;
+    margin: 4pt 0 0;
+    margin-inline-start: 16pt;
     font-family: "Inter Tight", Inter, sans-serif;
     font-size: 11pt;
     letter-spacing: 0.04em;
@@ -1966,5 +1986,37 @@ select:focus-visible {
     margin-top: 1.5rem; padding-top: 0.5rem; border-top: 1px solid #d4c9b3;
     font-family: "JetBrains Mono", ui-monospace, monospace;
     font-size: 8pt; letter-spacing: 0.1em; text-transform: uppercase; color: #9b8b76;
+  }
+
+  /* ── Slide deck PDF export ─────────────────────────────────────────
+     SlideBuilder mounts a print-only stack of <SlideCanvas editable={false}>
+     wrapped in .deck-print-page. The browser print path captures these,
+     one slide per landscape A4 page, so a teacher's "PDF" matches the
+     visual deck they edited — not the text outline printDoc would
+     produce. */
+  @page { size: A4 landscape; margin: 0.6cm; }
+  .deck-print-page {
+    box-sizing: border-box;
+    width: 100%;
+    height: 18cm;            /* fills A4 landscape inside the @page margin */
+    page-break-after: always;
+    page-break-inside: avoid;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+  .deck-print-page:last-child { page-break-after: auto; }
+  /* SlideCanvas is a 16:9 box. In print, fill the page width and let
+     aspect-ratio carry the height — drop the on-screen shadow + rounded
+     border so it reads like a finished slide, not a UI card. */
+  .deck-print-page > div {
+    width: 100% !important;
+    max-width: none !important;
+    height: auto !important;
+    aspect-ratio: 16 / 9;
+    box-shadow: none !important;
+    border: 1px solid #e6dccb !important;
+    border-radius: 4px !important;
   }
 }
