@@ -639,6 +639,31 @@ export default function SlideBuilder({
         <div className="flex lg:flex-col gap-2 overflow-x-auto lg:overflow-visible pb-1">
           {slides.map((s, i) => {
             const t = resolveTheme(s.bg);
+            // Mirror the actual slide layout in the thumbnail so a teacher
+            // can see at a glance how each slide is composed. Previous
+            // version always painted the image as a 40% full-bleed wash,
+            // which made every slide look like a Cover regardless of
+            // layout (and the change didn't appear when the teacher
+            // edited the right-hand canvas).
+            const layout = s.layout || "text";
+            const imgSrc = s.image ? resolveSrc(s.image.thumb || s.image.url) : null;
+            const sideImage = imgSrc && (layout === "text-image" || layout === "image-text");
+            const imageOnLeft = layout === "image-text";
+            const bgImage = imgSrc && (layout === "title" || layout === "full-image");
+            // On a tinted photo background the body text needs to be near-white
+            // to stay legible; otherwise it follows the theme tokens.
+            const titleColor = bgImage ? "#ffffff" : t.text;
+            const bodyColor = bgImage ? "rgba(255,255,255,0.85)" : t.soft;
+            const numColor = bgImage ? "rgba(255,255,255,0.85)" : t.soft;
+            const titleAlign =
+              layout === "title" ? "flex flex-col items-center justify-center text-center" :
+              layout === "full-image" ? "flex flex-col justify-end" :
+              "";
+            // Leave room next to a side image (left half OR right half) so
+            // the text doesn't slide under the photo.
+            const textInset = sideImage
+              ? (imageOnLeft ? "ps-[calc(50%+0.4rem)]" : "pe-[calc(50%+0.4rem)]")
+              : "";
             return (
               <button
                 key={i}
@@ -649,17 +674,35 @@ export default function SlideBuilder({
                 }`}
                 style={{ background: t.bg }}
               >
-                {s.image && (
-                  <img src={resolveSrc(s.image.thumb || s.image.url)} alt="" className="absolute inset-0 w-full h-full object-cover opacity-40" />
+                {/* Full-bleed cover image (title / full-image layouts) +
+                    a subtle gradient wash so the text stays legible. */}
+                {bgImage && (
+                  <>
+                    <img src={imgSrc} alt="" className="absolute inset-0 w-full h-full object-cover" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/15 to-black/35" />
+                  </>
                 )}
-                <div className="absolute inset-0 p-2">
-                  <span className="font-mono text-[9px] absolute top-1.5 right-2" style={{ color: t.soft }}>{i + 1}</span>
-                  <p className="font-serif text-[11px] font-medium leading-tight line-clamp-2 pr-4" style={{ color: t.text }}>
+                {/* Side image — half-width on the appropriate side for
+                    text-image / image-text layouts. */}
+                {sideImage && (
+                  <img
+                    src={imgSrc}
+                    alt=""
+                    className={`absolute top-0 ${imageOnLeft ? "left-0" : "right-0"} h-full w-1/2 object-cover`}
+                  />
+                )}
+                <div className={`absolute inset-0 p-2 ${titleAlign} ${textInset}`}>
+                  <span className="font-mono text-[9px] absolute top-1.5 right-2" style={{ color: numColor }}>{i + 1}</span>
+                  <p className="font-serif text-[11px] font-medium leading-tight line-clamp-2 pr-4" style={{ color: titleColor }}>
                     {s.title || "Untitled"}
                   </p>
-                  <p className="text-[8.5px] mt-1 line-clamp-3 leading-snug" style={{ color: t.soft }}>
-                    {(s.bullets || []).filter(Boolean).join(" · ")}
-                  </p>
+                  {/* Cover slides keep the layout focused on the title;
+                      every other layout shows a short summary of the bullets. */}
+                  {layout !== "title" && (
+                    <p className="text-[8.5px] mt-1 line-clamp-3 leading-snug" style={{ color: bodyColor }}>
+                      {(s.bullets || []).filter(Boolean).join(" · ")}
+                    </p>
+                  )}
                 </div>
               </button>
             );
