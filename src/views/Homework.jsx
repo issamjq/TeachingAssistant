@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Pencil, Trash2 } from "lucide-react";
 import {
-  ConfirmDelete, SortHeader, useSortable, api,
+  ConfirmDelete, SortHeader, useSortable, api, fmtRowTimestamp,
 } from "./_shared";
 import {
   DataPageHeader, DataCard, CardsGrid, useViewMode,
@@ -112,6 +112,7 @@ export default function Homework({ onOpenHomework }) {
               onEdit={() => onOpenHomework?.(h)}
               onDelete={() => setDeleting(h)}
               exportNode={hwExport(h)}
+              timestamp={fmtRowTimestamp(h)}
             >
               <button
                 type="button"

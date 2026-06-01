@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { ListChecks, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
-  Modal, ConfirmDelete, api, timeAgo,
+  Modal, ConfirmDelete, api, timeAgo, fmtRowTimestamp,
 } from "./_shared";
 import {
   DataPageHeader, DataCard, CardsGrid, useViewMode,
@@ -117,6 +117,7 @@ export default function Activities({ onOpenActivity }) {
               onEdit={() => onOpenActivity?.(a)}
               onDelete={() => setDeleting(a)}
               exportNode={activityExport(a)}
+              timestamp={fmtRowTimestamp(a)}
             >
               <button
                 type="button"

@@ -8,8 +8,14 @@ import {
 } from "lucide-react";
 import "../landing.css";
 import { useT, useI18n, LangToggle } from "../lib/i18n";
-import { useAccount, setAccount, clearAccount, getPendingProfile, clearPendingProfile } from "../lib/account";
+import {
+  useAccount, setAccount, clearAccount,
+  getPendingProfile, clearPendingProfile,
+  getPendingSchools, clearPendingSchools,
+} from "../lib/account";
+import { api as apiFetch } from "./_shared";
 import { PLANS } from "../lib/plans";
+import { PRIVACY, TERMS, SECURITY, LEGAL_VERSION, LEGAL_EFFECTIVE_DATE } from "../lib/legal";
 import ProfileForm from "./onboarding/ProfileForm";
 import LandingHome from "./LandingHome";
 import MurchidLogo from "../components/MurchidLogo";
@@ -5088,9 +5094,8 @@ const Footer = ({ onEnter, signedIn, onJump, onPage }) => {
         >
           <div>{t("lp.foot.copyright")}</div>
           <div className="flex items-center gap-6">
-            <FLink onClick={() => onPage("privacy")}>{t("lp.foot.privacyShort")}</FLink>
-            <FLink onClick={() => onPage("privacy")}>{t("lp.foot.terms")}</FLink>
-            <FLink onClick={() => onPage("privacy")}>{t("lp.foot.security")}</FLink>
+            <FLink onClick={() => onPage("terms")}>{t("lp.foot.terms")}</FLink>
+            <FLink onClick={() => onPage("security")}>{t("lp.foot.security")}</FLink>
           </div>
         </div>
       </div>
@@ -5263,12 +5268,17 @@ function OutlookMark() {
   );
 }
 
-function ProviderButton({ icon, label, onClick }) {
+function ProviderButton({ icon, label, onClick, disabled }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className="w-full flex items-center justify-center gap-3 px-5 py-3.5 rounded-xl text-sm font-medium transition lift"
+      disabled={disabled}
+      aria-disabled={disabled || undefined}
+      title={disabled ? "Tick the box below to enable" : undefined}
+      className={`w-full flex items-center justify-center gap-3 px-5 py-3.5 rounded-xl text-sm font-medium transition ${
+        disabled ? "cursor-not-allowed opacity-50" : "lift"
+      }`}
       style={{ background: "var(--paper)", border: "0.5px solid var(--line-strong)", color: "var(--ink)" }}
     >
       <span className="flex-shrink-0 inline-flex">{icon}</span>
@@ -5282,6 +5292,47 @@ function ProviderButton({ icon, label, onClick }) {
 // Firebase popup later; the rest of the funnel is unchanged.
 function AuthPage({ onSignUp, onPage }) {
   const t = useT();
+  // Sign-up requires explicit, opt-in acceptance of the Terms and the
+  // Privacy Policy. Until both are checked, the provider buttons stay
+  // disabled — a recorded act of consent (PDPL Article 6) is the
+  // lawful basis we rely on for new accounts.
+  const [accepted, setAccepted] = useState(false);
+  const [tried, setTried] = useState(false);
+  const [signingIn, setSigningIn] = useState(false);
+  const [authError, setAuthError] = useState(null);
+  const handleProvider = async (provider) => {
+    if (!accepted) {
+      setTried(true);
+      return;
+    }
+    setAuthError(null);
+    setSigningIn(true);
+    try {
+      // Both providers resolve to the same Firebase User shape, so the
+      // downstream funnel (profile prefill, plan picker, bootstrap)
+      // doesn't care which one was tapped.
+      const lib = await import("../lib/firebaseAuth");
+      const user = provider === "google"
+        ? await lib.signInWithGoogle()
+        : await lib.signInWithMicrosoft();
+      onSignUp(provider, {
+        acceptedAt: new Date().toISOString(),
+        legalVersion: LEGAL_VERSION,
+        firebaseUser: {
+          uid: user.uid,
+          email: user.email || "",
+          displayName: user.displayName || "",
+          photoURL: user.photoURL || "",
+        },
+      });
+    } catch (e) {
+      // popup-closed-by-user is a normal cancel — don't flash an error.
+      if (e?.code !== "auth/popup-closed-by-user" && e?.code !== "auth/cancelled-popup-request") {
+        setAuthError(e?.message || String(e));
+      }
+      setSigningIn(false);
+    }
+  };
   return (
     <PageShell
       eyebrow={t("lp.auth.eyebrow")}
@@ -5292,23 +5343,74 @@ function AuthPage({ onSignUp, onPage }) {
       narrow
       centered
     >
-      <div className="space-y-3 max-w-sm mx-auto">
+      <div className={`space-y-3 max-w-sm mx-auto transition-opacity ${accepted ? "opacity-100" : "opacity-90"}`}>
         <ProviderButton
           icon={<GoogleMark />}
-          label={t("lp.auth.google")}
-          onClick={() => onSignUp("google")}
+          label={signingIn ? "Opening sign-in…" : t("lp.auth.google")}
+          onClick={() => handleProvider("google")}
+          disabled={!accepted || signingIn}
         />
         <ProviderButton
           icon={<OutlookMark />}
-          label={t("lp.auth.outlook")}
-          onClick={() => onSignUp("outlook")}
+          label={signingIn ? "Opening sign-in…" : t("lp.auth.outlook")}
+          onClick={() => handleProvider("outlook")}
+          disabled={!accepted || signingIn}
         />
+        {authError && (
+          <p role="alert" className="text-xs text-center" style={{ color: "var(--clay, #b3442b)" }}>
+            {authError}
+          </p>
+        )}
       </div>
+
+      <div className="max-w-sm mx-auto mt-6">
+        <label className="flex items-start gap-3 text-start cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={accepted}
+            onChange={(e) => { setAccepted(e.target.checked); if (e.target.checked) setTried(false); }}
+            // Native checkbox, scaled up so it's easy to tap. We avoid
+            // custom-painted boxes here because the legal acceptance
+            // checkbox should remain unmistakable as a real form
+            // control on every browser and assistive tech.
+            className="mt-0.5 h-4 w-4 flex-shrink-0 accent-[color:var(--clay,#b3442b)] cursor-pointer"
+            aria-describedby="auth-terms-text auth-terms-error"
+            required
+          />
+          <span
+            id="auth-terms-text"
+            className="text-sm leading-relaxed"
+            style={{ color: "var(--ink-2)" }}
+          >
+            I have read and agree to the{" "}
+            <button
+              type="button"
+              onClick={(e) => { e.preventDefault(); onPage("terms"); }}
+              className="underline decoration-from-font font-medium hover:text-[color:var(--clay,#b3442b)]"
+            >Terms &amp; Conditions</button>{" "}
+            and the{" "}
+            <button
+              type="button"
+              onClick={(e) => { e.preventDefault(); onPage("privacy"); }}
+              className="underline decoration-from-font font-medium hover:text-[color:var(--clay,#b3442b)]"
+            >Privacy Policy</button>, including the processing of my data
+            under UAE Federal Decree-Law No. 45 of 2021 (PDPL).
+          </span>
+        </label>
+        {tried && !accepted && (
+          <p
+            id="auth-terms-error"
+            role="alert"
+            className="text-xs mt-2 ps-7"
+            style={{ color: "var(--clay, #b3442b)" }}
+          >
+            Please confirm you agree to the Terms and Privacy Policy before continuing.
+          </p>
+        )}
+      </div>
+
       <p className="text-xs mt-6 text-center" style={{ color: "var(--ink-3)" }}>
         {t("lp.auth.only")}
-      </p>
-      <p className="text-xs mt-2 text-center" style={{ color: "var(--ink-3)" }}>
-        {t("lp.auth.terms")}
       </p>
     </PageShell>
   );
@@ -5378,7 +5480,7 @@ function OnboardingPage({ onChoosePlan, onPage }) {
         className="group relative mt-5 w-full rounded-[24px] overflow-hidden flex flex-wrap items-center justify-between gap-x-6 gap-y-4 px-7 py-4"
         style={{
           background:
-            "radial-gradient(ellipse 92% 64% at 50% 14%, oklch(0.64 0.13 42), transparent 72%), radial-gradient(circle at 86% 92%, oklch(0.36 0.10 22), transparent 60%), var(--cm-clay)",
+            "radial-gradient(ellipse 92% 64% at 50% 14%, oklch(0.64 0.13 42), transparent 72%), var(--cm-clay)",
           color: "var(--paper)",
           boxShadow:
             "0 14px 30px -12px rgba(26,24,20,0.55), inset 0 1px 0 rgba(255,255,255,0.08)",
@@ -5425,10 +5527,13 @@ function OnboardingPage({ onChoosePlan, onPage }) {
           </p>
         </div>
 
-        {/* Right — the CTA button (cream pill, same family as the hero) */}
+        {/* Right — the CTA button (cream pill, same family as the hero).
+            "trial" is its own pseudo-plan: no payment, 7-day window
+            (TRIAL_DAYS in lib/plans.js). The picker cards above all go
+            to the paid path. */}
         <button
           type="button"
-          onClick={() => onChoosePlan("quarterly")}
+          onClick={() => onChoosePlan("trial")}
           className="cinema-pill flex-shrink-0"
         >
           {t("lp.plan.trialCta")}
@@ -5436,6 +5541,104 @@ function OnboardingPage({ onChoosePlan, onPage }) {
       </div>
       <p className="text-xs mt-5" style={{ color: "var(--ink-3)" }}>
         {t("lp.ob.note")}
+      </p>
+    </PageShell>
+  );
+}
+
+// Long-form legal document renderer — Privacy Policy / Terms &
+// Conditions. Content trees live in lib/legal.js so the binding text
+// is versioned and reviewed separately from the marketing UI. The
+// renderer handles paragraphs, ordered/unordered lists, and one
+// level of sub-section nesting.
+function LegalBody({ items }) {
+  if (!Array.isArray(items)) return null;
+  return (
+    <>
+      {items.map((item, i) => {
+        if (item.p) {
+          return (
+            <p
+              key={i}
+              className="mb-4 leading-relaxed"
+              style={{ color: "var(--ink-2)" }}
+            >
+              {item.p}
+            </p>
+          );
+        }
+        if (item.strong) {
+          return (
+            <p key={i} className="mb-4 font-semibold leading-relaxed">
+              {item.strong}
+            </p>
+          );
+        }
+        if (Array.isArray(item.list)) {
+          return (
+            <ul
+              key={i}
+              className="mb-4 ms-5 list-disc space-y-1.5 leading-relaxed"
+              style={{ color: "var(--ink-2)" }}
+            >
+              {item.list.map((li, li_i) => (
+                <li key={li_i} className="ps-1">{li}</li>
+              ))}
+            </ul>
+          );
+        }
+        if (item.sub) {
+          return (
+            <div key={i} className="mb-4">
+              <h3 className="font-display text-lg mt-3 mb-2 leading-tight">
+                {item.sub}
+              </h3>
+              <LegalBody items={item.body} />
+            </div>
+          );
+        }
+        return null;
+      })}
+    </>
+  );
+}
+
+function LegalPage({ doc, onPage }) {
+  const t = useT();
+  return (
+    <PageShell
+      eyebrow={t("lp.pg.privacy.eyebrow") /* shared "Legal" eyebrow */}
+      title={doc.title}
+      em=""
+      lead={`Effective ${LEGAL_EFFECTIVE_DATE} · Version ${LEGAL_VERSION}`}
+      onPage={onPage}
+    >
+      <div className="mb-8 rounded-lg border px-4 py-3 text-sm leading-relaxed"
+        style={{
+          color: "var(--ink-2)",
+          borderColor: "var(--ink-1, rgba(15,20,16,0.12))",
+          background: "var(--paper-warm, rgba(255,253,246,0.6))",
+        }}
+      >
+        This document is governed by the laws of the United Arab Emirates,
+        including UAE Federal Decree-Law No. 45 of 2021 on the Protection
+        of Personal Data, and is published in English. An Arabic version
+        is available on request.
+      </div>
+
+      <LegalBody items={doc.intro} />
+
+      {doc.sections.map((s, i) => (
+        <section key={i} className="mt-10">
+          <h2 className="font-display text-2xl md:text-3xl mb-4 leading-tight">
+            {s.heading}
+          </h2>
+          <LegalBody items={s.body} />
+        </section>
+      ))}
+
+      <p className="mt-12 text-sm" style={{ color: "var(--ink-3)" }}>
+        Last updated {LEGAL_EFFECTIVE_DATE} · {doc.title} v{LEGAL_VERSION}
       </p>
     </PageShell>
   );
@@ -5456,24 +5659,13 @@ function MarketingPage({ page, onSignUp, onProfileDone, onChoosePlan, onPage }) 
     return <OnboardingPage onChoosePlan={onChoosePlan} onPage={onPage} />;
 
   if (page === "privacy")
-    return (
-      <PageShell
-        eyebrow={t("lp.pg.privacy.eyebrow")}
-        title={t("lp.pg.privacy.title")}
-        em={t("lp.pg.privacy.em")}
-        lead={t("lp.pg.privacy.lead")}
-        onPage={onPage}
-      >
-        <CommitList
-          items={[
-            { t: t("lp.pg.privacy.i1t"), b: t("lp.pg.privacy.i1b") },
-            { t: t("lp.pg.privacy.i2t"), b: t("lp.pg.privacy.i2b") },
-            { t: t("lp.pg.privacy.i3t"), b: t("lp.pg.privacy.i3b") },
-            { t: t("lp.pg.privacy.i4t"), b: t("lp.pg.privacy.i4b") },
-          ]}
-        />
-      </PageShell>
-    );
+    return <LegalPage doc={PRIVACY} onPage={onPage} />;
+
+  if (page === "terms")
+    return <LegalPage doc={TERMS} onPage={onPage} />;
+
+  if (page === "security")
+    return <LegalPage doc={SECURITY} onPage={onPage} />;
 
   if (page === "moe")
     return (
@@ -5591,6 +5783,11 @@ export default function Landing({ onOpenStudio }) {
   const account = useAccount();
   const signedIn = !!account;
   const [pendingProvider, setPendingProvider] = useState(null);
+  // Firebase user object captured by AuthPage on Google sign-in. Used
+  // to pre-fill the onboarding form AND to call /api/auth/firebase
+  // once the plan is picked (so the teacher row gets created in our
+  // DB before the studio loads).
+  const [pendingFirebaseUser, setPendingFirebaseUser] = useState(null);
 
   const goPage = (p) => {
     setPage(p);
@@ -5600,8 +5797,26 @@ export default function Landing({ onOpenStudio }) {
   // The single entry action behind every primary CTA: into the planner
   // if subscribed, otherwise into the sign-up funnel.
   const enter = () => (signedIn ? onOpenStudio() : goPage("signup"));
-  const handleSignUp = (provider) => {
+  const handleSignUp = (provider, payload) => {
     setPendingProvider(provider);
+    if (payload?.firebaseUser) {
+      setPendingFirebaseUser(payload.firebaseUser);
+      // Pre-fill the onboarding profile with the Google account's
+      // name/email/avatar so the teacher doesn't retype what we already
+      // know. ProfileForm reads getPendingProfile() on mount.
+      const [firstName, ...rest] = (payload.firebaseUser.displayName || "").split(/\s+/).filter(Boolean);
+      const existing = getPendingProfile() || {};
+      const merged = {
+        ...existing,
+        firstName: existing.firstName || firstName || "",
+        lastName:  existing.lastName  || rest.join(" "),
+        email:     existing.email     || payload.firebaseUser.email,
+        avatarUrl: existing.avatarUrl || payload.firebaseUser.photoURL,
+      };
+      try {
+        localStorage.setItem("murchid.profile.pending", JSON.stringify(merged));
+      } catch { /* ignore */ }
+    }
     // New step in the funnel: collect teacher profile BEFORE plan
     // picker, so we have the My-Students data ready by the time the
     // planner opens.
@@ -5610,15 +5825,100 @@ export default function Landing({ onOpenStudio }) {
   const handleProfileDone = () => {
     goPage("onboarding");
   };
-  const handleChoosePlan = (plan) => {
+  const handleChoosePlan = async (plan) => {
     const profile = getPendingProfile() || undefined;
-    setAccount({ provider: pendingProvider || "google", plan, profile });
+    const pendingSchools = getPendingSchools() || [];
+
+    // Bootstrap the teacher row in Neon FIRST. /api/auth/firebase
+    // upserts by firebase_uid, logs IP/UA, sets subscription_ends_at
+    // based on the picked plan (trial=7d, monthly=30d, quarterly=90d,
+    // annual=365d), and returns the canonical row. We only persist the
+    // mock account locally AFTER this succeeds — that way a failed
+    // bootstrap doesn't leave the UI showing "signed in" with no
+    // backing data.
+    let teacherRow;
+    try {
+      teacherRow = await apiFetch("/api/auth/firebase", { method: "POST", body: { plan } });
+    } catch (e) {
+      console.error("Failed to provision teacher on first login:", e);
+      const msg = e.code === "plan_required"
+        ? "Please pick a plan or start the free trial to continue."
+        : `Could not finish setting up your account: ${e.message}`;
+      alert(msg);
+      return;
+    }
+
+    // Mock account in localStorage drives the sidebar / nav. The real
+    // source of truth lives on req.teacher server-side.
+    setAccount({
+      provider: pendingProvider || "google",
+      plan,
+      profile,
+      subscriptionStatus: teacherRow.subscription_status,
+      subscriptionEndsAt: teacherRow.subscription_ends_at,
+    });
+
+    // If the user filled in the onboarding profile, sync majors /
+    // grades / sections / languages to the live teacher row so the
+    // studio dropdowns match what they entered.
+    if (profile) {
+      try {
+        await apiFetch("/api/me", {
+          method: "PATCH",
+          body: {
+            first_name: profile.firstName || undefined,
+            last_name:  profile.lastName  || undefined,
+            staff_id:   profile.staffId   || undefined,
+            bio:        profile.bio       || undefined,
+            majors:        Array.isArray(profile.majors)    ? profile.majors    : undefined,
+            grade_levels:  Array.isArray(profile.grades)    ? profile.grades    : undefined,
+            languages:     Array.isArray(profile.languages) ? profile.languages : undefined,
+            sections:      Array.isArray(profile.sections)  ? profile.sections  : undefined,
+          },
+        });
+      } catch (e) {
+        console.warn("Profile patch failed (non-fatal):", e);
+      }
+    }
     clearPendingProfile();
+
+    // Persist the onboarding school picks. Custom rows (negative
+    // pseudo-ids) get materialised in the catalog first. Non-fatal —
+    // the studio still opens and the teacher can retry from My schools.
+    try {
+      for (const s of pendingSchools) {
+        let schoolId = s.school_id;
+        if (schoolId < 0 || s._custom) {
+          const created = await apiFetch("/api/schools", {
+            method: "POST",
+            body: { name: s.name, name_ar: s.name_ar, emirate: s.emirate, city: s.city },
+          });
+          schoolId = created.id;
+        }
+        await apiFetch("/api/schools/mine", {
+          method: "POST",
+          body: { school_id: schoolId, is_primary: !!s.is_primary },
+        });
+      }
+    } catch (e) {
+      console.warn("Failed to attach schools during sign-up:", e);
+    }
+    clearPendingSchools();
+    setPendingFirebaseUser(null);
+
     onOpenStudio();
   };
-  // Clears the mock account and returns the user to the landing home so
-  // they can sign in again. Available from the Nav whenever signedIn.
-  const handleSignOut = () => {
+  // Signs the teacher out of Firebase, drops the local account record,
+  // and returns them to the landing home. Both halves matter — leaving
+  // the Firebase session intact would let the next /api/* call slip
+  // through with a valid token but no UI state to back it up.
+  const handleSignOut = async () => {
+    try {
+      const { signOut } = await import("../lib/firebaseAuth");
+      await signOut();
+    } catch (e) {
+      console.warn("Firebase signOut failed:", e);
+    }
     clearAccount();
     goPage("home");
   };

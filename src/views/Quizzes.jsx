@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Pencil, Trash2 } from "lucide-react";
 import {
-  ConfirmDelete, SortHeader, useSortable, api,
+  ConfirmDelete, SortHeader, useSortable, api, fmtRowTimestamp,
 } from "./_shared";
 import {
   DataPageHeader, DataCard, CardsGrid, useViewMode,
@@ -120,24 +120,31 @@ export default function Quizzes({ onOpenQuiz }) {
               onEdit={() => onOpenQuiz?.(q)}
               onDelete={() => setDeleting(q)}
               exportNode={quizExport(q)}
+              timestamp={fmtRowTimestamp(q)}
             >
               <button
                 type="button"
                 onClick={() => onOpenQuiz?.(q)}
-                className="text-left flex-1 flex flex-col gap-2 pr-16"
+                className="text-left flex-1 flex flex-col gap-2 pr-16 w-full"
               >
                 <span className="font-mono text-[10px] uppercase tracking-wider px-2 py-0.5 bg-paper border border-line text-ink-soft rounded self-start">
                   {q.status}
                 </span>
-                <h3 className="font-serif text-lg font-medium text-ink leading-snug mt-1">
+                {/* Title clamps to 2 lines and reserves that height so
+                    the meta line below it sits at the same baseline
+                    across every card in the row. */}
+                <h3 className="font-serif text-lg font-medium text-ink leading-snug mt-1 line-clamp-2 min-h-[2.6em]">
                   {q.title}
                 </h3>
-                <p className="font-mono text-[10px] uppercase tracking-wider text-muted">
+                <p className="font-mono text-[10px] uppercase tracking-wider text-muted line-clamp-2 min-h-[2.4em]">
                   {q.subject || "—"}
                   {q.grade ? ` · ${q.grade}` : ""}
                   {q.section ? ` · ${q.section}` : ""}
                 </p>
-                <div className="grid grid-cols-3 gap-2 mt-2 pt-3 border-t border-dashed border-line">
+                {/* mt-auto pins the stats row to the bottom edge so
+                    Marks / Duration / Scheduled line up across cards
+                    regardless of title length. */}
+                <div className="grid grid-cols-3 gap-2 mt-auto pt-3 border-t border-dashed border-line">
                   <Stat label="Marks" value={q.total_marks ?? "—"} />
                   <Stat label="Duration" value={q.duration_minutes ? `${q.duration_minutes} min` : "—"} />
                   <Stat label="Scheduled" value={fmtShortDate(q.scheduled_for)} />

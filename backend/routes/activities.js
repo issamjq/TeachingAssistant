@@ -24,7 +24,7 @@ const router = crudRouter({
 });
 
 const assertOwns = async (id) => {
-  const cur = await loadCurrentTeacher();
+  const cur = await loadCurrentTeacher(req);
   const r = await pool.query(
     "SELECT id FROM activities WHERE id = $1 AND teacher_id = $2",
     [id, cur.id]

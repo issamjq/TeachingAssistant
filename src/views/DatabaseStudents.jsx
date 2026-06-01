@@ -34,11 +34,13 @@ const fullName = (s) => `${s.first_name} ${s.last_name}`;
 
 export default function DatabaseStudents() {
   const [students, setStudents] = useState([]);
+  const [mySchools, setMySchools] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [query, setQuery] = useState("");
   const [gradeFilter, setGradeFilter] = useState("");
   const [sectionFilter, setSectionFilter] = useState("");
+  const [schoolFilter, setSchoolFilter] = useState("");
   const [editing, setEditing] = useState(null); // student row being edited, or "new"
   const [deleting, setDeleting] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -56,6 +58,16 @@ export default function DatabaseStudents() {
       });
   };
   useEffect(reload, []);
+  useEffect(() => {
+    // Fire-and-forget — drives the optional school filter and the
+    // per-row school chip. Failure is silent: the page still works.
+    api("/api/schools/mine").then((rows) => setMySchools(rows || [])).catch(() => {});
+  }, []);
+  const schoolNameById = useMemo(() => {
+    const m = new Map();
+    for (const s of mySchools) m.set(s.id, s.name);
+    return m;
+  }, [mySchools]);
 
   const sectionOptions = useMemo(() => {
     const set = new Set(students.map((s) => s.section).filter(Boolean));
@@ -66,6 +78,7 @@ export default function DatabaseStudents() {
     let rows = students;
     if (gradeFilter) rows = rows.filter((s) => s.grade === gradeFilter);
     if (sectionFilter) rows = rows.filter((s) => s.section === sectionFilter);
+    if (schoolFilter) rows = rows.filter((s) => String(s.school_id || "") === schoolFilter);
     const q = query.trim().toLowerCase();
     if (q) {
       rows = rows.filter(
@@ -77,7 +90,7 @@ export default function DatabaseStudents() {
       );
     }
     return rows;
-  }, [students, query, gradeFilter, sectionFilter]);
+  }, [students, query, gradeFilter, sectionFilter, schoolFilter]);
 
   const { sorted, sort, toggle } = useSortable(filtered, {
     getValue: (s, key) => {
@@ -166,6 +179,18 @@ export default function DatabaseStudents() {
             </option>
           ))}
         </select>
+        {mySchools.length > 1 && (
+          <select
+            value={schoolFilter}
+            onChange={(e) => setSchoolFilter(e.target.value)}
+            className={`${selectClasses} md:w-56 md:flex-none`}
+          >
+            <option value="">All schools</option>
+            {mySchools.map((s) => (
+              <option key={s.id} value={s.id}>{s.name}</option>
+            ))}
+          </select>
+        )}
       </div>
 
       {error && (
@@ -232,6 +257,11 @@ export default function DatabaseStudents() {
                           <span className="font-mono text-[10px] uppercase tracking-wider text-muted">
                             {s.section}
                           </span>
+                          {mySchools.length > 1 && s.school_id && schoolNameById.get(s.school_id) && (
+                            <span className="text-[10.5px] text-clay/80 mt-0.5 truncate max-w-[14ch]">
+                              {schoolNameById.get(s.school_id)}
+                            </span>
+                          )}
                         </div>
                       </td>
                       <td className="py-4 text-ink-soft">{age != null ? age : "—"}</td>
@@ -319,6 +349,7 @@ const EMPTY_STUDENT = {
   secondary_guardian_phone: "",
   enrollment_date: "",
   notes: "",
+  school_id: "",
 };
 
 function StudentEditModal({ initial, onClose, onSaved }) {
@@ -330,10 +361,27 @@ function StudentEditModal({ initial, onClose, onSaved }) {
       ...initial,
       date_of_birth: initial.date_of_birth ? initial.date_of_birth.slice(0, 10) : "",
       enrollment_date: initial.enrollment_date ? initial.enrollment_date.slice(0, 10) : "",
+      school_id: initial.school_id ?? "",
     };
   });
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState(null);
+  // Teacher's schools — used to populate the school select. If the
+  // teacher has only one, it's auto-picked as the default for new students.
+  const [mySchools, setMySchools] = useState([]);
+  useEffect(() => {
+    api("/api/schools/mine")
+      .then((rows) => {
+        const list = rows || [];
+        setMySchools(list);
+        if (isNew && !form.school_id) {
+          const primary = list.find((s) => s.is_primary) || list[0];
+          if (primary) setForm((f) => ({ ...f, school_id: primary.id }));
+        }
+      })
+      .catch(() => { /* silent — student form still works without it */ });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
 
   const submit = async () => {
@@ -425,6 +473,27 @@ function StudentEditModal({ initial, onClose, onSaved }) {
         <Field label="Enrollment date">
           <DatePicker value={form.enrollment_date} onChange={(v) => set("enrollment_date", v)} />
         </Field>
+        {mySchools.length > 0 && (
+          <div className={mySchools.length === 1 ? "hidden" : "md:col-span-3"}>
+            <Field
+              label="School"
+              hint={mySchools.length === 1 ? "auto-assigned" : "pick which of your schools"}
+            >
+              <select
+                className={selectClasses}
+                value={form.school_id ?? ""}
+                onChange={(e) => set("school_id", e.target.value ? Number(e.target.value) : "")}
+              >
+                <option value="">—</option>
+                {mySchools.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}{s.is_primary ? " · primary" : ""} ({s.emirate})
+                  </option>
+                ))}
+              </select>
+            </Field>
+          </div>
+        )}
       </div>
 
       <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-3">Contact</p>

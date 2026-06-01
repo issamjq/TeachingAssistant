@@ -12,6 +12,7 @@ import {
   timeAgo,
   api,
   selectClasses,
+  fmtRowTimestamp,
 } from "./_shared";
 import {
   DataPageHeader, useViewMode, DataCard, CardsGrid,
@@ -198,6 +199,7 @@ export default function ReusableDrafts({ onEditDraft, onNewLesson }) {
                   key={d.id}
                   onEdit={() => onEditDraft(d)}
                   onDelete={() => setDeleting(d)}
+                  timestamp={fmtRowTimestamp(d)}
                 >
                   <div className="pr-16 flex-1 flex flex-col gap-2">
                     <div className="flex items-center gap-2">

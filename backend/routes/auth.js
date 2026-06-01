@@ -1,0 +1,156 @@
+import { Router } from "express";
+import { pool } from "../lib/db.js";
+import { handleErr } from "../lib/helpers.js";
+import { requireAuth, clientIp, userAgent, TEACHER_COLS_SQL, findTeacherByUid } from "../lib/auth.js";
+import { PLANS, TRIAL_DAYS, TRIAL_PLAN_ID, PLAN_IDS } from "../../src/lib/plans.js";
+
+// POST /api/auth/firebase
+//
+// Called by the client right after Firebase signInWithPopup() resolves
+// AND a plan has been picked in the onboarding wizard. Required body:
+//   { plan: "trial" | "monthly" | "quarterly" | "annual" }
+//
+// On first login the teacher row is created with the plan's real
+// duration: trial = 7 days, monthly = 30, quarterly = 90, annual = 365.
+// Subsequent logins refresh the audit fields but DO NOT extend the
+// subscription (that has to come from a payment / admin extension).
+//
+// The Authorization header is required even for first-time sign-in —
+// the middleware verifies the token. Every successful call stamps
+// last_login_at / last_login_ip / last_user_agent for the audit trail.
+const router = Router();
+
+// Plan id → days to add to NOW() for subscription_ends_at. Built from
+// the same lib/plans.js the client uses so both sides agree.
+const PLAN_DURATION = {
+  [TRIAL_PLAN_ID]: TRIAL_DAYS,
+  ...Object.fromEntries(PLANS.map((p) => [p.id, p.durationDays])),
+};
+
+const planStatus = (planId) => (planId === TRIAL_PLAN_ID ? "trial" : "active");
+
+router.post("/firebase", requireAuth({ optional: true }), async (req, res) => {
+  try {
+    if (!req.firebaseUser) {
+      return res.status(401).json({ error: "Missing Authorization: Bearer <id_token>" });
+    }
+    const fb = req.firebaseUser;
+    const ip = clientIp(req);
+    const ua = userAgent(req);
+    const { plan } = req.body || {};
+
+    // Split Firebase's `name` into first/last for our schema.
+    // Falls back to email-local-part if name is missing entirely.
+    const fullName = fb.name || "";
+    const parts = fullName.split(/\s+/).filter(Boolean);
+    const firstName = parts[0] || (fb.email || "Teacher").split("@")[0];
+    const lastName  = parts.length > 1 ? parts.slice(1).join(" ") : "";
+
+    let teacher = await findTeacherByUid(fb.uid);
+
+    if (!teacher) {
+      // First login. A plan is REQUIRED here — without it we have no
+      // way to set subscription_ends_at, and the user shouldn't be
+      // able to enter the studio without committing to a plan (or the
+      // 7-day trial). The client only calls this endpoint after the
+      // plan picker, so a missing/invalid plan is a programming error
+      // OR a user trying to bypass the funnel; either way, reject.
+      if (!plan || !PLAN_IDS.includes(plan)) {
+        return res.status(400).json({
+          error: "Plan required to provision account. Pick a plan before signing in.",
+          code: "plan_required",
+        });
+      }
+      const days = PLAN_DURATION[plan];
+      const endsAt = new Date(Date.now() + days * 86400000);
+      const status = planStatus(plan);
+
+      const ins = await pool.query(
+        `INSERT INTO teachers (
+            firebase_uid, email, first_name, last_name, avatar_url,
+            subscription_status, subscription_ends_at, subscription_plan,
+            last_login_at, last_login_ip, last_user_agent
+          )
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), $9, $10)
+          ON CONFLICT (email) DO UPDATE SET
+            firebase_uid          = EXCLUDED.firebase_uid,
+            avatar_url            = COALESCE(teachers.avatar_url, EXCLUDED.avatar_url),
+            -- A returning user (re-using an email) keeps their old plan;
+            -- the trial offer is one-per-account, not one-per-login.
+            last_login_at         = NOW(),
+            last_login_ip         = EXCLUDED.last_login_ip,
+            last_user_agent       = EXCLUDED.last_user_agent
+          RETURNING ${TEACHER_COLS_SQL}`,
+        [fb.uid, fb.email || null, firstName, lastName, fb.picture || null,
+         status, endsAt, plan, ip, ua]
+      );
+      teacher = ins.rows[0];
+    } else {
+      // Returning user — stamp the audit fields + bump the avatar/email
+      // if Google's / Microsoft's version is newer than what we have.
+      // We do NOT extend the subscription here; that has to come from
+      // a paid renewal (future Stripe flow) or an admin extension.
+      const upd = await pool.query(
+        `UPDATE teachers SET
+            last_login_at   = NOW(),
+            last_login_ip   = $2,
+            last_user_agent = $3,
+            email           = COALESCE(NULLIF($4, ''), email),
+            avatar_url      = COALESCE(NULLIF($5, ''), avatar_url)
+          WHERE id = $1
+          RETURNING ${TEACHER_COLS_SQL}`,
+        [teacher.id, ip, ua, fb.email || "", fb.picture || ""]
+      );
+      teacher = upd.rows[0];
+    }
+
+    res.json(teacher);
+  } catch (err) {
+    handleErr(res, "POST /api/auth/firebase", err);
+  }
+});
+
+// POST /api/auth/renew — existing teacher picks (or re-picks) a paid
+// plan. Sets status='active' (or 'trial' if they re-pick trial — though
+// the UI shouldn't let them re-trial once they've used it), pushes
+// ends_at out by the plan's full duration. Bypasses the subscription
+// gate via requireAuth() with allowExpired: true so an expired teacher
+// can use this to come back. Pre-Stripe; later this is what the
+// successful Checkout webhook will call internally.
+router.post("/renew", requireAuth({ allowExpired: true }), async (req, res) => {
+  try {
+    const { plan } = req.body || {};
+    if (!plan || !PLAN_IDS.includes(plan)) {
+      return res.status(400).json({ error: "Valid plan required", code: "plan_required" });
+    }
+    const days = PLAN_DURATION[plan];
+    const endsAt = new Date(Date.now() + days * 86400000);
+    const status = planStatus(plan);
+    const r = await pool.query(
+      `UPDATE teachers SET
+          subscription_status   = $2,
+          subscription_plan     = $3,
+          subscription_ends_at  = $4,
+          updated_at            = NOW()
+        WHERE id = $1
+        RETURNING ${TEACHER_COLS_SQL}`,
+      [req.teacher.id, status, plan, endsAt]
+    );
+    res.json(r.rows[0]);
+  } catch (err) {
+    handleErr(res, "POST /api/auth/renew", err);
+  }
+});
+
+// GET /api/auth/me — convenience for the client to fetch the canonical
+// teacher record using only the Bearer token (no body). Used on app
+// boot to verify the token is still good and hydrate the sidebar.
+router.get("/me", requireAuth(), async (req, res) => {
+  try {
+    res.json(req.teacher);
+  } catch (err) {
+    handleErr(res, "GET /api/auth/me", err);
+  }
+});
+
+export default router;

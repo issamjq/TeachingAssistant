@@ -12,23 +12,27 @@
 //
 // Submit on step 3 writes a pending profile to localStorage and calls
 // onDone() so the funnel advances to the plan picker.
-import React, { useMemo, useRef, useState } from "react";
-import { ChevronRight, ChevronLeft, Check, Download, Upload, FileText, X, Plus } from "lucide-react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { ChevronRight, ChevronLeft, Check, Download, Upload, FileText, X, Plus, MapPin, Search, Star, Trash2 } from "lucide-react";
 import { MAJORS, GRADE_LEVELS, QUIZ_LANGUAGES, QUIZ_SECTIONS } from "../../lib/enums";
+import { EMIRATES } from "../../lib/schools";
 import {
   setPendingProfile, getPendingProfile,
   setPendingStudents, getPendingStudents,
+  setPendingSchools, getPendingSchools,
 } from "../../lib/account";
 import { useT, useI18n } from "../../lib/i18n";
 import Avatar from "../../components/Avatar";
-import { AVATARS } from "../../lib/avatars";
+import { avatarsFor } from "../../lib/avatars";
+import { api } from "../_shared";
 
-const STEPS = ["identity", "subjects", "scope", "students"];
+const STEPS = ["identity", "subjects", "scope", "schools", "students"];
 
 const EMPTY = {
   firstName: "",
   lastName: "",
   staffId: "",
+  gender: "",
   avatar: "",
   bio: "",
   majors: [],
@@ -124,6 +128,9 @@ export default function ProfileForm({ onDone, onBack }) {
   const [stepIdx, setStepIdx] = useState(0);
   const [data, setData] = useState(() => ({ ...EMPTY, ...(getPendingProfile() || {}) }));
   const [students, setStudents] = useState(() => getPendingStudents() || []);
+  // schools: [{ school_id, name, name_ar, emirate, city, is_primary }]. Saved
+  // on next/finish via setPendingSchools so the choice survives the plan picker.
+  const [schools, setSchools] = useState(() => getPendingSchools() || []);
   const [importError, setImportError] = useState(null);
   const fileInputRef = useRef(null);
 
@@ -133,14 +140,22 @@ export default function ProfileForm({ onDone, onBack }) {
   // Lightweight per-step validation — staff_id, bio, sections, and
   // the entire students step are optional; the rest must have
   // something so we don't end up with an empty teacher profile.
+  // Every field is required to advance — only the bio (and the
+  // skippable schools/students steps) get to be empty.
   const valid =
     step === "identity"
-      ? data.firstName.trim().length > 0 && data.lastName.trim().length > 0
+      ? data.firstName.trim().length > 0 &&
+        data.lastName.trim().length > 0 &&
+        data.staffId.trim().length > 0 &&
+        data.gender.length > 0 &&
+        data.avatar.length > 0
       : step === "subjects"
         ? data.majors.length > 0 && data.languages.length > 0
         : step === "scope"
-          ? data.grades.length > 0
-          : true; // students step — always valid (skippable)
+          ? data.grades.length > 0 && data.sections.length > 0
+          : step === "schools"
+            ? schools.length > 0
+            : true; // students step — always valid (skippable)
 
   const handleTemplateDownload = () => {
     const csv = rowsToCsv(STUDENT_COLUMNS, TEMPLATE_ROWS);
@@ -168,6 +183,15 @@ export default function ProfileForm({ onDone, onBack }) {
   };
 
   const set = (patch) => setData((d) => ({ ...d, ...patch }));
+  // Switching gender swaps the avatar set, so drop any avatar that
+  // belonged to the previous set — otherwise the picker would show a
+  // selected ring with no matching tile.
+  const setGender = (g) =>
+    setData((d) => ({
+      ...d,
+      gender: g,
+      avatar: avatarsFor(g).some((a) => a.id === d.avatar) ? d.avatar : "",
+    }));
   const toggleIn = (key, value) =>
     setData((d) => {
       const cur = d[key] || [];
@@ -177,10 +201,13 @@ export default function ProfileForm({ onDone, onBack }) {
 
   const next = () => {
     if (!valid) return;
+    // Persist the in-progress picks on every step so a closed-tab resume
+    // doesn't lose the schools array.
+    setPendingSchools(schools);
     if (last) {
       setPendingProfile(data);
       setPendingStudents(students);
-      onDone?.({ ...data, students });
+      onDone?.({ ...data, students, schools });
       return;
     }
     setStepIdx((i) => i + 1);
@@ -234,7 +261,7 @@ export default function ProfileForm({ onDone, onBack }) {
                 placeholder={t("onb.ph.lastName")}
               />
             </Field>
-            <Field label={t("onb.fld.staffId")} hint={t("onb.fld.optional")}>
+            <Field label={t("onb.fld.staffId")} required>
               <input
                 type="text"
                 value={data.staffId}
@@ -244,9 +271,31 @@ export default function ProfileForm({ onDone, onBack }) {
               />
             </Field>
           </div>
-          <Field label={t("onb.fld.avatar")} hint={t("onb.fld.optional")}>
+          <Field label={t("onb.fld.gender")} required>
+            <div className="flex gap-2">
+              {["man", "woman"].map((g) => {
+                const on = data.gender === g;
+                return (
+                  <button
+                    key={g}
+                    type="button"
+                    onClick={() => setGender(on ? "" : g)}
+                    aria-pressed={on}
+                    className={`px-4 py-1.5 rounded-full text-[12.5px] font-medium border transition-colors ${
+                      on
+                        ? "bg-ink text-paper-cool border-ink"
+                        : "bg-paper-cool text-ink border-line hover:border-ink"
+                    }`}
+                  >
+                    {t(`onb.gender.${g}`)}
+                  </button>
+                );
+              })}
+            </div>
+          </Field>
+          <Field label={t("onb.fld.avatar")} required>
             <div className="flex flex-wrap gap-3">
-              {AVATARS.map((a) => {
+              {avatarsFor(data.gender).map((a) => {
                 const on = data.avatar === a.id;
                 return (
                   <button
@@ -312,7 +361,7 @@ export default function ProfileForm({ onDone, onBack }) {
                 allLabel={t("onb.all.grades")}
               />
             </Field>
-            <Field label={t("onb.fld.sections")} hint={t("onb.fld.optional")}>
+            <Field label={t("onb.fld.sections")} required>
               <ChipPicker
                 options={QUIZ_SECTIONS.filter((s) => s !== "All sections")}
                 selected={data.sections}
@@ -334,6 +383,10 @@ export default function ProfileForm({ onDone, onBack }) {
               />
             </Field>
           </div>
+        )}
+
+        {step === "schools" && (
+          <SchoolsStep t={t} value={schools} onChange={setSchools} />
         )}
 
         {step === "students" && (
@@ -475,6 +528,21 @@ export default function ProfileForm({ onDone, onBack }) {
             {/* Skip — italic text link with permanent underline, centered
                 directly under the primary Continue button. Standard
                 pattern: low-commitment exit beneath the primary CTA. */}
+            {step === "schools" && (
+              <button
+                type="button"
+                onClick={() => {
+                  // Bypass — same shape as the students skip. Wipe any
+                  // half-picked schools and advance to the next step.
+                  setSchools([]);
+                  setPendingSchools([]);
+                  setStepIdx((i) => i + 1);
+                }}
+                className="font-serif italic text-sm text-ink-soft hover:text-ink underline underline-offset-2 transition-colors"
+              >
+                {t("onb.schools.skipBtn")}
+              </button>
+            )}
             {step === "students" && (
               <button
                 type="button"
@@ -483,7 +551,7 @@ export default function ProfileForm({ onDone, onBack }) {
                   setImportError(null);
                   setPendingProfile(data);
                   setPendingStudents([]);
-                  onDone?.({ ...data, students: [] });
+                  onDone?.({ ...data, students: [], schools });
                 }}
                 className="font-serif italic text-sm text-ink-soft hover:text-ink underline underline-offset-2 transition-colors"
               >
@@ -643,6 +711,294 @@ function ChipPicker({
           </button>
         </div>
       )}
+    </div>
+  );
+}
+
+// SchoolsStep
+// ─────────────────────────────────────────────────────────────────────────
+// Fetches the UAE catalog from /api/schools on mount, then renders a
+// searchable list filtered by emirate. The teacher's selections are
+// kept in the parent (so they survive Back/Next), shaped as:
+//   [{ school_id, name, name_ar, emirate, city, is_primary }, ...]
+//
+// The first added school is auto-marked primary. The "Make primary"
+// chip on each row demotes the others — there's at most one primary.
+//
+// A "School not listed?" fallback at the bottom lets a teacher type a
+// custom name; the picked emirate is used. Custom schools get a
+// negative pseudo-id (–Date.now()) — the Landing plan-pick handler
+// POSTs them to /api/schools first to create real catalog rows, then
+// attaches them via /api/schools/mine.
+function SchoolsStep({ t, value, onChange }) {
+  const [catalog, setCatalog] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
+  const [search, setSearch] = useState("");
+  const [emirateFilter, setEmirateFilter] = useState("");
+  const [customName, setCustomName] = useState("");
+  const [customEmirate, setCustomEmirate] = useState("Dubai");
+
+  useEffect(() => {
+    api("/api/schools")
+      .then((rows) => {
+        setCatalog(rows || []);
+        setLoading(false);
+      })
+      .catch((e) => {
+        setLoadError(e.message);
+        setLoading(false);
+      });
+  }, []);
+
+  const selectedIds = useMemo(() => new Set(value.map((s) => s.school_id)), [value]);
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return catalog.filter((s) => {
+      if (emirateFilter && s.emirate !== emirateFilter) return false;
+      if (!q) return true;
+      return (
+        s.name.toLowerCase().includes(q) ||
+        (s.name_ar || "").includes(q) ||
+        (s.city || "").toLowerCase().includes(q) ||
+        s.emirate.toLowerCase().includes(q)
+      );
+    }).slice(0, 40); // cap to keep the list scannable
+  }, [catalog, search, emirateFilter]);
+
+  const addSchool = (s) => {
+    if (selectedIds.has(s.id)) return;
+    const next = [
+      ...value,
+      {
+        school_id: s.id,
+        name: s.name,
+        name_ar: s.name_ar,
+        emirate: s.emirate,
+        city: s.city,
+        is_primary: value.length === 0, // first one is the primary by default
+      },
+    ];
+    onChange(next);
+  };
+  const removeSchool = (school_id) => {
+    let next = value.filter((s) => s.school_id !== school_id);
+    // If we just removed the primary, promote the first remaining one.
+    if (next.length > 0 && !next.some((s) => s.is_primary)) {
+      next = next.map((s, i) => (i === 0 ? { ...s, is_primary: true } : s));
+    }
+    onChange(next);
+  };
+  const makePrimary = (school_id) => {
+    onChange(value.map((s) => ({ ...s, is_primary: s.school_id === school_id })));
+  };
+  const addCustom = () => {
+    const name = customName.trim();
+    if (!name) return;
+    // Negative pseudo-ids: the Landing plan-pick handler swaps these
+    // out for real catalog ids once /api/schools accepts an insert.
+    const pseudoId = -Date.now();
+    onChange([
+      ...value,
+      {
+        school_id: pseudoId,
+        name,
+        name_ar: null,
+        emirate: customEmirate,
+        city: null,
+        is_primary: value.length === 0,
+        _custom: true,
+      },
+    ]);
+    setCustomName("");
+  };
+
+  return (
+    <div className="space-y-5">
+      {/* Selected pills — sits ABOVE the picker so the teacher sees
+          what they've already added and doesn't add the same school twice. */}
+      {value.length > 0 && (
+        <div className="rounded-xl border border-sage/40 bg-sage/[0.06] p-3">
+          <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-2 inline-flex items-center gap-2">
+            <MapPin size={11} className="text-sage" />
+            {t("onb.schools.selected")} · {value.length}
+          </p>
+          <ul className="space-y-1.5">
+            {value.map((s) => (
+              <li
+                key={s.school_id}
+                className="flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-paper-cool border border-line/70"
+              >
+                <div className="min-w-0 flex-1">
+                  <p className="text-[13px] font-medium text-ink truncate">
+                    {s.name}
+                    {s.is_primary && (
+                      <span className="ml-2 inline-flex items-center gap-1 px-1.5 py-[1px] rounded-full bg-clay/15 text-clay text-[10px] font-mono uppercase tracking-wider">
+                        <Star size={9} fill="currentColor" /> {t("onb.schools.primary")}
+                      </span>
+                    )}
+                  </p>
+                  <p className="text-[11px] text-muted truncate">
+                    {s.emirate}{s.city ? ` · ${s.city}` : ""}
+                  </p>
+                </div>
+                {!s.is_primary && value.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => makePrimary(s.school_id)}
+                    title={t("onb.schools.makePrimary")}
+                    className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium text-clay hover:bg-clay/10 transition-colors"
+                  >
+                    <Star size={11} />
+                    {t("onb.schools.makePrimary")}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => removeSchool(s.school_id)}
+                  title={t("onb.schools.remove")}
+                  aria-label={t("onb.schools.remove")}
+                  className="shrink-0 h-7 w-7 inline-flex items-center justify-center rounded-md text-ink-soft hover:bg-accent hover:text-paper-cool transition-colors"
+                >
+                  <Trash2 size={12} />
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* Search + emirate filter */}
+      <div className="space-y-2.5">
+        <div className="relative">
+          <Search size={18} strokeWidth={2.25} className="absolute top-1/2 -translate-y-1/2 left-4 text-ink-soft pointer-events-none rtl:left-auto rtl:right-4" />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder={t("onb.schools.search.ph")}
+            className="w-full !pl-12 pr-4 py-3.5 rounded-xl border-2 border-[var(--line-strong,#d4c9b3)] bg-[#fffdf6] text-ink text-[16px] font-medium outline-none transition-all placeholder:text-muted placeholder:font-normal focus:border-clay focus:shadow-[0_0_0_4px_rgba(200,71,43,0.10)] rtl:!pl-4 rtl:!pr-12"
+          />
+        </div>
+        <div className="flex flex-wrap gap-1.5">
+          <button
+            type="button"
+            onClick={() => setEmirateFilter("")}
+            className={`px-3 py-1 rounded-full text-[11.5px] font-medium border transition-colors ${
+              emirateFilter === ""
+                ? "bg-ink text-paper-cool border-ink"
+                : "bg-paper-cool text-ink border-line hover:border-ink"
+            }`}
+          >
+            {t("onb.schools.emirate.all")}
+          </button>
+          {EMIRATES.map((em) => {
+            const on = emirateFilter === em;
+            return (
+              <button
+                key={em}
+                type="button"
+                onClick={() => setEmirateFilter(on ? "" : em)}
+                className={`px-3 py-1 rounded-full text-[11.5px] font-medium border transition-colors ${
+                  on
+                    ? "bg-ink text-paper-cool border-ink"
+                    : "bg-paper-cool text-ink border-line hover:border-ink"
+                }`}
+              >
+                {em}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Catalog list */}
+      {loading ? (
+        <p className="text-sm text-muted">Loading schools…</p>
+      ) : loadError ? (
+        <p className="text-sm text-accent">{loadError}</p>
+      ) : filtered.length === 0 ? (
+        <p className="text-sm text-muted italic">{t("onb.schools.empty")}</p>
+      ) : (
+        <ul className="max-h-[280px] overflow-y-auto rounded-xl border border-line divide-y divide-line/70">
+          {filtered.map((s) => {
+            const on = selectedIds.has(s.id);
+            return (
+              <li key={s.id} className="flex items-center gap-3 px-4 py-2.5">
+                <div className="min-w-0 flex-1">
+                  <p className="text-[13.5px] text-ink truncate">{s.name}</p>
+                  <p className="text-[11px] text-muted truncate">
+                    {s.emirate}{s.city ? ` · ${s.city}` : ""}
+                    {s.curriculum ? ` · ${s.curriculum}` : ""}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => addSchool(s)}
+                  disabled={on}
+                  className={`shrink-0 inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11.5px] font-medium border transition-colors ${
+                    on
+                      ? "bg-sage/15 text-sage border-sage/40 cursor-default"
+                      : "bg-paper-cool text-ink border-line hover:border-ink"
+                  }`}
+                >
+                  {on ? (
+                    <><Check size={11} /> {t("onb.schools.added")}</>
+                  ) : (
+                    <><Plus size={11} /> {t("onb.schools.add")}</>
+                  )}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+
+      {/* Fallback: school not in the list */}
+      <div className="rounded-2xl border-2 border-dashed border-line bg-paper-cool/70 p-4 sm:p-5">
+        <p className="text-[13.5px] font-medium text-ink mb-3 flex items-center gap-2">
+          <Plus size={14} className="text-clay" strokeWidth={2.5} />
+          {t("onb.schools.notListed")}
+        </p>
+        {/* Stacked layout: name input full-width on its own row,
+            emirate + add button on a second row. Keeps the name field
+            wide enough to type a real school name even on phones. */}
+        <div className="space-y-2.5">
+          <input
+            type="text"
+            value={customName}
+            onChange={(e) => setCustomName(e.target.value)}
+            placeholder={t("onb.schools.notListed.ph")}
+            className="w-full px-4 py-3 rounded-xl border-2 border-line bg-paper text-ink text-[15px] outline-none transition-all placeholder:text-muted focus:border-clay focus:shadow-[0_0_0_4px_rgba(200,71,43,0.10)]"
+          />
+          <div className="flex flex-col sm:flex-row gap-2.5">
+            <div className="flex-1 min-w-0">
+              <label className="block font-mono text-[9.5px] uppercase tracking-[0.15em] text-muted mb-1 ms-1">
+                {t("onb.schools.notListed.emirate")}
+              </label>
+              <select
+                value={customEmirate}
+                onChange={(e) => setCustomEmirate(e.target.value)}
+                className="w-full px-3 py-2.5 rounded-xl border-2 border-line bg-paper text-ink text-[14px] outline-none transition-all focus:border-clay focus:shadow-[0_0_0_4px_rgba(200,71,43,0.10)]"
+              >
+                {EMIRATES.map((em) => (
+                  <option key={em} value={em}>{em}</option>
+                ))}
+              </select>
+            </div>
+            <button
+              type="button"
+              onClick={addCustom}
+              disabled={!customName.trim()}
+              className="sm:self-end inline-flex items-center justify-center gap-1.5 px-5 py-2.5 rounded-xl bg-ink text-paper-cool text-[13.5px] font-medium hover:bg-clay transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-ink"
+            >
+              <Plus size={14} strokeWidth={2.5} />
+              {t("onb.schools.notListed.btn")}
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

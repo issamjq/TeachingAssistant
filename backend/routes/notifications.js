@@ -7,7 +7,7 @@ const router = Router();
 
 router.get("/", async (req, res) => {
   try {
-    const cur = await loadCurrentTeacher();
+    const cur = await loadCurrentTeacher(req);
     const onlyUnread = req.query.unread === "true";
     const r = await pool.query(
       `SELECT id, kind, message, link, is_read, created_at
@@ -31,7 +31,7 @@ router.get("/", async (req, res) => {
 // or every minute is safe and cheap.
 router.post("/refresh", async (_req, res) => {
   try {
-    const cur = await loadCurrentTeacher();
+    const cur = await loadCurrentTeacher(req);
 
     const inserts = [
       // Lessons starting in the next 60 min today.
@@ -114,7 +114,7 @@ router.post("/refresh", async (_req, res) => {
 
 router.post("/mark-read", async (req, res) => {
   try {
-    const cur = await loadCurrentTeacher();
+    const cur = await loadCurrentTeacher(req);
     const ids = Array.isArray(req.body?.ids) ? req.body.ids : null;
     if (ids) {
       await pool.query(
@@ -135,7 +135,7 @@ router.post("/mark-read", async (req, res) => {
 
 router.delete("/:id", async (req, res) => {
   try {
-    const cur = await loadCurrentTeacher();
+    const cur = await loadCurrentTeacher(req);
     const r = await pool.query(
       "DELETE FROM notifications WHERE id = $1 AND teacher_id = $2",
       [req.params.id, cur.id]

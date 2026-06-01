@@ -28,7 +28,7 @@ import { getRole, onRoleChange, ROLE_LABELS } from "./lib/role";
 import { api } from "./views/_shared";
 import { useRoute, navigate, replace, clearRoute } from "./lib/route";
 import { useT, LangToggle } from "./lib/i18n";
-import { useAccount, clearAccount } from "./lib/account";
+import { useAccount, clearAccount, updateProfile } from "./lib/account";
 import AccountMenu from "./views/AccountMenu";
 import HelpPopover from "./views/HelpPopover";
 import MurchidLogo from "./components/MurchidLogo";
@@ -131,6 +131,49 @@ export default function StudioApp({ onClose }) {
     });
   };
   const account = useAccount();
+  // Wait for Firebase to resolve the auth state, then either hydrate
+  // /api/me into the local account.profile (signed in) or clear the
+  // local mock account + bounce to landing (signed out from outside
+  // the app, token revoked, etc).
+  useEffect(() => {
+    let cancelled = false;
+    let off = () => {};
+    (async () => {
+      const { onAuthChange } = await import("./lib/firebaseAuth");
+      off = onAuthChange(async (user) => {
+        if (cancelled) return;
+        if (!user) {
+          // Firebase says nobody is signed in. Drop the mock account
+          // and return to the landing page (the parent main.jsx renders
+          // landing whenever account is null).
+          if (account) clearAccount();
+          return;
+        }
+        try {
+          const me = await api("/api/me");
+          if (cancelled || !me) return;
+          const cur = account?.profile || {};
+          const patch = {};
+          if (me.first_name && cur.firstName !== me.first_name) patch.firstName = me.first_name;
+          if (me.last_name  && cur.lastName  !== me.last_name)  patch.lastName  = me.last_name;
+          if (me.email      && cur.email     !== me.email)      patch.email     = me.email;
+          if (Object.keys(patch).length > 0) updateProfile(patch);
+        } catch (err) {
+          // Edge cases worth handling: a Firebase-authed user with no
+          // DB row (closed the tab during onboarding) or whose
+          // subscription has elapsed (trial ended, didn't renew).
+          // Both need to be bounced back to landing so they can
+          // complete plan-pick / renew. Other errors stay silent.
+          if (err?.code === "no_teacher_row" || err?.code === "subscription_expired") {
+            if (account) clearAccount();
+            clearRoute();
+          }
+        }
+      });
+    })();
+    return () => { cancelled = true; off?.(); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   // "Upgrade plan" stays visible for now — the real plan/trial split
   // (paid vs free-trial vs lapsed) isn't wired yet, and the signup
   // flow currently records *any* chosen plan even before payment.
@@ -139,6 +182,15 @@ export default function StudioApp({ onClose }) {
   const showUpgrade = true;
   const route = useRoute();
   const t = useT();
+
+  // Display name + initials used by the sidebar chip and the avatar.
+  // Falls back to "Teacher" until the profile is hydrated.
+  const firstName = account?.profile?.firstName || "";
+  const lastName  = account?.profile?.lastName  || "";
+  const displayName = [firstName, lastName].filter(Boolean).join(" ") || "Teacher";
+  const displayInitial =
+    `${(firstName[0] || "")}${(lastName[0] || "")}`.toUpperCase()
+    || (account?.profile?.email || "T")[0].toUpperCase();
 
   // Any route change closes the mobile drawer + account menu so the
   // new screen is visible immediately after tapping a nav item.
@@ -502,10 +554,10 @@ export default function StudioApp({ onClose }) {
             aria-expanded={accountMenuOpen}
             className={`murchid-sidebar-account ${accountMenuOpen ? "murchid-sidebar-account-active" : ""}`}
           >
-            <Avatar avatarId={account?.profile?.avatar} initial="SA" size={34} className="murchid-sidebar-account-avatar" />
+            <Avatar avatarId={account?.profile?.avatar} initial={displayInitial} size={34} className="murchid-sidebar-account-avatar" />
             <div className="flex-1 min-w-0 text-start">
               <p className="text-sm font-medium leading-tight truncate text-ink">
-                Sara
+                {displayName}
               </p>
               <p className="font-serif italic text-[11px] text-muted mt-0.5">
                 {t(`account.${role}`) === `account.${role}` ? ROLE_LABELS[role] : t(`account.${role}`)}
@@ -521,8 +573,17 @@ export default function StudioApp({ onClose }) {
             onOpenSettings={() => navigate(["account"])}
             onOpenHelp={() => setHelpOpen(true)}
             onUpgrade={() => navigate(["signup"])}
-            onLogout={() => {
-              // Clear the local account + return to the marketing landing.
+            onLogout={async () => {
+              // Sign out of Firebase first so the next /api/* call has
+              // no token to send. Then clear the local mock account and
+              // bounce to the marketing landing.
+              try {
+                const { signOut } = await import("./lib/firebaseAuth");
+                await signOut();
+              } catch (e) {
+                // eslint-disable-next-line no-console
+                console.warn("Firebase signOut failed:", e);
+              }
               clearAccount();
               clearRoute();
               onClose?.();
@@ -597,23 +658,11 @@ export default function StudioApp({ onClose }) {
             />
           </button>
           <LangToggle />
-          {onClose && (
-            <button
-              onClick={onClose}
-              title="Back to landing page"
-              aria-label="Back to landing page"
-              className="h-10 w-10 rounded-md text-ink-soft hover:bg-accent hover:text-paper-cool flex items-center justify-center transition"
-            >
-              <X size={16} />
-            </button>
-          )}
         </div>
 
         <div
-          className={`relative flex-1 overflow-y-auto bg-[#fbf2e6] px-4 pt-4 pb-6 sm:px-6 md:pt-3 md:pb-2 transition-[padding] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none ${
+          className={`relative flex-1 overflow-y-auto bg-[#fbf2e6] px-4 pt-4 pb-6 sm:px-6 md:pt-3 md:pb-2 md:pe-8 transition-[padding] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none ${
             sidebarCollapsed ? "md:ps-16" : "md:ps-8"
-          } ${
-            onClose ? "md:pe-20" : "md:pe-8"
           }`}
         >
           {sidebarCollapsed && (
@@ -625,15 +674,6 @@ export default function StudioApp({ onClose }) {
               className="hidden md:flex absolute top-3 start-3 z-20 h-9 w-9 rounded-md text-ink-soft hover:text-ink hover:bg-paper-warm items-center justify-center transition print:hidden"
             >
               <PanelLeftOpen size={16} className="rtl:rotate-180" />
-            </button>
-          )}
-          {onClose && (
-            <button
-              onClick={onClose}
-              title="Back to landing page"
-              className="hidden md:flex absolute top-3 end-8 z-20 h-9 w-9 rounded-md text-ink-soft hover:bg-accent hover:text-paper-cool items-center justify-center transition print:hidden"
-            >
-              <X size={15} />
             </button>
           )}
           {TEACHING_RAIL_SECTIONS.has(section) ? (

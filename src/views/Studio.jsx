@@ -458,6 +458,10 @@ export default function Studio({ initialKind } = {}) {
   const [copied, setCopied] = useState(false);
   const [saving, setSaving] = useState(false);
   const [savedDraftId, setSavedDraftId] = useState(null);
+  // When the teacher renames the deck inside the SlideBuilder, the
+  // top "AI studio" crumb should follow live instead of staying on
+  // the AI-generated heading. Stays null for non-presentation kinds.
+  const [presentationTitleOverride, setPresentationTitleOverride] = useState(null);
   // True whenever the in-memory result differs from what was last
   // saved (or from the freshly-generated AI version if never saved).
   // Drives the Save button's enabled state — teachers shouldn't be
@@ -521,13 +525,14 @@ export default function Studio({ initialKind } = {}) {
   // For the quiz path the title is a typed field; prefer that over any
   // markdown heading so the header tracks live edits.
   const docTitle = useMemo(() => {
+    if (result?.kind === "presentation" && presentationTitleOverride) return presentationTitleOverride;
     if (result?.kind === "quiz" && result.quiz?.title) return result.quiz.title;
     const text = sections.length && sections[0]?.markdown != null
       ? joinSections(sections)
       : streamingText;
     const line = (text || "").split(/\r?\n/).find((l) => /^#{1,3}\s+/.test(l));
     return line ? line.replace(/^#+\s*/, "").trim() : `${active?.label || ""} draft`;
-  }, [result, sections, streamingText, active?.label]);
+  }, [result, sections, streamingText, active?.label, presentationTitleOverride]);
 
   // While streaming and before the final parse, run parseSections on the
   // partial text so the sidebar can show section letters lighting up as
@@ -616,7 +621,7 @@ export default function Studio({ initialKind } = {}) {
     setResult(null);
     setSections([]);
     setError(null);
-    setSavedDraftId(null);
+    setSavedDraftId(null); setPresentationTitleOverride(null);
     setIsDirty(false);
     setPendingAnswerConfirm(null);
     setTweak("");
@@ -1006,7 +1011,7 @@ export default function Studio({ initialKind } = {}) {
     setResult(null);
     setSections([]);
     setSectionIndex(0);
-    setSavedDraftId(null);
+    setSavedDraftId(null); setPresentationTitleOverride(null);
     setIsDirty(false);
     setPendingAnswerConfirm(null);
     setError(null);
@@ -1873,7 +1878,12 @@ export default function Studio({ initialKind } = {}) {
               <SlideBuilder
                 markdown={result.text}
                 presentationParams={presentationParams}
-                onSaved={(saved) => { setSavedDraftId(saved.id); setIsDirty(false); }}
+                onDeckTitleChange={(t) => setPresentationTitleOverride(t || null)}
+                onSaved={(saved) => {
+                  setSavedDraftId(saved.id);
+                  setIsDirty(false);
+                  if (saved?.title) setPresentationTitleOverride(saved.title);
+                }}
               />
             </div>
           </Card>

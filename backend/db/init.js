@@ -1,6 +1,7 @@
 import "dotenv/config";
 import pg from "pg";
 import { GRADE_LEVELS, NATIONALITIES } from "../../src/lib/enums.js";
+import { UAE_SCHOOLS, EMIRATES, SCHOOL_TYPES, SCHOOL_CURRICULA } from "../../src/lib/schools.js";
 
 const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
 
@@ -176,6 +177,70 @@ CREATE INDEX IF NOT EXISTS presentations_deleted_at_idx ON presentations (delete
 CREATE INDEX IF NOT EXISTS activities_deleted_at_idx    ON activities (deleted_at);
 CREATE INDEX IF NOT EXISTS drafts_deleted_at_idx        ON drafts (deleted_at);
 CREATE INDEX IF NOT EXISTS templates_deleted_at_idx     ON templates (deleted_at);
+`;
+
+// Firebase Auth wiring: teachers get a stable firebase_uid (the Google/
+// Firebase user id), three light-weight login-audit fields used to spot
+// suspicious activity ("who logged in from where, when") and two
+// subscription fields so we can gate access without standing up Stripe
+// just yet. Idempotent.
+const SCHEMA_AUTH = `
+ALTER TABLE teachers ADD COLUMN IF NOT EXISTS firebase_uid TEXT;
+CREATE UNIQUE INDEX IF NOT EXISTS teachers_firebase_uid_uniq
+  ON teachers (firebase_uid) WHERE firebase_uid IS NOT NULL;
+
+ALTER TABLE teachers ADD COLUMN IF NOT EXISTS avatar_url TEXT;
+ALTER TABLE teachers ADD COLUMN IF NOT EXISTS last_login_at  TIMESTAMPTZ;
+ALTER TABLE teachers ADD COLUMN IF NOT EXISTS last_login_ip  TEXT;
+ALTER TABLE teachers ADD COLUMN IF NOT EXISTS last_user_agent TEXT;
+
+-- subscription_status: trial (default — 14 days from sign-up) / active /
+-- expired / suspended. A nullable subscription_ends_at lets a manual
+-- admin extension be open-ended.
+ALTER TABLE teachers ADD COLUMN IF NOT EXISTS subscription_status TEXT NOT NULL DEFAULT 'trial';
+ALTER TABLE teachers ADD COLUMN IF NOT EXISTS subscription_ends_at TIMESTAMPTZ;
+ALTER TABLE teachers ADD COLUMN IF NOT EXISTS subscription_plan TEXT;
+`;
+
+// Schools: a catalog of UAE schools + a many-to-many link from teachers
+// to the schools they work at. Students point at a single school so a
+// teacher who works in two schools can keep their rosters apart.
+//
+// schools          — UAE catalog. Read-only for teachers (seeded from
+//                    src/lib/schools.js). Admin can extend later.
+// teacher_schools  — join table. `is_primary` flags the default school
+//                    used as the auto-pick when adding a student.
+// students.school_id — nullable, references schools(id) ON DELETE SET NULL.
+//                      Nullable so existing seed students don't break
+//                      until a teacher assigns them.
+// Idempotent.
+const SCHEMA_SCHOOLS = `
+CREATE TABLE IF NOT EXISTS schools (
+  id          SERIAL PRIMARY KEY,
+  name        TEXT NOT NULL,
+  name_ar     TEXT,
+  emirate     TEXT NOT NULL,
+  city        TEXT,
+  type        TEXT,
+  curriculum  TEXT,
+  website     TEXT,
+  created_at  TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS schools_emirate_idx ON schools (emirate);
+-- Dedupe key so re-running the seed is idempotent.
+CREATE UNIQUE INDEX IF NOT EXISTS schools_name_emirate_uniq ON schools (name, emirate);
+
+CREATE TABLE IF NOT EXISTS teacher_schools (
+  teacher_id  INT NOT NULL REFERENCES teachers(id) ON DELETE CASCADE,
+  school_id   INT NOT NULL REFERENCES schools(id)  ON DELETE CASCADE,
+  is_primary  BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at  TIMESTAMPTZ DEFAULT NOW(),
+  PRIMARY KEY (teacher_id, school_id)
+);
+CREATE INDEX IF NOT EXISTS teacher_schools_teacher_idx ON teacher_schools (teacher_id);
+
+ALTER TABLE students ADD COLUMN IF NOT EXISTS school_id INT REFERENCES schools(id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS students_school_idx ON students (school_id);
 `;
 
 // Teacher-uploaded images for the slide builder. Stored as base64 text
@@ -422,6 +487,10 @@ ALTER TABLE teachers DROP CONSTRAINT IF EXISTS teachers_status_valid;
 ALTER TABLE teachers ADD  CONSTRAINT teachers_status_valid
   CHECK (status IN ('active', 'suspended', 'deleted'));
 
+ALTER TABLE teachers DROP CONSTRAINT IF EXISTS teachers_sub_status_valid;
+ALTER TABLE teachers ADD  CONSTRAINT teachers_sub_status_valid
+  CHECK (subscription_status IN ('trial', 'active', 'expired', 'suspended'));
+
 ALTER TABLE students DROP CONSTRAINT IF EXISTS students_grade_valid;
 ALTER TABLE students ADD  CONSTRAINT students_grade_valid
   CHECK (grade = ANY(${sqlArr(GRADE_LEVELS)}));
@@ -437,6 +506,18 @@ ALTER TABLE attendance ADD  CONSTRAINT attendance_status_valid
 ALTER TABLE quiz_questions DROP CONSTRAINT IF EXISTS quiz_questions_type_valid;
 ALTER TABLE quiz_questions ADD  CONSTRAINT quiz_questions_type_valid
   CHECK (type IN ('mcq', 'tf', 'short', 'essay'));
+
+ALTER TABLE schools DROP CONSTRAINT IF EXISTS schools_emirate_valid;
+ALTER TABLE schools ADD  CONSTRAINT schools_emirate_valid
+  CHECK (emirate = ANY(${sqlArr(EMIRATES)}));
+
+ALTER TABLE schools DROP CONSTRAINT IF EXISTS schools_type_valid;
+ALTER TABLE schools ADD  CONSTRAINT schools_type_valid
+  CHECK (type IS NULL OR type = ANY(${sqlArr(SCHOOL_TYPES)}));
+
+ALTER TABLE schools DROP CONSTRAINT IF EXISTS schools_curriculum_valid;
+ALTER TABLE schools ADD  CONSTRAINT schools_curriculum_valid
+  CHECK (curriculum IS NULL OR curriculum = ANY(${sqlArr(SCHOOL_CURRICULA)}));
 `;
 
 // =============================================================================
@@ -542,6 +623,12 @@ export async function runInit() {
   console.log("Creating uploaded_images table...");
   await pool.query(SCHEMA_IMAGES);
 
+  console.log("Adding Firebase Auth + subscription columns...");
+  await pool.query(SCHEMA_AUTH);
+
+  console.log("Creating schools + teacher_schools + students.school_id...");
+  await pool.query(SCHEMA_SCHOOLS);
+
   console.log("Normalizing legacy values...");
   await pool.query(NORMALIZE);
 
@@ -614,6 +701,19 @@ export async function runInit() {
   await pool.query(`ALTER TABLE templates ALTER COLUMN teacher_id SET NOT NULL`);
   await pool.query(`ALTER TABLE drafts    ALTER COLUMN teacher_id SET NOT NULL`);
   await pool.query(`ALTER TABLE students  ALTER COLUMN teacher_id SET NOT NULL`);
+
+  // --- UAE schools seed ---------------------------------------------------
+  // Idempotent: ON CONFLICT (name, emirate) DO NOTHING. Re-running the
+  // init never duplicates a row even if the catalog grows over time.
+  console.log(`Seeding ${UAE_SCHOOLS.length} UAE schools...`);
+  for (const s of UAE_SCHOOLS) {
+    await pool.query(
+      `INSERT INTO schools (name, name_ar, emirate, city, type, curriculum)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       ON CONFLICT (name, emirate) DO NOTHING`,
+      [s.name, s.name_ar || null, s.emirate, s.city || null, s.type || null, s.curriculum || null]
+    );
+  }
 
   // --- Feature flags ------------------------------------------------------
   for (const [key, enabled, description] of FEATURE_FLAGS) {

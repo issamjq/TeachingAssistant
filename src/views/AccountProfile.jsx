@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Mail, Phone, Globe, Pencil, User, GraduationCap } from "lucide-react";
+import { Mail, Phone, Globe, Pencil, User, GraduationCap, Building2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { NATIONALITIES } from "../lib/enums";
@@ -7,6 +7,10 @@ import { Field, Modal, inputClasses, selectClasses, api } from "./_shared";
 import { getRole, setRole, ROLES, ROLE_LABELS, ROLE_DESCRIPTIONS } from "../lib/role";
 import { navigate } from "../lib/route";
 import DatabaseProfile from "./DatabaseProfile";
+import DatabaseSchools from "./DatabaseSchools";
+import Avatar from "../components/Avatar";
+import { avatarsFor } from "../lib/avatars";
+import { useAccount, updateProfile } from "../lib/account";
 
 const initials = (first, last) =>
   `${(first || "")[0] || ""}${(last || "")[0] || ""}`.toUpperCase();
@@ -18,7 +22,10 @@ const initials = (first, last) =>
 // `sub` comes from the URL (#/account/teaching → "teaching"). Anything
 // unrecognised falls back to the personal tab.
 export default function AccountProfile({ sub }) {
-  const active = sub === "teaching" ? "teaching" : "personal";
+  const active =
+    sub === "teaching" ? "teaching" :
+    sub === "schools"  ? "schools"  :
+    "personal";
   return (
     <div>
       <header className="mb-6">
@@ -32,7 +39,9 @@ export default function AccountProfile({ sub }) {
 
       <Tabs active={active} />
 
-      {active === "personal" ? <PersonalDetails /> : <DatabaseProfile />}
+      {active === "personal" && <PersonalDetails />}
+      {active === "teaching" && <DatabaseProfile />}
+      {active === "schools"  && <DatabaseSchools />}
     </div>
   );
 }
@@ -41,6 +50,7 @@ function Tabs({ active }) {
   const items = [
     { key: "personal", label: "Personal details", icon: User, route: ["account"] },
     { key: "teaching", label: "Teaching profile", icon: GraduationCap, route: ["account", "teaching"] },
+    { key: "schools",  label: "My schools",       icon: Building2,     route: ["account", "schools"] },
   ];
   return (
     <div className="flex flex-wrap items-center gap-1 border-b border-line mb-6">
@@ -70,10 +80,16 @@ function Tabs({ active }) {
 // Personal details — the previous AccountProfile body, lifted into its
 // own component so the parent can decide which tab to render.
 function PersonalDetails() {
+  const account = useAccount();
   const [me, setMe] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [editing, setEditing] = useState(false);
+  const [pickingAvatar, setPickingAvatar] = useState(false);
+  const avatarId = account?.profile?.avatar || "";
+  // Gender drives which avatar set the picker shows. Prefer the saved value;
+  // otherwise infer from the current avatar's id (w* = woman), else default man.
+  const gender = account?.profile?.gender || (avatarId.startsWith("w") ? "woman" : "man");
 
   useEffect(() => {
     api("/api/me")
@@ -124,9 +140,18 @@ function PersonalDetails() {
         <Card>
           <CardContent className="p-8">
             <div className="flex items-center gap-5 mb-6">
-              <div className="h-16 w-16 rounded-full bg-paper-warm border border-line flex items-center justify-center font-mono text-base tracking-wider text-ink-soft flex-shrink-0">
-                {initials(me.first_name, me.last_name)}
-              </div>
+              <button
+                type="button"
+                onClick={() => setPickingAvatar(true)}
+                title="Change avatar"
+                aria-label="Change avatar"
+                className="relative group rounded-full flex-shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-paper-cool"
+              >
+                <Avatar avatarId={avatarId} initial={initials(me.first_name, me.last_name)} size={64} />
+                <span className="absolute inset-0 rounded-full bg-ink/45 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                  <Pencil size={15} className="text-paper-cool" />
+                </span>
+              </button>
               <div className="min-w-0 flex-1">
                 <h3 className="font-serif text-3xl text-ink leading-tight">
                   {me.first_name} {me.last_name}
@@ -151,7 +176,104 @@ function PersonalDetails() {
       {editing && (
         <AccountEditModal initial={me} onClose={() => setEditing(false)} onSaved={onSaved} />
       )}
+
+      {pickingAvatar && (
+        <AvatarPickerModal
+          currentAvatar={avatarId}
+          currentGender={gender}
+          onClose={() => setPickingAvatar(false)}
+          onSave={(g, id) => {
+            updateProfile({ gender: g, avatar: id });
+            setPickingAvatar(false);
+          }}
+        />
+      )}
     </div>
+  );
+}
+
+// Avatar picker — shown from the account card. Shows the portrait set that
+// matches the chosen gender, with a Man/Woman toggle to switch sets. Both the
+// gender and the chosen avatar persist into the localStorage account profile,
+// which the sidebar and landing nav read.
+function AvatarPickerModal({ currentAvatar, currentGender, onClose, onSave }) {
+  const [gender, setGender] = useState(currentGender || "man");
+  const [sel, setSel] = useState(currentAvatar || "");
+
+  // Switching sets drops a selection that doesn't belong to the new gender.
+  const chooseGender = (g) => {
+    setGender(g);
+    setSel((cur) => (avatarsFor(g).some((a) => a.id === cur) ? cur : ""));
+  };
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      eyebrow="Your account"
+      title="Choose your avatar"
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button onClick={() => onSave(gender, sel)}>Save avatar</Button>
+        </>
+      }
+    >
+      <p className="text-sm text-muted mb-4">
+        Pick a portrait to represent you across Murchid. Tap the selected one again to clear it.
+      </p>
+      <div className="flex gap-2 mb-5">
+        {["man", "woman"].map((g) => {
+          const on = gender === g;
+          return (
+            <button
+              key={g}
+              type="button"
+              onClick={() => chooseGender(g)}
+              aria-pressed={on}
+              className={`px-4 py-1.5 rounded-full text-[12.5px] font-medium border transition-colors ${
+                on
+                  ? "bg-ink text-paper-cool border-ink"
+                  : "bg-paper-cool text-ink border-line hover:border-ink"
+              }`}
+            >
+              {g === "man" ? "Man" : "Woman"}
+            </button>
+          );
+        })}
+      </div>
+      <div className="flex flex-wrap gap-3">
+        {avatarsFor(gender).map((a) => {
+          const on = sel === a.id;
+          return (
+            <button
+              key={a.id}
+              type="button"
+              onClick={() => setSel(on ? "" : a.id)}
+              aria-pressed={on}
+              aria-label="Choose avatar"
+              style={{
+                padding: 0,
+                border: 0,
+                background: "none",
+                cursor: "pointer",
+                borderRadius: "50%",
+                lineHeight: 0,
+                transition: "box-shadow 150ms, transform 150ms",
+                boxShadow: on
+                  ? "0 0 0 3px var(--color-clay)"
+                  : "0 0 0 1px var(--color-line)",
+                transform: on ? "scale(1.05)" : "none",
+              }}
+            >
+              <Avatar avatarId={a.id} size={56} />
+            </button>
+          );
+        })}
+      </div>
+    </Modal>
   );
 }
 
@@ -233,6 +355,14 @@ function AccountEditModal({ initial, onClose, onSaved }) {
     setErr(null);
     try {
       const updated = await api("/api/me", { method: "PATCH", body: form });
+      // Mirror name + email into the local account.profile so the
+      // sidebar chip and account menu reflect the edit immediately,
+      // without waiting for the next /api/me hydration on reload.
+      updateProfile({
+        firstName: updated.first_name || "",
+        lastName: updated.last_name || "",
+        email: updated.email || "",
+      });
       onSaved(updated);
     } catch (e) {
       setErr(e.message);

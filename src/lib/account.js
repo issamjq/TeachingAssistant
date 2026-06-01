@@ -51,6 +51,19 @@ export const clearAccount = () => {
   emit(null);
 };
 
+// Merge a patch into the stored account's profile — e.g. an avatar picked
+// from Settings. Reads raw storage (not getAccount, which rejects an
+// incomplete account) so provider/plan survive the round-trip, then emits so
+// useAccount subscribers (sidebar, landing nav) re-render with the change.
+export const updateProfile = (patch) => {
+  let cur = {};
+  try { cur = JSON.parse(localStorage.getItem(KEY) || "{}") || {}; } catch { /* ignore */ }
+  const next = { ...cur, profile: { ...(cur.profile || {}), ...patch } };
+  try { localStorage.setItem(KEY, JSON.stringify(next)); } catch { /* ignore */ }
+  emit(next);
+  return next;
+};
+
 // Profile captured during onboarding — written by the ProfileForm step
 // BEFORE the plan picker, then merged into the account on plan choice.
 // Stored separately so a teacher who closes the tab mid-onboarding can
@@ -83,6 +96,23 @@ export const getPendingStudents = () => {
 };
 export const clearPendingStudents = () => {
   try { localStorage.removeItem(STUDENTS_KEY); } catch { /* ignore */ }
+};
+
+// Pending school selections from onboarding. Same storage pattern as
+// students: persisted between the onboarding wizard and the plan picker,
+// then POSTed to /api/schools/mine the first time the studio loads.
+// Shape: [{ school_id: number, is_primary: boolean }, ...]
+const SCHOOLS_KEY = "murchid.schools.pending";
+export const setPendingSchools = (rows) => {
+  try { localStorage.setItem(SCHOOLS_KEY, JSON.stringify(rows || [])); }
+  catch { /* ignore */ }
+};
+export const getPendingSchools = () => {
+  try { return JSON.parse(localStorage.getItem(SCHOOLS_KEY) || "[]"); }
+  catch { return []; }
+};
+export const clearPendingSchools = () => {
+  try { localStorage.removeItem(SCHOOLS_KEY); } catch { /* ignore */ }
 };
 
 export const onAccountChange = (fn) => {

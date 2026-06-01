@@ -44,7 +44,6 @@ const RESULTS = {
       rows: [
         { tag: "00–05", text: "Hook — a wilting plant by the window" },
         { tag: "05–20", text: "Light + water + CO₂ → glucose + O₂" },
-        { tag: "20–45", text: "Pair work: label the leaf diagram" },
       ],
     },
     ar: {
@@ -54,7 +53,6 @@ const RESULTS = {
       rows: [
         { tag: "٠٠–٠٥", text: "تمهيد — نبتة ذابلة قرب النافذة" },
         { tag: "٠٥–٢٠", text: "ضوء + ماء + ثاني أكسيد الكربون ← غلوكوز" },
-        { tag: "٢٠–٤٥", text: "عمل ثنائي: تسمية أجزاء الورقة" },
       ],
     },
   },
@@ -85,7 +83,6 @@ const RESULTS = {
         { tag: "2", text: "Answer 5 questions in writing" },
         { tag: "3", text: "Write a three-sentence summary" },
       ],
-      footer: "Assigned to 7B · 28 students",
     },
     ar: {
       title: "الفهم القرائي",
@@ -95,7 +92,6 @@ const RESULTS = {
         { tag: "٢", text: "أجب عن ٥ أسئلة كتابةً" },
         { tag: "٣", text: "اكتب ملخصًا من ثلاث جمل" },
       ],
-      footer: "مُسند إلى ٧ب · ٢٨ طالبًا",
     },
   },
 };
@@ -149,6 +145,17 @@ export default function Showreel() {
   const [phase, setPhase] = useState(reduced ? "result" : "compose");
   const [paused, setPaused] = useState(false);
 
+  // Section-title typewriter — the last word of "From one line, the whole
+  // lesson." retypes to match the kind the showreel is drafting, like a person
+  // backspacing then typing. Lags `active`; only the word animates (the rest
+  // of the title is static).
+  const titleWordFor = (i) => t(`film.title.word.${KINDS[i].v}`);
+  const [titleWord, setTitleWord] = useState(() => titleWordFor(0));
+  const [typing, setTyping] = useState(false);
+  const wordRef = useRef(titleWord);
+  const langRef = useRef(lang);
+  const applyWord = (w) => { wordRef.current = w; setTitleWord(w); };
+
   useEffect(() => {
     if (reduced || paused) return undefined;
     const ms =
@@ -163,6 +170,45 @@ export default function Showreel() {
     }, ms);
     return () => clearTimeout(id);
   }, [phase, active, reduced, paused]);
+
+  // Retype the title's last word when the active kind changes (auto-cycle or
+  // click): backspace the old word, then type the new one. A language flip
+  // swaps instantly (no half-deleted English word turning into Arabic).
+  useEffect(() => {
+    const target = t(`film.title.word.${KINDS[active].v}`);
+    if (reduced) {
+      applyWord(target);
+      setTyping(false);
+      langRef.current = lang;
+      return undefined;
+    }
+    if (langRef.current !== lang) {
+      langRef.current = lang;
+      applyWord(target);
+      setTyping(false);
+      return undefined;
+    }
+    const cur = wordRef.current;
+    if (cur === target) return undefined;
+    let cancelled = false;
+    const timers = [];
+    setTyping(true);
+    let delay = 0;
+    for (let i = cur.length - 1; i >= 0; i--) {
+      delay += 42;
+      const j = i;
+      timers.push(setTimeout(() => { if (!cancelled) applyWord(cur.slice(0, j)); }, delay));
+    }
+    delay += 150;
+    for (let i = 1; i <= target.length; i++) {
+      delay += 66;
+      const j = i;
+      timers.push(setTimeout(() => { if (!cancelled) applyWord(target.slice(0, j)); }, delay));
+    }
+    timers.push(setTimeout(() => { if (!cancelled) setTyping(false); }, delay + 60));
+    return () => { cancelled = true; timers.forEach(clearTimeout); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active, lang, reduced]);
 
   const selectKind = (i) => {
     setActive(i);
@@ -189,7 +235,13 @@ export default function Showreel() {
           <header className="film-head">
             <span className="film-eyebrow">{t("film.eyebrow")}</span>
             <h2 className="film-title">
-              {t("film.title.a")} <em>{t("film.title.em")}</em>
+              {t("film.title.a")}{" "}
+              <em>
+                {t("film.title.before")}
+                <span className="film-title-word">{titleWord}</span>
+                {typing && <span className="film-title-caret" aria-hidden="true" />}
+                {t("film.title.after")}
+              </em>
             </h2>
             <p className="film-sub">{t("film.sub")}</p>
           </header>
@@ -364,7 +416,6 @@ export default function Showreel() {
                           </li>
                         ))}
                       </ul>
-                      <span className="film-hw-footer">{R.footer}</span>
                     </div>
                   )}
                 </div>

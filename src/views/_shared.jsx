@@ -76,11 +76,33 @@ export function Section({ step, title, subtitle, badge, children }) {
   );
 }
 
-export function Field({ label, children }) {
+// Pick the most relevant timestamp on a row and label it.
+// "Updated …" when the row was edited after creation, otherwise
+// "Created …". Items missing both timestamps return null so the
+// card can omit the line entirely instead of showing an empty hint.
+// Uses the shared timeAgo() so the wording matches everywhere.
+export function fmtRowTimestamp(row) {
+  if (!row) return null;
+  const created = row.created_at || row.createdAt;
+  const updated = row.updated_at || row.updatedAt;
+  if (!created && !updated) return null;
+  const c = created ? new Date(created).getTime() : 0;
+  const u = updated ? new Date(updated).getTime() : 0;
+  // Treat updates within 60s of create as "just created" — backends
+  // often stamp both columns on insert and a row that's never been
+  // edited shouldn't read "Updated 2 hours ago".
+  if (u && Math.abs(u - c) > 60 * 1000) {
+    return { label: "Updated", value: timeAgo(updated), iso: updated };
+  }
+  return { label: "Created", value: timeAgo(created || updated), iso: created || updated };
+}
+
+export function Field({ label, children, hint }) {
   return (
     <label className="block">
-      <span className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted block mb-2">
-        {label}
+      <span className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted flex items-center justify-between gap-3 mb-2">
+        <span>{label}</span>
+        {hint && <span className="normal-case tracking-normal font-serif italic">{hint}</span>}
       </span>
       {children}
     </label>
@@ -619,9 +641,18 @@ export function useTeacherClasses() {
 }
 
 export async function api(path, { method = "GET", body } = {}) {
+  // Lazy-load the auth helper so files that import api from a non-React
+  // context (init scripts, tests) don't pull Firebase into their bundle.
+  const { getIdToken } = await import("../lib/firebaseAuth");
+  const token = await getIdToken().catch(() => null);
+
+  const headers = {};
+  if (body) headers["Content-Type"] = "application/json";
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+
   const res = await fetch(API_BASE + path, {
     method,
-    headers: body ? { "Content-Type": "application/json" } : undefined,
+    headers: Object.keys(headers).length ? headers : undefined,
     body: body ? JSON.stringify(body) : undefined,
   });
   let data = null;
@@ -632,7 +663,10 @@ export async function api(path, { method = "GET", body } = {}) {
   }
   if (!res.ok) {
     const msg = data?.error || `HTTP ${res.status}`;
-    throw new Error(msg);
+    const err = new Error(msg);
+    err.status = res.status;
+    err.code = data?.code;
+    throw err;
   }
   return data;
 }

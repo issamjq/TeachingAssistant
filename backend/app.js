@@ -18,6 +18,9 @@ import libraryRouter from "./routes/library.js";
 import dashboardRouter from "./routes/dashboard.js";
 import studioRouter from "./routes/studio.js";
 import imagesRouter from "./routes/images.js";
+import schoolsRouter from "./routes/schools.js";
+import authRouter from "./routes/auth.js";
+import { requireAuth } from "./lib/auth.js";
 import adminRouter from "./routes/admin.js";
 import devRouter from "./routes/dev.js";
 
@@ -48,6 +51,27 @@ export function buildApp() {
 
   app.get("/healthz", (_req, res) => res.json({ ok: true }));
 
+  // Firebase auth bootstrap. Mounted BEFORE the global requireAuth so
+  // /api/auth/firebase can run without a teacher row existing yet (the
+  // route itself decides whether to upsert based on the verified token).
+  app.use("/api/auth", authRouter);
+
+  // Schools router needs to be reachable during the onboarding wizard
+  // — at that point the user has a verified Firebase token but no
+  // teacher row in the DB yet (the row gets created at plan-pick).
+  // The catalog GET endpoints are safe to expose to any signed-in
+  // visitor; the /mine endpoints inside still bail with 404 if there's
+  // no teacher row to scope by. Mounted BEFORE the global requireAuth.
+  app.use("/api/schools", requireAuth({ optional: true }), schoolsRouter);
+
+  // From here down: every /api/* route requires a verified Firebase
+  // Bearer token AND an existing teacher row. The middleware loads the
+  // teacher onto req.teacher; backend helpers (loadCurrentTeacher,
+  // crud.scopeFor) read from there. If the token is missing/invalid →
+  // 401. If valid but no teacher row yet → 404 with code "no_teacher_row"
+  // so the client knows to retry the bootstrap.
+  app.use("/api", requireAuth());
+
   // Teacher data — every route is scoped by the current teacher's id.
   app.use("/api/me", meRouter);
   app.use("/api/templates", templatesRouter);
@@ -66,6 +90,8 @@ export function buildApp() {
   app.use("/api/dashboard", dashboardRouter);
   app.use("/api/studio", studioRouter);
   app.use("/api/images", imagesRouter);
+  // schools router is already mounted above (with optional auth) so
+  // onboarding can browse the catalog before the teacher row exists.
 
   // Cross-tenant — admin manages teacher accounts, dev inspects everything.
   app.use("/api/teachers", teachersRouter);

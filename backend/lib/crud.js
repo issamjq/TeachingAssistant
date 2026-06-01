@@ -59,16 +59,16 @@ export function crudRouter({
     return out;
   };
 
-  const scopeFor = async () => {
+  const scopeFor = async (req) => {
     if (!teacherScoped) return { where: "", params: [], teacherId: null };
-    const cur = await loadCurrentTeacher();
+    const cur = await loadCurrentTeacher(req);
     if (!cur) throw new Error("Current teacher not resolved (no STF-001 in DB?)");
     return { where: "teacher_id = $1", params: [cur.id], teacherId: cur.id };
   };
 
   router.get("/", async (req, res) => {
     try {
-      const scope = await scopeFor();
+      const scope = await scopeFor(req);
       const baseConds = [];
       if (scope.where) baseConds.push(scope.where);
       if (softDelete) baseConds.push("deleted_at IS NULL");
@@ -102,7 +102,7 @@ export function crudRouter({
     // the user never sees stale "recoverable" entries.
     router.get("/trash", async (req, res) => {
       try {
-        const scope = await scopeFor();
+        const scope = await scopeFor(req);
         const conds = [];
         if (scope.where) conds.push(scope.where);
         const params = [...scope.params];
@@ -130,7 +130,7 @@ export function crudRouter({
     // the normal list.
     router.post("/:id/restore", async (req, res) => {
       try {
-        const scope = await scopeFor();
+        const scope = await scopeFor(req);
         const params = [req.params.id];
         const conds = [`id = $1`, `deleted_at IS NOT NULL`];
         if (scope.where) {
@@ -152,7 +152,7 @@ export function crudRouter({
     // DELETE /:id/forever — hard delete, bypasses the 30-day window.
     router.delete("/:id/forever", async (req, res) => {
       try {
-        const scope = await scopeFor();
+        const scope = await scopeFor(req);
         const params = [req.params.id];
         let where = `WHERE id = $1`;
         if (scope.where) {
@@ -170,7 +170,7 @@ export function crudRouter({
 
   router.post("/", async (req, res) => {
     try {
-      const scope = await scopeFor();
+      const scope = await scopeFor(req);
       const body = coerceJson({ ...(req.body || {}) });
       if (teacherScoped) body.teacher_id = scope.teacherId;
 
@@ -194,7 +194,7 @@ export function crudRouter({
 
   router.get("/:id", async (req, res) => {
     try {
-      const scope = await scopeFor();
+      const scope = await scopeFor(req);
       const params = [req.params.id];
       let where = `WHERE id = $1`;
       if (scope.where) {
@@ -212,7 +212,7 @@ export function crudRouter({
 
   router.patch("/:id", async (req, res) => {
     try {
-      const scope = await scopeFor();
+      const scope = await scopeFor(req);
       const { sets, params } = buildPatch(coerceJson(req.body || {}), fields);
       if (sets.length === 0) return res.status(400).json({ error: "No fields" });
 
@@ -239,7 +239,7 @@ export function crudRouter({
 
   router.delete("/:id", async (req, res) => {
     try {
-      const scope = await scopeFor();
+      const scope = await scopeFor(req);
       const params = [req.params.id];
       let where = `WHERE id = $1`;
       if (scope.where) {

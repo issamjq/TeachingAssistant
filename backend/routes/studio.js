@@ -298,7 +298,7 @@ router.post("/generate", async (req, res) => {
     // when the teacher leaves everything blank.
     const paramsLine = renderParamsLine(k, params);
 
-    const cur = await loadCurrentTeacher();
+    const cur = await loadCurrentTeacher(req);
     // Pass teacher context inside the user message so the system prompt stays
     // byte-stable across calls (and therefore cache-eligible).
     // When the client has detected a chip↔prompt conflict and the teacher
@@ -554,7 +554,7 @@ router.post("/quiz", async (req, res) => {
         `If any value is clearly in the wrong slot (e.g. a school subject like "Math" landed in the Grade field, or "Grade 8" landed in the Major field, or a difficulty word in Questions), silently swap them and proceed with the obviously-intended assignment. Do NOT mention the correction in the output. If a value is just impossible (negative count, garbage text), ignore that one field and pick a sensible default.\n\n`
       : "";
 
-    const cur = await loadCurrentTeacher();
+    const cur = await loadCurrentTeacher(req);
     // The quiz streams as MARKDOWN text (same token-by-token path as
     // lesson plans) so the teacher watches every question get written
     // live — forced tool_use streamed in coarse bursts and felt like

@@ -11,7 +11,7 @@ const router = Router();
 // → list one row per student with their attendance status for that date.
 router.get("/", async (req, res) => {
   try {
-    const cur = await loadCurrentTeacher();
+    const cur = await loadCurrentTeacher(req);
     const { date, grade, section } = req.query;
 
     if (date) {
@@ -54,7 +54,7 @@ router.get("/", async (req, res) => {
 // body: { student_id, date, status, notes }
 router.put("/", async (req, res) => {
   try {
-    const cur = await loadCurrentTeacher();
+    const cur = await loadCurrentTeacher(req);
     const { student_id, date, status, notes } = req.body || {};
     if (!student_id || !date || !status) {
       return res.status(400).json({ error: "student_id, date, status required" });
@@ -75,7 +75,7 @@ router.put("/", async (req, res) => {
 
 router.delete("/:id", async (req, res) => {
   try {
-    const cur = await loadCurrentTeacher();
+    const cur = await loadCurrentTeacher(req);
     const r = await pool.query(
       "DELETE FROM attendance WHERE id = $1 AND teacher_id = $2",
       [req.params.id, cur.id]

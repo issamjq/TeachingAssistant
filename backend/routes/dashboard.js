@@ -17,7 +17,7 @@ const router = Router();
 //   recent_notifications   : last 5 unread notifications
 router.get("/", async (req, res) => {
   try {
-    const cur = await loadCurrentTeacher();
+    const cur = await loadCurrentTeacher(req);
 
     const [
       todayLessons,

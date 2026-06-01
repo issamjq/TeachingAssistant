@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Play, Pencil, Trash2 } from "lucide-react";
-import { ConfirmDelete, api, timeAgo } from "./_shared";
+import { ConfirmDelete, api, timeAgo, fmtRowTimestamp } from "./_shared";
 import {
   DataPageHeader, DataCard, CardsGrid, useViewMode,
   useDateScope, filterByDateScope,
@@ -124,6 +124,7 @@ export default function Presentations({ onOpenPresentation }) {
               onEdit={() => onOpenPresentation?.(p)}
               onDelete={() => setDeleting(p)}
               exportNode={presExport(p)}
+              timestamp={fmtRowTimestamp(p)}
             >
               <button
                 type="button"

@@ -59,13 +59,52 @@ export default function QuizBuilder({ quiz, onClose }) {
 
   const setMetaField = (k, v) => setMeta((m) => ({ ...m, [k]: v }));
 
+  // A fresh blank MCQ — used by both "Create quiz" (which seeds the
+  // first question for the teacher) and the "Add question" button.
+  const blankQuestion = (position) => ({
+    position,
+    type: "mcq",
+    prompt: "New question",
+    choices: ["A", "B", "C", "D"],
+    correct_answer: "A",
+    marks: 1,
+  });
+  // Local-only questions (drafted before the quiz is saved) get
+  // string ids so we can tell them apart from server rows during
+  // update/remove — and so QuestionCard's key={q.id} survives.
+  const tempQuestionId = () => `local-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+  const isLocalQuestion = (q) => typeof q?.id === "string" && q.id.startsWith("local-");
+
+  const postQuestion = async (forQuizId, position) => {
+    return api(`/api/quizzes/${forQuizId}/questions`, {
+      method: "POST",
+      body: blankQuestion(position),
+    });
+  };
+
   const saveMeta = async () => {
     setSavingMeta(true); setErr(null);
     try {
-      const saved = quizId
-        ? await api(`/api/quizzes/${quizId}`, { method: "PATCH", body: meta })
-        : await api(`/api/quizzes`, { method: "POST", body: meta });
-      setQuizId(saved.id);
+      if (quizId) {
+        const saved = await api(`/api/quizzes/${quizId}`, { method: "PATCH", body: meta });
+        setQuizId(saved.id);
+      } else {
+        // Brand-new quiz: hand everything (meta + any local questions)
+        // to the bulk endpoint so the create + question inserts run in
+        // one transaction. If the teacher hasn't drafted any yet, seed
+        // a single blank one so they land on an editable card.
+        const localQs = (questions.length > 0 ? questions : [blankQuestion(1)])
+          .map((q, i) => {
+            const { id, ...rest } = q;
+            return { ...rest, position: i + 1 };
+          });
+        const res = await api(`/api/quizzes/bulk`, {
+          method: "POST",
+          body: { ...meta, questions: localQs },
+        });
+        setQuizId(res.quiz.id);
+        setQuestions(res.questions || []);
+      }
     } catch (e) {
       setErr(e.message);
     } finally {
@@ -74,33 +113,61 @@ export default function QuizBuilder({ quiz, onClose }) {
   };
 
   const addQuestion = async () => {
+    // Pre-save: just push a local draft. Post-save: POST so the
+    // server assigns a real id.
     if (!quizId) {
-      await saveMeta();
+      setQuestions((qs) => [...qs, { ...blankQuestion(qs.length + 1), id: tempQuestionId() }]);
       return;
     }
-    const next = await api(`/api/quizzes/${quizId}/questions`, {
-      method: "POST",
-      body: {
-        position: questions.length + 1,
-        type: "mcq",
-        prompt: "New question",
-        choices: ["A", "B", "C", "D"],
-        correct_answer: "A",
-        marks: 1,
-      },
-    });
-    setQuestions((qs) => [...qs, next]);
+    try {
+      const next = await postQuestion(quizId, questions.length + 1);
+      setQuestions((qs) => [...qs, next]);
+    } catch (e) {
+      setErr(e.message || "Could not add the question.");
+    }
   };
 
   const updateQuestion = async (q, patch) => {
-    const next = await api(`/api/quizzes/${quizId}/questions/${q.id}`, { method: "PATCH", body: patch });
-    setQuestions((qs) => qs.map((x) => (x.id === q.id ? next : x)));
+    // Local draft → mutate in place. Server row → PATCH and replace
+    // with the returned row so position / id stay authoritative.
+    if (!quizId || isLocalQuestion(q)) {
+      setQuestions((qs) => qs.map((x) => (x.id === q.id ? { ...x, ...patch } : x)));
+      return;
+    }
+    try {
+      const next = await api(`/api/quizzes/${quizId}/questions/${q.id}`, { method: "PATCH", body: patch });
+      setQuestions((qs) => qs.map((x) => (x.id === q.id ? next : x)));
+    } catch (e) {
+      setErr(e.message || "Could not save the change.");
+    }
   };
 
   const removeQuestion = async (q) => {
-    await api(`/api/quizzes/${quizId}/questions/${q.id}`, { method: "DELETE" });
-    setQuestions((qs) => qs.filter((x) => x.id !== q.id));
+    if (!quizId || isLocalQuestion(q)) {
+      setQuestions((qs) => qs.filter((x) => x.id !== q.id));
+      return;
+    }
+    try {
+      await api(`/api/quizzes/${quizId}/questions/${q.id}`, { method: "DELETE" });
+      setQuestions((qs) => qs.filter((x) => x.id !== q.id));
+    } catch (e) {
+      setErr(e.message || "Could not remove the question.");
+    }
   };
+
+  // Live score allocation: sum of per-question marks against the
+  // target Score. The hint sits beside the Score label so the teacher
+  // sees, at a glance, how many marks they still need to assign.
+  const assignedMarks = questions.reduce((sum, q) => sum + (Number(q.marks) || 0), 0);
+  const targetMarks = Number(meta.total_marks) || 0;
+  const remainingMarks = targetMarks - assignedMarks;
+  const scoreHint = targetMarks <= 0
+    ? `${assignedMarks} assigned`
+    : remainingMarks === 0
+      ? <span className="text-sage">balanced · {assignedMarks} / {targetMarks}</span>
+      : remainingMarks > 0
+        ? <span className="text-muted">{remainingMarks} mark{remainingMarks === 1 ? "" : "s"} left · {assignedMarks} / {targetMarks}</span>
+        : <span className="text-accent">{-remainingMarks} over · {assignedMarks} / {targetMarks}</span>;
 
   return (
     <div>
@@ -173,7 +240,7 @@ export default function QuizBuilder({ quiz, onClose }) {
             <Field label="Duration (minutes)">
               <input type="number" className={inputClasses} value={meta.duration_minutes ?? ""} onChange={(e) => setMetaField("duration_minutes", e.target.value === "" ? null : Number(e.target.value))} />
             </Field>
-            <Field label="Total marks">
+            <Field label="Score" hint={scoreHint}>
               <input type="number" className={inputClasses} value={meta.total_marks ?? ""} onChange={(e) => setMetaField("total_marks", e.target.value === "" ? null : Number(e.target.value))} />
             </Field>
             <div className="md:col-span-2">
@@ -190,15 +257,15 @@ export default function QuizBuilder({ quiz, onClose }) {
         </CardContent>
       </Card>
 
-      {!quizId ? (
-        <p className="font-mono text-[10px] uppercase tracking-wider text-muted mt-6">
-          Save the quiz first to add questions.
-        </p>
-      ) : (
-        <div className="mt-8">
+      <div className="mt-8">
           <div className="flex items-center justify-between mb-4">
             <p className="font-mono text-[10px] uppercase tracking-wider text-muted">
               {questions.length} question{questions.length === 1 ? "" : "s"}
+              {!quizId && questions.length > 0 && (
+                <span className="ms-2 normal-case tracking-normal italic font-serif text-muted/80">
+                  · drafts — saved when you press Create quiz
+                </span>
+              )}
             </p>
             <Button onClick={addQuestion}>
               <Plus size={14} className="mr-2" /> Add question
@@ -223,7 +290,6 @@ export default function QuizBuilder({ quiz, onClose }) {
             )}
           </div>
         </div>
-      )}
     </div>
   );
 }

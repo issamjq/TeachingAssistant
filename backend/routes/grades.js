@@ -13,7 +13,7 @@ const router = Router();
 
 router.get("/summary", async (_req, res) => {
   try {
-    const cur = await loadCurrentTeacher();
+    const cur = await loadCurrentTeacher(req);
     const r = await pool.query(
       `WITH entries AS (
          SELECT student_id, score::numeric AS score, max_score::numeric AS max_score

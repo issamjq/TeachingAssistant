@@ -17,7 +17,7 @@ const router = Router();
 
 router.get("/", async (req, res) => {
   try {
-    const cur = await loadCurrentTeacher();
+    const cur = await loadCurrentTeacher(req);
     if (!cur) return res.status(404).json({ error: "Current teacher not found in DB" });
     const r = await pool.query(`SELECT ${ME_SELECT} FROM teachers WHERE id = $1`, [cur.id]);
     res.json(r.rows[0]);
@@ -28,7 +28,7 @@ router.get("/", async (req, res) => {
 
 router.patch("/", async (req, res) => {
   try {
-    const cur = await loadCurrentTeacher();
+    const cur = await loadCurrentTeacher(req);
     if (!cur) return res.status(404).json({ error: "Current teacher not found in DB" });
 
     // class_map is jsonb — node-postgres turns a JS array into a Postgres

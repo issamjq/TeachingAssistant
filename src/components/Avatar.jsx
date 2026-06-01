@@ -24,7 +24,7 @@ export default function Avatar({ avatarId, initial = "U", size = 38, className =
         style={{
           ...base,
           backgroundImage: `url("${av.src}")`,
-          backgroundSize: `${av.size} auto`,
+          backgroundSize: av.size === "cover" ? "cover" : `${av.size} auto`,
           backgroundPosition: av.pos,
           backgroundRepeat: "no-repeat",
           backgroundColor: "#e7dcc8",

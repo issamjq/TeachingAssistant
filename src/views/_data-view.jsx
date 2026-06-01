@@ -555,7 +555,12 @@ export function NewKindPopup({ kind, aiKind, onClose, onManual }) {
 // ──────────────────────────────────────────────────────────────────
 // Card wrapper — pencil + trash always visible top-right
 // ──────────────────────────────────────────────────────────────────
-export function DataCard({ onEdit, onDelete, exportNode, className = "", children }) {
+// `timestamp` shows a small "Created …" / "Updated …" footer pinned
+// to the bottom of the card. Accepts either the helper's
+// { label, value, iso } object or a plain string for legacy call
+// sites. Renders nothing when null so cards that don't track it (or
+// rows with no timestamps yet) keep their layout.
+export function DataCard({ onEdit, onDelete, exportNode, className = "", children, timestamp }) {
   return (
     <div
       className={`relative rounded-2xl border border-[#e6dccb] bg-paper-cool shadow-[0_18px_44px_-22px_rgba(15,20,16,0.14)] hover:border-ink/30 hover:shadow-[0_22px_50px_-22px_rgba(15,20,16,0.22)] transition-all duration-200 p-5 flex flex-col ${className}`}
@@ -586,6 +591,16 @@ export function DataCard({ onEdit, onDelete, exportNode, className = "", childre
         )}
       </div>
       {children}
+      {timestamp && (
+        <p
+          className="mt-3 pt-2 border-t border-dashed border-line/70 font-mono text-[9.5px] uppercase tracking-[0.14em] text-muted/80"
+          title={typeof timestamp === "object" && timestamp.iso ? new Date(timestamp.iso).toLocaleString() : undefined}
+        >
+          {typeof timestamp === "object"
+            ? <>{timestamp.label} <span className="text-ink-soft normal-case tracking-normal font-serif italic ms-1">{timestamp.value}</span></>
+            : timestamp}
+        </p>
+      )}
     </div>
   );
 }

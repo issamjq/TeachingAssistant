@@ -1868,7 +1868,7 @@ html { scroll-behavior: smooth; }
   position: relative; z-index: 1; width: 100%; max-width: 1040px; margin: 0 auto;
   display: grid; justify-items: center; gap: clamp(16px, 3vh, 34px);
 }
-.film-head { text-align: center; max-width: 720px; }
+.film-head { text-align: center; max-width: 900px; }
 .film-eyebrow {
   display: inline-flex; align-items: center; gap: 10px;
   font-family: 'JetBrains Mono', monospace; font-size: clamp(11px, 1vw, 13px);
@@ -1880,7 +1880,16 @@ html { scroll-behavior: smooth; }
   font-size: clamp(30px, 4vw, 50px); line-height: 1.04; letter-spacing: -0.03em;
   margin: 10px 0 0;
 }
-.film-title em { font-style: italic; color: var(--cm-clay-d); }
+/* Keep the italic phrase ("the whole [word].") together so the retyping word
+   never wraps onto its own line; the title fits one line ≥ ~490px viewport. */
+.film-title em { font-style: italic; color: var(--cm-clay-d); white-space: nowrap; }
+.film-title-word { white-space: pre; }
+/* Cursor shown only while the title's last word is being retyped. */
+.film-title-caret {
+  display: inline-block; width: 0.055em; height: 0.82em; margin-inline-start: 0.04em;
+  background: currentColor; border-radius: 1px; vertical-align: -0.02em;
+  animation: film-caret 1s steps(1) infinite;
+}
 .film-sub {
   font-family: 'Inter Tight', system-ui, sans-serif; font-size: clamp(14px, 1.1vw, 16px);
   line-height: 1.5; color: var(--cm-ink-2); max-width: 46ch; margin: 10px auto 0;
@@ -2125,10 +2134,6 @@ html { scroll-behavior: smooth; }
 .film-hw-due {
   flex: 0 0 auto; font-family: 'JetBrains Mono', monospace; font-size: 11px;
   letter-spacing: 0.08em; text-transform: uppercase; color: var(--cm-clay-d);
-}
-.film-hw-footer {
-  margin-block-start: auto; font-family: 'JetBrains Mono', monospace; font-size: 10.5px;
-  letter-spacing: 0.06em; text-transform: uppercase; color: var(--cm-ink-3);
 }
 /* Presentation result — a live slide editor: thumbnail rail, a canvas whose
    background a cursor "edits" from the swatch panel (cursor + bg are synced). */

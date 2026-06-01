@@ -7,7 +7,7 @@ const FIELDS = [
   "primary_guardian_email", "primary_guardian_phone",
   "secondary_guardian_name", "secondary_guardian_relationship",
   "secondary_guardian_email", "secondary_guardian_phone",
-  "enrollment_date", "notes",
+  "enrollment_date", "notes", "school_id",
 ];
 
 const SELECT = `id, first_name, last_name, student_id, date_of_birth, gender,
@@ -16,7 +16,7 @@ const SELECT = `id, first_name, last_name, student_id, date_of_birth, gender,
   primary_guardian_email, primary_guardian_phone,
   secondary_guardian_name, secondary_guardian_relationship,
   secondary_guardian_email, secondary_guardian_phone,
-  enrollment_date, notes, created_at, updated_at`;
+  enrollment_date, notes, school_id, created_at, updated_at`;
 
 // Students belong to the teacher who created them. teacherScoped takes care
 // of all four endpoints (list / get / create / update / delete). The legacy

@@ -56,7 +56,7 @@ router.get("/search", async (req, res) => {
 // POST /api/images/upload  { dataUrl: "data:image/png;base64,…" }
 router.post("/upload", async (req, res) => {
   try {
-    const cur = await loadCurrentTeacher();
+    const cur = await loadCurrentTeacher(req);
     if (!cur) return res.status(404).json({ error: "Current teacher not found" });
 
     const dataUrl = String(req.body?.dataUrl || "");

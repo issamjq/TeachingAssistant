@@ -25,6 +25,21 @@ const router = crudRouter({
 
 const QUESTION_FIELDS = ["position", "type", "prompt", "choices", "correct_answer", "marks"];
 const QUESTION_SELECT = "id, quiz_id, position, type, prompt, choices, correct_answer, marks";
+// `choices` and `correct_answer` are JSONB. The pg driver passes bare
+// arrays as PG text[] and bare strings as plain text — JSONB rejects
+// both with 22P02. Even a string like "A" needs to be JSON-encoded
+// ('"A"') for JSONB to accept it. So always JSON.stringify on the way
+// in (matching what the /bulk route already does).
+const QUESTION_JSONB = new Set(["choices", "correct_answer"]);
+const normalizeQuestionBody = (body) => {
+  const out = { ...body };
+  for (const k of QUESTION_JSONB) {
+    if (Object.prototype.hasOwnProperty.call(out, k) && out[k] != null) {
+      out[k] = JSON.stringify(out[k]);
+    }
+  }
+  return out;
+};
 
 // POST /api/quizzes/bulk — create a quiz and all its questions in one
 // atomic transaction. Used by AI Studio's "Save" action when the structured
@@ -35,7 +50,7 @@ const QUESTION_SELECT = "id, quiz_id, position, type, prompt, choices, correct_a
 router.post("/bulk", async (req, res) => {
   const client = await pool.connect();
   try {
-    const cur = await loadCurrentTeacher();
+    const cur = await loadCurrentTeacher(req);
     if (!cur) return res.status(401).json({ error: "No current teacher" });
     const {
       title, subject, grade, section, language, difficulty,
@@ -100,7 +115,7 @@ router.post("/bulk", async (req, res) => {
 router.post("/:quizId/sync", async (req, res) => {
   const client = await pool.connect();
   try {
-    const cur = await loadCurrentTeacher();
+    const cur = await loadCurrentTeacher(req);
     if (!cur) return res.status(401).json({ error: "No current teacher" });
     const own = await pool.query(
       "SELECT id FROM quizzes WHERE id = $1 AND teacher_id = $2",
@@ -175,7 +190,7 @@ router.post("/:quizId/sync", async (req, res) => {
 
 // Helper: ensure the quiz being touched belongs to the current teacher.
 const assertOwnsQuiz = async (quizId) => {
-  const cur = await loadCurrentTeacher();
+  const cur = await loadCurrentTeacher(req);
   const r = await pool.query(
     "SELECT id FROM quizzes WHERE id = $1 AND teacher_id = $2",
     [quizId, cur.id]
@@ -204,7 +219,7 @@ router.post("/:quizId/questions", async (req, res) => {
     if (!(await assertOwnsQuiz(req.params.quizId))) {
       return res.status(404).json({ error: "Quiz not found" });
     }
-    const body = { ...req.body };
+    const body = normalizeQuestionBody(req.body || {});
     const { sets, params } = buildPatch(body, QUESTION_FIELDS);
     if (sets.length === 0) return res.status(400).json({ error: "No fields" });
     const cols = QUESTION_FIELDS.filter((k) => Object.prototype.hasOwnProperty.call(body, k));
@@ -226,7 +241,7 @@ router.patch("/:quizId/questions/:qid", async (req, res) => {
     if (!(await assertOwnsQuiz(req.params.quizId))) {
       return res.status(404).json({ error: "Quiz not found" });
     }
-    const { sets, params } = buildPatch(req.body || {}, QUESTION_FIELDS);
+    const { sets, params } = buildPatch(normalizeQuestionBody(req.body || {}), QUESTION_FIELDS);
     if (sets.length === 0) return res.status(400).json({ error: "No fields" });
     params.push(req.params.qid, req.params.quizId);
     const r = await pool.query(

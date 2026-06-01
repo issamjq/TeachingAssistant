@@ -19,7 +19,7 @@ const router = Router();
 //   teacher owns (rarely useful but handy for debugging).
 router.get("/", async (req, res) => {
   try {
-    const cur = await loadCurrentTeacher();
+    const cur = await loadCurrentTeacher(req);
     const params = [cur.id];
     let where = "q.teacher_id = $1";
     if (req.query.quiz_id) {
@@ -50,7 +50,7 @@ router.get("/", async (req, res) => {
 //   previous attempt rather than throwing on the UNIQUE constraint.
 router.post("/", async (req, res) => {
   try {
-    const cur = await loadCurrentTeacher();
+    const cur = await loadCurrentTeacher(req);
     const { quiz_id, student_id, score, max_score, feedback } = req.body || {};
     if (!quiz_id || !student_id) {
       return res.status(400).json({ error: "quiz_id and student_id are required" });
@@ -79,7 +79,7 @@ router.post("/", async (req, res) => {
 // DELETE /api/quiz-scores/:id — un-record a score (e.g. mis-entered row).
 router.delete("/:id", async (req, res) => {
   try {
-    const cur = await loadCurrentTeacher();
+    const cur = await loadCurrentTeacher(req);
     const r = await pool.query(
       `DELETE FROM quiz_scores qs
         USING quizzes q

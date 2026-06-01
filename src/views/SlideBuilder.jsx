@@ -6,11 +6,17 @@
 //     screen for teaching.
 // Photos are always real (Pexels search or the teacher's own upload),
 // never AI. Murchid editorial theme throughout.
-import React, { useMemo, useState, useEffect, useRef, useCallback } from "react";
+import React, {
+  useMemo, useState, useEffect, useRef, useCallback,
+  useLayoutEffect, useImperativeHandle, forwardRef,
+} from "react";
 import {
   Plus, Trash2, ChevronUp, ChevronDown, Check, Image as ImageIcon,
   Search, Upload, X, Sparkles, Presentation as DeckIcon, Loader2,
   ChevronLeft, ChevronRight, FileDown, Pencil,
+  Copy, Eye, EyeOff, Undo2, Redo2,
+  AlignLeft, AlignCenter, AlignRight,
+  Minus, List, ListOrdered, Pipette,
 } from "lucide-react";
 import { api, DatePicker } from "./_shared";
 import { useT } from "../lib/i18n";
@@ -182,20 +188,52 @@ function hexToRgba(hex, a) {
   return `rgba(${r},${g},${b},${a})`;
 }
 
-// Font pairings (only fonts the app already loads: Fraunces, Inter
-// Tight, Amiri). Each gives a title + body family.
+// Font catalog. Each entry pairs a title family with a body family
+// (used by the slide-level `font` setting) and lists its category for
+// the grouped picker. Per-run fonts in the inline rich-text use the
+// `body` family.
 const FONTS = {
-  editorial: { name: "Editorial", title: "'Fraunces', Georgia, serif",            body: "'Inter Tight', system-ui, sans-serif" },
-  modern:    { name: "Modern",    title: "'Inter Tight', system-ui, sans-serif",   body: "'Inter Tight', system-ui, sans-serif" },
-  classic:   { name: "Classic",   title: "'Fraunces', Georgia, serif",            body: "'Fraunces', Georgia, serif" },
-  amiri:     { name: "Amiri",     title: "'Amiri', 'Times New Roman', serif",      body: "'Amiri', 'Times New Roman', serif" },
+  // Editorial defaults (the originals)
+  editorial:    { name: "Editorial",      cat: "Editorial", title: "'Fraunces', Georgia, serif",                       body: "'Inter Tight', system-ui, sans-serif" },
+  modern:       { name: "Modern",         cat: "Sans",      title: "'Inter Tight', system-ui, sans-serif",             body: "'Inter Tight', system-ui, sans-serif" },
+  classic:      { name: "Classic",        cat: "Editorial", title: "'Fraunces', Georgia, serif",                       body: "'Fraunces', Georgia, serif" },
+  amiri:        { name: "Amiri",          cat: "Arabic",    title: "'Amiri', 'Times New Roman', serif",                body: "'Amiri', 'Times New Roman', serif" },
+  // Editorial serifs
+  playfair:     { name: "Playfair",       cat: "Editorial", title: "'Playfair Display', Georgia, serif",               body: "'Inter Tight', system-ui, sans-serif" },
+  lora:         { name: "Lora",           cat: "Editorial", title: "'Lora', Georgia, serif",                           body: "'Lora', Georgia, serif" },
+  garamond:     { name: "Garamond",       cat: "Editorial", title: "'EB Garamond', Georgia, serif",                    body: "'EB Garamond', Georgia, serif" },
+  cormorant:    { name: "Cormorant",      cat: "Editorial", title: "'Cormorant Garamond', Georgia, serif",             body: "'Cormorant Garamond', Georgia, serif" },
+  sourceSerif:  { name: "Source Serif",   cat: "Editorial", title: "'Source Serif 4', Georgia, serif",                 body: "'Source Serif 4', Georgia, serif" },
+  crimson:      { name: "Crimson",        cat: "Editorial", title: "'Crimson Pro', Georgia, serif",                    body: "'Crimson Pro', Georgia, serif" },
+  // Modern sans
+  manrope:      { name: "Manrope",        cat: "Sans",      title: "'Manrope', system-ui, sans-serif",                 body: "'Manrope', system-ui, sans-serif" },
+  jakarta:      { name: "Plus Jakarta",   cat: "Sans",      title: "'Plus Jakarta Sans', system-ui, sans-serif",       body: "'Plus Jakarta Sans', system-ui, sans-serif" },
+  spaceGrotesk: { name: "Space Grotesk",  cat: "Sans",      title: "'Space Grotesk', system-ui, sans-serif",           body: "'Space Grotesk', system-ui, sans-serif" },
+  dmSans:       { name: "DM Sans",        cat: "Sans",      title: "'DM Sans', system-ui, sans-serif",                 body: "'DM Sans', system-ui, sans-serif" },
+  outfit:       { name: "Outfit",         cat: "Sans",      title: "'Outfit', system-ui, sans-serif",                  body: "'Outfit', system-ui, sans-serif" },
+  // Mono
+  plexMono:     { name: "IBM Plex Mono",  cat: "Mono",      title: "'IBM Plex Mono', ui-monospace, monospace",         body: "'IBM Plex Mono', ui-monospace, monospace" },
+  spaceMono:    { name: "Space Mono",     cat: "Mono",      title: "'Space Mono', ui-monospace, monospace",            body: "'Space Mono', ui-monospace, monospace" },
+  // Display
+  bebas:        { name: "Bebas Neue",     cat: "Display",   title: "'Bebas Neue', Impact, sans-serif",                 body: "'Inter Tight', system-ui, sans-serif" },
+  shrikhand:    { name: "Shrikhand",      cat: "Display",   title: "'Shrikhand', Georgia, serif",                      body: "'Inter Tight', system-ui, sans-serif" },
+  pacifico:     { name: "Pacifico",       cat: "Display",   title: "'Pacifico', cursive",                              body: "'Inter Tight', system-ui, sans-serif" },
+  // Handwriting
+  caveat:       { name: "Caveat",         cat: "Hand",      title: "'Caveat', cursive",                                body: "'Caveat', cursive" },
+  dancing:      { name: "Dancing Script", cat: "Hand",      title: "'Dancing Script', cursive",                        body: "'Dancing Script', cursive" },
+  // Arabic-capable
+  cairo:        { name: "Cairo",          cat: "Arabic",    title: "'Cairo', system-ui, sans-serif",                   body: "'Cairo', system-ui, sans-serif" },
+  reemKufi:     { name: "Reem Kufi",      cat: "Arabic",    title: "'Reem Kufi', system-ui, sans-serif",               body: "'Reem Kufi', system-ui, sans-serif" },
 };
 const FONT_KEYS = Object.keys(FONTS);
+const FONT_CATEGORIES = ["Editorial", "Sans", "Mono", "Display", "Hand", "Arabic"];
 const fontOf = (k) => FONTS[k] || FONTS.editorial;
 
-// Per-line formatting: { color?, font?, b?, i?, u? }. Stored alongside
-// the plain text (title/bullets stay strings, so AI parsing, copy and
-// save are untouched) and merged over the slide's base style here.
+// Per-line formatting: { color?, font?, b?, i?, u?, align? }. Stored
+// alongside the plain text (title/bullets stay strings, so AI parsing,
+// copy and save are untouched) and merged over the slide's base style
+// here. The inline rich-text model adds `runs` on top of these per-line
+// defaults — runs win over fmt where set.
 function lineStyle(fmt, base, kind) {
   const s = { ...base };
   if (!fmt) return s;
@@ -204,7 +242,237 @@ function lineStyle(fmt, base, kind) {
   if (fmt.b) s.fontWeight = 800;
   if (fmt.i) s.fontStyle = "italic";
   if (fmt.u) s.textDecoration = "underline";
+  if (fmt.align === "left" || fmt.align === "center" || fmt.align === "right") s.textAlign = fmt.align;
   return s;
+}
+
+// ── Inline rich-text ──────────────────────────────────────────────
+// A line is an array of runs. A run is { text, color?, font?, b?, i?,
+// u?, size? }. We keep the plain `title` / `bullets` strings in sync
+// (runsToText) so AI parsing, search, and the legacy save path are
+// untouched — runs ride alongside.
+const escapeHtml = (s) =>
+  String(s || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+
+const fontFamilyOf = (key, kind) => {
+  const f = FONTS[key];
+  if (!f) return null;
+  return f[kind === "title" ? "title" : "body"];
+};
+
+function runStyleString(run, kind) {
+  const parts = [];
+  if (isHex(run.color)) parts.push(`color:${run.color}`);
+  if (run.font && FONTS[run.font]) parts.push(`font-family:${fontFamilyOf(run.font, kind)}`);
+  if (run.b) parts.push("font-weight:800");
+  if (run.i) parts.push("font-style:italic");
+  if (run.u) parts.push("text-decoration:underline");
+  if (typeof run.size === "number" && run.size > 0) parts.push(`font-size:${run.size}em`);
+  return parts.join(";");
+}
+
+function runAttrs(run) {
+  const a = [];
+  if (isHex(run.color)) a.push(`data-color="${run.color}"`);
+  if (run.font && FONTS[run.font]) a.push(`data-font="${escapeHtml(run.font)}"`);
+  if (run.b) a.push(`data-b="1"`);
+  if (run.i) a.push(`data-i="1"`);
+  if (run.u) a.push(`data-u="1"`);
+  if (typeof run.size === "number" && run.size > 0) a.push(`data-size="${run.size}"`);
+  return a.join(" ");
+}
+
+function runsToHtml(runs, kind) {
+  if (!Array.isArray(runs) || runs.length === 0) return "";
+  return runs.map((r) => {
+    const text = escapeHtml(r.text || "");
+    if (!text) return "";
+    const attrs = runAttrs(r);
+    const style = runStyleString(r, kind);
+    return `<span ${attrs} style="${style}">${text}</span>`;
+  }).join("");
+}
+
+function runsToText(runs) {
+  if (!Array.isArray(runs)) return "";
+  return runs.map((r) => r.text || "").join("");
+}
+
+function textToRuns(text) {
+  const t = String(text || "");
+  return t ? [{ text: t }] : [];
+}
+
+// Read the contentEditable DOM back into a runs array. We walk direct
+// children — spans carry data-* attrs; raw text nodes (the result of
+// typing between spans or pasting) become formatless runs.
+function htmlToRuns(root) {
+  if (!root) return [];
+  const out = [];
+  for (const node of root.childNodes) {
+    if (node.nodeType === Node.TEXT_NODE) {
+      const text = node.textContent;
+      if (text) out.push({ text });
+    } else if (node.nodeType === Node.ELEMENT_NODE) {
+      if (node.tagName === "BR") continue;
+      const text = node.textContent;
+      if (!text) continue;
+      const run = { text };
+      const d = node.dataset || {};
+      if (d.color && isHex(d.color)) run.color = d.color;
+      if (d.font && FONTS[d.font]) run.font = d.font;
+      if (d.b === "1") run.b = true;
+      if (d.i === "1") run.i = true;
+      if (d.u === "1") run.u = true;
+      if (d.size) {
+        const n = Number(d.size);
+        if (n > 0) run.size = n;
+      }
+      out.push(run);
+    }
+  }
+  return coalesceRuns(out);
+}
+
+function sameFmt(a, b) {
+  return (a.color || "") === (b.color || "")
+    && (a.font || "") === (b.font || "")
+    && Boolean(a.b) === Boolean(b.b)
+    && Boolean(a.i) === Boolean(b.i)
+    && Boolean(a.u) === Boolean(b.u)
+    && (a.size || 0) === (b.size || 0);
+}
+
+function coalesceRuns(runs) {
+  const out = [];
+  for (const r of runs) {
+    if (!r || !r.text) continue;
+    const prev = out[out.length - 1];
+    if (prev && sameFmt(prev, r)) {
+      prev.text = (prev.text || "") + r.text;
+    } else {
+      out.push({ ...r });
+    }
+  }
+  return out;
+}
+
+// Ensure each slide carries a runs representation of its title and
+// bullets. Used everywhere we read runs so the new rich text degrades
+// gracefully when the slide only has plain text + a legacy line fmt.
+function ensureTitleRuns(slide) {
+  if (Array.isArray(slide?.titleRuns) && slide.titleRuns.length) return slide.titleRuns;
+  const fmt = slide?.titleFmt || {};
+  const text = slide?.title || "";
+  if (!text) return [];
+  const seed = {};
+  if (isHex(fmt.color)) seed.color = fmt.color;
+  if (fmt.font && FONTS[fmt.font]) seed.font = fmt.font;
+  if (fmt.b) seed.b = true;
+  if (fmt.i) seed.i = true;
+  if (fmt.u) seed.u = true;
+  return [{ text, ...seed }];
+}
+function ensureBulletRuns(slide, bi) {
+  const stored = (slide?.bulletRuns || [])[bi];
+  if (Array.isArray(stored) && stored.length) return stored;
+  const fmt = (slide?.bulletFmts || [])[bi] || {};
+  const text = (slide?.bullets || [])[bi] || "";
+  if (!text) return [];
+  const seed = {};
+  if (isHex(fmt.color)) seed.color = fmt.color;
+  if (fmt.font && FONTS[fmt.font]) seed.font = fmt.font;
+  if (fmt.b) seed.b = true;
+  if (fmt.i) seed.i = true;
+  if (fmt.u) seed.u = true;
+  return [{ text, ...seed }];
+}
+
+// ── Selection helpers for contentEditable ────────────────────────
+// Read the current format at the active end of the selection (or at
+// the caret), walking up from the focus node to find the nearest
+// formatted span inside `root`.
+function getFmtAtSelection(root) {
+  const sel = typeof window !== "undefined" && window.getSelection();
+  if (!sel || sel.rangeCount === 0) return {};
+  let node = sel.focusNode;
+  if (!node || !root || !root.contains(node)) return {};
+  while (node && node !== root) {
+    if (node.nodeType === Node.ELEMENT_NODE && node.tagName === "SPAN" && node.dataset) {
+      const d = node.dataset;
+      const out = {};
+      if (d.color) out.color = d.color;
+      if (d.font) out.font = d.font;
+      if (d.b === "1") out.b = true;
+      if (d.i === "1") out.i = true;
+      if (d.u === "1") out.u = true;
+      if (d.size) out.size = Number(d.size);
+      return out;
+    }
+    node = node.parentNode;
+  }
+  return {};
+}
+
+// Apply a partial fmt patch to the current selection inside `root`. If
+// the selection is collapsed we wrap an empty marker span at the caret
+// so the next typed char picks up the format (browser inherits the
+// surrounding span otherwise). If non-collapsed we extract → wrap.
+function applyFmtToSelection(root, patch) {
+  const sel = typeof window !== "undefined" && window.getSelection();
+  if (!sel || sel.rangeCount === 0 || !root) return false;
+  const range = sel.getRangeAt(0);
+  if (!root.contains(range.startContainer)) return false;
+  const span = document.createElement("span");
+  for (const [k, v] of Object.entries(patch)) {
+    if (v === null || v === undefined || v === false || v === "") continue;
+    if (k === "color" && isHex(v)) {
+      span.dataset.color = v;
+      span.style.color = v;
+    } else if (k === "font" && FONTS[v]) {
+      span.dataset.font = v;
+      span.style.fontFamily = fontFamilyOf(v, "body");
+    } else if (k === "b") {
+      span.dataset.b = "1";
+      span.style.fontWeight = "800";
+    } else if (k === "i") {
+      span.dataset.i = "1";
+      span.style.fontStyle = "italic";
+    } else if (k === "u") {
+      span.dataset.u = "1";
+      span.style.textDecoration = "underline";
+    } else if (k === "size" && typeof v === "number" && v > 0) {
+      span.dataset.size = String(v);
+      span.style.fontSize = `${v}em`;
+    }
+  }
+  if (range.collapsed) {
+    // Wrap a zero-width space so the new format applies to the next char.
+    span.appendChild(document.createTextNode("​"));
+    range.insertNode(span);
+    const newRange = document.createRange();
+    newRange.setStart(span.firstChild, 1);
+    newRange.collapse(true);
+    sel.removeAllRanges();
+    sel.addRange(newRange);
+  } else {
+    try {
+      range.surroundContents(span);
+    } catch {
+      const frag = range.extractContents();
+      span.appendChild(frag);
+      range.insertNode(span);
+    }
+    sel.removeAllRanges();
+    const newRange = document.createRange();
+    newRange.selectNodeContents(span);
+    sel.addRange(newRange);
+  }
+  return true;
 }
 
 // Per-slide photo dim/brighten. v ∈ [-60, 60]: <0 darkens (black wash),
@@ -233,6 +501,9 @@ export function parsePresentation(markdown) {
     bullets: [], notes: "", imageQuery: "", image: null, layout: "", bg: "",
     imgAdjust: 0, font: "editorial", textColor: "",
     titleFmt: {}, bulletFmts: [],
+    titleRuns: [], bulletRuns: [],
+    titleAlign: "", bulletAligns: [], bulletStyle: "dot",
+    hidden: false, timeSec: 0,
   });
 
   for (const raw of lines) {
@@ -300,8 +571,30 @@ export function parsePresentation(markdown) {
     if (!s.bg) s.bg = i === 0 ? "ink" : ROTATE[i % ROTATE.length];
   });
 
-  return { deckTitle: deckTitle || "Untitled presentation", metaLine, slides };
+  return { deckTitle: deckTitle || "Untitled presentation", metaLine, slides, transition: "cut" };
 }
+
+// Validate that a payload from the server is a plausible Run before we
+// trust it. Stale runs from another schema version would otherwise
+// blow up runsToHtml.
+function sanitizeRuns(raw) {
+  if (!Array.isArray(raw)) return [];
+  const out = [];
+  for (const r of raw) {
+    if (!r || typeof r.text !== "string") continue;
+    const run = { text: r.text };
+    if (isHex(r.color)) run.color = r.color;
+    if (r.font && FONTS[r.font]) run.font = r.font;
+    if (r.b) run.b = true;
+    if (r.i) run.i = true;
+    if (r.u) run.u = true;
+    if (typeof r.size === "number" && r.size > 0 && r.size <= 5) run.size = r.size;
+    out.push(run);
+  }
+  return out;
+}
+const ALIGN_VALUES = ["", "left", "center", "right"];
+const BULLET_STYLE_VALUES = ["dot", "dash", "number", "none"];
 
 // Saved presentation row → builder deck. Handles both the rich shape we
 // now save and the legacy { title, body, image_url } shape.
@@ -329,12 +622,29 @@ export function deckFromPresentation(p) {
       textColor: isHex(s.textColor) ? s.textColor : "",
       titleFmt: s.titleFmt && typeof s.titleFmt === "object" ? s.titleFmt : {},
       bulletFmts: Array.isArray(s.bulletFmts) ? s.bulletFmts : [],
+      titleRuns: sanitizeRuns(s.titleRuns),
+      bulletRuns: Array.isArray(s.bulletRuns) ? s.bulletRuns.map(sanitizeRuns) : [],
+      titleAlign: ALIGN_VALUES.includes(s.titleAlign) ? s.titleAlign : "",
+      bulletAligns: Array.isArray(s.bulletAligns)
+        ? s.bulletAligns.map((a) => (ALIGN_VALUES.includes(a) ? a : ""))
+        : [],
+      bulletStyle: BULLET_STYLE_VALUES.includes(s.bulletStyle) ? s.bulletStyle : "dot",
+      hidden: Boolean(s.hidden),
+      timeSec: Number(s.timeSec) || 0,
     };
   });
+  const fallback = {
+    title: "Slide 1", bullets: [], notes: "", imageQuery: "", image: null,
+    layout: "title", bg: "ink", imgAdjust: 0, font: "editorial", textColor: "",
+    titleFmt: {}, bulletFmts: [], titleRuns: [], bulletRuns: [],
+    titleAlign: "", bulletAligns: [], bulletStyle: "dot",
+    hidden: false, timeSec: 0,
+  };
   return {
     deckTitle: p?.title || "Untitled presentation",
     metaLine: "",
-    slides: slides.length ? slides : [{ title: "Slide 1", bullets: [], notes: "", imageQuery: "", image: null, layout: "title", bg: "ink", imgAdjust: 0, font: "editorial", textColor: "", titleFmt: {}, bulletFmts: [] }],
+    transition: p?.transition === "fade" ? "fade" : "cut",
+    slides: slides.length ? slides : [fallback],
   };
 }
 
@@ -353,24 +663,38 @@ function fieldsFromMeta(metaLine) {
 // Slides → the persisted shape (keeps legacy { title, body } for old
 // readers; rich keys ride alongside).
 function slidesForSave(slides) {
-  return slides.map((s) => ({
-    title: s.title,
-    body: (s.bullets || []).filter(Boolean).map((b) => `• ${b}`).join("\n"),
-    bullets: (s.bullets || []).filter(Boolean),
-    notes: s.notes || "",
-    image: s.image || null,
-    layout: s.layout || "text",
-    bg: s.bg || "paper",
-    imgAdjust: Number(s.imgAdjust) || 0,
-    font: s.font || "editorial",
-    textColor: isHex(s.textColor) ? s.textColor : "",
-    titleFmt: s.titleFmt && typeof s.titleFmt === "object" ? s.titleFmt : {},
-    bulletFmts: Array.isArray(s.bulletFmts) ? s.bulletFmts : [],
-  }));
+  return slides.map((s) => {
+    // Filter bullets while keeping bullet-parallel arrays aligned.
+    const keep = (s.bullets || []).map((b, i) => ({ b, i })).filter((x) => x.b);
+    const indices = keep.map((x) => x.i);
+    const pick = (arr) => (Array.isArray(arr) ? indices.map((i) => arr[i] ?? null) : []);
+    return {
+      title: s.title,
+      body: keep.map((x) => `• ${x.b}`).join("\n"),
+      bullets: keep.map((x) => x.b),
+      notes: s.notes || "",
+      image: s.image || null,
+      layout: s.layout || "text",
+      bg: s.bg || "paper",
+      imgAdjust: Number(s.imgAdjust) || 0,
+      font: s.font || "editorial",
+      textColor: isHex(s.textColor) ? s.textColor : "",
+      titleFmt: s.titleFmt && typeof s.titleFmt === "object" ? s.titleFmt : {},
+      bulletFmts: pick(s.bulletFmts),
+      titleRuns: Array.isArray(s.titleRuns) ? s.titleRuns : [],
+      bulletRuns: pick(s.bulletRuns),
+      titleAlign: s.titleAlign || "",
+      bulletAligns: pick(s.bulletAligns),
+      bulletStyle: s.bulletStyle || "dot",
+      hidden: Boolean(s.hidden),
+      timeSec: Number(s.timeSec) || 0,
+    };
+  });
 }
 
 export default function SlideBuilder({
   markdown, deck, presentationId, meta, presentationParams, onSaved, onClose,
+  onDeckTitleChange,
 }) {
   const t = useT();
   const initial = useMemo(
@@ -378,7 +702,8 @@ export default function SlideBuilder({
     [deck, markdown]
   );
   const [deckTitle, setDeckTitle] = useState(initial.deckTitle);
-  const [slides, setSlides] = useState(initial.slides);
+  const slidesHistory = useHistory(initial.slides);
+  const { present: slides, set: setSlides, reset: resetSlides, commit: commitHistory, undo, redo, canUndo, canRedo } = slidesHistory;
   const [active, setActive] = useState(0);
   const [saving, setSaving] = useState(false);
   const [savedId, setSavedId] = useState(presentationId || null);
@@ -390,13 +715,26 @@ export default function SlideBuilder({
   const [scheduledFor, setScheduledFor] = useState(
     meta?.scheduled_for ? String(meta.scheduled_for).slice(0, 10) : ""
   );
+  // Deck-level presenter settings.
+  const [transition, setTransition] = useState(initial.transition || "cut");
+  // Drag-to-reorder state for the thumbnail rail.
+  const [dragIdx, setDragIdx] = useState(null);
+  const [dropIdx, setDropIdx] = useState(null);
+  const [dropEdge, setDropEdge] = useState("before"); // before | after
 
   useEffect(() => {
     setDeckTitle(initial.deckTitle);
-    setSlides(initial.slides);
+    resetSlides(initial.slides);
     setActive(0);
     setSavedId(presentationId || null);
+    setTransition(initial.transition || "cut");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initial, presentationId]);
+
+  // Clamp active when slides shrink (delete / undo).
+  useEffect(() => {
+    setActive((a) => Math.max(0, Math.min(slides.length - 1, a)));
+  }, [slides.length]);
 
   const cur = slides[active] || slides[0];
   const theme = resolveTheme(cur?.bg);
@@ -404,31 +742,75 @@ export default function SlideBuilder({
   const patchSlide = (i, patch) =>
     setSlides((s) => s.map((sl, idx) => (idx === i ? { ...sl, ...patch } : sl)));
   const patchActive = (patch) => patchSlide(active, patch);
-  const setBullet = (bi, val) =>
-    patchActive({ bullets: cur.bullets.map((b, i) => (i === bi ? val : b)) });
-  const addBullet = () => patchActive({ bullets: [...(cur.bullets || []), ""] });
+
+  // Rich-text setters keep plain `title` / `bullets` strings in sync
+  // with the runs so AI markdown, search, and the legacy save path are
+  // unaffected.
+  const setTitleRuns = (runs) => {
+    patchActive({ titleRuns: runs, title: runsToText(runs) });
+  };
+  const setBulletRuns = (bi, runs) => {
+    const nextRuns = [...(cur?.bulletRuns || [])];
+    nextRuns[bi] = runs;
+    const text = runsToText(runs);
+    const nextBullets = (cur?.bullets || []).map((b, i) => (i === bi ? text : b));
+    patchActive({ bulletRuns: nextRuns, bullets: nextBullets });
+  };
+  const addBullet = () => patchActive({
+    bullets: [...(cur?.bullets || []), ""],
+    bulletRuns: [...(cur?.bulletRuns || []), []],
+    bulletFmts: [...(cur?.bulletFmts || []), {}],
+    bulletAligns: [...(cur?.bulletAligns || []), ""],
+  });
   const removeBullet = (bi) =>
     patchActive({
-      bullets: cur.bullets.filter((_, i) => i !== bi),
-      // Keep per-line formatting aligned with the remaining bullets.
-      bulletFmts: (cur.bulletFmts || []).filter((_, i) => i !== bi),
+      bullets: (cur?.bullets || []).filter((_, i) => i !== bi),
+      bulletRuns: (cur?.bulletRuns || []).filter((_, i) => i !== bi),
+      bulletFmts: (cur?.bulletFmts || []).filter((_, i) => i !== bi),
+      bulletAligns: (cur?.bulletAligns || []).filter((_, i) => i !== bi),
     });
   // Apply one property to every slide ("Apply to all slides").
   const applyAll = (patch) => setSlides((s) => s.map((sl) => ({ ...sl, ...patch })));
 
+  const blankSlide = (over = {}) => ({
+    title: "New slide", bullets: [""], notes: "", imageQuery: "", image: null,
+    layout: "text", bg: cur?.bg || "paper", imgAdjust: 0,
+    font: cur?.font || "editorial", textColor: cur?.textColor || "",
+    titleFmt: {}, bulletFmts: [],
+    titleRuns: [], bulletRuns: [[]],
+    titleAlign: "", bulletAligns: [""],
+    bulletStyle: cur?.bulletStyle || "dot",
+    hidden: false, timeSec: 0,
+    ...over,
+  });
+
   const addSlide = () => {
-    const next = [
-      ...slides,
-      { title: "New slide", bullets: [""], notes: "", imageQuery: "", image: null, layout: "text", bg: cur?.bg || "paper", imgAdjust: 0, font: cur?.font || "editorial", textColor: cur?.textColor || "", titleFmt: {}, bulletFmts: [] },
-    ];
+    const next = [...slides, blankSlide()];
     setSlides(next);
+    commitHistory();
     setActive(next.length - 1);
   };
   const deleteSlide = (i) => {
     if (slides.length === 1) return;
     const next = slides.filter((_, idx) => idx !== i);
     setSlides(next);
+    commitHistory();
     setActive((a) => Math.max(0, Math.min(a, next.length - 1)));
+  };
+  const duplicateSlide = (i) => {
+    const src = slides[i];
+    if (!src) return;
+    // Structured clone so titleRuns / bulletRuns / image are deep-copied
+    // and edits to the dupe don't leak back through shared references.
+    const copy = JSON.parse(JSON.stringify(src));
+    const next = [...slides.slice(0, i + 1), copy, ...slides.slice(i + 1)];
+    setSlides(next);
+    commitHistory();
+    setActive(i + 1);
+  };
+  const toggleHidden = (i) => {
+    patchSlide(i, { hidden: !slides[i]?.hidden });
+    commitHistory();
   };
   const move = (i, dir) => {
     const j = i + dir;
@@ -436,8 +818,66 @@ export default function SlideBuilder({
     const next = [...slides];
     [next[i], next[j]] = [next[j], next[i]];
     setSlides(next);
+    commitHistory();
     setActive(j);
   };
+  const reorder = (from, to) => {
+    if (from === to || from < 0 || to < 0 || from >= slides.length || to >= slides.length) return;
+    const next = [...slides];
+    const [moved] = next.splice(from, 1);
+    next.splice(to, 0, moved);
+    setSlides(next);
+    commitHistory();
+    setActive(to);
+  };
+
+  // ── Drag handlers for the thumbnail rail ─────────────────────────
+  const onThumbDragStart = (e, i) => {
+    setDragIdx(i);
+    try { e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", String(i)); } catch {}
+  };
+  const onThumbDragOver = (e, i) => {
+    e.preventDefault();
+    if (dragIdx === null || dragIdx === i) return;
+    // Use the pointer position within the target to pick "before" vs
+    // "after" — in the vertical lg rail we split by Y, in the horizontal
+    // mobile rail by X. Either way the right half / lower half = after.
+    const rect = e.currentTarget.getBoundingClientRect();
+    const vertical = rect.height >= rect.width;
+    const edge = vertical
+      ? (e.clientY - rect.top > rect.height / 2 ? "after" : "before")
+      : (e.clientX - rect.left > rect.width / 2 ? "after" : "before");
+    setDropIdx(i);
+    setDropEdge(edge);
+  };
+  const onThumbDrop = (e) => {
+    e.preventDefault();
+    if (dragIdx === null || dropIdx === null) {
+      setDragIdx(null); setDropIdx(null);
+      return;
+    }
+    const to = dropEdge === "after" ? dropIdx + 1 : dropIdx;
+    // Adjust for the gap left by removing the source.
+    const target = to > dragIdx ? to - 1 : to;
+    reorder(dragIdx, target);
+    setDragIdx(null); setDropIdx(null);
+  };
+  const onThumbDragEnd = () => { setDragIdx(null); setDropIdx(null); };
+
+  // Cmd/Ctrl+Z / Cmd+Shift+Z (or Ctrl+Y) to undo / redo across the
+  // whole editor — works inside the contentEditable lines too (we
+  // preventDefault so the browser's native undo doesn't fight ours).
+  useEffect(() => {
+    const onKey = (e) => {
+      const mod = e.metaKey || e.ctrlKey;
+      if (!mod) return;
+      const k = e.key.toLowerCase();
+      if (k === "z" && !e.shiftKey) { e.preventDefault(); undo(); }
+      else if ((k === "z" && e.shiftKey) || k === "y") { e.preventDefault(); redo(); }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [undo, redo]);
 
   const autoFillPhotos = async () => {
     setAutoBusy(true);
@@ -480,6 +920,7 @@ export default function SlideBuilder({
             : (presentationParams?.section || "")),
         status: status || "Draft",
         scheduled_for: scheduledFor || presentationParams?.scheduled_for || null,
+        transition,
         slides: slidesForSave(slides),
       };
       const saved = savedId
@@ -520,8 +961,11 @@ export default function SlideBuilder({
       </div>
 
       {/* Screen editor — hidden during print so the slide stack above is
-          the only thing the browser captures. */}
-      <div className="print:hidden">
+          the only thing the browser captures. `@container` lets the
+          builder choose its layout based on its actual container width,
+          not the viewport — so the rail stays usable when the app
+          sidebar + teaching rail are eating horizontal space. */}
+      <div className="print:hidden @container">
       {/* Header */}
       <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
         <div className="flex items-center gap-2 min-w-0">
@@ -536,7 +980,7 @@ export default function SlideBuilder({
           <span className="relative inline-flex items-center flex-1 min-w-0 group">
             <input
               value={deckTitle}
-              onChange={(e) => setDeckTitle(e.target.value)}
+              onChange={(e) => { setDeckTitle(e.target.value); onDeckTitleChange?.(e.target.value); }}
               title="Click to edit the presentation title"
               placeholder="Click to name your presentation"
               className="font-serif text-xl md:text-2xl font-medium text-ink bg-paper-warm/40 border border-dashed border-line hover:border-ink/40 focus:border-solid focus:border-ink focus:bg-paper outline-none rounded-md px-2.5 py-1 pe-8 min-w-0 w-full transition-colors duration-150 placeholder:text-muted/70 cursor-text"
@@ -634,9 +1078,10 @@ export default function SlideBuilder({
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-[180px_1fr] gap-5">
-        {/* Thumbnail rail */}
-        <div className="flex lg:flex-col gap-2 overflow-x-auto lg:overflow-visible pb-1">
+      <div className="grid grid-cols-1 @5xl:grid-cols-[180px_1fr] gap-5">
+        {/* Thumbnail rail — horizontal until the container itself has
+            real room (~1024px), then it stacks down the side. */}
+        <div className="flex @5xl:flex-col gap-2 overflow-x-auto @5xl:overflow-visible pb-1">
           {slides.map((s, i) => {
             const t = resolveTheme(s.bg);
             // Mirror the actual slide layout in the thumbnail so a teacher
@@ -656,9 +1101,17 @@ export default function SlideBuilder({
             // theme default, so a teacher picking red text saw the change
             // only in the right pane.
             const hasTxt = isHex(s.textColor);
-            const titleColor = hasTxt ? s.textColor : (bgImage ? "#ffffff" : t.text);
-            const bodyColor = hasTxt ? hexToRgba(s.textColor, 0.78) : (bgImage ? "rgba(255,255,255,0.85)" : t.soft);
-            const numColor = bodyColor;
+            const baseTitleColor = hasTxt ? s.textColor : (bgImage ? "#ffffff" : t.text);
+            const baseBodyColor = hasTxt ? hexToRgba(s.textColor, 0.78) : (bgImage ? "rgba(255,255,255,0.85)" : t.soft);
+            const numColor = baseBodyColor;
+            // Per-line / per-run fmt — the canvas paints these through
+            // RichLine; the rail mirrors them so a per-word red AI-drafted
+            // title doesn't show as a stale white block here.
+            const titleRuns = ensureTitleRuns(s);
+            const bulletRunsList = (s.bullets || []).map((_, bi) => ensureBulletRuns(s, bi));
+            const visibleBullets = bulletRunsList
+              .map((runs, idx) => ({ runs, text: (s.bullets || [])[idx] }))
+              .filter((b) => b.text);
             const titleAlign =
               layout === "title" ? "flex flex-col items-center justify-center text-center" :
               layout === "full-image" ? "flex flex-col justify-end" :
@@ -668,14 +1121,25 @@ export default function SlideBuilder({
             const textInset = sideImage
               ? (imageOnLeft ? "ps-[calc(50%+0.4rem)]" : "pe-[calc(50%+0.4rem)]")
               : "";
+            const isDragging = dragIdx === i;
+            const isDropTarget = dropIdx === i && dragIdx !== null && dragIdx !== i;
+            const dropClass = isDropTarget
+              ? (dropEdge === "after" ? "slide-thumb-drop-after" : "slide-thumb-drop-before")
+              : "";
             return (
               <button
                 key={i}
                 type="button"
+                draggable
+                onDragStart={(e) => onThumbDragStart(e, i)}
+                onDragOver={(e) => onThumbDragOver(e, i)}
+                onDrop={onThumbDrop}
+                onDragEnd={onThumbDragEnd}
                 onClick={() => setActive(i)}
-                className={`group relative flex-shrink-0 w-[160px] lg:w-full aspect-[16/9] rounded-lg border text-left overflow-hidden transition-all ${
+                title={s.hidden ? "Hidden from presenter — click to select" : "Drag to reorder"}
+                className={`group relative flex-shrink-0 w-[160px] @5xl:w-full aspect-[16/9] rounded-lg border text-left overflow-hidden transition-all cursor-grab active:cursor-grabbing ${
                   i === active ? "border-accent shadow-[0_0_0_3px_rgba(200,71,43,0.12)]" : "border-line hover:border-ink/40"
-                }`}
+                } ${isDragging ? "slide-thumb-dragging" : ""} ${dropClass} ${s.hidden ? "opacity-55" : ""}`}
                 style={{ background: t.bg }}
               >
                 {/* Full-bleed cover image (title / full-image layouts) +
@@ -697,20 +1161,34 @@ export default function SlideBuilder({
                 )}
                 <div className={`absolute inset-0 p-2 ${titleAlign} ${textInset}`}>
                   <span className="font-mono text-[9px] absolute top-1.5 right-2" style={{ color: numColor }}>{i + 1}</span>
-                  <p className={`font-serif text-[11px] font-medium leading-tight line-clamp-2 ${layout === "title" ? "" : "pr-4"}`} style={{ color: titleColor }}>
-                    {s.title || "Untitled"}
+                  {s.hidden && (
+                    <span className="absolute top-1.5 left-2 font-mono text-[8px] uppercase tracking-[0.1em] px-1.5 py-0.5 rounded bg-black/40 text-white">
+                      Hidden
+                    </span>
+                  )}
+                  <p
+                    className={`font-serif text-[11px] font-medium leading-tight line-clamp-2 ${layout === "title" ? "" : "pr-4"}`}
+                    style={{ color: baseTitleColor }}
+                  >
+                    {titleRuns.length ? titleRuns.map((r, ri) => (
+                      <span key={ri} style={runReactStyle(r, "title")}>{r.text}</span>
+                    )) : (s.title || "Untitled")}
                   </p>
-                  {/* Bullets summary. Centered on Cover (matches the
-                      canvas's centred subtitle line); aligned to the
-                      text column on every other layout. */}
-                  {(s.bullets || []).filter(Boolean).length > 0 && (
+                  {visibleBullets.length > 0 && (
                     <p
                       className={`text-[8.5px] mt-1 line-clamp-3 leading-snug ${
                         layout === "title" ? "text-center max-w-[90%] mx-auto" : ""
                       }`}
-                      style={{ color: bodyColor }}
+                      style={{ color: baseBodyColor }}
                     >
-                      {(s.bullets || []).filter(Boolean).join(" · ")}
+                      {visibleBullets.map((b, bi) => (
+                        <span key={bi}>
+                          {bi > 0 && <span style={{ color: baseBodyColor }}> · </span>}
+                          {b.runs.length ? b.runs.map((r, ri) => (
+                            <span key={ri} style={runReactStyle(r, "body")}>{r.text}</span>
+                          )) : b.text}
+                        </span>
+                      ))}
                     </p>
                   )}
                 </div>
@@ -720,7 +1198,7 @@ export default function SlideBuilder({
           <button
             type="button"
             onClick={addSlide}
-            className="flex-shrink-0 w-[160px] lg:w-full aspect-[16/9] rounded-lg border border-dashed border-line text-muted hover:border-ink hover:text-ink transition flex flex-col items-center justify-center gap-1"
+            className="flex-shrink-0 w-[160px] @5xl:w-full aspect-[16/9] rounded-lg border border-dashed border-line text-muted hover:border-ink hover:text-ink transition flex flex-col items-center justify-center gap-1"
           >
             <Plus size={16} />
             <span className="text-[10px] font-medium">Add slide</span>
@@ -734,15 +1212,40 @@ export default function SlideBuilder({
               Slide {active + 1} of {slides.length}
             </p>
             <div className="flex items-center gap-1">
+              <button type="button" onClick={undo} disabled={!canUndo}
+                title="Undo (⌘Z)"
+                className="planner-nav-btn h-7 w-7 rounded-md border border-line bg-paper-cool hover:bg-paper-warm disabled:opacity-40 flex items-center justify-center" aria-label="Undo">
+                <Undo2 size={13} />
+              </button>
+              <button type="button" onClick={redo} disabled={!canRedo}
+                title="Redo (⌘⇧Z)"
+                className="planner-nav-btn h-7 w-7 rounded-md border border-line bg-paper-cool hover:bg-paper-warm disabled:opacity-40 flex items-center justify-center" aria-label="Redo">
+                <Redo2 size={13} />
+              </button>
+              <span className="w-px h-5 bg-line mx-0.5" />
               <button type="button" onClick={() => move(active, -1)} disabled={active === 0}
+                title="Move slide up"
                 className="planner-nav-btn h-7 w-7 rounded-md border border-line bg-paper-cool hover:bg-paper-warm disabled:opacity-40 flex items-center justify-center" aria-label="Move slide up">
                 <ChevronUp size={13} />
               </button>
               <button type="button" onClick={() => move(active, 1)} disabled={active === slides.length - 1}
+                title="Move slide down"
                 className="planner-nav-btn h-7 w-7 rounded-md border border-line bg-paper-cool hover:bg-paper-warm disabled:opacity-40 flex items-center justify-center" aria-label="Move slide down">
                 <ChevronDown size={13} />
               </button>
+              <button type="button" onClick={() => duplicateSlide(active)}
+                title="Duplicate slide"
+                className="planner-nav-btn h-7 w-7 rounded-md border border-line bg-paper-cool hover:bg-paper-warm flex items-center justify-center" aria-label="Duplicate slide">
+                <Copy size={12} />
+              </button>
+              <button type="button" onClick={() => toggleHidden(active)}
+                title={cur?.hidden ? "Show in presenter" : "Hide from presenter"}
+                className={`planner-nav-btn h-7 w-7 rounded-md border bg-paper-cool flex items-center justify-center ${cur?.hidden ? "border-accent text-accent" : "border-line text-ink-soft hover:bg-paper-warm"}`}
+                aria-label="Toggle hide slide">
+                {cur?.hidden ? <EyeOff size={12} /> : <Eye size={12} />}
+              </button>
               <button type="button" onClick={() => deleteSlide(active)} disabled={slides.length === 1}
+                title="Delete slide"
                 className="planner-nav-btn h-7 w-7 rounded-md border border-line bg-paper-cool hover:bg-accent hover:text-paper-cool hover:border-accent text-ink-soft disabled:opacity-40 flex items-center justify-center" aria-label="Delete slide">
                 <Trash2 size={12} />
               </button>
@@ -798,14 +1301,52 @@ export default function SlideBuilder({
                 className="rounded-lg border border-line bg-paper-cool px-2.5 py-1 text-[12px] outline-none focus:border-ink cursor-pointer"
                 aria-label="Font style"
               >
-                {FONT_KEYS.map((k) => (
-                  <option key={k} value={k}>{FONTS[k].name}</option>
-                ))}
+                {FONT_CATEGORIES.map((cat) => {
+                  const keys = FONT_KEYS.filter((k) => FONTS[k].cat === cat);
+                  if (!keys.length) return null;
+                  return (
+                    <optgroup key={cat} label={cat}>
+                      {keys.map((k) => <option key={k} value={k}>{FONTS[k].name}</option>)}
+                    </optgroup>
+                  );
+                })}
               </select>
               <button type="button" onClick={() => applyAll({ font: cur?.font || "editorial" })}
                 className="text-[10.5px] text-accent hover:text-ink font-serif italic">
                 Apply to all
               </button>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="font-mono text-[9.5px] uppercase tracking-[0.15em] text-muted mr-1">Bullets</span>
+              {[
+                { k: "dot",    label: "•",  title: "Dot" },
+                { k: "dash",   label: "–",  title: "Dash" },
+                { k: "number", label: "1.", title: "Numbered" },
+                { k: "none",   label: "—",  title: "No bullet" },
+              ].map((opt) => (
+                <button key={opt.k} type="button"
+                  onClick={() => patchActive({ bulletStyle: opt.k })}
+                  title={opt.title}
+                  className={`h-6 min-w-[26px] px-1.5 rounded border text-[11px] font-mono flex items-center justify-center ${
+                    (cur?.bulletStyle || "dot") === opt.k
+                      ? "border-accent bg-accent/[0.08] text-accent"
+                      : "border-line bg-paper-cool text-ink-soft hover:border-ink"
+                  }`}
+                >{opt.label}</button>
+              ))}
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="font-mono text-[9.5px] uppercase tracking-[0.15em] text-muted mr-1">Transition</span>
+              <select
+                value={transition}
+                onChange={(e) => setTransition(e.target.value)}
+                className="rounded-lg border border-line bg-paper-cool px-2.5 py-1 text-[12px] outline-none focus:border-ink cursor-pointer"
+                aria-label="Slide transition"
+                title="How slides change in the presenter"
+              >
+                <option value="cut">Cut</option>
+                <option value="fade">Fade</option>
+              </select>
             </div>
             <button type="button" onClick={() => setPicker(true)}
               className="planner-nav-btn inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-line bg-paper-cool hover:border-ink text-ink-soft text-[12px]">
@@ -838,18 +1379,49 @@ export default function SlideBuilder({
             )}
           </div>
 
-          <SlideCanvas
-            slide={cur}
-            theme={theme}
-            index={active}
-            total={slides.length}
-            editable
-            onPatch={patchActive}
-            onSetBullet={setBullet}
-            onAddBullet={addBullet}
-            onRemoveBullet={removeBullet}
-            onOpenPicker={() => setPicker(true)}
-          />
+          {/* Canvas + edge-floating prev/next nav. The arrows live
+              outside the SlideCanvas wrapper so they don't fight the
+              floating format bar inside it. They only render when
+              there's somewhere to go, so a single-slide deck doesn't
+              get useless ghost controls. */}
+          <div className="relative">
+            <SlideCanvas
+              slide={cur}
+              theme={theme}
+              index={active}
+              total={slides.length}
+              editable
+              onPatch={patchActive}
+              onSetTitleRuns={setTitleRuns}
+              onSetBulletRuns={setBulletRuns}
+              onAddBullet={addBullet}
+              onRemoveBullet={removeBullet}
+              onOpenPicker={() => setPicker(true)}
+              onCommitHistory={commitHistory}
+            />
+            {active > 0 && (
+              <button
+                type="button"
+                onClick={() => setActive(active - 1)}
+                aria-label="Previous slide"
+                title="Previous slide"
+                className="absolute top-1/2 -translate-y-1/2 start-2 z-20 h-10 w-10 rounded-full bg-paper-cool/85 backdrop-blur border border-line text-ink-soft hover:text-ink hover:bg-paper-cool hover:border-ink shadow-md flex items-center justify-center transition"
+              >
+                <ChevronLeft size={16} className="rtl:rotate-180" />
+              </button>
+            )}
+            {active < slides.length - 1 && (
+              <button
+                type="button"
+                onClick={() => setActive(active + 1)}
+                aria-label="Next slide"
+                title="Next slide"
+                className="absolute top-1/2 -translate-y-1/2 end-2 z-20 h-10 w-10 rounded-full bg-paper-cool/85 backdrop-blur border border-line text-ink-soft hover:text-ink hover:bg-paper-cool hover:border-ink shadow-md flex items-center justify-center transition"
+              >
+                <ChevronRight size={16} className="rtl:rotate-180" />
+              </button>
+            )}
+          </div>
 
           <div className="mt-3">
             <p className="font-mono text-[9.5px] uppercase tracking-[0.18em] text-muted mb-1.5">Speaker notes</p>
@@ -876,11 +1448,269 @@ export default function SlideBuilder({
   );
 }
 
+// Textarea that grows with its content so a long bullet doesn't
+// hide under a scrollbar inside the slide canvas. `rows` is treated
+// as the minimum height; we shrink to `auto` first so deletions
+// collapse the box back down.
+function AutoTextarea({ value, rows = 1, style, ...rest }) {
+  const ref = useRef(null);
+  const fit = useCallback(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  }, []);
+  useEffect(() => { fit(); }, [value, fit]);
+  return (
+    <textarea
+      ref={ref}
+      rows={rows}
+      value={value}
+      {...rest}
+      style={{ overflow: "hidden", ...style }}
+    />
+  );
+}
+
+// Inline rich-text editor for a single line (title or one bullet).
+// Wraps a contentEditable div, treats `value: Run[]` as the source of
+// truth and round-trips through htmlToRuns on every input. The parent
+// owns the runs and re-renders the slide; we skip resetting innerHTML
+// on the keystroke that produced the change to keep the cursor put.
+const RichLine = forwardRef(function RichLine({
+  value,            // Run[]
+  onChange,         // (runs: Run[]) => void
+  onFocus,
+  onSelection,      // (fmt) => void — fmt at the caret/selection
+  fontKind = "body", // "title" or "body"
+  className,
+  style,
+  placeholder,
+  rtl = false,
+}, ref) {
+  const elRef = useRef(null);
+  const dirty = useRef(false);
+  const lastHtml = useRef("");
+  // Stash the last in-editor Range so the toolbar can still apply a
+  // patch after a font select / color popover has stolen the
+  // selection — opening native UI collapses the contentEditable
+  // selection on most browsers.
+  const lastRange = useRef(null);
+
+  const refreshEmpty = useCallback(() => {
+    const el = elRef.current;
+    if (!el) return;
+    const txt = el.textContent || "";
+    el.classList.toggle("is-empty", txt.length === 0);
+  }, []);
+
+  useLayoutEffect(() => {
+    const el = elRef.current;
+    if (!el) return;
+    if (dirty.current) {
+      dirty.current = false;
+      refreshEmpty();
+      return;
+    }
+    const html = runsToHtml(value, fontKind);
+    if (lastHtml.current !== html) {
+      el.innerHTML = html;
+      lastHtml.current = html;
+    }
+    refreshEmpty();
+  }, [value, fontKind, refreshEmpty]);
+
+  const sync = () => {
+    const el = elRef.current;
+    if (!el) return;
+    dirty.current = true;
+    const runs = htmlToRuns(el);
+    lastHtml.current = runsToHtml(runs, fontKind);
+    refreshEmpty();
+    onChange?.(runs);
+  };
+
+  const captureRange = () => {
+    const el = elRef.current;
+    if (!el) return;
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount > 0 && el.contains(sel.anchorNode)) {
+      lastRange.current = sel.getRangeAt(0).cloneRange();
+    }
+  };
+
+  const reportSelection = () => {
+    captureRange();
+    if (!onSelection) return;
+    const fmt = getFmtAtSelection(elRef.current);
+    onSelection(fmt);
+  };
+
+  useImperativeHandle(ref, () => ({
+    applyFmt: (patch) => {
+      const el = elRef.current;
+      if (!el) return;
+      const sel = window.getSelection();
+      const insideEditor = sel && sel.rangeCount > 0 && el.contains(sel.anchorNode);
+      // Restore the last in-editor range if the picker / dropdown stole
+      // focus — otherwise the toolbar patch would apply to a collapsed
+      // selection in the picker UI instead of the actual text.
+      if (!insideEditor) {
+        el.focus();
+        if (lastRange.current) {
+          sel.removeAllRanges();
+          sel.addRange(lastRange.current);
+        }
+      }
+      const ok = applyFmtToSelection(el, patch);
+      if (ok) {
+        captureRange();
+        sync();
+        reportSelection();
+      }
+    },
+    focus: () => elRef.current?.focus(),
+    isFocused: () => document.activeElement === elRef.current,
+  }), []);
+
+  return (
+    <div
+      ref={elRef}
+      contentEditable
+      suppressContentEditableWarning
+      onInput={sync}
+      onFocus={(e) => { reportSelection(); onFocus?.(e); }}
+      onMouseUp={reportSelection}
+      onKeyUp={reportSelection}
+      onTouchEnd={reportSelection}
+      dir={rtl ? "rtl" : "auto"}
+      data-placeholder={placeholder || ""}
+      className={`murchid-rich ${className || ""}`}
+      style={{ outline: "none", whiteSpace: "pre-wrap", wordBreak: "break-word", ...style }}
+      aria-label={placeholder}
+    />
+  );
+});
+
+// Read-only rendering of runs (used when the slide canvas is shown to
+// the presenter or in print). Mirrors what RichLine renders but as
+// React nodes, never editable.
+function RunsText({ runs, fallback, fmt, baseStyle, fontKind = "body", className }) {
+  const items = Array.isArray(runs) && runs.length ? runs : null;
+  if (items) {
+    return (
+      <span className={className}>
+        {items.map((r, i) => (
+          <span key={i} style={runReactStyle(r, fontKind)}>
+            {r.text}
+          </span>
+        ))}
+      </span>
+    );
+  }
+  return (
+    <span className={className} style={lineStyle(fmt, baseStyle, fontKind === "title" ? "title" : "body")}>
+      {fallback}
+    </span>
+  );
+}
+function runReactStyle(r, kind) {
+  const s = {};
+  if (isHex(r.color)) s.color = r.color;
+  if (r.font && FONTS[r.font]) s.fontFamily = fontFamilyOf(r.font, kind);
+  if (r.b) s.fontWeight = 800;
+  if (r.i) s.fontStyle = "italic";
+  if (r.u) s.textDecoration = "underline";
+  if (typeof r.size === "number" && r.size > 0) s.fontSize = `${r.size}em`;
+  return s;
+}
+
+// ── Undo / redo ───────────────────────────────────────────────────
+// A snapshot is pushed onto the past stack a short delay after the last
+// change, so a burst of keystrokes collapses to one undo step (Google
+// Docs–style). Formatting actions can push immediately via `commit()`.
+function useHistory(initial, debounceMs = 350) {
+  const [present, setPresentState] = useState(initial);
+  const pastRef = useRef([]);
+  const futureRef = useRef([]);
+  const burstSnap = useRef(null);
+  const timerRef = useRef(null);
+  const [version, setVersion] = useState(0); // bumps canUndo/canRedo
+  const bump = () => setVersion((v) => v + 1);
+
+  const flushBurst = useCallback(() => {
+    if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null; }
+    if (burstSnap.current !== null) {
+      pastRef.current = [...pastRef.current, burstSnap.current].slice(-100);
+      burstSnap.current = null;
+      bump();
+    }
+  }, []);
+
+  const set = useCallback((updater) => {
+    setPresentState((p) => {
+      const next = typeof updater === "function" ? updater(p) : updater;
+      if (next === p) return p;
+      if (burstSnap.current === null) burstSnap.current = p;
+      futureRef.current = [];
+      if (timerRef.current) clearTimeout(timerRef.current);
+      timerRef.current = setTimeout(() => {
+        pastRef.current = [...pastRef.current, burstSnap.current].slice(-100);
+        burstSnap.current = null;
+        timerRef.current = null;
+        bump();
+      }, debounceMs);
+      return next;
+    });
+  }, [debounceMs]);
+
+  const commit = useCallback(() => flushBurst(), [flushBurst]);
+
+  const reset = useCallback((next) => {
+    flushBurst();
+    pastRef.current = [];
+    futureRef.current = [];
+    setPresentState(next);
+    bump();
+  }, [flushBurst]);
+
+  const undo = useCallback(() => {
+    flushBurst();
+    setPresentState((p) => {
+      if (pastRef.current.length === 0) return p;
+      const prev = pastRef.current[pastRef.current.length - 1];
+      pastRef.current = pastRef.current.slice(0, -1);
+      futureRef.current = [p, ...futureRef.current].slice(0, 100);
+      bump();
+      return prev;
+    });
+  }, [flushBurst]);
+
+  const redo = useCallback(() => {
+    setPresentState((p) => {
+      if (futureRef.current.length === 0) return p;
+      const next = futureRef.current[0];
+      futureRef.current = futureRef.current.slice(1);
+      pastRef.current = [...pastRef.current, p].slice(-100);
+      bump();
+      return next;
+    });
+  }, []);
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const canUndo = useMemo(() => pastRef.current.length > 0 || burstSnap.current !== null, [version, present]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const canRedo = useMemo(() => futureRef.current.length > 0, [version]);
+
+  return { present, set, reset, commit, undo, redo, canUndo, canRedo };
+}
+
 // ── The slide canvas — renders the chosen layout. Editable in the
 // builder, static in the presenter. ──────────────────────────────
 function SlideCanvas({
   slide, theme, index, total, editable = false,
-  onPatch, onSetBullet, onAddBullet, onRemoveBullet, onOpenPicker,
+  onPatch, onSetTitleRuns, onSetBulletRuns,
+  onAddBullet, onRemoveBullet, onOpenPicker, onCommitHistory,
 }) {
   const layout = slide?.layout || "text";
   const hasImage = Boolean(slide?.image);
@@ -895,79 +1725,170 @@ function SlideCanvas({
   const onPhoto = hasTxt ? slide.textColor : "#ffffff";
   const onPhotoSoft = hasTxt ? hexToRgba(slide.textColor, 0.88) : "rgba(255,255,255,0.9)";
 
-  // Which line the format toolbar acts on: "title" or a bullet index.
-  const [activeLine, setActiveLine] = useState(null);
+  // Line-level (per-line) settings — alignment and the legacy fmt that
+  // still applies when a line has no rich runs yet.
   const titleFmt = slide?.titleFmt || {};
   const bulletFmts = slide?.bulletFmts || [];
-  const setTitleFmt = (patch) => onPatch({ titleFmt: { ...titleFmt, ...patch } });
-  const setBulletFmt = (idx, patch) => {
-    const arr = Array.isArray(bulletFmts) ? [...bulletFmts] : [];
-    arr[idx] = { ...(arr[idx] || {}), ...patch };
-    onPatch({ bulletFmts: arr });
+  const titleAlign = slide?.titleAlign || "";
+  const bulletAligns = slide?.bulletAligns || [];
+  const bulletStyle = slide?.bulletStyle || "dot";
+
+  // Runs for the title + bullets. Pulled directly from the slide so a
+  // parent re-render with new runs flows through without staleness.
+  const titleRuns = ensureTitleRuns(slide);
+  const bullets = slide?.bullets || [];
+
+  // Per-line state for the floating format bar. activeLine is "title"
+  // or a bullet index; selFmt is the format under the caret in that
+  // line so the toolbar's B/I/U/A buttons show the right state.
+  const [activeLine, setActiveLine] = useState(null);
+  const [selFmt, setSelFmt] = useState({});
+  const richRefs = useRef({ title: null, bullets: [] });
+
+  // Drop the floating toolbar / selection state when the user navigates
+  // to a different slide — otherwise the bar lingers showing the old
+  // line's format while the new slide is on screen.
+  useEffect(() => {
+    setActiveLine(null);
+    setSelFmt({});
+    richRefs.current.bullets = [];
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [index]);
+
+  const onLineFocus = (line) => setActiveLine(line);
+  const onLineSelection = (line, fmt) => {
+    setActiveLine((cur) => (cur === null ? line : cur));
+    setSelFmt(fmt || {});
   };
-  const activeFmt = activeLine === "title" ? titleFmt
-    : typeof activeLine === "number" ? (bulletFmts[activeLine] || {}) : null;
-  const applyActiveFmt = (patch) => {
-    if (activeLine === "title") setTitleFmt(patch);
-    else if (typeof activeLine === "number") setBulletFmt(activeLine, patch);
+  const applyFmt = (patch) => {
+    if (activeLine === "title") richRefs.current.title?.applyFmt(patch);
+    else if (typeof activeLine === "number") richRefs.current.bullets[activeLine]?.applyFmt(patch);
+    onCommitHistory?.();
+  };
+  const applyAlign = (align) => {
+    if (activeLine === "title") onPatch({ titleAlign: align });
+    else if (typeof activeLine === "number") {
+      const next = [...bulletAligns];
+      next[activeLine] = align;
+      onPatch({ bulletAligns: next });
+    }
+    onCommitHistory?.();
+  };
+  const activeAlign = activeLine === "title"
+    ? titleAlign
+    : typeof activeLine === "number" ? (bulletAligns[activeLine] || "") : "";
+
+  const alignClass = (a) =>
+    a === "left" ? "text-left" :
+    a === "center" ? "text-center" :
+    a === "right" ? "text-right" : "";
+
+  // Bullet glyph — varies by per-slide bullet style. On photo-on-dark
+  // layouts we draw the glyph white instead of using the theme dot.
+  const Glyph = ({ index: bi, photoOnDark = false, glyphColor }) => {
+    const color = photoOnDark ? "rgba(255,255,255,0.8)" : (glyphColor || theme.dot);
+    if (bulletStyle === "none") return null;
+    if (bulletStyle === "dash") {
+      return <span className="mt-0.5 flex-shrink-0 font-mono leading-snug" style={{ color }}>–</span>;
+    }
+    if (bulletStyle === "number") {
+      return <span className="mt-0 flex-shrink-0 font-mono text-[14px] tabular-nums leading-snug" style={{ color }}>{bi + 1}.</span>;
+    }
+    return <span className="mt-2 h-1.5 w-1.5 rounded-full flex-shrink-0" style={{ background: color }} />;
   };
 
-  const titleNode = editable ? (
-    <textarea
-      value={slide?.title || ""}
-      onChange={(e) => onPatch({ title: e.target.value })}
-      onFocus={() => setActiveLine("title")}
-      rows={layout === "title" ? 2 : 1}
-      className={`w-full font-semibold bg-transparent outline-none resize-none leading-tight tracking-tight rounded px-1 -mx-1 ${
-        layout === "title" ? "text-4xl md:text-5xl" : "text-2xl md:text-3xl"
-      }`}
-      style={lineStyle(titleFmt, { color: txt, fontFamily: f.title }, "title")}
-      placeholder="Slide title"
-      aria-label="Slide title"
-    />
-  ) : (
-    <h2
-      className={`font-semibold leading-tight tracking-tight ${
-        layout === "title" ? "text-4xl md:text-6xl" : "text-2xl md:text-4xl"
-      }`}
-      style={lineStyle(titleFmt, { color: txt, fontFamily: f.title }, "title")}
-    >
-      {slide?.title}
-    </h2>
-  );
+  // ── Title node factory ────────────────────────────────────────
+  // `cls` is the full class string for the title (size/weight/etc.).
+  // `style` carries the default color / fontFamily — runs override
+  // these inline as needed.
+  const titleEl = ({ cls, style, placeholder = "Slide title" }) => {
+    const align = alignClass(titleAlign);
+    if (editable) {
+      return (
+        <RichLine
+          ref={(r) => { richRefs.current.title = r; }}
+          value={titleRuns}
+          onChange={onSetTitleRuns}
+          onFocus={() => onLineFocus("title")}
+          onSelection={(fmt) => onLineSelection("title", fmt)}
+          fontKind="title"
+          className={`${cls} ${align} w-full bg-transparent rounded px-1 -mx-1`}
+          style={style}
+          placeholder={placeholder}
+        />
+      );
+    }
+    return (
+      <h2 className={`${cls} ${align}`} style={lineStyle(titleFmt, style, "title")}>
+        {titleRuns.length
+          ? titleRuns.map((r, i) => <span key={i} style={runReactStyle(r, "title")}>{r.text}</span>)
+          : slide?.title}
+      </h2>
+    );
+  };
 
+  // ── Bullet row factory ────────────────────────────────────────
+  const bulletEl = (bi, { cls, style, photoOnDark = false, placeholder = "Type a point…" }) => {
+    const runs = ensureBulletRuns(slide, bi);
+    const text = bullets[bi] || "";
+    const align = alignClass(bulletAligns[bi]);
+
+    if (editable) {
+      return (
+        <div key={bi} className="flex items-start gap-2.5 group w-full">
+          <Glyph index={bi} photoOnDark={photoOnDark} />
+          <RichLine
+            ref={(r) => { richRefs.current.bullets[bi] = r; }}
+            value={runs}
+            onChange={(newRuns) => onSetBulletRuns(bi, newRuns)}
+            onFocus={() => onLineFocus(bi)}
+            onSelection={(fmt) => onLineSelection(bi, fmt)}
+            fontKind="body"
+            className={`flex-1 ${cls} ${align} bg-transparent rounded px-1 -mx-1`}
+            style={style}
+            placeholder={placeholder}
+          />
+          <button
+            type="button"
+            onClick={() => onRemoveBullet(bi)}
+            aria-label="Remove point"
+            className={`opacity-0 group-hover:opacity-100 transition mt-1 h-5 w-5 rounded flex items-center justify-center flex-shrink-0 ${photoOnDark ? "text-white/70" : ""}`}
+            style={photoOnDark ? {} : { color: txtSoft }}
+          >
+            <Trash2 size={11} />
+          </button>
+        </div>
+      );
+    }
+    if (!text) return null;
+    return (
+      <div key={bi} className={`flex items-start gap-3 ${align}`}>
+        <Glyph index={bi} photoOnDark={photoOnDark} />
+        <span className={`flex-1 ${cls}`} style={lineStyle(bulletFmts[bi], style, "body")}>
+          {runs.length
+            ? runs.map((r, i) => <span key={i} style={runReactStyle(r, "body")}>{r.text}</span>)
+            : text}
+        </span>
+      </div>
+    );
+  };
+
+  // Standard title + bullets used by Text, Text+Photo, Photo+Text and
+  // the no-image Cover layout.
+  const titleNode = titleEl({
+    cls: `font-semibold leading-tight tracking-tight ${
+      editable
+        ? (layout === "title" ? "text-4xl md:text-5xl" : "text-2xl md:text-3xl")
+        : (layout === "title" ? "text-4xl md:text-6xl" : "text-2xl md:text-4xl")
+    }`,
+    style: { color: txt, fontFamily: f.title },
+  });
   const bulletsNode = (
     <div className="mt-4 flex flex-col gap-2">
-      {(slide?.bullets || []).map((b, bi) =>
-        editable ? (
-          <div key={bi} className="flex items-start gap-2.5 group">
-            <span className="mt-2 h-1.5 w-1.5 rounded-full flex-shrink-0" style={{ background: theme.dot }} />
-            <textarea
-              value={b}
-              onChange={(e) => onSetBullet(bi, e.target.value)}
-              onFocus={() => setActiveLine(bi)}
-              rows={1}
-              placeholder="Type a point…"
-              className="flex-1 text-[15px] md:text-base bg-transparent outline-none resize-none leading-snug rounded px-1 -mx-1"
-              style={lineStyle(bulletFmts[bi], { color: txtSoft, fontFamily: f.body }, "body")}
-            />
-            <button
-              type="button"
-              onClick={() => onRemoveBullet(bi)}
-              aria-label="Remove point"
-              className="opacity-0 group-hover:opacity-100 transition mt-1 h-5 w-5 rounded flex items-center justify-center flex-shrink-0"
-              style={{ color: txtSoft }}
-            >
-              <Trash2 size={11} />
-            </button>
-          </div>
-        ) : b ? (
-          <div key={bi} className="flex items-start gap-3">
-            <span className="mt-2.5 h-1.5 w-1.5 rounded-full flex-shrink-0" style={{ background: theme.dot }} />
-            <span className="text-base md:text-xl leading-snug" style={lineStyle(bulletFmts[bi], { color: txtSoft, fontFamily: f.body }, "body")}>{b}</span>
-          </div>
-        ) : null
-      )}
+      {bullets.map((_, bi) => bulletEl(bi, {
+        cls: "text-[15px] md:text-base leading-snug",
+        style: { color: txtSoft, fontFamily: f.body },
+      }))}
       {editable && (
         <button
           type="button"
@@ -1029,9 +1950,11 @@ function SlideCanvas({
       {editable && activeLine !== null && (
         <LineFormatBar
           label={activeLine === "title" ? "Title" : `Line ${Number(activeLine) + 1}`}
-          fmt={activeFmt || {}}
-          onChange={applyActiveFmt}
-          onClose={() => setActiveLine(null)}
+          fmt={selFmt}
+          align={activeAlign}
+          onChange={applyFmt}
+          onAlign={applyAlign}
+          onClose={() => { setActiveLine(null); setSelFmt({}); }}
         />
       )}
       {layout === "title" && (
@@ -1055,46 +1978,42 @@ function SlideCanvas({
             <div className="absolute inset-0 pointer-events-none mix-blend-multiply" style={{ background: resolveTheme(slide?.bg).bg, opacity: 0.38 }} />
             <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/20 to-black/35 pointer-events-none" />
             <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-12 md:px-20">
-              {editable ? (
-                <textarea
-                  value={slide?.title || ""}
-                  onChange={(e) => onPatch({ title: e.target.value })}
-                  onFocus={() => setActiveLine("title")}
-                  rows={2}
-                  className="w-full max-w-4xl text-center text-5xl md:text-7xl font-semibold bg-transparent outline-none resize-none leading-[1.05] tracking-tight drop-shadow-lg rounded px-1"
-                  style={lineStyle(titleFmt, { color: onPhoto, fontFamily: f.title }, "title")}
-                  placeholder="Presentation title"
-                  aria-label="Slide title"
-                />
-              ) : (
-                <h2 className="max-w-4xl text-5xl md:text-7xl font-semibold leading-[1.05] tracking-tight drop-shadow-lg"
-                  style={lineStyle(titleFmt, { color: onPhoto, fontFamily: f.title }, "title")}>
-                  {slide?.title}
-                </h2>
-              )}
-              {editable ? (
-                <div className="mt-6 w-full max-w-2xl flex flex-col items-center gap-1.5">
-                  {(slide?.bullets || []).map((b, bi) => (
-                    <div key={bi} className="w-full flex items-center justify-center gap-2 group">
-                      <textarea
-                        value={b}
-                        onChange={(e) => onSetBullet(bi, e.target.value)}
-                        onFocus={() => setActiveLine(bi)}
-                        rows={1}
-                        placeholder="Subtitle line…"
-                        className="flex-1 text-center text-base md:text-xl bg-transparent outline-none resize-none leading-snug rounded px-1 placeholder:text-white/45"
-                        style={lineStyle(bulletFmts[bi], { color: onPhotoSoft, fontFamily: f.body }, "body")}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => onRemoveBullet(bi)}
-                        aria-label="Remove line"
-                        className="opacity-0 group-hover:opacity-100 transition h-5 w-5 rounded flex items-center justify-center flex-shrink-0 text-white/60"
-                      >
-                        <Trash2 size={11} />
-                      </button>
-                    </div>
-                  ))}
+              <div className="w-full max-w-4xl">
+                {titleEl({
+                  cls: "text-5xl md:text-7xl font-semibold leading-[1.05] tracking-tight drop-shadow-lg",
+                  style: { color: onPhoto, fontFamily: f.title },
+                  placeholder: "Presentation title",
+                })}
+              </div>
+              <div className="mt-6 w-full max-w-2xl flex flex-col items-center gap-1.5">
+                {editable
+                  ? bullets.map((_, bi) => bulletEl(bi, {
+                      cls: "text-base md:text-xl leading-snug",
+                      style: { color: onPhotoSoft, fontFamily: f.body },
+                      photoOnDark: true,
+                      placeholder: "Subtitle line…",
+                    }))
+                  : (
+                    bullets.filter(Boolean).length > 0 && (
+                      <p className="text-lg md:text-2xl drop-shadow leading-snug"
+                        style={{ color: onPhotoSoft, fontFamily: f.body }}>
+                        {bullets.map((_, bi) => {
+                          const runs = ensureBulletRuns(slide, bi);
+                          const text = bullets[bi];
+                          if (!text) return null;
+                          return (
+                            <span key={bi}>
+                              {bi > 0 && "  ·  "}
+                              {runs.length
+                                ? runs.map((r, i) => <span key={i} style={runReactStyle(r, "body")}>{r.text}</span>)
+                                : text}
+                            </span>
+                          );
+                        })}
+                      </p>
+                    )
+                  )}
+                {editable && (
                   <button
                     type="button"
                     onClick={onAddBullet}
@@ -1102,15 +2021,8 @@ function SlideCanvas({
                   >
                     <Plus size={12} /> Add a subtitle line
                   </button>
-                </div>
-              ) : (
-                (slide?.bullets || []).filter(Boolean).length > 0 && (
-                  <p className="mt-6 max-w-2xl text-lg md:text-2xl drop-shadow leading-snug"
-                    style={{ color: onPhotoSoft, fontFamily: f.body }}>
-                    {(slide.bullets || []).filter(Boolean).join("  ·  ")}
-                  </p>
-                )
-              )}
+                )}
+              </div>
             </div>
           </div>
         ) : (
@@ -1150,47 +2062,19 @@ function SlideCanvas({
           <div className="absolute inset-0 pointer-events-none mix-blend-multiply" style={{ background: resolveTheme(slide?.bg).bg, opacity: 0.32 }} />
           <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/25 to-transparent pointer-events-none" />
           <div className="absolute inset-x-0 bottom-0 p-10 md:p-12">
-            {editable ? (
-              <textarea
-                value={slide?.title || ""}
-                onChange={(e) => onPatch({ title: e.target.value })}
-                onFocus={() => setActiveLine("title")}
-                rows={2}
-                className="w-full text-3xl md:text-4xl font-semibold bg-transparent outline-none resize-none leading-tight drop-shadow rounded px-1 -mx-1"
-                style={lineStyle(titleFmt, { color: onPhoto, fontFamily: f.title }, "title")}
-                placeholder="Slide title"
-                aria-label="Slide title"
-              />
-            ) : (
-              <h2 className="text-3xl md:text-5xl font-semibold leading-tight drop-shadow"
-                style={lineStyle(titleFmt, { color: onPhoto, fontFamily: f.title }, "title")}>
-                {slide?.title}
-              </h2>
-            )}
+            {titleEl({
+              cls: editable
+                ? "text-3xl md:text-4xl font-semibold leading-tight drop-shadow"
+                : "text-3xl md:text-5xl font-semibold leading-tight drop-shadow",
+              style: { color: onPhoto, fontFamily: f.title },
+            })}
             {editable ? (
               <div className="mt-3 flex flex-col gap-1.5 max-w-3xl">
-                {(slide?.bullets || []).map((b, bi) => (
-                  <div key={bi} className="flex items-start gap-2.5 group">
-                    <span className="mt-2 h-1.5 w-1.5 rounded-full flex-shrink-0 bg-white/80" />
-                    <textarea
-                      value={b}
-                      onChange={(e) => onSetBullet(bi, e.target.value)}
-                      onFocus={() => setActiveLine(bi)}
-                      rows={1}
-                      placeholder="Type a point…"
-                      className="flex-1 text-[15px] md:text-base bg-transparent outline-none resize-none leading-snug rounded px-1 -mx-1 placeholder:text-white/50 drop-shadow"
-                      style={lineStyle(bulletFmts[bi], { color: onPhotoSoft, fontFamily: f.body }, "body")}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => onRemoveBullet(bi)}
-                      aria-label="Remove point"
-                      className="opacity-0 group-hover:opacity-100 transition mt-1 h-5 w-5 rounded flex items-center justify-center flex-shrink-0 text-white/70"
-                    >
-                      <Trash2 size={11} />
-                    </button>
-                  </div>
-                ))}
+                {bullets.map((_, bi) => bulletEl(bi, {
+                  cls: "text-[15px] md:text-base leading-snug",
+                  style: { color: onPhotoSoft, fontFamily: f.body },
+                  photoOnDark: true,
+                }))}
                 <button
                   type="button"
                   onClick={onAddBullet}
@@ -1201,12 +2085,20 @@ function SlideCanvas({
               </div>
             ) : (
               <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1">
-                {(slide?.bullets || []).map((b, i) => b ? (
-                  <span key={i} className="text-sm md:text-base inline-flex items-center gap-2"
-                    style={lineStyle(bulletFmts[i], { color: onPhotoSoft, fontFamily: f.body }, "body")}>
-                    <span className="h-1 w-1 rounded-full bg-white/80" /> {b}
-                  </span>
-                ) : null)}
+                {bullets.map((_, bi) => {
+                  const text = bullets[bi];
+                  if (!text) return null;
+                  const runs = ensureBulletRuns(slide, bi);
+                  return (
+                    <span key={bi} className="text-sm md:text-base inline-flex items-center gap-2"
+                      style={lineStyle(bulletFmts[bi], { color: onPhotoSoft, fontFamily: f.body }, "body")}>
+                      <span className="h-1 w-1 rounded-full bg-white/80" />
+                      {runs.length
+                        ? runs.map((r, i) => <span key={i} style={runReactStyle(r, "body")}>{r.text}</span>)
+                        : text}
+                    </span>
+                  );
+                })}
               </div>
             )}
           </div>
@@ -1222,7 +2114,11 @@ function SlideCanvas({
 // ── Full-screen presenter (read-only) ─────────────────────────────
 export function PresentDeck({ presentation, onClose }) {
   const deck = useMemo(() => deckFromPresentation(presentation), [presentation]);
-  const slides = deck.slides;
+  // Slides marked hidden=true don't appear in the presenter — they're
+  // still in the deck for editing but the teacher can skip them
+  // without deleting. Keep the original index for the print path.
+  const slides = useMemo(() => (deck.slides || []).filter((s) => !s.hidden), [deck.slides]);
+  const transition = deck.transition || "cut";
   const [idx, setIdx] = useState(0);
   const cur = slides[idx];
   const theme = resolveTheme(cur?.bg);
@@ -1242,6 +2138,17 @@ export function PresentDeck({ presentation, onClose }) {
     return () => window.removeEventListener("keydown", onKey);
   }, [go, onClose]);
 
+  if (!cur) {
+    // All slides are hidden — fail gracefully instead of crashing.
+    return (
+      <div className="fixed inset-0 z-[90] bg-black flex flex-col items-center justify-center text-paper-cool/70 gap-3">
+        <p className="font-serif text-2xl">Nothing to present</p>
+        <p className="text-sm opacity-80">Every slide is marked hidden. Un-hide one to start.</p>
+        <button onClick={onClose} className="mt-2 px-4 py-2 rounded-lg border border-paper-cool/30 hover:border-paper-cool/60">Exit</button>
+      </div>
+    );
+  }
+
   return (
     <div className="fixed inset-0 z-[90] bg-black flex flex-col">
       <div className="flex items-center justify-between px-5 py-2.5 text-paper-cool/70">
@@ -1254,7 +2161,17 @@ export function PresentDeck({ presentation, onClose }) {
       </div>
       <div className="flex-1 flex items-center justify-center px-6 pb-6 min-h-0">
         <div className="w-full max-w-[min(96vw,calc(82vh*16/9))]">
-          <SlideCanvas slide={cur} theme={theme} index={idx} total={slides.length} />
+          {/* Keyed wrapper triggers the fade animation on each slide
+              change when transition === "fade". For "cut" we render
+              without a key so React reuses the DOM and no animation
+              runs. */}
+          {transition === "fade" ? (
+            <div key={idx} className="murchid-slide-fade">
+              <SlideCanvas slide={cur} theme={theme} index={idx} total={slides.length} />
+            </div>
+          ) : (
+            <SlideCanvas slide={cur} theme={theme} index={idx} total={slides.length} />
+          )}
         </div>
       </div>
       <button
@@ -1279,51 +2196,99 @@ export function PresentDeck({ presentation, onClose }) {
   );
 }
 
-// Floating per-line toolbar (bold / italic / underline / font / colour)
-// for whichever title or bullet line is focused. Sits at the top of the
-// slide canvas, like a paint toolbar.
-function LineFormatBar({ label, fmt, onChange, onClose }) {
+// Floating selection toolbar — bold / italic / underline / font /
+// font size / colour / alignment for whichever rich-text line is
+// focused. Patches go through SlideCanvas via `onChange` (per-run
+// formatting) and `onAlign` (per-line alignment). Mouse-down is
+// preventDefaulted on every control so the selection in the
+// contentEditable stays intact while we click.
+function LineFormatBar({ label, fmt = {}, align = "", onChange, onAlign, onClose }) {
   const toggle = (k) => onChange({ [k]: !fmt[k] });
-  const Btn = ({ k, children, title }) => (
+  const Btn = ({ active, onClick, title, children, width = 7 }) => (
     <button
       type="button"
       title={title}
-      // Keep the focused textarea's selection — don't steal focus.
       onMouseDown={(e) => e.preventDefault()}
-      onClick={() => toggle(k)}
-      className={`h-7 w-7 rounded-md border text-sm flex items-center justify-center transition ${
-        fmt[k] ? "bg-ink text-paper-cool border-ink" : "bg-paper-cool text-ink-soft border-line hover:border-ink"
+      onClick={onClick}
+      className={`h-7 w-${width} rounded-md border text-sm flex items-center justify-center transition ${
+        active ? "bg-ink text-paper-cool border-ink" : "bg-paper-cool text-ink-soft border-line hover:border-ink"
       }`}
     >
       {children}
     </button>
   );
+  // Quantised font size stepper — the canvas's base font-size is 1em,
+  // and runs can override with size=0.6 … 2.4em. Stepping by 0.1 keeps
+  // it predictable; the size only applies to the next typed char if
+  // the selection is collapsed.
+  const curSize = typeof fmt.size === "number" && fmt.size > 0 ? fmt.size : 1;
+  const stepSize = (delta) => {
+    const next = Math.round((curSize + delta) * 10) / 10;
+    if (next < 0.5 || next > 3) return;
+    onChange({ size: next === 1 ? null : next });
+  };
+  const Align = ({ value, icon: Icon }) => (
+    <button
+      type="button"
+      title={`Align ${value}`}
+      onMouseDown={(e) => e.preventDefault()}
+      onClick={() => onAlign?.(align === value ? "" : value)}
+      className={`h-7 w-7 rounded-md border flex items-center justify-center transition ${
+        align === value ? "bg-ink text-paper-cool border-ink" : "bg-paper-cool text-ink-soft border-line hover:border-ink"
+      }`}
+    >
+      <Icon size={13} />
+    </button>
+  );
   return (
-    <div className="absolute z-30 top-2.5 left-1/2 -translate-x-1/2 inline-flex items-center gap-1.5 rounded-xl border border-line bg-paper-cool/95 backdrop-blur-md shadow-lg px-2 py-1.5">
+    <div className="absolute z-30 top-2.5 left-1/2 -translate-x-1/2 inline-flex flex-wrap items-center justify-center gap-1.5 rounded-xl border border-line bg-paper-cool/95 backdrop-blur-md shadow-lg px-2 py-1.5 max-w-[calc(100%-1.25rem)]">
       <span className="font-mono text-[9px] uppercase tracking-[0.14em] text-muted px-1 hidden sm:inline">{label}</span>
-      <Btn k="b" title="Bold"><span className="font-bold">B</span></Btn>
-      <Btn k="i" title="Italic"><span className="italic font-serif">I</span></Btn>
-      <Btn k="u" title="Underline"><span className="underline">U</span></Btn>
+      <Btn active={!!fmt.b} onClick={() => toggle("b")} title="Bold"><span className="font-bold">B</span></Btn>
+      <Btn active={!!fmt.i} onClick={() => toggle("i")} title="Italic"><span className="italic font-serif">I</span></Btn>
+      <Btn active={!!fmt.u} onClick={() => toggle("u")} title="Underline"><span className="underline">U</span></Btn>
       <span className="w-px h-5 bg-line mx-0.5" />
       <select
         value={fmt.font || ""}
         onMouseDown={(e) => e.stopPropagation()}
-        onChange={(e) => onChange({ font: e.target.value })}
-        className="rounded-md border border-line bg-paper px-1.5 py-1 text-[11px] outline-none focus:border-ink cursor-pointer"
-        aria-label="Line font"
-        title="Font for this line"
+        onChange={(e) => onChange({ font: e.target.value || null })}
+        className="rounded-md border border-line bg-paper px-1.5 py-1 text-[11px] outline-none focus:border-ink cursor-pointer max-w-[140px]"
+        aria-label="Selection font"
+        title="Font for the selection"
       >
         <option value="">Font: deck</option>
-        {FONT_KEYS.map((k) => <option key={k} value={k}>{FONTS[k].name}</option>)}
+        {FONT_CATEGORIES.map((cat) => {
+          const keys = FONT_KEYS.filter((k) => FONTS[k].cat === cat);
+          if (!keys.length) return null;
+          return (
+            <optgroup key={cat} label={cat}>
+              {keys.map((k) => <option key={k} value={k}>{FONTS[k].name}</option>)}
+            </optgroup>
+          );
+        })}
       </select>
+      <span className="inline-flex items-center gap-0.5 rounded-md border border-line bg-paper px-1 py-0.5 text-[11px]">
+        <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => stepSize(-0.1)}
+          className="h-5 w-5 rounded hover:bg-paper-warm text-ink-soft flex items-center justify-center" title="Smaller">
+          <Minus size={11} />
+        </button>
+        <span className="font-mono text-[10px] tabular-nums text-ink-soft min-w-[2.2em] text-center">{curSize.toFixed(1)}×</span>
+        <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => stepSize(0.1)}
+          className="h-5 w-5 rounded hover:bg-paper-warm text-ink-soft flex items-center justify-center" title="Larger">
+          <Plus size={11} />
+        </button>
+      </span>
       <ColorControl
         value={fmt.color}
         onChange={(c) => onChange({ color: c })}
-        onClear={() => onChange({ color: "" })}
-        label="Line colour"
+        onClear={() => onChange({ color: null })}
+        label="Selection colour"
         seedDefault="#1a1814"
         triggerKind="text"
       />
+      <span className="w-px h-5 bg-line mx-0.5" />
+      <Align value="left" icon={AlignLeft} />
+      <Align value="center" icon={AlignCenter} />
+      <Align value="right" icon={AlignRight} />
       <span className="w-px h-5 bg-line mx-0.5" />
       <button
         type="button"
