@@ -15,8 +15,11 @@
 // what shape the app expects to be in.
 
 import { Buffer } from "node:buffer";
+import fs from "node:fs";
 
-const REQUIRED_ALWAYS = ["DATABASE_URL", "FIREBASE_ADMIN_KEY_B64"];
+// FIREBASE_ADMIN_KEY_B64 is checked separately (we also accept
+// GOOGLE_APPLICATION_CREDENTIALS as the file-on-disk alternative).
+const REQUIRED_ALWAYS = ["DATABASE_URL"];
 
 const errors = [];
 const warnings = [];
@@ -41,13 +44,45 @@ export function validateEnv() {
     }
   }
 
-  if (process.env.FIREBASE_ADMIN_KEY_B64) {
+  // Firebase Admin credentials: one of two paths must be configured.
+  const filePath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
+  const b64      = process.env.FIREBASE_ADMIN_KEY_B64;
+  if (!filePath && !b64) {
+    errors.push(
+      "Firebase Admin credentials missing. Set either " +
+        "GOOGLE_APPLICATION_CREDENTIALS=/path/to/key.json (Render: upload via Secret Files) " +
+        "or FIREBASE_ADMIN_KEY_B64=<base64-encoded JSON>."
+    );
+  } else if (filePath) {
+    // Don't read the file twice — firebaseAdmin.js handles the runtime
+    // load. We only verify the file is present + parseable here so a
+    // typo or malformed JSON crashes the boot loudly instead of
+    // failing on the first /api/auth/firebase call.
+    if (!fs.existsSync(filePath)) {
+      errors.push(
+        `GOOGLE_APPLICATION_CREDENTIALS=${filePath} but no file exists at that path.`
+      );
+    } else {
+      try {
+        const decoded = JSON.parse(fs.readFileSync(filePath, "utf8"));
+        if (!decoded.project_id || !decoded.private_key || !decoded.client_email) {
+          errors.push("Firebase service-account JSON is missing required fields.");
+        }
+      } catch (e) {
+        errors.push(`Firebase service-account JSON is malformed: ${e.message}`);
+      }
+    }
+  } else if (b64) {
     try {
       const decoded = JSON.parse(
-        Buffer.from(process.env.FIREBASE_ADMIN_KEY_B64, "base64").toString("utf8")
+        Buffer.from(b64, "base64").toString("utf8")
       );
       if (!decoded.project_id || !decoded.private_key || !decoded.client_email) {
-        errors.push("FIREBASE_ADMIN_KEY_B64 decoded but is missing required fields");
+        errors.push(
+          "FIREBASE_ADMIN_KEY_B64 decoded but is missing required fields. " +
+            "The value was probably truncated in transit — try " +
+            "GOOGLE_APPLICATION_CREDENTIALS + Secret Files instead."
+        );
       }
     } catch (e) {
       errors.push(`FIREBASE_ADMIN_KEY_B64 is not valid base64-JSON: ${e.message}`);
