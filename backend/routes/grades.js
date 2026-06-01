@@ -11,7 +11,7 @@ const SELECT = "id, student_id, subject, term, category, score, max_score, notes
 // Express matches /:id with id="summary" and Postgres fails to parse it.
 const router = Router();
 
-router.get("/summary", async (_req, res) => {
+router.get("/summary", async (req, res) => {
   try {
     const cur = await loadCurrentTeacher(req);
     const r = await pool.query(
@@ -45,6 +45,30 @@ router.get("/summary", async (_req, res) => {
     handleErr(res, "GET /api/grades/summary", err);
   }
 });
+
+// SECURITY: student_grades POST/PATCH accept a student_id from the body.
+// The crud helper stamps teacher_id from the current teacher, but does
+// NOT verify the student belongs to that teacher. Without this guard,
+// a teacher could attach a grade row to a foreign student. We mount
+// the guard BEFORE the crud subrouter so Express runs it first.
+const assertOwnsStudentIfPresent = async (req, res, next) => {
+  try {
+    const studentId = (req.body || {}).student_id;
+    if (!studentId) return next();
+    const cur = await loadCurrentTeacher(req);
+    if (!cur) return res.status(401).json({ error: "Not authenticated" });
+    const r = await pool.query(
+      "SELECT 1 FROM students WHERE id = $1 AND teacher_id = $2",
+      [studentId, cur.id]
+    );
+    if (r.rowCount === 0) return res.status(404).json({ error: "Student not found" });
+    next();
+  } catch (err) {
+    handleErr(res, "grades.assertOwnsStudentIfPresent", err);
+  }
+};
+router.post("/",     assertOwnsStudentIfPresent);
+router.patch("/:id", assertOwnsStudentIfPresent);
 
 router.use("/", crudRouter({
   table: "student_grades",

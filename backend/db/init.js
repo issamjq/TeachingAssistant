@@ -179,6 +179,50 @@ CREATE INDEX IF NOT EXISTS drafts_deleted_at_idx        ON drafts (deleted_at);
 CREATE INDEX IF NOT EXISTS templates_deleted_at_idx     ON templates (deleted_at);
 `;
 
+// Append-only audit log. Every sensitive action (sign-in, sign-up,
+// renew, plan change, role change, school removal, account suspension)
+// inserts a row here. Reads are admin-only via /api/admin/audit (TODO
+// — surface a viewer later). Schema kept narrow on purpose: don't
+// store PII (names, emails) — link by ids and let a forensic query
+// join back to the source rows.
+//
+// Retention: not auto-pruned. Audit logs are evidence; deletion is a
+// conscious operations decision.
+const SCHEMA_AUDIT = `
+CREATE TABLE IF NOT EXISTS audit_log (
+  id           BIGSERIAL PRIMARY KEY,
+  teacher_id   INT REFERENCES teachers(id) ON DELETE SET NULL,
+  action       TEXT NOT NULL,
+  target_table TEXT,
+  target_id    BIGINT,
+  ip           TEXT,
+  user_agent   TEXT,
+  detail       JSONB,
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS audit_log_teacher_idx  ON audit_log (teacher_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS audit_log_action_idx   ON audit_log (action, created_at DESC);
+CREATE INDEX IF NOT EXISTS audit_log_target_idx   ON audit_log (target_table, target_id);
+CREATE INDEX IF NOT EXISTS audit_log_ip_idx       ON audit_log (ip, created_at DESC);
+-- Hard guard against forgotten action strings — every audit row must
+-- carry one. Action vocab is documented in backend/lib/audit.js.
+ALTER TABLE audit_log DROP CONSTRAINT IF EXISTS audit_action_nonempty;
+ALTER TABLE audit_log ADD  CONSTRAINT audit_action_nonempty
+  CHECK (action <> '');
+`;
+
+// Auth-related indexes that improve middleware lookups under load.
+// firebase_uid lookups are the hot path (every authed request goes
+// through one); email lookups feed the ON CONFLICT upsert in
+// /api/auth/firebase.
+const SCHEMA_AUTH_INDEXES = `
+CREATE INDEX IF NOT EXISTS teachers_email_idx ON teachers (email);
+CREATE INDEX IF NOT EXISTS teachers_subscription_idx
+  ON teachers (subscription_status, subscription_ends_at);
+CREATE INDEX IF NOT EXISTS teachers_last_login_idx
+  ON teachers (last_login_at DESC NULLS LAST);
+`;
+
 // Firebase Auth wiring: teachers get a stable firebase_uid (the Google/
 // Firebase user id), three light-weight login-audit fields used to spot
 // suspicious activity ("who logged in from where, when") and two
@@ -625,6 +669,12 @@ export async function runInit() {
 
   console.log("Adding Firebase Auth + subscription columns...");
   await pool.query(SCHEMA_AUTH);
+
+  console.log("Creating audit_log table + indexes...");
+  await pool.query(SCHEMA_AUDIT);
+
+  console.log("Adding auth-path indexes...");
+  await pool.query(SCHEMA_AUTH_INDEXES);
 
   console.log("Creating schools + teacher_schools + students.school_id...");
   await pool.query(SCHEMA_SCHOOLS);

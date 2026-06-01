@@ -52,6 +52,16 @@ router.get("/", async (req, res) => {
 
 // PUT /api/attendance — upsert one student's status for a date.
 // body: { student_id, date, status, notes }
+//
+// SECURITY: must verify the student belongs to the calling teacher
+// BEFORE the upsert. Without this check, an attacker who knows another
+// teacher's student_id could call PUT and the ON CONFLICT UPDATE would
+// rewrite teacher_id = EXCLUDED.teacher_id, hijacking the attendance
+// record. We also DROPPED the `teacher_id = EXCLUDED.teacher_id`
+// clause from the conflict handler — attendance ownership should
+// never move once written. If a record exists for (student_id, date),
+// it implicitly belongs to that student's teacher; the WHERE clause
+// on the UPDATE makes this explicit.
 router.put("/", async (req, res) => {
   try {
     const cur = await loadCurrentTeacher(req);
@@ -59,14 +69,31 @@ router.put("/", async (req, res) => {
     if (!student_id || !date || !status) {
       return res.status(400).json({ error: "student_id, date, status required" });
     }
+    if (!["Present", "Absent", "Late", "Excused"].includes(status)) {
+      return res.status(400).json({ error: "Invalid status." });
+    }
+    const own = await pool.query(
+      "SELECT 1 FROM students WHERE id = $1 AND teacher_id = $2",
+      [student_id, cur.id]
+    );
+    if (own.rowCount === 0) return res.status(404).json({ error: "Student not found" });
+
     const r = await pool.query(
       `INSERT INTO attendance (teacher_id, student_id, date, status, notes)
        VALUES ($1, $2, $3, $4, $5)
        ON CONFLICT (student_id, date) DO UPDATE
-         SET status = EXCLUDED.status, notes = EXCLUDED.notes, teacher_id = EXCLUDED.teacher_id
+         SET status = EXCLUDED.status,
+             notes  = EXCLUDED.notes
+         WHERE attendance.teacher_id = $1
        RETURNING id, teacher_id, student_id, date, status, notes`,
       [cur.id, student_id, date, status, notes ?? null]
     );
+    if (r.rowCount === 0) {
+      // The (student_id, date) row exists but belongs to a different
+      // teacher (shouldn't be possible given the ownership check above,
+      // but defence-in-depth: surface 409 instead of silently winning).
+      return res.status(409).json({ error: "Attendance row already owned by another teacher." });
+    }
     res.json(r.rows[0]);
   } catch (err) {
     handleErr(res, "PUT /api/attendance", err);

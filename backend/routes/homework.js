@@ -23,8 +23,9 @@ const router = crudRouter({
   softDelete: true,
 });
 
-const assertOwns = async (id) => {
+const assertOwns = async (req, id) => {
   const cur = await loadCurrentTeacher(req);
+  if (!cur) return false;
   const r = await pool.query(
     "SELECT id FROM homework WHERE id = $1 AND teacher_id = $2",
     [id, cur.id]
@@ -35,7 +36,7 @@ const assertOwns = async (id) => {
 // Per-student submission grid for one homework.
 router.get("/:id/submissions", async (req, res) => {
   try {
-    if (!(await assertOwns(req.params.id))) {
+    if (!(await assertOwns(req, req.params.id))) {
       return res.status(404).json({ error: "Not found" });
     }
     const r = await pool.query(
@@ -55,10 +56,22 @@ router.get("/:id/submissions", async (req, res) => {
 
 router.put("/:id/submissions/:studentId", async (req, res) => {
   try {
-    if (!(await assertOwns(req.params.id))) {
+    if (!(await assertOwns(req, req.params.id))) {
       return res.status(404).json({ error: "Not found" });
     }
+    // Also verify the student belongs to this teacher — without it, an
+    // attacker could attach a submission row to a foreign student.
+    const cur = await loadCurrentTeacher(req);
+    const own = await pool.query(
+      "SELECT 1 FROM students WHERE id = $1 AND teacher_id = $2",
+      [req.params.studentId, cur.id]
+    );
+    if (own.rowCount === 0) return res.status(404).json({ error: "Student not found" });
+
     const { status, submitted_at, score, max_score, feedback } = req.body || {};
+    if (status && !["Pending", "Submitted", "Graded", "Returned", "Late"].includes(status)) {
+      return res.status(400).json({ error: "Invalid status." });
+    }
     const r = await pool.query(
       `INSERT INTO homework_submissions (homework_id, student_id, status, submitted_at, score, max_score, feedback)
        VALUES ($1, $2, COALESCE($3, 'Pending'), $4, $5, $6, $7)

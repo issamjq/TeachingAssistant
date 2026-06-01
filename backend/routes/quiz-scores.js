@@ -55,10 +55,18 @@ router.post("/", async (req, res) => {
     if (!quiz_id || !student_id) {
       return res.status(400).json({ error: "quiz_id and student_id are required" });
     }
-    // Verify the quiz belongs to this teacher before writing — defence
-    // against a teacher trying to score a quiz they don't own.
-    const own = await pool.query(`SELECT 1 FROM quizzes WHERE id = $1 AND teacher_id = $2`, [quiz_id, cur.id]);
-    if (own.rowCount === 0) return res.status(404).json({ error: "Quiz not found" });
+    // Verify BOTH the quiz AND the student belong to this teacher.
+    // Without the student check, the score row would attach a foreign
+    // student to one of our quizzes. The quiz check alone isn't
+    // enough — defence-in-depth requires both endpoints of the join.
+    const own = await pool.query(
+      `SELECT
+         (SELECT 1 FROM quizzes  WHERE id = $1 AND teacher_id = $3) AS q,
+         (SELECT 1 FROM students WHERE id = $2 AND teacher_id = $3) AS s`,
+      [quiz_id, student_id, cur.id]
+    );
+    if (!own.rows[0].q) return res.status(404).json({ error: "Quiz not found" });
+    if (!own.rows[0].s) return res.status(404).json({ error: "Student not found" });
     const r = await pool.query(
       `INSERT INTO quiz_scores (quiz_id, student_id, score, max_score, feedback)
        VALUES ($1, $2, $3, $4, $5)

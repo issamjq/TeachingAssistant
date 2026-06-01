@@ -29,7 +29,7 @@ router.get("/", async (req, res) => {
 //   - quizzes scheduled for tomorrow (or today, if not yet emitted)
 // Each (teacher, kind, ref) is unique, so calling this on every page load
 // or every minute is safe and cheap.
-router.post("/refresh", async (_req, res) => {
+router.post("/refresh", async (req, res) => {
   try {
     const cur = await loadCurrentTeacher(req);
 

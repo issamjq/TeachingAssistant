@@ -41,6 +41,27 @@ export async function findTeacherByUid(uid) {
   return r.rows[0] || null;
 }
 
+// Role enforcement — separate gate from the auth check itself. Routes
+// that admins or devs should be able to call get `requireRole("admin")`
+// or `requireRole("admin", "dev")` AFTER `requireAuth()`. Without it,
+// any authenticated teacher could hit /api/admin/* and read every
+// teacher's records.
+export function requireRole(...roles) {
+  return (req, res, next) => {
+    if (!req.teacher) return res.status(401).json({ error: "Not authenticated" });
+    if (!roles.includes(req.teacher.role)) {
+      // Don't leak which role is needed — 'forbidden' is enough for the
+      // caller, and the server log carries the exact attempt.
+      console.warn(
+        `[auth] role-deny teacher=${req.teacher.id} role=${req.teacher.role} ` +
+          `wanted=${roles.join("|")} path=${req.path}`
+      );
+      return res.status(403).json({ error: "Forbidden" });
+    }
+    next();
+  };
+}
+
 // Returns true if the teacher's paid window has elapsed. Suspended /
 // expired accounts always count as expired regardless of date math.
 const isSubscriptionExpired = (t) => {

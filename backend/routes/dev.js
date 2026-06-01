@@ -1,8 +1,19 @@
 import { Router } from "express";
+import { z } from "zod";
 import { pool } from "../lib/db.js";
 import { handleErr } from "../lib/helpers.js";
+import { validateBody } from "../lib/validate.js";
+import { recordAudit } from "../lib/audit.js";
+import { clientIp, userAgent } from "../lib/auth.js";
 
 // Dev endpoints — read-only data inspector + feature flag toggles.
+// Auth + role check applied at the app.js mount; every handler here
+// can assume req.teacher.role === "dev".
+
+const FlagSchema = z.object({
+  enabled:     z.boolean().optional(),
+  description: z.string().trim().max(500).optional(),
+}).strip();
 const router = Router();
 
 router.get("/feature-flags", async (_req, res) => {
@@ -16,9 +27,14 @@ router.get("/feature-flags", async (_req, res) => {
   }
 });
 
-router.put("/feature-flags/:key", async (req, res) => {
+router.put("/feature-flags/:key", validateBody(FlagSchema), async (req, res) => {
   try {
-    const { enabled, description } = req.body || {};
+    // Validate the flag key — only [a-z0-9_] to keep it shell-/log-safe.
+    const key = req.params.key;
+    if (!/^[a-z0-9_]{1,64}$/.test(key)) {
+      return res.status(400).json({ error: "Invalid flag key." });
+    }
+    const { enabled, description } = req.body;
     const r = await pool.query(
       `INSERT INTO feature_flags (key, enabled, description, updated_at)
        VALUES ($1, COALESCE($2, FALSE), $3, NOW())
@@ -27,8 +43,15 @@ router.put("/feature-flags/:key", async (req, res) => {
              description = COALESCE(EXCLUDED.description, feature_flags.description),
              updated_at = NOW()
        RETURNING key, enabled, description, updated_at`,
-      [req.params.key, enabled ?? null, description ?? null]
+      [key, enabled ?? null, description ?? null]
     );
+    await recordAudit({
+      teacherId: req.teacher.id,
+      action: "dev.flag.toggle",
+      targetTable: "feature_flags",
+      ip: clientIp(req), userAgent: userAgent(req),
+      detail: { key, enabled: enabled ?? null },
+    });
     res.json(r.rows[0]);
   } catch (err) {
     handleErr(res, "PUT /api/dev/feature-flags/:key", err);

@@ -189,8 +189,11 @@ router.post("/:quizId/sync", async (req, res) => {
 });
 
 // Helper: ensure the quiz being touched belongs to the current teacher.
-const assertOwnsQuiz = async (quizId) => {
+// Takes req so it can resolve the current teacher from the auth
+// middleware. Returns false if there's no teacher or no matching quiz.
+const assertOwnsQuiz = async (req, quizId) => {
   const cur = await loadCurrentTeacher(req);
+  if (!cur) return false;
   const r = await pool.query(
     "SELECT id FROM quizzes WHERE id = $1 AND teacher_id = $2",
     [quizId, cur.id]
@@ -201,7 +204,7 @@ const assertOwnsQuiz = async (quizId) => {
 // Sub-resource: questions under a quiz.
 router.get("/:quizId/questions", async (req, res) => {
   try {
-    if (!(await assertOwnsQuiz(req.params.quizId))) {
+    if (!(await assertOwnsQuiz(req, req.params.quizId))) {
       return res.status(404).json({ error: "Quiz not found" });
     }
     const r = await pool.query(
@@ -216,7 +219,7 @@ router.get("/:quizId/questions", async (req, res) => {
 
 router.post("/:quizId/questions", async (req, res) => {
   try {
-    if (!(await assertOwnsQuiz(req.params.quizId))) {
+    if (!(await assertOwnsQuiz(req, req.params.quizId))) {
       return res.status(404).json({ error: "Quiz not found" });
     }
     const body = normalizeQuestionBody(req.body || {});
@@ -238,7 +241,7 @@ router.post("/:quizId/questions", async (req, res) => {
 
 router.patch("/:quizId/questions/:qid", async (req, res) => {
   try {
-    if (!(await assertOwnsQuiz(req.params.quizId))) {
+    if (!(await assertOwnsQuiz(req, req.params.quizId))) {
       return res.status(404).json({ error: "Quiz not found" });
     }
     const { sets, params } = buildPatch(normalizeQuestionBody(req.body || {}), QUESTION_FIELDS);
@@ -259,7 +262,7 @@ router.patch("/:quizId/questions/:qid", async (req, res) => {
 
 router.delete("/:quizId/questions/:qid", async (req, res) => {
   try {
-    if (!(await assertOwnsQuiz(req.params.quizId))) {
+    if (!(await assertOwnsQuiz(req, req.params.quizId))) {
       return res.status(404).json({ error: "Quiz not found" });
     }
     const r = await pool.query(
@@ -276,7 +279,7 @@ router.delete("/:quizId/questions/:qid", async (req, res) => {
 // Sub-resource: per-student scores.
 router.get("/:quizId/scores", async (req, res) => {
   try {
-    if (!(await assertOwnsQuiz(req.params.quizId))) {
+    if (!(await assertOwnsQuiz(req, req.params.quizId))) {
       return res.status(404).json({ error: "Quiz not found" });
     }
     const r = await pool.query(
@@ -296,7 +299,7 @@ router.get("/:quizId/scores", async (req, res) => {
 
 router.put("/:quizId/scores/:studentId", async (req, res) => {
   try {
-    if (!(await assertOwnsQuiz(req.params.quizId))) {
+    if (!(await assertOwnsQuiz(req, req.params.quizId))) {
       return res.status(404).json({ error: "Quiz not found" });
     }
     const { score, max_score, feedback } = req.body || {};

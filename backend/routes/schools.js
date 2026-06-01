@@ -2,6 +2,9 @@ import { Router } from "express";
 import { pool } from "../lib/db.js";
 import { handleErr } from "../lib/helpers.js";
 import { loadCurrentTeacher } from "../lib/currentTeacher.js";
+import { CreateSchoolSchema, AttachSchoolSchema, SetPrimarySchema, validateBody } from "../lib/validate.js";
+import { recordAudit } from "../lib/audit.js";
+import { clientIp, userAgent } from "../lib/auth.js";
 
 // Two surfaces share this router:
 //
@@ -42,7 +45,7 @@ router.get("/", async (req, res) => {
 // onboarding + the My-schools tab. Returns the existing row if (name,
 // emirate) already matches, so the client doesn't need to special-case
 // duplicates. No auth gate yet; tighten when Firebase lands.
-router.post("/", async (req, res) => {
+router.post("/", validateBody(CreateSchoolSchema), async (req, res) => {
   try {
     const { name, name_ar, emirate, city, type, curriculum, website } = req.body || {};
     if (!name || !emirate) {
@@ -87,7 +90,7 @@ router.get("/mine", async (req, res) => {
 
 // Add a school for the current teacher. If is_primary=true, demote any
 // other primary first so there's at most one primary per teacher.
-router.post("/mine", async (req, res) => {
+router.post("/mine", validateBody(AttachSchoolSchema), async (req, res) => {
   try {
     const cur = await loadCurrentTeacher(req);
     if (!cur) return res.status(404).json({ error: "Current teacher not found" });
@@ -119,7 +122,7 @@ router.post("/mine", async (req, res) => {
 });
 
 // Flip the primary flag for one of the teacher's schools.
-router.patch("/mine/:id", async (req, res) => {
+router.patch("/mine/:id", validateBody(SetPrimarySchema), async (req, res) => {
   try {
     const cur = await loadCurrentTeacher(req);
     if (!cur) return res.status(404).json({ error: "Current teacher not found" });
@@ -159,6 +162,13 @@ router.delete("/mine/:id", async (req, res) => {
       [cur.id, req.params.id]
     );
     if (r.rowCount === 0) return res.status(404).json({ error: "Not found" });
+    await recordAudit({
+      teacherId: cur.id,
+      action: "school.remove",
+      targetTable: "teacher_schools",
+      targetId: Number(req.params.id),
+      ip: clientIp(req), userAgent: userAgent(req),
+    });
     res.json({ ok: true });
   } catch (err) {
     handleErr(res, "DELETE /api/schools/mine/:id", err);

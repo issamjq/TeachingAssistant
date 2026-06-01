@@ -2,6 +2,7 @@ import { Router } from "express";
 import { pool } from "../lib/db.js";
 import { buildPatch, handleErr } from "../lib/helpers.js";
 import { loadCurrentTeacher, setCurrentTeacher } from "../lib/currentTeacher.js";
+import { ProfilePatchSchema, validateBody } from "../lib/validate.js";
 
 const ME_SELECT = `id, first_name, last_name, email, phone, staff_id, majors, grade_levels,
                    languages, sections, class_map, nationality, hire_date, bio,
@@ -26,7 +27,7 @@ router.get("/", async (req, res) => {
   }
 });
 
-router.patch("/", async (req, res) => {
+router.patch("/", validateBody(ProfilePatchSchema), async (req, res) => {
   try {
     const cur = await loadCurrentTeacher(req);
     if (!cur) return res.status(404).json({ error: "Current teacher not found in DB" });

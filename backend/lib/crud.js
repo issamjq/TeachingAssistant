@@ -2,6 +2,7 @@ import { Router } from "express";
 import { pool } from "./db.js";
 import { buildPatch, handleErr } from "./helpers.js";
 import { loadCurrentTeacher } from "./currentTeacher.js";
+import { validateBody } from "./validate.js";
 
 // Build a standard CRUD router for a single table.
 //
@@ -36,6 +37,12 @@ export function crudRouter({
   afterMutation = null,
   softDelete = false,
   jsonFields = [],
+  // Optional zod schemas. When provided, the POST / PATCH routes get a
+  // validateBody() middleware that rejects unknown / oversized / wrong-
+  // type fields before they reach the handler. Strongly recommended for
+  // any table that accepts user-typed data (students, schools, …).
+  bodySchema = null,
+  patchSchema = null,
 }) {
   const router = Router();
   const tag = routeName || `/api/${table}`;
@@ -168,7 +175,10 @@ export function crudRouter({
     });
   }
 
-  router.post("/", async (req, res) => {
+  const postMiddleware  = bodySchema  ? [validateBody(bodySchema)]  : [];
+  const patchMiddleware = patchSchema ? [validateBody(patchSchema)] : [];
+
+  router.post("/", ...postMiddleware, async (req, res) => {
     try {
       const scope = await scopeFor(req);
       const body = coerceJson({ ...(req.body || {}) });
@@ -210,7 +220,7 @@ export function crudRouter({
     }
   });
 
-  router.patch("/:id", async (req, res) => {
+  router.patch("/:id", ...patchMiddleware, async (req, res) => {
     try {
       const scope = await scopeFor(req);
       const { sets, params } = buildPatch(coerceJson(req.body || {}), fields);

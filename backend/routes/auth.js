@@ -3,6 +3,8 @@ import { pool } from "../lib/db.js";
 import { handleErr } from "../lib/helpers.js";
 import { requireAuth, clientIp, userAgent, TEACHER_COLS_SQL, findTeacherByUid } from "../lib/auth.js";
 import { PLANS, TRIAL_DAYS, TRIAL_PLAN_ID, PLAN_IDS } from "../../src/lib/plans.js";
+import { FirebaseBootstrapSchema, RenewSchema, validateBody } from "../lib/validate.js";
+import { recordAudit } from "../lib/audit.js";
 
 // POST /api/auth/firebase
 //
@@ -29,7 +31,7 @@ const PLAN_DURATION = {
 
 const planStatus = (planId) => (planId === TRIAL_PLAN_ID ? "trial" : "active");
 
-router.post("/firebase", requireAuth({ optional: true }), async (req, res) => {
+router.post("/firebase", validateBody(FirebaseBootstrapSchema), requireAuth({ optional: true }), async (req, res) => {
   try {
     if (!req.firebaseUser) {
       return res.status(401).json({ error: "Missing Authorization: Bearer <id_token>" });
@@ -85,6 +87,14 @@ router.post("/firebase", requireAuth({ optional: true }), async (req, res) => {
          status, endsAt, plan, ip, ua]
       );
       teacher = ins.rows[0];
+      await recordAudit({
+        teacherId: teacher.id,
+        action: "auth.signup",
+        targetTable: "teachers",
+        targetId: teacher.id,
+        ip, userAgent: ua,
+        detail: { plan, provider: fb.firebase?.sign_in_provider || null },
+      });
     } else {
       // Returning user — stamp the audit fields + bump the avatar/email
       // if Google's / Microsoft's version is newer than what we have.
@@ -102,6 +112,14 @@ router.post("/firebase", requireAuth({ optional: true }), async (req, res) => {
         [teacher.id, ip, ua, fb.email || "", fb.picture || ""]
       );
       teacher = upd.rows[0];
+      await recordAudit({
+        teacherId: teacher.id,
+        action: "auth.login",
+        targetTable: "teachers",
+        targetId: teacher.id,
+        ip, userAgent: ua,
+        detail: { provider: fb.firebase?.sign_in_provider || null },
+      });
     }
 
     res.json(teacher);
@@ -117,7 +135,7 @@ router.post("/firebase", requireAuth({ optional: true }), async (req, res) => {
 // gate via requireAuth() with allowExpired: true so an expired teacher
 // can use this to come back. Pre-Stripe; later this is what the
 // successful Checkout webhook will call internally.
-router.post("/renew", requireAuth({ allowExpired: true }), async (req, res) => {
+router.post("/renew", validateBody(RenewSchema), requireAuth({ allowExpired: true }), async (req, res) => {
   try {
     const { plan } = req.body || {};
     if (!plan || !PLAN_IDS.includes(plan)) {
@@ -136,6 +154,14 @@ router.post("/renew", requireAuth({ allowExpired: true }), async (req, res) => {
         RETURNING ${TEACHER_COLS_SQL}`,
       [req.teacher.id, status, plan, endsAt]
     );
+    await recordAudit({
+      teacherId: req.teacher.id,
+      action: "auth.renew",
+      targetTable: "teachers",
+      targetId: req.teacher.id,
+      ip: clientIp(req), userAgent: userAgent(req),
+      detail: { plan, prevStatus: req.teacher.subscription_status },
+    });
     res.json(r.rows[0]);
   } catch (err) {
     handleErr(res, "POST /api/auth/renew", err);

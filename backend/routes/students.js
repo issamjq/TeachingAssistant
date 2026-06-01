@@ -1,4 +1,5 @@
 import { crudRouter } from "../lib/crud.js";
+import { StudentSchema, StudentPatchSchema } from "../lib/validate.js";
 
 const FIELDS = [
   "first_name", "last_name", "student_id", "date_of_birth", "gender",
@@ -30,4 +31,6 @@ export default crudRouter({
   timestampOnPatch: "updated_at",
   routeName: "/api/students",
   teacherScoped: true,
+  bodySchema: StudentSchema,
+  patchSchema: StudentPatchSchema,
 });

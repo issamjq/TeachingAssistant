@@ -1,6 +1,7 @@
 import "dotenv/config";
 import { buildApp } from "./app.js";
 import { runInit } from "./db/init.js";
+import { validateEnv } from "./lib/env.js";
 
 // Boot sequence:
 //   1. Apply schema + seeds (idempotent — safe to run every restart)
@@ -12,6 +13,10 @@ import { runInit } from "./db/init.js";
 // migration accidentally lands in a bad state and you need to get the
 // server back online before fixing the script).
 async function boot() {
+  // Fail-fast on a misconfigured environment — better to crash at boot
+  // than to serve traffic with missing secrets or wildcard CORS in prod.
+  validateEnv();
+
   if (process.env.SKIP_DB_INIT === "1") {
     console.log("[murchid-api] SKIP_DB_INIT=1 — skipping schema init");
   } else {

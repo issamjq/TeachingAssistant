@@ -1,5 +1,5 @@
 import express from "express";
-import cors from "cors";
+import compression from "compression";
 import meRouter from "./routes/me.js";
 import templatesRouter from "./routes/templates.js";
 import draftsRouter from "./routes/drafts.js";
@@ -20,59 +20,90 @@ import studioRouter from "./routes/studio.js";
 import imagesRouter from "./routes/images.js";
 import schoolsRouter from "./routes/schools.js";
 import authRouter from "./routes/auth.js";
-import { requireAuth } from "./lib/auth.js";
 import adminRouter from "./routes/admin.js";
 import devRouter from "./routes/dev.js";
+import { requireAuth, requireRole } from "./lib/auth.js";
+import {
+  buildHelmet, buildCors,
+  buildGlobalRateLimit, buildAuthRateLimit,
+  buildTimeout,
+} from "./lib/security.js";
 
 // Build the Express app. Used by:
 //   - backend/index.js — standalone, listens on PORT (Render)
 //   - vite.config.js   — mounted as Vite middleware in dev
 //
-// CORS is open by default. In production, set ALLOWED_ORIGINS to a
-// comma-separated list of frontend URLs to lock it down.
+// Security middleware stack, in the order they fire:
+//   1. helmet           — sets headers + CSP on every response
+//   2. CORS             — allowlist; refuses unknown origins
+//   3. compression      — gzips JSON responses (cuts BW + SQL info leak via length)
+//   4. timeout          — kills handlers that hang past 25s
+//   5. json body parser — capped at 2MB by default (upload routes opt in to higher)
+//   6. global rate-limit — 300 req / 5 min / IP
+//   7. healthz endpoint — sits OUTSIDE auth so probes work without a token
+//   8. routes…           — each protected by its own gate
+//
+// The auth gate is layered:
+//   - /api/auth/*      — optional auth (the bootstrap endpoint itself)
+//                        + tighter rate-limit (10 attempts / 15 min)
+//   - /api/schools     — optional auth (the catalog is reachable during
+//                        onboarding before the teacher row exists)
+//   - everything else  — requireAuth() = valid Firebase token + existing
+//                        teacher row + non-expired subscription
+//   - /api/admin/*     — requireAuth() + requireRole("admin")
+//   - /api/dev/*       — requireAuth() + requireRole("dev")
 export function buildApp() {
   const app = express();
 
-  const allowedOrigins = (process.env.ALLOWED_ORIGINS || "")
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
-  app.use(
-    cors({
-      origin: allowedOrigins.length === 0 ? true : allowedOrigins,
-      credentials: false,
-    })
-  );
+  // 1. Trust the proxy header from Render/Vercel so req.ip is the real
+  // client IP, not the load balancer. Without this, rate limits would
+  // collapse all traffic to a single IP and audit logs would be useless.
+  // We accept only 1 hop (the platform proxy) — not arbitrary depth,
+  // which would let attackers spoof X-Forwarded-For.
+  app.set("trust proxy", 1);
 
-  // 10mb fits ~7mb of base64-encoded payload (the inflation factor is
-  // ~1.33×), enough for a quiz prompt + a single image or short PDF
-  // attachment. Larger uploads are rejected at the route level.
-  app.use(express.json({ limit: "10mb" }));
+  // 2. Security headers BEFORE everything else so even error responses
+  // carry CSP / HSTS / Referrer-Policy.
+  app.use(buildHelmet());
 
+  // 3. CORS — explicit allowlist (see ALLOWED_ORIGINS in .env).
+  app.use(buildCors());
+
+  // 4. Gzip JSON responses.
+  app.use(compression());
+
+  // 5. Per-request timeout — close the socket if a handler hangs.
+  app.use(buildTimeout(25_000));
+
+  // 6. Body parser. Tight default (2mb) — image-upload route opts up
+  // separately at the route level. Slide payloads, even multi-slide
+  // ones, fit comfortably in 2mb of JSON.
+  app.use(express.json({ limit: "2mb" }));
+
+  // 7. Global rate limit. Skips /healthz so load balancers can probe
+  // freely.
+  app.use(buildGlobalRateLimit());
+
+  // 8. Open endpoints.
   app.get("/healthz", (_req, res) => res.json({ ok: true }));
 
-  // Firebase auth bootstrap. Mounted BEFORE the global requireAuth so
-  // /api/auth/firebase can run without a teacher row existing yet (the
-  // route itself decides whether to upsert based on the verified token).
-  app.use("/api/auth", authRouter);
+  // 9. Auth bootstrap. Mounted with its own (tighter) rate limiter
+  // BEFORE the global requireAuth — the route handles optional auth
+  // internally because on first sign-in the teacher row doesn't exist
+  // yet. The aggressive limit (10 req / 15 min) is the credential
+  // stuffing brake.
+  app.use("/api/auth", buildAuthRateLimit(), authRouter);
 
-  // Schools router needs to be reachable during the onboarding wizard
-  // — at that point the user has a verified Firebase token but no
-  // teacher row in the DB yet (the row gets created at plan-pick).
-  // The catalog GET endpoints are safe to expose to any signed-in
-  // visitor; the /mine endpoints inside still bail with 404 if there's
-  // no teacher row to scope by. Mounted BEFORE the global requireAuth.
+  // 10. Schools — catalog GET is reachable during onboarding before
+  // the teacher row exists. The /mine endpoints inside still bail with
+  // 404 when there's no teacher.
   app.use("/api/schools", requireAuth({ optional: true }), schoolsRouter);
 
-  // From here down: every /api/* route requires a verified Firebase
-  // Bearer token AND an existing teacher row. The middleware loads the
-  // teacher onto req.teacher; backend helpers (loadCurrentTeacher,
-  // crud.scopeFor) read from there. If the token is missing/invalid →
-  // 401. If valid but no teacher row yet → 404 with code "no_teacher_row"
-  // so the client knows to retry the bootstrap.
+  // 11. From here down: requireAuth() = full enforcement (valid token
+  // + teacher row + non-expired subscription).
   app.use("/api", requireAuth());
 
-  // Teacher data — every route is scoped by the current teacher's id.
+  // 12. Teacher-owned data.
   app.use("/api/me", meRouter);
   app.use("/api/templates", templatesRouter);
   app.use("/api/drafts", draftsRouter);
@@ -90,13 +121,40 @@ export function buildApp() {
   app.use("/api/dashboard", dashboardRouter);
   app.use("/api/studio", studioRouter);
   app.use("/api/images", imagesRouter);
-  // schools router is already mounted above (with optional auth) so
-  // onboarding can browse the catalog before the teacher row exists.
 
-  // Cross-tenant — admin manages teacher accounts, dev inspects everything.
-  app.use("/api/teachers", teachersRouter);
-  app.use("/api/admin", adminRouter);
-  app.use("/api/dev", devRouter);
+  // 13. Cross-tenant — admin manages teacher accounts, dev inspects
+  // everything. The role check is on top of requireAuth(), so even a
+  // valid teacher token gets 403 if they're not in the right role.
+  app.use("/api/teachers", requireRole("admin", "dev"), teachersRouter);
+  app.use("/api/admin",    requireRole("admin"),         adminRouter);
+  app.use("/api/dev",      requireRole("dev"),           devRouter);
+
+  // 14. JSON 404 (any /api/* that didn't match falls through here).
+  // We expose a generic message so an attacker probing for endpoints
+  // can't enumerate them.
+  app.use("/api", (_req, res) => res.status(404).json({ error: "Not found" }));
+
+  // 15. Last-resort error handler. Catches anything a route forgot to
+  // try/catch (a thrown Express middleware error, a buggy timeout, a
+  // body-parser SyntaxError on bad JSON). Sanitises before sending.
+  // eslint-disable-next-line no-unused-vars
+  app.use((err, _req, res, _next) => {
+    const id = Math.random().toString(36).slice(2, 10);
+    console.error(`[unhandled] [errId=${id}]`, err);
+    if (res.headersSent) return;
+    // Common body-parser failures: JSON syntax error or oversized body.
+    if (err.type === "entity.parse.failed") {
+      return res.status(400).json({ error: "Invalid JSON body.", errorId: id });
+    }
+    if (err.type === "entity.too.large") {
+      return res.status(413).json({ error: "Request body too large.", errorId: id });
+    }
+    // CORS rejection from buildCors() — give the client a clear 403.
+    if (err.message && err.message.startsWith("CORS:")) {
+      return res.status(403).json({ error: "Origin not allowed." });
+    }
+    res.status(500).json({ error: "Something went wrong.", errorId: id });
+  });
 
   return app;
 }

@@ -23,8 +23,9 @@ const router = crudRouter({
   jsonFields: ["materials"],
 });
 
-const assertOwns = async (id) => {
+const assertOwns = async (req, id) => {
   const cur = await loadCurrentTeacher(req);
+  if (!cur) return false;
   const r = await pool.query(
     "SELECT id FROM activities WHERE id = $1 AND teacher_id = $2",
     [id, cur.id]
@@ -35,7 +36,7 @@ const assertOwns = async (id) => {
 // Per-student completion tracker for one activity.
 router.get("/:id/completions", async (req, res) => {
   try {
-    if (!(await assertOwns(req.params.id))) {
+    if (!(await assertOwns(req, req.params.id))) {
       return res.status(404).json({ error: "Not found" });
     }
     const r = await pool.query(
@@ -56,9 +57,16 @@ router.get("/:id/completions", async (req, res) => {
 
 router.put("/:id/completions/:studentId", async (req, res) => {
   try {
-    if (!(await assertOwns(req.params.id))) {
+    if (!(await assertOwns(req, req.params.id))) {
       return res.status(404).json({ error: "Not found" });
     }
+    const cur = await loadCurrentTeacher(req);
+    const own = await pool.query(
+      "SELECT 1 FROM students WHERE id = $1 AND teacher_id = $2",
+      [req.params.studentId, cur.id]
+    );
+    if (own.rowCount === 0) return res.status(404).json({ error: "Student not found" });
+
     const { status, notes } = req.body || {};
     const r = await pool.query(
       `INSERT INTO activity_completions (activity_id, student_id, status, notes)
