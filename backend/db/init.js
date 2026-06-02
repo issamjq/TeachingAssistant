@@ -157,8 +157,16 @@ ALTER TABLE activities    ADD COLUMN IF NOT EXISTS scheduled_for DATE;
 // instead of three flat lists that don't connect. Old flat columns
 // (majors / grade_levels / sections) stay populated as a denormalised
 // union so existing dropdowns keep working.
+//
+// grade_sections is the per-grade section breakdown:
+//   { "Grade 3": ["Section A", "Section B"], "Grade 4": ["Section C"] }
+// Captured in the onboarding form so the teacher can say "I teach
+// Grade 3 in sections A and B but Grade 4 in section C". The flat
+// teachers.sections column stays populated as the union of all
+// values, so legacy dropdowns keep working.
 const SCHEMA_CLASS_MAP = `
-ALTER TABLE teachers ADD COLUMN IF NOT EXISTS class_map JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE teachers ADD COLUMN IF NOT EXISTS class_map      JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE teachers ADD COLUMN IF NOT EXISTS grade_sections JSONB DEFAULT '{}'::jsonb;
 `;
 
 // Soft-delete columns. Every teaching-surface table gets deleted_at so

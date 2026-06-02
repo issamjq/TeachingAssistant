@@ -5874,6 +5874,12 @@ export default function Landing({ onOpenStudio }) {
             grade_levels:  Array.isArray(profile.grades)    ? profile.grades    : undefined,
             languages:     Array.isArray(profile.languages) ? profile.languages : undefined,
             sections:      Array.isArray(profile.sections)  ? profile.sections  : undefined,
+            // Per-grade sections — { "Grade 3": ["Section A", "Section B"], ... }.
+            // Backend stores this in teachers.grade_sections JSONB so the
+            // teacher can later filter rosters / dropdowns by grade.
+            grade_sections: profile.gradeSections && Object.keys(profile.gradeSections).length > 0
+              ? profile.gradeSections
+              : undefined,
           },
         });
       } catch (e) {

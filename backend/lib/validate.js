@@ -103,6 +103,13 @@ export const ProfilePatchSchema = z.object({
     grades:   z.array(safeShortText).max(40).optional(),
     sections: z.array(safeShortText).max(40).optional(),
   })).max(40).optional(),
+  // Per-grade sections: { "Grade 3": ["Section A", "Section B"] }.
+  // record() validates that keys are strings (any) and values are
+  // capped arrays of short strings.
+  grade_sections: z.record(
+    z.string().max(80),
+    z.array(safeShortText).max(40)
+  ).optional(),
   nationality:   safeShortText.optional().nullable(),
   hire_date:     isoDate.optional().nullable(),
   bio:           safeBio.optional().nullable(),

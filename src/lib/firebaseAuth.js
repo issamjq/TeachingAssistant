@@ -34,9 +34,33 @@ export async function signOut() {
   return fbSignOut(auth);
 }
 
+// One-shot promise that resolves when Firebase has finished restoring
+// the user from IndexedDB on a hard refresh. Without this, the very
+// first api() call after a reload fires while auth.currentUser is
+// still null, attaches no Bearer token, and 401s. We memoise it so
+// every later call is free.
+//
+// Firebase 10+ exposes auth.authStateReady() directly; we fall back
+// to onAuthStateChanged for older versions in case the dep range
+// ever resolves to an older SDK.
+let _authReady = null;
+function authStateReady() {
+  if (_authReady) return _authReady;
+  _authReady = (typeof auth.authStateReady === "function")
+    ? auth.authStateReady()
+    : new Promise((resolve) => {
+        const off = onAuthStateChanged(auth, () => { off(); resolve(); });
+      });
+  return _authReady;
+}
+
 // Returns the current Firebase ID token, refreshing it if expired.
-// Returns null when no user is signed in.
+// Waits for Firebase to restore the session before reading
+// currentUser — otherwise a refresh of a deep URL like /account would
+// race past the SDK and end up unauthenticated. Returns null when no
+// user is actually signed in.
 export async function getIdToken(forceRefresh = false) {
+  await authStateReady();
   const u = auth.currentUser;
   if (!u) return null;
   return u.getIdToken(forceRefresh);

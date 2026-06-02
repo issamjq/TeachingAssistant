@@ -38,6 +38,11 @@ const EMPTY = {
   majors: [],
   languages: [],
   grades: [],
+  // Per-grade sections — { "Grade 3": ["Section A", "Section B"], ... }.
+  // The flat `sections` field below is kept as the union of all values
+  // so legacy Studio dropdowns and the teaching-profile editor that
+  // still read a flat list keep working without a migration.
+  gradeSections: {},
   sections: [],
 };
 
@@ -152,7 +157,11 @@ export default function ProfileForm({ onDone, onBack }) {
       : step === "subjects"
         ? data.majors.length > 0 && data.languages.length > 0
         : step === "scope"
-          ? data.grades.length > 0 && data.sections.length > 0
+          // Every picked grade must have at least one section. Empty
+          // grades shouldn't be allowed past — that's the whole point
+          // of the per-grade picker.
+          ? data.grades.length > 0 &&
+            data.grades.every((g) => (data.gradeSections?.[g] || []).length > 0)
           : step === "schools"
             ? schools.length > 0
             : true; // students step — always valid (skippable)
@@ -197,6 +206,43 @@ export default function ProfileForm({ onDone, onBack }) {
       const cur = d[key] || [];
       const next = cur.includes(value) ? cur.filter((v) => v !== value) : [...cur, value];
       return { ...d, [key]: next };
+    });
+
+  // Grade picker tracks BOTH the grades array AND the per-grade section
+  // map (gradeSections). When a grade is deselected, drop its sections;
+  // when re-selected, start it empty so the teacher picks fresh. The
+  // flat sections field stays as the union of all values for legacy
+  // consumers (Studio dropdowns, useTeacherClasses, etc).
+  const unionOfGradeSections = (gs) => {
+    const u = new Set();
+    for (const arr of Object.values(gs || {})) for (const s of arr) u.add(s);
+    return [...u];
+  };
+  const toggleGrade = (grade) =>
+    setData((d) => {
+      const on = d.grades.includes(grade);
+      if (on) {
+        const grades = d.grades.filter((g) => g !== grade);
+        const gradeSections = { ...(d.gradeSections || {}) };
+        delete gradeSections[grade];
+        return { ...d, grades, gradeSections, sections: unionOfGradeSections(gradeSections) };
+      }
+      return { ...d, grades: [...d.grades, grade] };
+    });
+  const setAllGrades = (next) =>
+    setData((d) => {
+      if (next.length === 0) {
+        return { ...d, grades: [], gradeSections: {}, sections: [] };
+      }
+      // Carry over sections only for grades that remain selected.
+      const gradeSections = {};
+      for (const g of next) if (d.gradeSections?.[g]) gradeSections[g] = d.gradeSections[g];
+      return { ...d, grades: next, gradeSections, sections: unionOfGradeSections(gradeSections) };
+    });
+  const setSectionsForGrade = (grade, sections) =>
+    setData((d) => {
+      const gradeSections = { ...(d.gradeSections || {}), [grade]: sections };
+      return { ...d, gradeSections, sections: unionOfGradeSections(gradeSections) };
     });
 
   const next = () => {
@@ -356,23 +402,40 @@ export default function ProfileForm({ onDone, onBack }) {
               <ChipPicker
                 options={GRADE_LEVELS}
                 selected={data.grades}
-                onToggle={(v) => toggleIn("grades", v)}
-                onSetAll={(next) => set({ grades: next })}
+                onToggle={(v) => toggleGrade(v)}
+                onSetAll={(next) => setAllGrades(next)}
                 allLabel={t("onb.all.grades")}
               />
             </Field>
-            <Field label={t("onb.fld.sections")} required>
-              <ChipPicker
-                options={QUIZ_SECTIONS.filter((s) => s !== "All sections")}
-                selected={data.sections}
-                onToggle={(v) => toggleIn("sections", v)}
-                onSetAll={(next) => set({ sections: next })}
-                allLabel={t("onb.all.sections")}
-                onAdd={(v) => set({ sections: [...data.sections, v] })}
-                addPlaceholder={t("onb.fld.addSection.ph")}
-                addButtonLabel={t("onb.fld.addSection.btn")}
-              />
-            </Field>
+
+            {/* Per-grade section picker. Renders one row per selected
+                grade so the teacher can say "Grade 3 → A + B, Grade 4
+                → C + B" instead of one flat list that doesn't tie to
+                any grade. The flat data.sections array is kept as the
+                union of all rows so downstream legacy dropdowns
+                (Studio quiz / homework / etc.) still work. */}
+            {data.grades.length > 0 && (
+              <div>
+                <p className="text-[13px] font-medium" style={{ color: "var(--ink)" }}>
+                  {t("onb.fld.sectionsPerGrade")}
+                  <span style={{ color: "var(--clay)" }}> *</span>
+                </p>
+                <p className="text-[11.5px] mt-1 mb-3" style={{ color: "var(--ink-3)" }}>
+                  {t("onb.fld.sectionsPerGrade.lead")}
+                </p>
+                <div className="space-y-3">
+                  {data.grades.map((g) => (
+                    <GradeSectionRow
+                      key={g}
+                      grade={g}
+                      sections={data.gradeSections?.[g] || []}
+                      onChange={(next) => setSectionsForGrade(g, next)}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+
             <Field label={t("onb.fld.bio")} hint={t("onb.fld.optional")}>
               <textarea
                 value={data.bio}
@@ -998,6 +1061,92 @@ function SchoolsStep({ t, value, onChange }) {
             </button>
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+// One row of the per-grade section picker. The teacher picks from the
+// QUIZ_SECTIONS list OR types a custom section (e.g. "Honors", "Maths
+// Track"); previously-picked customs are kept as chips so they can be
+// re-selected later without re-typing.
+function GradeSectionRow({ grade, sections, onChange }) {
+  const [draft, setDraft] = useState("");
+  const presets = QUIZ_SECTIONS.filter((s) => s !== "All sections");
+  // Show presets + any customs the teacher already added (so they
+  // remain visible when toggled off).
+  const allOptions = useMemo(() => {
+    const seen = new Set(presets);
+    const extras = sections.filter((s) => !seen.has(s));
+    return [...presets, ...extras];
+  }, [presets, sections]);
+
+  const toggle = (s) =>
+    onChange(sections.includes(s) ? sections.filter((x) => x !== s) : [...sections, s]);
+  const add = () => {
+    const v = draft.trim();
+    if (!v) return;
+    if (!sections.includes(v)) onChange([...sections, v]);
+    setDraft("");
+  };
+
+  const empty = sections.length === 0;
+
+  return (
+    <div className={`rounded-xl border p-3.5 transition-colors ${
+      empty
+        ? "border-clay/40 bg-clay/[0.04]"
+        : "border-line bg-paper-cool/60"
+    }`}>
+      <div className="flex items-center justify-between gap-2 mb-2.5">
+        <p className="font-mono text-[10.5px] uppercase tracking-[0.18em] text-ink">
+          {grade}
+        </p>
+        <span className={`text-[11px] ${empty ? "text-clay" : "text-muted"}`}>
+          {empty
+            ? "Pick at least one section"
+            : `${sections.length} section${sections.length > 1 ? "s" : ""}`}
+        </span>
+      </div>
+      <div className="flex flex-wrap gap-1.5 mb-2.5">
+        {allOptions.map((s) => {
+          const on = sections.includes(s);
+          return (
+            <button
+              key={s}
+              type="button"
+              onClick={() => toggle(s)}
+              className={`px-3 py-1.5 rounded-full text-[12.5px] font-medium border transition-colors ${
+                on
+                  ? "bg-ink text-paper-cool border-ink"
+                  : "bg-paper text-ink border-line hover:border-ink"
+              }`}
+            >
+              {s}
+            </button>
+          );
+        })}
+      </div>
+      <div className="flex items-center gap-2 max-w-xs">
+        <input
+          type="text"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") { e.preventDefault(); add(); }
+          }}
+          placeholder="e.g. Honors, Maths Track"
+          className="onb-input flex-1 !py-1.5 !text-[12.5px]"
+        />
+        <button
+          type="button"
+          onClick={add}
+          disabled={!draft.trim()}
+          className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-line bg-paper text-[12.5px] font-medium text-ink hover:border-ink disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+        >
+          <Plus size={12} />
+          Add
+        </button>
       </div>
     </div>
   );

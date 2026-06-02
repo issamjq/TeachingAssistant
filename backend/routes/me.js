@@ -5,12 +5,14 @@ import { loadCurrentTeacher, setCurrentTeacher } from "../lib/currentTeacher.js"
 import { ProfilePatchSchema, validateBody } from "../lib/validate.js";
 
 const ME_SELECT = `id, first_name, last_name, email, phone, staff_id, majors, grade_levels,
-                   languages, sections, class_map, nationality, hire_date, bio,
+                   languages, sections, class_map, grade_sections,
+                   nationality, hire_date, bio,
                    created_at, updated_at`;
 
 const ME_FIELDS = [
   "first_name", "last_name", "email", "phone", "staff_id",
-  "majors", "grade_levels", "languages", "sections", "class_map",
+  "majors", "grade_levels", "languages", "sections",
+  "class_map", "grade_sections",
   "nationality", "hire_date", "bio",
 ];
 
@@ -32,17 +34,20 @@ router.patch("/", validateBody(ProfilePatchSchema), async (req, res) => {
     const cur = await loadCurrentTeacher(req);
     if (!cur) return res.status(404).json({ error: "Current teacher not found in DB" });
 
-    // class_map is jsonb — node-postgres turns a JS array into a Postgres
-    // ARRAY literal which jsonb rejects ("invalid input syntax for type
-    // json"), so stringify it. majors/grade_levels/languages/sections are
-    // TEXT[] and must stay as arrays, so they are left untouched.
+    // class_map + grade_sections are jsonb — node-postgres turns a
+    // JS array/object into a Postgres ARRAY literal which jsonb
+    // rejects ("invalid input syntax for type json"), so stringify
+    // them. majors/grade_levels/languages/sections are TEXT[] and
+    // must stay as arrays, so they are left untouched.
     const body = { ...(req.body || {}) };
-    if (
-      Object.prototype.hasOwnProperty.call(body, "class_map") &&
-      body.class_map !== null &&
-      typeof body.class_map !== "string"
-    ) {
-      body.class_map = JSON.stringify(body.class_map);
+    for (const k of ["class_map", "grade_sections"]) {
+      if (
+        Object.prototype.hasOwnProperty.call(body, k) &&
+        body[k] !== null &&
+        typeof body[k] !== "string"
+      ) {
+        body[k] = JSON.stringify(body[k]);
+      }
     }
 
     const { sets, params } = buildPatch(body, ME_FIELDS);

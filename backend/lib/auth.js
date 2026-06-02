@@ -24,7 +24,8 @@ export const clientIp = (req) => {
 export const userAgent = (req) => req.headers["user-agent"] || null;
 
 const TEACHER_COLS = `id, first_name, last_name, email, phone, staff_id, majors, grade_levels,
-                       languages, sections, class_map, nationality, hire_date, bio,
+                       languages, sections, class_map, grade_sections,
+                       nationality, hire_date, bio,
                        role, status, firebase_uid, avatar_url,
                        subscription_status, subscription_ends_at, subscription_plan,
                        last_login_at, last_login_ip,
