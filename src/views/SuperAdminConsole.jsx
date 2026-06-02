@@ -247,7 +247,14 @@ export default function SuperAdminConsole() {
                               <Pause size={12} />
                             </button>
                           ))}
-                          {!isSelf && GRANTABLE.includes(t.role) && (
+                          {/* Delete: super admin is the head of the project,
+                              so they can remove any account except their own.
+                              Even dev / super_admin rows — if you delete a
+                              built-in dev row, the email is still in
+                              DEV_EMAILS and the row gets recreated on next
+                              sign-in, but the audit trail of who removed
+                              whom stays. */}
+                          {!isSelf && (
                             <button onClick={() => setDeleting(t)} title="Delete"
                               className="h-7 w-7 rounded-md border border-line hover:border-accent hover:bg-paper-warm flex items-center justify-center text-ink-soft hover:text-accent transition">
                               <Trash2 size={12} />
