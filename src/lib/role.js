@@ -60,8 +60,7 @@ export const ROLE_DESCRIPTIONS = {
 // super-admin UI. See backend/lib/roles.js for the canonical rules.
 export function rolesGrantableBy(actor) {
   if (!actor) return [];
-  if (actor.role === "dev") return [...ROLES];
-  if (actor.role === "super_admin") return ["admin", "moe", "owner", "teacher"];
+  if (actor.role === "dev" || actor.role === "super_admin") return [...ROLES];
   if (actor.role === "admin" && actor.sub_role === "operations") return ["teacher"];
   return [];
 }

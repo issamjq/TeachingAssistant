@@ -74,8 +74,13 @@ export function isValidSubRole(role, sub) {
 }
 
 // Roles a given actor can ASSIGN to another account. Per the pyramid:
-//   dev          — every role
-//   super_admin  — admin, moe, owner, teacher
+//   dev          — every role (universal tester)
+//   super_admin  — every role (head of the project; can assign dev /
+//                  super_admin too, although those roles are also
+//                  reconciled from env on every login for built-in
+//                  emails, so a manual change to a built-in dev row
+//                  will get reset on next sign-in. Non-built-in emails
+//                  retain whatever the super_admin set.)
 //   admin        — depends on sub_role. operations can create teacher
 //                  accounts; accountant/support cannot grant access.
 //   everything else — no grant permission
@@ -84,11 +89,8 @@ export function isValidSubRole(role, sub) {
 // role dropdown by what the actor can pick.
 export function rolesGrantableBy(actor) {
   if (!actor) return new Set();
-  if (actor.role === "dev") {
+  if (actor.role === "dev" || actor.role === "super_admin") {
     return new Set(ROLES);
-  }
-  if (actor.role === "super_admin") {
-    return new Set(["admin", "moe", "owner", "teacher"]);
   }
   if (actor.role === "admin" && actor.sub_role === "operations") {
     return new Set(["teacher"]);

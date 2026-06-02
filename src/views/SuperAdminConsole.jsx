@@ -230,7 +230,11 @@ export default function SuperAdminConsole() {
                       </td>
                       <td className="py-3 px-5">
                         <div className="flex items-center gap-1">
-                          {!isSelf && GRANTABLE.includes(t.role) && (
+                          {/* Edit: super admin (and dev) can change role
+                              and sub_role on any account except their own.
+                              The grant dropdown inside the modal mirrors
+                              what the actor can assign via rolesGrantableBy. */}
+                          {!isSelf && (
                             <button onClick={() => setEditing(t)} title="Edit role"
                               className="h-7 w-7 rounded-md border border-line hover:border-ink hover:bg-paper-warm flex items-center justify-center text-ink-soft transition">
                               <Pencil size={12} />
@@ -420,9 +424,9 @@ function AccountModal({ row, onClose, onSaved }) {
         )}
         <div className="md:col-span-2">
           <p className="text-xs text-muted">
-            Dev and Super admin accounts are env-only — add the email to <code>DEV_EMAILS</code> /
-            <code> SUPER_ADMIN_EMAILS</code> on the server. Per-role permissions land once each
-            dashboard is scoped.
+            Built-in dev / super admin emails set in code (<code>BUILTIN_DEV_EMAILS</code>,
+            <code> BUILTIN_SUPER_ADMIN_EMAILS</code>) get their role re-applied on every sign-in.
+            Per-role permissions land once each dashboard is scoped.
           </p>
         </div>
       </div>
