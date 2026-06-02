@@ -2,9 +2,16 @@
 // pathnames so they can be shared as a link without exposing them in
 // the marketing nav.
 //
-//   /admin   → admin + super_admin portal
-//   /owner   → owner portal
-//   /moe     → MoE portal
+// STRICT per-role mapping — each portal accepts exactly ONE top-level
+// role. dev can't cross into /admin; super_admin can't cross into /dev.
+// To switch role personas you log out and visit the right portal.
+//
+//   /dev         → dev only
+//   /superadmin  → super_admin only
+//   /admin       → admin only
+//   /moe         → moe only
+//   /owner       → owner only
+//   /            → landing (teacher sign-up funnel)
 //
 // Vercel's SPA fallback (vercel.json) rewrites all paths to /index.html
 // while preserving the browser's pathname, so window.location.pathname
@@ -16,10 +23,28 @@
 // the portal page.
 
 export const PORTALS = {
+  dev: {
+    id: "dev",
+    paths: ["/dev", "/dev/"],
+    allowedRoles: ["dev"],
+    titleKey: "portal.dev.title",
+    titleEmKey: "portal.dev.titleEm",
+    eyebrowKey: "portal.dev.eyebrow",
+    leadKey: "portal.dev.lead",
+  },
+  superadmin: {
+    id: "superadmin",
+    paths: ["/superadmin", "/superadmin/"],
+    allowedRoles: ["super_admin"],
+    titleKey: "portal.superadmin.title",
+    titleEmKey: "portal.superadmin.titleEm",
+    eyebrowKey: "portal.superadmin.eyebrow",
+    leadKey: "portal.superadmin.lead",
+  },
   admin: {
     id: "admin",
     paths: ["/admin", "/admin/"],
-    allowedRoles: ["admin", "super_admin", "dev"],
+    allowedRoles: ["admin"],
     titleKey: "portal.admin.title",
     titleEmKey: "portal.admin.titleEm",
     eyebrowKey: "portal.admin.eyebrow",
@@ -28,7 +53,7 @@ export const PORTALS = {
   owner: {
     id: "owner",
     paths: ["/owner", "/owner/"],
-    allowedRoles: ["owner", "dev"],
+    allowedRoles: ["owner"],
     titleKey: "portal.owner.title",
     titleEmKey: "portal.owner.titleEm",
     eyebrowKey: "portal.owner.eyebrow",
@@ -37,7 +62,7 @@ export const PORTALS = {
   moe: {
     id: "moe",
     paths: ["/moe", "/moe/"],
-    allowedRoles: ["moe", "dev"],
+    allowedRoles: ["moe"],
     titleKey: "portal.moe.title",
     titleEmKey: "portal.moe.titleEm",
     eyebrowKey: "portal.moe.eyebrow",

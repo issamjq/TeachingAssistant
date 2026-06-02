@@ -23,6 +23,7 @@ import MurchidLogo from "../components/MurchidLogo";
 import { api } from "./_shared";
 import { exitPortalToStudio } from "../lib/portal";
 import { setAccount } from "../lib/account";
+import { setRole } from "../lib/role";
 
 function GoogleMark() {
   return (
@@ -122,7 +123,11 @@ export default function PortalSignIn({ portal }) {
 
   // The studio reads localStorage for the sidebar / nav chip. Mirror
   // enough of the teacher row that the chip and avatar render correctly
-  // — canonical data still lives on req.teacher server-side.
+  // — canonical data still lives on req.teacher server-side. Also write
+  // the canonical role into the `murchid_role` localStorage key (via
+  // setRole) so App.jsx's role-based routing picks the right console.
+  // Without this, a privileged user lands on the teacher dashboard
+  // because getRole() falls back to the demo default.
   function hydrateAccountFromTeacher(teacher) {
     setAccount({
       provider: "google", // either provider hydrates the same shape
@@ -138,6 +143,7 @@ export default function PortalSignIn({ portal }) {
       subscriptionStatus: teacher.subscription_status,
       subscriptionEndsAt: teacher.subscription_ends_at,
     });
+    setRole(teacher.role);
   }
 
   if (checking) {
