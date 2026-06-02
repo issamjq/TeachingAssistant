@@ -360,7 +360,7 @@ function AccountModal({ row, onClose, onSaved }) {
             <Field label="Email">
               <input type="email" className={inputClasses} value={form.email} onChange={(e) => set("email", e.target.value)} />
             </Field>
-            <Field label="Staff ID">
+            <Field label="ID">
               <input className={inputClasses} value={form.staff_id} onChange={(e) => set("staff_id", e.target.value)} />
             </Field>
           </>
