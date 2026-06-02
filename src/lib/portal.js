@@ -2,15 +2,19 @@
 // pathnames so they can be shared as a link without exposing them in
 // the marketing nav.
 //
-// STRICT per-role mapping — each portal accepts exactly ONE top-level
-// role. dev can't cross into /admin; super_admin can't cross into /dev.
-// To switch role personas you log out and visit the right portal.
+// Per-role portal mapping. Each portal targets ONE top-level role with
+// one exception: dev is allowed everywhere. Dev is the universal
+// tester / inspector and needs to be able to enter any surface to
+// verify it. The PortalSignIn component additionally sets the local
+// preview role to match the portal a dev entered through, so visiting
+// /admin as dev shows the Admin console (not the Dev console).
+// Canonical role on the server stays `dev` — API gates pass.
 //
 //   /dev         → dev only
-//   /superadmin  → super_admin only
-//   /admin       → admin only
-//   /moe         → moe only
-//   /owner       → owner only
+//   /superadmin  → super_admin (+ dev)
+//   /admin       → admin (+ dev)
+//   /moe         → moe (+ dev)
+//   /owner       → owner (+ dev)
 //   /            → landing (teacher sign-up funnel)
 //
 // Vercel's SPA fallback (vercel.json) rewrites all paths to /index.html
@@ -35,7 +39,9 @@ export const PORTALS = {
   superadmin: {
     id: "superadmin",
     paths: ["/superadmin", "/superadmin/"],
-    allowedRoles: ["super_admin"],
+    allowedRoles: ["super_admin", "dev"],
+    // When a dev enters this portal, preview as super_admin (UI only).
+    previewRoleForDev: "super_admin",
     titleKey: "portal.superadmin.title",
     titleEmKey: "portal.superadmin.titleEm",
     eyebrowKey: "portal.superadmin.eyebrow",
@@ -44,7 +50,8 @@ export const PORTALS = {
   admin: {
     id: "admin",
     paths: ["/admin", "/admin/"],
-    allowedRoles: ["admin"],
+    allowedRoles: ["admin", "dev"],
+    previewRoleForDev: "admin",
     titleKey: "portal.admin.title",
     titleEmKey: "portal.admin.titleEm",
     eyebrowKey: "portal.admin.eyebrow",
@@ -53,7 +60,8 @@ export const PORTALS = {
   owner: {
     id: "owner",
     paths: ["/owner", "/owner/"],
-    allowedRoles: ["owner"],
+    allowedRoles: ["owner", "dev"],
+    previewRoleForDev: "owner",
     titleKey: "portal.owner.title",
     titleEmKey: "portal.owner.titleEm",
     eyebrowKey: "portal.owner.eyebrow",
@@ -62,7 +70,8 @@ export const PORTALS = {
   moe: {
     id: "moe",
     paths: ["/moe", "/moe/"],
-    allowedRoles: ["moe"],
+    allowedRoles: ["moe", "dev"],
+    previewRoleForDev: "moe",
     titleKey: "portal.moe.title",
     titleEmKey: "portal.moe.titleEm",
     eyebrowKey: "portal.moe.eyebrow",

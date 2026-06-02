@@ -125,10 +125,16 @@ export default function PortalSignIn({ portal }) {
   // The studio reads localStorage for the sidebar / nav chip. Mirror
   // enough of the teacher row that the chip and avatar render correctly
   // — canonical data still lives on req.account server-side. Also write
-  // the canonical role into the `murchid_role` localStorage key (via
-  // setRole) so App.jsx's role-based routing picks the right console.
-  // Without this, a privileged user lands on the teacher dashboard
-  // because getRole() falls back to the demo default.
+  // a role into the `murchid_role` localStorage key (via setRole) so
+  // App.jsx's role-based routing picks the right console.
+  //
+  // Dev preview: when the dev role enters a non-dev portal (/admin,
+  // /moe, /owner, /superadmin), we want the studio to render THAT
+  // portal's console instead of the Dev console — dev is the universal
+  // tester and needs to be able to see what each role sees. The
+  // server-side role stays `dev` (so every API works), only the local
+  // UI preview is overridden. Falls back to the canonical role for
+  // everyone else.
   function hydrateAccountFromTeacher(teacher) {
     setAccount({
       provider: "google", // either provider hydrates the same shape
@@ -144,7 +150,11 @@ export default function PortalSignIn({ portal }) {
       subscriptionStatus: teacher.subscription_status,
       subscriptionEndsAt: teacher.subscription_ends_at,
     });
-    setRole(teacher.role);
+    const localRole =
+      teacher.role === "dev" && portal.previewRoleForDev
+        ? portal.previewRoleForDev
+        : teacher.role;
+    setRole(localRole);
   }
 
   if (checking) {
