@@ -779,6 +779,10 @@ const TEACHERS = [
   // Super admin — pyramid top. Manages account access for admin / moe /
   // owner. Reconciled at login from SUPER_ADMIN_EMAILS env.
   ["Karaali", "Issa", "karaaliissa@gmail.com", null, "SAD-001", [], [], null, null, "Super admin — manages account access across the pyramid.", "super_admin"],
+  // Owner — business read-only dashboards. Reconciled at login from
+  // OWNER_EMAILS env. Built-in fallback for karooorak3@gmail.com so the
+  // owner has access even before Render env vars are configured.
+  ["Karoo", "Rak", "karooorak3@gmail.com", null, "OWN-001", [], [], null, null, "Business owner — read-only dashboards.", "owner"],
 ];
 
 // [first_name, last_name, student_id, dob, gender, grade, section, email, phone, nationality, address,

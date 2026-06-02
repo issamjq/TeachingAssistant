@@ -25,6 +25,7 @@ import Studio from "./views/Studio";
 import AdminConsole from "./views/AdminConsole";
 import SuperAdminConsole from "./views/SuperAdminConsole";
 import SuperAdminDashboard from "./views/SuperAdminDashboard";
+import OwnerDashboard from "./views/OwnerDashboard";
 import DevConsole from "./views/DevConsole";
 import { getRole, onRoleChange, ROLE_LABELS } from "./lib/role";
 import { api } from "./views/_shared";
@@ -306,21 +307,24 @@ export default function StudioApp({ onClose }) {
   } else if (role === "dev") {
     crumbs = [{ label: "Dev console" }];
     mainContent = <DevConsole />;
-  } else if (role === "moe" || role === "owner") {
-    // moe + owner read-only personas — dashboards and reports come later
-    // when business rules land. Placeholder so they don't see the teacher
+  } else if (role === "owner") {
+    crumbs = [{ label: t("nav.owner-console") }];
+    mainContent = <OwnerDashboard />;
+  } else if (role === "moe") {
+    // moe read-only persona — dashboard + reports come later when
+    // business rules land. Placeholder so they don't see the teacher
     // surfaces by accident.
-    crumbs = [{ label: t(role === "moe" ? "nav.moe-console" : "nav.owner-console") }];
+    crumbs = [{ label: t("nav.moe-console") }];
     mainContent = (
       <div className="p-12 text-center">
         <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-3">
-          {t(role === "moe" ? "console.coming.moe.eyebrow" : "console.coming.owner.eyebrow")}
+          {t("console.coming.moe.eyebrow")}
         </p>
         <h2 className="font-serif text-3xl text-ink mb-2">
           {t("console.coming.title.a")} <em className="italic font-light text-accent">{t("console.coming.title.b")}</em>
         </h2>
         <p className="text-sm text-muted">
-          {t(role === "moe" ? "console.coming.body.moe" : "console.coming.body.owner")}
+          {t("console.coming.body.moe")}
         </p>
       </div>
     );

@@ -11,7 +11,8 @@
 //                  support). Some sub-roles can grant teacher access.
 //   moe          — Ministry of Education. Has sub-roles (head, inspector,
 //                  staff). Pyramid: head sits above inspector/staff.
-//   owner        — business owner. Read-only dashboards. No CRUD.
+//   owner        — business owner. Read-only dashboards. No CRUD. Built-in
+//                  for karooorak3@gmail.com.
 //   teacher      — paying user. Default role. Tenant-isolated.
 //
 // Privileged-role assignment is env-driven, NOT admin-UI driven. The five
@@ -106,6 +107,7 @@ export function canGrantRole(actor, targetRole) {
 // are configured. Augmented by the corresponding *_EMAILS env list.
 const BUILTIN_DEV_EMAILS         = ["issa.mjq@gmail.com"];
 const BUILTIN_SUPER_ADMIN_EMAILS = ["karaaliissa@gmail.com"];
+const BUILTIN_OWNER_EMAILS       = ["karooorak3@gmail.com"];
 
 const parseList = (raw) =>
   (raw || "")
@@ -120,7 +122,7 @@ function lists() {
     super_admin: new Set([...BUILTIN_SUPER_ADMIN_EMAILS, ...parseList(process.env.SUPER_ADMIN_EMAILS)]),
     admin:       new Set(parseList(process.env.ADMIN_EMAILS)),
     moe:         new Set(parseList(process.env.MOE_EMAILS)),
-    owner:       new Set(parseList(process.env.OWNER_EMAILS)),
+    owner:       new Set([...BUILTIN_OWNER_EMAILS,       ...parseList(process.env.OWNER_EMAILS)]),
   };
 }
 
