@@ -114,6 +114,35 @@ BEGIN
       'accounts_' || substring(rec.indexname FROM 10)
     );
   END LOOP;
+
+  -- 5. Rename teacher_schools link table to account_schools — same
+  -- reasoning as the accounts rename: the FK column is now account_id
+  -- and the table will link any account (not just teachers) to schools
+  -- once moe/owner scope rules land. Idempotent: skipped if already
+  -- renamed or if the legacy table is missing.
+  IF EXISTS (SELECT 1 FROM pg_tables WHERE schemaname='public' AND tablename='teacher_schools')
+     AND NOT EXISTS (SELECT 1 FROM pg_tables WHERE schemaname='public' AND tablename='account_schools') THEN
+    ALTER TABLE teacher_schools RENAME TO account_schools;
+  END IF;
+
+  -- 6. Rename teacher_schools_* indexes/constraints to account_schools_*
+  FOR rec IN
+    SELECT indexname FROM pg_indexes
+    WHERE schemaname='public' AND tablename='account_schools'
+      AND indexname LIKE 'teacher\\_schools\\_%' ESCAPE '\\'
+  LOOP
+    EXECUTE format(
+      'ALTER INDEX %I RENAME TO %I',
+      rec.indexname,
+      'account_schools_' || substring(rec.indexname FROM 17)
+    );
+  END LOOP;
+
+  -- 7. Migrate historic audit_log.target_table values from 'teachers'
+  -- to 'accounts' so audit queries can filter consistently after the
+  -- table rename. New rows already write 'accounts'.
+  UPDATE audit_log SET target_table = 'accounts' WHERE target_table = 'teachers';
+  UPDATE audit_log SET target_table = 'account_schools' WHERE target_table = 'teacher_schools';
 END $$;
 `;
 
@@ -407,14 +436,14 @@ CREATE INDEX IF NOT EXISTS schools_emirate_idx ON schools (emirate);
 -- Dedupe key so re-running the seed is idempotent.
 CREATE UNIQUE INDEX IF NOT EXISTS schools_name_emirate_uniq ON schools (name, emirate);
 
-CREATE TABLE IF NOT EXISTS teacher_schools (
+CREATE TABLE IF NOT EXISTS account_schools (
   account_id  INT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
   school_id   INT NOT NULL REFERENCES schools(id)  ON DELETE CASCADE,
   is_primary  BOOLEAN NOT NULL DEFAULT FALSE,
   created_at  TIMESTAMPTZ DEFAULT NOW(),
   PRIMARY KEY (account_id, school_id)
 );
-CREATE INDEX IF NOT EXISTS teacher_schools_account_idx ON teacher_schools (account_id);
+CREATE INDEX IF NOT EXISTS account_schools_account_idx ON account_schools (account_id);
 
 -- Per-school grade_sections: each (teacher, school) pair carries its
 -- own {grade -> [sections]} map so a teacher who works in two schools
@@ -422,9 +451,10 @@ CREATE INDEX IF NOT EXISTS teacher_schools_account_idx ON teacher_schools (accou
 -- one school, Grade 6 sections C/D at the other).
 -- jsonb_typeof check rejects array / number / bool — only objects are
 -- valid shapes for this column.
-ALTER TABLE teacher_schools ADD COLUMN IF NOT EXISTS grade_sections JSONB NOT NULL DEFAULT '{}'::jsonb;
-ALTER TABLE teacher_schools DROP CONSTRAINT IF EXISTS teacher_schools_gs_object;
-ALTER TABLE teacher_schools ADD  CONSTRAINT teacher_schools_gs_object
+ALTER TABLE account_schools ADD COLUMN IF NOT EXISTS grade_sections JSONB NOT NULL DEFAULT '{}'::jsonb;
+ALTER TABLE account_schools DROP CONSTRAINT IF EXISTS teacher_schools_gs_object;
+ALTER TABLE account_schools DROP CONSTRAINT IF EXISTS account_schools_gs_object;
+ALTER TABLE account_schools ADD  CONSTRAINT account_schools_gs_object
   CHECK (jsonb_typeof(grade_sections) = 'object');
 
 ALTER TABLE students ADD COLUMN IF NOT EXISTS school_id INT REFERENCES schools(id) ON DELETE SET NULL;
@@ -836,7 +866,7 @@ export async function runInit() {
   console.log("Adding auth-path indexes...");
   await pool.query(SCHEMA_AUTH_INDEXES);
 
-  console.log("Creating schools + teacher_schools + students.school_id...");
+  console.log("Creating schools + account_schools + students.school_id...");
   await pool.query(SCHEMA_SCHOOLS);
 
   console.log("Normalizing legacy values...");

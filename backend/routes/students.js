@@ -42,7 +42,7 @@ const assertOwnsSchoolIfPresent = async (req, res, next) => {
     const cur = await loadCurrentTeacher(req);
     if (!cur) return res.status(401).json({ error: "Not authenticated" });
     const r = await pool.query(
-      "SELECT 1 FROM teacher_schools WHERE account_id = $1 AND school_id = $2",
+      "SELECT 1 FROM account_schools WHERE account_id = $1 AND school_id = $2",
       [cur.id, schoolId]
     );
     if (r.rowCount === 0) {
