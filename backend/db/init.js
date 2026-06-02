@@ -2,6 +2,24 @@ import "dotenv/config";
 import pg from "pg";
 import { GRADE_LEVELS, NATIONALITIES } from "../../src/lib/enums.js";
 import { UAE_SCHOOLS, EMIRATES, SCHOOL_TYPES, SCHOOL_CURRICULA } from "../../src/lib/schools.js";
+import { ROLES, SUB_ROLES, resolveReservedRole } from "../lib/roles.js";
+
+// Build a SQL fragment that validates the (role, sub_role) tuple.
+// Roles with no sub-roles must have sub_role IS NULL. Roles with
+// sub-roles allow NULL (no sub-role assigned yet) or one of the
+// permitted values.
+const subRoleCheckSql = () => {
+  const clauses = [];
+  for (const [role, subs] of Object.entries(SUB_ROLES)) {
+    if (subs.length === 0) {
+      clauses.push(`(role = '${role}' AND sub_role IS NULL)`);
+    } else {
+      const list = subs.map((s) => `'${s}'`).join(", ");
+      clauses.push(`(role = '${role}' AND (sub_role IS NULL OR sub_role IN (${list})))`);
+    }
+  }
+  return clauses.join("\n    OR ");
+};
 
 const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
 
@@ -100,6 +118,7 @@ ALTER TABLE drafts    ADD COLUMN IF NOT EXISTS teacher_id INT REFERENCES teacher
 ALTER TABLE students  ADD COLUMN IF NOT EXISTS teacher_id INT REFERENCES teachers(id) ON DELETE CASCADE;
 
 ALTER TABLE teachers  ADD COLUMN IF NOT EXISTS role      TEXT NOT NULL DEFAULT 'teacher';
+ALTER TABLE teachers  ADD COLUMN IF NOT EXISTS sub_role  TEXT;
 ALTER TABLE teachers  ADD COLUMN IF NOT EXISTS status    TEXT NOT NULL DEFAULT 'active';
 ALTER TABLE teachers  ADD COLUMN IF NOT EXISTS languages TEXT[] DEFAULT '{}';
 ALTER TABLE teachers  ADD COLUMN IF NOT EXISTS sections  TEXT[] DEFAULT '{}';
@@ -560,7 +579,13 @@ ALTER TABLE teachers ADD  CONSTRAINT teachers_nationality_valid
 
 ALTER TABLE teachers DROP CONSTRAINT IF EXISTS teachers_role_valid;
 ALTER TABLE teachers ADD  CONSTRAINT teachers_role_valid
-  CHECK (role IN ('teacher', 'admin', 'dev'));
+  CHECK (role = ANY(${sqlArr(ROLES)}));
+
+ALTER TABLE teachers DROP CONSTRAINT IF EXISTS teachers_sub_role_valid;
+ALTER TABLE teachers ADD  CONSTRAINT teachers_sub_role_valid
+  CHECK (
+    ${subRoleCheckSql()}
+  );
 
 ALTER TABLE teachers DROP CONSTRAINT IF EXISTS teachers_status_valid;
 ALTER TABLE teachers ADD  CONSTRAINT teachers_status_valid
@@ -623,6 +648,13 @@ const TEACHERS = [
   // Operational accounts (no teaching content). Discoverable via the role-switcher.
   ["Murchid", "Admin", "admin@murchid.school", null, "ADM-001", [], [], null, null, "Administrative account — manages teachers and system stats.", "admin"],
   ["Murchid", "Dev",   "dev@murchid.school",   null, "DEV-001", [], [], null, null, "Engineering account — read-only inspector, logs, feature flags.", "dev"],
+  // Project owner — pre-seeded so signing in with this Google account
+  // immediately attaches the existing dev row via ON CONFLICT (email).
+  // The role is also reconciled at login from DEV_EMAILS env.
+  ["Issa", "Marwan", "issa.mjq@gmail.com", null, "DEV-002", [], [], null, null, "Project owner — full dev access.", "dev"],
+  // Super admin — pyramid top. Manages account access for admin / moe /
+  // owner. Reconciled at login from SUPER_ADMIN_EMAILS env.
+  ["Karaali", "Issa", "karaaliissa@gmail.com", null, "SAD-001", [], [], null, null, "Super admin — manages account access across the pyramid.", "super_admin"],
 ];
 
 // [first_name, last_name, student_id, dob, gender, grade, section, email, phone, nationality, address,
@@ -744,6 +776,21 @@ export async function runInit() {
       );
     }
     console.log(`Teachers already populated (${tch.rows[0].n} rows). Ensured admin/dev exist.`);
+  }
+
+  // Reconcile privileged roles from env (DEV_EMAILS / ADMIN_EMAILS /
+  // MOE_EMAILS / OWNER_EMAILS). Promotes any existing teacher row whose
+  // email appears in a privileged list to the corresponding role.
+  // Idempotent — emails already at the right role are no-ops. Demotion
+  // only happens at login time (auth route) to avoid surprising side
+  // effects when re-seeding.
+  const allEmails = await pool.query("SELECT id, email, role FROM teachers WHERE email IS NOT NULL");
+  for (const row of allEmails.rows) {
+    const wanted = resolveReservedRole(row.email);
+    if (wanted && wanted !== row.role) {
+      await pool.query("UPDATE teachers SET role = $1, updated_at = NOW() WHERE id = $2", [wanted, row.id]);
+      console.log(`  promoted ${row.email}: ${row.role} → ${wanted}`);
+    }
   }
 
   // Resolve a default teacher_id once for backfills below.

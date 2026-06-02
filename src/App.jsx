@@ -23,6 +23,7 @@ import ActivityBuilder from "./views/ActivityBuilder";
 import Reports from "./views/Reports";
 import Studio from "./views/Studio";
 import AdminConsole from "./views/AdminConsole";
+import SuperAdminConsole from "./views/SuperAdminConsole";
 import DevConsole from "./views/DevConsole";
 import { getRole, onRoleChange, ROLE_LABELS } from "./lib/role";
 import { api } from "./views/_shared";
@@ -258,12 +259,33 @@ export default function StudioApp({ onClose }) {
   if (section === "account") {
     crumbs = [{ label: "Account" }];
     mainContent = <AccountProfile sub={sub} />;
+  } else if (role === "super_admin") {
+    crumbs = [{ label: t("nav.superadmin-console") }];
+    mainContent = <SuperAdminConsole />;
   } else if (role === "admin") {
     crumbs = [{ label: "Admin console" }];
     mainContent = <AdminConsole />;
   } else if (role === "dev") {
     crumbs = [{ label: "Dev console" }];
     mainContent = <DevConsole />;
+  } else if (role === "moe" || role === "owner") {
+    // moe + owner read-only personas — dashboards and reports come later
+    // when business rules land. Placeholder so they don't see the teacher
+    // surfaces by accident.
+    crumbs = [{ label: t(role === "moe" ? "nav.moe-console" : "nav.owner-console") }];
+    mainContent = (
+      <div className="p-12 text-center">
+        <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-3">
+          {t(role === "moe" ? "console.coming.moe.eyebrow" : "console.coming.owner.eyebrow")}
+        </p>
+        <h2 className="font-serif text-3xl text-ink mb-2">
+          {t("console.coming.title.a")} <em className="italic font-light text-accent">{t("console.coming.title.b")}</em>
+        </h2>
+        <p className="text-sm text-muted">
+          {t(role === "moe" ? "console.coming.body.moe" : "console.coming.body.owner")}
+        </p>
+      </div>
+    );
   } else if (section === "dashboard") {
     mainContent = <Dashboard onJump={handleNavClick} />;
   } else if (section === "database") {

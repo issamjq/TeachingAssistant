@@ -5,6 +5,7 @@ import { handleErr } from "../lib/helpers.js";
 import { validateBody } from "../lib/validate.js";
 import { recordAudit } from "../lib/audit.js";
 import { clientIp, userAgent } from "../lib/auth.js";
+import { canGrantRole, ROLES, isValidSubRole } from "../lib/roles.js";
 
 // Admin endpoints — manage teacher accounts, never see their content.
 //
@@ -17,22 +18,31 @@ const router = Router();
 
 // Local zod schemas — kept inline because they're admin-only and don't
 // share validation rules with teacher-facing forms.
+// Schema validates SHAPE; the actor's permission to assign the requested
+// role is checked dynamically in the handler via canGrantRole(). dev /
+// super_admin can never be assigned through this route — those are env-only.
 const AdminCreateTeacherSchema = z.object({
   first_name: z.string().trim().min(1).max(120),
   last_name:  z.string().trim().min(1).max(120),
   email:      z.string().trim().email().max(254).optional().nullable(),
   staff_id:   z.string().trim().max(60).optional().nullable(),
-  role:       z.enum(["teacher", "admin", "dev"]).optional(),
+  role:       z.enum(ROLES).optional(),
+  sub_role:   z.string().trim().max(40).optional().nullable(),
 }).strip();
 
 const AdminStatusSchema = z.object({
   status: z.enum(["active", "suspended", "deleted"]),
 }).strip();
 
+const AdminRoleUpdateSchema = z.object({
+  role:     z.enum(ROLES),
+  sub_role: z.string().trim().max(40).optional().nullable(),
+}).strip();
+
 router.get("/teachers", async (_req, res) => {
   try {
     const r = await pool.query(
-      `SELECT t.id, t.first_name, t.last_name, t.email, t.staff_id, t.role, t.status,
+      `SELECT t.id, t.first_name, t.last_name, t.email, t.staff_id, t.role, t.sub_role, t.status,
               t.subscription_status, t.subscription_ends_at, t.subscription_plan,
               t.last_login_at, t.last_login_ip,
               t.hire_date, t.created_at,
@@ -50,12 +60,31 @@ router.get("/teachers", async (_req, res) => {
 
 router.post("/teachers", validateBody(AdminCreateTeacherSchema), async (req, res) => {
   try {
-    const { first_name, last_name, email, staff_id, role } = req.body;
+    const { first_name, last_name, email, staff_id, role, sub_role } = req.body;
+    const targetRole = role || "teacher";
+
+    // Permission check — only actors whose role+sub_role pyramid allows
+    // them to grant `targetRole` may proceed. dev/super_admin grant
+    // anything (except dev/super_admin themselves, which are env-only);
+    // admin(operations) can only grant teacher.
+    if (!canGrantRole(req.teacher, targetRole)) {
+      return res.status(403).json({
+        error: "You don't have permission to create an account with this role.",
+        code: "role_grant_denied",
+      });
+    }
+    if (!isValidSubRole(targetRole, sub_role)) {
+      return res.status(400).json({
+        error: `'${sub_role}' is not a valid sub-role for '${targetRole}'.`,
+        code: "invalid_sub_role",
+      });
+    }
+
     const r = await pool.query(
-      `INSERT INTO teachers (first_name, last_name, email, staff_id, role)
-       VALUES ($1, $2, $3, $4, COALESCE($5, 'teacher'))
-       RETURNING id, first_name, last_name, email, staff_id, role, status, created_at`,
-      [first_name, last_name, email ?? null, staff_id ?? null, role ?? null]
+      `INSERT INTO teachers (first_name, last_name, email, staff_id, role, sub_role)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING id, first_name, last_name, email, staff_id, role, sub_role, status, created_at`,
+      [first_name, last_name, email ?? null, staff_id ?? null, targetRole, sub_role || null]
     );
     await recordAudit({
       teacherId: req.teacher.id,
@@ -63,7 +92,7 @@ router.post("/teachers", validateBody(AdminCreateTeacherSchema), async (req, res
       targetTable: "teachers",
       targetId: r.rows[0].id,
       ip: clientIp(req), userAgent: userAgent(req),
-      detail: { role: role || "teacher" },
+      detail: { role: targetRole, sub_role: sub_role || null },
     });
     res.status(201).json(r.rows[0]);
   } catch (err) {
@@ -100,6 +129,56 @@ router.patch("/teachers/:id/status", validateBody(AdminStatusSchema), async (req
     res.json(r.rows[0]);
   } catch (err) {
     handleErr(res, "PATCH /api/admin/teachers/:id/status", err);
+  }
+});
+
+// PATCH /api/admin/teachers/:id/role — change role + sub_role of an
+// existing account. Same permission rules as create: actor must be
+// allowed to grant the NEW role, and (defensively) must be allowed to
+// grant the OLD role too — so an admin(operations) can't strip a moe
+// row of its privileges. dev / super_admin bypass both checks.
+router.patch("/teachers/:id/role", validateBody(AdminRoleUpdateSchema), async (req, res) => {
+  try {
+    const { role, sub_role } = req.body;
+    const targetId = Number(req.params.id);
+    if (!Number.isInteger(targetId) || targetId < 1) {
+      return res.status(400).json({ error: "Invalid teacher id." });
+    }
+    if (targetId === req.teacher.id) {
+      return res.status(400).json({ error: "You can't change your own role." });
+    }
+    if (!canGrantRole(req.teacher, role)) {
+      return res.status(403).json({ error: "Forbidden", code: "role_grant_denied" });
+    }
+    if (!isValidSubRole(role, sub_role)) {
+      return res.status(400).json({
+        error: `'${sub_role}' is not a valid sub-role for '${role}'.`,
+        code: "invalid_sub_role",
+      });
+    }
+    // Look up the current role so we can refuse demotion attempts from
+    // an actor not allowed to touch the existing role either.
+    const cur = await pool.query("SELECT role FROM teachers WHERE id = $1", [targetId]);
+    if (cur.rows.length === 0) return res.status(404).json({ error: "Not found" });
+    if (!canGrantRole(req.teacher, cur.rows[0].role)) {
+      return res.status(403).json({ error: "Forbidden", code: "role_grant_denied" });
+    }
+    const r = await pool.query(
+      `UPDATE teachers SET role = $1, sub_role = $2, updated_at = NOW()
+        WHERE id = $3 RETURNING id, role, sub_role`,
+      [role, sub_role || null, targetId]
+    );
+    await recordAudit({
+      teacherId: req.teacher.id,
+      action: "admin.teacher.role_update",
+      targetTable: "teachers",
+      targetId,
+      ip: clientIp(req), userAgent: userAgent(req),
+      detail: { from: cur.rows[0].role, to: role, sub_role: sub_role || null },
+    });
+    res.json(r.rows[0]);
+  } catch (err) {
+    handleErr(res, "PATCH /api/admin/teachers/:id/role", err);
   }
 });
 

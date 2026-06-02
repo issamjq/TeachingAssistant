@@ -6,6 +6,12 @@ import {
   Field, Modal, ConfirmDelete, RowActions,
   inputClasses, selectClasses, api,
 } from "./_shared";
+import { ROLE_LABELS } from "../lib/role";
+
+// Admin grant scope (without sub_role context on the client). Per the
+// pyramid, regular admin sub-roles like "operations" can grant teacher
+// access; the canonical permission check runs server-side via canGrantRole.
+const ADMIN_ASSIGNABLE_ROLES = ["teacher"];
 
 const STATUS_LABEL = {
   active: "Active",
@@ -228,10 +234,13 @@ function NewTeacherModal({ onClose, onSaved }) {
         <div className="md:col-span-2">
           <Field label="Role">
             <select className={selectClasses} value={form.role} onChange={(e) => set("role", e.target.value)}>
-              <option value="teacher">Teacher</option>
-              <option value="admin">Admin</option>
-              <option value="dev">Dev</option>
+              {ADMIN_ASSIGNABLE_ROLES.map((r) => (
+                <option key={r} value={r}>{ROLE_LABELS[r]}</option>
+              ))}
             </select>
+            <p className="mt-1 text-xs text-muted">
+              Dev and Owner are env-only — add the email to <code>DEV_EMAILS</code> / <code>OWNER_EMAILS</code> on the server.
+            </p>
           </Field>
         </div>
       </div>

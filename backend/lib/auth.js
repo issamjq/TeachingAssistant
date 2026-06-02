@@ -12,6 +12,7 @@
 // /api/auth/firebase route uses this to create the row on first login.
 import { pool } from "./db.js";
 import { verifyIdToken } from "./firebaseAdmin.js";
+import { isPrivilegedRole } from "./roles.js";
 
 // Extract the client IP, honoring the X-Forwarded-For chain Render +
 // Vercel add when proxying. Fall back to socket address otherwise.
@@ -26,7 +27,7 @@ export const userAgent = (req) => req.headers["user-agent"] || null;
 const TEACHER_COLS = `id, first_name, last_name, email, phone, staff_id, majors, grade_levels,
                        languages, sections, class_map, grade_sections,
                        nationality, hire_date, bio,
-                       role, status, firebase_uid, avatar_url,
+                       role, sub_role, status, firebase_uid, avatar_url,
                        subscription_status, subscription_ends_at, subscription_plan,
                        last_login_at, last_login_ip,
                        created_at, updated_at`;
@@ -65,8 +66,11 @@ export function requireRole(...roles) {
 
 // Returns true if the teacher's paid window has elapsed. Suspended /
 // expired accounts always count as expired regardless of date math.
+// Privileged roles (dev/admin/moe/owner) never expire — they don't pay,
+// so the subscription gate doesn't apply to them.
 const isSubscriptionExpired = (t) => {
   if (!t) return false;
+  if (isPrivilegedRole(t.role)) return false;
   if (t.status === "suspended" || t.status === "deleted") return true;
   if (t.subscription_status === "expired" || t.subscription_status === "suspended") return true;
   // trial + active both rely on subscription_ends_at. A null end date

@@ -5,6 +5,7 @@ import { requireAuth, clientIp, userAgent, TEACHER_COLS_SQL, findTeacherByUid } 
 import { PLANS, TRIAL_DAYS, TRIAL_PLAN_ID, PLAN_IDS } from "../../src/lib/plans.js";
 import { FirebaseBootstrapSchema, RenewSchema, validateBody } from "../lib/validate.js";
 import { recordAudit } from "../lib/audit.js";
+import { resolveReservedRole, isPrivilegedRole, DEFAULT_ROLE } from "../lib/roles.js";
 
 // POST /api/auth/firebase
 //
@@ -50,41 +51,66 @@ router.post("/firebase", validateBody(FirebaseBootstrapSchema), requireAuth({ op
 
     let teacher = await findTeacherByUid(fb.uid);
 
+    // Privileged-role resolution from env (DEV_EMAILS / ADMIN_EMAILS /
+    // MOE_EMAILS / OWNER_EMAILS). Privileged users don't pay — they skip
+    // the plan-required gate and we stamp a far-future subscription_ends_at
+    // so the auth middleware's subscription check never trips them up.
+    const reservedRole = resolveReservedRole(fb.email);
+    const isPrivileged = isPrivilegedRole(reservedRole);
+
     if (!teacher) {
-      // First login. A plan is REQUIRED here — without it we have no
-      // way to set subscription_ends_at, and the user shouldn't be
-      // able to enter the studio without committing to a plan (or the
-      // 7-day trial). The client only calls this endpoint after the
-      // plan picker, so a missing/invalid plan is a programming error
-      // OR a user trying to bypass the funnel; either way, reject.
-      if (!plan || !PLAN_IDS.includes(plan)) {
-        return res.status(400).json({
-          error: "Plan required to provision account. Pick a plan before signing in.",
-          code: "plan_required",
-        });
+      // First login.
+      //
+      // Teachers: a plan is REQUIRED — without it we have no way to set
+      // subscription_ends_at, and they shouldn't enter the studio without
+      // committing to a plan (or the 7-day trial). The client only calls
+      // this endpoint after the plan picker, so a missing/invalid plan
+      // is either a programming error OR a user trying to bypass the
+      // funnel; either way, reject.
+      //
+      // Privileged roles (dev/admin/moe/owner): skip the plan picker
+      // entirely — they don't pay, the env list IS their authorization.
+      let role = reservedRole || DEFAULT_ROLE;
+      let status, endsAt, planForRow;
+      if (isPrivileged) {
+        status = "active";
+        endsAt = new Date(Date.now() + 365 * 86400000 * 100); // 100y
+        planForRow = null;
+      } else {
+        if (!plan || !PLAN_IDS.includes(plan)) {
+          return res.status(400).json({
+            error: "Plan required to provision account. Pick a plan before signing in.",
+            code: "plan_required",
+          });
+        }
+        const days = PLAN_DURATION[plan];
+        endsAt = new Date(Date.now() + days * 86400000);
+        status = planStatus(plan);
+        planForRow = plan;
       }
-      const days = PLAN_DURATION[plan];
-      const endsAt = new Date(Date.now() + days * 86400000);
-      const status = planStatus(plan);
 
       const ins = await pool.query(
         `INSERT INTO teachers (
-            firebase_uid, email, first_name, last_name, avatar_url,
+            firebase_uid, email, first_name, last_name, avatar_url, role,
             subscription_status, subscription_ends_at, subscription_plan,
             last_login_at, last_login_ip, last_user_agent
           )
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), $9, $10)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW(), $10, $11)
           ON CONFLICT (email) DO UPDATE SET
             firebase_uid          = EXCLUDED.firebase_uid,
             avatar_url            = COALESCE(teachers.avatar_url, EXCLUDED.avatar_url),
+            -- Env-resolved role wins on every login (env is source of
+            -- truth for privileged access). For non-privileged emails
+            -- (reservedRole = null) we keep the existing role.
+            role                  = COALESCE($12, teachers.role),
             -- A returning user (re-using an email) keeps their old plan;
             -- the trial offer is one-per-account, not one-per-login.
             last_login_at         = NOW(),
             last_login_ip         = EXCLUDED.last_login_ip,
             last_user_agent       = EXCLUDED.last_user_agent
           RETURNING ${TEACHER_COLS_SQL}`,
-        [fb.uid, fb.email || null, firstName, lastName, fb.picture || null,
-         status, endsAt, plan, ip, ua]
+        [fb.uid, fb.email || null, firstName, lastName, fb.picture || null, role,
+         status, endsAt, planForRow, ip, ua, reservedRole]
       );
       teacher = ins.rows[0];
       await recordAudit({
@@ -93,23 +119,29 @@ router.post("/firebase", validateBody(FirebaseBootstrapSchema), requireAuth({ op
         targetTable: "teachers",
         targetId: teacher.id,
         ip, userAgent: ua,
-        detail: { plan, provider: fb.firebase?.sign_in_provider || null },
+        detail: { plan: planForRow, role, provider: fb.firebase?.sign_in_provider || null },
       });
     } else {
       // Returning user — stamp the audit fields + bump the avatar/email
       // if Google's / Microsoft's version is newer than what we have.
       // We do NOT extend the subscription here; that has to come from
       // a paid renewal (future Stripe flow) or an admin extension.
+      //
+      // Env-resolved role wins on every login. If the email is no longer
+      // in any privileged list, role is left as-is (no silent demotion
+      // of an admin/dev row that was assigned via env earlier — fix
+      // demotion explicitly by re-running db:init or via admin route).
       const upd = await pool.query(
         `UPDATE teachers SET
             last_login_at   = NOW(),
             last_login_ip   = $2,
             last_user_agent = $3,
             email           = COALESCE(NULLIF($4, ''), email),
-            avatar_url      = COALESCE(NULLIF($5, ''), avatar_url)
+            avatar_url      = COALESCE(NULLIF($5, ''), avatar_url),
+            role            = COALESCE($6, role)
           WHERE id = $1
           RETURNING ${TEACHER_COLS_SQL}`,
-        [teacher.id, ip, ua, fb.email || "", fb.picture || ""]
+        [teacher.id, ip, ua, fb.email || "", fb.picture || "", reservedRole]
       );
       teacher = upd.rows[0];
       await recordAudit({
@@ -118,7 +150,7 @@ router.post("/firebase", validateBody(FirebaseBootstrapSchema), requireAuth({ op
         targetTable: "teachers",
         targetId: teacher.id,
         ip, userAgent: ua,
-        detail: { provider: fb.firebase?.sign_in_provider || null },
+        detail: { role: teacher.role, provider: fb.firebase?.sign_in_provider || null },
       });
     }
 

@@ -125,9 +125,13 @@ export function buildApp() {
   // 13. Cross-tenant — admin manages teacher accounts, dev inspects
   // everything. The role check is on top of requireAuth(), so even a
   // valid teacher token gets 403 if they're not in the right role.
-  app.use("/api/teachers", requireRole("admin", "dev"), teachersRouter);
-  app.use("/api/admin",    requireRole("admin"),         adminRouter);
-  app.use("/api/dev",      requireRole("dev"),           devRouter);
+  // The pyramid: dev > super_admin > admin > teacher. dev + super_admin
+  // can hit everything admin can; super_admin additionally creates
+  // admin/moe/owner accounts (handler-level canGrantRole() enforces).
+  // moe + owner routers come later when their dashboards land.
+  app.use("/api/teachers", requireRole("admin", "super_admin", "dev"), teachersRouter);
+  app.use("/api/admin",    requireRole("admin", "super_admin", "dev"), adminRouter);
+  app.use("/api/dev",      requireRole("dev"),                         devRouter);
 
   // 14. JSON 404 (any /api/* that didn't match falls through here).
   // We expose a generic message so an attacker probing for endpoints
