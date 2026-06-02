@@ -158,20 +158,8 @@ export default function PortalSignIn({ portal }) {
         <LangToggle />
       </header>
 
-      <main className="px-6 md:px-12 pb-16 pt-4 md:pt-12">
+      <main className="px-6 md:px-12 pb-16 pt-12 md:pt-24">
         <div className="max-w-md mx-auto">
-          {/* Mascot — quietly featured. Small enough not to dominate, big
-              enough to read as Murchid. */}
-          <div className="flex justify-center mb-8">
-            <img
-              src="/mudir-mascot.gif"
-              alt=""
-              aria-hidden="true"
-              className="h-28 w-auto select-none pointer-events-none"
-              draggable="false"
-            />
-          </div>
-
           <div className="text-center mb-10">
             <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted mb-3 inline-flex items-center gap-2.5">
               <span className="w-6 h-px bg-accent" /> {t(portal.eyebrowKey)}
