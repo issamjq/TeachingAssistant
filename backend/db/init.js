@@ -765,9 +765,9 @@ const TEACHERS = [
   ["Layla", "Hassan", "layla.hassan@murchid.school", "+971 55 345 6789", "STF-003", ["English", "Drama"], ["Grade 6", "Grade 7", "Grade 8"], "Lebanon", "2021-08-20", "English language teacher with a focus on creative writing and reading comprehension.", "teacher"],
   ["Mohammed", "Al-Suwaidi", "mohammed.alsuwaidi@murchid.school", "+971 50 456 7890", "STF-004", ["Arabic", "Islamic Studies"], ["KG 1", "KG 2", "Grade 1", "Grade 2", "Grade 3"], "UAE", "2015-09-15", "Early years Arabic and Islamic studies specialist.", "teacher"],
   ["Priya", "Menon", "priya.menon@murchid.school", "+971 56 567 8901", "STF-005", ["Art", "History"], ["Grade 4", "Grade 5", "Grade 6", "Grade 7"], "India", "2020-09-01", "Art teacher and humanities cross-curricular collaborator.", "teacher"],
-  // Operational accounts (no teaching content). Discoverable via the role-switcher.
-  ["Murchid", "Admin", "admin@murchid.school", null, "ADM-001", [], [], null, null, "Administrative account — manages teachers and system stats.", "admin"],
-  ["Murchid", "Dev",   "dev@murchid.school",   null, "DEV-001", [], [], null, null, "Engineering account — read-only inspector, logs, feature flags.", "dev"],
+  // Operational placeholders removed — real dev / super_admin live in
+  // built-in env (issa.mjq, karaaliissa) and any actual admin/moe/owner
+  // accounts get created on demand through the super admin console.
   // Project owner — pre-seeded so signing in with this Google account
   // immediately attaches the existing dev row via ON CONFLICT (email).
   // The role is also reconciled at login from DEV_EMAILS env.
@@ -875,6 +875,19 @@ export async function runInit() {
   console.log("Refreshing CHECK constraints...");
   await pool.query(CONSTRAINTS);
 
+  // One-time cleanup: drop the old "Murchid Admin" / "Murchid Dev"
+  // placeholder rows. They predate the env-driven role allowlist and
+  // kept re-appearing after deletion because the seed loop re-inserted
+  // them on every boot. Real privileged users come from BUILTIN_*_EMAILS
+  // (issa.mjq, karaaliissa) and the super admin console going forward.
+  // Only deletes rows whose firebase_uid is still NULL — if someone
+  // had somehow claimed the email by signing in, we don't touch them.
+  await pool.query(
+    `DELETE FROM accounts
+      WHERE staff_id IN ('ADM-001', 'DEV-001')
+        AND firebase_uid IS NULL`
+  );
+
   // --- Teachers seed ------------------------------------------------------
   const tch = await pool.query("SELECT COUNT(*)::int AS n FROM accounts");
   if (tch.rows[0].n === 0) {
@@ -916,12 +929,20 @@ export async function runInit() {
     }
   }
 
-  // Resolve a default account_id once for backfills below.
-  const defaultAccount = await pool.query(
-    "SELECT id FROM accounts WHERE staff_id = 'STF-001' LIMIT 1"
-  );
-  const defaultAccountId = defaultAccount.rows[0]?.id;
-  if (!defaultAccountId) throw new Error("No STF-001 account found — cannot backfill.");
+  // Resolve a default account_id once for backfills + the student seed.
+  // Tries STF-001 (the legacy default if the dummy teachers seed ran),
+  // falls back to any account (the lowest id, usually the project owner).
+  // If the table is empty AND students need seeding, that's a real error
+  // worth raising — but on a cleaned-up DB with only privileged accounts,
+  // any account is fine for ownership of seed students.
+  let defaultAccountId = null;
+  const sTF = await pool.query("SELECT id FROM accounts WHERE staff_id = 'STF-001' LIMIT 1");
+  if (sTF.rows[0]?.id) {
+    defaultAccountId = sTF.rows[0].id;
+  } else {
+    const any = await pool.query("SELECT id FROM accounts ORDER BY id LIMIT 1");
+    defaultAccountId = any.rows[0]?.id || null;
+  }
 
   // Templates + Drafts no longer seed dummy rows. Teachers start with
   // an empty Lesson Plans surface and build their own library.
@@ -929,6 +950,9 @@ export async function runInit() {
   // --- Students seed ------------------------------------------------------
   const stu = await pool.query("SELECT COUNT(*)::int AS n FROM students");
   if (stu.rows[0].n === 0) {
+    if (!defaultAccountId) {
+      throw new Error("Cannot seed students — no accounts exist to own them.");
+    }
     console.log(`Seeding ${STUDENTS.length} students...`);
     for (const row of STUDENTS) {
       await pool.query(
@@ -947,11 +971,16 @@ export async function runInit() {
     console.log(`Students already populated (${stu.rows[0].n} rows). Skipping seed.`);
   }
 
-  // --- Backfill teacher_id on legacy rows + lock NOT NULL -----------------
-  console.log("Backfilling teacher_id on legacy rows...");
-  await pool.query(`UPDATE templates SET account_id = $1 WHERE account_id IS NULL`, [defaultAccountId]);
-  await pool.query(`UPDATE drafts    SET account_id = $1 WHERE account_id IS NULL`, [defaultAccountId]);
-  await pool.query(`UPDATE students  SET account_id = $1 WHERE account_id IS NULL`, [defaultAccountId]);
+  // --- Backfill account_id on legacy rows + lock NOT NULL -----------------
+  // Only runs if we have an account to point at. On a fresh production
+  // DB with no legacy rows, this is a no-op even when defaultAccountId
+  // exists. The NOT NULL lock is still applied either way.
+  if (defaultAccountId) {
+    console.log("Backfilling account_id on legacy rows...");
+    await pool.query(`UPDATE templates SET account_id = $1 WHERE account_id IS NULL`, [defaultAccountId]);
+    await pool.query(`UPDATE drafts    SET account_id = $1 WHERE account_id IS NULL`, [defaultAccountId]);
+    await pool.query(`UPDATE students  SET account_id = $1 WHERE account_id IS NULL`, [defaultAccountId]);
+  }
 
   await pool.query(`ALTER TABLE templates ALTER COLUMN account_id SET NOT NULL`);
   await pool.query(`ALTER TABLE drafts    ALTER COLUMN account_id SET NOT NULL`);
@@ -981,6 +1010,15 @@ export async function runInit() {
   }
 
   // --- Sample schedule + notifications so dashboard has something --------
+  // Only seeds if we have a default account to assign them to. On a
+  // cleaned-up DB with only privileged accounts (dev / super admin),
+  // the sample dashboard data lands on the project owner account so
+  // they see the studio with something in it.
+  if (!defaultAccountId) {
+    await pool.end();
+    console.log("Done (skipped sample schedule/notifications — no default account).");
+    return;
+  }
   const sch = await pool.query("SELECT COUNT(*)::int AS n FROM schedule_entries WHERE account_id = $1", [defaultAccountId]);
   if (sch.rows[0].n === 0) {
     console.log("Seeding sample schedule entries...");
