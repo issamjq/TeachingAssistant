@@ -20,6 +20,7 @@ import {
   ROLES, ROLE_LABELS, SUB_ROLES, SUB_ROLE_LABELS, rolesGrantableBy,
 } from "../lib/role";
 import AccountDrawer from "./AccountDrawer";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const STATUS_LABEL = {
   active: "Active",
@@ -199,6 +200,24 @@ export default function SuperAdminConsole() {
                 </tr>
               </thead>
               <tbody>
+                {loading && accounts.length === 0 && (
+                  Array.from({ length: 5 }).map((_, i) => (
+                    <tr key={`sk-${i}`} className="border-b border-line/60 last:border-0">
+                      <td className="py-3 px-5"><Skeleton className="h-4 w-32" /></td>
+                      <td className="py-3"><Skeleton className="h-3 w-40" /></td>
+                      <td className="py-3"><Skeleton className="h-5 w-20 rounded-full" /></td>
+                      <td className="py-3"><Skeleton className="h-5 w-16 rounded-full" /></td>
+                      <td className="py-3"><Skeleton className="h-3 w-16" /></td>
+                      <td className="py-3 px-5">
+                        <div className="flex items-center gap-1">
+                          <Skeleton className="h-7 w-7 rounded-md" />
+                          <Skeleton className="h-7 w-7 rounded-md" />
+                          <Skeleton className="h-7 w-7 rounded-md" />
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
                 {visible.map((t) => {
                   // Hide every destructive control on the actor's own
                   // row. The backend already rejects self-suspend /

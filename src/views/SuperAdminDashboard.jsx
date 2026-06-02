@@ -17,6 +17,7 @@ import { LineChart, DonutChart, BarChart } from "../components/MiniCharts";
 import { ROLE_LABELS, ROLES } from "../lib/role";
 import AccountDrawer from "./AccountDrawer";
 import BrandLoader from "../components/BrandLoader";
+import { Skeleton } from "../components/ui/skeleton";
 
 const ROLE_COLORS = {
   super_admin: "var(--color-accent, #c8472b)",
@@ -69,7 +70,7 @@ export default function SuperAdminDashboard() {
   useEffect(() => { reload(); }, [days]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (loading && !data) {
-    return <BrandLoader fullscreen={false} />;
+    return <DashboardSkeleton />;
   }
   if (error) {
     return (
@@ -427,4 +428,158 @@ function timeAgo(ts) {
   if (sec < 86400) return `${Math.floor(sec / 3600)}h`;
   if (sec < 604800) return `${Math.floor(sec / 86400)}d`;
   return d.toLocaleDateString();
+}
+
+// Dashboard skeleton — mirrors the real layout (hero header, two KPI
+// rows, signups chart, role/revenue pair, sub status/logins pair,
+// content footprint, activity + recent accounts). Renders immediately
+// while the dashboard fetches data, so the shell never reads as empty.
+function DashboardSkeleton() {
+  return (
+    <div className="space-y-6 md:space-y-8 px-4 md:px-0">
+      {/* Hero */}
+      <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+        <div className="space-y-3 flex-1 min-w-0">
+          <Skeleton className="h-3 w-24" />
+          <Skeleton className="h-10 w-72 max-w-full" />
+          <Skeleton className="h-4 w-full max-w-xl" />
+        </div>
+        <Skeleton className="h-9 w-32 rounded-lg" />
+      </div>
+
+      {/* People KPI row (6 cards) */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <KpiSkeleton key={i} />
+        ))}
+      </div>
+
+      {/* Money KPI row (4 cards) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <KpiSkeleton key={i} />
+        ))}
+      </div>
+
+      {/* Signups chart */}
+      <Card>
+        <CardContent>
+          <ChartHeaderSkeleton />
+          <Skeleton className="h-44 w-full" />
+        </CardContent>
+      </Card>
+
+      {/* Two-up: accounts donut + revenue bars */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card><CardContent><DonutSkeleton /></CardContent></Card>
+        <Card><CardContent><BarsSkeleton /></CardContent></Card>
+      </div>
+
+      {/* Two-up: subs donut + logins line */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card><CardContent><DonutSkeleton /></CardContent></Card>
+        <Card>
+          <CardContent>
+            <ChartHeaderSkeleton />
+            <Skeleton className="h-44 w-full" />
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Content footprint */}
+      <Card>
+        <CardContent>
+          <ChartHeaderSkeleton />
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-2 sm:gap-3">
+            {Array.from({ length: 7 }).map((_, i) => (
+              <div key={i} className="bg-paper-warm rounded-lg p-3 text-center space-y-2">
+                <Skeleton className="h-2.5 w-12 mx-auto" />
+                <Skeleton className="h-7 w-10 mx-auto" />
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Two-up lists */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {[0, 1].map((col) => (
+          <Card key={col}>
+            <CardContent>
+              <ChartHeaderSkeleton />
+              <ul className="divide-y divide-line/60">
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <li key={i} className="py-3 flex items-center gap-3">
+                    <div className="flex-1 min-w-0 space-y-2">
+                      <Skeleton className="h-3.5 w-1/2" />
+                      <Skeleton className="h-2.5 w-2/3" />
+                    </div>
+                    <Skeleton className="h-2.5 w-10" />
+                  </li>
+                ))}
+              </ul>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function KpiSkeleton() {
+  return (
+    <Card>
+      <CardContent className="p-4 space-y-3">
+        <Skeleton className="h-2.5 w-20" />
+        <Skeleton className="h-8 w-16" />
+        <Skeleton className="h-2 w-24" />
+      </CardContent>
+    </Card>
+  );
+}
+
+function ChartHeaderSkeleton() {
+  return (
+    <div className="mb-5 space-y-2">
+      <Skeleton className="h-2.5 w-20" />
+      <Skeleton className="h-5 w-56 max-w-full" />
+    </div>
+  );
+}
+
+function DonutSkeleton() {
+  return (
+    <>
+      <ChartHeaderSkeleton />
+      <div className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6">
+        <Skeleton className="h-[200px] w-[200px] rounded-full mx-auto sm:mx-0 flex-shrink-0" />
+        <div className="flex-1 w-full space-y-2.5">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="flex items-center gap-2">
+              <Skeleton className="w-2.5 h-2.5 rounded-sm flex-shrink-0" />
+              <Skeleton className="h-3 flex-1" />
+              <Skeleton className="h-2.5 w-12" />
+            </div>
+          ))}
+        </div>
+      </div>
+    </>
+  );
+}
+
+function BarsSkeleton() {
+  return (
+    <>
+      <ChartHeaderSkeleton />
+      <div className="space-y-3">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div key={i} className="flex items-center gap-3">
+            <Skeleton className="w-16 sm:w-20 h-3 flex-shrink-0" />
+            <Skeleton className="flex-1 h-5 rounded-sm" />
+            <Skeleton className="w-16 sm:w-20 h-3 flex-shrink-0" />
+          </div>
+        ))}
+      </div>
+    </>
+  );
 }

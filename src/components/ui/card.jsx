@@ -36,7 +36,12 @@ export function Card({
   );
 }
 
-export function CardContent({ className = "", children, ...props }) {
+// Default internal padding so a card never reads as visually empty
+// when its child content is small. Callers can override by passing
+// their own className (e.g. `p-4` for tight KPI tiles, `p-0` to flush
+// against the edge for tables). Tailwind's last-wins resolution makes
+// the override work cleanly.
+export function CardContent({ className = "p-6", children, ...props }) {
   return (
     <div className={className} {...props}>
       {children}

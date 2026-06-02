@@ -20,6 +20,7 @@ import {
   PERMISSION_GROUPS, ROLE_DEFAULTS, resolvePermissions, PERMISSION_KEYS,
 } from "../lib/permissions";
 import { ROLE_LABELS, SUB_ROLE_LABELS } from "../lib/role";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const STATUS_LABEL = {
   active: "Active",
@@ -143,7 +144,9 @@ export default function AccountDrawer({ accountId, isSelf, onClose, onChanged })
               Account access
             </p>
             <h2 className="font-serif text-2xl text-ink">
-              {loading ? "…" : (account ? `${account.first_name} ${account.last_name}` : "Not found")}
+              {loading
+                ? <Skeleton className="h-7 w-48" />
+                : (account ? `${account.first_name} ${account.last_name}` : "Not found")}
             </h2>
           </div>
           <button
@@ -158,6 +161,38 @@ export default function AccountDrawer({ accountId, isSelf, onClose, onChanged })
         {error && (
           <div className="m-8 bg-paper border border-accent rounded-lg p-4">
             <p className="font-mono text-[10px] uppercase tracking-wider text-accent">{error}</p>
+          </div>
+        )}
+
+        {loading && !account && (
+          <div className="px-8 py-6 space-y-8">
+            {Array.from({ length: 3 }).map((_, sectionIdx) => (
+              <section key={sectionIdx} className="space-y-3">
+                <Skeleton className="h-2.5 w-24" />
+                <div className="grid grid-cols-2 gap-x-6 gap-y-3">
+                  {Array.from({ length: 6 }).map((_, i) => (
+                    <div key={i} className="space-y-1.5">
+                      <Skeleton className="h-2.5 w-16" />
+                      <Skeleton className="h-4 w-32 max-w-full" />
+                    </div>
+                  ))}
+                </div>
+              </section>
+            ))}
+            <section className="space-y-3">
+              <Skeleton className="h-2.5 w-32" />
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="space-y-2">
+                  <Skeleton className="h-4 w-40" />
+                  <Skeleton className="h-3 w-3/4" />
+                  <div className="space-y-1.5 pl-2">
+                    {Array.from({ length: 4 }).map((_, j) => (
+                      <Skeleton key={j} className="h-4 w-full" />
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </section>
           </div>
         )}
 

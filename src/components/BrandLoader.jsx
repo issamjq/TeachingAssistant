@@ -43,14 +43,19 @@ export default function BrandLoader({ fullscreen = true, compact = false, label 
   );
 
   if (compact && !fullscreen) {
-    // Compact + non-fullscreen: caller controls padding / centering.
+    // Compact + non-fullscreen: tight inline (table rows, small cards).
     return <div className="flex items-center justify-center py-8">{body}</div>;
   }
 
   if (!fullscreen) {
-    // Inline (non-fullscreen) with full elements — still padded so it
-    // breathes inside whatever container hosts it.
-    return <div className="flex items-center justify-center py-12">{body}</div>;
+    // Page-level loader inside the studio shell. min-h-[60vh] keeps it
+    // visually centered in the available content area instead of
+    // sticking to the top.
+    return (
+      <div className="min-h-[60vh] flex items-center justify-center px-4">
+        {body}
+      </div>
+    );
   }
 
   return (
