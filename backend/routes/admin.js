@@ -6,6 +6,12 @@ import { validateBody } from "../lib/validate.js";
 import { recordAudit } from "../lib/audit.js";
 import { clientIp, userAgent } from "../lib/auth.js";
 import { canGrantRole, ROLES, isValidSubRole } from "../lib/roles.js";
+import { PLANS, TRIAL_PLAN_ID } from "../../src/lib/plans.js";
+
+const MONTHLY_PRICE = Object.fromEntries(
+  PLANS.map((p) => [p.id, Number(p.total) / (p.durationDays / 30)])
+);
+MONTHLY_PRICE[TRIAL_PLAN_ID] = 0;
 
 // Admin endpoints — manage teacher accounts, never see their content.
 //
@@ -224,6 +230,118 @@ router.get("/stats", async (_req, res) => {
     res.json(r.rows[0]);
   } catch (err) {
     handleErr(res, "GET /api/admin/stats", err);
+  }
+});
+
+// GET /api/admin/dashboard
+//
+// Richer KPI bundle for the new AdminDashboard view. Returns teacher
+// status counts, sub status counts, ending-in-30d count, revenue
+// (MRR/ARR/by-plan), and activity snapshots (signups/logins). Used by
+// every admin sub-role; the frontend chooses which sections to render.
+router.get("/dashboard", async (_req, res) => {
+  try {
+    const [statusCounts, subCounts, ending, content, revenue, activity] = await Promise.all([
+      pool.query(`
+        SELECT
+          COUNT(*) FILTER (WHERE status = 'active')::int    AS active,
+          COUNT(*) FILTER (WHERE status = 'suspended')::int AS suspended,
+          COUNT(*) FILTER (WHERE status = 'deleted')::int   AS deleted,
+          COUNT(*)::int AS total
+        FROM accounts WHERE role = 'teacher'
+      `),
+      pool.query(`
+        SELECT
+          COUNT(*) FILTER (WHERE subscription_status = 'trial')::int     AS trial,
+          COUNT(*) FILTER (WHERE subscription_status = 'active')::int    AS active,
+          COUNT(*) FILTER (WHERE subscription_status = 'expired')::int   AS expired,
+          COUNT(*) FILTER (WHERE subscription_status = 'suspended')::int AS suspended
+        FROM accounts WHERE role = 'teacher'
+      `),
+      pool.query(`
+        SELECT COUNT(*)::int AS n FROM accounts
+        WHERE role = 'teacher'
+          AND subscription_status IN ('trial','active')
+          AND subscription_ends_at IS NOT NULL
+          AND subscription_ends_at <= NOW() + INTERVAL '30 days'
+      `),
+      pool.query(`
+        SELECT
+          (SELECT COUNT(*)::int FROM drafts        WHERE deleted_at IS NULL) AS lesson_plans,
+          (SELECT COUNT(*)::int FROM quizzes       WHERE deleted_at IS NULL) AS quizzes,
+          (SELECT COUNT(*)::int FROM homework      WHERE deleted_at IS NULL) AS homework,
+          (SELECT COUNT(*)::int FROM presentations WHERE deleted_at IS NULL) AS presentations,
+          (SELECT COUNT(*)::int FROM activities    WHERE deleted_at IS NULL) AS activities,
+          (SELECT COUNT(*)::int FROM students)                                AS students
+      `),
+      pool.query(`
+        SELECT subscription_plan AS plan, COUNT(*)::int AS n
+        FROM accounts
+        WHERE role = 'teacher'
+          AND subscription_status IN ('trial','active')
+          AND subscription_plan IS NOT NULL
+        GROUP BY subscription_plan
+      `),
+      pool.query(`
+        SELECT
+          COUNT(*) FILTER (WHERE created_at  >= NOW() - INTERVAL '7 days')::int   AS new_7d,
+          COUNT(*) FILTER (WHERE created_at  >= NOW() - INTERVAL '30 days')::int  AS new_30d,
+          COUNT(*) FILTER (WHERE last_login_at >= NOW() - INTERVAL '7 days')::int  AS active_7d,
+          COUNT(*) FILTER (WHERE last_login_at::date = CURRENT_DATE)::int          AS active_today
+        FROM accounts WHERE role = 'teacher'
+      `),
+    ]);
+
+    let mrr = 0;
+    const revenueByPlan = {};
+    for (const r of revenue.rows) {
+      const price = MONTHLY_PRICE[r.plan] || 0;
+      revenueByPlan[r.plan] = Math.round(r.n * price * 100) / 100;
+      mrr += r.n * price;
+    }
+    mrr = Math.round(mrr * 100) / 100;
+
+    res.json({
+      teachers: { ...statusCounts.rows[0] },
+      subscriptions: {
+        ...subCounts.rows[0],
+        ending_30d: ending.rows[0].n,
+      },
+      revenue: { mrr, arr: Math.round(mrr * 12 * 100) / 100, currency: "AED", by_plan: revenueByPlan },
+      activity: activity.rows[0],
+      content: content.rows[0],
+    });
+  } catch (err) {
+    handleErr(res, "GET /api/admin/dashboard", err);
+  }
+});
+
+// GET /api/admin/signups?days=N — daily teacher signups for the chart.
+router.get("/signups", async (req, res) => {
+  try {
+    const days = Math.min(Math.max(Number(req.query.days) || 30, 7), 365);
+    const r = await pool.query(`
+      WITH days AS (
+        SELECT generate_series(
+          (CURRENT_DATE - ($1::int - 1)),
+          CURRENT_DATE,
+          INTERVAL '1 day'
+        )::date AS day
+      ),
+      signups AS (
+        SELECT created_at::date AS day, COUNT(*)::int AS n
+        FROM accounts
+        WHERE role = 'teacher'
+          AND created_at >= NOW() - ($1::int || ' days')::interval
+        GROUP BY day
+      )
+      SELECT d.day::text AS day, COALESCE(s.n, 0)::int AS n
+      FROM days d LEFT JOIN signups s ON s.day = d.day
+      ORDER BY d.day
+    `, [days]);
+    res.json(r.rows);
+  } catch (err) {
+    handleErr(res, "GET /api/admin/signups", err);
   }
 });
 

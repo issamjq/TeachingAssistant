@@ -23,9 +23,11 @@ import ActivityBuilder from "./views/ActivityBuilder";
 import Reports from "./views/Reports";
 import Studio from "./views/Studio";
 import AdminConsole from "./views/AdminConsole";
+import AdminDashboard from "./views/AdminDashboard";
 import SuperAdminConsole from "./views/SuperAdminConsole";
 import SuperAdminDashboard from "./views/SuperAdminDashboard";
 import OwnerDashboard from "./views/OwnerDashboard";
+import MoeDashboard from "./views/MoeDashboard";
 import DevConsole from "./views/DevConsole";
 import { getRole, onRoleChange, ROLE_LABELS } from "./lib/role";
 import { api } from "./views/_shared";
@@ -66,7 +68,10 @@ const TEACHER_NAV = [
 ];
 
 const ADMIN_NAV = [
-  { section: "Admin", items: [{ key: "admin-console", label: "Admin console", letter: "A" }] },
+  { section: "Admin", items: [
+    { key: "admin-dashboard", label: "Dashboard",    letter: "D" },
+    { key: "admin-console",   label: "Teachers",     letter: "T" },
+  ] },
 ];
 
 const DEV_NAV = [
@@ -99,7 +104,7 @@ const NAV_BY_ROLE = {
 
 const DEFAULT_ROUTE = {
   teacher: "planner",
-  admin: "admin-console",
+  admin: "admin-dashboard",
   dev: "dev-console",
   super_admin: "superadmin-dashboard",
   moe: "moe-console",
@@ -122,7 +127,7 @@ const SECTIONS_BY_ROLE = {
     "database", "reports",
     "account",
   ]),
-  admin: new Set(["admin-console", "account"]),
+  admin: new Set(["admin-dashboard", "admin-console", "account"]),
   dev: new Set(["dev-console", "account"]),
   super_admin: new Set(["superadmin-dashboard", "superadmin-console", "account"]),
   moe: new Set(["moe-console", "account"]),
@@ -302,8 +307,13 @@ export default function StudioApp({ onClose }) {
       mainContent = <SuperAdminDashboard />;
     }
   } else if (role === "admin") {
-    crumbs = [{ label: "Admin console" }];
-    mainContent = <AdminConsole />;
+    if (section === "admin-console") {
+      crumbs = [{ label: "Teachers" }];
+      mainContent = <AdminConsole />;
+    } else {
+      crumbs = [{ label: "Admin dashboard" }];
+      mainContent = <AdminDashboard />;
+    }
   } else if (role === "dev") {
     crumbs = [{ label: "Dev console" }];
     mainContent = <DevConsole />;
@@ -311,23 +321,8 @@ export default function StudioApp({ onClose }) {
     crumbs = [{ label: t("nav.owner-console") }];
     mainContent = <OwnerDashboard />;
   } else if (role === "moe") {
-    // moe read-only persona — dashboard + reports come later when
-    // business rules land. Placeholder so they don't see the teacher
-    // surfaces by accident.
     crumbs = [{ label: t("nav.moe-console") }];
-    mainContent = (
-      <div className="p-12 text-center">
-        <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-3">
-          {t("console.coming.moe.eyebrow")}
-        </p>
-        <h2 className="font-serif text-3xl text-ink mb-2">
-          {t("console.coming.title.a")} <em className="italic font-light text-accent">{t("console.coming.title.b")}</em>
-        </h2>
-        <p className="text-sm text-muted">
-          {t("console.coming.body.moe")}
-        </p>
-      </div>
-    );
+    mainContent = <MoeDashboard />;
   } else if (section === "dashboard") {
     mainContent = <Dashboard onJump={handleNavClick} />;
   } else if (section === "database") {

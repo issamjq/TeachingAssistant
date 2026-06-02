@@ -23,6 +23,7 @@ import authRouter from "./routes/auth.js";
 import adminRouter from "./routes/admin.js";
 import superadminRouter from "./routes/superadmin.js";
 import ownerRouter from "./routes/owner.js";
+import moeRouter from "./routes/moe.js";
 import devRouter from "./routes/dev.js";
 import { requireAuth, requireRole } from "./lib/auth.js";
 import {
@@ -135,6 +136,7 @@ export function buildApp() {
   app.use("/api/admin",      requireRole("admin", "super_admin", "dev"),    adminRouter);
   app.use("/api/superadmin", requireRole("super_admin", "dev"),             superadminRouter);
   app.use("/api/owner",      requireRole("owner", "super_admin", "dev"),    ownerRouter);
+  app.use("/api/moe",        requireRole("moe", "super_admin", "dev"),      moeRouter);
   app.use("/api/dev",        requireRole("dev"),                            devRouter);
 
   // 14. JSON 404 (any /api/* that didn't match falls through here).
