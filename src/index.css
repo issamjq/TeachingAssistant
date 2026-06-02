@@ -284,6 +284,47 @@ select:focus-visible {
 }
 
 /* ════════════════════════════════════════════════════════════════════
+   BRAND LOADER — full-screen premium loading state. Used by PortalSignIn
+   and any other surface that needs a "checking" splash. Three coordinated
+   animations:
+     - sweep: thin red bar travels L→R inside a rail, fades at the edges
+     - pulse: wordmark opacity breathes very subtly (0.85 ↔ 1.0)
+     - eyebrow: letter-spacing breathes (matches the slow tempo)
+   ════════════════════════════════════════════════════════════════════ */
+.brand-loader-sweep {
+  animation: brand-loader-sweep 1.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+@keyframes brand-loader-sweep {
+  0%   { transform: translateX(-48px); opacity: 0; }
+  15%  { opacity: 1; }
+  85%  { opacity: 1; }
+  100% { transform: translateX(128px); opacity: 0; }
+}
+
+.brand-loader-pulse {
+  animation: brand-loader-pulse 2.6s ease-in-out infinite;
+}
+@keyframes brand-loader-pulse {
+  0%, 100% { opacity: 0.85; }
+  50%      { opacity: 1; }
+}
+
+.brand-loader-eyebrow {
+  animation: brand-loader-eyebrow 2.6s ease-in-out infinite;
+}
+@keyframes brand-loader-eyebrow {
+  0%, 100% { letter-spacing: 0.30em; opacity: 0.55; }
+  50%      { letter-spacing: 0.38em; opacity: 0.85; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .brand-loader-sweep,
+  .brand-loader-pulse,
+  .brand-loader-eyebrow { animation: none; }
+  .brand-loader-sweep { opacity: 0.6; transform: translateX(40px); }
+}
+
+/* ════════════════════════════════════════════════════════════════════
    PLANNER 2026 — pulse hero card + drenched today cell corner
    ════════════════════════════════════════════════════════════════════ */
 

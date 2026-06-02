@@ -24,6 +24,7 @@ import { api } from "./_shared";
 import { exitPortalToStudio } from "../lib/portal";
 import { setAccount } from "../lib/account";
 import { setRole } from "../lib/role";
+import BrandLoader from "../components/BrandLoader";
 
 function GoogleMark() {
   return (
@@ -147,11 +148,7 @@ export default function PortalSignIn({ portal }) {
   }
 
   if (checking) {
-    return (
-      <div className="min-h-screen bg-paper flex items-center justify-center">
-        <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted">…</p>
-      </div>
-    );
+    return <BrandLoader />;
   }
 
   return (
