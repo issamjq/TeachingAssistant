@@ -52,7 +52,7 @@ function RoleBadge({ role, subRole }) {
 
 export default function SuperAdminConsole() {
   const [stats, setStats] = useState(null);
-  const [teachers, setTeachers] = useState([]);
+  const [accounts, setAccounts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [editing, setEditing] = useState(null); // "new" | row object
@@ -63,7 +63,7 @@ export default function SuperAdminConsole() {
   const reload = () => {
     setLoading(true);
     Promise.all([api("/api/admin/stats"), api("/api/admin/teachers")])
-      .then(([s, t]) => { setStats(s); setTeachers(t); setLoading(false); })
+      .then(([s, t]) => { setStats(s); setAccounts(t); setLoading(false); })
       .catch((err) => { setError(err.message); setLoading(false); });
   };
   useEffect(reload, []);
@@ -77,7 +77,7 @@ export default function SuperAdminConsole() {
     setBusy(true);
     try {
       await api(`/api/admin/teachers/${deleting.id}`, { method: "DELETE" });
-      setTeachers((rows) => rows.filter((r) => r.id !== deleting.id));
+      setAccounts((rows) => rows.filter((r) => r.id !== deleting.id));
       setDeleting(null);
     } catch (e) {
       alert(`Could not delete: ${e.message}`);
@@ -87,7 +87,7 @@ export default function SuperAdminConsole() {
   };
 
   const onSaved = (saved) => {
-    setTeachers((rows) => {
+    setAccounts((rows) => {
       const idx = rows.findIndex((r) => r.id === saved.id);
       if (idx >= 0) {
         const copy = [...rows];
@@ -100,19 +100,19 @@ export default function SuperAdminConsole() {
   };
 
   const visible = useMemo(() => {
-    if (filter === "all") return teachers;
-    return teachers.filter((t) => t.role === filter);
-  }, [teachers, filter]);
+    if (filter === "all") return accounts;
+    return accounts.filter((t) => t.role === filter);
+  }, [accounts, filter]);
 
   // Counts by role for the filter chips. Computed once per render — the
   // teacher list is small enough that this is fine without memoization
   // beyond useMemo.
   const counts = useMemo(() => {
-    const c = { all: teachers.length };
+    const c = { all: accounts.length };
     for (const r of ROLES) c[r] = 0;
-    for (const t of teachers) c[t.role] = (c[t.role] || 0) + 1;
+    for (const t of accounts) c[t.role] = (c[t.role] || 0) + 1;
     return c;
-  }, [teachers]);
+  }, [accounts]);
 
   return (
     <div>

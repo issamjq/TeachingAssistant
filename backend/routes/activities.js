@@ -27,7 +27,7 @@ const assertOwns = async (req, id) => {
   const cur = await loadCurrentTeacher(req);
   if (!cur) return false;
   const r = await pool.query(
-    "SELECT id FROM activities WHERE id = $1 AND teacher_id = $2",
+    "SELECT id FROM activities WHERE id = $1 AND account_id = $2",
     [id, cur.id]
   );
   return r.rows.length > 0;
@@ -45,7 +45,7 @@ router.get("/:id/completions", async (req, res) => {
          FROM students s
          LEFT JOIN activity_completions ac
                 ON ac.student_id = s.id AND ac.activity_id = $1
-        WHERE s.teacher_id = (SELECT teacher_id FROM activities WHERE id = $1)
+        WHERE s.account_id = (SELECT account_id FROM activities WHERE id = $1)
         ORDER BY s.grade, s.section, s.last_name`,
       [req.params.id]
     );
@@ -62,7 +62,7 @@ router.put("/:id/completions/:studentId", async (req, res) => {
     }
     const cur = await loadCurrentTeacher(req);
     const own = await pool.query(
-      "SELECT 1 FROM students WHERE id = $1 AND teacher_id = $2",
+      "SELECT 1 FROM students WHERE id = $1 AND account_id = $2",
       [req.params.studentId, cur.id]
     );
     if (own.rowCount === 0) return res.status(404).json({ error: "Student not found" });

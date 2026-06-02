@@ -63,7 +63,7 @@ router.post("/bulk", async (req, res) => {
 
     await client.query("BEGIN");
     const quizRes = await client.query(
-      `INSERT INTO quizzes (teacher_id, title, subject, grade, section, language,
+      `INSERT INTO quizzes (account_id, title, subject, grade, section, language,
                             difficulty, duration_minutes, total_marks, status,
                             scheduled_for, instructions)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, COALESCE($10, 'Draft'), $11, $12)
@@ -118,7 +118,7 @@ router.post("/:quizId/sync", async (req, res) => {
     const cur = await loadCurrentTeacher(req);
     if (!cur) return res.status(401).json({ error: "No current teacher" });
     const own = await pool.query(
-      "SELECT id FROM quizzes WHERE id = $1 AND teacher_id = $2",
+      "SELECT id FROM quizzes WHERE id = $1 AND account_id = $2",
       [req.params.quizId, cur.id]
     );
     if (own.rows.length === 0) return res.status(404).json({ error: "Quiz not found" });
@@ -140,7 +140,7 @@ router.post("/:quizId/sync", async (req, res) => {
               total_marks = $9, status = COALESCE($10, status),
               scheduled_for = $11, instructions = $12,
               updated_at = NOW()
-        WHERE id = $1 AND teacher_id = $13
+        WHERE id = $1 AND account_id = $13
         RETURNING ${QUIZ_SELECT}`,
       [
         req.params.quizId, title, subject || null, grade || null,
@@ -195,7 +195,7 @@ const assertOwnsQuiz = async (req, quizId) => {
   const cur = await loadCurrentTeacher(req);
   if (!cur) return false;
   const r = await pool.query(
-    "SELECT id FROM quizzes WHERE id = $1 AND teacher_id = $2",
+    "SELECT id FROM quizzes WHERE id = $1 AND account_id = $2",
     [quizId, cur.id]
   );
   return r.rows.length > 0;
@@ -287,7 +287,7 @@ router.get("/:quizId/scores", async (req, res) => {
               qs.score, qs.max_score, qs.feedback, qs.recorded_at
          FROM students s
          LEFT JOIN quiz_scores qs ON qs.student_id = s.id AND qs.quiz_id = $1
-        WHERE s.teacher_id = (SELECT teacher_id FROM quizzes WHERE id = $1)
+        WHERE s.account_id = (SELECT account_id FROM quizzes WHERE id = $1)
         ORDER BY s.grade, s.section, s.last_name`,
       [req.params.quizId]
     );

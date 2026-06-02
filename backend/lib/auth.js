@@ -1,13 +1,13 @@
 // Auth middleware — verifies the Firebase ID token on the Authorization
-// header, looks the teacher up by firebase_uid, and stashes both on
-// req.firebaseUser / req.teacher for downstream handlers.
+// header, looks the account up by firebase_uid, and stashes both on
+// req.firebaseUser / req.account for downstream handlers.
 //
 // Routes that legitimately run unauthenticated (the marketing /healthz,
 // the school catalog, and POST /api/auth/firebase itself) opt out by
 // being mounted BEFORE this middleware in app.js, or by skipping the
 // check via the `optional` flag.
 //
-// On a verified-but-unknown user (firebase_uid not yet in DB), req.teacher
+// On a verified-but-unknown user (firebase_uid not yet in DB), req.account
 // is null and downstream routes get to decide whether to upsert. The
 // /api/auth/firebase route uses this to create the row on first login.
 import { pool } from "./db.js";
@@ -24,7 +24,7 @@ export const clientIp = (req) => {
 
 export const userAgent = (req) => req.headers["user-agent"] || null;
 
-const TEACHER_COLS = `id, first_name, last_name, email, phone, staff_id, majors, grade_levels,
+const ACCOUNT_COLS = `id, first_name, last_name, email, phone, staff_id, majors, grade_levels,
                        languages, sections, class_map, grade_sections,
                        nationality, hire_date, bio,
                        role, sub_role, status, firebase_uid, avatar_url,
@@ -32,12 +32,12 @@ const TEACHER_COLS = `id, first_name, last_name, email, phone, staff_id, majors,
                        last_login_at, last_login_ip,
                        created_at, updated_at`;
 
-export const TEACHER_COLS_SQL = TEACHER_COLS;
+export const ACCOUNT_COLS_SQL = ACCOUNT_COLS;
 
-// Find the teacher row attached to a Firebase uid (or null).
-export async function findTeacherByUid(uid) {
+// Find the account row attached to a Firebase uid (or null).
+export async function findAccountByUid(uid) {
   const r = await pool.query(
-    `SELECT ${TEACHER_COLS} FROM teachers WHERE firebase_uid = $1`,
+    `SELECT ${ACCOUNT_COLS} FROM accounts WHERE firebase_uid = $1`,
     [uid]
   );
   return r.rows[0] || null;
@@ -50,12 +50,12 @@ export async function findTeacherByUid(uid) {
 // teacher's records.
 export function requireRole(...roles) {
   return (req, res, next) => {
-    if (!req.teacher) return res.status(401).json({ error: "Not authenticated" });
-    if (!roles.includes(req.teacher.role)) {
+    if (!req.account) return res.status(401).json({ error: "Not authenticated" });
+    if (!roles.includes(req.account.role)) {
       // Don't leak which role is needed — 'forbidden' is enough for the
       // caller, and the server log carries the exact attempt.
       console.warn(
-        `[auth] role-deny teacher=${req.teacher.id} role=${req.teacher.role} ` +
+        `[auth] role-deny account=${req.account.id} role=${req.account.role} ` +
           `wanted=${roles.join("|")} path=${req.path}`
       );
       return res.status(403).json({ error: "Forbidden" });
@@ -81,10 +81,10 @@ const isSubscriptionExpired = (t) => {
 };
 
 // Express middleware. Options:
-//   optional      — allow the request through without a teacher row
+//   optional      — allow the request through without an account row
 //                   (used by /api/auth/firebase since on first login
 //                   the row hasn't been created yet)
-//   allowExpired  — let an expired-subscription teacher through anyway
+//   allowExpired  — let an expired-subscription account through anyway
 //                   (used by /api/auth/renew so they can pay to come
 //                   back)
 export function requireAuth({ optional = false, allowExpired = false } = {}) {
@@ -98,21 +98,21 @@ export function requireAuth({ optional = false, allowExpired = false } = {}) {
       }
       const decoded = await verifyIdToken(m[1]);
       req.firebaseUser = decoded;
-      req.teacher = await findTeacherByUid(decoded.uid);
-      if (!req.teacher && !optional) {
+      req.account = await findAccountByUid(decoded.uid);
+      if (!req.account && !optional) {
         // The token is valid but no DB row exists yet. The client should
         // call POST /api/auth/firebase first to bootstrap. We return a
         // structured 404 so the client knows to retry the bootstrap.
         return res.status(404).json({ error: "Teacher not provisioned", code: "no_teacher_row" });
       }
-      if (req.teacher && !allowExpired && isSubscriptionExpired(req.teacher)) {
+      if (req.account && !allowExpired && isSubscriptionExpired(req.account)) {
         // Subscription window ended. Flip status to 'expired' on first
         // detection so admin queries can see who's lapsed at a glance.
-        if (req.teacher.subscription_status !== "expired") {
+        if (req.account.subscription_status !== "expired") {
           try {
             await pool.query(
-              `UPDATE teachers SET subscription_status = 'expired', updated_at = NOW() WHERE id = $1`,
-              [req.teacher.id]
+              `UPDATE accounts SET subscription_status = 'expired', updated_at = NOW() WHERE id = $1`,
+              [req.account.id]
             );
           } catch { /* non-fatal — middleware still rejects */ }
         }

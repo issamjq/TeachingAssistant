@@ -31,14 +31,14 @@ router.get("/", async (req, res) => {
       pool.query(
         `SELECT id, title, subject, grade, section, start_time, end_time, location, status
            FROM schedule_entries
-          WHERE teacher_id = $1 AND date = CURRENT_DATE
+          WHERE account_id = $1 AND date = CURRENT_DATE
           ORDER BY start_time`,
         [cur.id]
       ),
       pool.query(
         `SELECT id, title, subject, grade, section, date, start_time, status
            FROM schedule_entries
-          WHERE teacher_id = $1
+          WHERE account_id = $1
             AND date > CURRENT_DATE
             AND date <= CURRENT_DATE + INTERVAL '7 days'
           ORDER BY date, start_time
@@ -48,7 +48,7 @@ router.get("/", async (req, res) => {
       pool.query(
         `SELECT id, title, subject, grade, section, due_date, status
            FROM homework
-          WHERE teacher_id = $1 AND status = 'Open'
+          WHERE account_id = $1 AND status = 'Open'
             AND (due_date IS NULL OR due_date <= CURRENT_DATE + INTERVAL '7 days')
           ORDER BY due_date NULLS LAST
           LIMIT 8`,
@@ -57,7 +57,7 @@ router.get("/", async (req, res) => {
       pool.query(
         `SELECT id, title, subject, grade, section, scheduled_for, total_marks, status
            FROM quizzes
-          WHERE teacher_id = $1
+          WHERE account_id = $1
             AND scheduled_for IS NOT NULL
             AND scheduled_for >= CURRENT_DATE
             AND scheduled_for <= CURRENT_DATE + INTERVAL '14 days'
@@ -68,26 +68,26 @@ router.get("/", async (req, res) => {
       pool.query(
         `SELECT id, name, subject, status, progress, last_edited
            FROM drafts
-          WHERE teacher_id = $1
+          WHERE account_id = $1
           ORDER BY last_edited DESC NULLS LAST
           LIMIT 5`,
         [cur.id]
       ),
       pool.query(
         `SELECT
-           (SELECT COUNT(*)::int FROM students      WHERE teacher_id = $1) AS students,
-           (SELECT COUNT(*)::int FROM drafts        WHERE teacher_id = $1) AS drafts,
-           (SELECT COUNT(*)::int FROM templates     WHERE teacher_id = $1) AS templates,
-           (SELECT COUNT(*)::int FROM quizzes       WHERE teacher_id = $1) AS quizzes,
-           (SELECT COUNT(*)::int FROM homework      WHERE teacher_id = $1) AS homework,
-           (SELECT COUNT(*)::int FROM presentations WHERE teacher_id = $1) AS presentations,
-           (SELECT COUNT(*)::int FROM activities    WHERE teacher_id = $1) AS activities`,
+           (SELECT COUNT(*)::int FROM students      WHERE account_id = $1) AS students,
+           (SELECT COUNT(*)::int FROM drafts        WHERE account_id = $1) AS drafts,
+           (SELECT COUNT(*)::int FROM templates     WHERE account_id = $1) AS templates,
+           (SELECT COUNT(*)::int FROM quizzes       WHERE account_id = $1) AS quizzes,
+           (SELECT COUNT(*)::int FROM homework      WHERE account_id = $1) AS homework,
+           (SELECT COUNT(*)::int FROM presentations WHERE account_id = $1) AS presentations,
+           (SELECT COUNT(*)::int FROM activities    WHERE account_id = $1) AS activities`,
         [cur.id]
       ),
       pool.query(
         `SELECT id, kind, message, link, is_read, created_at
            FROM notifications
-          WHERE teacher_id = $1 AND is_read = FALSE
+          WHERE account_id = $1 AND is_read = FALSE
           ORDER BY created_at DESC
           LIMIT 5`,
         [cur.id]

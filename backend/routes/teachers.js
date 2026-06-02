@@ -8,7 +8,7 @@ const SELECT = `id, first_name, last_name, email, phone, staff_id, majors, grade
                 nationality, hire_date, bio, created_at, updated_at`;
 
 export default crudRouter({
-  table: "teachers",
+  table: "accounts",
   fields: FIELDS,
   selectCols: SELECT,
   listOrderBy: "last_name, first_name",

@@ -78,7 +78,7 @@ router.get("/mine", async (req, res) => {
       `SELECT ${SCHOOL_COLS_S}, ts.is_primary, ts.grade_sections
          FROM teacher_schools ts
          JOIN schools s ON s.id = ts.school_id
-        WHERE ts.teacher_id = $1
+        WHERE ts.account_id = $1
         ORDER BY ts.is_primary DESC, s.name`,
       [cur.id]
     );
@@ -105,15 +105,15 @@ router.post("/mine", validateBody(AttachSchoolSchema), async (req, res) => {
 
     if (is_primary) {
       await pool.query(
-        `UPDATE teacher_schools SET is_primary = FALSE WHERE teacher_id = $1`,
+        `UPDATE teacher_schools SET is_primary = FALSE WHERE account_id = $1`,
         [cur.id]
       );
     }
     const gsJson = grade_sections ? JSON.stringify(grade_sections) : "{}";
     await pool.query(
-      `INSERT INTO teacher_schools (teacher_id, school_id, is_primary, grade_sections)
+      `INSERT INTO teacher_schools (account_id, school_id, is_primary, grade_sections)
        VALUES ($1, $2, $3, $4::jsonb)
-       ON CONFLICT (teacher_id, school_id) DO UPDATE SET
+       ON CONFLICT (account_id, school_id) DO UPDATE SET
          is_primary     = EXCLUDED.is_primary,
          grade_sections = EXCLUDED.grade_sections`,
       [cur.id, school_id, !!is_primary, gsJson]
@@ -121,7 +121,7 @@ router.post("/mine", validateBody(AttachSchoolSchema), async (req, res) => {
     const r = await pool.query(
       `SELECT ${SCHOOL_COLS_S}, ts.is_primary, ts.grade_sections
          FROM teacher_schools ts JOIN schools s ON s.id = ts.school_id
-        WHERE ts.teacher_id = $1 AND ts.school_id = $2`,
+        WHERE ts.account_id = $1 AND ts.school_id = $2`,
       [cur.id, school_id]
     );
     res.status(201).json(r.rows[0]);
@@ -134,7 +134,7 @@ router.post("/mine", validateBody(AttachSchoolSchema), async (req, res) => {
 // one of the teacher's schools. Both fields are optional; at least
 // one must be present (enforced by SchoolMinePatchSchema).
 //
-// SECURITY: the WHERE clause is hard-scoped by teacher_id so a teacher
+// SECURITY: the WHERE clause is hard-scoped by account_id so a teacher
 // can only edit their own row. No cross-tenant write is possible
 // even if school_id is forged. The grade_sections payload was already
 // passed through a strict zod schema (record<string, string[]>,
@@ -160,7 +160,7 @@ router.patch("/mine/:id", validateBody(SchoolMinePatchSchema), async (req, res) 
       await client.query("BEGIN");
       if (is_primary === true) {
         await client.query(
-          `UPDATE teacher_schools SET is_primary = FALSE WHERE teacher_id = $1`,
+          `UPDATE teacher_schools SET is_primary = FALSE WHERE account_id = $1`,
           [cur.id]
         );
       }
@@ -176,7 +176,7 @@ router.patch("/mine/:id", validateBody(SchoolMinePatchSchema), async (req, res) 
       }
       const r = await client.query(
         `UPDATE teacher_schools SET ${sets.join(", ")}
-           WHERE teacher_id = $1 AND school_id = $2
+           WHERE account_id = $1 AND school_id = $2
            RETURNING is_primary, grade_sections, school_id`,
         params
       );
@@ -206,12 +206,12 @@ router.delete("/mine/:id", async (req, res) => {
     const cur = await loadCurrentTeacher(req);
     if (!cur) return res.status(404).json({ error: "Current teacher not found" });
     const r = await pool.query(
-      `DELETE FROM teacher_schools WHERE teacher_id = $1 AND school_id = $2`,
+      `DELETE FROM teacher_schools WHERE account_id = $1 AND school_id = $2`,
       [cur.id, req.params.id]
     );
     if (r.rowCount === 0) return res.status(404).json({ error: "Not found" });
     await recordAudit({
-      teacherId: cur.id,
+      accountId: cur.id,
       action: "school.remove",
       targetTable: "teacher_schools",
       targetId: Number(req.params.id),

@@ -28,10 +28,100 @@ const sqlArr = (vals) =>
   `ARRAY[${vals.map((v) => `'${v.replace(/'/g, "''")}'`).join(", ")}]::text[]`;
 
 // =============================================================================
+// MIGRATION — rename legacy `teachers` table to `accounts`.
+// The table holds every account (teacher, admin, dev, super_admin, moe,
+// owner) — `teachers` was a misleading name from when only teachers
+// signed in. This block:
+//
+//   1. Renames the table itself if it's still named `teachers`
+//   2. Renames every FK column `teacher_id` → `account_id` (auto-discovered
+//      from information_schema so we don't have to enumerate every table)
+//   3. Renames the matching constraints/indexes for hygiene
+//
+// Idempotent — safe to run on a fresh DB (everything is no-op) or on a
+// legacy DB (one-time rename). MUST run BEFORE every other DDL block in
+// this file so the rest of the schema can reference `accounts` directly.
+// =============================================================================
+const SCHEMA_RENAME_TEACHERS_TO_ACCOUNTS = `
+DO $$
+DECLARE
+  rec RECORD;
+  teachers_count INT;
+  accounts_count INT;
+BEGIN
+  -- 1. Table rename. Three states we recover from:
+  --   a) only teachers exists                 - rename to accounts
+  --   b) only accounts exists                 - no-op (already migrated)
+  --   c) both exist (half-applied migration)  - if accounts is empty,
+  --      drop it then rename teachers; if teachers is empty, drop it;
+  --      if both have rows, RAISE - manual cleanup needed.
+  IF EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = 'teachers')
+     AND EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = 'accounts') THEN
+    EXECUTE 'SELECT COUNT(*) FROM teachers' INTO teachers_count;
+    EXECUTE 'SELECT COUNT(*) FROM accounts' INTO accounts_count;
+    IF accounts_count = 0 THEN
+      DROP TABLE accounts CASCADE;
+      ALTER TABLE teachers RENAME TO accounts;
+    ELSIF teachers_count = 0 THEN
+      DROP TABLE teachers CASCADE;
+    ELSE
+      RAISE EXCEPTION 'Both teachers (%) and accounts (%) have data — manual cleanup required',
+        teachers_count, accounts_count;
+    END IF;
+  ELSIF EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = 'teachers')
+        AND NOT EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = 'accounts') THEN
+    ALTER TABLE teachers RENAME TO accounts;
+  END IF;
+
+  -- 2. FK column renames. Scans every table for a column named teacher_id
+  -- and renames it to account_id. If a table has BOTH columns (also from
+  -- a half-applied migration), the empty account_id is dropped first.
+  FOR rec IN
+    SELECT table_name FROM information_schema.columns
+    WHERE table_schema = 'public' AND column_name = 'teacher_id'
+  LOOP
+    IF EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = rec.table_name AND column_name = 'account_id'
+    ) THEN
+      EXECUTE format('ALTER TABLE %I DROP COLUMN account_id', rec.table_name);
+    END IF;
+    EXECUTE format('ALTER TABLE %I RENAME COLUMN teacher_id TO account_id', rec.table_name);
+  END LOOP;
+
+  -- 3. Rename teachers_* constraints to accounts_* (cosmetic).
+  FOR rec IN
+    SELECT conname FROM pg_constraint
+    WHERE conrelid = 'public.accounts'::regclass
+      AND conname LIKE 'teachers\\_%' ESCAPE '\\'
+  LOOP
+    EXECUTE format(
+      'ALTER TABLE accounts RENAME CONSTRAINT %I TO %I',
+      rec.conname,
+      'accounts_' || substring(rec.conname FROM 10)
+    );
+  END LOOP;
+
+  -- 4. Rename teachers_* indexes to accounts_* (also cosmetic).
+  FOR rec IN
+    SELECT indexname FROM pg_indexes
+    WHERE schemaname = 'public' AND tablename = 'accounts'
+      AND indexname LIKE 'teachers\\_%' ESCAPE '\\'
+  LOOP
+    EXECUTE format(
+      'ALTER INDEX %I RENAME TO %I',
+      rec.indexname,
+      'accounts_' || substring(rec.indexname FROM 10)
+    );
+  END LOOP;
+END $$;
+`;
+
+// =============================================================================
 // SCHEMA — base tables (kept compatible with the original schema)
 // =============================================================================
 const SCHEMA_BASE = `
-CREATE TABLE IF NOT EXISTS teachers (
+CREATE TABLE IF NOT EXISTS accounts (
   id SERIAL PRIMARY KEY,
   first_name TEXT NOT NULL,
   last_name TEXT NOT NULL,
@@ -113,15 +203,15 @@ CREATE INDEX IF NOT EXISTS students_section_idx ON students (section);
 // We backfill nulls in BACKFILL below before applying NOT NULL.
 // =============================================================================
 const SCHEMA_MULTITENANT = `
-ALTER TABLE templates ADD COLUMN IF NOT EXISTS teacher_id INT REFERENCES teachers(id) ON DELETE CASCADE;
-ALTER TABLE drafts    ADD COLUMN IF NOT EXISTS teacher_id INT REFERENCES teachers(id) ON DELETE CASCADE;
-ALTER TABLE students  ADD COLUMN IF NOT EXISTS teacher_id INT REFERENCES teachers(id) ON DELETE CASCADE;
+ALTER TABLE templates ADD COLUMN IF NOT EXISTS account_id INT REFERENCES accounts(id) ON DELETE CASCADE;
+ALTER TABLE drafts    ADD COLUMN IF NOT EXISTS account_id INT REFERENCES accounts(id) ON DELETE CASCADE;
+ALTER TABLE students  ADD COLUMN IF NOT EXISTS account_id INT REFERENCES accounts(id) ON DELETE CASCADE;
 
-ALTER TABLE teachers  ADD COLUMN IF NOT EXISTS role      TEXT NOT NULL DEFAULT 'teacher';
-ALTER TABLE teachers  ADD COLUMN IF NOT EXISTS sub_role  TEXT;
-ALTER TABLE teachers  ADD COLUMN IF NOT EXISTS status    TEXT NOT NULL DEFAULT 'active';
-ALTER TABLE teachers  ADD COLUMN IF NOT EXISTS languages TEXT[] DEFAULT '{}';
-ALTER TABLE teachers  ADD COLUMN IF NOT EXISTS sections  TEXT[] DEFAULT '{}';
+ALTER TABLE accounts  ADD COLUMN IF NOT EXISTS role      TEXT NOT NULL DEFAULT 'teacher';
+ALTER TABLE accounts  ADD COLUMN IF NOT EXISTS sub_role  TEXT;
+ALTER TABLE accounts  ADD COLUMN IF NOT EXISTS status    TEXT NOT NULL DEFAULT 'active';
+ALTER TABLE accounts  ADD COLUMN IF NOT EXISTS languages TEXT[] DEFAULT '{}';
+ALTER TABLE accounts  ADD COLUMN IF NOT EXISTS sections  TEXT[] DEFAULT '{}';
 
 ALTER TABLE quizzes   ADD COLUMN IF NOT EXISTS language   TEXT;
 ALTER TABLE quizzes   ADD COLUMN IF NOT EXISTS difficulty TEXT;
@@ -184,23 +274,23 @@ ALTER TABLE activities    ADD COLUMN IF NOT EXISTS scheduled_for DATE;
 // teachers.sections column stays populated as the union of all
 // values, so legacy dropdowns keep working.
 const SCHEMA_CLASS_MAP = `
-ALTER TABLE teachers ADD COLUMN IF NOT EXISTS class_map      JSONB DEFAULT '[]'::jsonb;
-ALTER TABLE teachers ADD COLUMN IF NOT EXISTS grade_sections JSONB DEFAULT '{}'::jsonb;
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS class_map      JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS grade_sections JSONB DEFAULT '{}'::jsonb;
 
 -- Lock the JSONB columns to their expected shape. Without these,
 -- the validation layer becomes the only line between a malformed
 -- payload and a corrupted DB. With them, even direct SQL access
 -- can't break the invariant.
-UPDATE teachers SET grade_sections = '{}'::jsonb WHERE grade_sections IS NULL;
-ALTER TABLE teachers ALTER COLUMN grade_sections SET NOT NULL;
-ALTER TABLE teachers DROP CONSTRAINT IF EXISTS teachers_grade_sections_object;
-ALTER TABLE teachers ADD  CONSTRAINT teachers_grade_sections_object
+UPDATE accounts SET grade_sections = '{}'::jsonb WHERE grade_sections IS NULL;
+ALTER TABLE accounts ALTER COLUMN grade_sections SET NOT NULL;
+ALTER TABLE accounts DROP CONSTRAINT IF EXISTS accounts_grade_sections_object;
+ALTER TABLE accounts ADD  CONSTRAINT accounts_grade_sections_object
   CHECK (jsonb_typeof(grade_sections) = 'object');
 
-UPDATE teachers SET class_map = '[]'::jsonb WHERE class_map IS NULL;
-ALTER TABLE teachers ALTER COLUMN class_map SET NOT NULL;
-ALTER TABLE teachers DROP CONSTRAINT IF EXISTS teachers_class_map_array;
-ALTER TABLE teachers ADD  CONSTRAINT teachers_class_map_array
+UPDATE accounts SET class_map = '[]'::jsonb WHERE class_map IS NULL;
+ALTER TABLE accounts ALTER COLUMN class_map SET NOT NULL;
+ALTER TABLE accounts DROP CONSTRAINT IF EXISTS accounts_class_map_array;
+ALTER TABLE accounts ADD  CONSTRAINT accounts_class_map_array
   CHECK (jsonb_typeof(class_map) = 'array');
 `;
 
@@ -234,7 +324,7 @@ CREATE INDEX IF NOT EXISTS templates_deleted_at_idx     ON templates (deleted_at
 const SCHEMA_AUDIT = `
 CREATE TABLE IF NOT EXISTS audit_log (
   id           BIGSERIAL PRIMARY KEY,
-  teacher_id   INT REFERENCES teachers(id) ON DELETE SET NULL,
+  account_id   INT REFERENCES accounts(id) ON DELETE SET NULL,
   action       TEXT NOT NULL,
   target_table TEXT,
   target_id    BIGINT,
@@ -243,7 +333,7 @@ CREATE TABLE IF NOT EXISTS audit_log (
   detail       JSONB,
   created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-CREATE INDEX IF NOT EXISTS audit_log_teacher_idx  ON audit_log (teacher_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS audit_log_account_idx  ON audit_log (account_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS audit_log_action_idx   ON audit_log (action, created_at DESC);
 CREATE INDEX IF NOT EXISTS audit_log_target_idx   ON audit_log (target_table, target_id);
 CREATE INDEX IF NOT EXISTS audit_log_ip_idx       ON audit_log (ip, created_at DESC);
@@ -259,11 +349,11 @@ ALTER TABLE audit_log ADD  CONSTRAINT audit_action_nonempty
 // through one); email lookups feed the ON CONFLICT upsert in
 // /api/auth/firebase.
 const SCHEMA_AUTH_INDEXES = `
-CREATE INDEX IF NOT EXISTS teachers_email_idx ON teachers (email);
-CREATE INDEX IF NOT EXISTS teachers_subscription_idx
-  ON teachers (subscription_status, subscription_ends_at);
-CREATE INDEX IF NOT EXISTS teachers_last_login_idx
-  ON teachers (last_login_at DESC NULLS LAST);
+CREATE INDEX IF NOT EXISTS accounts_email_idx ON accounts (email);
+CREATE INDEX IF NOT EXISTS accounts_subscription_idx
+  ON accounts (subscription_status, subscription_ends_at);
+CREATE INDEX IF NOT EXISTS accounts_last_login_idx
+  ON accounts (last_login_at DESC NULLS LAST);
 `;
 
 // Firebase Auth wiring: teachers get a stable firebase_uid (the Google/
@@ -272,21 +362,21 @@ CREATE INDEX IF NOT EXISTS teachers_last_login_idx
 // subscription fields so we can gate access without standing up Stripe
 // just yet. Idempotent.
 const SCHEMA_AUTH = `
-ALTER TABLE teachers ADD COLUMN IF NOT EXISTS firebase_uid TEXT;
-CREATE UNIQUE INDEX IF NOT EXISTS teachers_firebase_uid_uniq
-  ON teachers (firebase_uid) WHERE firebase_uid IS NOT NULL;
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS firebase_uid TEXT;
+CREATE UNIQUE INDEX IF NOT EXISTS accounts_firebase_uid_uniq
+  ON accounts (firebase_uid) WHERE firebase_uid IS NOT NULL;
 
-ALTER TABLE teachers ADD COLUMN IF NOT EXISTS avatar_url TEXT;
-ALTER TABLE teachers ADD COLUMN IF NOT EXISTS last_login_at  TIMESTAMPTZ;
-ALTER TABLE teachers ADD COLUMN IF NOT EXISTS last_login_ip  TEXT;
-ALTER TABLE teachers ADD COLUMN IF NOT EXISTS last_user_agent TEXT;
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS avatar_url TEXT;
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS last_login_at  TIMESTAMPTZ;
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS last_login_ip  TEXT;
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS last_user_agent TEXT;
 
 -- subscription_status: trial (default — 14 days from sign-up) / active /
 -- expired / suspended. A nullable subscription_ends_at lets a manual
 -- admin extension be open-ended.
-ALTER TABLE teachers ADD COLUMN IF NOT EXISTS subscription_status TEXT NOT NULL DEFAULT 'trial';
-ALTER TABLE teachers ADD COLUMN IF NOT EXISTS subscription_ends_at TIMESTAMPTZ;
-ALTER TABLE teachers ADD COLUMN IF NOT EXISTS subscription_plan TEXT;
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS subscription_status TEXT NOT NULL DEFAULT 'trial';
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS subscription_ends_at TIMESTAMPTZ;
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS subscription_plan TEXT;
 `;
 
 // Schools: a catalog of UAE schools + a many-to-many link from teachers
@@ -318,13 +408,13 @@ CREATE INDEX IF NOT EXISTS schools_emirate_idx ON schools (emirate);
 CREATE UNIQUE INDEX IF NOT EXISTS schools_name_emirate_uniq ON schools (name, emirate);
 
 CREATE TABLE IF NOT EXISTS teacher_schools (
-  teacher_id  INT NOT NULL REFERENCES teachers(id) ON DELETE CASCADE,
+  account_id  INT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
   school_id   INT NOT NULL REFERENCES schools(id)  ON DELETE CASCADE,
   is_primary  BOOLEAN NOT NULL DEFAULT FALSE,
   created_at  TIMESTAMPTZ DEFAULT NOW(),
-  PRIMARY KEY (teacher_id, school_id)
+  PRIMARY KEY (account_id, school_id)
 );
-CREATE INDEX IF NOT EXISTS teacher_schools_teacher_idx ON teacher_schools (teacher_id);
+CREATE INDEX IF NOT EXISTS teacher_schools_account_idx ON teacher_schools (account_id);
 
 -- Per-school grade_sections: each (teacher, school) pair carries its
 -- own {grade -> [sections]} map so a teacher who works in two schools
@@ -348,12 +438,12 @@ CREATE INDEX IF NOT EXISTS students_school_idx ON students (school_id);
 const SCHEMA_IMAGES = `
 CREATE TABLE IF NOT EXISTS uploaded_images (
   id          SERIAL PRIMARY KEY,
-  teacher_id  INT REFERENCES teachers(id) ON DELETE CASCADE,
+  account_id  INT REFERENCES accounts(id) ON DELETE CASCADE,
   mime        TEXT NOT NULL,
   data        TEXT NOT NULL,
   created_at  TIMESTAMPTZ DEFAULT NOW()
 );
-CREATE INDEX IF NOT EXISTS uploaded_images_teacher_idx ON uploaded_images (teacher_id);
+CREATE INDEX IF NOT EXISTS uploaded_images_account_idx ON uploaded_images (account_id);
 `;
 
 // =============================================================================
@@ -362,7 +452,7 @@ CREATE INDEX IF NOT EXISTS uploaded_images_teacher_idx ON uploaded_images (teach
 const SCHEMA_NEW = `
 CREATE TABLE IF NOT EXISTS schedule_entries (
   id SERIAL PRIMARY KEY,
-  teacher_id INT NOT NULL REFERENCES teachers(id) ON DELETE CASCADE,
+  account_id INT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
   draft_id INT REFERENCES drafts(id) ON DELETE SET NULL,
   title TEXT NOT NULL,
   subject TEXT,
@@ -378,11 +468,11 @@ CREATE TABLE IF NOT EXISTS schedule_entries (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS schedule_entries_teacher_date_idx
-  ON schedule_entries (teacher_id, date);
+  ON schedule_entries (account_id, date);
 
 CREATE TABLE IF NOT EXISTS quizzes (
   id SERIAL PRIMARY KEY,
-  teacher_id INT NOT NULL REFERENCES teachers(id) ON DELETE CASCADE,
+  account_id INT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
   title TEXT NOT NULL,
   subject TEXT,
   grade TEXT,
@@ -397,7 +487,7 @@ CREATE TABLE IF NOT EXISTS quizzes (
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
-CREATE INDEX IF NOT EXISTS quizzes_teacher_idx ON quizzes (teacher_id);
+CREATE INDEX IF NOT EXISTS quizzes_teacher_idx ON quizzes (account_id);
 
 CREATE TABLE IF NOT EXISTS quiz_questions (
   id SERIAL PRIMARY KEY,
@@ -424,7 +514,7 @@ CREATE TABLE IF NOT EXISTS quiz_scores (
 
 CREATE TABLE IF NOT EXISTS homework (
   id SERIAL PRIMARY KEY,
-  teacher_id INT NOT NULL REFERENCES teachers(id) ON DELETE CASCADE,
+  account_id INT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
   title TEXT NOT NULL,
   subject TEXT,
   grade TEXT,
@@ -436,7 +526,7 @@ CREATE TABLE IF NOT EXISTS homework (
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
-CREATE INDEX IF NOT EXISTS homework_teacher_due_idx ON homework (teacher_id, due_date);
+CREATE INDEX IF NOT EXISTS homework_teacher_due_idx ON homework (account_id, due_date);
 
 CREATE TABLE IF NOT EXISTS homework_submissions (
   id SERIAL PRIMARY KEY,
@@ -452,18 +542,18 @@ CREATE TABLE IF NOT EXISTS homework_submissions (
 
 CREATE TABLE IF NOT EXISTS attendance (
   id SERIAL PRIMARY KEY,
-  teacher_id INT NOT NULL REFERENCES teachers(id) ON DELETE CASCADE,
+  account_id INT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
   student_id INT NOT NULL REFERENCES students(id) ON DELETE CASCADE,
   date DATE NOT NULL,
   status TEXT NOT NULL,
   notes TEXT,
   UNIQUE (student_id, date)
 );
-CREATE INDEX IF NOT EXISTS attendance_teacher_date_idx ON attendance (teacher_id, date);
+CREATE INDEX IF NOT EXISTS attendance_teacher_date_idx ON attendance (account_id, date);
 
 CREATE TABLE IF NOT EXISTS student_grades (
   id SERIAL PRIMARY KEY,
-  teacher_id INT NOT NULL REFERENCES teachers(id) ON DELETE CASCADE,
+  account_id INT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
   student_id INT NOT NULL REFERENCES students(id) ON DELETE CASCADE,
   subject TEXT NOT NULL,
   term TEXT,
@@ -473,11 +563,11 @@ CREATE TABLE IF NOT EXISTS student_grades (
   recorded_at TIMESTAMPTZ DEFAULT NOW(),
   notes TEXT
 );
-CREATE INDEX IF NOT EXISTS student_grades_teacher_idx ON student_grades (teacher_id, student_id);
+CREATE INDEX IF NOT EXISTS student_grades_teacher_idx ON student_grades (account_id, student_id);
 
 CREATE TABLE IF NOT EXISTS presentations (
   id SERIAL PRIMARY KEY,
-  teacher_id INT NOT NULL REFERENCES teachers(id) ON DELETE CASCADE,
+  account_id INT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
   draft_id INT REFERENCES drafts(id) ON DELETE SET NULL,
   title TEXT NOT NULL,
   subject TEXT,
@@ -487,11 +577,11 @@ CREATE TABLE IF NOT EXISTS presentations (
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
-CREATE INDEX IF NOT EXISTS presentations_teacher_idx ON presentations (teacher_id);
+CREATE INDEX IF NOT EXISTS presentations_teacher_idx ON presentations (account_id);
 
 CREATE TABLE IF NOT EXISTS activities (
   id SERIAL PRIMARY KEY,
-  teacher_id INT NOT NULL REFERENCES teachers(id) ON DELETE CASCADE,
+  account_id INT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
   draft_id INT REFERENCES drafts(id) ON DELETE SET NULL,
   title TEXT NOT NULL,
   type TEXT,
@@ -503,11 +593,11 @@ CREATE TABLE IF NOT EXISTS activities (
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
-CREATE INDEX IF NOT EXISTS activities_teacher_idx ON activities (teacher_id);
+CREATE INDEX IF NOT EXISTS activities_teacher_idx ON activities (account_id);
 
 CREATE TABLE IF NOT EXISTS notifications (
   id SERIAL PRIMARY KEY,
-  teacher_id INT NOT NULL REFERENCES teachers(id) ON DELETE CASCADE,
+  account_id INT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
   kind TEXT NOT NULL,
   message TEXT NOT NULL,
   link TEXT,
@@ -523,10 +613,10 @@ ALTER TABLE notifications ADD COLUMN IF NOT EXISTS ref_id INT;
 -- collapsed.
 DROP INDEX IF EXISTS notifications_dedup_idx;
 CREATE UNIQUE INDEX notifications_dedup_idx
-  ON notifications (teacher_id, kind, ref_table, ref_id)
+  ON notifications (account_id, kind, ref_table, ref_id)
   WHERE ref_table IS NOT NULL AND ref_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS notifications_teacher_unread_idx
-  ON notifications (teacher_id, is_read, created_at DESC);
+  ON notifications (account_id, is_read, created_at DESC);
 
 CREATE TABLE IF NOT EXISTS activity_completions (
   id SERIAL PRIMARY KEY,
@@ -540,7 +630,7 @@ CREATE TABLE IF NOT EXISTS activity_completions (
 
 CREATE TABLE IF NOT EXISTS library_resources (
   id SERIAL PRIMARY KEY,
-  teacher_id INT NOT NULL REFERENCES teachers(id) ON DELETE CASCADE,
+  account_id INT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
   title TEXT NOT NULL,
   type TEXT,
   subject TEXT,
@@ -551,7 +641,7 @@ CREATE TABLE IF NOT EXISTS library_resources (
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
-CREATE INDEX IF NOT EXISTS library_resources_teacher_idx ON library_resources (teacher_id);
+CREATE INDEX IF NOT EXISTS library_resources_teacher_idx ON library_resources (account_id);
 
 CREATE TABLE IF NOT EXISTS feature_flags (
   key TEXT PRIMARY KEY,
@@ -565,34 +655,34 @@ CREATE TABLE IF NOT EXISTS feature_flags (
 // CHECK constraints — refresh from JS enums.
 // =============================================================================
 const NORMALIZE = `
-UPDATE teachers SET nationality = 'Saudi Arabia' WHERE nationality = 'Saudi';
+UPDATE accounts SET nationality = 'Saudi Arabia' WHERE nationality = 'Saudi';
 UPDATE students SET nationality = 'Saudi Arabia' WHERE nationality = 'Saudi';
 `;
 
 const CONSTRAINTS = `
-ALTER TABLE teachers DROP CONSTRAINT IF EXISTS teachers_majors_valid;
-ALTER TABLE teachers DROP CONSTRAINT IF EXISTS teachers_grade_levels_valid;
+ALTER TABLE accounts DROP CONSTRAINT IF EXISTS teachers_majors_valid;
+ALTER TABLE accounts DROP CONSTRAINT IF EXISTS teachers_grade_levels_valid;
 
-ALTER TABLE teachers DROP CONSTRAINT IF EXISTS teachers_nationality_valid;
-ALTER TABLE teachers ADD  CONSTRAINT teachers_nationality_valid
+ALTER TABLE accounts DROP CONSTRAINT IF EXISTS accounts_nationality_valid;
+ALTER TABLE accounts ADD  CONSTRAINT accounts_nationality_valid
   CHECK (nationality IS NULL OR nationality = ANY(${sqlArr(NATIONALITIES)}));
 
-ALTER TABLE teachers DROP CONSTRAINT IF EXISTS teachers_role_valid;
-ALTER TABLE teachers ADD  CONSTRAINT teachers_role_valid
+ALTER TABLE accounts DROP CONSTRAINT IF EXISTS accounts_role_valid;
+ALTER TABLE accounts ADD  CONSTRAINT accounts_role_valid
   CHECK (role = ANY(${sqlArr(ROLES)}));
 
-ALTER TABLE teachers DROP CONSTRAINT IF EXISTS teachers_sub_role_valid;
-ALTER TABLE teachers ADD  CONSTRAINT teachers_sub_role_valid
+ALTER TABLE accounts DROP CONSTRAINT IF EXISTS accounts_sub_role_valid;
+ALTER TABLE accounts ADD  CONSTRAINT accounts_sub_role_valid
   CHECK (
     ${subRoleCheckSql()}
   );
 
-ALTER TABLE teachers DROP CONSTRAINT IF EXISTS teachers_status_valid;
-ALTER TABLE teachers ADD  CONSTRAINT teachers_status_valid
+ALTER TABLE accounts DROP CONSTRAINT IF EXISTS accounts_status_valid;
+ALTER TABLE accounts ADD  CONSTRAINT accounts_status_valid
   CHECK (status IN ('active', 'suspended', 'deleted'));
 
-ALTER TABLE teachers DROP CONSTRAINT IF EXISTS teachers_sub_status_valid;
-ALTER TABLE teachers ADD  CONSTRAINT teachers_sub_status_valid
+ALTER TABLE accounts DROP CONSTRAINT IF EXISTS accounts_sub_status_valid;
+ALTER TABLE accounts ADD  CONSTRAINT accounts_sub_status_valid
   CHECK (subscription_status IN ('trial', 'active', 'expired', 'suspended'));
 
 ALTER TABLE students DROP CONSTRAINT IF EXISTS students_grade_valid;
@@ -707,6 +797,9 @@ const FEATURE_FLAGS = [
 // MAIN
 // =============================================================================
 export async function runInit() {
+  console.log("Renaming legacy teachers→accounts (no-op if already migrated)...");
+  await pool.query(SCHEMA_RENAME_TEACHERS_TO_ACCOUNTS);
+
   console.log("Creating base schema...");
   await pool.query(SCHEMA_BASE);
 
@@ -753,23 +846,23 @@ export async function runInit() {
   await pool.query(CONSTRAINTS);
 
   // --- Teachers seed ------------------------------------------------------
-  const tch = await pool.query("SELECT COUNT(*)::int AS n FROM teachers");
+  const tch = await pool.query("SELECT COUNT(*)::int AS n FROM accounts");
   if (tch.rows[0].n === 0) {
     console.log(`Seeding ${TEACHERS.length} teachers...`);
     for (const row of TEACHERS) {
       await pool.query(
-        `INSERT INTO teachers (first_name, last_name, email, phone, staff_id, majors, grade_levels, nationality, hire_date, bio, role)
+        `INSERT INTO accounts (first_name, last_name, email, phone, staff_id, majors, grade_levels, nationality, hire_date, bio, role)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
         row
       );
     }
   } else {
     // Backfill role for existing rows to satisfy the CHECK.
-    await pool.query("UPDATE teachers SET role = 'teacher' WHERE role IS NULL OR role = ''");
+    await pool.query("UPDATE accounts SET role = 'teacher' WHERE role IS NULL OR role = ''");
     // Make sure ADM-001 / DEV-001 exist (idempotent insert).
     for (const row of TEACHERS.filter((t) => t[10] !== "teacher")) {
       await pool.query(
-        `INSERT INTO teachers (first_name, last_name, email, phone, staff_id, majors, grade_levels, nationality, hire_date, bio, role)
+        `INSERT INTO accounts (first_name, last_name, email, phone, staff_id, majors, grade_levels, nationality, hire_date, bio, role)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
          ON CONFLICT (staff_id) DO NOTHING`,
         row
@@ -784,21 +877,21 @@ export async function runInit() {
   // Idempotent — emails already at the right role are no-ops. Demotion
   // only happens at login time (auth route) to avoid surprising side
   // effects when re-seeding.
-  const allEmails = await pool.query("SELECT id, email, role FROM teachers WHERE email IS NOT NULL");
+  const allEmails = await pool.query("SELECT id, email, role FROM accounts WHERE email IS NOT NULL");
   for (const row of allEmails.rows) {
     const wanted = resolveReservedRole(row.email);
     if (wanted && wanted !== row.role) {
-      await pool.query("UPDATE teachers SET role = $1, updated_at = NOW() WHERE id = $2", [wanted, row.id]);
+      await pool.query("UPDATE accounts SET role = $1, updated_at = NOW() WHERE id = $2", [wanted, row.id]);
       console.log(`  promoted ${row.email}: ${row.role} → ${wanted}`);
     }
   }
 
-  // Resolve a default teacher_id once for backfills below.
-  const defaultTeacher = await pool.query(
-    "SELECT id FROM teachers WHERE staff_id = 'STF-001' LIMIT 1"
+  // Resolve a default account_id once for backfills below.
+  const defaultAccount = await pool.query(
+    "SELECT id FROM accounts WHERE staff_id = 'STF-001' LIMIT 1"
   );
-  const defaultTeacherId = defaultTeacher.rows[0]?.id;
-  if (!defaultTeacherId) throw new Error("No STF-001 teacher found — cannot backfill.");
+  const defaultAccountId = defaultAccount.rows[0]?.id;
+  if (!defaultAccountId) throw new Error("No STF-001 account found — cannot backfill.");
 
   // Templates + Drafts no longer seed dummy rows. Teachers start with
   // an empty Lesson Plans surface and build their own library.
@@ -814,10 +907,10 @@ export async function runInit() {
            email, phone, nationality, address,
            primary_guardian_name, primary_guardian_relationship, primary_guardian_email, primary_guardian_phone,
            secondary_guardian_name, secondary_guardian_relationship, secondary_guardian_email, secondary_guardian_phone,
-           enrollment_date, notes, teacher_id
+           enrollment_date, notes, account_id
          )
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)`,
-        [...row, defaultTeacherId]
+        [...row, defaultAccountId]
       );
     }
   } else {
@@ -826,13 +919,13 @@ export async function runInit() {
 
   // --- Backfill teacher_id on legacy rows + lock NOT NULL -----------------
   console.log("Backfilling teacher_id on legacy rows...");
-  await pool.query(`UPDATE templates SET teacher_id = $1 WHERE teacher_id IS NULL`, [defaultTeacherId]);
-  await pool.query(`UPDATE drafts    SET teacher_id = $1 WHERE teacher_id IS NULL`, [defaultTeacherId]);
-  await pool.query(`UPDATE students  SET teacher_id = $1 WHERE teacher_id IS NULL`, [defaultTeacherId]);
+  await pool.query(`UPDATE templates SET account_id = $1 WHERE account_id IS NULL`, [defaultAccountId]);
+  await pool.query(`UPDATE drafts    SET account_id = $1 WHERE account_id IS NULL`, [defaultAccountId]);
+  await pool.query(`UPDATE students  SET account_id = $1 WHERE account_id IS NULL`, [defaultAccountId]);
 
-  await pool.query(`ALTER TABLE templates ALTER COLUMN teacher_id SET NOT NULL`);
-  await pool.query(`ALTER TABLE drafts    ALTER COLUMN teacher_id SET NOT NULL`);
-  await pool.query(`ALTER TABLE students  ALTER COLUMN teacher_id SET NOT NULL`);
+  await pool.query(`ALTER TABLE templates ALTER COLUMN account_id SET NOT NULL`);
+  await pool.query(`ALTER TABLE drafts    ALTER COLUMN account_id SET NOT NULL`);
+  await pool.query(`ALTER TABLE students  ALTER COLUMN account_id SET NOT NULL`);
 
   // --- UAE schools seed ---------------------------------------------------
   // Idempotent: ON CONFLICT (name, emirate) DO NOTHING. Re-running the
@@ -858,38 +951,38 @@ export async function runInit() {
   }
 
   // --- Sample schedule + notifications so dashboard has something --------
-  const sch = await pool.query("SELECT COUNT(*)::int AS n FROM schedule_entries WHERE teacher_id = $1", [defaultTeacherId]);
+  const sch = await pool.query("SELECT COUNT(*)::int AS n FROM schedule_entries WHERE account_id = $1", [defaultAccountId]);
   if (sch.rows[0].n === 0) {
     console.log("Seeding sample schedule entries...");
     const today = new Date().toISOString().slice(0, 10);
     const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
     const samples = [
-      [defaultTeacherId, "Algebra recap before unit test", "Math",    "Grade 8", "8A", today,    "08:30", "09:30", "Room 204", "planned"],
-      [defaultTeacherId, "States of matter — lab prep",     "Science", "Grade 8", "8A", today,    "10:00", "11:30", "Lab B",    "planned"],
-      [defaultTeacherId, "Poetry — figurative language",    "English", "Grade 7", "7B", today,    "12:00", "12:50", "Room 211", "planned"],
-      [defaultTeacherId, "Vocabulary review — week 12",     "English", "Grade 7", "7A", tomorrow, "08:30", "09:20", "Room 211", "planned"],
-      [defaultTeacherId, "Industrial revolution intro",     "History", "Grade 8", "8A", tomorrow, "11:00", "11:50", "Room 204", "planned"],
+      [defaultAccountId, "Algebra recap before unit test", "Math",    "Grade 8", "8A", today,    "08:30", "09:30", "Room 204", "planned"],
+      [defaultAccountId, "States of matter — lab prep",     "Science", "Grade 8", "8A", today,    "10:00", "11:30", "Lab B",    "planned"],
+      [defaultAccountId, "Poetry — figurative language",    "English", "Grade 7", "7B", today,    "12:00", "12:50", "Room 211", "planned"],
+      [defaultAccountId, "Vocabulary review — week 12",     "English", "Grade 7", "7A", tomorrow, "08:30", "09:20", "Room 211", "planned"],
+      [defaultAccountId, "Industrial revolution intro",     "History", "Grade 8", "8A", tomorrow, "11:00", "11:50", "Room 204", "planned"],
     ];
     for (const row of samples) {
       await pool.query(
-        `INSERT INTO schedule_entries (teacher_id, title, subject, grade, section, date, start_time, end_time, location, status)
+        `INSERT INTO schedule_entries (account_id, title, subject, grade, section, date, start_time, end_time, location, status)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
         row
       );
     }
   }
 
-  const nfn = await pool.query("SELECT COUNT(*)::int AS n FROM notifications WHERE teacher_id = $1", [defaultTeacherId]);
+  const nfn = await pool.query("SELECT COUNT(*)::int AS n FROM notifications WHERE account_id = $1", [defaultAccountId]);
   if (nfn.rows[0].n === 0) {
     console.log("Seeding sample notifications...");
     const samples = [
-      [defaultTeacherId, "lesson_upcoming", "Algebra recap starts in 30 minutes (8A · Room 204).", "/schedule"],
-      [defaultTeacherId, "homework_due",    "Vocabulary worksheet for 7A is due tomorrow.",        "/homework"],
-      [defaultTeacherId, "grade_reminder",  "3 quiz scores still need to be recorded.",            "/quizzes"],
+      [defaultAccountId, "lesson_upcoming", "Algebra recap starts in 30 minutes (8A · Room 204).", "/schedule"],
+      [defaultAccountId, "homework_due",    "Vocabulary worksheet for 7A is due tomorrow.",        "/homework"],
+      [defaultAccountId, "grade_reminder",  "3 quiz scores still need to be recorded.",            "/quizzes"],
     ];
     for (const row of samples) {
       await pool.query(
-        `INSERT INTO notifications (teacher_id, kind, message, link) VALUES ($1, $2, $3, $4)`,
+        `INSERT INTO notifications (account_id, kind, message, link) VALUES ($1, $2, $3, $4)`,
         row
       );
     }

@@ -25,8 +25,8 @@ router.get("/", async (req, res) => {
                 a.id AS attendance_id, a.status, a.notes
            FROM students s
            LEFT JOIN attendance a
-             ON a.student_id = s.id AND a.date = $2 AND a.teacher_id = $1
-          WHERE s.teacher_id = $1${extra}
+             ON a.student_id = s.id AND a.date = $2 AND a.account_id = $1
+          WHERE s.account_id = $1${extra}
           ORDER BY s.grade, s.section, s.last_name`,
         params
       );
@@ -39,7 +39,7 @@ router.get("/", async (req, res) => {
               s.first_name, s.last_name, s.grade, s.section, s.student_id AS code
          FROM attendance a
          JOIN students s ON s.id = a.student_id
-        WHERE a.teacher_id = $1
+        WHERE a.account_id = $1
         ORDER BY a.date DESC, s.last_name
         LIMIT 50`,
       [cur.id]
@@ -56,8 +56,8 @@ router.get("/", async (req, res) => {
 // SECURITY: must verify the student belongs to the calling teacher
 // BEFORE the upsert. Without this check, an attacker who knows another
 // teacher's student_id could call PUT and the ON CONFLICT UPDATE would
-// rewrite teacher_id = EXCLUDED.teacher_id, hijacking the attendance
-// record. We also DROPPED the `teacher_id = EXCLUDED.teacher_id`
+// rewrite account_id = EXCLUDED.account_id, hijacking the attendance
+// record. We also DROPPED the `account_id = EXCLUDED.account_id`
 // clause from the conflict handler — attendance ownership should
 // never move once written. If a record exists for (student_id, date),
 // it implicitly belongs to that student's teacher; the WHERE clause
@@ -73,19 +73,19 @@ router.put("/", async (req, res) => {
       return res.status(400).json({ error: "Invalid status." });
     }
     const own = await pool.query(
-      "SELECT 1 FROM students WHERE id = $1 AND teacher_id = $2",
+      "SELECT 1 FROM students WHERE id = $1 AND account_id = $2",
       [student_id, cur.id]
     );
     if (own.rowCount === 0) return res.status(404).json({ error: "Student not found" });
 
     const r = await pool.query(
-      `INSERT INTO attendance (teacher_id, student_id, date, status, notes)
+      `INSERT INTO attendance (account_id, student_id, date, status, notes)
        VALUES ($1, $2, $3, $4, $5)
        ON CONFLICT (student_id, date) DO UPDATE
          SET status = EXCLUDED.status,
              notes  = EXCLUDED.notes
-         WHERE attendance.teacher_id = $1
-       RETURNING id, teacher_id, student_id, date, status, notes`,
+         WHERE attendance.account_id = $1
+       RETURNING id, account_id, student_id, date, status, notes`,
       [cur.id, student_id, date, status, notes ?? null]
     );
     if (r.rowCount === 0) {
@@ -104,7 +104,7 @@ router.delete("/:id", async (req, res) => {
   try {
     const cur = await loadCurrentTeacher(req);
     const r = await pool.query(
-      "DELETE FROM attendance WHERE id = $1 AND teacher_id = $2",
+      "DELETE FROM attendance WHERE id = $1 AND account_id = $2",
       [req.params.id, cur.id]
     );
     if (r.rowCount === 0) return res.status(404).json({ error: "Not found" });

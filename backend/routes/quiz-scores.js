@@ -5,7 +5,7 @@
 //
 // Scope: only the teacher who owns the quiz can read/write its scores —
 // enforced by joining quiz_scores → quizzes and filtering on
-// quizzes.teacher_id.
+// quizzes.account_id.
 import { Router } from "express";
 import { pool } from "../lib/db.js";
 import { handleErr } from "../lib/helpers.js";
@@ -21,7 +21,7 @@ router.get("/", async (req, res) => {
   try {
     const cur = await loadCurrentTeacher(req);
     const params = [cur.id];
-    let where = "q.teacher_id = $1";
+    let where = "q.account_id = $1";
     if (req.query.quiz_id) {
       params.push(req.query.quiz_id);
       where += ` AND qs.quiz_id = $${params.length}`;
@@ -61,8 +61,8 @@ router.post("/", async (req, res) => {
     // enough — defence-in-depth requires both endpoints of the join.
     const own = await pool.query(
       `SELECT
-         (SELECT 1 FROM quizzes  WHERE id = $1 AND teacher_id = $3) AS q,
-         (SELECT 1 FROM students WHERE id = $2 AND teacher_id = $3) AS s`,
+         (SELECT 1 FROM quizzes  WHERE id = $1 AND account_id = $3) AS q,
+         (SELECT 1 FROM students WHERE id = $2 AND account_id = $3) AS s`,
       [quiz_id, student_id, cur.id]
     );
     if (!own.rows[0].q) return res.status(404).json({ error: "Quiz not found" });
@@ -93,7 +93,7 @@ router.delete("/:id", async (req, res) => {
         USING quizzes q
         WHERE qs.id = $1
           AND qs.quiz_id = q.id
-          AND q.teacher_id = $2
+          AND q.account_id = $2
         RETURNING qs.id`,
       [req.params.id, cur.id]
     );

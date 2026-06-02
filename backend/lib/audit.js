@@ -1,7 +1,7 @@
 // Audit log — append-only record of sensitive actions. Schema:
 //
 //   id           SERIAL PK
-//   teacher_id   the actor (NULL for failed auth attempts)
+//   account_id   the actor (NULL for failed auth attempts)
 //   action       short, machine-readable verb. Suggested vocab:
 //                  "auth.login.success" "auth.login.fail"
 //                  "auth.signout"       "auth.renew"
@@ -19,11 +19,11 @@
 //
 // IMPORTANT: don't write PII (full names, emails, addresses) into
 // `detail`. It exists for security forensics, not analytics. Use
-// teacher_id / target_id to link to the source rows.
+// account_id / target_id to link to the source rows.
 import { pool } from "./db.js";
 
 export async function recordAudit({
-  teacherId = null,
+  accountId = null,
   action,
   targetTable = null,
   targetId = null,
@@ -34,10 +34,10 @@ export async function recordAudit({
   try {
     await pool.query(
       `INSERT INTO audit_log
-         (teacher_id, action, target_table, target_id, ip, user_agent, detail)
+         (account_id, action, target_table, target_id, ip, user_agent, detail)
        VALUES ($1, $2, $3, $4, $5, $6, $7)`,
       [
-        teacherId,
+        accountId,
         action,
         targetTable,
         targetId,

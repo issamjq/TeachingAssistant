@@ -76,7 +76,7 @@ router.post("/upload", async (req, res) => {
     }
 
     const ins = await pool.query(
-      `INSERT INTO uploaded_images (teacher_id, mime, data)
+      `INSERT INTO uploaded_images (account_id, mime, data)
        VALUES ($1, $2, $3) RETURNING id`,
       [cur.id, mime, base64]
     );

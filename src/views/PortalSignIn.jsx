@@ -123,7 +123,7 @@ export default function PortalSignIn({ portal }) {
 
   // The studio reads localStorage for the sidebar / nav chip. Mirror
   // enough of the teacher row that the chip and avatar render correctly
-  // — canonical data still lives on req.teacher server-side. Also write
+  // — canonical data still lives on req.account server-side. Also write
   // the canonical role into the `murchid_role` localStorage key (via
   // setRole) so App.jsx's role-based routing picks the right console.
   // Without this, a privileged user lands on the teacher dashboard

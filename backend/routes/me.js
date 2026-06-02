@@ -22,7 +22,7 @@ router.get("/", async (req, res) => {
   try {
     const cur = await loadCurrentTeacher(req);
     if (!cur) return res.status(404).json({ error: "Current teacher not found in DB" });
-    const r = await pool.query(`SELECT ${ME_SELECT} FROM teachers WHERE id = $1`, [cur.id]);
+    const r = await pool.query(`SELECT ${ME_SELECT} FROM accounts WHERE id = $1`, [cur.id]);
     res.json(r.rows[0]);
   } catch (err) {
     handleErr(res, "GET /api/me", err);
@@ -52,12 +52,12 @@ router.patch("/", validateBody(ProfilePatchSchema), async (req, res) => {
 
     const { sets, params } = buildPatch(body, ME_FIELDS);
     if (sets.length === 0) {
-      const r = await pool.query(`SELECT ${ME_SELECT} FROM teachers WHERE id = $1`, [cur.id]);
+      const r = await pool.query(`SELECT ${ME_SELECT} FROM accounts WHERE id = $1`, [cur.id]);
       return res.json(r.rows[0]);
     }
     params.push(cur.id);
     const upd = await pool.query(
-      `UPDATE teachers SET ${sets.join(", ")}, updated_at = NOW()
+      `UPDATE accounts SET ${sets.join(", ")}, updated_at = NOW()
         WHERE id = $${params.length}
         RETURNING ${ME_SELECT}`,
       params

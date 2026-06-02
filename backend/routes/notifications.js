@@ -12,7 +12,7 @@ router.get("/", async (req, res) => {
     const r = await pool.query(
       `SELECT id, kind, message, link, is_read, created_at
          FROM notifications
-        WHERE teacher_id = $1 ${onlyUnread ? "AND is_read = FALSE" : ""}
+        WHERE account_id = $1 ${onlyUnread ? "AND is_read = FALSE" : ""}
         ORDER BY created_at DESC
         LIMIT 50`,
       [cur.id]
@@ -42,7 +42,7 @@ router.post("/refresh", async (req, res) => {
           SELECT id AS ref_id,
                  'Lesson "' || title || '" starts at ' || start_time::text || '.' AS message
             FROM schedule_entries
-           WHERE teacher_id = $1
+           WHERE account_id = $1
              AND date = CURRENT_DATE
              AND start_time BETWEEN CURRENT_TIME AND CURRENT_TIME + INTERVAL '60 minutes'
              AND status = 'planned'
@@ -58,7 +58,7 @@ router.post("/refresh", async (req, res) => {
                  'Homework "' || title || '" is due ' ||
                    CASE WHEN due_date = CURRENT_DATE THEN 'today.' ELSE 'tomorrow.' END AS message
             FROM homework
-           WHERE teacher_id = $1
+           WHERE account_id = $1
              AND status = 'Open'
              AND due_date IS NOT NULL
              AND due_date >= CURRENT_DATE
@@ -75,7 +75,7 @@ router.post("/refresh", async (req, res) => {
                  'Quiz "' || title || '" is scheduled for ' ||
                    CASE WHEN scheduled_for = CURRENT_DATE THEN 'today.' ELSE 'tomorrow.' END AS message
             FROM quizzes
-           WHERE teacher_id = $1
+           WHERE account_id = $1
              AND scheduled_for IS NOT NULL
              AND scheduled_for >= CURRENT_DATE
              AND scheduled_for <= CURRENT_DATE + INTERVAL '1 day'
@@ -93,13 +93,13 @@ router.post("/refresh", async (req, res) => {
         // makes intent obvious.
         const existing = await pool.query(
           `SELECT id FROM notifications
-            WHERE teacher_id = $1 AND kind = $2 AND ref_table = $3 AND ref_id = $4
+            WHERE account_id = $1 AND kind = $2 AND ref_table = $3 AND ref_id = $4
             LIMIT 1`,
           [cur.id, job.kind, job.ref_table, row.ref_id]
         );
         if (existing.rowCount > 0) continue;
         const ins = await pool.query(
-          `INSERT INTO notifications (teacher_id, kind, message, link, ref_table, ref_id)
+          `INSERT INTO notifications (account_id, kind, message, link, ref_table, ref_id)
            VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
           [cur.id, job.kind, row.message, job.link, job.ref_table, row.ref_id]
         );
@@ -118,12 +118,12 @@ router.post("/mark-read", async (req, res) => {
     const ids = Array.isArray(req.body?.ids) ? req.body.ids : null;
     if (ids) {
       await pool.query(
-        "UPDATE notifications SET is_read = TRUE WHERE teacher_id = $1 AND id = ANY($2::int[])",
+        "UPDATE notifications SET is_read = TRUE WHERE account_id = $1 AND id = ANY($2::int[])",
         [cur.id, ids]
       );
     } else {
       await pool.query(
-        "UPDATE notifications SET is_read = TRUE WHERE teacher_id = $1",
+        "UPDATE notifications SET is_read = TRUE WHERE account_id = $1",
         [cur.id]
       );
     }
@@ -137,7 +137,7 @@ router.delete("/:id", async (req, res) => {
   try {
     const cur = await loadCurrentTeacher(req);
     const r = await pool.query(
-      "DELETE FROM notifications WHERE id = $1 AND teacher_id = $2",
+      "DELETE FROM notifications WHERE id = $1 AND account_id = $2",
       [req.params.id, cur.id]
     );
     if (r.rowCount === 0) return res.status(404).json({ error: "Not found" });

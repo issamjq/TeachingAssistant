@@ -5849,7 +5849,7 @@ export default function Landing({ onOpenStudio }) {
     }
 
     // Mock account in localStorage drives the sidebar / nav. The real
-    // source of truth lives on req.teacher server-side.
+    // source of truth lives on req.account server-side.
     setAccount({
       provider: pendingProvider || "google",
       plan,

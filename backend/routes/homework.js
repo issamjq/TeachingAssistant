@@ -27,7 +27,7 @@ const assertOwns = async (req, id) => {
   const cur = await loadCurrentTeacher(req);
   if (!cur) return false;
   const r = await pool.query(
-    "SELECT id FROM homework WHERE id = $1 AND teacher_id = $2",
+    "SELECT id FROM homework WHERE id = $1 AND account_id = $2",
     [id, cur.id]
   );
   return r.rows.length > 0;
@@ -44,7 +44,7 @@ router.get("/:id/submissions", async (req, res) => {
               hs.status, hs.submitted_at, hs.score, hs.max_score, hs.feedback
          FROM students s
          LEFT JOIN homework_submissions hs ON hs.student_id = s.id AND hs.homework_id = $1
-        WHERE s.teacher_id = (SELECT teacher_id FROM homework WHERE id = $1)
+        WHERE s.account_id = (SELECT account_id FROM homework WHERE id = $1)
         ORDER BY s.grade, s.section, s.last_name`,
       [req.params.id]
     );
@@ -63,7 +63,7 @@ router.put("/:id/submissions/:studentId", async (req, res) => {
     // attacker could attach a submission row to a foreign student.
     const cur = await loadCurrentTeacher(req);
     const own = await pool.query(
-      "SELECT 1 FROM students WHERE id = $1 AND teacher_id = $2",
+      "SELECT 1 FROM students WHERE id = $1 AND account_id = $2",
       [req.params.studentId, cur.id]
     );
     if (own.rowCount === 0) return res.status(404).json({ error: "Student not found" });

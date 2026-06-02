@@ -8,7 +8,7 @@ import { clientIp, userAgent } from "../lib/auth.js";
 
 // Dev endpoints — read-only data inspector + feature flag toggles.
 // Auth + role check applied at the app.js mount; every handler here
-// can assume req.teacher.role === "dev".
+// can assume req.account.role === "dev".
 
 const FlagSchema = z.object({
   enabled:     z.boolean().optional(),
@@ -46,7 +46,7 @@ router.put("/feature-flags/:key", validateBody(FlagSchema), async (req, res) => 
       [key, enabled ?? null, description ?? null]
     );
     await recordAudit({
-      teacherId: req.teacher.id,
+      accountId: req.account.id,
       action: "dev.flag.toggle",
       targetTable: "feature_flags",
       ip: clientIp(req), userAgent: userAgent(req),
@@ -61,7 +61,7 @@ router.put("/feature-flags/:key", validateBody(FlagSchema), async (req, res) => 
 router.get("/inspect/:table", async (req, res) => {
   // Whitelist of tables the dev inspector can read.
   const ALLOWED = new Set([
-    "teachers", "templates", "drafts", "students",
+    "accounts", "templates", "drafts", "students",
     "schedule_entries", "quizzes", "quiz_questions", "quiz_scores",
     "homework", "homework_submissions", "attendance", "student_grades",
     "presentations", "activities", "notifications", "library_resources",

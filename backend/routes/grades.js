@@ -18,24 +18,24 @@ router.get("/summary", async (req, res) => {
       `WITH entries AS (
          SELECT student_id, score::numeric AS score, max_score::numeric AS max_score
            FROM student_grades
-          WHERE teacher_id = $1 AND score IS NOT NULL AND max_score IS NOT NULL
+          WHERE account_id = $1 AND score IS NOT NULL AND max_score IS NOT NULL
          UNION ALL
          SELECT qs.student_id, qs.score, qs.max_score
            FROM quiz_scores qs
            JOIN quizzes q ON q.id = qs.quiz_id
-          WHERE q.teacher_id = $1 AND qs.score IS NOT NULL AND qs.max_score IS NOT NULL
+          WHERE q.account_id = $1 AND qs.score IS NOT NULL AND qs.max_score IS NOT NULL
          UNION ALL
          SELECT hs.student_id, hs.score, hs.max_score
            FROM homework_submissions hs
            JOIN homework h ON h.id = hs.homework_id
-          WHERE h.teacher_id = $1 AND hs.score IS NOT NULL AND hs.max_score IS NOT NULL
+          WHERE h.account_id = $1 AND hs.score IS NOT NULL AND hs.max_score IS NOT NULL
        )
        SELECT s.id AS student_id, s.first_name, s.last_name, s.grade, s.section,
               COUNT(e.*)::int AS entries,
               COALESCE(ROUND(AVG(e.score / NULLIF(e.max_score, 0) * 100)::numeric, 1), 0) AS average_pct
          FROM students s
          LEFT JOIN entries e ON e.student_id = s.id
-        WHERE s.teacher_id = $1
+        WHERE s.account_id = $1
         GROUP BY s.id
         ORDER BY s.grade, s.section, s.last_name`,
       [cur.id]
@@ -47,7 +47,7 @@ router.get("/summary", async (req, res) => {
 });
 
 // SECURITY: student_grades POST/PATCH accept a student_id from the body.
-// The crud helper stamps teacher_id from the current teacher, but does
+// The crud helper stamps account_id from the current teacher, but does
 // NOT verify the student belongs to that teacher. Without this guard,
 // a teacher could attach a grade row to a foreign student. We mount
 // the guard BEFORE the crud subrouter so Express runs it first.
@@ -58,7 +58,7 @@ const assertOwnsStudentIfPresent = async (req, res, next) => {
     const cur = await loadCurrentTeacher(req);
     if (!cur) return res.status(401).json({ error: "Not authenticated" });
     const r = await pool.query(
-      "SELECT 1 FROM students WHERE id = $1 AND teacher_id = $2",
+      "SELECT 1 FROM students WHERE id = $1 AND account_id = $2",
       [studentId, cur.id]
     );
     if (r.rowCount === 0) return res.status(404).json({ error: "Student not found" });

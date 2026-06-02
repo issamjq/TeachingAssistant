@@ -10,7 +10,7 @@ import { canGrantRole, ROLES, isValidSubRole } from "../lib/roles.js";
 // Admin endpoints — manage teacher accounts, never see their content.
 //
 // Auth: requireAuth() + requireRole("admin") are applied at the
-// app.js mount, so every handler here can assume req.teacher.role
+// app.js mount, so every handler here can assume req.account.role
 // === "admin". The role check leaks no information about the route
 // shape because non-admins get a flat 403.
 
@@ -46,10 +46,10 @@ router.get("/teachers", async (_req, res) => {
               t.subscription_status, t.subscription_ends_at, t.subscription_plan,
               t.last_login_at, t.last_login_ip,
               t.hire_date, t.created_at,
-              (SELECT COUNT(*)::int FROM students  WHERE teacher_id = t.id) AS students,
-              (SELECT COUNT(*)::int FROM drafts    WHERE teacher_id = t.id) AS drafts,
-              (SELECT COUNT(*)::int FROM templates WHERE teacher_id = t.id) AS templates
-         FROM teachers t
+              (SELECT COUNT(*)::int FROM students  WHERE account_id = t.id) AS students,
+              (SELECT COUNT(*)::int FROM drafts    WHERE account_id = t.id) AS drafts,
+              (SELECT COUNT(*)::int FROM templates WHERE account_id = t.id) AS templates
+         FROM accounts t
         ORDER BY t.role DESC, t.last_name, t.first_name`
     );
     res.json(r.rows);
@@ -67,7 +67,7 @@ router.post("/teachers", validateBody(AdminCreateTeacherSchema), async (req, res
     // them to grant `targetRole` may proceed. dev/super_admin grant
     // anything (except dev/super_admin themselves, which are env-only);
     // admin(operations) can only grant teacher.
-    if (!canGrantRole(req.teacher, targetRole)) {
+    if (!canGrantRole(req.account, targetRole)) {
       return res.status(403).json({
         error: "You don't have permission to create an account with this role.",
         code: "role_grant_denied",
@@ -81,15 +81,15 @@ router.post("/teachers", validateBody(AdminCreateTeacherSchema), async (req, res
     }
 
     const r = await pool.query(
-      `INSERT INTO teachers (first_name, last_name, email, staff_id, role, sub_role)
+      `INSERT INTO accounts (first_name, last_name, email, staff_id, role, sub_role)
        VALUES ($1, $2, $3, $4, $5, $6)
        RETURNING id, first_name, last_name, email, staff_id, role, sub_role, status, created_at`,
       [first_name, last_name, email ?? null, staff_id ?? null, targetRole, sub_role || null]
     );
     await recordAudit({
-      teacherId: req.teacher.id,
+      accountId: req.account.id,
       action: "admin.teacher.create",
-      targetTable: "teachers",
+      targetTable: "accounts",
       targetId: r.rows[0].id,
       ip: clientIp(req), userAgent: userAgent(req),
       detail: { role: targetRole, sub_role: sub_role || null },
@@ -110,19 +110,19 @@ router.patch("/teachers/:id/status", validateBody(AdminStatusSchema), async (req
     // Guardrail: an admin cannot suspend or delete themselves — that's
     // either a mistake or an attempted self-lockout, both of which
     // are better blocked at the API.
-    if (targetId === req.teacher.id && status !== "active") {
+    if (targetId === req.account.id && status !== "active") {
       return res.status(400).json({ error: "Admins can't change their own account status." });
     }
     const r = await pool.query(
-      `UPDATE teachers SET status = $1, updated_at = NOW()
+      `UPDATE accounts SET status = $1, updated_at = NOW()
         WHERE id = $2 RETURNING id, status`,
       [status, targetId]
     );
     if (r.rows.length === 0) return res.status(404).json({ error: "Not found" });
     await recordAudit({
-      teacherId: req.teacher.id,
+      accountId: req.account.id,
       action: `admin.teacher.${status}`,
-      targetTable: "teachers",
+      targetTable: "accounts",
       targetId,
       ip: clientIp(req), userAgent: userAgent(req),
     });
@@ -144,10 +144,10 @@ router.patch("/teachers/:id/role", validateBody(AdminRoleUpdateSchema), async (r
     if (!Number.isInteger(targetId) || targetId < 1) {
       return res.status(400).json({ error: "Invalid teacher id." });
     }
-    if (targetId === req.teacher.id) {
+    if (targetId === req.account.id) {
       return res.status(400).json({ error: "You can't change your own role." });
     }
-    if (!canGrantRole(req.teacher, role)) {
+    if (!canGrantRole(req.account, role)) {
       return res.status(403).json({ error: "Forbidden", code: "role_grant_denied" });
     }
     if (!isValidSubRole(role, sub_role)) {
@@ -158,20 +158,20 @@ router.patch("/teachers/:id/role", validateBody(AdminRoleUpdateSchema), async (r
     }
     // Look up the current role so we can refuse demotion attempts from
     // an actor not allowed to touch the existing role either.
-    const cur = await pool.query("SELECT role FROM teachers WHERE id = $1", [targetId]);
+    const cur = await pool.query("SELECT role FROM accounts WHERE id = $1", [targetId]);
     if (cur.rows.length === 0) return res.status(404).json({ error: "Not found" });
-    if (!canGrantRole(req.teacher, cur.rows[0].role)) {
+    if (!canGrantRole(req.account, cur.rows[0].role)) {
       return res.status(403).json({ error: "Forbidden", code: "role_grant_denied" });
     }
     const r = await pool.query(
-      `UPDATE teachers SET role = $1, sub_role = $2, updated_at = NOW()
+      `UPDATE accounts SET role = $1, sub_role = $2, updated_at = NOW()
         WHERE id = $3 RETURNING id, role, sub_role`,
       [role, sub_role || null, targetId]
     );
     await recordAudit({
-      teacherId: req.teacher.id,
+      accountId: req.account.id,
       action: "admin.teacher.role_update",
-      targetTable: "teachers",
+      targetTable: "accounts",
       targetId,
       ip: clientIp(req), userAgent: userAgent(req),
       detail: { from: cur.rows[0].role, to: role, sub_role: sub_role || null },
@@ -188,15 +188,15 @@ router.delete("/teachers/:id", async (req, res) => {
     if (!Number.isInteger(targetId) || targetId < 1) {
       return res.status(400).json({ error: "Invalid teacher id." });
     }
-    if (targetId === req.teacher.id) {
+    if (targetId === req.account.id) {
       return res.status(400).json({ error: "Admins can't delete their own account." });
     }
-    const r = await pool.query("DELETE FROM teachers WHERE id = $1", [targetId]);
+    const r = await pool.query("DELETE FROM accounts WHERE id = $1", [targetId]);
     if (r.rowCount === 0) return res.status(404).json({ error: "Not found" });
     await recordAudit({
-      teacherId: req.teacher.id,
+      accountId: req.account.id,
       action: "admin.teacher.delete",
-      targetTable: "teachers",
+      targetTable: "accounts",
       targetId,
       ip: clientIp(req), userAgent: userAgent(req),
     });
@@ -210,12 +210,12 @@ router.get("/stats", async (_req, res) => {
   try {
     const r = await pool.query(
       `SELECT
-         (SELECT COUNT(*)::int FROM teachers WHERE role = 'teacher' AND status = 'active') AS active_teachers,
-         (SELECT COUNT(*)::int FROM teachers WHERE role = 'teacher' AND status = 'suspended') AS suspended_teachers,
-         (SELECT COUNT(*)::int FROM teachers WHERE role = 'teacher') AS total_teachers,
-         (SELECT COUNT(*)::int FROM teachers WHERE subscription_status = 'trial') AS trialing,
-         (SELECT COUNT(*)::int FROM teachers WHERE subscription_status = 'active') AS subscribed,
-         (SELECT COUNT(*)::int FROM teachers WHERE subscription_status = 'expired') AS lapsed,
+         (SELECT COUNT(*)::int FROM accounts WHERE role = 'teacher' AND status = 'active') AS active_teachers,
+         (SELECT COUNT(*)::int FROM accounts WHERE role = 'teacher' AND status = 'suspended') AS suspended_teachers,
+         (SELECT COUNT(*)::int FROM accounts WHERE role = 'teacher') AS total_teachers,
+         (SELECT COUNT(*)::int FROM accounts WHERE subscription_status = 'trial') AS trialing,
+         (SELECT COUNT(*)::int FROM accounts WHERE subscription_status = 'active') AS subscribed,
+         (SELECT COUNT(*)::int FROM accounts WHERE subscription_status = 'expired') AS lapsed,
          (SELECT COUNT(*)::int FROM students) AS total_students,
          (SELECT COUNT(*)::int FROM drafts) AS total_lessons,
          (SELECT COUNT(*)::int FROM quizzes) AS total_quizzes,
@@ -230,15 +230,15 @@ router.get("/stats", async (_req, res) => {
 // GET /api/admin/audit — recent audit-log rows. Lets a security
 // reviewer (or me, when something looks weird) see the last N actions
 // across the system. Default limit kept small (100) — paginate later
-// if needed. Filters: ?teacher_id, ?action prefix.
+// if needed. Filters: ?account_id, ?action prefix.
 router.get("/audit", async (req, res) => {
   try {
     const limit = Math.min(Number(req.query.limit) || 100, 500);
     const conds = [];
     const params = [];
-    if (req.query.teacher_id) {
-      params.push(Number(req.query.teacher_id));
-      conds.push(`teacher_id = $${params.length}`);
+    if (req.query.account_id) {
+      params.push(Number(req.query.account_id));
+      conds.push(`account_id = $${params.length}`);
     }
     if (req.query.action) {
       params.push(String(req.query.action).slice(0, 80) + "%");
@@ -247,7 +247,7 @@ router.get("/audit", async (req, res) => {
     const where = conds.length ? `WHERE ${conds.join(" AND ")}` : "";
     params.push(limit);
     const r = await pool.query(
-      `SELECT id, teacher_id, action, target_table, target_id, ip,
+      `SELECT id, account_id, action, target_table, target_id, ip,
               user_agent, detail, created_at
          FROM audit_log
          ${where}
