@@ -21,6 +21,7 @@ import imagesRouter from "./routes/images.js";
 import schoolsRouter from "./routes/schools.js";
 import authRouter from "./routes/auth.js";
 import adminRouter from "./routes/admin.js";
+import superadminRouter from "./routes/superadmin.js";
 import devRouter from "./routes/dev.js";
 import { requireAuth, requireRole } from "./lib/auth.js";
 import {
@@ -129,9 +130,10 @@ export function buildApp() {
   // can hit everything admin can; super_admin additionally creates
   // admin/moe/owner accounts (handler-level canGrantRole() enforces).
   // moe + owner routers come later when their dashboards land.
-  app.use("/api/teachers", requireRole("admin", "super_admin", "dev"), teachersRouter);
-  app.use("/api/admin",    requireRole("admin", "super_admin", "dev"), adminRouter);
-  app.use("/api/dev",      requireRole("dev"),                         devRouter);
+  app.use("/api/teachers",   requireRole("admin", "super_admin", "dev"),    teachersRouter);
+  app.use("/api/admin",      requireRole("admin", "super_admin", "dev"),    adminRouter);
+  app.use("/api/superadmin", requireRole("super_admin", "dev"),             superadminRouter);
+  app.use("/api/dev",        requireRole("dev"),                            devRouter);
 
   // 14. JSON 404 (any /api/* that didn't match falls through here).
   // We expose a generic message so an attacker probing for endpoints

@@ -239,6 +239,10 @@ ALTER TABLE students  ADD COLUMN IF NOT EXISTS account_id INT REFERENCES account
 ALTER TABLE accounts  ADD COLUMN IF NOT EXISTS role      TEXT NOT NULL DEFAULT 'teacher';
 ALTER TABLE accounts  ADD COLUMN IF NOT EXISTS sub_role  TEXT;
 ALTER TABLE accounts  ADD COLUMN IF NOT EXISTS status    TEXT NOT NULL DEFAULT 'active';
+-- Per-account permission overrides. Maps permission keys (defined in
+-- src/lib/permissions.js) to booleans. Empty object means "use role
+-- defaults". Super admin edits this from the account drawer.
+ALTER TABLE accounts  ADD COLUMN IF NOT EXISTS permissions JSONB NOT NULL DEFAULT '{}'::jsonb;
 ALTER TABLE accounts  ADD COLUMN IF NOT EXISTS languages TEXT[] DEFAULT '{}';
 ALTER TABLE accounts  ADD COLUMN IF NOT EXISTS sections  TEXT[] DEFAULT '{}';
 

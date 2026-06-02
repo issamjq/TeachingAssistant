@@ -24,6 +24,7 @@ import Reports from "./views/Reports";
 import Studio from "./views/Studio";
 import AdminConsole from "./views/AdminConsole";
 import SuperAdminConsole from "./views/SuperAdminConsole";
+import SuperAdminDashboard from "./views/SuperAdminDashboard";
 import DevConsole from "./views/DevConsole";
 import { getRole, onRoleChange, ROLE_LABELS } from "./lib/role";
 import { api } from "./views/_shared";
@@ -72,7 +73,10 @@ const DEV_NAV = [
 ];
 
 const SUPERADMIN_NAV = [
-  { section: "Super admin", items: [{ key: "superadmin-console", label: "Super admin", letter: "S" }] },
+  { section: "Super admin", items: [
+    { key: "superadmin-dashboard", label: "Dashboard",      letter: "D" },
+    { key: "superadmin-console",   label: "Account access", letter: "A" },
+  ] },
 ];
 
 const MOE_NAV = [
@@ -96,7 +100,7 @@ const DEFAULT_ROUTE = {
   teacher: "planner",
   admin: "admin-console",
   dev: "dev-console",
-  super_admin: "superadmin-console",
+  super_admin: "superadmin-dashboard",
   moe: "moe-console",
   owner: "owner-console",
 };
@@ -119,7 +123,7 @@ const SECTIONS_BY_ROLE = {
   ]),
   admin: new Set(["admin-console", "account"]),
   dev: new Set(["dev-console", "account"]),
-  super_admin: new Set(["superadmin-console", "account"]),
+  super_admin: new Set(["superadmin-dashboard", "superadmin-console", "account"]),
   moe: new Set(["moe-console", "account"]),
   owner: new Set(["owner-console", "account"]),
 };
@@ -289,8 +293,13 @@ export default function StudioApp({ onClose }) {
     crumbs = [{ label: "Account" }];
     mainContent = <AccountProfile sub={sub} />;
   } else if (role === "super_admin") {
-    crumbs = [{ label: t("nav.superadmin-console") }];
-    mainContent = <SuperAdminConsole />;
+    if (section === "superadmin-console") {
+      crumbs = [{ label: t("nav.superadmin-accounts") || "Account access" }];
+      mainContent = <SuperAdminConsole />;
+    } else {
+      crumbs = [{ label: t("nav.superadmin-dashboard") || "Dashboard" }];
+      mainContent = <SuperAdminDashboard />;
+    }
   } else if (role === "admin") {
     crumbs = [{ label: "Admin console" }];
     mainContent = <AdminConsole />;

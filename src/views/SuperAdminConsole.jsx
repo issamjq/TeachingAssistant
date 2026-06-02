@@ -19,6 +19,7 @@ import {
 import {
   ROLES, ROLE_LABELS, SUB_ROLES, SUB_ROLE_LABELS, rolesGrantableBy,
 } from "../lib/role";
+import AccountDrawer from "./AccountDrawer";
 
 const STATUS_LABEL = {
   active: "Active",
@@ -60,6 +61,7 @@ export default function SuperAdminConsole() {
   const [deleting, setDeleting] = useState(null);
   const [busy, setBusy] = useState(false);
   const [filter, setFilter] = useState("all"); // role filter
+  const [drawerId, setDrawerId] = useState(null); // open drawer for this account id
 
   const reload = () => {
     setLoading(true);
@@ -205,9 +207,15 @@ export default function SuperAdminConsole() {
                   // the modal-less "are you sure" is too thin a guard.
                   const isSelf = me && me.id === t.id;
                   return (
-                    <tr key={t.id} className="border-b border-line/60 last:border-0 hover:bg-paper-warm transition">
+                    <tr
+                      key={t.id}
+                      className="border-b border-line/60 last:border-0 hover:bg-paper-warm transition cursor-pointer"
+                      onClick={() => setDrawerId(t.id)}
+                    >
                       <td className="py-3 px-5 text-ink">
-                        {t.first_name} {t.last_name}
+                        <span className="hover:text-accent transition">
+                          {t.first_name} {t.last_name}
+                        </span>
                         {isSelf && (
                           <span className="ml-2 font-mono text-[9px] uppercase tracking-wider text-muted">
                             you
@@ -228,7 +236,7 @@ export default function SuperAdminConsole() {
                       <td className="py-3 text-muted text-xs">
                         {t.last_login_at ? new Date(t.last_login_at).toLocaleDateString() : "—"}
                       </td>
-                      <td className="py-3 px-5">
+                      <td className="py-3 px-5" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center gap-1">
                           {/* Edit: super admin (and dev) can change role
                               and sub_role on any account except their own.
@@ -294,6 +302,15 @@ export default function SuperAdminConsole() {
         title={deleting ? `Delete ${deleting.first_name} ${deleting.last_name}?` : ""}
         message="The account and ALL their content (lessons, students, etc.) will be removed."
       />
+
+      {drawerId && (
+        <AccountDrawer
+          accountId={drawerId}
+          isSelf={me && me.id === drawerId}
+          onClose={() => setDrawerId(null)}
+          onChanged={reload}
+        />
+      )}
     </div>
   );
 }
