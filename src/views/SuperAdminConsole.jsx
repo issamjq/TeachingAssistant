@@ -53,6 +53,7 @@ function RoleBadge({ role, subRole }) {
 export default function SuperAdminConsole() {
   const [stats, setStats] = useState(null);
   const [accounts, setAccounts] = useState([]);
+  const [me, setMe] = useState(null); // canonical actor row from /api/auth/me
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [editing, setEditing] = useState(null); // "new" | row object
@@ -62,8 +63,17 @@ export default function SuperAdminConsole() {
 
   const reload = () => {
     setLoading(true);
-    Promise.all([api("/api/admin/stats"), api("/api/admin/teachers")])
-      .then(([s, t]) => { setStats(s); setAccounts(t); setLoading(false); })
+    // /api/auth/me runs alongside stats + teachers so the row-action
+    // logic can identify the actor and hide self-destructive controls
+    // (suspend/delete on your own row).
+    Promise.all([
+      api("/api/admin/stats"),
+      api("/api/admin/teachers"),
+      api("/api/auth/me"),
+    ])
+      .then(([s, t, m]) => {
+        setStats(s); setAccounts(t); setMe(m); setLoading(false);
+      })
       .catch((err) => { setError(err.message); setLoading(false); });
   };
   useEffect(reload, []);
@@ -187,52 +197,67 @@ export default function SuperAdminConsole() {
                 </tr>
               </thead>
               <tbody>
-                {visible.map((t) => (
-                  <tr key={t.id} className="border-b border-line/60 last:border-0 hover:bg-paper-warm transition">
-                    <td className="py-3 px-5 text-ink">{t.first_name} {t.last_name}</td>
-                    <td className="py-3 text-muted text-xs">{t.email || "—"}</td>
-                    <td className="py-3"><RoleBadge role={t.role} subRole={t.sub_role} /></td>
-                    <td className="py-3">
-                      <span className={`font-mono text-[10px] uppercase tracking-wider px-2.5 py-1 rounded-full border ${
-                        t.status === "active"    ? "border-sage text-sage bg-paper" :
-                        t.status === "suspended" ? "border-gold text-gold bg-paper" :
-                                                   "border-accent text-accent bg-paper"
-                      }`}>
-                        {STATUS_LABEL[t.status] || t.status}
-                      </span>
-                    </td>
-                    <td className="py-3 text-muted text-xs">
-                      {t.last_login_at ? new Date(t.last_login_at).toLocaleDateString() : "—"}
-                    </td>
-                    <td className="py-3 px-5">
-                      <div className="flex items-center gap-1">
-                        {GRANTABLE.includes(t.role) && (
-                          <button onClick={() => setEditing(t)} title="Edit role"
-                            className="h-7 w-7 rounded-md border border-line hover:border-ink hover:bg-paper-warm flex items-center justify-center text-ink-soft transition">
-                            <Pencil size={12} />
-                          </button>
+                {visible.map((t) => {
+                  // Hide every destructive control on the actor's own
+                  // row. The backend already rejects self-suspend /
+                  // self-delete, but the UI shouldn't even offer them
+                  // — clicking suspend on yourself locks you out, and
+                  // the modal-less "are you sure" is too thin a guard.
+                  const isSelf = me && me.id === t.id;
+                  return (
+                    <tr key={t.id} className="border-b border-line/60 last:border-0 hover:bg-paper-warm transition">
+                      <td className="py-3 px-5 text-ink">
+                        {t.first_name} {t.last_name}
+                        {isSelf && (
+                          <span className="ml-2 font-mono text-[9px] uppercase tracking-wider text-muted">
+                            you
+                          </span>
                         )}
-                        {t.status === "suspended" ? (
-                          <button onClick={() => setStatus(t, "active")} title="Reactivate"
-                            className="h-7 w-7 rounded-md border border-line hover:border-ink hover:bg-paper-warm flex items-center justify-center text-ink-soft transition">
-                            <Play size={12} />
-                          </button>
-                        ) : (
-                          <button onClick={() => setStatus(t, "suspended")} title="Suspend"
-                            className="h-7 w-7 rounded-md border border-line hover:border-gold hover:bg-paper-warm flex items-center justify-center text-ink-soft transition">
-                            <Pause size={12} />
-                          </button>
-                        )}
-                        {GRANTABLE.includes(t.role) && (
-                          <button onClick={() => setDeleting(t)} title="Delete"
-                            className="h-7 w-7 rounded-md border border-line hover:border-accent hover:bg-paper-warm flex items-center justify-center text-ink-soft hover:text-accent transition">
-                            <Trash2 size={12} />
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                      <td className="py-3 text-muted text-xs">{t.email || "—"}</td>
+                      <td className="py-3"><RoleBadge role={t.role} subRole={t.sub_role} /></td>
+                      <td className="py-3">
+                        <span className={`font-mono text-[10px] uppercase tracking-wider px-2.5 py-1 rounded-full border ${
+                          t.status === "active"    ? "border-sage text-sage bg-paper" :
+                          t.status === "suspended" ? "border-gold text-gold bg-paper" :
+                                                     "border-accent text-accent bg-paper"
+                        }`}>
+                          {STATUS_LABEL[t.status] || t.status}
+                        </span>
+                      </td>
+                      <td className="py-3 text-muted text-xs">
+                        {t.last_login_at ? new Date(t.last_login_at).toLocaleDateString() : "—"}
+                      </td>
+                      <td className="py-3 px-5">
+                        <div className="flex items-center gap-1">
+                          {!isSelf && GRANTABLE.includes(t.role) && (
+                            <button onClick={() => setEditing(t)} title="Edit role"
+                              className="h-7 w-7 rounded-md border border-line hover:border-ink hover:bg-paper-warm flex items-center justify-center text-ink-soft transition">
+                              <Pencil size={12} />
+                            </button>
+                          )}
+                          {!isSelf && (t.status === "suspended" ? (
+                            <button onClick={() => setStatus(t, "active")} title="Reactivate"
+                              className="h-7 w-7 rounded-md border border-line hover:border-ink hover:bg-paper-warm flex items-center justify-center text-ink-soft transition">
+                              <Play size={12} />
+                            </button>
+                          ) : (
+                            <button onClick={() => setStatus(t, "suspended")} title="Suspend"
+                              className="h-7 w-7 rounded-md border border-line hover:border-gold hover:bg-paper-warm flex items-center justify-center text-ink-soft transition">
+                              <Pause size={12} />
+                            </button>
+                          ))}
+                          {!isSelf && GRANTABLE.includes(t.role) && (
+                            <button onClick={() => setDeleting(t)} title="Delete"
+                              className="h-7 w-7 rounded-md border border-line hover:border-accent hover:bg-paper-warm flex items-center justify-center text-ink-soft hover:text-accent transition">
+                              <Trash2 size={12} />
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
                 {!loading && visible.length === 0 && (
                   <tr><td colSpan={6} className="py-12 text-center text-muted">No accounts match this filter.</td></tr>
                 )}
