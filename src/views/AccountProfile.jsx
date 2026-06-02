@@ -11,6 +11,7 @@ import DatabaseSchools from "./DatabaseSchools";
 import Avatar from "../components/Avatar";
 import { avatarsFor } from "../lib/avatars";
 import { useAccount, updateProfile } from "../lib/account";
+import BrandLoader from "../components/BrandLoader";
 
 const initials = (first, last) =>
   `${(first || "")[0] || ""}${(last || "")[0] || ""}`.toUpperCase();
@@ -130,11 +131,7 @@ function PersonalDetails() {
         </div>
       )}
 
-      {loading && (
-        <p className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted">
-          Loading account from Neon…
-        </p>
-      )}
+      {loading && <BrandLoader compact fullscreen={false} />}
 
       {me && (
         <Card>

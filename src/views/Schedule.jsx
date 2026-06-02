@@ -8,6 +8,7 @@ import {
   inputClasses, selectClasses, api,
   DatePicker,
 } from "./_shared";
+import BrandLoader from "../components/BrandLoader";
 
 const fmtTime = (t) => (t ? t.slice(0, 5) : "");
 
@@ -147,9 +148,7 @@ export default function Schedule() {
       )}
 
       {loading ? (
-        <p className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted">
-          Loading schedule from Neon…
-        </p>
+        <BrandLoader compact fullscreen={false} />
       ) : view === "week" ? (
         <div className="grid grid-cols-1 md:grid-cols-7 gap-3">
           {days.map((d) => {

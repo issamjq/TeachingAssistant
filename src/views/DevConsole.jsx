@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { selectClasses, api } from "./_shared";
+import BrandLoader from "../components/BrandLoader";
 
 const TABLES = [
   "teachers", "templates", "drafts", "students",
@@ -93,7 +94,7 @@ export default function DevConsole() {
                 <div className="flex justify-between"><dt className="text-muted">Node</dt><dd className="text-ink-soft font-mono">{health.node_version}</dd></div>
               </dl>
             ) : (
-              <p className="text-sm text-muted">Loading…</p>
+              <BrandLoader compact fullscreen={false} />
             )}
           </CardContent>
         </Card>

@@ -97,11 +97,7 @@ export default function DatabaseProfile() {
         </div>
       )}
 
-      {loading && (
-        <p className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted">
-          Loading profile from Neon…
-        </p>
-      )}
+      {loading && <BrandLoader compact fullscreen={false} />}
 
       {me && (
         <Card>

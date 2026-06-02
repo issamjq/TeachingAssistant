@@ -122,8 +122,12 @@ export function DonutChart({ segments = [], height = 200, centerLabel, centerVal
     });
 
   return (
-    <div className="flex items-center gap-6 flex-wrap">
-      <svg viewBox="0 0 200 200" style={{ width: height, height }} className="flex-shrink-0">
+    <div className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6">
+      <svg
+        viewBox="0 0 200 200"
+        style={{ width: height, height, maxWidth: "100%" }}
+        className="flex-shrink-0 mx-auto sm:mx-0"
+      >
         {arcs.map((a, i) => (
           <path key={i} d={a.d} fill={a.color} stroke="var(--color-paper, #f4ede0)" strokeWidth="1" />
         ))}
@@ -138,12 +142,12 @@ export function DonutChart({ segments = [], height = 200, centerLabel, centerVal
         )}
       </svg>
       {/* Legend */}
-      <div className="flex flex-col gap-2 min-w-0">
+      <div className="flex flex-col gap-2 min-w-0 flex-1 w-full">
         {arcs.map((a, i) => (
           <div key={i} className="flex items-center gap-2 text-xs">
             <span className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ background: a.color }} />
-            <span className="text-ink-soft truncate">{a.label}</span>
-            <span className="text-muted font-mono text-[10px] ml-auto">
+            <span className="text-ink-soft truncate min-w-0 flex-1">{a.label}</span>
+            <span className="text-muted font-mono text-[10px] flex-shrink-0">
               {a.value} · {Math.round((a.value / total) * 100)}%
             </span>
           </div>
@@ -163,9 +167,9 @@ export function BarChart({ data = [], height = 180, formatValue = (v) => v }) {
   return (
     <div className="flex flex-col gap-3" style={{ minHeight: height }}>
       {data.map((d, i) => (
-        <div key={i} className="flex items-center gap-3 text-xs">
-          <span className="w-20 text-ink-soft truncate flex-shrink-0">{d.label}</span>
-          <div className="flex-1 h-5 bg-paper-warm rounded-sm overflow-hidden relative">
+        <div key={i} className="flex items-center gap-2 sm:gap-3 text-xs min-w-0">
+          <span className="w-16 sm:w-20 text-ink-soft truncate flex-shrink-0">{d.label}</span>
+          <div className="flex-1 h-5 bg-paper-warm rounded-sm overflow-hidden relative min-w-0">
             <div
               className="h-full"
               style={{
@@ -175,7 +179,7 @@ export function BarChart({ data = [], height = 180, formatValue = (v) => v }) {
               }}
             />
           </div>
-          <span className="font-mono text-[10px] text-ink-soft w-20 text-right">
+          <span className="font-mono text-[10px] text-ink-soft w-16 sm:w-20 text-right flex-shrink-0">
             {formatValue(d.value)}
           </span>
         </div>

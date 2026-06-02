@@ -10,12 +10,13 @@
 // Click a row → opens <AccountDrawer />.
 
 import React, { useEffect, useState } from "react";
-import { Users, TrendingUp, Coins, Calendar, Activity, Sparkles } from "lucide-react";
+import { Users, GraduationCap, Briefcase, TrendingUp, Coins, Calendar, Activity, Sparkles } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { api } from "./_shared";
 import { LineChart, DonutChart, BarChart } from "../components/MiniCharts";
 import { ROLE_LABELS, ROLES } from "../lib/role";
 import AccountDrawer from "./AccountDrawer";
+import BrandLoader from "../components/BrandLoader";
 
 const ROLE_COLORS = {
   super_admin: "var(--color-accent, #c8472b)",
@@ -68,11 +69,7 @@ export default function SuperAdminDashboard() {
   useEffect(() => { reload(); }, [days]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (loading && !data) {
-    return (
-      <div className="py-24 text-center">
-        <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted">Loading dashboard…</p>
-      </div>
-    );
+    return <BrandLoader fullscreen={false} />;
   }
   if (error) {
     return (
@@ -105,31 +102,102 @@ export default function SuperAdminDashboard() {
   ];
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6 md:space-y-8 px-4 md:px-0">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
-        <div>
+        <div className="min-w-0">
           <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-2 inline-flex items-center gap-2.5">
             <span className="w-6 h-px bg-accent" /> Super admin
           </p>
-          <h2 className="font-serif text-4xl font-medium text-ink">
+          <h2 className="font-serif text-3xl sm:text-4xl font-medium text-ink leading-tight">
             Project <em className="italic font-light text-accent">overview</em>
           </h2>
-          <p className="text-muted mt-2">
+          <p className="text-muted mt-2 text-sm md:text-base">
             Everything at a glance — accounts, revenue, activity. Click any row to drill into an account.
           </p>
         </div>
         <RangeToggle value={days} onChange={setDays} />
       </div>
 
-      {/* Hero KPIs */}
+      {/* Hero KPIs — split between people (top row) and money + activity
+          (second row). Each card names exactly what it counts, no generic
+          "Total" buckets. */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-        <Kpi icon={<Users size={14} />} label="Total accounts" value={data.accounts.total} />
-        <Kpi icon={<TrendingUp size={14} />} label="New (7d)" value={data.activity.new_signups_7d} />
-        <Kpi icon={<Coins size={14} />} label="MRR" value={aed(data.revenue.mrr)} small />
-        <Kpi icon={<Coins size={14} />} label="ARR (est.)" value={aed(data.revenue.arr)} small />
-        <Kpi icon={<Calendar size={14} />} label="Ending in 30d" value={data.subscriptions.ending_30d} accent={data.subscriptions.ending_30d > 0} />
-        <Kpi icon={<Activity size={14} />} label="Active today" value={data.activity.logged_in_today} />
+        <Kpi
+          icon={<GraduationCap size={14} />}
+          label="Teachers"
+          value={data.accounts.by_role.teacher || 0}
+          sub="paying users"
+        />
+        <Kpi
+          icon={<Briefcase size={14} />}
+          label="Operators"
+          value={
+            (data.accounts.by_role.admin || 0) +
+            (data.accounts.by_role.moe || 0) +
+            (data.accounts.by_role.owner || 0)
+          }
+          sub="admin · moe · owner"
+        />
+        <Kpi
+          icon={<Users size={14} />}
+          label="Internal"
+          value={
+            (data.accounts.by_role.dev || 0) +
+            (data.accounts.by_role.super_admin || 0)
+          }
+          sub="dev · super admin"
+        />
+        <Kpi
+          icon={<TrendingUp size={14} />}
+          label="New (7d)"
+          value={data.activity.new_signups_7d}
+          sub="any role"
+        />
+        <Kpi
+          icon={<Calendar size={14} />}
+          label="Ending in 30d"
+          value={data.subscriptions.ending_30d}
+          accent={data.subscriptions.ending_30d > 0}
+          sub="subscriptions"
+        />
+        <Kpi
+          icon={<Activity size={14} />}
+          label="Active today"
+          value={data.activity.logged_in_today}
+          sub="logged in"
+        />
+      </div>
+
+      {/* Money KPIs — separate row so AED amounts don't compete with people
+          counts for visual weight */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <Kpi
+          icon={<Coins size={14} />}
+          label="MRR"
+          value={aed(data.revenue.mrr)}
+          sub="monthly recurring"
+          small
+        />
+        <Kpi
+          icon={<Coins size={14} />}
+          label="ARR (est.)"
+          value={aed(data.revenue.arr)}
+          sub="annualised"
+          small
+        />
+        <Kpi
+          icon={<Activity size={14} />}
+          label="Trial"
+          value={data.subscriptions.trial}
+          sub="in 7-day window"
+        />
+        <Kpi
+          icon={<Activity size={14} />}
+          label="Active subs"
+          value={data.subscriptions.active}
+          sub="paying right now"
+        />
       </div>
 
       {/* Charts row 1 — signups timeseries */}
@@ -191,11 +259,11 @@ export default function SuperAdminDashboard() {
       <Card>
         <CardContent>
           <ChartHeader label="Content footprint" sub="Across every teacher in the system" />
-          <div className="grid grid-cols-3 md:grid-cols-7 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-2 sm:gap-3">
             {Object.entries(data.content || {}).map(([k, v]) => (
-              <div key={k} className="bg-paper-warm rounded-lg p-3 text-center">
-                <p className="font-mono text-[9px] uppercase tracking-wider text-muted mb-1">{k}</p>
-                <p className="font-serif text-2xl text-ink">{v}</p>
+              <div key={k} className="bg-paper-warm rounded-lg p-2 sm:p-3 text-center">
+                <p className="font-mono text-[9px] uppercase tracking-wider text-muted mb-1 truncate">{k}</p>
+                <p className="font-serif text-xl sm:text-2xl text-ink">{v}</p>
               </div>
             ))}
           </div>
@@ -279,16 +347,21 @@ export default function SuperAdminDashboard() {
 }
 
 // ────────────────────────────────────────────────────────────────────
-function Kpi({ icon, label, value, accent, small }) {
+function Kpi({ icon, label, value, accent, small, sub }) {
   return (
     <Card>
       <CardContent className="p-4">
         <p className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted mb-2 inline-flex items-center gap-1.5">
           {icon} {label}
         </p>
-        <p className={`font-serif font-medium leading-none ${small ? "text-2xl" : "text-4xl"} ${accent ? "text-accent" : "text-ink"}`}>
+        <p className={`font-serif font-medium leading-none ${small ? "text-xl sm:text-2xl" : "text-3xl sm:text-4xl"} ${accent ? "text-accent" : "text-ink"}`}>
           {value}
         </p>
+        {sub && (
+          <p className="font-mono text-[9px] uppercase tracking-wider text-muted mt-2 truncate">
+            {sub}
+          </p>
+        )}
       </CardContent>
     </Card>
   );

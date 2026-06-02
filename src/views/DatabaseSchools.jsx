@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { EMIRATES } from "../lib/schools";
 import { GRADE_LEVELS, QUIZ_SECTIONS } from "../lib/enums";
 import { Field, Modal, ConfirmDelete, inputClasses, selectClasses, api } from "./_shared";
+import BrandLoader from "../components/BrandLoader";
 
 // Settings → My schools tab. The full CRUD surface for a teacher's school
 // list:
@@ -138,11 +139,7 @@ export default function DatabaseSchools() {
         </div>
       )}
 
-      {loading && (
-        <p className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted">
-          Loading schools from Neon…
-        </p>
-      )}
+      {loading && <BrandLoader compact fullscreen={false} />}
 
       {!loading && mine.length === 0 && (
         <Card>
@@ -547,7 +544,7 @@ function PickSchoolModal({ existingIds, onClose, onPicked, busy }) {
       </div>
 
       {loading ? (
-        <p className="text-sm text-muted">Loading directory…</p>
+        <BrandLoader compact fullscreen={false} />
       ) : err ? (
         <p className="text-sm text-accent">{err}</p>
       ) : filtered.length === 0 ? (

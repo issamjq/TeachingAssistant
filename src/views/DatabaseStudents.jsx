@@ -3,6 +3,7 @@ import { Search, Phone, Plus } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { GRADE_LEVELS, NATIONALITIES } from "../lib/enums";
+import BrandLoader from "../components/BrandLoader";
 import {
   Field,
   Modal,
@@ -202,15 +203,13 @@ export default function DatabaseStudents() {
         </div>
       )}
 
-      <p className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted mb-4">
-        {loading ? (
-          "Loading students from Neon…"
-        ) : (
-          <>
-            Showing <span className="text-ink">{sorted.length}</span> of {students.length} students
-          </>
-        )}
-      </p>
+      {loading ? (
+        <BrandLoader compact fullscreen={false} />
+      ) : (
+        <p className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted mb-4">
+          Showing <span className="text-ink">{sorted.length}</span> of {students.length} students
+        </p>
+      )}
 
       <Card>
         <CardContent>

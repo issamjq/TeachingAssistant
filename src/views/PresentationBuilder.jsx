@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { api } from "./_shared";
 import SlideBuilder, { deckFromPresentation } from "./SlideBuilder";
+import BrandLoader from "../components/BrandLoader";
 
 // Blank deck for a brand-new presentation (mirrors the one Presentations.jsx
 // used for its old inline overlay).
@@ -55,9 +56,7 @@ export default function PresentationBuilder({ presentation, onClose }) {
 
   if (id && (loading || !deck)) {
     return (
-      <p className="font-mono text-[10px] uppercase tracking-wider text-muted">
-        Loading presentation…
-      </p>
+      <BrandLoader fullscreen={false} />
     );
   }
 

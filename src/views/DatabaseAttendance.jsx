@@ -4,6 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { GRADE_LEVELS } from "../lib/enums";
 import { selectClasses, inputClasses, api, DatePicker } from "./_shared";
+import BrandLoader from "../components/BrandLoader";
 
 const STATUSES = ["Present", "Absent", "Late", "Excused"];
 
@@ -177,7 +178,7 @@ export default function DatabaseAttendance() {
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan={4} className="py-8 text-center text-muted">Loading…</td></tr>
+                  <tr><td colSpan={4} className="py-8 text-center"><BrandLoader compact fullscreen={false} /></td></tr>
                 ) : rows.length === 0 ? (
                   <tr><td colSpan={4} className="py-8 text-center text-muted">No students match the current filter.</td></tr>
                 ) : rows.map((r) => (

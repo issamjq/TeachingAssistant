@@ -244,11 +244,7 @@ export default function DatabaseScores() {
         </p>
       )}
 
-      {busy && (
-        <p className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted">
-          Loading scores…
-        </p>
-      )}
+      {busy && <BrandLoader compact fullscreen={false} />}
 
       {quizId && !busy && eligible.length > 0 && (
         <div className="rounded-2xl border border-line bg-paper-cool overflow-hidden">

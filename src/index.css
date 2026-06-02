@@ -301,6 +301,17 @@ select:focus-visible {
   100% { transform: translateX(128px); opacity: 0; }
 }
 
+/* Compact variant — narrower rail (80px) and smaller bar (32px). */
+.brand-loader-sweep-compact {
+  animation: brand-loader-sweep-compact 1.4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+@keyframes brand-loader-sweep-compact {
+  0%   { transform: translateX(-32px); opacity: 0; }
+  15%  { opacity: 1; }
+  85%  { opacity: 1; }
+  100% { transform: translateX(80px); opacity: 0; }
+}
+
 .brand-loader-pulse {
   animation: brand-loader-pulse 2.6s ease-in-out infinite;
 }
@@ -319,9 +330,11 @@ select:focus-visible {
 
 @media (prefers-reduced-motion: reduce) {
   .brand-loader-sweep,
+  .brand-loader-sweep-compact,
   .brand-loader-pulse,
   .brand-loader-eyebrow { animation: none; }
-  .brand-loader-sweep { opacity: 0.6; transform: translateX(40px); }
+  .brand-loader-sweep,
+  .brand-loader-sweep-compact { opacity: 0.6; transform: translateX(40px); }
 }
 
 /* ════════════════════════════════════════════════════════════════════

@@ -7,6 +7,7 @@ import {
   Field, Modal, ConfirmDelete, RowActions,
   inputClasses, selectClasses, api, timeAgo,
 } from "./_shared";
+import BrandLoader from "../components/BrandLoader";
 
 const TYPE_ICON = {
   pdf: FileText, doc: FileText, video: Video, link: LinkIcon, image: ImageIcon, note: BookOpen,
@@ -104,7 +105,7 @@ export default function Library() {
       )}
 
       {loading ? (
-        <p className="font-mono text-[10px] uppercase tracking-wider text-muted">Loading…</p>
+        <BrandLoader compact fullscreen={false} />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filtered.map((r) => {
