@@ -2,7 +2,7 @@ import { Router } from "express";
 import { pool } from "../lib/db.js";
 import { handleErr } from "../lib/helpers.js";
 import { loadCurrentTeacher } from "../lib/currentTeacher.js";
-import { CreateSchoolSchema, AttachSchoolSchema, SetPrimarySchema, validateBody } from "../lib/validate.js";
+import { CreateSchoolSchema, AttachSchoolSchema, SchoolMinePatchSchema, validateBody } from "../lib/validate.js";
 import { recordAudit } from "../lib/audit.js";
 import { clientIp, userAgent } from "../lib/auth.js";
 
@@ -75,7 +75,7 @@ router.get("/mine", async (req, res) => {
     const cur = await loadCurrentTeacher(req);
     if (!cur) return res.status(404).json({ error: "Current teacher not found" });
     const r = await pool.query(
-      `SELECT ${SCHOOL_COLS_S}, ts.is_primary
+      `SELECT ${SCHOOL_COLS_S}, ts.is_primary, ts.grade_sections
          FROM teacher_schools ts
          JOIN schools s ON s.id = ts.school_id
         WHERE ts.teacher_id = $1
@@ -94,8 +94,14 @@ router.post("/mine", validateBody(AttachSchoolSchema), async (req, res) => {
   try {
     const cur = await loadCurrentTeacher(req);
     if (!cur) return res.status(404).json({ error: "Current teacher not found" });
-    const { school_id, is_primary } = req.body || {};
-    if (!school_id) return res.status(400).json({ error: "school_id required" });
+    const { school_id, is_primary, grade_sections } = req.body;
+
+    // SECURITY: verify the catalog row exists before attaching. Without
+    // this, a forged school_id would create an orphan FK row that no
+    // existing constraint catches (FK to schools(id) does, but better
+    // to fail loud with 404 than to surface a 500 from a constraint).
+    const sch = await pool.query("SELECT 1 FROM schools WHERE id = $1", [school_id]);
+    if (sch.rowCount === 0) return res.status(404).json({ error: "School not found in catalog." });
 
     if (is_primary) {
       await pool.query(
@@ -103,14 +109,17 @@ router.post("/mine", validateBody(AttachSchoolSchema), async (req, res) => {
         [cur.id]
       );
     }
+    const gsJson = grade_sections ? JSON.stringify(grade_sections) : "{}";
     await pool.query(
-      `INSERT INTO teacher_schools (teacher_id, school_id, is_primary)
-       VALUES ($1, $2, $3)
-       ON CONFLICT (teacher_id, school_id) DO UPDATE SET is_primary = EXCLUDED.is_primary`,
-      [cur.id, school_id, !!is_primary]
+      `INSERT INTO teacher_schools (teacher_id, school_id, is_primary, grade_sections)
+       VALUES ($1, $2, $3, $4::jsonb)
+       ON CONFLICT (teacher_id, school_id) DO UPDATE SET
+         is_primary     = EXCLUDED.is_primary,
+         grade_sections = EXCLUDED.grade_sections`,
+      [cur.id, school_id, !!is_primary, gsJson]
     );
     const r = await pool.query(
-      `SELECT ${SCHOOL_COLS_S}, ts.is_primary
+      `SELECT ${SCHOOL_COLS_S}, ts.is_primary, ts.grade_sections
          FROM teacher_schools ts JOIN schools s ON s.id = ts.school_id
         WHERE ts.teacher_id = $1 AND ts.school_id = $2`,
       [cur.id, school_id]
@@ -121,29 +130,68 @@ router.post("/mine", validateBody(AttachSchoolSchema), async (req, res) => {
   }
 });
 
-// Flip the primary flag for one of the teacher's schools.
-router.patch("/mine/:id", validateBody(SetPrimarySchema), async (req, res) => {
+// Flip the primary flag AND/OR update per-school grade_sections for
+// one of the teacher's schools. Both fields are optional; at least
+// one must be present (enforced by SchoolMinePatchSchema).
+//
+// SECURITY: the WHERE clause is hard-scoped by teacher_id so a teacher
+// can only edit their own row. No cross-tenant write is possible
+// even if school_id is forged. The grade_sections payload was already
+// passed through a strict zod schema (record<string, string[]>,
+// per-row max sizes) so a giant or oddly-shaped JSONB can't land in
+// the DB. The DB-level CHECK (jsonb_typeof = 'object') is the last
+// line of defence.
+router.patch("/mine/:id", validateBody(SchoolMinePatchSchema), async (req, res) => {
   try {
     const cur = await loadCurrentTeacher(req);
     if (!cur) return res.status(404).json({ error: "Current teacher not found" });
-    const schoolId = req.params.id;
-    const { is_primary } = req.body || {};
-    if (typeof is_primary !== "boolean") {
-      return res.status(400).json({ error: "is_primary boolean required" });
+    const schoolId = Number(req.params.id);
+    if (!Number.isInteger(schoolId) || schoolId < 1) {
+      return res.status(400).json({ error: "Invalid school id." });
     }
-    if (is_primary) {
-      await pool.query(
-        `UPDATE teacher_schools SET is_primary = FALSE WHERE teacher_id = $1`,
-        [cur.id]
+    const { is_primary, grade_sections } = req.body;
+
+    // If flipping to primary, demote any existing primary first. We
+    // do this in the same transaction as the patch so a request that
+    // claims primary AND fails partway can't leave the teacher with
+    // zero primaries.
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      if (is_primary === true) {
+        await client.query(
+          `UPDATE teacher_schools SET is_primary = FALSE WHERE teacher_id = $1`,
+          [cur.id]
+        );
+      }
+      const sets = [];
+      const params = [cur.id, schoolId];
+      if (is_primary !== undefined) {
+        params.push(is_primary);
+        sets.push(`is_primary = $${params.length}`);
+      }
+      if (grade_sections !== undefined) {
+        params.push(JSON.stringify(grade_sections));
+        sets.push(`grade_sections = $${params.length}::jsonb`);
+      }
+      const r = await client.query(
+        `UPDATE teacher_schools SET ${sets.join(", ")}
+           WHERE teacher_id = $1 AND school_id = $2
+           RETURNING is_primary, grade_sections, school_id`,
+        params
       );
+      if (r.rows.length === 0) {
+        await client.query("ROLLBACK");
+        return res.status(404).json({ error: "Not found" });
+      }
+      await client.query("COMMIT");
+      res.json(r.rows[0]);
+    } catch (e) {
+      await client.query("ROLLBACK").catch(() => {});
+      throw e;
+    } finally {
+      client.release();
     }
-    const r = await pool.query(
-      `UPDATE teacher_schools SET is_primary = $3
-         WHERE teacher_id = $1 AND school_id = $2 RETURNING *`,
-      [cur.id, schoolId, is_primary]
-    );
-    if (r.rows.length === 0) return res.status(404).json({ error: "Not found" });
-    res.json(r.rows[0]);
   } catch (err) {
     handleErr(res, "PATCH /api/schools/mine/:id", err);
   }

@@ -5901,9 +5901,20 @@ export default function Landing({ onOpenStudio }) {
           });
           schoolId = created.id;
         }
+        // Pass the onboarding profile's grade_sections to each school
+        // the teacher just attached. For the first onboarding pass we
+        // apply the same map to every school — the teacher refines
+        // per-school later from Settings → My schools. If you want a
+        // per-school picker during onboarding, swap this for s.gradeSections.
         await apiFetch("/api/schools/mine", {
           method: "POST",
-          body: { school_id: schoolId, is_primary: !!s.is_primary },
+          body: {
+            school_id: schoolId,
+            is_primary: !!s.is_primary,
+            grade_sections: profile?.gradeSections && Object.keys(profile.gradeSections).length > 0
+              ? profile.gradeSections
+              : undefined,
+          },
         });
       }
     } catch (e) {

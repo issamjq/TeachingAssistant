@@ -167,6 +167,22 @@ ALTER TABLE activities    ADD COLUMN IF NOT EXISTS scheduled_for DATE;
 const SCHEMA_CLASS_MAP = `
 ALTER TABLE teachers ADD COLUMN IF NOT EXISTS class_map      JSONB DEFAULT '[]'::jsonb;
 ALTER TABLE teachers ADD COLUMN IF NOT EXISTS grade_sections JSONB DEFAULT '{}'::jsonb;
+
+-- Lock the JSONB columns to their expected shape. Without these,
+-- the validation layer becomes the only line between a malformed
+-- payload and a corrupted DB. With them, even direct SQL access
+-- can't break the invariant.
+UPDATE teachers SET grade_sections = '{}'::jsonb WHERE grade_sections IS NULL;
+ALTER TABLE teachers ALTER COLUMN grade_sections SET NOT NULL;
+ALTER TABLE teachers DROP CONSTRAINT IF EXISTS teachers_grade_sections_object;
+ALTER TABLE teachers ADD  CONSTRAINT teachers_grade_sections_object
+  CHECK (jsonb_typeof(grade_sections) = 'object');
+
+UPDATE teachers SET class_map = '[]'::jsonb WHERE class_map IS NULL;
+ALTER TABLE teachers ALTER COLUMN class_map SET NOT NULL;
+ALTER TABLE teachers DROP CONSTRAINT IF EXISTS teachers_class_map_array;
+ALTER TABLE teachers ADD  CONSTRAINT teachers_class_map_array
+  CHECK (jsonb_typeof(class_map) = 'array');
 `;
 
 // Soft-delete columns. Every teaching-surface table gets deleted_at so
@@ -290,6 +306,17 @@ CREATE TABLE IF NOT EXISTS teacher_schools (
   PRIMARY KEY (teacher_id, school_id)
 );
 CREATE INDEX IF NOT EXISTS teacher_schools_teacher_idx ON teacher_schools (teacher_id);
+
+-- Per-school grade_sections: each (teacher, school) pair carries its
+-- own {grade -> [sections]} map so a teacher who works in two schools
+-- can keep their rosters cleanly separated (Grade 3 sections A/B at
+-- one school, Grade 6 sections C/D at the other).
+-- jsonb_typeof check rejects array / number / bool — only objects are
+-- valid shapes for this column.
+ALTER TABLE teacher_schools ADD COLUMN IF NOT EXISTS grade_sections JSONB NOT NULL DEFAULT '{}'::jsonb;
+ALTER TABLE teacher_schools DROP CONSTRAINT IF EXISTS teacher_schools_gs_object;
+ALTER TABLE teacher_schools ADD  CONSTRAINT teacher_schools_gs_object
+  CHECK (jsonb_typeof(grade_sections) = 'object');
 
 ALTER TABLE students ADD COLUMN IF NOT EXISTS school_id INT REFERENCES schools(id) ON DELETE SET NULL;
 CREATE INDEX IF NOT EXISTS students_school_idx ON students (school_id);

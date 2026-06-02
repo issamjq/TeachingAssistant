@@ -50,11 +50,28 @@ export const CreateSchoolSchema = z.object({
 export const AttachSchoolSchema = z.object({
   school_id:  z.number().int().positive(),
   is_primary: z.boolean().optional(),
+  grade_sections: z.record(
+    z.string().max(80),
+    z.array(safeShortText).max(40)
+  ).optional(),
 }).strip();
 
 export const SetPrimarySchema = z.object({
   is_primary: z.boolean(),
 }).strip();
+
+// PATCH /api/schools/mine/:id — flip primary AND/OR set per-school
+// grade_sections. Both optional, both validated strictly.
+export const SchoolMinePatchSchema = z.object({
+  is_primary: z.boolean().optional(),
+  grade_sections: z.record(
+    z.string().max(80),
+    z.array(safeShortText).max(40)
+  ).optional(),
+}).strip().refine(
+  (v) => v.is_primary !== undefined || v.grade_sections !== undefined,
+  { message: "Body must include is_primary or grade_sections." }
+);
 
 // ── Students ───────────────────────────────────────────────────────────
 const GENDERS = ["Male", "Female", "Other"];

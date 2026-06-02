@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { MapPin, Search, Star, Trash2, Plus, Check, Building2 } from "lucide-react";
+import { MapPin, Search, Star, Trash2, Plus, Check, Building2, Pencil, GraduationCap } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { EMIRATES } from "../lib/schools";
+import { GRADE_LEVELS, QUIZ_SECTIONS } from "../lib/enums";
 import { Field, Modal, ConfirmDelete, inputClasses, selectClasses, api } from "./_shared";
 
 // Settings → My schools tab. The full CRUD surface for a teacher's school
@@ -22,6 +23,7 @@ export default function DatabaseSchools() {
   const [picking, setPicking] = useState(false);
   const [creating, setCreating] = useState(false);
   const [removing, setRemoving] = useState(null);
+  const [editingGrades, setEditingGrades] = useState(null); // the school being edited
   const [busy, setBusy] = useState(false);
 
   const reload = () => {
@@ -72,6 +74,21 @@ export default function DatabaseSchools() {
       reload();
     } catch (e) {
       alert(`Could not update: ${e.message}`);
+    }
+  };
+  const saveGrades = async (school, gradeSections) => {
+    setBusy(true);
+    try {
+      await api(`/api/schools/mine/${school.id}`, {
+        method: "PATCH",
+        body: { grade_sections: gradeSections },
+      });
+      setEditingGrades(null);
+      reload();
+    } catch (e) {
+      alert(`Could not save grades: ${e.message}`);
+    } finally {
+      setBusy(false);
     }
   };
   const confirmRemove = async () => {
@@ -151,6 +168,7 @@ export default function DatabaseSchools() {
               school={s}
               onMakePrimary={() => makePrimary(s)}
               onRemove={() => setRemoving(s)}
+              onEditGrades={() => setEditingGrades(s)}
             />
           ))}
         </div>
@@ -173,6 +191,15 @@ export default function DatabaseSchools() {
         />
       )}
 
+      {editingGrades && (
+        <EditGradesModal
+          school={editingGrades}
+          onClose={() => setEditingGrades(null)}
+          onSave={(gs) => saveGrades(editingGrades, gs)}
+          busy={busy}
+        />
+      )}
+
       <ConfirmDelete
         open={!!removing}
         onClose={() => setRemoving(null)}
@@ -185,7 +212,10 @@ export default function DatabaseSchools() {
   );
 }
 
-function SchoolCard({ school, onMakePrimary, onRemove }) {
+function SchoolCard({ school, onMakePrimary, onRemove, onEditGrades }) {
+  const gs = school.grade_sections || {};
+  const grades = Object.keys(gs).filter((g) => (gs[g] || []).length > 0);
+
   return (
     <div className={`rounded-2xl border p-5 ${
       school.is_primary ? "border-clay/50 bg-clay/[0.04]" : "border-line bg-paper-cool"
@@ -213,6 +243,38 @@ function SchoolCard({ school, onMakePrimary, onRemove }) {
         <Meta label="Curriculum" value={school.curriculum || "—"} />
       </div>
 
+      {/* Per-school grades & sections. Empty state nudges the teacher
+          to set them via the Edit button so the studio's class
+          dropdowns scope correctly later. */}
+      <div className="rounded-xl border border-line/80 bg-paper p-3 mb-3">
+        <div className="flex items-center justify-between gap-2 mb-2">
+          <p className="font-mono text-[9.5px] uppercase tracking-[0.18em] text-muted inline-flex items-center gap-1.5">
+            <GraduationCap size={11} /> Grades & sections
+          </p>
+          <button
+            type="button"
+            onClick={onEditGrades}
+            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium text-ink hover:bg-paper-warm transition-colors"
+          >
+            <Pencil size={10} /> Edit
+          </button>
+        </div>
+        {grades.length === 0 ? (
+          <p className="text-[12px] italic text-muted">
+            No grades set yet — click <span className="text-ink">Edit</span> to add what you teach here.
+          </p>
+        ) : (
+          <ul className="space-y-1">
+            {grades.map((g) => (
+              <li key={g} className="flex items-baseline gap-2 text-[12.5px]">
+                <span className="font-mono text-[10.5px] uppercase tracking-wider text-ink w-[3.75rem] shrink-0">{g}</span>
+                <span className="text-ink-soft truncate">{(gs[g] || []).join(" · ")}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
       <div className="flex items-center gap-2 pt-3 border-t border-line/80">
         {!school.is_primary && (
           <Button variant="secondary" onClick={onMakePrimary} className="!h-8 !px-3 !text-[12px]">
@@ -227,6 +289,171 @@ function SchoolCard({ school, onMakePrimary, onRemove }) {
         >
           <Trash2 size={13} />
         </button>
+      </div>
+    </div>
+  );
+}
+
+// EditGradesModal
+// ─────────────────────────────────────────────────────────────────────
+// Per-school grades + sections editor. Same shape as the onboarding
+// scope step but standalone — the teacher picks which grades they
+// teach at THIS school, then for each grade picks the sections.
+//
+// Save sends a single PATCH /api/schools/mine/:id with the full
+// grade_sections object. Backend zod (SchoolMinePatchSchema) rejects
+// anything outside { string → string[] } shape; DB CHECK
+// (jsonb_typeof = 'object') is the last line.
+function EditGradesModal({ school, onClose, onSave, busy }) {
+  // Local working copy — only commit on Save.
+  const [gs, setGs] = useState(() => {
+    const init = school.grade_sections || {};
+    const clean = {};
+    for (const k of Object.keys(init)) {
+      if (Array.isArray(init[k]) && init[k].length > 0) clean[k] = init[k];
+    }
+    return clean;
+  });
+  const selectedGrades = Object.keys(gs);
+
+  const toggleGrade = (g) => {
+    setGs((cur) => {
+      if (g in cur) { const next = { ...cur }; delete next[g]; return next; }
+      return { ...cur, [g]: [] };
+    });
+  };
+  const setSectionsForGrade = (g, sections) => {
+    setGs((cur) => ({ ...cur, [g]: sections }));
+  };
+
+  // Every selected grade must have at least one section before Save.
+  const allFilled = selectedGrades.length > 0 &&
+    selectedGrades.every((g) => (gs[g] || []).length > 0);
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      eyebrow={school.name}
+      title="Grades & sections you teach here"
+      wide
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose} disabled={busy}>Cancel</Button>
+          <Button onClick={() => onSave(gs)} disabled={busy || !allFilled}>
+            {busy ? "Saving…" : "Save"}
+          </Button>
+        </>
+      }
+    >
+      <p className="text-sm text-muted mb-4">
+        Pick the grades you teach at {school.name}, then which sections inside each grade.
+      </p>
+
+      <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-2">
+        Grades
+      </p>
+      <div className="flex flex-wrap gap-1.5 mb-5">
+        {GRADE_LEVELS.map((g) => {
+          const on = g in gs;
+          return (
+            <button
+              key={g}
+              type="button"
+              onClick={() => toggleGrade(g)}
+              className={`px-3 py-1.5 rounded-full text-[12.5px] font-medium border transition-colors ${
+                on
+                  ? "bg-ink text-paper-cool border-ink"
+                  : "bg-paper-cool text-ink border-line hover:border-ink"
+              }`}
+            >
+              {g}
+            </button>
+          );
+        })}
+      </div>
+
+      {selectedGrades.length > 0 && (
+        <>
+          <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-2">
+            Sections per grade
+          </p>
+          <div className="space-y-3">
+            {selectedGrades.map((g) => (
+              <EditSectionsRow
+                key={g}
+                grade={g}
+                sections={gs[g] || []}
+                onChange={(next) => setSectionsForGrade(g, next)}
+              />
+            ))}
+          </div>
+        </>
+      )}
+    </Modal>
+  );
+}
+
+function EditSectionsRow({ grade, sections, onChange }) {
+  const [draft, setDraft] = useState("");
+  const presets = QUIZ_SECTIONS.filter((s) => s !== "All sections");
+  const allOptions = useMemo(() => {
+    const seen = new Set(presets);
+    const extras = sections.filter((s) => !seen.has(s));
+    return [...presets, ...extras];
+  }, [presets, sections]);
+
+  const toggle = (s) =>
+    onChange(sections.includes(s) ? sections.filter((x) => x !== s) : [...sections, s]);
+  const add = () => {
+    const v = draft.trim();
+    if (!v) return;
+    if (!sections.includes(v)) onChange([...sections, v]);
+    setDraft("");
+  };
+  const empty = sections.length === 0;
+
+  return (
+    <div className={`rounded-xl border p-3 transition-colors ${
+      empty ? "border-clay/40 bg-clay/[0.04]" : "border-line bg-paper-cool"
+    }`}>
+      <div className="flex items-center justify-between gap-2 mb-2">
+        <p className="font-mono text-[10.5px] uppercase tracking-[0.18em] text-ink">{grade}</p>
+        <span className={`text-[11px] ${empty ? "text-clay" : "text-muted"}`}>
+          {empty ? "Pick at least one section" : `${sections.length} section${sections.length > 1 ? "s" : ""}`}
+        </span>
+      </div>
+      <div className="flex flex-wrap gap-1.5 mb-2">
+        {allOptions.map((s) => {
+          const on = sections.includes(s);
+          return (
+            <button
+              key={s}
+              type="button"
+              onClick={() => toggle(s)}
+              className={`px-3 py-1.5 rounded-full text-[12px] font-medium border transition-colors ${
+                on
+                  ? "bg-ink text-paper-cool border-ink"
+                  : "bg-paper text-ink border-line hover:border-ink"
+              }`}
+            >
+              {s}
+            </button>
+          );
+        })}
+      </div>
+      <div className="flex items-center gap-2 max-w-xs">
+        <input
+          type="text"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); add(); } }}
+          placeholder="e.g. Honors, Maths Track"
+          className={inputClasses + " !py-1.5 !text-[12.5px]"}
+        />
+        <Button variant="secondary" onClick={add} disabled={!draft.trim()} className="!h-8 !px-3 !text-[12px]">
+          <Plus size={12} className="mr-1" /> Add
+        </Button>
       </div>
     </div>
   );
