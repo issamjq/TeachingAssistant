@@ -71,9 +71,35 @@ const DEV_NAV = [
   { section: "Dev", items: [{ key: "dev-console", label: "Dev console", letter: "D" }] },
 ];
 
-const NAV_BY_ROLE = { teacher: TEACHER_NAV, admin: ADMIN_NAV, dev: DEV_NAV };
+const SUPERADMIN_NAV = [
+  { section: "Super admin", items: [{ key: "superadmin-console", label: "Super admin", letter: "S" }] },
+];
 
-const DEFAULT_ROUTE = { teacher: "planner", admin: "admin-console", dev: "dev-console" };
+const MOE_NAV = [
+  { section: "Ministry", items: [{ key: "moe-console", label: "MoE console", letter: "M" }] },
+];
+
+const OWNER_NAV = [
+  { section: "Owner", items: [{ key: "owner-console", label: "Owner console", letter: "O" }] },
+];
+
+const NAV_BY_ROLE = {
+  teacher: TEACHER_NAV,
+  admin: ADMIN_NAV,
+  dev: DEV_NAV,
+  super_admin: SUPERADMIN_NAV,
+  moe: MOE_NAV,
+  owner: OWNER_NAV,
+};
+
+const DEFAULT_ROUTE = {
+  teacher: "planner",
+  admin: "admin-console",
+  dev: "dev-console",
+  super_admin: "superadmin-console",
+  moe: "moe-console",
+  owner: "owner-console",
+};
 
 // Sections that get the Outlook-style right rail (mini-calendar + upcoming
 // days). Planner already has its own calendar so it stays out.
@@ -93,6 +119,9 @@ const SECTIONS_BY_ROLE = {
   ]),
   admin: new Set(["admin-console", "account"]),
   dev: new Set(["dev-console", "account"]),
+  super_admin: new Set(["superadmin-console", "account"]),
+  moe: new Set(["moe-console", "account"]),
+  owner: new Set(["owner-console", "account"]),
 };
 
 function NavBadge({ letter, icon, lucide: Lucide }) {
