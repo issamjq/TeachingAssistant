@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import "../landing.css";
 import { useT, useI18n, LangToggle } from "../lib/i18n";
+import { setRole as setLocalRole } from "../lib/role";
 import {
   useAccount, setAccount, clearAccount,
   getPendingProfile, clearPendingProfile,
@@ -6067,9 +6068,22 @@ export default function Landing({ onOpenStudio }) {
       provider: pendingProvider || "google",
       plan,
       profile,
+      role:     teacherRow.role,
+      sub_role: teacherRow.sub_role || null,
       subscriptionStatus: teacherRow.subscription_status,
       subscriptionEndsAt: teacherRow.subscription_ends_at,
     });
+
+    // Sync the localStorage role with the canonical role the server
+    // assigned. Without this, a previous portal sign-in's stale role
+    // (e.g. /owner test left "owner" in localStorage) sticks and the
+    // studio routes the new teacher account to the wrong console —
+    // every API call then 403s. App.jsx reads getRole() for routing
+    // and BrandLoader/portals already do this; the teacher funnel
+    // wasn't.
+    if (teacherRow.role) {
+      setLocalRole(teacherRow.role);
+    }
 
     // If the user filled in the onboarding profile, sync majors /
     // grades / sections / languages to the live teacher row so the
