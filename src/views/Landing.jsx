@@ -5331,43 +5331,44 @@ function AuthPage({ onSignUp, onPage }) {
       // running the flow in dev tools.
       console.error(`[auth/${provider}]`, e);
 
-      // User-friendly message per Firebase error code. Microsoft's
-      // popup tends to close prematurely when the provider isn't fully
-      // enabled in Firebase Console OR the Azure AD redirect URI
-      // doesn't match, so we surface a hint instead of silently
-      // dropping the popup-closed error for Microsoft.
+      // Normalise the provider name. The AuthPage button labelled
+      // "Continue with Outlook" passes "outlook"; downstream copy and
+      // branching is easier when we treat outlook + microsoft as the
+      // same Microsoft path.
+      const isMicrosoft = provider === "outlook" || provider === "microsoft";
+      const providerLabel = provider === "google" ? "Google" : "Microsoft";
+
       const code = e?.code || "";
-      const isUserCancel =
-        code === "auth/cancelled-popup-request" ||
-        code === "auth/popup-blocked";
-      if (isUserCancel) {
-        // Don't flash an error for a deliberate cancel / popup blocker
-        // — but for popup-blocked, surface a hint.
-        if (code === "auth/popup-blocked") {
-          setAuthError("Your browser blocked the sign-in popup. Allow popups for murchid.com and try again.");
-        }
+      if (code === "auth/cancelled-popup-request") {
+        // Two clicks too fast — Firebase noise, keep silent.
+      } else if (code === "auth/popup-blocked") {
+        setAuthError("Your browser blocked the sign-in popup. Allow popups for this site and try again.");
       } else if (code === "auth/popup-closed-by-user") {
         // For Microsoft this usually means the Azure-side flow rejected
-        // the sign-in (provider not enabled / redirect URI mismatch /
-        // tenant restriction). For Google it usually IS a user cancel.
-        if (provider === "microsoft") {
+        // the sign-in: most often "Supported account types" is set to
+        // a tenant that doesn't include this user's account, OR the
+        // user denied consent. For Google it's almost always a real
+        // user cancel.
+        if (isMicrosoft) {
           setAuthError(
-            "Microsoft sign-in closed before completing. " +
-            "If you didn't cancel, the Microsoft provider may not be configured yet — try Google for now."
+            "The Microsoft sign-in popup closed before completing. " +
+            "If you didn't cancel, this usually means your Microsoft account " +
+            "isn't allowed by the app's tenant settings. Try Google for now, " +
+            "or contact support."
           );
         }
-        // Google popup-closed-by-user stays silent.
       } else {
-        // Map a few specific codes to clearer copy.
         const friendly = {
           "auth/operation-not-allowed":
-            `${provider === "google" ? "Google" : "Microsoft"} sign-in isn't enabled on this project yet.`,
+            `${providerLabel} sign-in isn't enabled on this project yet.`,
           "auth/unauthorized-domain":
-            "This domain isn't authorized for sign-in. Add it in Firebase Console → Authentication → Settings → Authorized domains.",
+            "This domain isn't authorised for sign-in. Add it under Authentication → Settings → Authorised domains.",
           "auth/account-exists-with-different-credential":
-            "An account with this email already exists, signed up with the other provider. Use that one instead.",
+            `An account with this email already exists, signed up with the other provider. Try the other button.`,
           "auth/network-request-failed":
             "Network error during sign-in. Check your connection and try again.",
+          "auth/invalid-credential":
+            `${providerLabel} rejected the credential. Try again, and if it persists check the provider settings on the server.`,
         }[code];
         setAuthError(friendly || (e?.message || String(e)));
       }
