@@ -4,7 +4,7 @@ import {
   CalendarDays, GraduationCap, ClipboardList, Presentation, Layout,
   Users, MessageCircle, CheckCircle2, Clock, TrendingUp, FileText,
   Pencil, Trash2, ArrowUpDown, Calendar, LayoutGrid, List,
-  Paperclip, Send, Layers, Play, LogOut,
+  Paperclip, Send, Layers, Play, LogOut, Eye, EyeOff,
 } from "lucide-react";
 import "../landing.css";
 import { useT, useI18n, LangToggle } from "../lib/i18n";
@@ -21,6 +21,7 @@ import ProfileForm from "./onboarding/ProfileForm";
 import LandingHome from "./LandingHome";
 import MurchidLogo from "../components/MurchidLogo";
 import Avatar from "../components/Avatar";
+import BrandLoader from "../components/BrandLoader";
 
 // Animations removed by request. These are no-op stand-ins for the
 // framer-motion API so the page renders fully static — no fades, no
@@ -5442,6 +5443,10 @@ function AuthPage({ onSignUp, onPage, mode = "signup", onEnterStudio }) {
   const [emailTouched, setEmailTouched] = useState(false);
   const [passwordTouched, setPasswordTouched] = useState(false);
   const [confirmTouched, setConfirmTouched] = useState(false);
+  // One toggle controls both fields — once you can read your own
+  // password, you should be able to verify it matches the confirm
+  // field without re-toggling.
+  const [showPassword, setShowPassword] = useState(false);
   // Verification state. After a fresh signup we hold the Firebase user
   // + the pending onSignUp payload here, then advance once the user has
   // clicked the link in their inbox (polled every 3s via reload).
@@ -5859,25 +5864,38 @@ function AuthPage({ onSignUp, onPage, mode = "signup", onEnterStudio }) {
               )}
             </div>
             <div>
-              <input
-                type="password"
-                autoComplete={isSignin ? "current-password" : "new-password"}
-                value={passwordValue}
-                onChange={(e) => setPasswordValue(e.target.value)}
-                onBlur={() => setPasswordTouched(true)}
-                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleEmailPassword(); } }}
-                placeholder={isSignin ? "Your password" : "Create a password"}
-                className="w-full px-5 py-3.5 rounded-xl text-sm text-ink"
-                style={{
-                  background: "var(--paper)",
-                  border: `0.5px solid ${passwordTouched && passwordError ? "var(--clay, #b3442b)" : "var(--line-strong)"}`,
-                }}
-                disabled={emailSending}
-                aria-invalid={passwordTouched && passwordError ? "true" : "false"}
-                aria-describedby={passwordTouched && passwordError ? "auth-password-error" : "auth-password-meter"}
-                dir="ltr"
-                minLength={8}
-              />
+              <div className="relative">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  autoComplete={isSignin ? "current-password" : "new-password"}
+                  value={passwordValue}
+                  onChange={(e) => setPasswordValue(e.target.value)}
+                  onBlur={() => setPasswordTouched(true)}
+                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleEmailPassword(); } }}
+                  placeholder={isSignin ? "Your password" : "Create a password"}
+                  className="w-full ps-5 pe-12 py-3.5 rounded-xl text-sm text-ink"
+                  style={{
+                    background: "var(--paper)",
+                    border: `0.5px solid ${passwordTouched && passwordError ? "var(--clay, #b3442b)" : "var(--line-strong)"}`,
+                  }}
+                  disabled={emailSending}
+                  aria-invalid={passwordTouched && passwordError ? "true" : "false"}
+                  aria-describedby={passwordTouched && passwordError ? "auth-password-error" : "auth-password-meter"}
+                  dir="ltr"
+                  minLength={8}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((s) => !s)}
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  aria-pressed={showPassword}
+                  className="absolute end-3 top-1/2 -translate-y-1/2 inline-flex items-center justify-center w-8 h-8 rounded-md transition-colors hover:bg-paper-warm/70"
+                  style={{ color: "var(--ink-soft, #8a7e63)" }}
+                  tabIndex={-1}
+                >
+                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
               {passwordTouched && passwordError && (
                 <p
                   id="auth-password-error"
@@ -5948,31 +5966,44 @@ function AuthPage({ onSignUp, onPage, mode = "signup", onEnterStudio }) {
                 user is locked into a password they can't remember. */}
             {!isSignin && (
               <div>
-                <input
-                  type="password"
-                  autoComplete="new-password"
-                  value={confirmValue}
-                  onChange={(e) => setConfirmValue(e.target.value)}
-                  onBlur={() => setConfirmTouched(true)}
-                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleEmailPassword(); } }}
-                  placeholder="Confirm password"
-                  className="w-full px-5 py-3.5 rounded-xl text-sm text-ink"
-                  style={{
-                    background: "var(--paper)",
-                    border: `0.5px solid ${
-                      confirmMatches
-                        ? "#5a7a4a"
-                        : confirmTouched && confirmError
-                          ? "var(--clay, #b3442b)"
-                          : "var(--line-strong)"
-                    }`,
-                  }}
-                  disabled={emailSending}
-                  aria-invalid={confirmTouched && confirmError ? "true" : "false"}
-                  aria-describedby={confirmTouched && confirmError ? "auth-confirm-error" : undefined}
-                  dir="ltr"
-                  minLength={8}
-                />
+                <div className="relative">
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    autoComplete="new-password"
+                    value={confirmValue}
+                    onChange={(e) => setConfirmValue(e.target.value)}
+                    onBlur={() => setConfirmTouched(true)}
+                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleEmailPassword(); } }}
+                    placeholder="Confirm password"
+                    className="w-full ps-5 pe-12 py-3.5 rounded-xl text-sm text-ink"
+                    style={{
+                      background: "var(--paper)",
+                      border: `0.5px solid ${
+                        confirmMatches
+                          ? "#5a7a4a"
+                          : confirmTouched && confirmError
+                            ? "var(--clay, #b3442b)"
+                            : "var(--line-strong)"
+                      }`,
+                    }}
+                    disabled={emailSending}
+                    aria-invalid={confirmTouched && confirmError ? "true" : "false"}
+                    aria-describedby={confirmTouched && confirmError ? "auth-confirm-error" : undefined}
+                    dir="ltr"
+                    minLength={8}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((s) => !s)}
+                    aria-label={showPassword ? "Hide password" : "Show password"}
+                    aria-pressed={showPassword}
+                    className="absolute end-3 top-1/2 -translate-y-1/2 inline-flex items-center justify-center w-8 h-8 rounded-md transition-colors hover:bg-paper-warm/70"
+                    style={{ color: "var(--ink-soft, #8a7e63)" }}
+                    tabIndex={-1}
+                  >
+                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
                 {confirmTouched && confirmError && (
                   <p
                     id="auth-confirm-error"
@@ -6203,6 +6234,24 @@ function AuthPage({ onSignUp, onPage, mode = "signup", onEnterStudio }) {
 function OnboardingPage({ onChoosePlan, onPage }) {
   const t = useT();
   const cur = t("lp.plan.aed");
+  // Plan provisioning can take several seconds (Firebase token refresh
+  // + Neon insert + profile patch + per-school attach). Without a
+  // visible loading state, users hammer the button and trigger
+  // duplicate POSTs. We swallow further clicks once one is in flight,
+  // and overlay a BrandLoader so the whole funnel reads as "working".
+  const [pickingPlan, setPickingPlan] = useState(null);
+  const choose = async (planId) => {
+    if (pickingPlan) return;
+    setPickingPlan(planId);
+    try {
+      await onChoosePlan(planId);
+      // On success the studio opens and this component unmounts — the
+      // setPickingPlan(null) below never runs. On failure (alert in the
+      // handler), we drop back here and clear so the user can retry.
+    } finally {
+      setPickingPlan(null);
+    }
+  };
   return (
     <PageShell
       eyebrow={t("lp.ob.eyebrow")}
@@ -6243,9 +6292,13 @@ function OnboardingPage({ onChoosePlan, onPage }) {
               <button
                 type="button"
                 className="plans-cta"
-                onClick={() => onChoosePlan(p.id)}
+                onClick={() => choose(p.id)}
+                disabled={!!pickingPlan}
+                style={pickingPlan ? { opacity: 0.6, cursor: "not-allowed" } : undefined}
               >
-                {t("lp.plan.choose")}
+                {pickingPlan === p.id
+                  ? (t("lp.plan.choosing") || "Setting up…")
+                  : t("lp.plan.choose")}
               </button>
             </article>
           );
@@ -6315,15 +6368,39 @@ function OnboardingPage({ onChoosePlan, onPage }) {
             to the paid path. */}
         <button
           type="button"
-          onClick={() => onChoosePlan("trial")}
+          onClick={() => choose("trial")}
           className="cinema-pill flex-shrink-0"
+          disabled={!!pickingPlan}
+          style={pickingPlan ? { opacity: 0.7, cursor: "not-allowed" } : undefined}
         >
-          {t("lp.plan.trialCta")}
+          {pickingPlan === "trial"
+            ? (t("lp.plan.trialStarting") || "Starting your trial…")
+            : t("lp.plan.trialCta")}
         </button>
       </div>
       <p className="text-xs mt-5" style={{ color: "var(--ink-3)" }}>
         {t("lp.ob.note")}
       </p>
+      {/* Full-screen overlay during provisioning — blocks every
+          interactive element under it so the user can't double-submit,
+          and gives them a clear "we're working" signal instead of an
+          unresponsive page. Unmounts as soon as the studio opens. */}
+      {pickingPlan && (
+        <div
+          className="fixed inset-0 z-[9999] flex items-center justify-center"
+          style={{ background: "rgba(247,243,236,0.92)", backdropFilter: "blur(6px)" }}
+          role="status"
+          aria-live="polite"
+        >
+          <BrandLoader
+            label={
+              pickingPlan === "trial"
+                ? (t("lp.plan.trialStarting") || "Starting your free trial…")
+                : (t("lp.plan.settingUp") || "Setting up your account…")
+            }
+          />
+        </div>
+      )}
     </PageShell>
   );
 }
@@ -6826,19 +6903,22 @@ export default function Landing({ onOpenStudio }) {
           });
           schoolId = created.id;
         }
-        // Pass the onboarding profile's grade_sections to each school
-        // the teacher just attached. For the first onboarding pass we
-        // apply the same map to every school — the teacher refines
-        // per-school later from Settings → My schools. If you want a
-        // per-school picker during onboarding, swap this for s.gradeSections.
+        // Per-school grade override (set in SchoolsStep via the
+        // "Customize for this school" panel) wins over the global
+        // inherited map. Falls back to the profile-wide gradeSections
+        // when no per-school override exists.
+        const effectiveGradeSections =
+          (s.gradeSections && Object.keys(s.gradeSections).length > 0)
+            ? s.gradeSections
+            : (profile?.gradeSections && Object.keys(profile.gradeSections).length > 0
+                ? profile.gradeSections
+                : undefined);
         await apiFetch("/api/schools/mine", {
           method: "POST",
           body: {
             school_id: schoolId,
             is_primary: !!s.is_primary,
-            grade_sections: profile?.gradeSections && Object.keys(profile.gradeSections).length > 0
-              ? profile.gradeSections
-              : undefined,
+            grade_sections: effectiveGradeSections,
           },
         });
       }

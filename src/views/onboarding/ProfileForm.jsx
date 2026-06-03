@@ -13,7 +13,7 @@
 // Submit on step 3 writes a pending profile to localStorage and calls
 // onDone() so the funnel advances to the plan picker.
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronRight, ChevronLeft, Check, Download, Upload, FileText, X, Plus, MapPin, Search, Star, Trash2, Layers } from "lucide-react";
+import { ChevronRight, ChevronLeft, ChevronDown, ChevronUp, Check, Download, Upload, FileText, X, Plus, MapPin, Search, Star, Trash2, Layers, RotateCcw } from "lucide-react";
 import { MAJORS, GRADE_LEVELS, QUIZ_LANGUAGES, QUIZ_SECTIONS } from "../../lib/enums";
 import { EMIRATES } from "../../lib/schools";
 import {
@@ -807,6 +807,9 @@ function SchoolsStep({ t, value, onChange, grades, gradeSections }) {
   const [emirateFilter, setEmirateFilter] = useState("");
   const [customName, setCustomName] = useState("");
   const [customEmirate, setCustomEmirate] = useState("Dubai");
+  // Which school's per-school grade override panel is currently open.
+  // null = all collapsed. Only one open at a time keeps the list tidy.
+  const [expandedSchool, setExpandedSchool] = useState(null);
 
   useEffect(() => {
     api("/api/schools")
@@ -862,6 +865,44 @@ function SchoolsStep({ t, value, onChange, grades, gradeSections }) {
   const makePrimary = (school_id) => {
     onChange(value.map((s) => ({ ...s, is_primary: s.school_id === school_id })));
   };
+
+  // Per-school grade-sections override. Setting school.gradeSections
+  // pins this school to its own map; clearing it (resetSchool…) lets
+  // the school inherit the global `gradeSections` from step 3 again.
+  // Toggling a single (grade, section) is the common case during
+  // onboarding — flips the section in/out of the array.
+  const toggleSchoolSection = (school_id, grade, section) => {
+    onChange(value.map((s) => {
+      if (s.school_id !== school_id) return s;
+      const current = (s.gradeSections && s.gradeSections[grade])
+        || (gradeSections && gradeSections[grade])
+        || [];
+      const next = current.includes(section)
+        ? current.filter((x) => x !== section)
+        : [...current, section];
+      // Persist the override even if it equals the inherited shape —
+      // the user explicitly customized, and the explicit copy is what
+      // Landing's plan-pick handler sends to /api/schools/mine.
+      const baseMap = s.gradeSections
+        ? { ...s.gradeSections }
+        : { ...(gradeSections || {}) };
+      baseMap[grade] = next;
+      return { ...s, gradeSections: baseMap };
+    }));
+  };
+  const resetSchoolGradeSections = (school_id) => {
+    onChange(value.map((s) => {
+      if (s.school_id !== school_id) return s;
+      const { gradeSections: _drop, ...rest } = s;
+      return rest;
+    }));
+  };
+  // Returns the effective grade→sections map for a given school —
+  // either its override or the global inherited map.
+  const effectiveFor = (s) =>
+    (s.gradeSections && Object.keys(s.gradeSections).length > 0)
+      ? s.gradeSections
+      : (gradeSections || {});
   const addCustom = () => {
     const name = customName.trim();
     if (!name) return;
@@ -934,7 +975,7 @@ function SchoolsStep({ t, value, onChange, grades, gradeSections }) {
           </ul>
         )}
         <p className="text-[11px] text-muted mt-2.5">
-          {t("onb.schools.inherit.hint")}
+          {t("onb.schools.inherit.hintWithCustom")}
         </p>
       </div>
 
@@ -947,46 +988,139 @@ function SchoolsStep({ t, value, onChange, grades, gradeSections }) {
             {t("onb.schools.selected")} · {value.length}
           </p>
           <ul className="space-y-1.5">
-            {value.map((s) => (
-              <li
-                key={s.school_id}
-                className="flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-paper-cool border border-line/70"
-              >
-                <div className="min-w-0 flex-1">
-                  <p className="text-[13px] font-medium text-ink truncate">
-                    {s.name}
-                    {s.is_primary && (
-                      <span className="ml-2 inline-flex items-center gap-1 px-1.5 py-[1px] rounded-full bg-clay/15 text-clay text-[10px] font-mono uppercase tracking-wider">
-                        <Star size={9} fill="currentColor" /> {t("onb.schools.primary")}
-                      </span>
-                    )}
-                  </p>
-                  <p className="text-[11px] text-muted truncate">
-                    {s.emirate}{s.city ? ` · ${s.city}` : ""}
-                  </p>
-                </div>
-                {!s.is_primary && value.length > 1 && (
-                  <button
-                    type="button"
-                    onClick={() => makePrimary(s.school_id)}
-                    title={t("onb.schools.makePrimary")}
-                    className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium text-clay hover:bg-clay/10 transition-colors"
-                  >
-                    <Star size={11} />
-                    {t("onb.schools.makePrimary")}
-                  </button>
-                )}
-                <button
-                  type="button"
-                  onClick={() => removeSchool(s.school_id)}
-                  title={t("onb.schools.remove")}
-                  aria-label={t("onb.schools.remove")}
-                  className="shrink-0 h-7 w-7 inline-flex items-center justify-center rounded-md text-ink-soft hover:bg-accent hover:text-paper-cool transition-colors"
+            {value.map((s) => {
+              const isExpanded = expandedSchool === s.school_id;
+              const isCustomized = !!(s.gradeSections && Object.keys(s.gradeSections).length > 0);
+              const effective = effectiveFor(s);
+              const hasGrades = pickedGrades.length > 0;
+              return (
+                <li
+                  key={s.school_id}
+                  className="rounded-lg bg-paper-cool border border-line/70"
                 >
-                  <Trash2 size={12} />
-                </button>
-              </li>
-            ))}
+                  <div className="flex items-center justify-between gap-2 px-3 py-2">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[13px] font-medium text-ink truncate">
+                        {s.name}
+                        {s.is_primary && (
+                          <span className="ml-2 inline-flex items-center gap-1 px-1.5 py-[1px] rounded-full bg-clay/15 text-clay text-[10px] font-mono uppercase tracking-wider">
+                            <Star size={9} fill="currentColor" /> {t("onb.schools.primary")}
+                          </span>
+                        )}
+                      </p>
+                      <p className="text-[11px] text-muted truncate">
+                        {s.emirate}{s.city ? ` · ${s.city}` : ""}
+                      </p>
+                    </div>
+                    {!s.is_primary && value.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => makePrimary(s.school_id)}
+                        title={t("onb.schools.makePrimary")}
+                        className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium text-clay hover:bg-clay/10 transition-colors"
+                      >
+                        <Star size={11} />
+                        {t("onb.schools.makePrimary")}
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => removeSchool(s.school_id)}
+                      title={t("onb.schools.remove")}
+                      aria-label={t("onb.schools.remove")}
+                      className="shrink-0 h-7 w-7 inline-flex items-center justify-center rounded-md text-ink-soft hover:bg-accent hover:text-paper-cool transition-colors"
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                  </div>
+                  {/* Per-school grade override toggle. Hidden when the
+                      teacher hasn't picked any grades in step 3 yet —
+                      nothing to customize. */}
+                  {hasGrades && (
+                    <button
+                      type="button"
+                      onClick={() => setExpandedSchool(isExpanded ? null : s.school_id)}
+                      className="w-full flex items-center justify-between gap-2 px-3 py-1.5 border-t border-line/60 text-[11.5px] text-ink-soft hover:bg-paper/40 transition-colors"
+                      aria-expanded={isExpanded}
+                    >
+                      <span className="inline-flex items-center gap-1.5">
+                        {isExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                        {t("onb.schools.custom.toggle")}
+                        {isCustomized && (
+                          <span className="ms-1 px-1.5 py-[1px] rounded-full bg-clay/12 text-clay text-[9.5px] font-mono uppercase tracking-wider">
+                            {t("onb.schools.custom.badge")}
+                          </span>
+                        )}
+                      </span>
+                      <span className="text-muted">
+                        {isCustomized
+                          ? t("onb.schools.custom.statusCustom")
+                          : t("onb.schools.custom.statusInherit")}
+                      </span>
+                    </button>
+                  )}
+                  {hasGrades && isExpanded && (
+                    <div className="px-3 pb-3 pt-1 border-t border-line/40 bg-paper/40 space-y-2">
+                      <p className="text-[11px] text-muted">
+                        {t("onb.schools.custom.hint")}
+                      </p>
+                      <ul className="space-y-1.5">
+                        {pickedGrades.map((g) => {
+                          const inheritedSecs = (gradeSections && gradeSections[g]) || [];
+                          const activeSecs = effective[g] || [];
+                          if (inheritedSecs.length === 0) {
+                            return (
+                              <li key={g} className="text-[12px] flex flex-wrap items-baseline gap-x-2">
+                                <span className="font-medium text-ink">{g}</span>
+                                <span className="text-muted italic text-[11px]">
+                                  {t("onb.schools.inherit.noSections")}
+                                </span>
+                              </li>
+                            );
+                          }
+                          return (
+                            <li key={g} className="text-[12px]">
+                              <p className="font-medium text-ink mb-1">{g}</p>
+                              <div className="flex flex-wrap gap-1.5 ps-1">
+                                {inheritedSecs.map((sec) => {
+                                  const on = activeSecs.includes(sec);
+                                  return (
+                                    <button
+                                      key={sec}
+                                      type="button"
+                                      onClick={() => toggleSchoolSection(s.school_id, g, sec)}
+                                      className={`inline-flex items-center gap-1 px-2 py-1 rounded-full border text-[11px] font-medium transition-colors ${
+                                        on
+                                          ? "bg-sage/15 text-sage border-sage/40"
+                                          : "bg-paper-cool text-muted border-line hover:border-ink-soft"
+                                      }`}
+                                      aria-pressed={on}
+                                    >
+                                      {on ? <Check size={10} /> : <Plus size={10} />}
+                                      {sec}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                      {isCustomized && (
+                        <button
+                          type="button"
+                          onClick={() => resetSchoolGradeSections(s.school_id)}
+                          className="inline-flex items-center gap-1.5 text-[11px] text-ink-soft hover:text-clay transition-colors mt-1"
+                        >
+                          <RotateCcw size={11} />
+                          {t("onb.schools.custom.reset")}
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         </div>
       )}
