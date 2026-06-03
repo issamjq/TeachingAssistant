@@ -5429,45 +5429,12 @@ function AuthPage({ onSignUp, onPage, mode = "signup", onEnterStudio }) {
   // basic mix that blocks the worst guesses without being annoying.
   const passwordError = validatePassword(passwordValue);
 
-  // Live email-availability check. After the user finishes typing a
-  // syntactically valid email and blurs the field, we ask Firebase
-  // whether that email already has a sign-in method registered. For
-  // sign-up that's a "this email is taken" warning; for sign-in it's
-  // a "no account with this email" hint.
-  //
-  // Caveat: Firebase's email-enumeration protection (default ON for
-  // new projects) makes fetchSignInMethodsForEmail return an empty
-  // array regardless. In that case the check is a no-op and we fall
-  // back to the submit-time auth/email-already-in-use error.
-  const [emailAvailability, setEmailAvailability] = useState("unknown");
-  useEffect(() => {
-    if (!emailTrim || emailError) { setEmailAvailability("unknown"); return; }
-    let cancelled = false;
-    // Debounce 400ms so we don't fire on every keystroke.
-    setEmailAvailability("checking");
-    const t = setTimeout(async () => {
-      try {
-        const lib = await import("../lib/firebaseAuth");
-        const methods = await lib.lookupEmailMethods(emailTrim);
-        if (cancelled) return;
-        setEmailAvailability(methods.length > 0 ? "taken" : "available");
-      } catch {
-        if (!cancelled) setEmailAvailability("unknown");
-      }
-    }, 400);
-    return () => { cancelled = true; clearTimeout(t); };
-  }, [emailTrim, emailError]);
-
-  // Mode-aware hint. Sign-up: "taken" is bad. Sign-in: "available"
-  // (= no account) is bad. Both are advisory — submission still works
-  // and Firebase enforces correctness at the wire.
-  const availabilityHint =
-    emailAvailability === "checking" ? null
-    : emailAvailability === "taken" && !isSignin
-      ? { type: "warn", text: "An account with this email already exists. Try signing in instead." }
-      : emailAvailability === "available" && isSignin
-        ? { type: "warn", text: "No account with this email. Subscribe instead?" }
-        : null;
+  // (Earlier versions ran a live "is this email already registered?"
+  // check via fetchSignInMethodsForEmail. Firebase's email-enumeration
+  // protection — ON by default for new projects — makes that lookup
+  // always return empty regardless of existence, so the hint never
+  // fired usefully. Removed; the submit-time auth/email-already-in-use
+  // error already catches duplicates correctly.)
   const handleProvider = async (provider) => {
     if (!accepted) {
       setTried(true);
@@ -5739,29 +5706,6 @@ function AuthPage({ onSignUp, onPage, mode = "signup", onEnterStudio }) {
                   style={{ color: "var(--clay, #b3442b)" }}
                 >
                   {emailError}
-                </p>
-              )}
-              {emailTouched && !emailError && availabilityHint && (
-                <p
-                  className="text-xs mt-1.5 ps-1 inline-flex items-center gap-1.5"
-                  style={{ color: "var(--gold, #b8893d)" }}
-                >
-                  {availabilityHint.text}
-                  <button
-                    type="button"
-                    onClick={() => onPage(isSignin ? "signup" : "signin")}
-                    className="underline hover:text-ink ml-1"
-                  >
-                    {isSignin ? "Subscribe" : "Sign in"}
-                  </button>
-                </p>
-              )}
-              {emailTouched && !emailError && emailAvailability === "checking" && (
-                <p
-                  className="text-xs mt-1.5 ps-1"
-                  style={{ color: "var(--muted, #6b6354)" }}
-                >
-                  Checking…
                 </p>
               )}
             </div>
