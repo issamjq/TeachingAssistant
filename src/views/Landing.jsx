@@ -5369,6 +5369,28 @@ function AuthPage({ onSignUp, onPage, mode = "signup", onEnterStudio }) {
   const [emailValue, setEmailValue] = useState("");
   const [passwordValue, setPasswordValue] = useState("");
   const [emailSending, setEmailSending] = useState(false);
+  // Track whether the user has interacted with each field so we don't
+  // flash "invalid" errors before they've had a chance to type. Set
+  // true on first blur OR first failed submit attempt.
+  const [emailTouched, setEmailTouched] = useState(false);
+  const [passwordTouched, setPasswordTouched] = useState(false);
+
+  // Email validation — RFC-light regex (good enough for sign-up
+  // gating; the backend is the final authority).
+  const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const emailTrim = emailValue.trim();
+  const emailValid = EMAIL_RE.test(emailTrim);
+  const emailError = !emailTrim
+    ? "Email is required."
+    : !emailTrim.includes("@")
+      ? "Email is missing the @ sign."
+      : !emailValid
+        ? "That email address doesn't look valid."
+        : null;
+  const passwordError =
+    !passwordValue ? "Password is required."
+    : passwordValue.length < 8 ? "Password must be at least 8 characters."
+    : null;
   const handleProvider = async (provider) => {
     if (!accepted) {
       setTried(true);
@@ -5451,16 +5473,14 @@ function AuthPage({ onSignUp, onPage, mode = "signup", onEnterStudio }) {
   // the first sign-in on a device.
   const handleEmailPassword = async () => {
     if (!accepted) { setTried(true); return; }
-    const email = emailValue.trim();
+    // Surface every inline error by marking both fields touched, then
+    // gate the actual call on validity. Without this, a user who never
+    // tabs out of the input doesn't see the inline hint.
+    setEmailTouched(true);
+    setPasswordTouched(true);
+    if (emailError || passwordError) return;
+    const email = emailTrim;
     const password = passwordValue;
-    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      setAuthError("Please enter a valid email address.");
-      return;
-    }
-    if (!password || password.length < 8) {
-      setAuthError("Password must be at least 8 characters.");
-      return;
-    }
     setAuthError(null);
     setEmailSending(true);
     try {
@@ -5614,39 +5634,75 @@ function AuthPage({ onSignUp, onPage, mode = "signup", onEnterStudio }) {
                 ? "Sign in with the email + password you set when you subscribed."
                 : "Pick a password you'll remember. 8+ characters."}
             </p>
-            <input
-              type="email"
-              autoFocus
-              autoComplete="email"
-              value={emailValue}
-              onChange={(e) => setEmailValue(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleEmailPassword(); } }}
-              placeholder="you@school.ae"
-              className="w-full px-5 py-3.5 rounded-xl text-sm text-ink"
-              style={{ background: "var(--paper)", border: "0.5px solid var(--line-strong)" }}
-              disabled={emailSending}
-              dir="ltr"
-            />
-            <input
-              type="password"
-              autoComplete={isSignin ? "current-password" : "new-password"}
-              value={passwordValue}
-              onChange={(e) => setPasswordValue(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleEmailPassword(); } }}
-              placeholder={isSignin ? "Your password" : "Create a password (8+ chars)"}
-              className="w-full px-5 py-3.5 rounded-xl text-sm text-ink"
-              style={{ background: "var(--paper)", border: "0.5px solid var(--line-strong)" }}
-              disabled={emailSending}
-              dir="ltr"
-              minLength={8}
-            />
+            <div>
+              <input
+                type="email"
+                autoFocus
+                autoComplete="email"
+                value={emailValue}
+                onChange={(e) => setEmailValue(e.target.value)}
+                onBlur={() => setEmailTouched(true)}
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleEmailPassword(); } }}
+                placeholder="you@school.ae"
+                className="w-full px-5 py-3.5 rounded-xl text-sm text-ink"
+                style={{
+                  background: "var(--paper)",
+                  border: `0.5px solid ${emailTouched && emailError ? "var(--clay, #b3442b)" : "var(--line-strong)"}`,
+                }}
+                disabled={emailSending}
+                aria-invalid={emailTouched && emailError ? "true" : "false"}
+                aria-describedby={emailTouched && emailError ? "auth-email-error" : undefined}
+                dir="ltr"
+              />
+              {emailTouched && emailError && (
+                <p
+                  id="auth-email-error"
+                  role="alert"
+                  className="text-xs mt-1.5 ps-1"
+                  style={{ color: "var(--clay, #b3442b)" }}
+                >
+                  {emailError}
+                </p>
+              )}
+            </div>
+            <div>
+              <input
+                type="password"
+                autoComplete={isSignin ? "current-password" : "new-password"}
+                value={passwordValue}
+                onChange={(e) => setPasswordValue(e.target.value)}
+                onBlur={() => setPasswordTouched(true)}
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleEmailPassword(); } }}
+                placeholder={isSignin ? "Your password" : "Create a password (8+ chars)"}
+                className="w-full px-5 py-3.5 rounded-xl text-sm text-ink"
+                style={{
+                  background: "var(--paper)",
+                  border: `0.5px solid ${passwordTouched && passwordError ? "var(--clay, #b3442b)" : "var(--line-strong)"}`,
+                }}
+                disabled={emailSending}
+                aria-invalid={passwordTouched && passwordError ? "true" : "false"}
+                aria-describedby={passwordTouched && passwordError ? "auth-password-error" : undefined}
+                dir="ltr"
+                minLength={8}
+              />
+              {passwordTouched && passwordError && (
+                <p
+                  id="auth-password-error"
+                  role="alert"
+                  className="text-xs mt-1.5 ps-1"
+                  style={{ color: "var(--clay, #b3442b)" }}
+                >
+                  {passwordError}
+                </p>
+              )}
+            </div>
             <ProviderButton
               icon={<EmailMark />}
               label={emailSending
                 ? (isSignin ? "Signing in…" : "Creating account…")
                 : (isSignin ? "Sign in" : "Create account")}
               onClick={handleEmailPassword}
-              disabled={!accepted || emailSending}
+              disabled={!accepted || emailSending || !!emailError || !!passwordError}
             />
             {isSignin && (
               <div className="flex flex-col items-center gap-2 pt-1">
