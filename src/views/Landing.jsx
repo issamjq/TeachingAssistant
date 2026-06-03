@@ -5330,13 +5330,38 @@ function validateEmail(email) {
   return null;
 }
 
+// Live rule checks — used to drive the per-rule checklist + strength
+// bar under the password input. Keep in sync with validatePassword().
+function passwordChecks(password) {
+  const p = password || "";
+  return {
+    length:  p.length >= 8,
+    upper:   /[A-Z]/.test(p),
+    lower:   /[a-z]/.test(p),
+    number:  /[0-9]/.test(p),
+    special: /[^A-Za-z0-9\s]/.test(p),
+  };
+}
+
+// 0..5 — count of passed rules. Drives the colored strength bar.
+function passwordScore(password) {
+  const c = passwordChecks(password);
+  return [c.length, c.upper, c.lower, c.number, c.special].filter(Boolean).length;
+}
+
 // Returns a human error string, or null when the password is valid.
-function validatePassword(password) {
+// Sign-in mode skips strength rules — existing accounts may have been
+// created before tightening, and forcing them to reset client-side
+// would lock people out when the server-side password is already fine.
+function validatePassword(password, { isSignin = false } = {}) {
   if (!password) return "Password is required.";
-  if (password.length < 8) return "Password must be at least 8 characters.";
-  if (!/[a-zA-Z]/.test(password)) return "Password needs at least one letter.";
-  if (!/[0-9]/.test(password)) return "Password needs at least one number.";
+  if (isSignin) return null;
   if (/\s/.test(password)) return "Password can't contain spaces.";
+  if (password.length < 8) return "Password must be at least 8 characters.";
+  if (!/[A-Z]/.test(password)) return "Add at least one uppercase letter (A–Z).";
+  if (!/[a-z]/.test(password)) return "Add at least one lowercase letter (a–z).";
+  if (!/[0-9]/.test(password)) return "Add at least one number (0–9).";
+  if (!/[^A-Za-z0-9]/.test(password)) return "Add at least one symbol (e.g. ! @ # ?).";
   return null;
 }
 
@@ -5425,9 +5450,20 @@ function AuthPage({ onSignUp, onPage, mode = "signup", onEnterStudio }) {
   const emailTrim = emailValue.trim();
   const emailError = validateEmail(emailTrim);
 
-  // Password: 8+ chars, plus at least one letter AND one number — a
-  // basic mix that blocks the worst guesses without being annoying.
-  const passwordError = validatePassword(passwordValue);
+  // Sign-up: 8+ chars + upper + lower + number + symbol. Sign-in skips
+  // the strength rules — legacy accounts may pre-date them.
+  const passwordError = validatePassword(passwordValue, { isSignin });
+  // Live rule satisfaction + score for the strength meter / checklist
+  // under the password input. Only rendered in sign-up mode.
+  const pwChecks = passwordChecks(passwordValue);
+  const pwScore  = passwordValue ? passwordScore(passwordValue) : 0;
+  const pwStrength = (() => {
+    if (pwScore <= 1) return { label: "Weak",   tone: "var(--clay, #b3442b)" };
+    if (pwScore === 2) return { label: "Weak",  tone: "var(--clay, #b3442b)" };
+    if (pwScore === 3) return { label: "Fair",  tone: "#b8862a" };
+    if (pwScore === 4) return { label: "Good",  tone: "#5a7a4a" };
+    return { label: "Strong", tone: "#3f5c34" };
+  })();
 
   // (Earlier versions ran a live "is this email already registered?"
   // check via fetchSignInMethodsForEmail. Firebase's email-enumeration
@@ -5676,7 +5712,7 @@ function AuthPage({ onSignUp, onPage, mode = "signup", onEnterStudio }) {
             <p className="text-xs text-center text-muted">
               {isSignin
                 ? "Sign in with the email + password you set when you subscribed."
-                : "Pick a password you'll remember. 8+ characters."}
+                : "Pick a strong password — 8+ chars with upper, lower, number, and a symbol."}
             </p>
             <div>
               <input
@@ -5717,7 +5753,7 @@ function AuthPage({ onSignUp, onPage, mode = "signup", onEnterStudio }) {
                 onChange={(e) => setPasswordValue(e.target.value)}
                 onBlur={() => setPasswordTouched(true)}
                 onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleEmailPassword(); } }}
-                placeholder={isSignin ? "Your password" : "Create a password (8+ chars)"}
+                placeholder={isSignin ? "Your password" : "Create a password"}
                 className="w-full px-5 py-3.5 rounded-xl text-sm text-ink"
                 style={{
                   background: "var(--paper)",
@@ -5725,7 +5761,7 @@ function AuthPage({ onSignUp, onPage, mode = "signup", onEnterStudio }) {
                 }}
                 disabled={emailSending}
                 aria-invalid={passwordTouched && passwordError ? "true" : "false"}
-                aria-describedby={passwordTouched && passwordError ? "auth-password-error" : undefined}
+                aria-describedby={passwordTouched && passwordError ? "auth-password-error" : "auth-password-meter"}
                 dir="ltr"
                 minLength={8}
               />
@@ -5738,6 +5774,61 @@ function AuthPage({ onSignUp, onPage, mode = "signup", onEnterStudio }) {
                 >
                   {passwordError}
                 </p>
+              )}
+              {/* Strength meter + per-rule checklist — sign-up only.
+                  Renders once the user starts typing so an empty field
+                  doesn't shout requirements before they've engaged. */}
+              {!isSignin && passwordValue && (
+                <div id="auth-password-meter" className="mt-2.5 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 grid grid-cols-5 gap-1" aria-hidden="true">
+                      {[1, 2, 3, 4, 5].map((i) => (
+                        <span
+                          key={i}
+                          className="h-1 rounded-full transition-colors"
+                          style={{
+                            background: i <= pwScore ? pwStrength.tone : "var(--line, #e6dcc6)",
+                          }}
+                        />
+                      ))}
+                    </div>
+                    <span
+                      className="text-[10px] font-mono uppercase tracking-[0.15em]"
+                      style={{ color: pwStrength.tone }}
+                      aria-live="polite"
+                    >
+                      {pwStrength.label}
+                    </span>
+                  </div>
+                  <ul className="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px] ps-1">
+                    {[
+                      { ok: pwChecks.length,  label: "8+ characters" },
+                      { ok: pwChecks.upper,   label: "Uppercase (A–Z)" },
+                      { ok: pwChecks.lower,   label: "Lowercase (a–z)" },
+                      { ok: pwChecks.number,  label: "Number (0–9)" },
+                      { ok: pwChecks.special, label: "Symbol (! @ # ?)" },
+                    ].map((r) => (
+                      <li
+                        key={r.label}
+                        className="inline-flex items-center gap-1.5"
+                        style={{ color: r.ok ? "#3f5c34" : "var(--ink-soft, #8a7e63)" }}
+                      >
+                        <span
+                          aria-hidden="true"
+                          className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full text-[9px]"
+                          style={{
+                            background: r.ok ? "#dfe8d6" : "transparent",
+                            border: r.ok ? "none" : "1px solid var(--line, #e6dcc6)",
+                            color: r.ok ? "#3f5c34" : "transparent",
+                          }}
+                        >
+                          ✓
+                        </span>
+                        {r.label}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               )}
             </div>
             <ProviderButton
