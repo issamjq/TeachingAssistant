@@ -5302,6 +5302,44 @@ function ProviderButton({ icon, label, onClick, disabled }) {
 // Sign up — Google / Outlook only. No real auth yet (mock): tapping a
 // provider records it and moves to plan onboarding. Swap onSignUp for a
 // Firebase popup later; the rest of the funnel is unchanged.
+// Returns a human error string, or null when the email is valid.
+function validateEmail(email) {
+  if (!email) return "Email is required.";
+  if (email.length > 254) return "Email is too long.";
+  if (email.includes("..")) return "Email can't contain two dots in a row.";
+  if (!email.includes("@")) return "Email is missing the @ sign.";
+  const m = email.match(/^([^@]+)@([^@]+)$/);
+  if (!m) return "Email must have exactly one @ sign.";
+  const [, local, domain] = m;
+  if (!local) return "Email is missing the part before @.";
+  if (local.startsWith(".") || local.endsWith(".")) return "Email can't start or end with a dot before @.";
+  if (!/^[a-zA-Z0-9._%+-]+$/.test(local)) return "Email has invalid characters before @.";
+  if (!domain) return "Email is missing the domain.";
+  if (domain.startsWith(".") || domain.endsWith(".")) return "Email domain can't start or end with a dot.";
+  if (domain.startsWith("-") || domain.endsWith("-")) return "Email domain can't start or end with a hyphen.";
+  const parts = domain.split(".");
+  if (parts.length < 2) return "Email domain is missing a top-level part (e.g. .com).";
+  for (const p of parts) {
+    if (!p) return "Email domain has an empty section.";
+    if (!/^[a-zA-Z0-9-]+$/.test(p)) return "Email domain has invalid characters.";
+    if (p.startsWith("-") || p.endsWith("-")) return "Email domain section can't start or end with a hyphen.";
+  }
+  const tld = parts[parts.length - 1];
+  if (tld.length < 2) return "Email's top-level domain is too short.";
+  if (!/^[a-zA-Z]+$/.test(tld)) return "Email's top-level domain must be letters only.";
+  return null;
+}
+
+// Returns a human error string, or null when the password is valid.
+function validatePassword(password) {
+  if (!password) return "Password is required.";
+  if (password.length < 8) return "Password must be at least 8 characters.";
+  if (!/[a-zA-Z]/.test(password)) return "Password needs at least one letter.";
+  if (!/[0-9]/.test(password)) return "Password needs at least one number.";
+  if (/\s/.test(password)) return "Password can't contain spaces.";
+  return null;
+}
+
 function AuthPage({ onSignUp, onPage, mode = "signup", onEnterStudio }) {
   const t = useT();
   const isSignin = mode === "signin";
@@ -5375,22 +5413,61 @@ function AuthPage({ onSignUp, onPage, mode = "signup", onEnterStudio }) {
   const [emailTouched, setEmailTouched] = useState(false);
   const [passwordTouched, setPasswordTouched] = useState(false);
 
-  // Email validation — RFC-light regex (good enough for sign-up
-  // gating; the backend is the final authority).
-  const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  // Email validation. Stricter than a one-line regex — catches the
+  // common mistakes that pass a permissive pattern:
+  //   - issa@hotmail....com   → consecutive dots
+  //   - .issa@hotmail.com     → leading dot in local
+  //   - issa.@hotmail.com     → trailing dot in local
+  //   - issa@hotmail          → missing TLD
+  //   - issa@hotmail.c        → TLD too short
+  //   - issa@hotmail.123      → TLD not letters
+  //   - issa@-hotmail.com     → leading hyphen in domain label
   const emailTrim = emailValue.trim();
-  const emailValid = EMAIL_RE.test(emailTrim);
-  const emailError = !emailTrim
-    ? "Email is required."
-    : !emailTrim.includes("@")
-      ? "Email is missing the @ sign."
-      : !emailValid
-        ? "That email address doesn't look valid."
+  const emailError = validateEmail(emailTrim);
+
+  // Password: 8+ chars, plus at least one letter AND one number — a
+  // basic mix that blocks the worst guesses without being annoying.
+  const passwordError = validatePassword(passwordValue);
+
+  // Live email-availability check. After the user finishes typing a
+  // syntactically valid email and blurs the field, we ask Firebase
+  // whether that email already has a sign-in method registered. For
+  // sign-up that's a "this email is taken" warning; for sign-in it's
+  // a "no account with this email" hint.
+  //
+  // Caveat: Firebase's email-enumeration protection (default ON for
+  // new projects) makes fetchSignInMethodsForEmail return an empty
+  // array regardless. In that case the check is a no-op and we fall
+  // back to the submit-time auth/email-already-in-use error.
+  const [emailAvailability, setEmailAvailability] = useState("unknown");
+  useEffect(() => {
+    if (!emailTrim || emailError) { setEmailAvailability("unknown"); return; }
+    let cancelled = false;
+    // Debounce 400ms so we don't fire on every keystroke.
+    setEmailAvailability("checking");
+    const t = setTimeout(async () => {
+      try {
+        const lib = await import("../lib/firebaseAuth");
+        const methods = await lib.lookupEmailMethods(emailTrim);
+        if (cancelled) return;
+        setEmailAvailability(methods.length > 0 ? "taken" : "available");
+      } catch {
+        if (!cancelled) setEmailAvailability("unknown");
+      }
+    }, 400);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [emailTrim, emailError]);
+
+  // Mode-aware hint. Sign-up: "taken" is bad. Sign-in: "available"
+  // (= no account) is bad. Both are advisory — submission still works
+  // and Firebase enforces correctness at the wire.
+  const availabilityHint =
+    emailAvailability === "checking" ? null
+    : emailAvailability === "taken" && !isSignin
+      ? { type: "warn", text: "An account with this email already exists. Try signing in instead." }
+      : emailAvailability === "available" && isSignin
+        ? { type: "warn", text: "No account with this email. Subscribe instead?" }
         : null;
-  const passwordError =
-    !passwordValue ? "Password is required."
-    : passwordValue.length < 8 ? "Password must be at least 8 characters."
-    : null;
   const handleProvider = async (provider) => {
     if (!accepted) {
       setTried(true);
@@ -5662,6 +5739,29 @@ function AuthPage({ onSignUp, onPage, mode = "signup", onEnterStudio }) {
                   style={{ color: "var(--clay, #b3442b)" }}
                 >
                   {emailError}
+                </p>
+              )}
+              {emailTouched && !emailError && availabilityHint && (
+                <p
+                  className="text-xs mt-1.5 ps-1 inline-flex items-center gap-1.5"
+                  style={{ color: "var(--gold, #b8893d)" }}
+                >
+                  {availabilityHint.text}
+                  <button
+                    type="button"
+                    onClick={() => onPage(isSignin ? "signup" : "signin")}
+                    className="underline hover:text-ink ml-1"
+                  >
+                    {isSignin ? "Subscribe" : "Sign in"}
+                  </button>
+                </p>
+              )}
+              {emailTouched && !emailError && emailAvailability === "checking" && (
+                <p
+                  className="text-xs mt-1.5 ps-1"
+                  style={{ color: "var(--muted, #6b6354)" }}
+                >
+                  Checking…
                 </p>
               )}
             </div>

@@ -10,7 +10,7 @@ import {
   onAuthStateChanged, GoogleAuthProvider,
   sendSignInLinkToEmail, isSignInWithEmailLink, signInWithEmailLink,
   createUserWithEmailAndPassword, signInWithEmailAndPassword,
-  sendPasswordResetEmail,
+  sendPasswordResetEmail, fetchSignInMethodsForEmail,
 } from "firebase/auth";
 import { auth, googleProvider, microsoftProvider } from "./firebase";
 
@@ -108,6 +108,23 @@ export async function signInWithEmail(email, password) {
 // come back to murchid.com and can sign in.
 export async function sendPasswordReset(email) {
   await sendPasswordResetEmail(auth, email);
+}
+
+// Check whether an email already has any sign-in method registered.
+// Returns an array of providers ("password", "google.com", etc.) —
+// empty array means the email is available to sign up.
+//
+// Caveat: when Firebase project setting "Email enumeration protection"
+// is ON (default for new projects), this ALWAYS returns an empty
+// array regardless of whether the email exists, to prevent address
+// harvesting. In that case the duplicate check still works at submit
+// time (auth/email-already-in-use catches it).
+export async function lookupEmailMethods(email) {
+  try {
+    return await fetchSignInMethodsForEmail(auth, email);
+  } catch {
+    return [];
+  }
 }
 
 // One-shot promise that resolves when Firebase has finished restoring
