@@ -6967,9 +6967,23 @@ export default function Landing({ onOpenStudio }) {
     }
   };
 
+  // Funnel pages = anything the teacher is mid-task on (sign-in,
+  // sign-up, profile wizard, plan picker). The editorial marketing
+  // nav (01 FEATURES, 02 HOW IT WORKS, …) looks too much like the
+  // wizard's own step indicator — teachers read the 01/02/03/04 as
+  // "step 1 of 4" and get confused. Swap in a quiet, single-row
+  // chrome (logo + back-to-home + LangToggle) for those screens, and
+  // drop the long marketing Footer below the funnel content too.
+  const FUNNEL_PAGES = new Set(["signin", "signup", "profile", "onboarding"]);
+  const isFunnel = FUNNEL_PAGES.has(page);
+
   return (
     <div className="murchid-landing paper-noise">
-      <Nav onEnter={enter} signedIn={signedIn} onJump={jump} onPage={goPage} onSignOut={handleSignOut} darkHero={page === "home"} />
+      {isFunnel ? (
+        <FunnelHeader onHome={() => goPage("home")} />
+      ) : (
+        <Nav onEnter={enter} signedIn={signedIn} onJump={jump} onPage={goPage} onSignOut={handleSignOut} darkHero={page === "home"} />
+      )}
       {page === "home" ? (
         <LandingHome onEnter={enter} signedIn={signedIn} />
       ) : (
@@ -6982,7 +6996,35 @@ export default function Landing({ onOpenStudio }) {
           onEnterStudio={onOpenStudio}
         />
       )}
-      <Footer onEnter={enter} signedIn={signedIn} onJump={jump} onPage={goPage} />
+      {!isFunnel && (
+        <Footer onEnter={enter} signedIn={signedIn} onJump={jump} onPage={goPage} />
+      )}
     </div>
+  );
+}
+
+// Minimal chrome shown while the teacher is mid-funnel. Just the
+// wordmark (tappable back to the landing home) and a LangToggle —
+// no section indices, no Subscribe CTA, no anchor links that would
+// scroll-jump away from the wizard.
+function FunnelHeader({ onHome }) {
+  return (
+    <header className="fixed top-0 left-0 right-0 z-50" style={{ background: "var(--paper)" }}>
+      <div className="max-w-[1280px] mx-auto px-6 sm:px-8 h-16 flex items-center justify-between border-b border-line/60">
+        <button
+          type="button"
+          onClick={onHome}
+          className="nav-brand inline-flex items-center"
+          style={{ color: "var(--ink-2)" }}
+          aria-label="Murchid — back to home"
+        >
+          <MurchidLogo
+            className="h-[44px] w-auto"
+            style={{ "--murchid-logo-accent": "#8e5435", transform: "translateY(3px)" }}
+          />
+        </button>
+        <LangToggle />
+      </div>
+    </header>
   );
 }
