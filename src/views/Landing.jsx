@@ -5424,19 +5424,30 @@ function AuthPage({ onSignUp, onPage, mode = "signup", onEnterStudio }) {
   const [signingIn, setSigningIn] = useState(false);
   const [authError, setAuthError] = useState(null);
   // Email auth flow states:
-  //   "idle"        = provider buttons (Google + Continue with Email) visible
-  //   "entering"    = email + password form showing (primary path)
-  //   "sent"        = magic sign-in link emailed (new device / forgot-pwd fallback)
-  //   "reset-sent"  = password reset link emailed
+  //   "idle"           = provider buttons (Google + Continue with Email) visible
+  //   "entering"       = email + password form showing (primary path)
+  //   "verify-pending" = signup done, waiting for the user to click the
+  //                       verification link in their inbox before we
+  //                       advance the funnel to the plan picker
+  //   "sent"           = magic sign-in link emailed (new device / forgot-pwd fallback)
+  //   "reset-sent"     = password reset link emailed
   const [emailMode, setEmailMode] = useState("idle");
   const [emailValue, setEmailValue] = useState("");
   const [passwordValue, setPasswordValue] = useState("");
+  const [confirmValue, setConfirmValue] = useState("");
   const [emailSending, setEmailSending] = useState(false);
   // Track whether the user has interacted with each field so we don't
   // flash "invalid" errors before they've had a chance to type. Set
   // true on first blur OR first failed submit attempt.
   const [emailTouched, setEmailTouched] = useState(false);
   const [passwordTouched, setPasswordTouched] = useState(false);
+  const [confirmTouched, setConfirmTouched] = useState(false);
+  // Verification state. After a fresh signup we hold the Firebase user
+  // + the pending onSignUp payload here, then advance once the user has
+  // clicked the link in their inbox (polled every 3s via reload).
+  const [pendingVerification, setPendingVerification] = useState(null); // { user, payload }
+  const [verifyResendCooldown, setVerifyResendCooldown] = useState(0);
+  const [verifyChecking, setVerifyChecking] = useState(false);
 
   // Email validation. Stricter than a one-line regex — catches the
   // common mistakes that pass a permissive pattern:
@@ -5464,6 +5475,19 @@ function AuthPage({ onSignUp, onPage, mode = "signup", onEnterStudio }) {
     if (pwScore === 4) return { label: "Good",  tone: "#5a7a4a" };
     return { label: "Strong", tone: "#3f5c34" };
   })();
+  // Confirm-password check. Sign-in mode skips it entirely (there's no
+  // second field rendered). Empty confirm is treated as "required" once
+  // the field has been touched, otherwise as not-yet-an-error.
+  const confirmError = (() => {
+    if (isSignin) return null;
+    if (!confirmValue) return "Please re-enter the password.";
+    if (confirmValue !== passwordValue) return "Passwords don't match.";
+    return null;
+  })();
+  // True only once the user has typed both fields AND they match — drives
+  // the green "Passwords match" hint under the confirm input.
+  const confirmMatches =
+    !isSignin && passwordValue.length > 0 && confirmValue === passwordValue && !passwordError;
 
   // (Earlier versions ran a live "is this email already registered?"
   // check via fetchSignInMethodsForEmail. Firebase's email-enumeration
@@ -5553,12 +5577,14 @@ function AuthPage({ onSignUp, onPage, mode = "signup", onEnterStudio }) {
   // the first sign-in on a device.
   const handleEmailPassword = async () => {
     if (!accepted) { setTried(true); return; }
-    // Surface every inline error by marking both fields touched, then
+    // Surface every inline error by marking every field touched, then
     // gate the actual call on validity. Without this, a user who never
     // tabs out of the input doesn't see the inline hint.
     setEmailTouched(true);
     setPasswordTouched(true);
+    if (!isSignin) setConfirmTouched(true);
     if (emailError || passwordError) return;
+    if (!isSignin && confirmError) return;
     const email = emailTrim;
     const password = passwordValue;
     setAuthError(null);
@@ -5568,7 +5594,7 @@ function AuthPage({ onSignUp, onPage, mode = "signup", onEnterStudio }) {
       const user = isSignin
         ? await lib.signInWithEmail(email, password)
         : await lib.signUpWithEmail(email, password);
-      onSignUp("email", {
+      const payload = {
         acceptedAt: new Date().toISOString(),
         legalVersion: LEGAL_VERSION,
         firebaseUser: {
@@ -5577,7 +5603,19 @@ function AuthPage({ onSignUp, onPage, mode = "signup", onEnterStudio }) {
           displayName: user.displayName || "",
           photoURL: user.photoURL || "",
         },
-      });
+      };
+      // Sign-in: continue straight to the studio bootstrap. The account
+      // either pre-dates verification or already verified previously.
+      // Sign-up: pause the funnel and ask the user to click the link in
+      // their inbox first. Polling below flips us back into onSignUp.
+      if (isSignin) {
+        onSignUp("email", payload);
+      } else {
+        await lib.sendVerificationEmail(user);
+        setPendingVerification({ user, payload });
+        setEmailMode("verify-pending");
+        setVerifyResendCooldown(45);
+      }
     } catch (e) {
       console.error(`[auth/email-${isSignin ? "signin" : "signup"}]`, e);
       const code = e?.code || "";
@@ -5619,6 +5657,81 @@ function AuthPage({ onSignUp, onPage, mode = "signup", onEnterStudio }) {
       setAuthError(e?.message || String(e));
     } finally {
       setEmailSending(false);
+    }
+  };
+
+  // ── Email verification (signup gate) ───────────────────────────────
+  //
+  // After signUpWithEmail we sit in emailMode === "verify-pending" until
+  // the user clicks the link in their inbox. Two paths can flip us out:
+  //
+  //   1. Manual: user clicks "I've verified — continue", which calls
+  //      reload() once and advances if emailVerified is true.
+  //   2. Automatic: a 3s poll calls reload() in the background so the
+  //      user doesn't have to come back and tap anything — the funnel
+  //      advances as soon as Firebase sees the verification.
+  //
+  // Polling stops when the component unmounts OR we leave verify-pending
+  // mode OR the verification succeeds.
+  useEffect(() => {
+    if (emailMode !== "verify-pending" || !pendingVerification) return;
+    let cancelled = false;
+    const tick = async () => {
+      try {
+        const lib = await import("../lib/firebaseAuth");
+        const fresh = await lib.reloadCurrentUser();
+        if (cancelled) return;
+        if (fresh && fresh.emailVerified) {
+          // Hand the original signup payload to the parent funnel —
+          // unchanged from the synchronous handleEmailPassword path.
+          onSignUp("email", pendingVerification.payload);
+          setPendingVerification(null);
+        }
+      } catch {
+        // Network blip — swallow and try again next tick.
+      }
+    };
+    const id = setInterval(tick, 3000);
+    return () => { cancelled = true; clearInterval(id); };
+  }, [emailMode, pendingVerification, onSignUp]);
+
+  // Resend-button cooldown countdown — once a second until it hits zero.
+  useEffect(() => {
+    if (verifyResendCooldown <= 0) return;
+    const id = setTimeout(() => setVerifyResendCooldown((s) => s - 1), 1000);
+    return () => clearTimeout(id);
+  }, [verifyResendCooldown]);
+
+  const handleVerifyCheck = async () => {
+    if (!pendingVerification) return;
+    setVerifyChecking(true);
+    setAuthError(null);
+    try {
+      const lib = await import("../lib/firebaseAuth");
+      const fresh = await lib.reloadCurrentUser();
+      if (fresh && fresh.emailVerified) {
+        onSignUp("email", pendingVerification.payload);
+        setPendingVerification(null);
+      } else {
+        setAuthError("We still don't see a verified email — click the link in your inbox, then tap this again.");
+      }
+    } catch (e) {
+      setAuthError(e?.message || String(e));
+    } finally {
+      setVerifyChecking(false);
+    }
+  };
+
+  const handleResendVerification = async () => {
+    if (!pendingVerification || verifyResendCooldown > 0) return;
+    setAuthError(null);
+    try {
+      const lib = await import("../lib/firebaseAuth");
+      await lib.sendVerificationEmail(pendingVerification.user);
+      setVerifyResendCooldown(45);
+    } catch (e) {
+      console.error("[auth/verify/resend]", e);
+      setAuthError(e?.message || String(e));
     }
   };
 
@@ -5831,13 +5944,69 @@ function AuthPage({ onSignUp, onPage, mode = "signup", onEnterStudio }) {
                 </div>
               )}
             </div>
+            {/* Confirm password — sign-up only. Catches typos before the
+                user is locked into a password they can't remember. */}
+            {!isSignin && (
+              <div>
+                <input
+                  type="password"
+                  autoComplete="new-password"
+                  value={confirmValue}
+                  onChange={(e) => setConfirmValue(e.target.value)}
+                  onBlur={() => setConfirmTouched(true)}
+                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleEmailPassword(); } }}
+                  placeholder="Confirm password"
+                  className="w-full px-5 py-3.5 rounded-xl text-sm text-ink"
+                  style={{
+                    background: "var(--paper)",
+                    border: `0.5px solid ${
+                      confirmMatches
+                        ? "#5a7a4a"
+                        : confirmTouched && confirmError
+                          ? "var(--clay, #b3442b)"
+                          : "var(--line-strong)"
+                    }`,
+                  }}
+                  disabled={emailSending}
+                  aria-invalid={confirmTouched && confirmError ? "true" : "false"}
+                  aria-describedby={confirmTouched && confirmError ? "auth-confirm-error" : undefined}
+                  dir="ltr"
+                  minLength={8}
+                />
+                {confirmTouched && confirmError && (
+                  <p
+                    id="auth-confirm-error"
+                    role="alert"
+                    className="text-xs mt-1.5 ps-1"
+                    style={{ color: "var(--clay, #b3442b)" }}
+                  >
+                    {confirmError}
+                  </p>
+                )}
+                {confirmMatches && (
+                  <p
+                    className="text-xs mt-1.5 ps-1 inline-flex items-center gap-1.5"
+                    style={{ color: "#3f5c34" }}
+                  >
+                    <span
+                      aria-hidden="true"
+                      className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full text-[9px]"
+                      style={{ background: "#dfe8d6", color: "#3f5c34" }}
+                    >
+                      ✓
+                    </span>
+                    Passwords match
+                  </p>
+                )}
+              </div>
+            )}
             <ProviderButton
               icon={<EmailMark />}
               label={emailSending
                 ? (isSignin ? "Signing in…" : "Creating account…")
                 : (isSignin ? "Sign in" : "Create account")}
               onClick={handleEmailPassword}
-              disabled={!accepted || emailSending || !!emailError || !!passwordError}
+              disabled={!accepted || emailSending || !!emailError || !!passwordError || (!isSignin && !!confirmError)}
             />
             {isSignin && (
               <div className="flex flex-col items-center gap-2 pt-1">
@@ -5866,6 +6035,57 @@ function AuthPage({ onSignUp, onPage, mode = "signup", onEnterStudio }) {
             >
               ← back to all options
             </button>
+          </div>
+        )}
+
+        {emailMode === "verify-pending" && (
+          <div className="text-center space-y-4 py-2">
+            <div
+              className="inline-flex items-center justify-center w-12 h-12 rounded-full"
+              style={{ background: "var(--paper-warm, #ede4d3)" }}
+            >
+              <EmailMark />
+            </div>
+            <div className="space-y-1.5">
+              <p className="text-sm text-ink font-medium">Verify your email to continue.</p>
+              <p className="text-xs text-muted leading-relaxed">
+                We sent a verification link to{" "}
+                <span className="text-ink">{emailValue}</span>.
+                Click it, then this page will continue automatically.
+              </p>
+            </div>
+            <div className="flex flex-col gap-2 pt-1">
+              <ProviderButton
+                icon={<EmailMark />}
+                label={verifyChecking ? "Checking…" : "I've verified — continue"}
+                onClick={handleVerifyCheck}
+                disabled={verifyChecking}
+              />
+              <button
+                type="button"
+                onClick={handleResendVerification}
+                className="text-xs text-muted hover:text-ink transition disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={verifyResendCooldown > 0}
+              >
+                {verifyResendCooldown > 0
+                  ? `Resend link in ${verifyResendCooldown}s`
+                  : "Didn't get it? Resend link"}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setPendingVerification(null);
+                  setEmailMode("entering");
+                  setAuthError(null);
+                }}
+                className="text-xs text-muted hover:text-ink transition"
+              >
+                ← Change email
+              </button>
+            </div>
+            <p className="text-[10.5px] text-muted/80 leading-relaxed">
+              Check your spam folder if you don't see it within a minute.
+            </p>
           </div>
         )}
 

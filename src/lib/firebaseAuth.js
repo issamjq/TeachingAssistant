@@ -11,6 +11,7 @@ import {
   sendSignInLinkToEmail, isSignInWithEmailLink, signInWithEmailLink,
   createUserWithEmailAndPassword, signInWithEmailAndPassword,
   sendPasswordResetEmail,
+  sendEmailVerification as fbSendEmailVerification,
 } from "firebase/auth";
 import { auth, googleProvider, microsoftProvider } from "./firebase";
 
@@ -108,6 +109,38 @@ export async function signInWithEmail(email, password) {
 // come back to murchid.com and can sign in.
 export async function sendPasswordReset(email) {
   await sendPasswordResetEmail(auth, email);
+}
+
+// ── Email verification ────────────────────────────────────────────────
+//
+// Right after a fresh signup we ask Firebase to email the new user a
+// "click to confirm" link. They click it, Firebase flips emailVerified
+// to true server-side, and our polling on the AuthPage detects the
+// change (via reloadCurrentUser) and lets the funnel continue.
+//
+// This is Firebase's free, built-in flow — no SendGrid/Resend needed.
+// The link template can be styled in Firebase Console → Authentication
+// → Templates → Email address verification.
+export async function sendVerificationEmail(user) {
+  if (!user) throw new Error("sendVerificationEmail: no user");
+  await fbSendEmailVerification(user, {
+    // After verifying, Firebase appends ?mode=verifyEmail&oobCode=... to
+    // this URL and bounces the user back. We don't read those params —
+    // the onAuthStateChanged listener picks up the verified flag on its
+    // own. The URL just needs to be a domain Firebase recognises.
+    url: window.location.origin + "/?postVerify=1",
+    handleCodeInApp: false,
+  });
+}
+
+// Refresh the in-memory user so emailVerified reflects whatever happened
+// on the server (e.g. the user just clicked the link in another tab).
+// Returns the fresh user, or null if no one is signed in.
+export async function reloadCurrentUser() {
+  const u = auth.currentUser;
+  if (!u) return null;
+  await u.reload();
+  return auth.currentUser;
 }
 
 
