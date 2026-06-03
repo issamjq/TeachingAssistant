@@ -398,43 +398,80 @@ export default function ProfileForm({ onDone, onBack }) {
 
         {step === "scope" && (
           <div className="space-y-6">
-            <Field label={t("onb.fld.grades")} required>
-              <ChipPicker
-                options={GRADE_LEVELS}
-                selected={data.grades}
-                onToggle={(v) => toggleGrade(v)}
-                onSetAll={(next) => setAllGrades(next)}
-                allLabel={t("onb.all.grades")}
-              />
-            </Field>
+            {/* Unified picker — picked grades show inline section-pill
+                cards immediately, unpicked grades sit in a "tap to add"
+                row at the bottom. Combining both into one block makes
+                the multi-select intent obvious (you can clearly see
+                you're stacking grades) and removes the discoverability
+                gap where teachers thought "pick a grade" was a single-
+                choice flow that revealed sections later. */}
+            <div>
+              <p className="text-[13px] font-medium" style={{ color: "var(--ink)" }}>
+                {t("onb.scope.title")}
+                <span style={{ color: "var(--clay)" }}> *</span>
+              </p>
+              <p className="text-[11.5px] mt-1 mb-3" style={{ color: "var(--ink-3)" }}>
+                {t("onb.scope.lead")}
+              </p>
 
-            {/* Per-grade section picker. Renders one row per selected
-                grade so the teacher can say "Grade 3 → A + B, Grade 4
-                → C + B" instead of one flat list that doesn't tie to
-                any grade. The flat data.sections array is kept as the
-                union of all rows so downstream legacy dropdowns
-                (Studio quiz / homework / etc.) still work. */}
-            {data.grades.length > 0 && (
-              <div>
-                <p className="text-[13px] font-medium" style={{ color: "var(--ink)" }}>
-                  {t("onb.fld.sectionsPerGrade")}
-                  <span style={{ color: "var(--clay)" }}> *</span>
-                </p>
-                <p className="text-[11.5px] mt-1 mb-3" style={{ color: "var(--ink-3)" }}>
-                  {t("onb.fld.sectionsPerGrade.lead")}
-                </p>
-                <div className="space-y-3">
+              {data.grades.length > 0 && (
+                <div className="space-y-3 mb-4">
                   {data.grades.map((g) => (
                     <GradeSectionRow
                       key={g}
                       grade={g}
                       sections={data.gradeSections?.[g] || []}
                       onChange={(next) => setSectionsForGrade(g, next)}
+                      onRemove={() => toggleGrade(g)}
                     />
                   ))}
                 </div>
-              </div>
-            )}
+              )}
+
+              {/* Tap-to-add row. Always visible — the title above tells
+                  the teacher to keep picking, and seeing the unpicked
+                  grades as small chips down here lets them stack more
+                  with one tap each. */}
+              {(() => {
+                const remaining = GRADE_LEVELS.filter((g) => !data.grades.includes(g));
+                if (remaining.length === 0) return null;
+                const allOn = data.grades.length === GRADE_LEVELS.length;
+                return (
+                  <div className="rounded-xl border border-dashed border-line bg-paper-cool/40 p-3.5">
+                    <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-2.5 inline-flex items-center gap-1.5">
+                      <Plus size={11} strokeWidth={2.5} />
+                      {data.grades.length === 0
+                        ? t("onb.scope.addFirst")
+                        : t("onb.scope.addMore")}
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setAllGrades(allOn ? [] : [...GRADE_LEVELS])}
+                        aria-pressed={allOn}
+                        className={`px-3 py-1.5 rounded-full text-[12.5px] font-semibold border transition-colors ${
+                          allOn
+                            ? "bg-accent text-paper-cool border-accent"
+                            : "bg-paper-cool text-accent border-accent hover:bg-accent/10"
+                        }`}
+                      >
+                        {t("onb.all.grades")}
+                      </button>
+                      {remaining.map((g) => (
+                        <button
+                          key={g}
+                          type="button"
+                          onClick={() => toggleGrade(g)}
+                          className="px-3 py-1.5 rounded-full text-[12.5px] font-medium border bg-paper text-ink border-line hover:border-ink transition-colors"
+                        >
+                          {g}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
 
             <Field label={t("onb.fld.bio")} hint={t("onb.fld.optional")}>
               <textarea
@@ -1246,7 +1283,7 @@ function SchoolsStep({ t, value, onChange, grades, gradeSections }) {
 // QUIZ_SECTIONS list OR types a custom section (e.g. "Honors", "Maths
 // Track"); previously-picked customs are kept as chips so they can be
 // re-selected later without re-typing.
-function GradeSectionRow({ grade, sections, onChange }) {
+function GradeSectionRow({ grade, sections, onChange, onRemove }) {
   const [draft, setDraft] = useState("");
   const presets = QUIZ_SECTIONS.filter((s) => s !== "All sections");
   // Show presets + any customs the teacher already added (so they
@@ -1275,14 +1312,28 @@ function GradeSectionRow({ grade, sections, onChange }) {
         : "border-line bg-paper-cool/60"
     }`}>
       <div className="flex items-center justify-between gap-2 mb-2.5">
-        <p className="font-mono text-[10.5px] uppercase tracking-[0.18em] text-ink">
-          {grade}
-        </p>
-        <span className={`text-[11px] ${empty ? "text-clay" : "text-muted"}`}>
-          {empty
-            ? "Pick at least one section"
-            : `${sections.length} section${sections.length > 1 ? "s" : ""}`}
-        </span>
+        <div className="inline-flex items-center gap-2 min-w-0">
+          <p className="font-mono text-[10.5px] uppercase tracking-[0.18em] text-ink">
+            {grade}
+          </p>
+          <span className={`text-[11px] ${empty ? "text-clay" : "text-muted"}`}>
+            ·{" "}
+            {empty
+              ? "Pick at least one section"
+              : `${sections.length} section${sections.length > 1 ? "s" : ""}`}
+          </span>
+        </div>
+        {onRemove && (
+          <button
+            type="button"
+            onClick={onRemove}
+            title="Remove this grade"
+            aria-label={`Remove ${grade}`}
+            className="shrink-0 h-7 w-7 inline-flex items-center justify-center rounded-md text-ink-soft hover:bg-accent hover:text-paper-cool transition-colors"
+          >
+            <X size={12} />
+          </button>
+        )}
       </div>
       <div className="flex flex-wrap gap-1.5 mb-2.5">
         {allOptions.map((s) => {
