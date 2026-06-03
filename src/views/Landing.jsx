@@ -5302,14 +5302,61 @@ function ProviderButton({ icon, label, onClick, disabled }) {
 // Sign up — Google / Outlook only. No real auth yet (mock): tapping a
 // provider records it and moves to plan onboarding. Swap onSignUp for a
 // Firebase popup later; the rest of the funnel is unchanged.
-function AuthPage({ onSignUp, onPage, mode = "signup" }) {
+function AuthPage({ onSignUp, onPage, mode = "signup", onEnterStudio }) {
   const t = useT();
   const isSignin = mode === "signin";
+
+  // Silent session restore on AuthPage mount. If Firebase still has a
+  // valid token (auto-persisted ~1 year), the user is already authed
+  // — no need to ask for an email link or click any provider button.
+  // Restore the account locally and bounce straight to the studio.
+  //
+  // This is the SAME logic the Landing home page runs on mount, but
+  // duplicated here because users who click the Sign In nav button
+  // arrive directly at AuthPage and skip the home check.
+  const [restoring, setRestoring] = useState(true);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const { getIdToken } = await import("../lib/firebaseAuth");
+        const token = await getIdToken();
+        if (!token || cancelled) { if (!cancelled) setRestoring(false); return; }
+        const me = await apiFetch("/api/auth/me");
+        if (cancelled || !me?.id) { if (!cancelled) setRestoring(false); return; }
+        setAccount({
+          provider: "google",
+          plan: me.subscription_plan || "annual",
+          profile: {
+            firstName: me.first_name || "",
+            lastName:  me.last_name  || "",
+            email:     me.email      || "",
+            avatarUrl: me.avatar_url || "",
+          },
+          role:     me.role,
+          sub_role: me.sub_role || null,
+          subscriptionStatus: me.subscription_status,
+          subscriptionEndsAt: me.subscription_ends_at,
+        });
+        if (me.role) setLocalRole(me.role);
+        if (onEnterStudio) onEnterStudio();
+      } catch {
+        // No session / no teacher row / network error — fall through
+        // and render the normal AuthPage so the user can sign in.
+        if (!cancelled) setRestoring(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   // Sign-up requires explicit, opt-in acceptance of the Terms and the
   // Privacy Policy. Until both are checked, the provider buttons stay
   // disabled — a recorded act of consent (PDPL Article 6) is the
   // lawful basis we rely on for new accounts.
-  const [accepted, setAccepted] = useState(false);
+  //
+  // Sign-in mode skips the checkbox entirely: the user already accepted
+  // when they subscribed, and the consent record lives on the account
+  // row server-side. Re-asking adds friction with no legal value.
+  const [accepted, setAccepted] = useState(isSignin);
   const [tried, setTried] = useState(false);
   const [signingIn, setSigningIn] = useState(false);
   const [authError, setAuthError] = useState(null);
@@ -5431,6 +5478,29 @@ function AuthPage({ onSignUp, onPage, mode = "signup" }) {
     }
   };
 
+  // Restoring? Show a minimal loader so the user doesn't see the
+  // sign-in form flash before getting auto-redirected to the studio.
+  // Capped at ~1.5s by the session-restore effect's typical roundtrip.
+  if (restoring) {
+    return (
+      <PageShell
+        eyebrow={isSignin ? t("lp.auth.signin.eyebrow") : t("lp.auth.eyebrow")}
+        title={isSignin ? t("lp.auth.signin.title") : t("lp.auth.title")}
+        em={isSignin ? t("lp.auth.signin.titleEm") : t("lp.auth.titleEm")}
+        lead={isSignin ? t("lp.auth.signin.lead") : t("lp.auth.lead")}
+        onPage={onPage}
+        narrow
+        centered
+      >
+        <div className="max-w-sm mx-auto flex justify-center py-8">
+          <div className="relative w-32 h-px bg-line/60 overflow-hidden">
+            <span className="absolute top-0 left-0 h-px w-12 bg-accent brand-loader-sweep" />
+          </div>
+        </div>
+      </PageShell>
+    );
+  }
+
   return (
     <PageShell
       eyebrow={isSignin ? t("lp.auth.signin.eyebrow") : t("lp.auth.eyebrow")}
@@ -5521,51 +5591,57 @@ function AuthPage({ onSignUp, onPage, mode = "signup" }) {
         )}
       </div>
 
-      <div className="max-w-sm mx-auto mt-6">
-        <label className="flex items-start gap-3 text-start cursor-pointer select-none">
-          <input
-            type="checkbox"
-            checked={accepted}
-            onChange={(e) => { setAccepted(e.target.checked); if (e.target.checked) setTried(false); }}
-            // Native checkbox, scaled up so it's easy to tap. We avoid
-            // custom-painted boxes here because the legal acceptance
-            // checkbox should remain unmistakable as a real form
-            // control on every browser and assistive tech.
-            className="mt-0.5 h-4 w-4 flex-shrink-0 accent-[color:var(--clay,#b3442b)] cursor-pointer"
-            aria-describedby="auth-terms-text auth-terms-error"
-            required
-          />
-          <span
-            id="auth-terms-text"
-            className="text-sm leading-relaxed"
-            style={{ color: "var(--ink-2)" }}
-          >
-            I have read and agree to the{" "}
-            <button
-              type="button"
-              onClick={(e) => { e.preventDefault(); onPage("terms"); }}
-              className="underline decoration-from-font font-medium hover:text-[color:var(--clay,#b3442b)]"
-            >Terms &amp; Conditions</button>{" "}
-            and the{" "}
-            <button
-              type="button"
-              onClick={(e) => { e.preventDefault(); onPage("privacy"); }}
-              className="underline decoration-from-font font-medium hover:text-[color:var(--clay,#b3442b)]"
-            >Privacy Policy</button>, including the processing of my data
-            under UAE Federal Decree-Law No. 45 of 2021 (PDPL).
-          </span>
-        </label>
-        {tried && !accepted && (
-          <p
-            id="auth-terms-error"
-            role="alert"
-            className="text-xs mt-2 ps-7"
-            style={{ color: "var(--clay, #b3442b)" }}
-          >
-            Please confirm you agree to the Terms and Privacy Policy before continuing.
-          </p>
-        )}
-      </div>
+      {/* Legal acceptance block — sign-up only. Returning users already
+          accepted when they subscribed; that consent record lives on
+          the account row server-side. Re-asking adds friction with no
+          legal value. */}
+      {!isSignin && (
+        <div className="max-w-sm mx-auto mt-6">
+          <label className="flex items-start gap-3 text-start cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={accepted}
+              onChange={(e) => { setAccepted(e.target.checked); if (e.target.checked) setTried(false); }}
+              // Native checkbox, scaled up so it's easy to tap. We avoid
+              // custom-painted boxes here because the legal acceptance
+              // checkbox should remain unmistakable as a real form
+              // control on every browser and assistive tech.
+              className="mt-0.5 h-4 w-4 flex-shrink-0 accent-[color:var(--clay,#b3442b)] cursor-pointer"
+              aria-describedby="auth-terms-text auth-terms-error"
+              required
+            />
+            <span
+              id="auth-terms-text"
+              className="text-sm leading-relaxed"
+              style={{ color: "var(--ink-2)" }}
+            >
+              I have read and agree to the{" "}
+              <button
+                type="button"
+                onClick={(e) => { e.preventDefault(); onPage("terms"); }}
+                className="underline decoration-from-font font-medium hover:text-[color:var(--clay,#b3442b)]"
+              >Terms &amp; Conditions</button>{" "}
+              and the{" "}
+              <button
+                type="button"
+                onClick={(e) => { e.preventDefault(); onPage("privacy"); }}
+                className="underline decoration-from-font font-medium hover:text-[color:var(--clay,#b3442b)]"
+              >Privacy Policy</button>, including the processing of my data
+              under UAE Federal Decree-Law No. 45 of 2021 (PDPL).
+            </span>
+          </label>
+          {tried && !accepted && (
+            <p
+              id="auth-terms-error"
+              role="alert"
+              className="text-xs mt-2 ps-7"
+              style={{ color: "var(--clay, #b3442b)" }}
+            >
+              Please confirm you agree to the Terms and Privacy Policy before continuing.
+            </p>
+          )}
+        </div>
+      )}
 
       <p className="text-xs mt-6 text-center" style={{ color: "var(--ink-3)" }}>
         {t("lp.auth.only")}
@@ -5802,10 +5878,10 @@ function LegalPage({ doc, onPage }) {
   );
 }
 
-function MarketingPage({ page, onSignUp, onProfileDone, onChoosePlan, onPage }) {
+function MarketingPage({ page, onSignUp, onProfileDone, onChoosePlan, onPage, onEnterStudio }) {
   const t = useT();
   if (page === "signin" || page === "signup")
-    return <AuthPage onSignUp={onSignUp} onPage={onPage} mode={page} />;
+    return <AuthPage onSignUp={onSignUp} onPage={onPage} mode={page} onEnterStudio={onEnterStudio} />;
   if (page === "profile")
     return (
       <ProfileForm
@@ -6265,6 +6341,7 @@ export default function Landing({ onOpenStudio }) {
           onProfileDone={handleProfileDone}
           onChoosePlan={handleChoosePlan}
           onPage={goPage}
+          onEnterStudio={onOpenStudio}
         />
       )}
       <Footer onEnter={enter} signedIn={signedIn} onJump={jump} onPage={goPage} />
