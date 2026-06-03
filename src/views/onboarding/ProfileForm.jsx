@@ -13,7 +13,7 @@
 // Submit on step 3 writes a pending profile to localStorage and calls
 // onDone() so the funnel advances to the plan picker.
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronRight, ChevronLeft, ChevronDown, ChevronUp, Check, Download, Upload, FileText, X, Plus, MapPin, Search, Star, Trash2, Layers, RotateCcw } from "lucide-react";
+import { ChevronRight, ChevronLeft, Check, Download, Upload, FileText, X, Plus, MapPin, Search, Star, Trash2, Layers, RotateCcw } from "lucide-react";
 import { MAJORS, GRADE_LEVELS, QUIZ_LANGUAGES, QUIZ_SECTIONS } from "../../lib/enums";
 import { EMIRATES } from "../../lib/schools";
 import {
@@ -807,9 +807,6 @@ function SchoolsStep({ t, value, onChange, grades, gradeSections }) {
   const [emirateFilter, setEmirateFilter] = useState("");
   const [customName, setCustomName] = useState("");
   const [customEmirate, setCustomEmirate] = useState("Dubai");
-  // Which school's per-school grade override panel is currently open.
-  // null = all collapsed. Only one open at a time keeps the list tidy.
-  const [expandedSchool, setExpandedSchool] = useState(null);
 
   useEffect(() => {
     api("/api/schools")
@@ -989,7 +986,6 @@ function SchoolsStep({ t, value, onChange, grades, gradeSections }) {
           </p>
           <ul className="space-y-1.5">
             {value.map((s) => {
-              const isExpanded = expandedSchool === s.school_id;
               const isCustomized = !!(s.gradeSections && Object.keys(s.gradeSections).length > 0);
               const effective = effectiveFor(s);
               const hasGrades = pickedGrades.length > 0;
@@ -1033,37 +1029,33 @@ function SchoolsStep({ t, value, onChange, grades, gradeSections }) {
                       <Trash2 size={12} />
                     </button>
                   </div>
-                  {/* Per-school grade override toggle. Hidden when the
-                      teacher hasn't picked any grades in step 3 yet —
-                      nothing to customize. */}
+                  {/* Per-school grades & sections — ALWAYS visible. Each
+                      pill is a tap-to-include/exclude toggle. No
+                      collapsing — teachers don't always discover an
+                      expander, and seeing the data upfront is what
+                      makes the per-school nature obvious. */}
                   {hasGrades && (
-                    <button
-                      type="button"
-                      onClick={() => setExpandedSchool(isExpanded ? null : s.school_id)}
-                      className="w-full flex items-center justify-between gap-2 px-3 py-1.5 border-t border-line/60 text-[11.5px] text-ink-soft hover:bg-paper/40 transition-colors"
-                      aria-expanded={isExpanded}
-                    >
-                      <span className="inline-flex items-center gap-1.5">
-                        {isExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-                        {t("onb.schools.custom.toggle")}
+                    <div className="px-3 pb-3 pt-2 border-t border-line/60 bg-paper/40 space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="font-mono text-[9.5px] uppercase tracking-[0.18em] text-muted inline-flex items-center gap-1.5">
+                          {t("onb.schools.per.eyebrow")}
+                          {isCustomized && (
+                            <span className="px-1.5 py-[1px] rounded-full bg-clay/12 text-clay text-[9.5px] font-mono uppercase tracking-wider">
+                              {t("onb.schools.custom.badge")}
+                            </span>
+                          )}
+                        </p>
                         {isCustomized && (
-                          <span className="ms-1 px-1.5 py-[1px] rounded-full bg-clay/12 text-clay text-[9.5px] font-mono uppercase tracking-wider">
-                            {t("onb.schools.custom.badge")}
-                          </span>
+                          <button
+                            type="button"
+                            onClick={() => resetSchoolGradeSections(s.school_id)}
+                            className="inline-flex items-center gap-1 text-[10.5px] text-ink-soft hover:text-clay transition-colors"
+                          >
+                            <RotateCcw size={10} />
+                            {t("onb.schools.custom.reset")}
+                          </button>
                         )}
-                      </span>
-                      <span className="text-muted">
-                        {isCustomized
-                          ? t("onb.schools.custom.statusCustom")
-                          : t("onb.schools.custom.statusInherit")}
-                      </span>
-                    </button>
-                  )}
-                  {hasGrades && isExpanded && (
-                    <div className="px-3 pb-3 pt-1 border-t border-line/40 bg-paper/40 space-y-2">
-                      <p className="text-[11px] text-muted">
-                        {t("onb.schools.custom.hint")}
-                      </p>
+                      </div>
                       <ul className="space-y-1.5">
                         {pickedGrades.map((g) => {
                           const inheritedSecs = (gradeSections && gradeSections[g]) || [];
@@ -1071,7 +1063,7 @@ function SchoolsStep({ t, value, onChange, grades, gradeSections }) {
                           if (inheritedSecs.length === 0) {
                             return (
                               <li key={g} className="text-[12px] flex flex-wrap items-baseline gap-x-2">
-                                <span className="font-medium text-ink">{g}</span>
+                                <span className="font-medium text-ink min-w-[3.75rem]">{g}</span>
                                 <span className="text-muted italic text-[11px]">
                                   {t("onb.schools.inherit.noSections")}
                                 </span>
@@ -1079,9 +1071,9 @@ function SchoolsStep({ t, value, onChange, grades, gradeSections }) {
                             );
                           }
                           return (
-                            <li key={g} className="text-[12px]">
-                              <p className="font-medium text-ink mb-1">{g}</p>
-                              <div className="flex flex-wrap gap-1.5 ps-1">
+                            <li key={g} className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px]">
+                              <span className="font-medium text-ink min-w-[3.75rem] shrink-0">{g}</span>
+                              <div className="flex flex-wrap gap-1.5">
                                 {inheritedSecs.map((sec) => {
                                   const on = activeSecs.includes(sec);
                                   return (
@@ -1095,6 +1087,7 @@ function SchoolsStep({ t, value, onChange, grades, gradeSections }) {
                                           : "bg-paper-cool text-muted border-line hover:border-ink-soft"
                                       }`}
                                       aria-pressed={on}
+                                      aria-label={`${sec} at ${s.name} — ${on ? "tap to remove" : "tap to add"}`}
                                     >
                                       {on ? <Check size={10} /> : <Plus size={10} />}
                                       {sec}
@@ -1106,16 +1099,6 @@ function SchoolsStep({ t, value, onChange, grades, gradeSections }) {
                           );
                         })}
                       </ul>
-                      {isCustomized && (
-                        <button
-                          type="button"
-                          onClick={() => resetSchoolGradeSections(s.school_id)}
-                          className="inline-flex items-center gap-1.5 text-[11px] text-ink-soft hover:text-clay transition-colors mt-1"
-                        >
-                          <RotateCcw size={11} />
-                          {t("onb.schools.custom.reset")}
-                        </button>
-                      )}
                     </div>
                   )}
                 </li>
