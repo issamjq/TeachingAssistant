@@ -5326,9 +5326,50 @@ function AuthPage({ onSignUp, onPage }) {
         },
       });
     } catch (e) {
-      // popup-closed-by-user is a normal cancel — don't flash an error.
-      if (e?.code !== "auth/popup-closed-by-user" && e?.code !== "auth/cancelled-popup-request") {
-        setAuthError(e?.message || String(e));
+      // Always log so the browser console has the full error object —
+      // makes diagnosing provider-config issues possible without re-
+      // running the flow in dev tools.
+      console.error(`[auth/${provider}]`, e);
+
+      // User-friendly message per Firebase error code. Microsoft's
+      // popup tends to close prematurely when the provider isn't fully
+      // enabled in Firebase Console OR the Azure AD redirect URI
+      // doesn't match, so we surface a hint instead of silently
+      // dropping the popup-closed error for Microsoft.
+      const code = e?.code || "";
+      const isUserCancel =
+        code === "auth/cancelled-popup-request" ||
+        code === "auth/popup-blocked";
+      if (isUserCancel) {
+        // Don't flash an error for a deliberate cancel / popup blocker
+        // — but for popup-blocked, surface a hint.
+        if (code === "auth/popup-blocked") {
+          setAuthError("Your browser blocked the sign-in popup. Allow popups for murchid.com and try again.");
+        }
+      } else if (code === "auth/popup-closed-by-user") {
+        // For Microsoft this usually means the Azure-side flow rejected
+        // the sign-in (provider not enabled / redirect URI mismatch /
+        // tenant restriction). For Google it usually IS a user cancel.
+        if (provider === "microsoft") {
+          setAuthError(
+            "Microsoft sign-in closed before completing. " +
+            "If you didn't cancel, the Microsoft provider may not be configured yet — try Google for now."
+          );
+        }
+        // Google popup-closed-by-user stays silent.
+      } else {
+        // Map a few specific codes to clearer copy.
+        const friendly = {
+          "auth/operation-not-allowed":
+            `${provider === "google" ? "Google" : "Microsoft"} sign-in isn't enabled on this project yet.`,
+          "auth/unauthorized-domain":
+            "This domain isn't authorized for sign-in. Add it in Firebase Console → Authentication → Settings → Authorized domains.",
+          "auth/account-exists-with-different-credential":
+            "An account with this email already exists, signed up with the other provider. Use that one instead.",
+          "auth/network-request-failed":
+            "Network error during sign-in. Check your connection and try again.",
+        }[code];
+        setAuthError(friendly || (e?.message || String(e)));
       }
       setSigningIn(false);
     }
