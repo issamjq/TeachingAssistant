@@ -8,6 +8,7 @@
 import {
   signInWithPopup, signOut as fbSignOut,
   onAuthStateChanged, GoogleAuthProvider,
+  sendSignInLinkToEmail, isSignInWithEmailLink, signInWithEmailLink,
 } from "firebase/auth";
 import { auth, googleProvider, microsoftProvider } from "./firebase";
 
@@ -32,6 +33,55 @@ export async function signInWithMicrosoft() {
 
 export async function signOut() {
   return fbSignOut(auth);
+}
+
+// ── Email link (passwordless) sign-in ─────────────────────────────────
+//
+// Works for ANY email provider — Outlook, Hotmail, Gmail, school emails,
+// anything. Firebase sends a magic link, the user clicks it, comes back
+// to murchid.com, and we complete the sign-in. No password, no OAuth
+// publisher verification, no provider config drama.
+//
+// Storage: we stash the email in localStorage between sendLink and
+// the user clicking the link, because Firebase needs it again to
+// complete the sign-in (this is the security measure that ties the
+// link to the device that requested it).
+const PENDING_EMAIL_KEY = "murchid.emaillink.pending";
+
+export async function sendEmailLink(email) {
+  const actionCodeSettings = {
+    // After the user clicks the email link, they come back to this
+    // URL. We detect the link on boot (main.jsx) and complete sign-in.
+    url: window.location.origin + "/?completeEmailSignIn=1",
+    handleCodeInApp: true,
+  };
+  await sendSignInLinkToEmail(auth, email, actionCodeSettings);
+  // Persist so completeEmailLinkSignIn() can read it after the round-trip.
+  try { localStorage.setItem(PENDING_EMAIL_KEY, email); } catch { /* ignore */ }
+}
+
+// Returns true if the current URL is a Firebase email sign-in link.
+export function isEmailSignInLink(url) {
+  return isSignInWithEmailLink(auth, url);
+}
+
+// Complete the email-link sign-in. Reads the pending email from local
+// storage (set during sendEmailLink). If absent — e.g. the user clicked
+// the link on a different device — we prompt the caller to ask for the
+// email again before calling this.
+export async function completeEmailLinkSignIn(url, fallbackEmail) {
+  let email = fallbackEmail;
+  if (!email) {
+    try { email = localStorage.getItem(PENDING_EMAIL_KEY) || ""; } catch { /* ignore */ }
+  }
+  if (!email) {
+    const err = new Error("Email address required to complete sign-in.");
+    err.code = "auth/email-required-for-completion";
+    throw err;
+  }
+  const result = await signInWithEmailLink(auth, email, url);
+  try { localStorage.removeItem(PENDING_EMAIL_KEY); } catch { /* ignore */ }
+  return result.user;
 }
 
 // One-shot promise that resolves when Firebase has finished restoring

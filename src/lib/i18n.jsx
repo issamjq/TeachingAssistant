@@ -605,6 +605,7 @@ const EN = {
   "lp.auth.lead": "Sign up with your school's Google or Outlook account — no password to remember.",
   "lp.auth.google": "Continue with Google",
   "lp.auth.outlook": "Continue with Outlook",
+  "lp.auth.email": "Continue with Email",
   "lp.auth.only": "Only Google and Outlook accounts are supported for now.",
   "lp.auth.terms": "By continuing you accept our privacy commitments.",
   // onboarding profile wizard (step between Auth and plan picker)
@@ -1483,6 +1484,7 @@ const AR = {
   "lp.auth.lead": "سجّل بحساب مدرستك على Google أو Outlook — دون كلمة مرور تحفظها.",
   "lp.auth.google": "المتابعة عبر Google",
   "lp.auth.outlook": "المتابعة عبر Outlook",
+  "lp.auth.email": "المتابعة عبر البريد الإلكتروني",
   "lp.auth.only": "ندعم حسابات Google وOutlook فقط في الوقت الحالي.",
   "lp.auth.terms": "بمتابعتك فإنك توافق على التزامات الخصوصية لدينا.",
   // onboarding profile wizard (step between Auth and plan picker)

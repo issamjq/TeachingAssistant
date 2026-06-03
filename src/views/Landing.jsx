@@ -5267,6 +5267,17 @@ function OutlookMark() {
     </svg>
   );
 }
+function EmailMark() {
+  // Editorial envelope glyph — same weight as the provider marks.
+  return (
+    <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden focusable="false">
+      <rect x="2" y="3.5" width="14" height="11" rx="1.5"
+        fill="none" stroke="currentColor" strokeWidth="1.4" />
+      <path d="M2.5 5.5 L9 10 L15.5 5.5"
+        fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
+    </svg>
+  );
+}
 
 function ProviderButton({ icon, label, onClick, disabled }) {
   return (
@@ -5300,6 +5311,12 @@ function AuthPage({ onSignUp, onPage }) {
   const [tried, setTried] = useState(false);
   const [signingIn, setSigningIn] = useState(false);
   const [authError, setAuthError] = useState(null);
+  // Email-link flow: three states. "idle" = both buttons visible.
+  // "entering" = user clicked the Email button → email input form
+  // showing. "sent" = link sent → "check your inbox" confirmation.
+  const [emailMode, setEmailMode] = useState("idle");
+  const [emailValue, setEmailValue] = useState("");
+  const [emailSending, setEmailSending] = useState(false);
   const handleProvider = async (provider) => {
     if (!accepted) {
       setTried(true);
@@ -5375,6 +5392,43 @@ function AuthPage({ onSignUp, onPage }) {
       setSigningIn(false);
     }
   };
+
+  // Send the magic email link. Works for any email provider (Outlook,
+  // Hotmail, Gmail, school emails, anything). The user clicks the link
+  // in their inbox and lands back on murchid.com — main.jsx detects
+  // the link and completes the sign-in, then drops them into the same
+  // funnel as a provider sign-up (profile form, plan picker, bootstrap).
+  const handleSendEmailLink = async () => {
+    if (!accepted) { setTried(true); return; }
+    const email = emailValue.trim();
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setAuthError("Please enter a valid email address.");
+      return;
+    }
+    setAuthError(null);
+    setEmailSending(true);
+    try {
+      const lib = await import("../lib/firebaseAuth");
+      await lib.sendEmailLink(email);
+      setEmailMode("sent");
+    } catch (e) {
+      console.error("[auth/email-link/send]", e);
+      const code = e?.code || "";
+      const friendly = {
+        "auth/invalid-email": "That email address doesn't look valid.",
+        "auth/operation-not-allowed":
+          "Email link sign-in isn't enabled yet. Enable it in Firebase Console → Authentication → Sign-in method → Email/Password → Email link.",
+        "auth/unauthorized-domain":
+          "This domain isn't authorised for sign-in.",
+        "auth/network-request-failed":
+          "Network error. Check your connection and try again.",
+      }[code];
+      setAuthError(friendly || (e?.message || String(e)));
+    } finally {
+      setEmailSending(false);
+    }
+  };
+
   return (
     <PageShell
       eyebrow={t("lp.auth.eyebrow")}
@@ -5386,19 +5440,79 @@ function AuthPage({ onSignUp, onPage }) {
       centered
     >
       <div className={`space-y-3 max-w-sm mx-auto transition-opacity ${accepted ? "opacity-100" : "opacity-90"}`}>
-        <ProviderButton
-          icon={<GoogleMark />}
-          label={signingIn ? "Opening sign-in…" : t("lp.auth.google")}
-          onClick={() => handleProvider("google")}
-          disabled={!accepted || signingIn}
-        />
-        <ProviderButton
-          icon={<OutlookMark />}
-          label={signingIn ? "Opening sign-in…" : t("lp.auth.outlook")}
-          onClick={() => handleProvider("outlook")}
-          disabled={!accepted || signingIn}
-        />
-        {authError && (
+        {emailMode === "idle" && (
+          <>
+            <ProviderButton
+              icon={<GoogleMark />}
+              label={signingIn ? "Opening sign-in…" : t("lp.auth.google")}
+              onClick={() => handleProvider("google")}
+              disabled={!accepted || signingIn}
+            />
+            <ProviderButton
+              icon={<EmailMark />}
+              label={t("lp.auth.email") || "Continue with Email"}
+              onClick={() => { if (!accepted) { setTried(true); return; } setAuthError(null); setEmailMode("entering"); }}
+              disabled={!accepted || signingIn}
+            />
+          </>
+        )}
+
+        {emailMode === "entering" && (
+          <div className="space-y-3">
+            <p className="text-xs text-center text-muted">
+              We'll email you a one-tap sign-in link. Works for any email — Outlook, Hotmail, Gmail, school.
+            </p>
+            <input
+              type="email"
+              autoFocus
+              value={emailValue}
+              onChange={(e) => setEmailValue(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") handleSendEmailLink(); }}
+              placeholder="you@school.ae"
+              className="w-full px-5 py-3.5 rounded-xl text-sm text-ink"
+              style={{ background: "var(--paper)", border: "0.5px solid var(--line-strong)" }}
+              disabled={emailSending}
+              dir="ltr"
+            />
+            <ProviderButton
+              icon={<EmailMark />}
+              label={emailSending ? "Sending link…" : "Send sign-in link"}
+              onClick={handleSendEmailLink}
+              disabled={!accepted || emailSending}
+            />
+            <button
+              type="button"
+              onClick={() => { setEmailMode("idle"); setAuthError(null); }}
+              className="w-full text-xs text-muted hover:text-ink transition pt-1"
+            >
+              ← back to all options
+            </button>
+          </div>
+        )}
+
+        {emailMode === "sent" && (
+          <div className="text-center space-y-3 py-2">
+            <div className="inline-flex items-center justify-center w-12 h-12 rounded-full" style={{ background: "var(--paper-warm, #ede4d3)" }}>
+              <EmailMark />
+            </div>
+            <p className="text-sm text-ink">Check your inbox.</p>
+            <p className="text-xs text-muted leading-relaxed">
+              We sent a sign-in link to <span className="text-ink">{emailValue}</span>.
+              Click it to finish setting up your account.
+              <br />
+              Don't see it? Check spam, or
+              <button
+                type="button"
+                onClick={() => { setEmailMode("entering"); }}
+                className="ml-1 underline hover:text-ink"
+              >
+                try a different email
+              </button>.
+            </p>
+          </div>
+        )}
+
+        {authError && emailMode !== "sent" && (
           <p role="alert" className="text-xs text-center" style={{ color: "var(--clay, #b3442b)" }}>
             {authError}
           </p>
@@ -5835,6 +5949,63 @@ export default function Landing({ onOpenStudio }) {
     setPage(p);
     window.scrollTo(0, 0);
   };
+
+  // Email link sign-in completion. If the user lands on the site from
+  // a magic link in their inbox (URL has Firebase's ?apiKey=…&oobCode=…
+  // &mode=signIn params or our marker), complete the auth and feed the
+  // resulting Firebase user into the same funnel a Google sign-up takes.
+  // Cleans the URL so refreshes don't re-trigger.
+  const [emailLinkCompleting, setEmailLinkCompleting] = useState(() => {
+    if (typeof window === "undefined") return false;
+    const url = window.location.href;
+    return url.includes("mode=signIn") || url.includes("completeEmailSignIn=1");
+  });
+  useEffect(() => {
+    if (!emailLinkCompleting) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const lib = await import("../lib/firebaseAuth");
+        if (!lib.isEmailSignInLink(window.location.href)) {
+          // Not actually an email link (just our query marker stale) — bail.
+          window.history.replaceState(null, "", window.location.pathname);
+          setEmailLinkCompleting(false);
+          return;
+        }
+        const user = await lib.completeEmailLinkSignIn(window.location.href);
+        if (cancelled) return;
+        // Drop into the existing sign-up funnel exactly like a Google
+        // sign-up — handleSignUp reads firebaseUser and stages the
+        // profile prefill, then routes to /profile.
+        handleSignUp("email", {
+          acceptedAt: new Date().toISOString(),
+          legalVersion: LEGAL_VERSION,
+          firebaseUser: {
+            uid: user.uid,
+            email: user.email || "",
+            displayName: user.displayName || "",
+            photoURL: user.photoURL || "",
+          },
+        });
+        // Clean URL so refreshes don't re-trigger.
+        window.history.replaceState(null, "", window.location.pathname);
+      } catch (e) {
+        console.error("[auth/email-link/complete]", e);
+        // If completion fails (link expired, used twice, wrong email),
+        // park the user on the sign-up page with an error.
+        alert(
+          e?.code === "auth/email-required-for-completion"
+            ? "Please re-enter your email to finish signing in (you may be on a different device than where you requested the link)."
+            : `Sign-in link couldn't be verified: ${e?.message || e}`
+        );
+        window.history.replaceState(null, "", window.location.pathname);
+        setPage("signup");
+      } finally {
+        if (!cancelled) setEmailLinkCompleting(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [emailLinkCompleting]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // The single entry action behind every primary CTA: into the planner
   // if subscribed, otherwise into the sign-up funnel.
