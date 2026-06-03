@@ -5360,11 +5360,14 @@ function AuthPage({ onSignUp, onPage, mode = "signup", onEnterStudio }) {
   const [tried, setTried] = useState(false);
   const [signingIn, setSigningIn] = useState(false);
   const [authError, setAuthError] = useState(null);
-  // Email-link flow: three states. "idle" = both buttons visible.
-  // "entering" = user clicked the Email button → email input form
-  // showing. "sent" = link sent → "check your inbox" confirmation.
+  // Email auth flow states:
+  //   "idle"        = provider buttons (Google + Continue with Email) visible
+  //   "entering"    = email + password form showing (primary path)
+  //   "sent"        = magic sign-in link emailed (new device / forgot-pwd fallback)
+  //   "reset-sent"  = password reset link emailed
   const [emailMode, setEmailMode] = useState("idle");
   const [emailValue, setEmailValue] = useState("");
+  const [passwordValue, setPasswordValue] = useState("");
   const [emailSending, setEmailSending] = useState(false);
   const handleProvider = async (provider) => {
     if (!accepted) {
@@ -5442,11 +5445,86 @@ function AuthPage({ onSignUp, onPage, mode = "signup", onEnterStudio }) {
     }
   };
 
-  // Send the magic email link. Works for any email provider (Outlook,
-  // Hotmail, Gmail, school emails, anything). The user clicks the link
-  // in their inbox and lands back on murchid.com — main.jsx detects
-  // the link and completes the sign-in, then drops them into the same
-  // funnel as a provider sign-up (profile form, plan picker, bootstrap).
+  // Email + password — the primary email path. Set once at sign-up,
+  // used instantly forever after with no inbox round-trip. Firebase
+  // session persists ~1 year so the password rarely gets retyped after
+  // the first sign-in on a device.
+  const handleEmailPassword = async () => {
+    if (!accepted) { setTried(true); return; }
+    const email = emailValue.trim();
+    const password = passwordValue;
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setAuthError("Please enter a valid email address.");
+      return;
+    }
+    if (!password || password.length < 8) {
+      setAuthError("Password must be at least 8 characters.");
+      return;
+    }
+    setAuthError(null);
+    setEmailSending(true);
+    try {
+      const lib = await import("../lib/firebaseAuth");
+      const user = isSignin
+        ? await lib.signInWithEmail(email, password)
+        : await lib.signUpWithEmail(email, password);
+      onSignUp("email", {
+        acceptedAt: new Date().toISOString(),
+        legalVersion: LEGAL_VERSION,
+        firebaseUser: {
+          uid: user.uid,
+          email: user.email || "",
+          displayName: user.displayName || "",
+          photoURL: user.photoURL || "",
+        },
+      });
+    } catch (e) {
+      console.error(`[auth/email-${isSignin ? "signin" : "signup"}]`, e);
+      const code = e?.code || "";
+      const friendly = {
+        "auth/invalid-email":            "That email address doesn't look valid.",
+        "auth/weak-password":            "Pick a stronger password (8+ characters).",
+        "auth/email-already-in-use":     "An account with this email already exists. Try signing in instead.",
+        "auth/invalid-credential":       "Wrong email or password.",
+        "auth/user-not-found":           "No account with this email. Try subscribing instead.",
+        "auth/wrong-password":           "Wrong password. Use 'Forgot password' if you don't remember it.",
+        "auth/too-many-requests":        "Too many attempts. Wait a minute and try again, or reset your password.",
+        "auth/operation-not-allowed":
+          "Email/password sign-in isn't enabled yet. Enable it in Firebase Console → Authentication → Sign-in method → Email/Password.",
+        "auth/network-request-failed":   "Network error. Check your connection and try again.",
+      }[code];
+      setAuthError(friendly || (e?.message || String(e)));
+    } finally {
+      setEmailSending(false);
+    }
+  };
+
+  // Send a password reset email (used by the "Forgot password" link in
+  // sign-in mode). Firebase emails a link to reset the password; the
+  // user comes back and signs in normally afterwards.
+  const handleForgotPassword = async () => {
+    const email = emailValue.trim();
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setAuthError("Enter your email above first, then click 'Forgot password'.");
+      return;
+    }
+    setAuthError(null);
+    setEmailSending(true);
+    try {
+      const lib = await import("../lib/firebaseAuth");
+      await lib.sendPasswordReset(email);
+      setEmailMode("reset-sent");
+    } catch (e) {
+      console.error("[auth/password-reset]", e);
+      setAuthError(e?.message || String(e));
+    } finally {
+      setEmailSending(false);
+    }
+  };
+
+  // Magic-link fallback. Stays available for users without a password
+  // (legacy magic-link signups) and as a no-password-needed alternative
+  // on new devices.
   const handleSendEmailLink = async () => {
     if (!accepted) { setTried(true); return; }
     const email = emailValue.trim();
@@ -5466,7 +5544,7 @@ function AuthPage({ onSignUp, onPage, mode = "signup", onEnterStudio }) {
       const friendly = {
         "auth/invalid-email": "That email address doesn't look valid.",
         "auth/operation-not-allowed":
-          "Email link sign-in isn't enabled yet. Enable it in Firebase Console → Authentication → Sign-in method → Email/Password → Email link.",
+          "Email link sign-in isn't enabled yet.",
         "auth/unauthorized-domain":
           "This domain isn't authorised for sign-in.",
         "auth/network-request-failed":
@@ -5532,26 +5610,64 @@ function AuthPage({ onSignUp, onPage, mode = "signup", onEnterStudio }) {
         {emailMode === "entering" && (
           <div className="space-y-3">
             <p className="text-xs text-center text-muted">
-              We'll email you a one-tap sign-in link. Works for any email — Outlook, Hotmail, Gmail, school.
+              {isSignin
+                ? "Sign in with the email + password you set when you subscribed."
+                : "Pick a password you'll remember. 8+ characters."}
             </p>
             <input
               type="email"
               autoFocus
+              autoComplete="email"
               value={emailValue}
               onChange={(e) => setEmailValue(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter") handleSendEmailLink(); }}
+              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleEmailPassword(); } }}
               placeholder="you@school.ae"
               className="w-full px-5 py-3.5 rounded-xl text-sm text-ink"
               style={{ background: "var(--paper)", border: "0.5px solid var(--line-strong)" }}
               disabled={emailSending}
               dir="ltr"
             />
+            <input
+              type="password"
+              autoComplete={isSignin ? "current-password" : "new-password"}
+              value={passwordValue}
+              onChange={(e) => setPasswordValue(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleEmailPassword(); } }}
+              placeholder={isSignin ? "Your password" : "Create a password (8+ chars)"}
+              className="w-full px-5 py-3.5 rounded-xl text-sm text-ink"
+              style={{ background: "var(--paper)", border: "0.5px solid var(--line-strong)" }}
+              disabled={emailSending}
+              dir="ltr"
+              minLength={8}
+            />
             <ProviderButton
               icon={<EmailMark />}
-              label={emailSending ? "Sending link…" : "Send sign-in link"}
-              onClick={handleSendEmailLink}
+              label={emailSending
+                ? (isSignin ? "Signing in…" : "Creating account…")
+                : (isSignin ? "Sign in" : "Create account")}
+              onClick={handleEmailPassword}
               disabled={!accepted || emailSending}
             />
+            {isSignin && (
+              <div className="flex flex-col items-center gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={handleForgotPassword}
+                  className="text-xs text-muted hover:text-ink transition"
+                  disabled={emailSending}
+                >
+                  Forgot password?
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSendEmailLink}
+                  className="text-xs text-muted hover:text-ink transition"
+                  disabled={emailSending}
+                >
+                  Or sign in with a one-time link instead
+                </button>
+              </div>
+            )}
             <button
               type="button"
               onClick={() => { setEmailMode("idle"); setAuthError(null); }}
@@ -5569,8 +5685,8 @@ function AuthPage({ onSignUp, onPage, mode = "signup", onEnterStudio }) {
             </div>
             <p className="text-sm text-ink">Check your inbox.</p>
             <p className="text-xs text-muted leading-relaxed">
-              We sent a sign-in link to <span className="text-ink">{emailValue}</span>.
-              Click it to finish setting up your account.
+              We sent a one-time sign-in link to <span className="text-ink">{emailValue}</span>.
+              Click it to finish signing in.
               <br />
               Don't see it? Check spam, or
               <button
@@ -5584,7 +5700,28 @@ function AuthPage({ onSignUp, onPage, mode = "signup", onEnterStudio }) {
           </div>
         )}
 
-        {authError && emailMode !== "sent" && (
+        {emailMode === "reset-sent" && (
+          <div className="text-center space-y-3 py-2">
+            <div className="inline-flex items-center justify-center w-12 h-12 rounded-full" style={{ background: "var(--paper-warm, #ede4d3)" }}>
+              <EmailMark />
+            </div>
+            <p className="text-sm text-ink">Password reset sent.</p>
+            <p className="text-xs text-muted leading-relaxed">
+              We emailed a reset link to <span className="text-ink">{emailValue}</span>.
+              Click it, pick a new password, then come back here to sign in.
+              <br />
+              <button
+                type="button"
+                onClick={() => { setEmailMode("entering"); }}
+                className="mt-2 underline hover:text-ink"
+              >
+                ← back to sign in
+              </button>
+            </p>
+          </div>
+        )}
+
+        {authError && emailMode !== "sent" && emailMode !== "reset-sent" && (
           <p role="alert" className="text-xs text-center" style={{ color: "var(--clay, #b3442b)" }}>
             {authError}
           </p>

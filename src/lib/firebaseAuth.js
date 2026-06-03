@@ -9,6 +9,8 @@ import {
   signInWithPopup, signOut as fbSignOut,
   onAuthStateChanged, GoogleAuthProvider,
   sendSignInLinkToEmail, isSignInWithEmailLink, signInWithEmailLink,
+  createUserWithEmailAndPassword, signInWithEmailAndPassword,
+  sendPasswordResetEmail,
 } from "firebase/auth";
 import { auth, googleProvider, microsoftProvider } from "./firebase";
 
@@ -82,6 +84,30 @@ export async function completeEmailLinkSignIn(url, fallbackEmail) {
   const result = await signInWithEmailLink(auth, email, url);
   try { localStorage.removeItem(PENDING_EMAIL_KEY); } catch { /* ignore */ }
   return result.user;
+}
+
+// ── Email + password ──────────────────────────────────────────────────
+//
+// The primary auth path for users who don't want a Google account or
+// Microsoft enterprise consent dance. Set once at sign-up, used
+// instantly forever after. Magic-link sign-in stays available as the
+// "Forgot password" recovery and new-device fallback.
+
+export async function signUpWithEmail(email, password) {
+  const result = await createUserWithEmailAndPassword(auth, email, password);
+  return result.user;
+}
+
+export async function signInWithEmail(email, password) {
+  const result = await signInWithEmailAndPassword(auth, email, password);
+  return result.user;
+}
+
+// Send a password reset email. Firebase emails a link that opens
+// Firebase's own reset page; after the user picks a new password, they
+// come back to murchid.com and can sign in.
+export async function sendPasswordReset(email) {
+  await sendPasswordResetEmail(auth, email);
 }
 
 // One-shot promise that resolves when Firebase has finished restoring
