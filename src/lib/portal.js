@@ -22,9 +22,10 @@
 // is the source of truth. Vite's dev server does the same out of the
 // box for unknown paths.
 //
-// After a successful portal sign-in, the URL is replaced with /#/dashboard
-// (clean pathname, hash-based studio route) so refreshes don't re-trigger
-// the portal page.
+// After a successful portal sign-in, the URL is replaced with /dashboard
+// (clean pathname studio route) so refreshes don't re-trigger the portal
+// page. App.jsx's role-based routing bounces to the right console for
+// each role's default section (super_admin → /superadmin-dashboard, etc.).
 
 export const PORTALS = {
   dev: {
@@ -88,11 +89,12 @@ export function getPortalFromPath() {
   return null;
 }
 
-// After a successful portal sign-in, swap the pathname for `/` and set
-// the studio hash. This keeps the studio URL clean (no `/admin#/...`)
-// and means a refresh lands on the studio dashboard, not the portal.
+// After a successful portal sign-in, swap the portal pathname for the
+// studio dashboard. App.jsx's SECTIONS_BY_ROLE bounce handles routing
+// to the right console for whatever role just signed in. A refresh on
+// /dashboard re-enters the studio, not the portal.
 export function exitPortalToStudio() {
   if (typeof window === "undefined") return;
-  window.history.replaceState(null, "", "/#/dashboard");
+  window.history.replaceState(null, "", "/dashboard");
   window.dispatchEvent(new Event("popstate"));
 }
