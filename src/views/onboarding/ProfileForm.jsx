@@ -13,7 +13,7 @@
 // Submit on step 3 writes a pending profile to localStorage and calls
 // onDone() so the funnel advances to the plan picker.
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronRight, ChevronLeft, Check, Download, Upload, FileText, X, Plus, MapPin, Search, Star, Trash2, Layers, RotateCcw } from "lucide-react";
+import { ChevronRight, ChevronLeft, Check, Download, Upload, FileText, X, Plus, MapPin, Search, Star, Trash2, Layers } from "lucide-react";
 import { MAJORS, GRADE_LEVELS, QUIZ_LANGUAGES, QUIZ_SECTIONS } from "../../lib/enums";
 import { EMIRATES } from "../../lib/schools";
 import {
@@ -26,7 +26,11 @@ import Avatar from "../../components/Avatar";
 import { avatarsFor } from "../../lib/avatars";
 import { api } from "../_shared";
 
-const STEPS = ["identity", "subjects", "scope", "schools", "students"];
+// 4-step wizard. Grades + sections used to live in their own "scope"
+// step, but teachers couldn't tell why they were picking grades up-
+// front when each school could differ. Now each school carries its
+// own grade_sections directly — the schools step IS the grades step.
+const STEPS = ["identity", "subjects", "schools", "students"];
 
 const EMPTY = {
   firstName: "",
@@ -37,11 +41,12 @@ const EMPTY = {
   bio: "",
   majors: [],
   languages: [],
+  // grades / gradeSections / sections used to be filled by a "scope"
+  // step. They're now derived at save time from the union of every
+  // school's grade_sections (see handleChoosePlan in Landing.jsx),
+  // but we keep the empty shape on the local form state so legacy
+  // resume payloads from older builds still load cleanly.
   grades: [],
-  // Per-grade sections — { "Grade 3": ["Section A", "Section B"], ... }.
-  // The flat `sections` field below is kept as the union of all values
-  // so legacy Studio dropdowns and the teaching-profile editor that
-  // still read a flat list keep working without a migration.
   gradeSections: {},
   sections: [],
 };
@@ -142,11 +147,10 @@ export default function ProfileForm({ onDone, onBack }) {
   const step = STEPS[stepIdx];
   const last = stepIdx === STEPS.length - 1;
 
-  // Lightweight per-step validation — staff_id, bio, sections, and
-  // the entire students step are optional; the rest must have
-  // something so we don't end up with an empty teacher profile.
-  // Every field is required to advance — only the bio (and the
-  // skippable schools/students steps) get to be empty.
+  // Lightweight per-step validation. Schools step needs every school
+  // to have at least one grade picked AND every picked grade to have
+  // at least one section — same per-grade rule as the old scope step,
+  // just applied per-school now.
   const valid =
     step === "identity"
       ? data.firstName.trim().length > 0 &&
@@ -156,15 +160,14 @@ export default function ProfileForm({ onDone, onBack }) {
         data.avatar.length > 0
       : step === "subjects"
         ? data.majors.length > 0 && data.languages.length > 0
-        : step === "scope"
-          // Every picked grade must have at least one section. Empty
-          // grades shouldn't be allowed past — that's the whole point
-          // of the per-grade picker.
-          ? data.grades.length > 0 &&
-            data.grades.every((g) => (data.gradeSections?.[g] || []).length > 0)
-          : step === "schools"
-            ? schools.length > 0
-            : true; // students step — always valid (skippable)
+        : step === "schools"
+          ? schools.length > 0 &&
+            schools.every((s) => {
+              const gs = s.gradeSections || {};
+              const grades = Object.keys(gs);
+              return grades.length > 0 && grades.every((g) => (gs[g] || []).length > 0);
+            })
+          : true; // students step — always valid (skippable)
 
   const handleTemplateDownload = () => {
     const csv = rowsToCsv(STUDENT_COLUMNS, TEMPLATE_ROWS);
@@ -208,42 +211,6 @@ export default function ProfileForm({ onDone, onBack }) {
       return { ...d, [key]: next };
     });
 
-  // Grade picker tracks BOTH the grades array AND the per-grade section
-  // map (gradeSections). When a grade is deselected, drop its sections;
-  // when re-selected, start it empty so the teacher picks fresh. The
-  // flat sections field stays as the union of all values for legacy
-  // consumers (Studio dropdowns, useTeacherClasses, etc).
-  const unionOfGradeSections = (gs) => {
-    const u = new Set();
-    for (const arr of Object.values(gs || {})) for (const s of arr) u.add(s);
-    return [...u];
-  };
-  const toggleGrade = (grade) =>
-    setData((d) => {
-      const on = d.grades.includes(grade);
-      if (on) {
-        const grades = d.grades.filter((g) => g !== grade);
-        const gradeSections = { ...(d.gradeSections || {}) };
-        delete gradeSections[grade];
-        return { ...d, grades, gradeSections, sections: unionOfGradeSections(gradeSections) };
-      }
-      return { ...d, grades: [...d.grades, grade] };
-    });
-  const setAllGrades = (next) =>
-    setData((d) => {
-      if (next.length === 0) {
-        return { ...d, grades: [], gradeSections: {}, sections: [] };
-      }
-      // Carry over sections only for grades that remain selected.
-      const gradeSections = {};
-      for (const g of next) if (d.gradeSections?.[g]) gradeSections[g] = d.gradeSections[g];
-      return { ...d, grades: next, gradeSections, sections: unionOfGradeSections(gradeSections) };
-    });
-  const setSectionsForGrade = (grade, sections) =>
-    setData((d) => {
-      const gradeSections = { ...(d.gradeSections || {}), [grade]: sections };
-      return { ...d, gradeSections, sections: unionOfGradeSections(gradeSections) };
-    });
 
   const next = () => {
     if (!valid) return;
@@ -396,103 +363,25 @@ export default function ProfileForm({ onDone, onBack }) {
           </div>
         )}
 
-        {step === "scope" && (
-          <div className="space-y-6">
-            {/* Unified picker — picked grades show inline section-pill
-                cards immediately, unpicked grades sit in a "tap to add"
-                row at the bottom. Combining both into one block makes
-                the multi-select intent obvious (you can clearly see
-                you're stacking grades) and removes the discoverability
-                gap where teachers thought "pick a grade" was a single-
-                choice flow that revealed sections later. */}
-            <div>
-              <p className="text-[13px] font-medium" style={{ color: "var(--ink)" }}>
-                {t("onb.scope.title")}
-                <span style={{ color: "var(--clay)" }}> *</span>
-              </p>
-              <p className="text-[11.5px] mt-1 mb-3" style={{ color: "var(--ink-3)" }}>
-                {t("onb.scope.lead")}
-              </p>
-
-              {data.grades.length > 0 && (
-                <div className="space-y-3 mb-4">
-                  {data.grades.map((g) => (
-                    <GradeSectionRow
-                      key={g}
-                      grade={g}
-                      sections={data.gradeSections?.[g] || []}
-                      onChange={(next) => setSectionsForGrade(g, next)}
-                      onRemove={() => toggleGrade(g)}
-                    />
-                  ))}
-                </div>
-              )}
-
-              {/* Tap-to-add row. Always visible — the title above tells
-                  the teacher to keep picking, and seeing the unpicked
-                  grades as small chips down here lets them stack more
-                  with one tap each. */}
-              {(() => {
-                const remaining = GRADE_LEVELS.filter((g) => !data.grades.includes(g));
-                if (remaining.length === 0) return null;
-                const allOn = data.grades.length === GRADE_LEVELS.length;
-                return (
-                  <div className="rounded-xl border border-dashed border-line bg-paper-cool/40 p-3.5">
-                    <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-2.5 inline-flex items-center gap-1.5">
-                      <Plus size={11} strokeWidth={2.5} />
-                      {data.grades.length === 0
-                        ? t("onb.scope.addFirst")
-                        : t("onb.scope.addMore")}
-                    </p>
-                    <div className="flex flex-wrap gap-1.5">
-                      <button
-                        type="button"
-                        onClick={() => setAllGrades(allOn ? [] : [...GRADE_LEVELS])}
-                        aria-pressed={allOn}
-                        className={`px-3 py-1.5 rounded-full text-[12.5px] font-semibold border transition-colors ${
-                          allOn
-                            ? "bg-accent text-paper-cool border-accent"
-                            : "bg-paper-cool text-accent border-accent hover:bg-accent/10"
-                        }`}
-                      >
-                        {t("onb.all.grades")}
-                      </button>
-                      {remaining.map((g) => (
-                        <button
-                          key={g}
-                          type="button"
-                          onClick={() => toggleGrade(g)}
-                          className="px-3 py-1.5 rounded-full text-[12.5px] font-medium border bg-paper text-ink border-line hover:border-ink transition-colors"
-                        >
-                          {g}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                );
-              })()}
-            </div>
-
-            <Field label={t("onb.fld.bio")} hint={t("onb.fld.optional")}>
-              <textarea
-                value={data.bio}
-                onChange={(e) => set({ bio: e.target.value })}
-                rows={3}
-                className="onb-input"
-                placeholder={t("onb.ph.bio")}
-              />
-            </Field>
-          </div>
-        )}
-
         {step === "schools" && (
-          <SchoolsStep
-            t={t}
-            value={schools}
-            onChange={setSchools}
-            grades={data.grades}
-            gradeSections={data.gradeSections}
-          />
+          <>
+            <SchoolsStep
+              t={t}
+              value={schools}
+              onChange={setSchools}
+            />
+            <div className="mt-6">
+              <Field label={t("onb.fld.bio")} hint={t("onb.fld.optional")}>
+                <textarea
+                  value={data.bio}
+                  onChange={(e) => set({ bio: e.target.value })}
+                  rows={3}
+                  className="onb-input"
+                  placeholder={t("onb.ph.bio")}
+                />
+              </Field>
+            </div>
+          </>
         )}
 
         {step === "students" && (
@@ -836,7 +725,7 @@ function ChipPicker({
 // negative pseudo-id (–Date.now()) — the Landing plan-pick handler
 // POSTs them to /api/schools first to create real catalog rows, then
 // attaches them via /api/schools/mine.
-function SchoolsStep({ t, value, onChange, grades, gradeSections }) {
+function SchoolsStep({ t, value, onChange }) {
   const [catalog, setCatalog] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
@@ -900,43 +789,36 @@ function SchoolsStep({ t, value, onChange, grades, gradeSections }) {
     onChange(value.map((s) => ({ ...s, is_primary: s.school_id === school_id })));
   };
 
-  // Per-school grade-sections override. Setting school.gradeSections
-  // pins this school to its own map; clearing it (resetSchool…) lets
-  // the school inherit the global `gradeSections` from step 3 again.
-  // Toggling a single (grade, section) is the common case during
-  // onboarding — flips the section in/out of the array.
-  const toggleSchoolSection = (school_id, grade, section) => {
+  // Per-school grades + sections. Each school carries its own
+  // gradeSections map ({ "Grade 1": ["A", "B"], ... }) — there's no
+  // global default anymore. Adding a grade starts it with an empty
+  // section array so the teacher is forced to pick at least one
+  // section to advance (mirrors the old scope-step validation).
+  const toggleSchoolGrade = (school_id, grade) => {
     onChange(value.map((s) => {
       if (s.school_id !== school_id) return s;
-      const current = (s.gradeSections && s.gradeSections[grade])
-        || (gradeSections && gradeSections[grade])
-        || [];
-      const next = current.includes(section)
-        ? current.filter((x) => x !== section)
-        : [...current, section];
-      // Persist the override even if it equals the inherited shape —
-      // the user explicitly customized, and the explicit copy is what
-      // Landing's plan-pick handler sends to /api/schools/mine.
-      const baseMap = s.gradeSections
-        ? { ...s.gradeSections }
-        : { ...(gradeSections || {}) };
-      baseMap[grade] = next;
-      return { ...s, gradeSections: baseMap };
+      const gs = { ...(s.gradeSections || {}) };
+      if (grade in gs) delete gs[grade];
+      else gs[grade] = [];
+      return { ...s, gradeSections: gs };
     }));
   };
-  const resetSchoolGradeSections = (school_id) => {
+  const setSchoolAllGrades = (school_id, nextList) => {
     onChange(value.map((s) => {
       if (s.school_id !== school_id) return s;
-      const { gradeSections: _drop, ...rest } = s;
-      return rest;
+      const prev = s.gradeSections || {};
+      const gs = {};
+      for (const g of nextList) gs[g] = prev[g] || [];
+      return { ...s, gradeSections: gs };
     }));
   };
-  // Returns the effective grade→sections map for a given school —
-  // either its override or the global inherited map.
-  const effectiveFor = (s) =>
-    (s.gradeSections && Object.keys(s.gradeSections).length > 0)
-      ? s.gradeSections
-      : (gradeSections || {});
+  const setSchoolSectionsForGrade = (school_id, grade, sections) => {
+    onChange(value.map((s) => {
+      if (s.school_id !== school_id) return s;
+      const gs = { ...(s.gradeSections || {}), [grade]: sections };
+      return { ...s, gradeSections: gs };
+    }));
+  };
   const addCustom = () => {
     const name = customName.trim();
     if (!name) return;
@@ -958,82 +840,34 @@ function SchoolsStep({ t, value, onChange, grades, gradeSections }) {
     setCustomName("");
   };
 
-  // Step 3 (scope) picked grades + per-grade sections; Landing's
-  // plan-pick handler attaches them to every school below. Surface that
-  // here so teachers don't wonder whether the data carries over.
-  const pickedGrades = Array.isArray(grades) ? grades : [];
-  const sectionsMap = gradeSections || {};
-
   return (
     <div className="space-y-5">
-      {/* Inheritance banner — shows what'll be linked to every school
-          the teacher picks below. Editable per-school later in Settings. */}
-      <div className="rounded-xl border border-clay/30 bg-clay/[0.05] p-3.5 sm:p-4">
-        <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-clay mb-2 inline-flex items-center gap-2">
-          <Layers size={11} strokeWidth={2.25} />
-          {t("onb.schools.inherit.eyebrow")}
-        </p>
-        <p className="text-[13.5px] font-medium text-ink mb-2">
-          {t("onb.schools.inherit.title")}
-        </p>
-        {pickedGrades.length === 0 ? (
-          <p className="text-[12.5px] text-muted italic">
-            {t("onb.schools.inherit.empty")}
-          </p>
-        ) : (
-          <ul className="space-y-1.5">
-            {pickedGrades.map((g) => {
-              const secs = sectionsMap[g] || [];
-              return (
-                <li key={g} className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-[12.5px]">
-                  <span className="font-medium text-ink">{g}</span>
-                  {secs.length === 0 ? (
-                    <span className="text-muted italic">
-                      · {t("onb.schools.inherit.noSections")}
-                    </span>
-                  ) : (
-                    <span className="flex flex-wrap gap-1">
-                      {secs.map((s) => (
-                        <span
-                          key={s}
-                          className="px-1.5 py-[1px] rounded-full bg-paper-cool border border-line/70 text-[11px] text-ink"
-                        >
-                          {s}
-                        </span>
-                      ))}
-                    </span>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-        )}
-        <p className="text-[11px] text-muted mt-2.5">
-          {t("onb.schools.inherit.hintWithCustom")}
-        </p>
-      </div>
-
-      {/* Selected pills — sits ABOVE the picker so the teacher sees
-          what they've already added and doesn't add the same school twice. */}
+      {/* Selected schools — each card carries its own grades + sections
+          right inside it, so the teacher sees one school, picks the
+          grades they teach THERE, picks each grade's sections, and
+          moves on. No global default, no separate scope step, no
+          inheritance to second-guess. */}
       {value.length > 0 && (
-        <div className="rounded-xl border border-sage/40 bg-sage/[0.06] p-3">
-          <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-2 inline-flex items-center gap-2">
+        <div className="rounded-xl border border-sage/40 bg-sage/[0.06] p-3 space-y-2">
+          <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted inline-flex items-center gap-2">
             <MapPin size={11} className="text-sage" />
             {t("onb.schools.selected")} · {value.length}
           </p>
-          <ul className="space-y-1.5">
+          <ul className="space-y-3">
             {value.map((s) => {
-              const isCustomized = !!(s.gradeSections && Object.keys(s.gradeSections).length > 0);
-              const effective = effectiveFor(s);
-              const hasGrades = pickedGrades.length > 0;
+              const gs = s.gradeSections || {};
+              const schoolGrades = Object.keys(gs);
+              const remaining = GRADE_LEVELS.filter((g) => !(g in gs));
+              const allOn = schoolGrades.length === GRADE_LEVELS.length;
               return (
                 <li
                   key={s.school_id}
-                  className="rounded-lg bg-paper-cool border border-line/70"
+                  className="rounded-xl bg-paper-cool border border-line/70 overflow-hidden"
                 >
-                  <div className="flex items-center justify-between gap-2 px-3 py-2">
+                  {/* Top row — school name + chrome */}
+                  <div className="flex items-center justify-between gap-2 px-3.5 py-2.5">
                     <div className="min-w-0 flex-1">
-                      <p className="text-[13px] font-medium text-ink truncate">
+                      <p className="text-[13.5px] font-medium text-ink truncate">
                         {s.name}
                         {s.is_primary && (
                           <span className="ml-2 inline-flex items-center gap-1 px-1.5 py-[1px] rounded-full bg-clay/15 text-clay text-[10px] font-mono uppercase tracking-wider">
@@ -1066,78 +900,69 @@ function SchoolsStep({ t, value, onChange, grades, gradeSections }) {
                       <Trash2 size={12} />
                     </button>
                   </div>
-                  {/* Per-school grades & sections — ALWAYS visible. Each
-                      pill is a tap-to-include/exclude toggle. No
-                      collapsing — teachers don't always discover an
-                      expander, and seeing the data upfront is what
-                      makes the per-school nature obvious. */}
-                  {hasGrades && (
-                    <div className="px-3 pb-3 pt-2 border-t border-line/60 bg-paper/40 space-y-2">
-                      <div className="flex items-center justify-between gap-2">
-                        <p className="font-mono text-[9.5px] uppercase tracking-[0.18em] text-muted inline-flex items-center gap-1.5">
-                          {t("onb.schools.per.eyebrow")}
-                          {isCustomized && (
-                            <span className="px-1.5 py-[1px] rounded-full bg-clay/12 text-clay text-[9.5px] font-mono uppercase tracking-wider">
-                              {t("onb.schools.custom.badge")}
-                            </span>
-                          )}
+
+                  {/* Per-school grade + section picker. Empty card
+                      surfaces a single clay-tinted prompt; once grades
+                      are picked each gets its own GradeSectionRow with
+                      remove-grade affordance. */}
+                  <div className="px-3.5 pb-3.5 pt-1 border-t border-line/60 bg-paper/40 space-y-3">
+                    <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted inline-flex items-center gap-1.5 pt-1">
+                      <Layers size={11} strokeWidth={2.25} className="text-clay" />
+                      {t("onb.school.scope.eyebrow")}
+                    </p>
+
+                    {schoolGrades.length > 0 && (
+                      <div className="space-y-2.5">
+                        {schoolGrades.map((g) => (
+                          <GradeSectionRow
+                            key={g}
+                            grade={g}
+                            sections={gs[g] || []}
+                            onChange={(next) => setSchoolSectionsForGrade(s.school_id, g, next)}
+                            onRemove={() => toggleSchoolGrade(s.school_id, g)}
+                          />
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Tap-to-add row. Always visible until every grade
+                        is picked — keeps the multi-pick affordance in
+                        the teacher's face without an expand step. */}
+                    {remaining.length > 0 && (
+                      <div className="rounded-xl border border-dashed border-line bg-paper-cool/40 p-2.5">
+                        <p className="font-mono text-[9.5px] uppercase tracking-[0.18em] text-muted mb-2 inline-flex items-center gap-1.5">
+                          <Plus size={10} strokeWidth={2.5} />
+                          {schoolGrades.length === 0
+                            ? t("onb.school.scope.addFirst")
+                            : t("onb.school.scope.addMore")}
                         </p>
-                        {isCustomized && (
+                        <div className="flex flex-wrap gap-1.5">
                           <button
                             type="button"
-                            onClick={() => resetSchoolGradeSections(s.school_id)}
-                            className="inline-flex items-center gap-1 text-[10.5px] text-ink-soft hover:text-clay transition-colors"
+                            onClick={() => setSchoolAllGrades(s.school_id, allOn ? [] : [...GRADE_LEVELS])}
+                            aria-pressed={allOn}
+                            className={`px-2.5 py-1 rounded-full text-[11.5px] font-semibold border transition-colors ${
+                              allOn
+                                ? "bg-accent text-paper-cool border-accent"
+                                : "bg-paper-cool text-accent border-accent hover:bg-accent/10"
+                            }`}
                           >
-                            <RotateCcw size={10} />
-                            {t("onb.schools.custom.reset")}
+                            {t("onb.all.grades")}
                           </button>
-                        )}
+                          {remaining.map((g) => (
+                            <button
+                              key={g}
+                              type="button"
+                              onClick={() => toggleSchoolGrade(s.school_id, g)}
+                              className="px-2.5 py-1 rounded-full text-[11.5px] font-medium border bg-paper text-ink border-line hover:border-ink transition-colors"
+                            >
+                              {g}
+                            </button>
+                          ))}
+                        </div>
                       </div>
-                      <ul className="space-y-1.5">
-                        {pickedGrades.map((g) => {
-                          const inheritedSecs = (gradeSections && gradeSections[g]) || [];
-                          const activeSecs = effective[g] || [];
-                          if (inheritedSecs.length === 0) {
-                            return (
-                              <li key={g} className="text-[12px] flex flex-wrap items-baseline gap-x-2">
-                                <span className="font-medium text-ink min-w-[3.75rem]">{g}</span>
-                                <span className="text-muted italic text-[11px]">
-                                  {t("onb.schools.inherit.noSections")}
-                                </span>
-                              </li>
-                            );
-                          }
-                          return (
-                            <li key={g} className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px]">
-                              <span className="font-medium text-ink min-w-[3.75rem] shrink-0">{g}</span>
-                              <div className="flex flex-wrap gap-1.5">
-                                {inheritedSecs.map((sec) => {
-                                  const on = activeSecs.includes(sec);
-                                  return (
-                                    <button
-                                      key={sec}
-                                      type="button"
-                                      onClick={() => toggleSchoolSection(s.school_id, g, sec)}
-                                      className={`inline-flex items-center gap-1 px-2 py-1 rounded-full border text-[11px] font-medium transition-colors ${
-                                        on
-                                          ? "bg-sage/15 text-sage border-sage/40"
-                                          : "bg-paper-cool text-muted border-line hover:border-ink-soft"
-                                      }`}
-                                      aria-pressed={on}
-                                      aria-label={`${sec} at ${s.name} — ${on ? "tap to remove" : "tap to add"}`}
-                                    >
-                                      {on ? <Check size={10} /> : <Plus size={10} />}
-                                      {sec}
-                                    </button>
-                                  );
-                                })}
-                              </div>
-                            </li>
-                          );
-                        })}
-                      </ul>
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </li>
               );
             })}

@@ -6860,6 +6860,24 @@ export default function Landing({ onOpenStudio }) {
       setLocalRole(teacherRow.role);
     }
 
+    // Compute profile-wide grades/sections as the union of every
+    // school's per-school map. The onboarding form no longer has a
+    // separate scope step — each school carries its own grade_sections
+    // directly, so the teacher-level fields are derived here at save
+    // time. Legacy Studio dropdowns (quiz / homework / rosters) still
+    // read the flat arrays, so we keep them populated.
+    const unionGradeSections = {};
+    for (const s of pendingSchools) {
+      for (const [g, secs] of Object.entries(s.gradeSections || {})) {
+        if (!unionGradeSections[g]) unionGradeSections[g] = [];
+        for (const sec of secs || []) {
+          if (!unionGradeSections[g].includes(sec)) unionGradeSections[g].push(sec);
+        }
+      }
+    }
+    const unionGrades   = Object.keys(unionGradeSections);
+    const unionSections = [...new Set(Object.values(unionGradeSections).flat())];
+
     // If the user filled in the onboarding profile, sync majors /
     // grades / sections / languages to the live teacher row so the
     // studio dropdowns match what they entered.
@@ -6873,15 +6891,10 @@ export default function Landing({ onOpenStudio }) {
             staff_id:   profile.staffId   || undefined,
             bio:        profile.bio       || undefined,
             majors:        Array.isArray(profile.majors)    ? profile.majors    : undefined,
-            grade_levels:  Array.isArray(profile.grades)    ? profile.grades    : undefined,
             languages:     Array.isArray(profile.languages) ? profile.languages : undefined,
-            sections:      Array.isArray(profile.sections)  ? profile.sections  : undefined,
-            // Per-grade sections — { "Grade 3": ["Section A", "Section B"], ... }.
-            // Backend stores this in teachers.grade_sections JSONB so the
-            // teacher can later filter rosters / dropdowns by grade.
-            grade_sections: profile.gradeSections && Object.keys(profile.gradeSections).length > 0
-              ? profile.gradeSections
-              : undefined,
+            grade_levels:  unionGrades.length   > 0 ? unionGrades   : undefined,
+            sections:      unionSections.length > 0 ? unionSections : undefined,
+            grade_sections: unionGrades.length  > 0 ? unionGradeSections : undefined,
           },
         });
       } catch (e) {
@@ -6903,22 +6916,19 @@ export default function Landing({ onOpenStudio }) {
           });
           schoolId = created.id;
         }
-        // Per-school grade override (set in SchoolsStep via the
-        // "Customize for this school" panel) wins over the global
-        // inherited map. Falls back to the profile-wide gradeSections
-        // when no per-school override exists.
-        const effectiveGradeSections =
-          (s.gradeSections && Object.keys(s.gradeSections).length > 0)
+        // Each school carries its own grade_sections — the schools
+        // step IS the scope step now, no inheritance, no override
+        // fallback.
+        const schoolGradeSections =
+          s.gradeSections && Object.keys(s.gradeSections).length > 0
             ? s.gradeSections
-            : (profile?.gradeSections && Object.keys(profile.gradeSections).length > 0
-                ? profile.gradeSections
-                : undefined);
+            : undefined;
         await apiFetch("/api/schools/mine", {
           method: "POST",
           body: {
             school_id: schoolId,
             is_primary: !!s.is_primary,
-            grade_sections: effectiveGradeSections,
+            grade_sections: schoolGradeSections,
           },
         });
       }

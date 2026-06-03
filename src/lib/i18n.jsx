@@ -656,10 +656,16 @@ const EN = {
   "onb.scope.lead": "Tap as many grades as you cover — for each one, you'll pick its sections right inside the card. You can change all of this later in Settings.",
   "onb.scope.addFirst": "Tap a grade to start — pick more than one",
   "onb.scope.addMore": "Add another grade",
-  // schools — picks the UAE school(s) the teacher works at
-  "onb.schools.title": "Which",
-  "onb.schools.titleEm": "school(s)?",
-  "onb.schools.lead": "Pick the UAE school you work at. You can add more than one — many teachers split their week across two schools.",
+  // schools — picks the UAE school(s) the teacher works at AND, inside
+  // each school card, the grades + sections taught there. One step
+  // instead of two: teachers were confused by a separate scope step
+  // when the model is really "per school".
+  "onb.schools.title": "Where you teach +",
+  "onb.schools.titleEm": "what you teach.",
+  "onb.schools.lead": "Pick each UAE school you work at. Right inside the card we'll ask which grades + sections you teach there — so each school keeps its own. You can change all of this any time from My schools.",
+  "onb.school.scope.eyebrow": "Grades & sections you teach here",
+  "onb.school.scope.addFirst": "Tap a grade to start — pick more than one",
+  "onb.school.scope.addMore": "Add another grade",
   "onb.schools.search.ph": "Search by school name, emirate, or city…",
   "onb.schools.emirate.all": "All emirates",
   "onb.schools.empty": "No schools match your search.",
@@ -1560,9 +1566,12 @@ const AR = {
   "onb.fld.addSection.ph": "مثلًا «المتميّزون»، «مسار الرياضيات»، «أ + ب»",
   "onb.fld.addSection.btn": "إضافة",
   // schools — picks the UAE school(s) the teacher works at
-  "onb.schools.title": "في أيّ",
-  "onb.schools.titleEm": "مدرسة؟",
-  "onb.schools.lead": "اختر المدرسة التي تعمل بها في الإمارات. يمكنك اختيار أكثر من مدرسة — كثير من المعلّمين يقسّمون أسبوعهم بين مدرستين.",
+  "onb.schools.title": "أين تُدرّس +",
+  "onb.schools.titleEm": "ماذا تُدرّس.",
+  "onb.schools.lead": "اختر كل مدرسة تعمل بها في الإمارات. داخل بطاقة كل مدرسة سنسألك عن الصفوف والشُعب التي تُدرّسها فيها — حتى تحتفظ كل مدرسة بصفوفها الخاصة. يمكنك تعديل كل هذا لاحقًا من «مدارسي».",
+  "onb.school.scope.eyebrow": "الصفوف والشُعَب التي تُدرّسها هنا",
+  "onb.school.scope.addFirst": "اضغط على صف للبدء — يمكنك اختيار أكثر من واحد",
+  "onb.school.scope.addMore": "أضِف صفًا آخر",
   "onb.schools.search.ph": "ابحث باسم المدرسة أو الإمارة أو المدينة…",
   "onb.schools.emirate.all": "جميع الإمارات",
   "onb.schools.empty": "لا توجد مدارس تطابق بحثك.",
