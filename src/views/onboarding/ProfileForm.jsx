@@ -13,7 +13,7 @@
 // Submit on step 3 writes a pending profile to localStorage and calls
 // onDone() so the funnel advances to the plan picker.
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronRight, ChevronLeft, Check, Download, Upload, FileText, X, Plus, MapPin, Search, Star, Trash2 } from "lucide-react";
+import { ChevronRight, ChevronLeft, Check, Download, Upload, FileText, X, Plus, MapPin, Search, Star, Trash2, Layers } from "lucide-react";
 import { MAJORS, GRADE_LEVELS, QUIZ_LANGUAGES, QUIZ_SECTIONS } from "../../lib/enums";
 import { EMIRATES } from "../../lib/schools";
 import {
@@ -449,7 +449,13 @@ export default function ProfileForm({ onDone, onBack }) {
         )}
 
         {step === "schools" && (
-          <SchoolsStep t={t} value={schools} onChange={setSchools} />
+          <SchoolsStep
+            t={t}
+            value={schools}
+            onChange={setSchools}
+            grades={data.grades}
+            gradeSections={data.gradeSections}
+          />
         )}
 
         {step === "students" && (
@@ -793,7 +799,7 @@ function ChipPicker({
 // negative pseudo-id (–Date.now()) — the Landing plan-pick handler
 // POSTs them to /api/schools first to create real catalog rows, then
 // attaches them via /api/schools/mine.
-function SchoolsStep({ t, value, onChange }) {
+function SchoolsStep({ t, value, onChange, grades, gradeSections }) {
   const [catalog, setCatalog] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
@@ -877,8 +883,61 @@ function SchoolsStep({ t, value, onChange }) {
     setCustomName("");
   };
 
+  // Step 3 (scope) picked grades + per-grade sections; Landing's
+  // plan-pick handler attaches them to every school below. Surface that
+  // here so teachers don't wonder whether the data carries over.
+  const pickedGrades = Array.isArray(grades) ? grades : [];
+  const sectionsMap = gradeSections || {};
+
   return (
     <div className="space-y-5">
+      {/* Inheritance banner — shows what'll be linked to every school
+          the teacher picks below. Editable per-school later in Settings. */}
+      <div className="rounded-xl border border-clay/30 bg-clay/[0.05] p-3.5 sm:p-4">
+        <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-clay mb-2 inline-flex items-center gap-2">
+          <Layers size={11} strokeWidth={2.25} />
+          {t("onb.schools.inherit.eyebrow")}
+        </p>
+        <p className="text-[13.5px] font-medium text-ink mb-2">
+          {t("onb.schools.inherit.title")}
+        </p>
+        {pickedGrades.length === 0 ? (
+          <p className="text-[12.5px] text-muted italic">
+            {t("onb.schools.inherit.empty")}
+          </p>
+        ) : (
+          <ul className="space-y-1.5">
+            {pickedGrades.map((g) => {
+              const secs = sectionsMap[g] || [];
+              return (
+                <li key={g} className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-[12.5px]">
+                  <span className="font-medium text-ink">{g}</span>
+                  {secs.length === 0 ? (
+                    <span className="text-muted italic">
+                      · {t("onb.schools.inherit.noSections")}
+                    </span>
+                  ) : (
+                    <span className="flex flex-wrap gap-1">
+                      {secs.map((s) => (
+                        <span
+                          key={s}
+                          className="px-1.5 py-[1px] rounded-full bg-paper-cool border border-line/70 text-[11px] text-ink"
+                        >
+                          {s}
+                        </span>
+                      ))}
+                    </span>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+        <p className="text-[11px] text-muted mt-2.5">
+          {t("onb.schools.inherit.hint")}
+        </p>
+      </div>
+
       {/* Selected pills — sits ABOVE the picker so the teacher sees
           what they've already added and doesn't add the same school twice. */}
       {value.length > 0 && (
