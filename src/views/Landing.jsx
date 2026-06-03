@@ -6008,10 +6008,50 @@ export default function Landing({ onOpenStudio }) {
     return () => { cancelled = true; };
   }, [emailLinkCompleting]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Silent session-restore on mount. If Firebase still has a valid
+  // session (its tokens persist in IndexedDB for a year by default) but
+  // localStorage.murchid.account was cleared — incognito switch, manual
+  // clear, new browser profile — call /api/auth/me to bring the account
+  // back. After this, signedIn = true and the CTAs route to the studio
+  // without making the user click any provider button again.
+  useEffect(() => {
+    if (signedIn || emailLinkCompleting) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { getIdToken } = await import("../lib/firebaseAuth");
+        const token = await getIdToken();
+        if (!token || cancelled) return;
+        const me = await apiFetch("/api/auth/me");
+        if (cancelled || !me?.id) return;
+        setAccount({
+          provider: pendingProvider || "google",
+          plan: me.subscription_plan || "annual",
+          profile: {
+            firstName: me.first_name || "",
+            lastName:  me.last_name  || "",
+            email:     me.email      || "",
+            avatarUrl: me.avatar_url || "",
+          },
+          role:     me.role,
+          sub_role: me.sub_role || null,
+          subscriptionStatus: me.subscription_status,
+          subscriptionEndsAt: me.subscription_ends_at,
+        });
+        if (me.role) setLocalRole(me.role);
+      } catch {
+        // No session / no teacher row / network error — fall through.
+        // The landing CTAs default to the sign-up funnel, which is
+        // the right behavior for an unauthenticated visitor.
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   // The single entry action behind every primary CTA: into the planner
   // if subscribed, otherwise into the sign-up funnel.
   const enter = () => (signedIn ? onOpenStudio() : goPage("signup"));
-  const handleSignUp = (provider, payload) => {
+  const handleSignUp = async (provider, payload) => {
     setPendingProvider(provider);
     if (payload?.firebaseUser) {
       setPendingFirebaseUser(payload.firebaseUser);
@@ -6030,10 +6070,43 @@ export default function Landing({ onOpenStudio }) {
       try {
         localStorage.setItem("murchid.profile.pending", JSON.stringify(merged));
       } catch { /* ignore */ }
+
+      // Returning-user fast path. If this Firebase user already has an
+      // account row on the server, skip the profile + plan funnel and
+      // drop them straight into the studio. /api/auth/me returns 200
+      // only when a teacher row already exists for the verified token.
+      try {
+        const existingAccount = await apiFetch("/api/auth/me");
+        if (existingAccount && existingAccount.id) {
+          setAccount({
+            provider,
+            plan: existingAccount.subscription_plan || "annual",
+            profile: {
+              firstName: existingAccount.first_name || merged.firstName || "",
+              lastName:  existingAccount.last_name  || merged.lastName  || "",
+              email:     existingAccount.email      || merged.email     || "",
+              avatarUrl: existingAccount.avatar_url || merged.avatarUrl || "",
+            },
+            role:     existingAccount.role,
+            sub_role: existingAccount.sub_role || null,
+            subscriptionStatus: existingAccount.subscription_status,
+            subscriptionEndsAt: existingAccount.subscription_ends_at,
+          });
+          if (existingAccount.role) setLocalRole(existingAccount.role);
+          onOpenStudio();
+          return;
+        }
+      } catch (e) {
+        // 404 (no teacher row) is expected for first-time sign-up —
+        // fall through to the profile funnel below. Other errors
+        // also fall through; the funnel's bootstrap step will surface
+        // them properly.
+        if (e?.status && e.status !== 404) {
+          console.warn("[auth/me] returning-user check failed:", e);
+        }
+      }
     }
-    // New step in the funnel: collect teacher profile BEFORE plan
-    // picker, so we have the My-Students data ready by the time the
-    // planner opens.
+    // New user (or check failed): collect profile then plan picker.
     goPage("profile");
   };
   const handleProfileDone = () => {
