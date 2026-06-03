@@ -4,6 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { MAJORS, GRADE_LEVELS, QUIZ_LANGUAGES, QUIZ_SECTIONS } from "../lib/enums";
 import { Field, ChipMultiSelect, inputClasses, selectClasses, api, DatePicker } from "./_shared";
+import BrandLoader from "../components/BrandLoader";
 
 const initials = (first, last) =>
   `${(first || "")[0] || ""}${(last || "")[0] || ""}`.toUpperCase();

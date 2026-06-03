@@ -117,7 +117,9 @@ export default function DatabaseSchools() {
           </h2>
           <p className="text-muted mt-2 max-w-xl">
             The UAE schools you work at. New students are filed under your primary school
-            by default — flip the star to change.
+            by default — flip the star to change. <span className="text-ink">Each school
+            has its own grades &amp; sections</span> — tap <em className="not-italic font-medium text-ink">Edit</em> on
+            a card to customise what you teach there.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -251,9 +253,9 @@ function SchoolCard({ school, onMakePrimary, onRemove, onEditGrades }) {
           <button
             type="button"
             onClick={onEditGrades}
-            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium text-ink hover:bg-paper-warm transition-colors"
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11.5px] font-medium text-ink border border-line hover:border-clay hover:text-clay hover:bg-clay/[0.04] transition-colors"
           >
-            <Pencil size={10} /> Edit
+            <Pencil size={11} /> Edit grades
           </button>
         </div>
         {grades.length === 0 ? (

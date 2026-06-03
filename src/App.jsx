@@ -224,10 +224,16 @@ export default function StudioApp({ onClose }) {
   const t = useT();
 
   // Display name + initials used by the sidebar chip and the avatar.
-  // Falls back to "Teacher" until the profile is hydrated.
+  // The chip layout is: role on top (bold), full name below (italic).
+  // displayName falls back to the email local-part, then "" — never to
+  // a role string, since the role already sits on the line above it.
   const firstName = account?.profile?.firstName || "";
   const lastName  = account?.profile?.lastName  || "";
-  const displayName = [firstName, lastName].filter(Boolean).join(" ") || "Teacher";
+  const emailLocalPart = (account?.profile?.email || "").split("@")[0];
+  const displayName =
+    [firstName, lastName].filter(Boolean).join(" ")
+    || emailLocalPart
+    || "";
   const displayInitial =
     `${(firstName[0] || "")}${(lastName[0] || "")}`.toUpperCase()
     || (account?.profile?.email || "T")[0].toUpperCase();
@@ -616,11 +622,13 @@ export default function StudioApp({ onClose }) {
             <Avatar avatarId={account?.profile?.avatar} initial={displayInitial} size={34} className="murchid-sidebar-account-avatar" />
             <div className="flex-1 min-w-0 text-start">
               <p className="text-sm font-medium leading-tight truncate text-ink">
-                {displayName}
-              </p>
-              <p className="font-serif italic text-[11px] text-muted mt-0.5">
                 {t(`account.${role}`) === `account.${role}` ? ROLE_LABELS[role] : t(`account.${role}`)}
               </p>
+              {displayName && (
+                <p className="font-serif italic text-[11px] text-muted mt-0.5 truncate">
+                  {displayName}
+                </p>
+              )}
             </div>
             <ChevronRight size={14} className="text-muted flex-shrink-0 rtl:rotate-180" />
           </button>
