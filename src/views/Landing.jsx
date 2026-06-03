@@ -363,7 +363,7 @@ const Nav = ({ onEnter, signedIn, onJump, onPage, onSignOut, darkHero = false })
           {!signedIn && (
             <button
               type="button"
-              onClick={() => onPage("signup")}
+              onClick={() => onPage("signin")}
               className="hidden sm:block nav-quiet"
               style={{ color: fg }}
             >
@@ -5302,8 +5302,9 @@ function ProviderButton({ icon, label, onClick, disabled }) {
 // Sign up — Google / Outlook only. No real auth yet (mock): tapping a
 // provider records it and moves to plan onboarding. Swap onSignUp for a
 // Firebase popup later; the rest of the funnel is unchanged.
-function AuthPage({ onSignUp, onPage }) {
+function AuthPage({ onSignUp, onPage, mode = "signup" }) {
   const t = useT();
+  const isSignin = mode === "signin";
   // Sign-up requires explicit, opt-in acceptance of the Terms and the
   // Privacy Policy. Until both are checked, the provider buttons stay
   // disabled — a recorded act of consent (PDPL Article 6) is the
@@ -5432,10 +5433,10 @@ function AuthPage({ onSignUp, onPage }) {
 
   return (
     <PageShell
-      eyebrow={t("lp.auth.eyebrow")}
-      title={t("lp.auth.title")}
-      em={t("lp.auth.titleEm")}
-      lead={t("lp.auth.lead")}
+      eyebrow={isSignin ? t("lp.auth.signin.eyebrow") : t("lp.auth.eyebrow")}
+      title={isSignin ? t("lp.auth.signin.title") : t("lp.auth.title")}
+      em={isSignin ? t("lp.auth.signin.titleEm") : t("lp.auth.titleEm")}
+      lead={isSignin ? t("lp.auth.signin.lead") : t("lp.auth.lead")}
       onPage={onPage}
       narrow
       centered
@@ -5804,7 +5805,7 @@ function LegalPage({ doc, onPage }) {
 function MarketingPage({ page, onSignUp, onProfileDone, onChoosePlan, onPage }) {
   const t = useT();
   if (page === "signin" || page === "signup")
-    return <AuthPage onSignUp={onSignUp} onPage={onPage} />;
+    return <AuthPage onSignUp={onSignUp} onPage={onPage} mode={page} />;
   if (page === "profile")
     return (
       <ProfileForm
