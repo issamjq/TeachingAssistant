@@ -196,6 +196,7 @@ export default function StudioApp({ onClose }) {
           const patch = {};
           if (me.first_name && cur.firstName !== me.first_name) patch.firstName = me.first_name;
           if (me.last_name  && cur.lastName  !== me.last_name)  patch.lastName  = me.last_name;
+          if (me.staff_id   && cur.staffId   !== me.staff_id)   patch.staffId   = me.staff_id;
           if (me.email      && cur.email     !== me.email)      patch.email     = me.email;
           if (Object.keys(patch).length > 0) updateProfile(patch);
         } catch (err) {
