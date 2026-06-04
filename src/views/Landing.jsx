@@ -5355,9 +5355,8 @@ function ProviderButton({ icon, label, onClick, disabled }) {
       onClick={onClick}
       disabled={disabled}
       aria-disabled={disabled || undefined}
-      title={disabled ? "Tick the box below to enable" : undefined}
       className={`w-full flex items-center justify-center gap-3 px-5 py-3.5 rounded-xl text-sm font-medium transition ${
-        disabled ? "cursor-not-allowed opacity-50" : "lift"
+        disabled ? "cursor-wait opacity-70" : "lift"
       }`}
       style={{ background: "var(--paper)", border: "0.5px solid var(--line-strong)", color: "var(--ink)" }}
     >
@@ -5490,6 +5489,14 @@ function AuthPage({ onSignUp, onPage, mode = "signup", onEnterStudio }) {
   // row server-side. Re-asking adds friction with no legal value.
   const [accepted, setAccepted] = useState(isSignin);
   const [tried, setTried] = useState(false);
+  // When a teacher taps a provider before ticking the terms box, we draw
+  // their eye to it (scroll + pulse) instead of silently doing nothing.
+  const termsRef = useRef(null);
+  useEffect(() => {
+    if (tried && !accepted && termsRef.current) {
+      termsRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, [tried, accepted]);
   const [signingIn, setSigningIn] = useState(false);
   const [authError, setAuthError] = useState(null);
   // Email auth flow states:
@@ -5863,17 +5870,21 @@ function AuthPage({ onSignUp, onPage, mode = "signup", onEnterStudio }) {
       <div className={`space-y-3 max-w-sm mx-auto transition-opacity ${accepted ? "opacity-100" : "opacity-90"}`}>
         {emailMode === "idle" && (
           <>
+            {/* Buttons stay visually active even before the terms box is
+                ticked — greying them out reads as "broken". Instead the
+                click is gated: an unchecked box flags `tried`, which
+                surfaces the error + pulses the checkbox (see below). */}
             <ProviderButton
               icon={<GoogleMark />}
               label={signingIn ? "Opening sign-in…" : t("lp.auth.google")}
               onClick={() => handleProvider("google")}
-              disabled={!accepted || signingIn}
+              disabled={signingIn}
             />
             <ProviderButton
               icon={<EmailMark />}
               label={t("lp.auth.email") || "Continue with Email"}
               onClick={() => { if (!accepted) { setTried(true); return; } setAuthError(null); setEmailMode("entering"); }}
-              disabled={!accepted || signingIn}
+              disabled={signingIn}
             />
           </>
         )}
@@ -6276,7 +6287,14 @@ function AuthPage({ onSignUp, onPage, mode = "signup", onEnterStudio }) {
           the account row server-side. Re-asking adds friction with no
           legal value. */}
       {!isSignin && (
-        <div className="max-w-sm mx-auto mt-6">
+        <div
+          ref={termsRef}
+          className={`max-w-sm mx-auto mt-6 rounded-xl transition-shadow ${
+            tried && !accepted
+              ? "p-3 -m-3 ring-2 ring-[color:var(--clay,#b3442b)] ring-offset-2 ring-offset-[color:var(--paper)] murchid-terms-pulse"
+              : ""
+          }`}
+        >
           <label className="flex items-start gap-3 text-start cursor-pointer select-none">
             <input
               type="checkbox"
