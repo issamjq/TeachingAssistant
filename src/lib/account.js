@@ -20,7 +20,11 @@ import { PLAN_IDS } from "./plans";
 
 const KEY = "murchid.account";
 const PROFILE_KEY = "murchid.profile.pending"; // captured before plan pick
-const PROVIDERS = ["google", "outlook"];
+// "email" covers both the email+password flow and the magic-link
+// fallback. Without it here, getAccount() silently rejects every
+// email-signup user — useAccount() returns null and the sidebar
+// chip falls back to a bare role label with no name or staff ID.
+const PROVIDERS = ["google", "outlook", "email", "microsoft"];
 
 export const getAccount = () => {
   if (typeof localStorage === "undefined") return null;

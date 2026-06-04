@@ -159,6 +159,7 @@ function PersonalDetails() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-5 pt-6 border-t border-line">
+              <Stat label="Staff ID" value={me.staff_id || "—"} icon={<User size={13} />} mono />
               <Stat label="Email" value={me.email || "—"} icon={<Mail size={13} />} />
               <Stat label="Phone" value={me.phone || "—"} icon={<Phone size={13} />} mono />
               <Stat label="Nationality" value={me.nationality || "—"} icon={<Globe size={13} />} />
@@ -289,6 +290,7 @@ function AccountEditModal({ initial, onClose, onSaved }) {
   const [form, setForm] = useState({
     first_name: initial.first_name || "",
     last_name: initial.last_name || "",
+    staff_id: initial.staff_id || "",
     email: initial.email || "",
     phone: initial.phone || "",
     nationality: initial.nationality || "",
@@ -308,6 +310,7 @@ function AccountEditModal({ initial, onClose, onSaved }) {
       updateProfile({
         firstName: updated.first_name || "",
         lastName: updated.last_name || "",
+        staffId: updated.staff_id || "",
         email: updated.email || "",
       });
       onSaved(updated);
@@ -352,6 +355,14 @@ function AccountEditModal({ initial, onClose, onSaved }) {
             className={inputClasses}
             value={form.last_name}
             onChange={(e) => set("last_name", e.target.value)}
+          />
+        </Field>
+        <Field label="Staff ID" hint="As issued by your school">
+          <input
+            className={inputClasses}
+            value={form.staff_id}
+            onChange={(e) => set("staff_id", e.target.value)}
+            placeholder="e.g. T-1042"
           />
         </Field>
         <Field label="Email">
