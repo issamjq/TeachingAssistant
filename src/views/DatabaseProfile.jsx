@@ -1,49 +1,13 @@
-import React, { useState, useEffect, useMemo } from "react";
-import { Calendar, Hash, Pencil, Plus, Trash2, ChevronDown } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { Calendar, Hash, Pencil } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { MAJORS, GRADE_LEVELS, QUIZ_LANGUAGES, QUIZ_SECTIONS } from "../lib/enums";
-import { Field, ChipMultiSelect, inputClasses, selectClasses, api, DatePicker } from "./_shared";
+import { MAJORS, QUIZ_LANGUAGES } from "../lib/enums";
+import { Field, ChipMultiSelect, inputClasses, api, DatePicker } from "./_shared";
 import BrandLoader from "../components/BrandLoader";
 
 const initials = (first, last) =>
   `${(first || "")[0] || ""}${(last || "")[0] || ""}`.toUpperCase();
-
-// Build a clean class_map from whatever the teacher row holds. If
-// class_map is empty but the legacy flat arrays carry data, seed a
-// single all-purpose entry so the editor isn't blank.
-function buildInitialClassMap(me) {
-  if (Array.isArray(me?.class_map) && me.class_map.length > 0) {
-    return me.class_map.map((row) => ({
-      major: row.major || "",
-      grades: Array.isArray(row.grades) ? row.grades : [],
-      sections: Array.isArray(row.sections) ? row.sections : [],
-    }));
-  }
-  const majors = Array.isArray(me?.majors) ? me.majors : [];
-  if (majors.length === 0) return [];
-  const grades = Array.isArray(me?.grade_levels) ? me.grade_levels : [];
-  const sections = Array.isArray(me?.sections) ? me.sections : [];
-  return majors.map((major) => ({ major, grades: [...grades], sections: [...sections] }));
-}
-
-// Compress the class_map down to the three flat arrays the rest of
-// the app already consumes (Studio dropdowns, manual forms, etc).
-function flattenClassMap(classMap) {
-  const majors = new Set();
-  const grades = new Set();
-  const sections = new Set();
-  for (const row of classMap || []) {
-    if (row.major) majors.add(row.major);
-    for (const g of row.grades || []) if (g) grades.add(g);
-    for (const s of row.sections || []) if (s) sections.add(s);
-  }
-  return {
-    majors: [...majors],
-    grade_levels: [...grades],
-    sections: [...sections],
-  };
-}
 
 export default function DatabaseProfile() {
   const [me, setMe] = useState(null);
@@ -169,54 +133,20 @@ function Stat({ label, value, icon, mono = false }) {
 }
 
 // Inline editor — renders below the read panel instead of in a modal.
-// Hierarchy: each Major card carries its own Grades and Sections, so
-// "Math for Grades 6 + 8, sections A and B" becomes one row instead
-// of three disconnected lists.
+// Grades + sections used to live here as a per-major class_map, but
+// they now live PER SCHOOL in My Schools, so this editor only handles
+// the teacher-level fields: staff ID, bio, hire date, languages, and
+// the flat majors list. Per-major × per-grade × per-section editing
+// lives next to the school it applies to, which removes the duplicate
+// "edit this in two places" trap.
 function ProfileEditor({ initial, onClose, onSaved }) {
   const [staffId, setStaffId] = useState(initial.staff_id || "");
   const [hireDate, setHireDate] = useState(initial.hire_date ? initial.hire_date.slice(0, 10) : "");
   const [bio, setBio] = useState(initial.bio || "");
   const [languages, setLanguages] = useState(Array.isArray(initial.languages) ? initial.languages : []);
-  const [classMap, setClassMap] = useState(() => buildInitialClassMap(initial));
+  const [majors, setMajors] = useState(Array.isArray(initial.majors) ? initial.majors : []);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState(null);
-  // Accordion: only one major row is expanded at a time so the chip
-  // palettes aren't repeated down the whole page. null = all collapsed.
-  const [openIdx, setOpenIdx] = useState(null);
-
-  const flat = useMemo(() => flattenClassMap(classMap), [classMap]);
-
-  const addMajor = () => {
-    setClassMap((m) => {
-      setOpenIdx(m.length); // expand the freshly added row
-      return [...m, { major: "", grades: [], sections: [] }];
-    });
-  };
-  const removeMajor = (idx) => {
-    setClassMap((m) => m.filter((_, i) => i !== idx));
-    setOpenIdx((o) => (o === idx ? null : o != null && o > idx ? o - 1 : o));
-  };
-  const updateMajor = (idx, patch) =>
-    setClassMap((m) => m.map((row, i) => (i === idx ? { ...row, ...patch } : row)));
-  const toggleOpen = (idx) => setOpenIdx((o) => (o === idx ? null : idx));
-
-  // Track all custom (non-enum) values so the chip lists keep them
-  // available even after they've been picked.
-  const allKnownMajors = useMemo(() => {
-    const set = new Set(MAJORS);
-    classMap.forEach((r) => r.major && set.add(r.major));
-    return [...set];
-  }, [classMap]);
-  const allKnownGrades = useMemo(() => {
-    const set = new Set(GRADE_LEVELS);
-    classMap.forEach((r) => (r.grades || []).forEach((g) => set.add(g)));
-    return [...set];
-  }, [classMap]);
-  const allKnownSections = useMemo(() => {
-    const set = new Set(QUIZ_SECTIONS);
-    classMap.forEach((r) => (r.sections || []).forEach((s) => set.add(s)));
-    return [...set];
-  }, [classMap]);
 
   const submit = async () => {
     setSaving(true);
@@ -227,11 +157,7 @@ function ProfileEditor({ initial, onClose, onSaved }) {
         hire_date: hireDate || null,
         bio,
         languages,
-        class_map: classMap.filter((r) => r.major),
-        // Denormalised flat fields so legacy consumers (Studio dropdowns,
-        // useTeacherClasses, /api/me readers) keep working without a
-        // migration of every call site.
-        ...flat,
+        majors,
       };
       const updated = await api("/api/me", { method: "PATCH", body });
       onSaved(updated);
@@ -291,44 +217,19 @@ function ProfileEditor({ initial, onClose, onSaved }) {
         </div>
 
         <div className="mt-7">
-          <div className="flex items-center justify-between mb-3">
-            <p className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted">
-              Your classes
-            </p>
-            <button
-              type="button"
-              onClick={addMajor}
-              className="planner-nav-btn inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-accent/30 bg-accent/[0.10] hover:bg-accent/[0.18] hover:border-accent/50 text-accent text-[11.5px] font-semibold"
-            >
-              <Plus size={13} strokeWidth={2.25} /> Add a major
-            </button>
-          </div>
-          <p className="text-xs text-muted mb-3">
-            For each major you teach, pick the grades and sections it covers. Math for Grades 6 + 8,
-            sections A + B is one row.
+          <p className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted mb-2">
+            Majors you teach
           </p>
-
-          {classMap.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-line p-8 text-center text-muted text-sm">
-              No majors yet — click "Add a major" to start.
-            </div>
-          ) : (
-            <div className="flex flex-col gap-2">
-              {classMap.map((row, i) => (
-                <MajorCard
-                  key={i}
-                  row={row}
-                  open={openIdx === i}
-                  onToggle={() => toggleOpen(i)}
-                  majorOptions={allKnownMajors}
-                  gradeOptions={allKnownGrades}
-                  sectionOptions={allKnownSections}
-                  onChange={(patch) => updateMajor(i, patch)}
-                  onRemove={() => removeMajor(i)}
-                />
-              ))}
-            </div>
-          )}
+          <ChipMultiSelect
+            value={majors}
+            onChange={setMajors}
+            options={MAJORS}
+            allowCustom
+            customPlaceholder="Add a major not listed (e.g. Robotics)…"
+          />
+          <p className="text-xs text-muted mt-2">
+            Grades and sections live <em className="italic">per school</em> — open <span className="text-ink">My schools</span> and tap <span className="text-ink">Edit grades</span> on a school card to set what you teach where.
+          </p>
         </div>
 
       <div className="mt-8 pt-5 border-t border-line flex items-center justify-end gap-3">
@@ -339,128 +240,6 @@ function ProfileEditor({ initial, onClose, onSaved }) {
           {saving ? "Saving…" : "Save changes"}
         </Button>
       </div>
-    </div>
-  );
-}
-
-// One major row: a compact summary line that expands (accordion) into
-// the major / grades / sections editors. Collapsing keeps the chip
-// palettes from repeating down the page for every major.
-function MajorCard({ row, open, onToggle, majorOptions, gradeOptions, sectionOptions, onChange, onRemove }) {
-  const [draftMajor, setDraftMajor] = useState("");
-  const grades = row.grades || [];
-  const sections = row.sections || [];
-  const summary = [
-    grades.length ? grades.join(", ") : "No grades",
-    sections.length ? sections.join(", ") : "No sections",
-  ].join("  ·  ");
-
-  return (
-    <div className="rounded-2xl border border-[#e6dccb] bg-[#fdf8ee] shadow-[0_8px_20px_-14px_rgba(15,20,16,0.18)] overflow-hidden">
-      {/* Collapsed summary header — click to expand. Keeps the long chip
-          palettes out of sight so multiple majors read as a tidy list. */}
-      <div className="flex items-center gap-3 p-4">
-        <button
-          type="button"
-          onClick={onToggle}
-          aria-expanded={open}
-          className="flex-1 min-w-0 flex items-center gap-3 text-left"
-        >
-          <ChevronDown
-            size={16}
-            strokeWidth={2}
-            className={`flex-shrink-0 text-muted transition-transform duration-200 ${open ? "rotate-180" : ""}`}
-          />
-          <span className="min-w-0">
-            <span className="font-serif text-lg text-ink">
-              {row.major || <em className="italic font-light text-muted">Choose a major</em>}
-            </span>
-            {!open && (
-              <span className="block text-xs text-muted truncate mt-0.5">{summary}</span>
-            )}
-          </span>
-        </button>
-        <button
-          type="button"
-          onClick={onRemove}
-          aria-label="Remove major"
-          className="planner-nav-btn shrink-0 h-8 w-8 rounded-md border border-line bg-paper-cool hover:bg-accent hover:border-accent hover:text-paper-cool text-ink-soft flex items-center justify-center"
-        >
-          <Trash2 size={13} strokeWidth={2} />
-        </button>
-      </div>
-
-      {open && (
-        <div className="px-4 pb-4 pt-1 border-t border-line/70">
-          <div className="mt-3">
-            <p className="font-mono text-[9.5px] uppercase tracking-[0.18em] text-muted mb-1.5">
-              Major
-            </p>
-            <select
-              className={selectClasses}
-              value={majorOptions.includes(row.major) ? row.major : ""}
-              onChange={(e) => onChange({ major: e.target.value })}
-            >
-              <option value="">Choose a major…</option>
-              {majorOptions.map((m) => (
-                <option key={m} value={m}>{m}</option>
-              ))}
-            </select>
-            <div className="mt-2 flex items-center gap-2 max-w-xs">
-              <input
-                className={inputClasses}
-                value={draftMajor}
-                onChange={(e) => setDraftMajor(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && draftMajor.trim()) {
-                    e.preventDefault();
-                    onChange({ major: draftMajor.trim() });
-                    setDraftMajor("");
-                  }
-                }}
-                placeholder="Add a major not listed…"
-              />
-              <Button
-                variant="secondary"
-                onClick={() => {
-                  if (draftMajor.trim()) {
-                    onChange({ major: draftMajor.trim() });
-                    setDraftMajor("");
-                  }
-                }}
-              >
-                Add
-              </Button>
-            </div>
-          </div>
-
-          <div className="mt-4">
-            <p className="font-mono text-[9.5px] uppercase tracking-[0.18em] text-muted mb-1.5">
-              Grades for this major
-            </p>
-            <ChipMultiSelect
-              value={grades}
-              onChange={(v) => onChange({ grades: v })}
-              options={gradeOptions}
-              allowCustom
-              customPlaceholder="Add a grade (e.g. KG 1)…"
-            />
-          </div>
-
-          <div className="mt-4">
-            <p className="font-mono text-[9.5px] uppercase tracking-[0.18em] text-muted mb-1.5">
-              Sections for this major
-            </p>
-            <ChipMultiSelect
-              value={sections}
-              onChange={(v) => onChange({ sections: v })}
-              options={sectionOptions}
-              allowCustom
-              customPlaceholder="Add a section (e.g. 8A)…"
-            />
-          </div>
-        </div>
-      )}
     </div>
   );
 }

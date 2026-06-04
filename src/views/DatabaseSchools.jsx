@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { MapPin, Search, Star, Trash2, Plus, Check, Building2, Pencil, GraduationCap } from "lucide-react";
+import { MapPin, Search, Star, Trash2, Plus, Check, Building2, Pencil, GraduationCap, X } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { EMIRATES } from "../lib/schools";
@@ -349,51 +349,77 @@ function EditGradesModal({ school, onClose, onSave, busy }) {
         Pick the grades you teach at {school.name}, then which sections inside each grade.
       </p>
 
-      <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-2">
-        Grades
-      </p>
-      <div className="flex flex-wrap gap-1.5 mb-5">
-        {GRADE_LEVELS.map((g) => {
-          const on = g in gs;
-          return (
-            <button
-              key={g}
-              type="button"
-              onClick={() => toggleGrade(g)}
-              className={`px-3 py-1.5 rounded-full text-[12.5px] font-medium border transition-colors ${
-                on
-                  ? "bg-ink text-paper-cool border-ink"
-                  : "bg-paper-cool text-ink border-line hover:border-ink"
-              }`}
-            >
-              {g}
-            </button>
-          );
-        })}
-      </div>
-
+      {/* Same shape as the onboarding scope step. Picked grades sit at
+          the top as cards with their section pills inline; unpicked
+          grades hide behind a dashed "Add another grade" row so the
+          teacher isn't staring at a wall of 14 grade chips. */}
       {selectedGrades.length > 0 && (
-        <>
-          <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-2">
-            Sections per grade
-          </p>
-          <div className="space-y-3">
-            {selectedGrades.map((g) => (
-              <EditSectionsRow
-                key={g}
-                grade={g}
-                sections={gs[g] || []}
-                onChange={(next) => setSectionsForGrade(g, next)}
-              />
-            ))}
-          </div>
-        </>
+        <div className="space-y-3 mb-4">
+          {selectedGrades.map((g) => (
+            <EditSectionsRow
+              key={g}
+              grade={g}
+              sections={gs[g] || []}
+              onChange={(next) => setSectionsForGrade(g, next)}
+              onRemove={() => toggleGrade(g)}
+            />
+          ))}
+        </div>
       )}
+
+      {(() => {
+        const remaining = GRADE_LEVELS.filter((g) => !(g in gs));
+        if (remaining.length === 0) return null;
+        const allOn = selectedGrades.length === GRADE_LEVELS.length;
+        const setAll = () => {
+          if (allOn) {
+            setGs({});
+          } else {
+            setGs((cur) => {
+              const next = { ...cur };
+              for (const g of GRADE_LEVELS) if (!(g in next)) next[g] = [];
+              return next;
+            });
+          }
+        };
+        return (
+          <div className="rounded-xl border border-dashed border-line bg-paper-cool/40 p-3.5">
+            <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-2.5 inline-flex items-center gap-1.5">
+              <Plus size={11} strokeWidth={2.5} />
+              {selectedGrades.length === 0 ? "Tap a grade to start — pick more than one" : "Add another grade"}
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              <button
+                type="button"
+                onClick={setAll}
+                aria-pressed={allOn}
+                className={`px-3 py-1.5 rounded-full text-[12.5px] font-semibold border transition-colors ${
+                  allOn
+                    ? "bg-accent text-paper-cool border-accent"
+                    : "bg-paper-cool text-accent border-accent hover:bg-accent/10"
+                }`}
+              >
+                All grades
+              </button>
+              {remaining.map((g) => (
+                <button
+                  key={g}
+                  type="button"
+                  onClick={() => toggleGrade(g)}
+                  className="px-3 py-1.5 rounded-full text-[12.5px] font-medium border bg-paper text-ink border-line hover:border-ink transition-colors"
+                >
+                  {g}
+                </button>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
     </Modal>
   );
 }
 
-function EditSectionsRow({ grade, sections, onChange }) {
+function EditSectionsRow({ grade, sections, onChange, onRemove }) {
   const [draft, setDraft] = useState("");
   const presets = QUIZ_SECTIONS.filter((s) => s !== "All sections");
   const allOptions = useMemo(() => {
@@ -417,10 +443,23 @@ function EditSectionsRow({ grade, sections, onChange }) {
       empty ? "border-clay/40 bg-clay/[0.04]" : "border-line bg-paper-cool"
     }`}>
       <div className="flex items-center justify-between gap-2 mb-2">
-        <p className="font-mono text-[10.5px] uppercase tracking-[0.18em] text-ink">{grade}</p>
-        <span className={`text-[11px] ${empty ? "text-clay" : "text-muted"}`}>
-          {empty ? "Pick at least one section" : `${sections.length} section${sections.length > 1 ? "s" : ""}`}
-        </span>
+        <div className="inline-flex items-center gap-2 min-w-0">
+          <p className="font-mono text-[10.5px] uppercase tracking-[0.18em] text-ink">{grade}</p>
+          <span className={`text-[11px] ${empty ? "text-clay" : "text-muted"}`}>
+            · {empty ? "Pick at least one section" : `${sections.length} section${sections.length > 1 ? "s" : ""}`}
+          </span>
+        </div>
+        {onRemove && (
+          <button
+            type="button"
+            onClick={onRemove}
+            title="Remove this grade"
+            aria-label={`Remove ${grade}`}
+            className="shrink-0 h-7 w-7 inline-flex items-center justify-center rounded-md text-ink-soft hover:bg-accent hover:text-paper-cool transition"
+          >
+            <X size={12} />
+          </button>
+        )}
       </div>
       <div className="flex flex-wrap gap-1.5 mb-2">
         {allOptions.map((s) => {
