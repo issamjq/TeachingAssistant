@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2, Scale } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ExportMenu } from "@/components/ui/export-menu";
@@ -155,6 +155,42 @@ export default function QuizBuilder({ quiz, onClose }) {
     }
   };
 
+  // Distribute the target Score evenly across every question. When the
+  // total doesn't divide cleanly, the remainder lands on the earliest
+  // questions (e.g. 10 marks over 3 → 4, 3, 3) so the per-question marks
+  // stay whole numbers and still sum to exactly the target.
+  const splitMarksEqually = async () => {
+    const n = questions.length;
+    const total = Number(meta.total_marks) || 0;
+    if (n === 0 || total <= 0) return;
+    const base = Math.floor(total / n);
+    let remainder = total - base * n;
+    const nextMarks = questions.map(() => {
+      const extra = remainder > 0 ? 1 : 0;
+      if (remainder > 0) remainder -= 1;
+      return base + extra;
+    });
+    // Local drafts (and unsaved quizzes) update in one state pass; saved
+    // quizzes PATCH each question so the server stays authoritative.
+    if (!quizId) {
+      setQuestions((qs) => qs.map((q, i) => ({ ...q, marks: nextMarks[i] })));
+      return;
+    }
+    setErr(null);
+    try {
+      await Promise.all(
+        questions.map((q, i) =>
+          isLocalQuestion(q)
+            ? Promise.resolve()
+            : api(`/api/quizzes/${quizId}/questions/${q.id}`, { method: "PATCH", body: { marks: nextMarks[i] } })
+        )
+      );
+      setQuestions((qs) => qs.map((q, i) => ({ ...q, marks: nextMarks[i] })));
+    } catch (e) {
+      setErr(e.message || "Could not split the marks.");
+    }
+  };
+
   // Live score allocation: sum of per-question marks against the
   // target Score. The hint sits beside the Score label so the teacher
   // sees, at a glance, how many marks they still need to assign.
@@ -258,7 +294,7 @@ export default function QuizBuilder({ quiz, onClose }) {
       </Card>
 
       <div className="mt-8">
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
             <p className="font-mono text-[10px] uppercase tracking-wider text-muted">
               {questions.length} question{questions.length === 1 ? "" : "s"}
               {!quizId && questions.length > 0 && (
@@ -267,9 +303,19 @@ export default function QuizBuilder({ quiz, onClose }) {
                 </span>
               )}
             </p>
-            <Button onClick={addQuestion}>
-              <Plus size={14} className="mr-2" /> Add question
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="secondary"
+                onClick={splitMarksEqually}
+                disabled={questions.length === 0 || targetMarks <= 0}
+                title={targetMarks <= 0 ? "Set a Score first" : "Distribute the Score evenly across all questions"}
+              >
+                <Scale size={14} className="mr-2" /> Split equally
+              </Button>
+              <Button onClick={addQuestion}>
+                <Plus size={14} className="mr-2" /> Add question
+              </Button>
+            </div>
           </div>
           <div className="space-y-4">
             {questions.map((q, i) => (

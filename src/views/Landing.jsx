@@ -15,6 +15,7 @@ import {
   getPendingSchools, clearPendingSchools,
 } from "../lib/account";
 import { api as apiFetch } from "./_shared";
+import { setSessionId, clearSessionId } from "../lib/session";
 import { PLANS } from "../lib/plans";
 import { PRIVACY, TERMS, SECURITY, LEGAL_VERSION, LEGAL_EFFECTIVE_DATE } from "../lib/legal";
 import ProfileForm from "./onboarding/ProfileForm";
@@ -4211,6 +4212,68 @@ const MB_REST = [
   { x: 218, y: 34, rot: 8, z: 10, sc: 0.97 },
 ];
 
+// Wide free-trial CTA — the same banner the plan-picker (OnboardingPage)
+// shows, lifted onto the landing's Membership section so visitors can
+// start the 7-day trial without first scrolling into a plan card. Clicking
+// drops them into the sign-up funnel (onEnter), where the trial is the
+// no-payment "trial" pseudo-plan.
+function LandingTrialBanner({ onEnter, t, className = "" }) {
+  return (
+    <div
+      className={`group relative w-full rounded-[24px] overflow-hidden flex flex-wrap items-center justify-between gap-x-6 gap-y-4 px-7 py-4 ${className}`}
+      style={{
+        background:
+          "radial-gradient(ellipse 92% 64% at 50% 14%, oklch(0.64 0.13 42), transparent 72%), var(--cm-clay)",
+        color: "var(--paper)",
+        boxShadow:
+          "0 14px 30px -12px rgba(26,24,20,0.55), inset 0 1px 0 rgba(255,255,255,0.08)",
+      }}
+    >
+      <span
+        aria-hidden="true"
+        className="murchid-trial-glow absolute inset-0 pointer-events-none transition-opacity duration-500 group-hover:!opacity-100"
+        style={{
+          background:
+            "radial-gradient(60% 100% at 50% 100%, rgba(181,117,78,0.55), rgba(26,24,20,0) 70%)",
+          animation: "murchid-trial-glow 4.5s ease-in-out infinite",
+        }}
+      />
+      <span
+        aria-hidden="true"
+        className="murchid-trial-shimmer absolute inset-y-0 -left-1/2 w-1/2 pointer-events-none"
+        style={{
+          background:
+            "linear-gradient(105deg, transparent 35%, rgba(255,255,255,0.12) 50%, transparent 65%)",
+          animation: "murchid-trial-shimmer 6s linear infinite",
+        }}
+      />
+      <span aria-hidden="true" className="murchid-trial-twinkle absolute top-3 start-[10%] w-0.5 h-0.5 rounded-full" style={{ background: "var(--paper)", animation: "murchid-trial-twinkle 3.6s ease-in-out infinite", animationDelay: "0s" }} />
+      <span aria-hidden="true" className="murchid-trial-twinkle absolute bottom-3 end-[16%] w-px h-px rounded-full" style={{ background: "var(--paper)", animation: "murchid-trial-twinkle 4.2s ease-in-out infinite", animationDelay: "-0.8s" }} />
+      <span aria-hidden="true" className="murchid-trial-twinkle absolute top-4 end-[8%] w-0.5 h-0.5 rounded-full" style={{ background: "var(--paper)", animation: "murchid-trial-twinkle 3.2s ease-in-out infinite", animationDelay: "-1.6s" }} />
+
+      <div className="relative min-w-0 text-start">
+        <div className="inline-flex items-center gap-2.5">
+          <Sparkles size={18} strokeWidth={2} style={{ color: "var(--paper)" }} />
+          <span className="font-display text-lg md:text-xl leading-tight">
+            {t("lp.plan.trialTitle")}
+          </span>
+        </div>
+        <p className="text-[12.5px] mt-1.5" style={{ color: "rgba(247,243,236,0.66)" }}>
+          {t("lp.plan.trialNote")}
+        </p>
+      </div>
+
+      <button
+        type="button"
+        onClick={onEnter}
+        className="cinema-pill flex-shrink-0"
+      >
+        {t("lp.plan.trialCta")}
+      </button>
+    </div>
+  );
+}
+
 const Membership = ({ onEnter }) => {
   const { t, isRTL } = useI18n();
   // Late trigger: only fire the reveal once Membership's top has
@@ -4271,6 +4334,7 @@ const Membership = ({ onEnter }) => {
                 );
               })}
             </p>
+            <LandingTrialBanner onEnter={onEnter} t={t} className="mt-8 max-w-md" />
           </div>
 
           <div className="relative h-[440px]">
@@ -4336,6 +4400,9 @@ const Membership = ({ onEnter }) => {
             </CardReveal>
           ))}
         </div>
+        <CardReveal>
+          <LandingTrialBanner onEnter={onEnter} t={t} className="mt-8" />
+        </CardReveal>
       </div>
     </section>
   );
@@ -6813,8 +6880,12 @@ export default function Landing({ onOpenStudio }) {
       // drop them straight into the studio. /api/auth/me returns 200
       // only when a teacher row already exists for the verified token.
       try {
-        const existingAccount = await apiFetch("/api/auth/me");
+        // Returning user signing in (possibly on a new device): claim the
+        // single active session here. This both confirms the teacher row
+        // exists (404 → new user → funnel) and kicks any other device.
+        const existingAccount = await apiFetch("/api/auth/claim-session", { method: "POST" });
         if (existingAccount && existingAccount.id) {
+          if (existingAccount.active_session_id) setSessionId(existingAccount.active_session_id);
           setAccount({
             provider,
             plan: existingAccount.subscription_plan || "annual",
@@ -6863,6 +6934,9 @@ export default function Landing({ onOpenStudio }) {
     let teacherRow;
     try {
       teacherRow = await apiFetch("/api/auth/firebase", { method: "POST", body: { plan } });
+      // Single-device sign-in: the server just claimed a session for this
+      // device — persist it so subsequent requests carry X-Session-Id.
+      if (teacherRow?.active_session_id) setSessionId(teacherRow.active_session_id);
     } catch (e) {
       console.error("Failed to provision teacher on first login:", e);
       const msg = e.code === "plan_required"
@@ -6986,6 +7060,7 @@ export default function Landing({ onOpenStudio }) {
     } catch (e) {
       console.warn("Firebase signOut failed:", e);
     }
+    clearSessionId();
     clearAccount();
     goPage("home");
   };

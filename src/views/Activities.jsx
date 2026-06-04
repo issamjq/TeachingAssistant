@@ -154,7 +154,8 @@ export default function Activities({ onOpenActivity }) {
 
       {viewMode === "list" && visibleItems.length > 0 && (
         <div className="rounded-2xl border border-line bg-paper-cool overflow-hidden">
-          <table className="w-full text-sm">
+          <div className="overflow-x-auto">
+          <table className="w-full min-w-[36rem] text-sm">
             <thead>
               <tr className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted border-b border-line">
                 <th className="text-left py-3 px-5 font-medium">Title</th>
@@ -186,6 +187,7 @@ export default function Activities({ onOpenActivity }) {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
 

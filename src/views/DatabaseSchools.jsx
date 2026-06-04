@@ -38,12 +38,17 @@ export default function DatabaseSchools() {
   const onPicked = async (school) => {
     setBusy(true);
     try {
-      await api("/api/schools/mine", {
+      // POST returns the full attached row (id, name, grade_sections…).
+      const row = await api("/api/schools/mine", {
         method: "POST",
         body: { school_id: school.id, is_primary: mine.length === 0 },
       });
       setPicking(false);
       reload();
+      // Flow like onboarding: instead of dropping a bare school card and
+      // making the teacher hunt for "Edit grades", drop them straight
+      // into the grades & sections chips for the school they just added.
+      setEditingGrades(row && row.id ? row : { ...school, grade_sections: {} });
     } catch (e) {
       alert(`Could not add school: ${e.message}`);
     } finally {
@@ -54,12 +59,14 @@ export default function DatabaseSchools() {
     setBusy(true);
     try {
       const created = await api("/api/schools", { method: "POST", body: payload });
-      await api("/api/schools/mine", {
+      const row = await api("/api/schools/mine", {
         method: "POST",
         body: { school_id: created.id, is_primary: mine.length === 0 },
       });
       setCreating(false);
       reload();
+      // Same onboarding-style continuation: configure grades/sections now.
+      setEditingGrades(row && row.id ? row : { ...created, grade_sections: {} });
     } catch (e) {
       alert(`Could not add school: ${e.message}`);
     } finally {
@@ -659,7 +666,7 @@ function CreateSchoolModal({ onClose, onCreate, busy }) {
         <Field label="School name (English)">
           <input className={inputClasses} value={form.name} onChange={(e) => set("name", e.target.value)} autoFocus />
         </Field>
-        <Field label="School name (Arabic)" hint="optional">
+        <Field label="School name (Arabic)" hint="(optional)">
           <input className={inputClasses} value={form.name_ar} onChange={(e) => set("name_ar", e.target.value)} dir="rtl" />
         </Field>
         <Field label="Emirate">
@@ -667,17 +674,17 @@ function CreateSchoolModal({ onClose, onCreate, busy }) {
             {EMIRATES.map((em) => <option key={em} value={em}>{em}</option>)}
           </select>
         </Field>
-        <Field label="City / area" hint="optional">
+        <Field label="City / area" hint="(optional)">
           <input className={inputClasses} value={form.city} onChange={(e) => set("city", e.target.value)} />
         </Field>
-        <Field label="Type" hint="optional">
+        <Field label="Type" hint="(optional)">
           <select className={selectClasses} value={form.type} onChange={(e) => set("type", e.target.value)}>
             <option value="">—</option>
             <option value="Public">Public</option>
             <option value="Private">Private</option>
           </select>
         </Field>
-        <Field label="Curriculum" hint="optional">
+        <Field label="Curriculum" hint="(optional)">
           <select className={selectClasses} value={form.curriculum} onChange={(e) => set("curriculum", e.target.value)}>
             <option value="">—</option>
             {["MOE", "British", "American", "IB", "Indian", "French", "Other"].map((c) => (

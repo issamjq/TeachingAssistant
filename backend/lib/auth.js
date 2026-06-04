@@ -29,7 +29,7 @@ const ACCOUNT_COLS = `id, first_name, last_name, email, phone, staff_id, majors,
                        nationality, hire_date, bio,
                        role, sub_role, status, firebase_uid, avatar_url,
                        subscription_status, subscription_ends_at, subscription_plan,
-                       last_login_at, last_login_ip,
+                       last_login_at, last_login_ip, active_session_id,
                        created_at, updated_at`;
 
 export const ACCOUNT_COLS_SQL = ACCOUNT_COLS;
@@ -87,7 +87,11 @@ const isSubscriptionExpired = (t) => {
 //   allowExpired  — let an expired-subscription account through anyway
 //                   (used by /api/auth/renew so they can pay to come
 //                   back)
-export function requireAuth({ optional = false, allowExpired = false } = {}) {
+//   skipSessionCheck — don't enforce the single-device session match
+//                   (used by the routes that ISSUE a session: the
+//                   sign-in / claim endpoints, which a new device must
+//                   reach even while another device holds the session)
+export function requireAuth({ optional = false, allowExpired = false, skipSessionCheck = false } = {}) {
   return async (req, res, next) => {
     try {
       const header = req.headers.authorization || "";
@@ -120,6 +124,20 @@ export function requireAuth({ optional = false, allowExpired = false } = {}) {
           error: "Your subscription has ended.",
           code: "subscription_expired",
         });
+      }
+      // Single-device enforcement. The account holds the id of the one
+      // session allowed to act. A newer sign-in elsewhere rotated it, so
+      // a stale device's X-Session-Id no longer matches → lock it out.
+      // Null active_session_id = legacy row that predates this feature;
+      // let it through until its owner next signs in and claims one.
+      if (req.account && !skipSessionCheck && req.account.active_session_id) {
+        const sid = req.headers["x-session-id"] || null;
+        if (sid !== req.account.active_session_id) {
+          return res.status(401).json({
+            error: "You've been signed out because this account was used on another device.",
+            code: "session_superseded",
+          });
+        }
       }
       next();
     } catch (err) {

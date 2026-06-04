@@ -341,7 +341,8 @@ export default function TemplatesLibrary({ onNewTemplate, onUseTemplate, onEditT
 
       {!loading && viewMode === "list" && (
         <div className="rounded-2xl border border-line bg-paper-cool overflow-hidden">
-          <table className="w-full text-sm">
+          <div className="overflow-x-auto">
+          <table className="w-full min-w-[36rem] text-sm">
             <thead>
               <tr className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted border-b border-line">
                 <th className="text-left py-3 px-5 font-medium">Name</th>
@@ -382,6 +383,7 @@ export default function TemplatesLibrary({ onNewTemplate, onUseTemplate, onEditT
               )}
             </tbody>
           </table>
+          </div>
         </div>
       )}
 

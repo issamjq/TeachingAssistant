@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { randomUUID } from "node:crypto";
 import bcrypt from "bcryptjs";
 import { pool } from "../lib/db.js";
 import { handleErr } from "../lib/helpers.js";
@@ -34,7 +35,20 @@ const PLAN_DURATION = {
 
 const planStatus = (planId) => (planId === TRIAL_PLAN_ID ? "trial" : "active");
 
-router.post("/firebase", validateBody(FirebaseBootstrapSchema), requireAuth({ optional: true }), async (req, res) => {
+// Rotate the account's single active session to a fresh id (single-device
+// sign-in). Returns the new id so the caller can hand it to the client,
+// which echoes it on every request via X-Session-Id. Any other device's
+// stored id is now stale and its next request is rejected.
+async function claimSession(accountId) {
+  const sessionId = randomUUID();
+  await pool.query(
+    `UPDATE accounts SET active_session_id = $2, updated_at = NOW() WHERE id = $1`,
+    [accountId, sessionId]
+  );
+  return sessionId;
+}
+
+router.post("/firebase", validateBody(FirebaseBootstrapSchema), requireAuth({ optional: true, skipSessionCheck: true }), async (req, res) => {
   try {
     if (!req.firebaseUser) {
       return res.status(401).json({ error: "Missing Authorization: Bearer <id_token>" });
@@ -156,9 +170,29 @@ router.post("/firebase", validateBody(FirebaseBootstrapSchema), requireAuth({ op
       });
     }
 
-    res.json(account);
+    // Claim the single active session for the device that just signed in.
+    const sessionId = await claimSession(account.id);
+    res.json({ ...account, active_session_id: sessionId });
   } catch (err) {
     handleErr(res, "POST /api/auth/firebase", err);
+  }
+});
+
+// POST /api/auth/claim-session
+//
+// Called by the returning-user sign-in fast path (an already-provisioned
+// teacher signing in again, possibly on a new device). Rotates the active
+// session to this device and returns the account + new session id. Uses
+// skipSessionCheck so a new device can claim even while another device
+// still holds the session — that's the whole point of single-device
+// sign-in. A 404 (no teacher row) tells the client this is a brand-new
+// user who should go through the profile + plan funnel instead.
+router.post("/claim-session", requireAuth({ skipSessionCheck: true }), async (req, res) => {
+  try {
+    const sessionId = await claimSession(req.account.id);
+    res.json({ ...req.account, active_session_id: sessionId });
+  } catch (err) {
+    handleErr(res, "POST /api/auth/claim-session", err);
   }
 });
 

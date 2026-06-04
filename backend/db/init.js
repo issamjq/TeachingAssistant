@@ -245,6 +245,11 @@ ALTER TABLE accounts  ADD COLUMN IF NOT EXISTS status    TEXT NOT NULL DEFAULT '
 ALTER TABLE accounts  ADD COLUMN IF NOT EXISTS permissions JSONB NOT NULL DEFAULT '{}'::jsonb;
 ALTER TABLE accounts  ADD COLUMN IF NOT EXISTS languages TEXT[] DEFAULT '{}';
 ALTER TABLE accounts  ADD COLUMN IF NOT EXISTS sections  TEXT[] DEFAULT '{}';
+-- Single-device sign-in. Holds the id of the one session allowed to act
+-- as this account. A fresh sign-in (on any device) rotates this value;
+-- every authed request must echo it back via the X-Session-Id header, so
+-- the previously-signed-in device is locked out on its next call.
+ALTER TABLE accounts  ADD COLUMN IF NOT EXISTS active_session_id TEXT;
 
 ALTER TABLE quizzes   ADD COLUMN IF NOT EXISTS language   TEXT;
 ALTER TABLE quizzes   ADD COLUMN IF NOT EXISTS difficulty TEXT;

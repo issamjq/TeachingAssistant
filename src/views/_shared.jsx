@@ -746,11 +746,16 @@ export async function api(path, { method = "GET", body } = {}) {
   // Lazy-load the auth helper so files that import api from a non-React
   // context (init scripts, tests) don't pull Firebase into their bundle.
   const { getIdToken } = await import("../lib/firebaseAuth");
+  const { getSessionId } = await import("../lib/session");
   const token = await getIdToken().catch(() => null);
+  const sessionId = getSessionId();
 
   const headers = {};
   if (body) headers["Content-Type"] = "application/json";
   if (token) headers["Authorization"] = `Bearer ${token}`;
+  // Single-device sign-in: prove this is the session the server last
+  // handed out. A mismatch means the account signed in elsewhere.
+  if (sessionId) headers["X-Session-Id"] = sessionId;
 
   const res = await fetch(API_BASE + path, {
     method,
@@ -764,6 +769,11 @@ export async function api(path, { method = "GET", body } = {}) {
     /* empty response */
   }
   if (!res.ok) {
+    // The account was claimed by a newer sign-in on another device.
+    // Tear this device's session down and bounce to the landing page.
+    if (data?.code === "session_superseded") {
+      await handleSessionSuperseded();
+    }
     const msg = data?.error || `HTTP ${res.status}`;
     const err = new Error(msg);
     err.status = res.status;
@@ -771,4 +781,32 @@ export async function api(path, { method = "GET", body } = {}) {
     throw err;
   }
   return data;
+}
+
+// Fired once when the server reports this device was superseded. Signs
+// out of Firebase, drops local state, and returns to landing with a
+// one-time notice. Guarded so a burst of in-flight requests all 401-ing
+// only triggers a single logout.
+let _supersedeHandled = false;
+async function handleSessionSuperseded() {
+  if (_supersedeHandled) return;
+  _supersedeHandled = true;
+  try {
+    const [{ clearSessionId }, { clearAccount }, { clearRoute }, fb] = await Promise.all([
+      import("../lib/session"),
+      import("../lib/account"),
+      import("../lib/route"),
+      import("../lib/firebaseAuth"),
+    ]);
+    clearSessionId();
+    try { await fb.signOut(); } catch { /* ignore */ }
+    clearAccount();
+    clearRoute();
+    if (typeof window !== "undefined") {
+      window.alert(
+        "You've been signed out because this account was just used to sign in on another device. " +
+        "You can only be signed in on one device at a time."
+      );
+    }
+  } catch { /* best-effort cleanup */ }
 }

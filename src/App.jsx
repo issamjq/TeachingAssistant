@@ -38,6 +38,7 @@ import AccountMenu from "./views/AccountMenu";
 import HelpPopover from "./views/HelpPopover";
 import MurchidLogo from "./components/MurchidLogo";
 import Avatar from "./components/Avatar";
+import BrandLoader from "./components/BrandLoader";
 
 // Sectioned nav matching the 2026 mockup — italic Fraunces section
 // headers + small letter/icon badges next to each label. All routes
@@ -47,6 +48,7 @@ const TEACHER_NAV = [
     section: "Planning",
     items: [
       { key: "planner", label: "Planner", icon: "▦" },
+      { key: "bulletin-board", label: "Bulletin board", letter: "B" },
     ],
   },
   {
@@ -122,7 +124,7 @@ const TEACHING_RAIL_SECTIONS = new Set([
 // `#/quizzes` from rendering for an admin who switched roles.
 const SECTIONS_BY_ROLE = {
   teacher: new Set([
-    "dashboard", "studio", "planner",
+    "dashboard", "studio", "planner", "bulletin-board",
     "lesson-plans", "schedule", "quizzes", "homework", "presentations", "activities",
     "database", "reports",
     "account",
@@ -171,6 +173,11 @@ export default function StudioApp({ onClose }) {
     });
   };
   const account = useAccount();
+  // First-launch loader — covers the gap between boarding finishing and
+  // the studio actually being ready. Stays up until the first Firebase
+  // auth callback resolves (and /api/me hydrates), so the teacher sees a
+  // branded "launching" screen instead of an empty studio that pops full.
+  const [booting, setBooting] = useState(true);
   // Wait for Firebase to resolve the auth state, then either hydrate
   // /api/me into the local account.profile (signed in) or clear the
   // local mock account + bounce to landing (signed out from outside
@@ -187,6 +194,7 @@ export default function StudioApp({ onClose }) {
           // and return to the landing page (the parent main.jsx renders
           // landing whenever account is null).
           if (account) clearAccount();
+          if (!cancelled) setBooting(false);
           return;
         }
         try {
@@ -209,10 +217,15 @@ export default function StudioApp({ onClose }) {
             if (account) clearAccount();
             clearRoute();
           }
+        } finally {
+          if (!cancelled) setBooting(false);
         }
       });
     })();
-    return () => { cancelled = true; off?.(); };
+    // Safety net: never let the loader hang if Firebase never calls back
+    // (offline, blocked SDK). Drop it after 6s regardless.
+    const bootTimeout = setTimeout(() => setBooting(false), 6000);
+    return () => { cancelled = true; off?.(); clearTimeout(bootTimeout); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   // "Upgrade plan" stays visible for now — the real plan/trial split
@@ -512,6 +525,49 @@ export default function StudioApp({ onClose }) {
 
   const sidebarActive = section === "account" ? "account" : section;
 
+  // Studio launcher — the hero CTA of the app, lifted out of the nav
+  // list. Dark ink card with an accent-red bolt circle on the left, big
+  // serif title, italic subtitle. Same vocabulary as the "Activate Pro"
+  // pill in the design handoff, in Murchid's palette and on a vertical
+  // card form factor so it fits the sidebar. Hover lifts -2px, accent
+  // halo brightens, chevron slides 4px. Rendered just above the account
+  // chip so the two persistent affordances sit together at the foot of
+  // the rail.
+  const studioLauncher = role === "teacher" && (
+    <button
+      type="button"
+      onClick={() => navigate(["studio"])}
+      data-tour="studio"
+      className={`murchid-studio-launcher ${section === "studio" ? "murchid-studio-launcher-active" : ""}`}
+      aria-label="Open AI studio"
+      aria-current={section === "studio" ? "page" : undefined}
+    >
+      <span className="murchid-studio-launcher-head">
+        <span className="murchid-studio-launcher-brand">
+          <span className="murchid-studio-launcher-icon" aria-hidden>
+            <Sparkles size={15} strokeWidth={2.25} />
+          </span>
+          <span className="murchid-studio-launcher-title">{t("studio.name")}</span>
+        </span>
+        <span className="murchid-studio-launcher-pill">{t("studio.badge")}</span>
+      </span>
+
+      <span className="murchid-studio-launcher-body">
+        <span className="murchid-studio-launcher-subtitle">
+          {t("studio.subtitle")}
+        </span>
+        <span className="murchid-studio-launcher-tagline">
+          {t("studio.tagline")}
+        </span>
+      </span>
+
+      <span className="murchid-studio-launcher-cta">
+        <span>{t("studio.open")}</span>
+        <ArrowRight size={14} strokeWidth={2.25} className="murchid-studio-launcher-cta-arrow" />
+      </span>
+    </button>
+  );
+
   // Sidebar contents — rendered once for the desktop rail and again
   // inside the mobile drawer, so the navigation is identical everywhere.
   const sidebarBody = (
@@ -543,45 +599,9 @@ export default function StudioApp({ onClose }) {
         </button>
         </div>
 
-        {/* Studio launcher — the hero CTA of the app, lifted out of the
-            nav list. Dark ink card with an accent-red bolt circle on the
-            left, big serif title, italic subtitle. Same vocabulary as the
-            "Activate Pro" pill in the design handoff, in Murchid's palette
-            and on a vertical card form factor so it fits the sidebar.
-            Hover lifts -2px, accent halo brightens, chevron slides 4px. */}
-        {role === "teacher" && (
-          <button
-            type="button"
-            onClick={() => navigate(["studio"])}
-            className={`murchid-studio-launcher ${section === "studio" ? "murchid-studio-launcher-active" : ""}`}
-            aria-label="Open AI studio"
-            aria-current={section === "studio" ? "page" : undefined}
-          >
-            <span className="murchid-studio-launcher-head">
-              <span className="murchid-studio-launcher-brand">
-                <span className="murchid-studio-launcher-icon" aria-hidden>
-                  <Sparkles size={15} strokeWidth={2.25} />
-                </span>
-                <span className="murchid-studio-launcher-title">{t("studio.name")}</span>
-              </span>
-              <span className="murchid-studio-launcher-pill">{t("studio.badge")}</span>
-            </span>
-
-            <span className="murchid-studio-launcher-body">
-              <span className="murchid-studio-launcher-subtitle">
-                {t("studio.subtitle")}
-              </span>
-              <span className="murchid-studio-launcher-tagline">
-                {t("studio.tagline")}
-              </span>
-            </span>
-
-            <span className="murchid-studio-launcher-cta">
-              <span>{t("studio.open")}</span>
-              <ArrowRight size={14} strokeWidth={2.25} className="murchid-studio-launcher-cta-arrow" />
-            </span>
-          </button>
-        )}
+        {/* Hairline divider between the brand block and the first nav
+            tab — gives the wordmark room to breathe before the rail. */}
+        <div className="h-px bg-line/60 mx-5 mt-1 mb-3" />
 
         <nav className="px-2 flex-1 overflow-y-auto pb-3" aria-label="Primary">
           {/* Items get a per-item stagger via inline --mi (mount index).
@@ -604,6 +624,7 @@ export default function StudioApp({ onClose }) {
                       <button
                         key={item.key}
                         onClick={() => handleNavClick(item.key)}
+                        data-tour={`nav-${item.key}`}
                         style={{ "--mi": myIndex }}
                         className={`murchid-sidebar-item ${isActive ? "murchid-sidebar-item-active" : ""}`}
                         aria-current={isActive ? "page" : undefined}
@@ -619,10 +640,13 @@ export default function StudioApp({ onClose }) {
           })()}
         </nav>
 
+        {studioLauncher && <div className="px-2 pb-2">{studioLauncher}</div>}
+
         <div className="relative">
           <button
             onClick={() => setAccountMenuOpen((o) => !o)}
             title={t("accountMenu.open")}
+            data-tour="account"
             aria-haspopup="menu"
             aria-expanded={accountMenuOpen}
             className={`murchid-sidebar-account ${accountMenuOpen ? "murchid-sidebar-account-active" : ""}`}
@@ -664,6 +688,8 @@ export default function StudioApp({ onClose }) {
                 // eslint-disable-next-line no-console
                 console.warn("Firebase signOut failed:", e);
               }
+              const { clearSessionId } = await import("./lib/session");
+              clearSessionId();
               clearAccount();
               clearRoute();
               onClose?.();
@@ -672,6 +698,18 @@ export default function StudioApp({ onClose }) {
         </div>
     </>
   );
+
+  if (booting) {
+    return (
+      <div
+        className="fixed inset-0 z-[9999] flex items-center justify-center bg-paper"
+        role="status"
+        aria-live="polite"
+      >
+        <BrandLoader label={t("studio.launching") || "Launching your studio…"} />
+      </div>
+    );
+  }
 
   return (
     <div className="murchid-studio-app h-[100dvh] bg-paper flex text-ink font-sans overflow-hidden">

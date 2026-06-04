@@ -13,7 +13,7 @@
 // Submit on step 3 writes a pending profile to localStorage and calls
 // onDone() so the funnel advances to the plan picker.
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronRight, ChevronLeft, Check, Download, Upload, FileText, X, Plus, MapPin, Search, Star, Trash2, Layers } from "lucide-react";
+import { ChevronRight, ChevronLeft, Check, Download, Upload, FileText, X, Plus, MapPin, Search, Star, Trash2, Layers, Loader2 } from "lucide-react";
 import { MAJORS, GRADE_LEVELS, QUIZ_LANGUAGES, QUIZ_SECTIONS } from "../../lib/enums";
 import { EMIRATES } from "../../lib/schools";
 import {
@@ -22,6 +22,7 @@ import {
   setPendingSchools, getPendingSchools,
 } from "../../lib/account";
 import { useT, useI18n } from "../../lib/i18n";
+import { SkeletonList } from "../../components/ui/skeleton";
 import Avatar from "../../components/Avatar";
 import { avatarsFor } from "../../lib/avatars";
 import { api } from "../_shared";
@@ -142,10 +143,73 @@ export default function ProfileForm({ onDone, onBack }) {
   // on next/finish via setPendingSchools so the choice survives the plan picker.
   const [schools, setSchools] = useState(() => getPendingSchools() || []);
   const [importError, setImportError] = useState(null);
+  // Loading flags for the roster template download + CSV import so the
+  // teacher gets a spinner instead of a button that seems to do nothing.
+  const [downloadingTemplate, setDownloadingTemplate] = useState(false);
+  const [importing, setImporting] = useState(false);
   const fileInputRef = useRef(null);
 
   const step = STEPS[stepIdx];
   const last = stepIdx === STEPS.length - 1;
+
+  // Talabat-style required-field handling: instead of a dead disabled
+  // button, Next stays live — pressing it with gaps scrolls the teacher
+  // to the first missing field and flags it. `attempted` flips on after
+  // the first failed Next so empty fields glow only once they've tried.
+  const [attempted, setAttempted] = useState(false);
+  const fieldRefs = useRef({});
+  const setFieldRef = (key) => (el) => { if (el) fieldRefs.current[key] = el; };
+  // A fresh step starts clean — don't carry the previous step's red flags.
+  useEffect(() => { setAttempted(false); }, [stepIdx]);
+
+  // Ordered list of missing required fields for the current step. Order
+  // matches the on-screen order so we scroll to the topmost gap first.
+  const missingFields = () => {
+    if (step === "identity") {
+      const out = [];
+      if (!data.firstName.trim()) out.push("firstName");
+      if (!data.lastName.trim()) out.push("lastName");
+      if (!data.staffId.trim()) out.push("staffId");
+      if (!data.gender) out.push("gender");
+      if (!data.avatar) out.push("avatar");
+      return out;
+    }
+    if (step === "subjects") {
+      const out = [];
+      if (data.majors.length === 0) out.push("majors");
+      if (data.languages.length === 0) out.push("languages");
+      return out;
+    }
+    if (step === "schools") return valid ? [] : ["schools"];
+    return [];
+  };
+  const isMissing = (key) => attempted && missingFields().includes(key);
+
+  // Track the furthest step reached so the preview rail only lets the
+  // teacher jump back to steps they've already seen (jumping forward
+  // would skip validation). Clicking a visited step edits it in place.
+  const [maxVisited, setMaxVisited] = useState(0);
+  useEffect(() => { setMaxVisited((m) => Math.max(m, stepIdx)); }, [stepIdx]);
+  const goToStep = (i) => { if (i <= maxVisited && i !== stepIdx) setStepIdx(i); };
+
+  // Short per-step summary shown in the preview rail.
+  const stepSummary = (s) => {
+    if (s === "identity") {
+      const name = [data.firstName, data.lastName].filter(Boolean).join(" ").trim();
+      return name || data.staffId || null;
+    }
+    if (s === "subjects") {
+      const n = (data.majors.length || 0) + (data.languages.length || 0);
+      return n > 0 ? t("onb.rail.subjectsSummary", { m: data.majors.length, l: data.languages.length }) : null;
+    }
+    if (s === "schools") {
+      return schools.length > 0 ? t("onb.rail.schoolsSummary", { n: schools.length }) : null;
+    }
+    if (s === "students") {
+      return students.length > 0 ? t("onb.rail.studentsSummary", { n: students.length }) : null;
+    }
+    return null;
+  };
 
   // Lightweight per-step validation. Schools step needs every school
   // to have at least one grade picked AND every picked grade to have
@@ -170,12 +234,19 @@ export default function ProfileForm({ onDone, onBack }) {
           : true; // students step — always valid (skippable)
 
   const handleTemplateDownload = () => {
+    if (downloadingTemplate) return;
+    setDownloadingTemplate(true);
+    // The blob write itself is instant; the short hold just lets the
+    // spinner register so the click feels acknowledged.
     const csv = rowsToCsv(STUDENT_COLUMNS, TEMPLATE_ROWS);
     downloadCsv("murchid-students-template.csv", csv);
+    setTimeout(() => setDownloadingTemplate(false), 600);
   };
   const handleFile = (file) => {
     if (!file) return;
     setImportError(null);
+    setImporting(true);
+    const finish = () => setImporting(false);
     const reader = new FileReader();
     reader.onload = () => {
       try {
@@ -188,9 +259,11 @@ export default function ProfileForm({ onDone, onBack }) {
         setStudents(parsed);
       } catch {
         setImportError(t("onb.students.errParse"));
+      } finally {
+        finish();
       }
     };
-    reader.onerror = () => setImportError(t("onb.students.errParse"));
+    reader.onerror = () => { setImportError(t("onb.students.errParse")); finish(); };
     reader.readAsText(file);
   };
 
@@ -213,7 +286,19 @@ export default function ProfileForm({ onDone, onBack }) {
 
 
   const next = () => {
-    if (!valid) return;
+    if (!valid) {
+      // Talabat-style: surface the gaps and glide to the first one.
+      setAttempted(true);
+      const first = missingFields()[0];
+      const el = first && fieldRefs.current[first];
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+        // Focus the first interactive control inside so keyboard users
+        // land where they need to type (without a second scroll jump).
+        el.querySelector("input, textarea, select, button")?.focus?.({ preventScroll: true });
+      }
+      return;
+    }
     // Persist the in-progress picks on every step so a closed-tab resume
     // doesn't lose the schools array.
     setPendingSchools(schools);
@@ -232,12 +317,26 @@ export default function ProfileForm({ onDone, onBack }) {
 
   return (
     <div
-      className="min-h-[100dvh] flex items-center justify-center px-4 py-8 sm:py-12"
+      className="min-h-[100dvh] flex items-start justify-center px-4 py-8 sm:py-12"
       style={{ background: "var(--paper)" }}
       dir={dir}
     >
-      <div className="w-full max-w-[640px]">
-        <ProgressDots count={STEPS.length} active={stepIdx} />
+      <div className="w-full max-w-[980px] lg:flex lg:items-start lg:gap-10">
+      {/* Preview / edit rail — desktop only. Lets the teacher see every
+          step at a glance and click back into any they've already
+          visited. On phones the ProgressDots above the form cover this. */}
+      <StepsRail
+        steps={STEPS}
+        active={stepIdx}
+        maxVisited={maxVisited}
+        onJump={goToStep}
+        summary={stepSummary}
+        t={t}
+      />
+      <div className="w-full max-w-[640px] mx-auto lg:mx-0 lg:flex-1 min-w-0">
+        <div className="lg:hidden">
+          <ProgressDots count={STEPS.length} active={stepIdx} />
+        </div>
         <h1
           className="font-display text-3xl sm:text-4xl leading-tight mt-6 mb-2"
           style={{ color: "var(--ink)" }}
@@ -255,36 +354,36 @@ export default function ProfileForm({ onDone, onBack }) {
         {step === "identity" && (
           <div className="space-y-6">
           <div className="grid sm:grid-cols-2 gap-4">
-            <Field label={t("onb.fld.firstName")} required>
+            <Field label={t("onb.fld.firstName")} required ref={setFieldRef("firstName")} invalid={isMissing("firstName")} errorText={t("onb.fld.required")}>
               <input
                 type="text"
                 value={data.firstName}
                 onChange={(e) => set({ firstName: e.target.value })}
                 autoFocus
-                className="onb-input"
+                className={`onb-input ${isMissing("firstName") ? "onb-input-invalid" : ""}`}
                 placeholder={t("onb.ph.firstName")}
               />
             </Field>
-            <Field label={t("onb.fld.lastName")} required>
+            <Field label={t("onb.fld.lastName")} required ref={setFieldRef("lastName")} invalid={isMissing("lastName")} errorText={t("onb.fld.required")}>
               <input
                 type="text"
                 value={data.lastName}
                 onChange={(e) => set({ lastName: e.target.value })}
-                className="onb-input"
+                className={`onb-input ${isMissing("lastName") ? "onb-input-invalid" : ""}`}
                 placeholder={t("onb.ph.lastName")}
               />
             </Field>
-            <Field label={t("onb.fld.staffId")} required>
+            <Field label={t("onb.fld.staffId")} required ref={setFieldRef("staffId")} invalid={isMissing("staffId")} errorText={t("onb.fld.required")}>
               <input
                 type="text"
                 value={data.staffId}
                 onChange={(e) => set({ staffId: e.target.value })}
-                className="onb-input"
+                className={`onb-input ${isMissing("staffId") ? "onb-input-invalid" : ""}`}
                 placeholder={t("onb.ph.staffId")}
               />
             </Field>
           </div>
-          <Field label={t("onb.fld.gender")} required>
+          <Field label={t("onb.fld.gender")} required ref={setFieldRef("gender")} invalid={isMissing("gender")} errorText={t("onb.fld.required")}>
             <div className="flex gap-2">
               {["man", "woman"].map((g) => {
                 const on = data.gender === g;
@@ -306,7 +405,7 @@ export default function ProfileForm({ onDone, onBack }) {
               })}
             </div>
           </Field>
-          <Field label={t("onb.fld.avatar")} required>
+          <Field label={t("onb.fld.avatar")} required ref={setFieldRef("avatar")} invalid={isMissing("avatar")} errorText={t("onb.fld.required")}>
             <div className="flex flex-wrap gap-3">
               {avatarsFor(data.gender).map((a) => {
                 const on = data.avatar === a.id;
@@ -342,7 +441,7 @@ export default function ProfileForm({ onDone, onBack }) {
 
         {step === "subjects" && (
           <div className="space-y-6">
-            <Field label={t("onb.fld.majors")} required>
+            <Field label={t("onb.fld.majors")} required ref={setFieldRef("majors")} invalid={isMissing("majors")} errorText={t("onb.fld.required")}>
               <ChipPicker
                 options={MAJORS}
                 selected={data.majors}
@@ -351,7 +450,7 @@ export default function ProfileForm({ onDone, onBack }) {
                 allLabel={t("onb.all.majors")}
               />
             </Field>
-            <Field label={t("onb.fld.languages")} required>
+            <Field label={t("onb.fld.languages")} required ref={setFieldRef("languages")} invalid={isMissing("languages")} errorText={t("onb.fld.required")}>
               <ChipPicker
                 options={QUIZ_LANGUAGES}
                 selected={data.languages}
@@ -364,7 +463,7 @@ export default function ProfileForm({ onDone, onBack }) {
         )}
 
         {step === "schools" && (
-          <>
+          <div ref={setFieldRef("schools")} className="scroll-mt-24">
             <SchoolsStep
               t={t}
               value={schools}
@@ -381,7 +480,7 @@ export default function ProfileForm({ onDone, onBack }) {
                 />
               </Field>
             </div>
-          </>
+          </div>
         )}
 
         {step === "students" && (
@@ -405,9 +504,14 @@ export default function ProfileForm({ onDone, onBack }) {
                   <button
                     type="button"
                     onClick={handleTemplateDownload}
-                    className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg border border-line bg-paper-cool hover:border-ink/40 transition-colors text-[13px] font-medium text-ink"
+                    disabled={downloadingTemplate}
+                    className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg border border-line bg-paper-cool hover:border-ink/40 transition-colors text-[13px] font-medium text-ink disabled:opacity-60 disabled:cursor-wait"
                   >
-                    <Download size={14} className="text-accent" />
+                    {downloadingTemplate ? (
+                      <Loader2 size={14} className="text-accent animate-spin motion-reduce:animate-none" />
+                    ) : (
+                      <Download size={14} className="text-accent" />
+                    )}
                     {t("onb.students.s1.btn")}
                   </button>
                 </div>
@@ -441,9 +545,14 @@ export default function ProfileForm({ onDone, onBack }) {
                   <button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
-                    className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg border border-line bg-paper-cool hover:border-ink/40 transition-colors text-[13px] font-medium text-ink"
+                    disabled={importing}
+                    className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg border border-line bg-paper-cool hover:border-ink/40 transition-colors text-[13px] font-medium text-ink disabled:opacity-60 disabled:cursor-wait"
                   >
-                    <Upload size={14} className="text-ink" />
+                    {importing ? (
+                      <Loader2 size={14} className="text-ink animate-spin motion-reduce:animate-none" />
+                    ) : (
+                      <Upload size={14} className="text-ink" />
+                    )}
                     {t("onb.students.s3.btn")}
                   </button>
                   <input
@@ -514,8 +623,8 @@ export default function ProfileForm({ onDone, onBack }) {
             <button
               type="button"
               onClick={next}
-              disabled={!valid}
-              className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-lg text-sm font-medium btn-primary disabled:opacity-40 disabled:cursor-not-allowed"
+              aria-disabled={!valid}
+              className={`inline-flex items-center gap-1.5 px-5 py-2.5 rounded-lg text-sm font-medium btn-primary transition-opacity ${!valid ? "opacity-60" : ""}`}
             >
               {last ? t("onb.finish") : t("onb.next")}
               {last ? <Check size={16} /> : <ChevronRight size={16} className="rtl:rotate-180" />}
@@ -556,6 +665,7 @@ export default function ProfileForm({ onDone, onBack }) {
           </div>
         </div>
       </div>
+      </div>
 
       <style>{`
         .onb-input {
@@ -574,8 +684,109 @@ export default function ProfileForm({ onDone, onBack }) {
           border-color: var(--clay, #c8472b);
           box-shadow: 0 0 0 3px rgba(200, 71, 43, 0.12);
         }
+        .onb-input-invalid {
+          border-color: var(--clay, #c8472b);
+          box-shadow: 0 0 0 3px rgba(200, 71, 43, 0.12);
+          animation: onb-shake 0.32s cubic-bezier(0.36, 0.07, 0.19, 0.97);
+        }
+        @keyframes onb-shake {
+          10%, 90% { transform: translateX(-1px); }
+          20%, 80% { transform: translateX(2px); }
+          30%, 50%, 70% { transform: translateX(-3px); }
+          40%, 60% { transform: translateX(3px); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .onb-input-invalid { animation: none; }
+        }
+        /* Grade rows + section chips ease in as the teacher builds out a
+           school's scope, so the form feels alive while they pick. */
+        .onb-pop-in {
+          animation: onb-pop-in 0.34s cubic-bezier(0.22, 1, 0.36, 1) both;
+        }
+        @keyframes onb-pop-in {
+          from { opacity: 0; transform: translateY(8px) scale(0.985); }
+          to   { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        .onb-chip-in {
+          animation: onb-chip-in 0.22s cubic-bezier(0.22, 1, 0.36, 1) both;
+        }
+        @keyframes onb-chip-in {
+          from { opacity: 0; transform: scale(0.8); }
+          to   { opacity: 1; transform: scale(1); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .onb-pop-in, .onb-chip-in { animation: none; }
+        }
       `}</style>
     </div>
+  );
+}
+
+// Preview / edit rail shown beside the wizard on desktop. Each row is a
+// step: a status dot (done / current / upcoming), its label, and a live
+// summary of what's been entered. Visited steps are clickable to jump
+// back and edit; upcoming steps are inert.
+function StepsRail({ steps, active, maxVisited, onJump, summary, t }) {
+  return (
+    <aside className="hidden lg:block w-[240px] flex-shrink-0 sticky top-12">
+      <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-4">
+        {t("onb.rail.title")}
+      </p>
+      <ol className="space-y-1">
+        {steps.map((s, i) => {
+          const isCurrent = i === active;
+          const isDone = i < active || (i <= maxVisited && i !== active);
+          const visited = i <= maxVisited;
+          const sum = summary(s);
+          return (
+            <li key={s}>
+              <button
+                type="button"
+                onClick={() => onJump(i)}
+                disabled={!visited || isCurrent}
+                aria-current={isCurrent ? "step" : undefined}
+                className={`group w-full text-start flex items-start gap-3 rounded-xl px-3 py-2.5 transition-colors ${
+                  isCurrent
+                    ? "bg-clay/[0.07] ring-1 ring-clay/30"
+                    : visited
+                      ? "hover:bg-paper-warm cursor-pointer"
+                      : "opacity-55 cursor-default"
+                }`}
+              >
+                <span
+                  className={`mt-0.5 flex-shrink-0 inline-flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-mono font-semibold transition-colors ${
+                    isCurrent
+                      ? "bg-clay text-paper-cool"
+                      : isDone
+                        ? "bg-sage/20 text-sage"
+                        : "bg-paper-warm text-muted border border-line"
+                  }`}
+                >
+                  {isDone && !isCurrent ? <Check size={11} strokeWidth={3} /> : i + 1}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="flex items-center justify-between gap-2">
+                    <span className={`text-[13px] font-medium leading-tight ${isCurrent ? "text-ink" : "text-ink-soft"}`}>
+                      {t(`onb.rail.step.${s}`)}
+                    </span>
+                    {visited && !isCurrent && (
+                      <span className="text-[10px] text-clay opacity-0 group-hover:opacity-100 transition-opacity inline-flex items-center gap-0.5">
+                        {t("onb.rail.edit")}
+                      </span>
+                    )}
+                  </span>
+                  <span className={`block text-[11.5px] leading-snug mt-0.5 truncate ${
+                    isCurrent ? "text-clay" : "text-muted"
+                  }`}>
+                    {isCurrent ? t("onb.rail.current") : (sum || "—")}
+                  </span>
+                </span>
+              </button>
+            </li>
+          );
+        })}
+      </ol>
+    </aside>
   );
 }
 
@@ -602,24 +813,33 @@ function ProgressDots({ count, active }) {
 // A plain <div> avoids the label's "click anywhere to activate the
 // first focusable child" behaviour. Text inputs don't need the label
 // wrapper to be functional.
-function Field({ label, hint, required, children }) {
+const Field = React.forwardRef(function Field({ label, hint, required, invalid, errorText, children }, ref) {
   return (
-    <div>
+    // scroll-mt-24 keeps the field clear of the sticky-ish header when
+    // scrollIntoView jumps here after a failed Next (Talabat-style).
+    <div ref={ref} className="scroll-mt-24">
       <div className="flex items-baseline gap-2 mb-1.5">
-        <span className="text-[13px] font-medium" style={{ color: "var(--ink)" }}>
+        <span
+          className="text-[13px] font-medium transition-colors"
+          style={{ color: invalid ? "var(--clay)" : "var(--ink)" }}
+        >
           {label}
           {required && <span style={{ color: "var(--clay)" }}> *</span>}
         </span>
-        {hint && (
+        {invalid && errorText ? (
+          <span className="text-[11px] font-medium" style={{ color: "var(--clay)" }}>
+            {errorText}
+          </span>
+        ) : hint ? (
           <span className="text-[11px]" style={{ color: "var(--ink-3)" }}>
             {hint}
           </span>
-        )}
+        ) : null}
       </div>
       {children}
     </div>
   );
-}
+});
 
 function ChipPicker({
   options, selected, onToggle, onSetAll, allLabel,
@@ -1016,7 +1236,7 @@ function SchoolsStep({ t, value, onChange }) {
 
       {/* Catalog list */}
       {loading ? (
-        <p className="text-sm text-muted">Loading schools…</p>
+        <SkeletonList count={5} className="rounded-xl" />
       ) : loadError ? (
         <p className="text-sm text-accent">{loadError}</p>
       ) : filtered.length === 0 ? (
@@ -1131,7 +1351,7 @@ function GradeSectionRow({ grade, sections, onChange, onRemove }) {
   const empty = sections.length === 0;
 
   return (
-    <div className={`rounded-xl border p-3.5 transition-colors ${
+    <div className={`onb-pop-in rounded-xl border p-3.5 transition-colors ${
       empty
         ? "border-clay/40 bg-clay/[0.04]"
         : "border-line bg-paper-cool/60"

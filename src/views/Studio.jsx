@@ -987,15 +987,44 @@ export default function Studio({ initialKind } = {}) {
   useEffect(() => {
     if (kind === "presentation") return;
     const hasInflight = busy || !!streamingText;
-    const hasUnsavedContent = !!result
-      ? !savedDraftId || isDirty
-      : sections.length > 0;
-    if (!hasInflight && !hasUnsavedContent) return;
+    // The generated page ALWAYS confirms before leaving — even once the
+    // draft is saved and clean. (Per product: "still ask to exit the
+    // generated page even after a save.") Pre-generation we only guard
+    // when there's drafted content to lose.
+    const onGeneratedPage = !!result;
+    const hasDraftContent = !result && sections.length > 0;
+    if (!hasInflight && !onGeneratedPage && !hasDraftContent) return;
 
+    // In-app navigation (sidebar tabs, the × close button, etc.) routes
+    // through setNavGuard — it returns false to hold the transition and
+    // surfaces our custom modal instead.
     const cleanupGuard = setNavGuard((proceed) => {
       setPendingLeave({ proceed });
       return false;
     });
+
+    // Browser Back / two-finger swipe fire `popstate`, which bypasses
+    // setNavGuard entirely. We intercept it: prime one buffer history
+    // entry, and whenever the user pops it, re-push to cancel the back
+    // and surface the same confirm modal. Confirming steps back over the
+    // buffer (go(-2)) to the real previous page.
+    let leaving = false;
+    const guardUrl = window.location.href;
+    window.history.pushState(null, "", guardUrl);
+    const onPopState = () => {
+      if (leaving) return;
+      window.history.pushState(null, "", guardUrl); // re-absorb the back
+      setPendingLeave({
+        proceed: () => {
+          leaving = true;
+          window.removeEventListener("popstate", onPopState);
+          // Two entries back: over our buffer, then off the studio page.
+          window.history.go(-2);
+        },
+      });
+    };
+    window.addEventListener("popstate", onPopState);
+
     const onBeforeUnload = (e) => {
       e.preventDefault();
       e.returnValue = "";
@@ -1004,6 +1033,7 @@ export default function Studio({ initialKind } = {}) {
 
     return () => {
       cleanupGuard();
+      window.removeEventListener("popstate", onPopState);
       window.removeEventListener("beforeunload", onBeforeUnload);
     };
   }, [busy, streamingText, result, sections.length, savedDraftId, isDirty, kind]);
@@ -1811,27 +1841,9 @@ export default function Studio({ initialKind } = {}) {
             </p>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
-            {quizMarks && quizMarks.total > 0 && (
-              <span
-                className={`text-xs font-medium px-2.5 py-1 rounded-full border inline-flex items-center gap-1.5 ${
-                  quizMarks.balanced
-                    ? "border-sage/40 text-sage bg-sage/[0.06]"
-                    : "border-accent/40 text-accent bg-accent/[0.06]"
-                }`}
-                title={
-                  quizMarks.balanced
-                    ? "All marks are assigned — you can export."
-                    : "Assign every mark across the questions (edit each question's marks) before you can export to PDF or Word."
-                }
-              >
-                {quizMarks.balanced && <Check size={12} strokeWidth={2.5} />}
-                {quizMarks.balanced
-                  ? t("studio.marks.balanced", { total: quizMarks.total })
-                  : quizMarks.remaining >= 0
-                  ? t("studio.marks.left", { remaining: quizMarks.remaining, total: quizMarks.total })
-                  : t("studio.marks.over", { over: -quizMarks.remaining, total: quizMarks.total })}
-              </span>
-            )}
+            {/* The marks-allocation status lives once, below the marks
+                stepper inside the current question card (QuizQuestionCard)
+                — not duplicated here in the top bar. */}
             {availableFormats.includes("doc") && (
               <Button
                 variant="secondary"
@@ -4252,6 +4264,7 @@ function DropdownChip({
 
       {open && (
         <ComboboxMenu
+          label={label}
           value={value}
           draft={draft}
           options={filteredOptions}
@@ -4279,11 +4292,14 @@ function DropdownChip({
 // In multi mode, clicking an option toggles it in the joined value
 // without closing the menu; "Done" at the bottom closes.
 function ComboboxMenu({
-  value, draft, options, allOptions, suffix,
+  label, value, draft, options, allOptions, suffix,
   onPick, onClose,
   multi, currentMulti = [], onToggle, onAddCustom,
 }) {
   const t = useT();
+  // Explicit "Add new" popup — a clearer affordance than type-to-add for
+  // teachers who don't realise the field is also a text input.
+  const [addOpen, setAddOpen] = useState(false);
   const trimmed = String(draft || "").trim();
   const isCustom =
     trimmed.length > 0 &&
@@ -4366,6 +4382,18 @@ function ComboboxMenu({
               </li>
             );
           })}
+          <li className="border-t border-line/60 mt-1 pt-1">
+            <button
+              type="button"
+              onClick={() => setAddOpen(true)}
+              className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm font-medium text-accent hover:bg-paper-warm/60"
+            >
+              <span className="inline-flex items-center justify-center h-4 w-4 rounded-full bg-accent/15">
+                <Plus size={11} strokeWidth={2.5} />
+              </span>
+              {t("studio.combo.addNew")}
+            </button>
+          </li>
         </ul>
         {multi && (
           <div className="border-t border-line/60 px-2 py-2 flex items-center justify-between gap-2 bg-paper">
@@ -4384,7 +4412,66 @@ function ComboboxMenu({
           </div>
         )}
       </div>
+
+      {addOpen && (
+        <AddChipValuePopup
+          label={label}
+          onCancel={() => setAddOpen(false)}
+          onAdd={(v) => {
+            setAddOpen(false);
+            if (multi) onAddCustom(v);
+            else onPick(v);
+          }}
+        />
+      )}
     </>
+  );
+}
+
+// Small centered popup for adding a brand-new chip value. Opened from the
+// "Add new" row inside ComboboxMenu so the affordance is explicit (vs.
+// the subtler type-to-add). Esc / backdrop / Cancel all dismiss.
+function AddChipValuePopup({ label, onCancel, onAdd }) {
+  const t = useT();
+  const [val, setVal] = useState("");
+  const ref = useRef(null);
+  useEffect(() => {
+    const id = setTimeout(() => ref.current?.focus(), 0);
+    const onKey = (e) => { if (e.key === "Escape") onCancel(); };
+    window.addEventListener("keydown", onKey);
+    return () => { clearTimeout(id); window.removeEventListener("keydown", onKey); };
+  }, [onCancel]);
+  const submit = () => {
+    const v = val.trim();
+    if (v) onAdd(v);
+  };
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" role="dialog" aria-modal="true">
+      <div className="absolute inset-0 bg-ink/30 backdrop-blur-sm" onClick={onCancel} />
+      <div className="studio-menu-rise relative bg-paper-cool rounded-2xl border border-line shadow-2xl w-full max-w-sm p-5">
+        <p className="font-serif italic text-base text-accent mb-2">
+          {t("studio.combo.addNewTitle", { label: label || "" })}
+        </p>
+        <input
+          ref={ref}
+          type="text"
+          value={val}
+          onChange={(e) => setVal(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); submit(); } }}
+          placeholder={t("studio.combo.addNewPh")}
+          className="w-full px-3.5 py-2.5 rounded-lg border border-line bg-paper text-sm text-ink outline-none focus:border-ink focus:shadow-[0_0_0_3px_rgba(200,71,43,0.12)] transition-all"
+        />
+        <div className="mt-4 flex items-center justify-end gap-2">
+          <Button variant="secondary" onClick={onCancel} className="text-sm px-4 py-2">
+            {t("studio.combo.cancel")}
+          </Button>
+          <Button onClick={submit} disabled={!val.trim()} className="text-sm px-4 py-2">
+            <Plus size={14} className="mr-1.5" />
+            {t("studio.combo.addNewBtn")}
+          </Button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -4982,16 +5069,28 @@ function EditableText({ value, onChange, placeholder, disabled = false, classNam
   // width-wise (in ch units). Useful for inline meta fields like
   // Subject/Grade. Any explicit width class (e.g. w-full) wins over it.
   const ch = Math.max((value || placeholder || "").length || 4, 4);
+  // A pencil rides just after the field — invisible until hover/focus —
+  // so teachers can tell at a glance that the value is theirs to edit.
   return (
-    <input
-      type="text"
-      size={ch}
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      placeholder={placeholder}
-      disabled={disabled}
-      className={`bg-transparent outline-none border-b border-transparent hover:border-line/60 focus:border-ink focus:bg-paper transition-colors duration-150 placeholder:text-muted disabled:cursor-not-allowed disabled:hover:border-transparent ${className}`}
-    />
+    <span className={`group/edit relative inline-flex items-center gap-1 align-baseline ${className.includes("w-full") ? "w-full" : "max-w-full"}`}>
+      <input
+        type="text"
+        size={ch}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        disabled={disabled}
+        className={`bg-transparent outline-none border-b border-transparent hover:border-line/60 focus:border-ink focus:bg-paper transition-colors duration-150 placeholder:text-muted disabled:cursor-not-allowed disabled:hover:border-transparent ${className}`}
+      />
+      {!disabled && (
+        <Pencil
+          size={12}
+          strokeWidth={1.75}
+          aria-hidden
+          className="flex-shrink-0 text-muted/70 opacity-0 group-hover/edit:opacity-100 group-focus-within/edit:opacity-100 transition-opacity duration-150 pointer-events-none motion-reduce:transition-none"
+        />
+      )}
+    </span>
   );
 }
 
@@ -5013,7 +5112,7 @@ function EditableTextarea({ value, onChange, placeholder, rows = 2, disabled = f
   // written anything, the field reverts to the clean editorial look so the
   // saved content reads like a finished document.
   return (
-    <div className="relative -m-2">
+    <div className="group/edit relative -m-2">
       <textarea
         ref={ref}
         value={value}
@@ -5027,12 +5126,19 @@ function EditableTextarea({ value, onChange, placeholder, rows = 2, disabled = f
             : "border-transparent"
         } hover:border-line/60 focus:border-solid focus:border-ink focus:bg-paper resize-none overflow-hidden transition-colors duration-150 placeholder:text-muted whitespace-pre-wrap disabled:cursor-not-allowed disabled:hover:border-transparent ${className}`}
       />
-      {isEmpty && !disabled && (
+      {/* Empty fields show the pencil permanently (it doubles as a "type
+          here" cue); filled fields reveal it only on hover/focus so the
+          finished text still reads cleanly. */}
+      {!disabled && (
         <Pencil
           size={13}
           strokeWidth={1.75}
           aria-hidden
-          className="absolute top-2.5 end-2.5 text-muted/70 pointer-events-none"
+          className={`absolute top-2.5 end-2.5 text-muted/70 pointer-events-none transition-opacity duration-150 motion-reduce:transition-none ${
+            isEmpty
+              ? "opacity-100"
+              : "opacity-0 group-hover/edit:opacity-100 group-focus-within/edit:opacity-100"
+          }`}
         />
       )}
     </div>

@@ -248,7 +248,8 @@ export default function DatabaseScores() {
 
       {quizId && !busy && eligible.length > 0 && (
         <div className="rounded-2xl border border-line bg-paper-cool overflow-hidden">
-          <table className="w-full text-sm">
+          <div className="overflow-x-auto">
+          <table className="w-full min-w-[36rem] text-sm">
             <thead className="bg-paper-warm/50">
               <tr className="text-[11px] font-mono uppercase tracking-[0.14em] text-muted">
                 <th className="text-start px-4 py-2.5">Student</th>
@@ -316,6 +317,7 @@ export default function DatabaseScores() {
               })}
             </tbody>
           </table>
+          </div>
         </div>
       )}
     </div>
