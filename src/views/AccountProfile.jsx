@@ -4,7 +4,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { NATIONALITIES } from "../lib/enums";
 import { Field, Modal, inputClasses, selectClasses, api } from "./_shared";
-import { getRole, setRole, ROLES, ROLE_LABELS, ROLE_DESCRIPTIONS } from "../lib/role";
 import { navigate } from "../lib/route";
 import DatabaseProfile from "./DatabaseProfile";
 import DatabaseSchools from "./DatabaseSchools";
@@ -168,8 +167,6 @@ function PersonalDetails() {
         </Card>
       )}
 
-      {me && <RoleSwitcherCard />}
-
       {editing && (
         <AccountEditModal initial={me} onClose={() => setEditing(false)} onSaved={onSaved} />
       )}
@@ -271,53 +268,6 @@ function AvatarPickerModal({ currentAvatar, currentGender, onClose, onSave }) {
         })}
       </div>
     </Modal>
-  );
-}
-
-// Demo role switcher — picks the active sidebar/view shape until real auth lands.
-// Stored in localStorage; the App listens for changes and re-renders.
-function RoleSwitcherCard() {
-  const [role, setLocalRole] = useState(getRole());
-  const choose = (r) => {
-    setLocalRole(r);
-    setRole(r);
-  };
-  return (
-    <div className="mt-6">
-      <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-2 inline-flex items-center gap-2.5">
-        <span className="w-6 h-px bg-accent" /> Demo role switcher
-      </p>
-      <h3 className="font-serif text-2xl font-medium text-ink mb-1">
-        Switch <em className="italic font-light text-accent">role</em>
-      </h3>
-      <p className="text-sm text-muted mb-4">
-        No real auth yet — pick which sidebar and pages you want to see. Replaced by Firebase + Gmail/Outlook later.
-      </p>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-        {ROLES.map((r) => (
-          <button
-            key={r}
-            type="button"
-            onClick={() => choose(r)}
-            className={`text-left rounded-xl border p-4 transition ${
-              role === r
-                ? "bg-paper-cool border-ink"
-                : "bg-paper border-line hover:border-ink"
-            }`}
-          >
-            <div className="flex items-center justify-between mb-1.5">
-              <p className="font-serif text-lg text-ink">{ROLE_LABELS[r]}</p>
-              {role === r && (
-                <span className="font-mono text-[9px] uppercase tracking-wider px-2 py-0.5 bg-ink text-paper-cool rounded">
-                  Active
-                </span>
-              )}
-            </div>
-            <p className="text-xs text-muted leading-relaxed">{ROLE_DESCRIPTIONS[r]}</p>
-          </button>
-        ))}
-      </div>
-    </div>
   );
 }
 
