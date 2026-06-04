@@ -31,7 +31,12 @@ import { api } from "../_shared";
 // step, but teachers couldn't tell why they were picking grades up-
 // front when each school could differ. Now each school carries its
 // own grade_sections directly — the schools step IS the grades step.
-const STEPS = ["identity", "subjects", "schools", "students"];
+// School selection and grade/section scoping are two separate steps:
+// "schools" picks WHERE you teach, then "scope" picks the grades +
+// sections per chosen school. Keeping them apart matches how teachers
+// think about it (place first, then classes) and stops the school card
+// from ballooning on the picking step.
+const STEPS = ["identity", "subjects", "schools", "scope", "students"];
 
 const EMPTY = {
   firstName: "",
@@ -180,7 +185,8 @@ export default function ProfileForm({ onDone, onBack }) {
       if (data.languages.length === 0) out.push("languages");
       return out;
     }
-    if (step === "schools") return valid ? [] : ["schools"];
+    if (step === "schools") return schools.length > 0 ? [] : ["schools"];
+    if (step === "scope") return valid ? [] : ["scope"];
     return [];
   };
   const isMissing = (key) => attempted && missingFields().includes(key);
@@ -205,16 +211,20 @@ export default function ProfileForm({ onDone, onBack }) {
     if (s === "schools") {
       return schools.length > 0 ? t("onb.rail.schoolsSummary", { n: schools.length }) : null;
     }
+    if (s === "scope") {
+      const graded = schools.filter((x) => Object.keys(x.gradeSections || {}).length > 0).length;
+      return graded > 0 ? t("onb.rail.scopeSummary", { n: graded }) : null;
+    }
     if (s === "students") {
       return students.length > 0 ? t("onb.rail.studentsSummary", { n: students.length }) : null;
     }
     return null;
   };
 
-  // Lightweight per-step validation. Schools step needs every school
-  // to have at least one grade picked AND every picked grade to have
-  // at least one section — same per-grade rule as the old scope step,
-  // just applied per-school now.
+  // Lightweight per-step validation.
+  //   schools — at least one school chosen (grades come next).
+  //   scope   — every chosen school has ≥1 grade, and every picked grade
+  //             has ≥1 section.
   const valid =
     step === "identity"
       ? data.firstName.trim().length > 0 &&
@@ -225,13 +235,15 @@ export default function ProfileForm({ onDone, onBack }) {
       : step === "subjects"
         ? data.majors.length > 0 && data.languages.length > 0
         : step === "schools"
-          ? schools.length > 0 &&
-            schools.every((s) => {
-              const gs = s.gradeSections || {};
-              const grades = Object.keys(gs);
-              return grades.length > 0 && grades.every((g) => (gs[g] || []).length > 0);
-            })
-          : true; // students step — always valid (skippable)
+          ? schools.length > 0
+          : step === "scope"
+            ? schools.length > 0 &&
+              schools.every((s) => {
+                const gs = s.gradeSections || {};
+                const grades = Object.keys(gs);
+                return grades.length > 0 && grades.every((g) => (gs[g] || []).length > 0);
+              })
+            : true; // students step — always valid (skippable)
 
   const handleTemplateDownload = () => {
     if (downloadingTemplate) return;
@@ -465,6 +477,7 @@ export default function ProfileForm({ onDone, onBack }) {
         {step === "schools" && (
           <div ref={setFieldRef("schools")} className="scroll-mt-24">
             <SchoolsStep
+              phase="select"
               t={t}
               value={schools}
               onChange={setSchools}
@@ -480,6 +493,17 @@ export default function ProfileForm({ onDone, onBack }) {
                 />
               </Field>
             </div>
+          </div>
+        )}
+
+        {step === "scope" && (
+          <div ref={setFieldRef("scope")} className="scroll-mt-24">
+            <SchoolsStep
+              phase="scope"
+              t={t}
+              value={schools}
+              onChange={setSchools}
+            />
           </div>
         )}
 
@@ -636,11 +660,13 @@ export default function ProfileForm({ onDone, onBack }) {
               <button
                 type="button"
                 onClick={() => {
-                  // Bypass — same shape as the students skip. Wipe any
-                  // half-picked schools and advance to the next step.
+                  // Bypass — wipe any half-picked schools and jump PAST
+                  // the scope step (nothing to scope with no schools)
+                  // straight to the students step.
                   setSchools([]);
                   setPendingSchools([]);
-                  setStepIdx((i) => i + 1);
+                  const studentsIdx = STEPS.indexOf("students");
+                  setStepIdx(studentsIdx > -1 ? studentsIdx : (i) => i + 1);
                 }}
                 className="font-serif italic text-sm text-ink-soft hover:text-ink underline underline-offset-2 transition-colors"
               >
@@ -945,7 +971,7 @@ function ChipPicker({
 // negative pseudo-id (–Date.now()) — the Landing plan-pick handler
 // POSTs them to /api/schools first to create real catalog rows, then
 // attaches them via /api/schools/mine.
-function SchoolsStep({ t, value, onChange }) {
+function SchoolsStep({ phase = "select", t, value, onChange }) {
   const [catalog, setCatalog] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
@@ -1121,10 +1147,10 @@ function SchoolsStep({ t, value, onChange }) {
                     </button>
                   </div>
 
-                  {/* Per-school grade + section picker. Empty card
-                      surfaces a single clay-tinted prompt; once grades
-                      are picked each gets its own GradeSectionRow with
-                      remove-grade affordance. */}
+                  {/* Per-school grade + section picker — only on the SCOPE
+                      step. The schools step keeps each card compact (just
+                      the name) so the teacher picks WHERE before WHAT. */}
+                  {phase === "scope" && (
                   <div className="px-3.5 pb-3.5 pt-1 border-t border-line/60 bg-paper/40 space-y-3">
                     <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted inline-flex items-center gap-1.5 pt-1">
                       <Layers size={11} strokeWidth={2.25} className="text-clay" />
@@ -1183,6 +1209,7 @@ function SchoolsStep({ t, value, onChange }) {
                       </div>
                     )}
                   </div>
+                  )}
                 </li>
               );
             })}
@@ -1190,6 +1217,14 @@ function SchoolsStep({ t, value, onChange }) {
         </div>
       )}
 
+      {phase === "scope" && value.length === 0 && (
+        <p className="text-sm text-muted italic">
+          {t("onb.scope.empty")}
+        </p>
+      )}
+
+      {phase === "select" && (
+      <>
       {/* Search + emirate filter */}
       <div className="space-y-2.5">
         <div className="relative">
@@ -1320,6 +1355,8 @@ function SchoolsStep({ t, value, onChange }) {
           </div>
         </div>
       </div>
+      </>
+      )}
     </div>
   );
 }
