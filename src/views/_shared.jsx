@@ -144,6 +144,11 @@ const DP_PARSE = (s) => {
 };
 const DP_WD = ["M", "T", "W", "T", "F", "S", "S"];
 
+// Months grid — short labels for the month picker view. Localised at
+// render time via toLocaleDateString so AR shows Arabic month names.
+const DP_MONTH_LABEL = (y, m) =>
+  new Date(y, m, 1).toLocaleDateString(undefined, { month: "short" });
+
 export function DatePicker({
   value, onChange, placeholder, className = inputClasses,
   min, max, disabled = false,
@@ -154,9 +159,16 @@ export function DatePicker({
   const ref = useRef(null);
   const selected = DP_PARSE(value);
   const [view, setView] = useState(() => selected || new Date());
+  // "days" → standard calendar grid (default).
+  // "months" → 4×3 month grid for the current year — pick a month to
+  //   land back on the days view for that month.
+  // "years" → 4×3 year grid centered on the current decade — pick a
+  //   year to drop into the months view for that year. Lets the
+  //   teacher jump from 2026 → 2020 in two taps instead of 72.
+  const [mode, setMode] = useState("days");
 
   useEffect(() => {
-    if (open) setView((selected || new Date()));
+    if (open) { setView((selected || new Date())); setMode("days"); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
@@ -206,64 +218,154 @@ export function DatePicker({
 
       {open && !disabled && (
         <div className="absolute z-50 mt-1.5 w-[280px] rounded-xl border border-line bg-paper-cool shadow-[0_24px_60px_-20px_rgba(15,20,16,0.4)] p-3.5">
+          {/* Header — step depends on the mode. The center label is a
+              tappable target that escalates the picker grain: days →
+              months → years. Two presses get you anywhere in a decade. */}
           <div className="flex items-center justify-between mb-3">
             <button
               type="button"
-              onClick={() => setView(new Date(y, m - 1, 1))}
+              onClick={() => {
+                if (mode === "days")   setView(new Date(y, m - 1, 1));
+                if (mode === "months") setView(new Date(y - 1, m, 1));
+                if (mode === "years")  setView(new Date(y - 12, m, 1));
+              }}
               className="h-7 w-7 rounded-md text-ink-soft hover:bg-paper-warm hover:text-ink flex items-center justify-center transition"
-              aria-label="Previous month"
+              aria-label={
+                mode === "days"   ? "Previous month"
+                : mode === "months" ? "Previous year"
+                : "Previous 12 years"
+              }
             >
               <ChevronLeft size={15} />
             </button>
-            <span className="font-serif text-[15px] font-medium text-ink">
-              {view.toLocaleDateString(undefined, { month: "long", year: "numeric" })}
-            </span>
             <button
               type="button"
-              onClick={() => setView(new Date(y, m + 1, 1))}
+              onClick={() => setMode(mode === "days" ? "months" : mode === "months" ? "years" : "days")}
+              className="font-serif text-[15px] font-medium text-ink hover:text-accent transition px-3 py-0.5 rounded-md"
+              aria-label="Switch picker grain"
+            >
+              {mode === "days" &&
+                view.toLocaleDateString(undefined, { month: "long", year: "numeric" })}
+              {mode === "months" && y}
+              {mode === "years" && (() => {
+                const base = Math.floor(y / 12) * 12;
+                return `${base} – ${base + 11}`;
+              })()}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                if (mode === "days")   setView(new Date(y, m + 1, 1));
+                if (mode === "months") setView(new Date(y + 1, m, 1));
+                if (mode === "years")  setView(new Date(y + 12, m, 1));
+              }}
               className="h-7 w-7 rounded-md text-ink-soft hover:bg-paper-warm hover:text-ink flex items-center justify-center transition"
-              aria-label="Next month"
+              aria-label={
+                mode === "days"   ? "Next month"
+                : mode === "months" ? "Next year"
+                : "Next 12 years"
+              }
             >
               <ChevronRight size={15} />
             </button>
           </div>
 
-          <div className="grid grid-cols-7 mb-1">
-            {DP_WD.map((d, i) => (
-              <span key={i} className="text-center font-mono text-[9px] uppercase tracking-[0.1em] text-muted py-1">
-                {d}
-              </span>
-            ))}
-          </div>
+          {mode === "days" && (
+            <>
+              <div className="grid grid-cols-7 mb-1">
+                {DP_WD.map((d, i) => (
+                  <span key={i} className="text-center font-mono text-[9px] uppercase tracking-[0.1em] text-muted py-1">
+                    {d}
+                  </span>
+                ))}
+              </div>
 
-          <div className="grid grid-cols-7 gap-0.5">
-            {cells.map((d, i) => {
-              const key = DP_ISO(d);
-              const inMonth = d.getMonth() === m;
-              const isToday = key === todayKey;
-              const isSel = selected && key === DP_ISO(selected);
-              const blocked = outOfRange(d);
-              return (
-                <button
-                  key={i}
-                  type="button"
-                  disabled={blocked}
-                  onClick={() => pick(d)}
-                  className={`h-8 rounded-md text-[12.5px] flex items-center justify-center transition ${
-                    isSel
-                      ? "bg-accent text-paper-cool font-semibold"
-                      : isToday
-                        ? "bg-accent/[0.12] text-accent font-semibold"
-                        : inMonth
-                          ? "text-ink-soft hover:bg-paper-warm"
-                          : "text-muted/45 hover:bg-paper-warm"
-                  } ${blocked ? "opacity-30 cursor-not-allowed hover:bg-transparent" : ""}`}
-                >
-                  {d.getDate()}
-                </button>
-              );
-            })}
-          </div>
+              <div className="grid grid-cols-7 gap-0.5">
+                {cells.map((d, i) => {
+                  const key = DP_ISO(d);
+                  const inMonth = d.getMonth() === m;
+                  const isToday = key === todayKey;
+                  const isSel = selected && key === DP_ISO(selected);
+                  const blocked = outOfRange(d);
+                  return (
+                    <button
+                      key={i}
+                      type="button"
+                      disabled={blocked}
+                      onClick={() => pick(d)}
+                      className={`h-8 rounded-md text-[12.5px] flex items-center justify-center transition ${
+                        isSel
+                          ? "bg-accent text-paper-cool font-semibold"
+                          : isToday
+                            ? "bg-accent/[0.12] text-accent font-semibold"
+                            : inMonth
+                              ? "text-ink-soft hover:bg-paper-warm"
+                              : "text-muted/45 hover:bg-paper-warm"
+                      } ${blocked ? "opacity-30 cursor-not-allowed hover:bg-transparent" : ""}`}
+                    >
+                      {d.getDate()}
+                    </button>
+                  );
+                })}
+              </div>
+            </>
+          )}
+
+          {mode === "months" && (
+            <div className="grid grid-cols-3 gap-1">
+              {Array.from({ length: 12 }, (_, mi) => {
+                const isCur = mi === m;
+                const isSelMonth = selected && selected.getFullYear() === y && selected.getMonth() === mi;
+                return (
+                  <button
+                    key={mi}
+                    type="button"
+                    onClick={() => { setView(new Date(y, mi, 1)); setMode("days"); }}
+                    className={`h-10 rounded-md text-[12.5px] flex items-center justify-center transition ${
+                      isSelMonth
+                        ? "bg-accent text-paper-cool font-semibold"
+                        : isCur
+                          ? "bg-accent/[0.12] text-accent font-semibold"
+                          : "text-ink-soft hover:bg-paper-warm"
+                    }`}
+                  >
+                    {DP_MONTH_LABEL(y, mi)}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {mode === "years" && (
+            <div className="grid grid-cols-3 gap-1">
+              {(() => {
+                const base = Math.floor(y / 12) * 12;
+                const todayY = new Date().getFullYear();
+                return Array.from({ length: 12 }, (_, yi) => {
+                  const yy = base + yi;
+                  const isCur = yy === y;
+                  const isToday = yy === todayY;
+                  const isSelYear = selected && selected.getFullYear() === yy;
+                  return (
+                    <button
+                      key={yy}
+                      type="button"
+                      onClick={() => { setView(new Date(yy, m, 1)); setMode("months"); }}
+                      className={`h-10 rounded-md text-[12.5px] flex items-center justify-center transition ${
+                        isSelYear
+                          ? "bg-accent text-paper-cool font-semibold"
+                          : isCur || isToday
+                            ? "bg-accent/[0.12] text-accent font-semibold"
+                            : "text-ink-soft hover:bg-paper-warm"
+                      }`}
+                    >
+                      {yy}
+                    </button>
+                  );
+                });
+              })()}
+            </div>
+          )}
 
           <div className="flex items-center justify-between mt-3 pt-3 border-t border-line/60">
             <button
@@ -275,7 +377,7 @@ export function DatePicker({
             </button>
             <button
               type="button"
-              onClick={() => { const d = new Date(); setView(d); pick(d); }}
+              onClick={() => { const d = new Date(); setView(d); setMode("days"); pick(d); }}
               className="text-[12px] text-accent hover:text-ink font-serif italic transition"
             >
               {t("dp.today")}
