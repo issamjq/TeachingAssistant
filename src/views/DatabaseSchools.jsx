@@ -356,24 +356,10 @@ function EditGradesModal({ school, onClose, onSave, busy }) {
         Pick the grades you teach at {school.name}, then which sections inside each grade.
       </p>
 
-      {/* Same shape as the onboarding scope step. Picked grades sit at
-          the top as cards with their section pills inline; unpicked
-          grades hide behind a dashed "Add another grade" row so the
-          teacher isn't staring at a wall of 14 grade chips. */}
-      {selectedGrades.length > 0 && (
-        <div className="space-y-3 mb-4">
-          {selectedGrades.map((g) => (
-            <EditSectionsRow
-              key={g}
-              grade={g}
-              sections={gs[g] || []}
-              onChange={(next) => setSectionsForGrade(g, next)}
-              onRemove={() => toggleGrade(g)}
-            />
-          ))}
-        </div>
-      )}
-
+      {/* Grade picker FIRST — tapping a grade reveals its section row
+          directly BELOW (natural reading order), not above the picker.
+          Unpicked grades hide behind this dashed "Add another grade" row
+          so the teacher isn't staring at a wall of 14 grade chips. */}
       {(() => {
         const remaining = GRADE_LEVELS.filter((g) => !(g in gs));
         if (remaining.length === 0) return null;
@@ -422,6 +408,20 @@ function EditGradesModal({ school, onClose, onSave, busy }) {
           </div>
         );
       })()}
+
+      {selectedGrades.length > 0 && (
+        <div className="space-y-3 mt-4">
+          {selectedGrades.map((g) => (
+            <EditSectionsRow
+              key={g}
+              grade={g}
+              sections={gs[g] || []}
+              onChange={(next) => setSectionsForGrade(g, next)}
+              onRemove={() => toggleGrade(g)}
+            />
+          ))}
+        </div>
+      )}
     </Modal>
   );
 }

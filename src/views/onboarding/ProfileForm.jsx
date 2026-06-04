@@ -1157,23 +1157,9 @@ function SchoolsStep({ phase = "select", t, value, onChange }) {
                       {t("onb.school.scope.eyebrow")}
                     </p>
 
-                    {schoolGrades.length > 0 && (
-                      <div className="space-y-2.5">
-                        {schoolGrades.map((g) => (
-                          <GradeSectionRow
-                            key={g}
-                            grade={g}
-                            sections={gs[g] || []}
-                            onChange={(next) => setSchoolSectionsForGrade(s.school_id, g, next)}
-                            onRemove={() => toggleSchoolGrade(s.school_id, g)}
-                          />
-                        ))}
-                      </div>
-                    )}
-
-                    {/* Tap-to-add row. Always visible until every grade
-                        is picked — keeps the multi-pick affordance in
-                        the teacher's face without an expand step. */}
+                    {/* Grade picker FIRST — tapping a grade here reveals
+                        its section row directly BELOW, the natural reading
+                        order (not above the picker). */}
                     {remaining.length > 0 && (
                       <div className="rounded-xl border border-dashed border-line bg-paper-cool/40 p-2.5">
                         <p className="font-mono text-[9.5px] uppercase tracking-[0.18em] text-muted mb-2 inline-flex items-center gap-1.5">
@@ -1206,6 +1192,20 @@ function SchoolsStep({ phase = "select", t, value, onChange }) {
                             </button>
                           ))}
                         </div>
+                      </div>
+                    )}
+
+                    {schoolGrades.length > 0 && (
+                      <div className="space-y-2.5">
+                        {schoolGrades.map((g) => (
+                          <GradeSectionRow
+                            key={g}
+                            grade={g}
+                            sections={gs[g] || []}
+                            onChange={(next) => setSchoolSectionsForGrade(s.school_id, g, next)}
+                            onRemove={() => toggleSchoolGrade(s.school_id, g)}
+                          />
+                        ))}
                       </div>
                     )}
                   </div>
