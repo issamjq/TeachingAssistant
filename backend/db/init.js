@@ -377,6 +377,27 @@ ALTER TABLE audit_log ADD  CONSTRAINT audit_action_nonempty
   CHECK (action <> '');
 `;
 
+// Email-verification codes for the sign-up 6-digit OTP flow. Codes
+// are bcrypt-hashed at rest (never store plaintext OTPs), expire in
+// 5 minutes, and consume after one successful check. Cleanup of
+// expired / consumed rows runs lazily inside the /email-verify/check
+// handler — small table, no separate cron needed.
+const SCHEMA_EMAIL_VERIFY = `
+CREATE TABLE IF NOT EXISTS email_verifications (
+  id          BIGSERIAL PRIMARY KEY,
+  email       TEXT NOT NULL,
+  code_hash   TEXT NOT NULL,
+  expires_at  TIMESTAMPTZ NOT NULL,
+  attempts    INTEGER NOT NULL DEFAULT 0,
+  consumed_at TIMESTAMPTZ,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS email_verifications_email_idx
+  ON email_verifications (email, created_at DESC);
+CREATE INDEX IF NOT EXISTS email_verifications_expires_idx
+  ON email_verifications (expires_at);
+`;
+
 // Auth-related indexes that improve middleware lookups under load.
 // firebase_uid lookups are the hot path (every authed request goes
 // through one); email lookups feed the ON CONFLICT upsert in
@@ -873,6 +894,9 @@ export async function runInit() {
 
   console.log("Adding auth-path indexes...");
   await pool.query(SCHEMA_AUTH_INDEXES);
+
+  console.log("Creating email_verifications table...");
+  await pool.query(SCHEMA_EMAIL_VERIFY);
 
   console.log("Creating schools + account_schools + students.school_id...");
   await pool.query(SCHEMA_SCHOOLS);

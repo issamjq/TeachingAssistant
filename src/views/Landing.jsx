@@ -5454,6 +5454,8 @@ function AuthPage({ onSignUp, onPage, mode = "signup", onEnterStudio }) {
   const [pendingVerification, setPendingVerification] = useState(null); // { user, payload }
   const [verifyResendCooldown, setVerifyResendCooldown] = useState(0);
   const [verifyChecking, setVerifyChecking] = useState(false);
+  const [verifyCode, setVerifyCode] = useState("");
+  const [verifyError, setVerifyError] = useState(null);
 
   // Email validation. Stricter than a one-line regex — catches the
   // common mistakes that pass a permissive pattern:
@@ -5617,10 +5619,14 @@ function AuthPage({ onSignUp, onPage, mode = "signup", onEnterStudio }) {
       if (isSignin) {
         onSignUp("email", payload);
       } else {
-        await lib.sendVerificationEmail(user);
+        // Sign-up — kick off the 6-digit code flow. The endpoint
+        // reads the email off the Firebase token, so no body needed.
+        await apiFetch("/api/auth/email-verify/send", { method: "POST" });
         setPendingVerification({ user, payload });
+        setVerifyCode("");
+        setVerifyError(null);
         setEmailMode("verify-pending");
-        setVerifyResendCooldown(45);
+        setVerifyResendCooldown(30);
       }
     } catch (e) {
       console.error(`[auth/email-${isSignin ? "signin" : "signup"}]`, e);
@@ -5668,38 +5674,11 @@ function AuthPage({ onSignUp, onPage, mode = "signup", onEnterStudio }) {
 
   // ── Email verification (signup gate) ───────────────────────────────
   //
-  // After signUpWithEmail we sit in emailMode === "verify-pending" until
-  // the user clicks the link in their inbox. Two paths can flip us out:
-  //
-  //   1. Manual: user clicks "I've verified — continue", which calls
-  //      reload() once and advances if emailVerified is true.
-  //   2. Automatic: a 3s poll calls reload() in the background so the
-  //      user doesn't have to come back and tap anything — the funnel
-  //      advances as soon as Firebase sees the verification.
-  //
-  // Polling stops when the component unmounts OR we leave verify-pending
-  // mode OR the verification succeeds.
-  useEffect(() => {
-    if (emailMode !== "verify-pending" || !pendingVerification) return;
-    let cancelled = false;
-    const tick = async () => {
-      try {
-        const lib = await import("../lib/firebaseAuth");
-        const fresh = await lib.reloadCurrentUser();
-        if (cancelled) return;
-        if (fresh && fresh.emailVerified) {
-          // Hand the original signup payload to the parent funnel —
-          // unchanged from the synchronous handleEmailPassword path.
-          onSignUp("email", pendingVerification.payload);
-          setPendingVerification(null);
-        }
-      } catch {
-        // Network blip — swallow and try again next tick.
-      }
-    };
-    const id = setInterval(tick, 3000);
-    return () => { cancelled = true; clearInterval(id); };
-  }, [emailMode, pendingVerification, onSignUp]);
+  // 6-digit OTP delivered to the user's inbox by the backend (Resend).
+  // The teacher types the code, we POST it to /api/auth/email-verify/check,
+  // and on success we hand the original signup payload to the parent
+  // funnel. Codes live 5 minutes and accept 5 attempts — both enforced
+  // server-side.
 
   // Resend-button cooldown countdown — once a second until it hits zero.
   useEffect(() => {
@@ -5708,21 +5687,27 @@ function AuthPage({ onSignUp, onPage, mode = "signup", onEnterStudio }) {
     return () => clearTimeout(id);
   }, [verifyResendCooldown]);
 
-  const handleVerifyCheck = async () => {
+  // Submit handler — manual or auto-fired when the user finishes typing
+  // the 6th digit. Keeps the input editable while checking so a wrong
+  // code can be corrected without re-typing the right digits.
+  const handleVerifyCheck = async (codeOverride) => {
     if (!pendingVerification) return;
+    const code = String(codeOverride ?? verifyCode).trim();
+    if (!/^\d{6}$/.test(code)) {
+      setVerifyError("Enter the 6-digit code from your email.");
+      return;
+    }
     setVerifyChecking(true);
-    setAuthError(null);
+    setVerifyError(null);
     try {
-      const lib = await import("../lib/firebaseAuth");
-      const fresh = await lib.reloadCurrentUser();
-      if (fresh && fresh.emailVerified) {
-        onSignUp("email", pendingVerification.payload);
-        setPendingVerification(null);
-      } else {
-        setAuthError("We still don't see a verified email — click the link in your inbox, then tap this again.");
-      }
+      await apiFetch("/api/auth/email-verify/check", {
+        method: "POST",
+        body: { code },
+      });
+      onSignUp("email", pendingVerification.payload);
+      setPendingVerification(null);
     } catch (e) {
-      setAuthError(e?.message || String(e));
+      setVerifyError(e?.message || String(e));
     } finally {
       setVerifyChecking(false);
     }
@@ -5730,14 +5715,14 @@ function AuthPage({ onSignUp, onPage, mode = "signup", onEnterStudio }) {
 
   const handleResendVerification = async () => {
     if (!pendingVerification || verifyResendCooldown > 0) return;
-    setAuthError(null);
+    setVerifyError(null);
     try {
-      const lib = await import("../lib/firebaseAuth");
-      await lib.sendVerificationEmail(pendingVerification.user);
-      setVerifyResendCooldown(45);
+      await apiFetch("/api/auth/email-verify/send", { method: "POST" });
+      setVerifyResendCooldown(30);
+      setVerifyCode("");
     } catch (e) {
       console.error("[auth/verify/resend]", e);
-      setAuthError(e?.message || String(e));
+      setVerifyError(e?.message || String(e));
     }
   };
 
@@ -6079,36 +6064,84 @@ function AuthPage({ onSignUp, onPage, mode = "signup", onEnterStudio }) {
               <EmailMark />
             </div>
             <div className="space-y-1.5">
-              <p className="text-sm text-ink font-medium">Verify your email to continue.</p>
+              <p className="text-sm text-ink font-medium">Enter your 6-digit code.</p>
               <p className="text-xs text-muted leading-relaxed">
-                We sent a verification link to{" "}
-                <span className="text-ink">{emailValue}</span>.
-                Click it, then this page will continue automatically.
+                We emailed a 6-digit verification code to{" "}
+                <span className="text-ink">{emailValue}</span>. It expires
+                in 5 minutes.
               </p>
+            </div>
+            {/* Single numeric input styled to look like 6 grouped boxes
+                via wide letter-spacing. Cleaner than 6 separate inputs
+                that need focus-juggling and paste-distribution code. */}
+            <div>
+              <input
+                type="text"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                pattern="\d{6}"
+                maxLength={6}
+                autoFocus
+                value={verifyCode}
+                onChange={(e) => {
+                  const v = e.target.value.replace(/\D/g, "").slice(0, 6);
+                  setVerifyCode(v);
+                  setVerifyError(null);
+                  // Auto-submit the moment the 6th digit lands so the
+                  // user doesn't have to reach for a button.
+                  if (v.length === 6 && !verifyChecking) {
+                    handleVerifyCheck(v);
+                  }
+                }}
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleVerifyCheck(); } }}
+                placeholder="• • • • • •"
+                className="w-full text-center text-[26px] font-mono py-4 rounded-xl text-ink"
+                style={{
+                  letterSpacing: "0.45em",
+                  background: "var(--paper)",
+                  border: `0.5px solid ${verifyError ? "var(--clay, #b3442b)" : "var(--line-strong)"}`,
+                  paddingInlineStart: "0.45em", // visual centering with letter-spacing
+                }}
+                disabled={verifyChecking}
+                aria-invalid={verifyError ? "true" : "false"}
+                aria-describedby={verifyError ? "verify-error" : undefined}
+                dir="ltr"
+              />
+              {verifyError && (
+                <p
+                  id="verify-error"
+                  role="alert"
+                  className="text-xs mt-1.5 ps-1"
+                  style={{ color: "var(--clay, #b3442b)" }}
+                >
+                  {verifyError}
+                </p>
+              )}
             </div>
             <div className="flex flex-col gap-2 pt-1">
               <ProviderButton
                 icon={<EmailMark />}
-                label={verifyChecking ? "Checking…" : "I've verified — continue"}
-                onClick={handleVerifyCheck}
-                disabled={verifyChecking}
+                label={verifyChecking ? "Checking…" : "Verify & continue"}
+                onClick={() => handleVerifyCheck()}
+                disabled={verifyChecking || verifyCode.length !== 6}
               />
               <button
                 type="button"
                 onClick={handleResendVerification}
                 className="text-xs text-muted hover:text-ink transition disabled:opacity-50 disabled:cursor-not-allowed"
-                disabled={verifyResendCooldown > 0}
+                disabled={verifyResendCooldown > 0 || verifyChecking}
               >
                 {verifyResendCooldown > 0
-                  ? `Resend link in ${verifyResendCooldown}s`
-                  : "Didn't get it? Resend link"}
+                  ? `Resend code in ${verifyResendCooldown}s`
+                  : "Didn't get it? Resend code"}
               </button>
               <button
                 type="button"
                 onClick={() => {
                   setPendingVerification(null);
                   setEmailMode("entering");
-                  setAuthError(null);
+                  setVerifyError(null);
+                  setVerifyCode("");
                 }}
                 className="text-xs text-muted hover:text-ink transition"
               >
@@ -6116,7 +6149,7 @@ function AuthPage({ onSignUp, onPage, mode = "signup", onEnterStudio }) {
               </button>
             </div>
             <p className="text-[10.5px] text-muted/80 leading-relaxed">
-              Check your spam folder if you don't see it within a minute.
+              Check your spam folder if you don't see the email within a minute.
             </p>
           </div>
         )}

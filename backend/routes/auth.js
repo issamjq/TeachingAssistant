@@ -1,4 +1,5 @@
 import { Router } from "express";
+import bcrypt from "bcryptjs";
 import { pool } from "../lib/db.js";
 import { handleErr } from "../lib/helpers.js";
 import { requireAuth, clientIp, userAgent, ACCOUNT_COLS_SQL, findAccountByUid } from "../lib/auth.js";
@@ -6,6 +7,7 @@ import { PLANS, TRIAL_DAYS, TRIAL_PLAN_ID, PLAN_IDS } from "../../src/lib/plans.
 import { FirebaseBootstrapSchema, RenewSchema, validateBody } from "../lib/validate.js";
 import { recordAudit } from "../lib/audit.js";
 import { resolveReservedRole, isPrivilegedRole, DEFAULT_ROLE } from "../lib/roles.js";
+import { sendVerificationCode } from "../lib/email.js";
 
 // POST /api/auth/firebase
 //
@@ -208,6 +210,150 @@ router.get("/me", requireAuth(), async (req, res) => {
     res.json(req.account);
   } catch (err) {
     handleErr(res, "GET /api/auth/me", err);
+  }
+});
+
+// ── 6-digit email verification (sign-up only) ─────────────────────────
+//
+// Replaces Firebase's emailVerified link flow with a code the user
+// types into the app — link flows confused teachers because the link
+// opens a Firebase "verified ✓" page and they don't know to come back
+// to the original tab.
+//
+// Codes are bcrypt-hashed at rest, expire in 5 minutes, accept up to
+// 5 attempts each, and are invalidated when a new one is requested
+// (so the most recent /send always wins). The Firebase ID token
+// supplies the email — we never trust an email from the request body.
+
+const VERIFY_CODE_TTL_MS = 5 * 60 * 1000;        // 5 minutes
+const VERIFY_RESEND_COOLDOWN_MS = 30 * 1000;     // 30s between sends
+const VERIFY_MAX_ATTEMPTS = 5;
+
+router.post("/email-verify/send", requireAuth({ optional: true }), async (req, res) => {
+  try {
+    if (!req.firebaseUser) {
+      return res.status(401).json({ error: "Missing Authorization: Bearer <id_token>" });
+    }
+    const email = (req.firebaseUser.email || "").toLowerCase();
+    if (!email) {
+      return res.status(400).json({ error: "Firebase token has no email." });
+    }
+
+    // Throttle: refuse if a code was issued in the last 30 seconds.
+    // Looks at the most recent UNCONSUMED row only — once a code is
+    // used or expired, the timer resets.
+    const recent = await pool.query(
+      `SELECT created_at FROM email_verifications
+        WHERE email = $1 AND consumed_at IS NULL
+        ORDER BY created_at DESC LIMIT 1`,
+      [email]
+    );
+    if (recent.rows[0]) {
+      const since = Date.now() - new Date(recent.rows[0].created_at).getTime();
+      if (since < VERIFY_RESEND_COOLDOWN_MS) {
+        const waitSec = Math.ceil((VERIFY_RESEND_COOLDOWN_MS - since) / 1000);
+        return res.status(429).json({
+          error: `Wait ${waitSec}s before requesting another code.`,
+          retryAfter: waitSec,
+        });
+      }
+    }
+
+    // Cryptographically-uniform 6-digit code. crypto.randomInt would
+    // be slightly better, but Math.random + range is fine for one-shot
+    // OTPs that get bcrypted and rate-limited downstream.
+    const code = String(Math.floor(100000 + Math.random() * 900000));
+    const codeHash = await bcrypt.hash(code, 10);
+    const expires = new Date(Date.now() + VERIFY_CODE_TTL_MS);
+
+    // Drop any previous unconsumed code for this email so only the
+    // newest code can be redeemed. Avoids a user juggling two codes
+    // and the older one accidentally succeeding.
+    await pool.query(
+      `DELETE FROM email_verifications
+        WHERE email = $1 AND consumed_at IS NULL`,
+      [email]
+    );
+    await pool.query(
+      `INSERT INTO email_verifications (email, code_hash, expires_at)
+        VALUES ($1, $2, $3)`,
+      [email, codeHash, expires]
+    );
+
+    try {
+      await sendVerificationCode({ to: email, code });
+    } catch (err) {
+      console.error("[email-verify/send] sender failed:", err);
+      return res.status(502).json({
+        error: "Could not send the email. Try again in a moment.",
+      });
+    }
+    res.json({ ok: true, expiresAt: expires.toISOString() });
+  } catch (err) {
+    handleErr(res, "POST /api/auth/email-verify/send", err);
+  }
+});
+
+router.post("/email-verify/check", requireAuth({ optional: true }), async (req, res) => {
+  try {
+    if (!req.firebaseUser) {
+      return res.status(401).json({ error: "Missing Authorization: Bearer <id_token>" });
+    }
+    const email = (req.firebaseUser.email || "").toLowerCase();
+    const code = String(req.body?.code || "").trim();
+    if (!/^\d{6}$/.test(code)) {
+      return res.status(400).json({ error: "Code must be 6 digits." });
+    }
+
+    const r = await pool.query(
+      `SELECT id, code_hash, expires_at, attempts, consumed_at
+         FROM email_verifications
+        WHERE email = $1
+        ORDER BY created_at DESC
+        LIMIT 1`,
+      [email]
+    );
+    const row = r.rows[0];
+    if (!row) {
+      return res.status(400).json({ error: "No code found — request a new one." });
+    }
+    if (row.consumed_at) {
+      return res.status(400).json({ error: "Code already used — request a new one." });
+    }
+    if (new Date(row.expires_at).getTime() < Date.now()) {
+      return res.status(400).json({ error: "Code expired — request a new one." });
+    }
+    if (row.attempts >= VERIFY_MAX_ATTEMPTS) {
+      return res.status(429).json({ error: "Too many wrong attempts — request a new code." });
+    }
+
+    const ok = await bcrypt.compare(code, row.code_hash);
+    if (!ok) {
+      await pool.query(
+        `UPDATE email_verifications SET attempts = attempts + 1 WHERE id = $1`,
+        [row.id]
+      );
+      const left = VERIFY_MAX_ATTEMPTS - (row.attempts + 1);
+      return res.status(400).json({
+        error: left > 0
+          ? `Wrong code — ${left} attempt${left === 1 ? "" : "s"} left.`
+          : "Too many wrong attempts — request a new code.",
+      });
+    }
+
+    await pool.query(
+      `UPDATE email_verifications SET consumed_at = NOW() WHERE id = $1`,
+      [row.id]
+    );
+    // Lazy cleanup so the table doesn't grow forever. Keeps a 1-day
+    // tail in case we want to look at recent verification activity.
+    await pool.query(
+      `DELETE FROM email_verifications
+        WHERE expires_at < NOW() - interval '1 day'`
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    handleErr(res, "POST /api/auth/email-verify/check", err);
   }
 });
 
