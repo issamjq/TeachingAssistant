@@ -651,11 +651,6 @@ const EN = {
   "onb.all.sections": "All sections",
   "onb.fld.addSection.ph": "e.g. Honors, Maths Track, A & B",
   "onb.fld.addSection.btn": "Add",
-  // scope — picks the grades + per-grade sections the teacher covers
-  "onb.scope.title": "Pick every grade you teach",
-  "onb.scope.lead": "Tap as many grades as you cover — for each one, you'll pick its sections right inside the card. You can change all of this later in Settings.",
-  "onb.scope.addFirst": "Tap a grade to start — pick more than one",
-  "onb.scope.addMore": "Add another grade",
   // schools — picks the UAE school(s) the teacher works at AND, inside
   // each school card, the grades + sections taught there. One step
   // instead of two: teachers were confused by a separate scope step
@@ -1558,10 +1553,6 @@ const AR = {
   "onb.all.majors": "كل المواد",
   "onb.all.languages": "كل اللغات",
   "onb.all.grades": "كل الصفوف",
-  "onb.scope.title": "اختر كل الصفوف التي تُدرّسها",
-  "onb.scope.lead": "اضغط على كل الصفوف التي تُدرّسها — لكل صف ستختار شُعَبه داخل بطاقته مباشرة. يمكنك تعديل كل هذا لاحقًا من الإعدادات.",
-  "onb.scope.addFirst": "اضغط على صف للبدء — يمكنك اختيار أكثر من واحد",
-  "onb.scope.addMore": "أضِف صفًا آخر",
   "onb.all.sections": "كل الشعب",
   "onb.fld.addSection.ph": "مثلًا «المتميّزون»، «مسار الرياضيات»، «أ + ب»",
   "onb.fld.addSection.btn": "إضافة",
