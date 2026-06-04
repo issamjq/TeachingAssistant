@@ -224,11 +224,16 @@ export default function StudioApp({ onClose }) {
   const t = useT();
 
   // Display name + initials used by the sidebar chip and the avatar.
-  // The chip layout is: role on top (bold), full name below (italic).
-  // displayName falls back to the email local-part, then "" — never to
-  // a role string, since the role already sits on the line above it.
+  // Chip lines (top to bottom):
+  //   1. Full name — "First Last" (bold)         falls back to email local-part
+  //   2. Staff ID — "T-1042" (mono eyebrow)       hidden if blank
+  //   3. Role label — "Teacher" (italic muted)    hidden when line 1 already shows the role label
+  // If neither name nor email exist yet (profile not hydrated), the
+  // role label takes the top line and the italic third line is
+  // suppressed so we never render "Teacher / Teacher".
   const firstName = account?.profile?.firstName || "";
   const lastName  = account?.profile?.lastName  || "";
+  const staffId   = account?.profile?.staffId   || "";
   const emailLocalPart = (account?.profile?.email || "").split("@")[0];
   const displayName =
     [firstName, lastName].filter(Boolean).join(" ")
@@ -237,6 +242,8 @@ export default function StudioApp({ onClose }) {
   const displayInitial =
     `${(firstName[0] || "")}${(lastName[0] || "")}`.toUpperCase()
     || (account?.profile?.email || "T")[0].toUpperCase();
+  const roleLabel =
+    t(`account.${role}`) === `account.${role}` ? ROLE_LABELS[role] : t(`account.${role}`);
 
   // Any route change closes the mobile drawer + account menu so the
   // new screen is visible immediately after tapping a nav item.
@@ -622,11 +629,16 @@ export default function StudioApp({ onClose }) {
             <Avatar avatarId={account?.profile?.avatar} initial={displayInitial} size={34} className="murchid-sidebar-account-avatar" />
             <div className="flex-1 min-w-0 text-start">
               <p className="text-sm font-medium leading-tight truncate text-ink">
-                {t(`account.${role}`) === `account.${role}` ? ROLE_LABELS[role] : t(`account.${role}`)}
+                {displayName || roleLabel}
               </p>
+              {staffId && (
+                <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted mt-0.5 truncate">
+                  {staffId}
+                </p>
+              )}
               {displayName && (
                 <p className="font-serif italic text-[11px] text-muted mt-0.5 truncate">
-                  {displayName}
+                  {roleLabel}
                 </p>
               )}
             </div>

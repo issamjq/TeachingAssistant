@@ -5394,6 +5394,7 @@ function AuthPage({ onSignUp, onPage, mode = "signup", onEnterStudio }) {
           profile: {
             firstName: me.first_name || "",
             lastName:  me.last_name  || "",
+            staffId:   me.staff_id   || "",
             email:     me.email      || "",
             avatarUrl: me.avatar_url || "",
           },
@@ -6732,6 +6733,7 @@ export default function Landing({ onOpenStudio }) {
           profile: {
             firstName: me.first_name || "",
             lastName:  me.last_name  || "",
+            staffId:   me.staff_id   || "",
             email:     me.email      || "",
             avatarUrl: me.avatar_url || "",
           },
