@@ -14,7 +14,7 @@ import { useT, useI18n, tIn, isArabicLang } from "../lib/i18n";
 import { parseSections, joinSections, renderMarkdown } from "../lib/markdown";
 import StudioCard from "./StudioCard";
 import SlideBuilder from "./SlideBuilder";
-import MurchidMascot from "../components/MurchidMascot";
+import BrandLoader from "../components/BrandLoader";
 import {
   GRADE_LEVELS, MAJORS,
   QUIZ_QUESTION_COUNTS, QUIZ_DURATIONS, QUIZ_DIFFICULTIES,
@@ -2146,8 +2146,8 @@ export default function Studio({ initialKind } = {}) {
                           )}
                         </>
                       ) : (
-                        <div className="flex flex-col items-center justify-center py-6">
-                          <MurchidMascot size={140} label={t("studio.thinking")} />
+                        <div className="flex flex-col items-center justify-center py-10">
+                          <BrandLoader fullscreen={false} label={t("studio.thinking")} />
                         </div>
                       )}
                     </div>
