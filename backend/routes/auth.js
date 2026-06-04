@@ -225,7 +225,7 @@ router.get("/me", requireAuth(), async (req, res) => {
 // (so the most recent /send always wins). The Firebase ID token
 // supplies the email — we never trust an email from the request body.
 
-const VERIFY_CODE_TTL_MS = 5 * 60 * 1000;        // 5 minutes
+const VERIFY_CODE_TTL_MS = 60 * 1000;            // 1 minute
 const VERIFY_RESEND_COOLDOWN_MS = 30 * 1000;     // 30s between sends
 const VERIFY_MAX_ATTEMPTS = 5;
 

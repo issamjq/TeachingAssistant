@@ -6068,7 +6068,7 @@ function AuthPage({ onSignUp, onPage, mode = "signup", onEnterStudio }) {
               <p className="text-xs text-muted leading-relaxed">
                 We emailed a 6-digit verification code to{" "}
                 <span className="text-ink">{emailValue}</span>. It expires
-                in 5 minutes.
+                in 1 minute.
               </p>
             </div>
             {/* Single numeric input styled to look like 6 grouped boxes

@@ -25,7 +25,7 @@ export async function sendVerificationCode({ to, code }) {
   const text =
 `Your Murchid verification code is: ${code}
 
-It expires in 5 minutes. If you didn't request this code, you can ignore this email.
+It expires in 1 minute. If you didn't request this code, you can ignore this email.
 
 — Murchid`;
 
@@ -39,7 +39,7 @@ It expires in 5 minutes. If you didn't request this code, you can ignore this em
           <h1 style="margin:0 0 8px;font-family:Georgia,'Times New Roman',serif;font-size:24px;line-height:1.2;color:#1f1c16;">Verify your email</h1>
           <p style="margin:0 0 24px;font-size:14px;line-height:1.5;color:#5f5a4d;">Enter this 6-digit code in Murchid to finish signing up.</p>
           <div style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:32px;font-weight:600;letter-spacing:.4em;padding:18px 12px;background:#f7f3ec;border:1px solid #e6dcc6;border-radius:12px;text-align:center;color:#1f1c16;">${code}</div>
-          <p style="margin:24px 0 0;font-size:12px;line-height:1.5;color:#9a907a;">The code expires in 5 minutes. If you didn't request it, you can safely ignore this email — no account changes will be made.</p>
+          <p style="margin:24px 0 0;font-size:12px;line-height:1.5;color:#9a907a;">The code expires in 1 minute. If you didn't request it, you can safely ignore this email — no account changes will be made.</p>
         </td></tr>
       </table>
       <p style="margin:24px 0 0;font-size:11px;color:#9a907a;">Murchid · AI lesson director for teachers</p>
