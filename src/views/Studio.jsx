@@ -751,9 +751,18 @@ export default function Studio({ initialKind } = {}) {
       const body = isQuiz
         ? { kind, prompt: prompt.trim(), params: withDefaultLang(quizParams), attachments, enforceChips }
         : { kind, prompt: prompt.trim(), params: withDefaultLang(paramsForKind), attachments, enforceChips };
+      // Raw fetch (not the api() helper) because we need a streaming
+      // response body — the helper resolves the whole JSON before
+      // returning. Attach the Firebase Bearer token manually so the
+      // backend's requireAuth() middleware lets the request through.
+      const { getIdToken } = await import("../lib/firebaseAuth");
+      const token = await getIdToken().catch(() => null);
       const res = await fetch(API_BASE + (isQuiz ? "/api/studio/quiz" : "/api/studio/generate"), {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify(body),
         signal: abortRef.current.signal,
       });
@@ -1067,9 +1076,16 @@ export default function Studio({ initialKind } = {}) {
 
     try {
       const fullDocument = sections.map((s) => s.markdown).join("\n\n");
+      // Streaming endpoint — raw fetch instead of api(). Same Bearer-
+      // token attach pattern as the main generate call above.
+      const { getIdToken } = await import("../lib/firebaseAuth");
+      const token = await getIdToken().catch(() => null);
       const res = await fetch(API_BASE + "/api/studio/regenerate", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({
           kind: result?.kind || kind,
           fullDocument,
@@ -1685,9 +1701,15 @@ export default function Studio({ initialKind } = {}) {
     setTweak("");
 
     try {
+      // Same auth attach pattern as the other streaming endpoints.
+      const { getIdToken } = await import("../lib/firebaseAuth");
+      const token = await getIdToken().catch(() => null);
       const res = await fetch(API_BASE + "/api/studio/quiz-tweak", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({
           quiz: q,
           hint,
