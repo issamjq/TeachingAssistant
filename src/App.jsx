@@ -38,7 +38,6 @@ import AccountMenu from "./views/AccountMenu";
 import HelpPopover from "./views/HelpPopover";
 import MurchidLogo from "./components/MurchidLogo";
 import Avatar from "./components/Avatar";
-import BrandLoader from "./components/BrandLoader";
 
 // Sectioned nav matching the 2026 mockup — italic Fraunces section
 // headers + small letter/icon badges next to each label. All routes
@@ -173,11 +172,6 @@ export default function StudioApp({ onClose }) {
     });
   };
   const account = useAccount();
-  // First-launch loader — covers the gap between boarding finishing and
-  // the studio actually being ready. Stays up until the first Firebase
-  // auth callback resolves (and /api/me hydrates), so the teacher sees a
-  // branded "launching" screen instead of an empty studio that pops full.
-  const [booting, setBooting] = useState(true);
   // Wait for Firebase to resolve the auth state, then either hydrate
   // /api/me into the local account.profile (signed in) or clear the
   // local mock account + bounce to landing (signed out from outside
@@ -194,7 +188,6 @@ export default function StudioApp({ onClose }) {
           // and return to the landing page (the parent main.jsx renders
           // landing whenever account is null).
           if (account) clearAccount();
-          if (!cancelled) setBooting(false);
           return;
         }
         try {
@@ -217,15 +210,10 @@ export default function StudioApp({ onClose }) {
             if (account) clearAccount();
             clearRoute();
           }
-        } finally {
-          if (!cancelled) setBooting(false);
         }
       });
     })();
-    // Safety net: never let the loader hang if Firebase never calls back
-    // (offline, blocked SDK). Drop it after 6s regardless.
-    const bootTimeout = setTimeout(() => setBooting(false), 6000);
-    return () => { cancelled = true; off?.(); clearTimeout(bootTimeout); };
+    return () => { cancelled = true; off?.(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   // "Upgrade plan" stays visible for now — the real plan/trial split
@@ -698,18 +686,6 @@ export default function StudioApp({ onClose }) {
         </div>
     </>
   );
-
-  if (booting) {
-    return (
-      <div
-        className="fixed inset-0 z-[9999] flex items-center justify-center bg-paper"
-        role="status"
-        aria-live="polite"
-      >
-        <BrandLoader label={t("studio.launching") || "Launching your studio…"} />
-      </div>
-    );
-  }
 
   return (
     <div className="murchid-studio-app h-[100dvh] bg-paper flex text-ink font-sans overflow-hidden">

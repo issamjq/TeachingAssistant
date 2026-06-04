@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import {
   Sparkles, ArrowRight, ChevronRight, ChevronLeft, Plus, BookOpen,
   CalendarDays, GraduationCap, ClipboardList, Presentation, Layout,
@@ -6503,11 +6504,15 @@ function OnboardingPage({ onChoosePlan, onPage }) {
       {/* Full-screen overlay during provisioning — blocks every
           interactive element under it so the user can't double-submit,
           and gives them a clear "we're working" signal instead of an
-          unresponsive page. Unmounts as soon as the studio opens. */}
-      {pickingPlan && (
+          unresponsive page. Portaled to <body> so it escapes the
+          landing's transformed scroll-animation ancestors (otherwise
+          `fixed` is trapped inside a narrow centered column). Unmounts as
+          soon as the studio opens. This is the ONLY loader across the
+          boarding → first-launch handoff. */}
+      {pickingPlan && createPortal(
         <div
           className="fixed inset-0 z-[9999] flex items-center justify-center"
-          style={{ background: "rgba(247,243,236,0.92)", backdropFilter: "blur(6px)" }}
+          style={{ background: "rgba(247,243,236,0.96)", backdropFilter: "blur(6px)" }}
           role="status"
           aria-live="polite"
         >
@@ -6518,7 +6523,8 @@ function OnboardingPage({ onChoosePlan, onPage }) {
                 : (t("lp.plan.settingUp") || "Setting up your account…")
             }
           />
-        </div>
+        </div>,
+        document.body
       )}
     </PageShell>
   );
