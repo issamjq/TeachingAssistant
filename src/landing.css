@@ -2100,18 +2100,14 @@ html { scroll-behavior: smooth; }
   font-weight: 600; font-size: 13px; cursor: pointer;
 }
 /* Mobile/tablet — the studio "video" mockup. The screen stays ONE fixed
-   size across every kind + phase (no per-chip resizing). The desktop
-   height is too short once the prompts wrap to more lines on narrow
-   widths, which made the compose box collide with the "Switch to" row —
-   so here we just use a taller fixed height sized for the busiest phase.
-   Inner sections keep flexing (as on desktop) and absorb the slack on
-   shorter phases, so nothing overlaps and the frame never changes size. */
+   widths, which made the compose box collide with the "Switch to" row.
+   On phones we let the frame grow to its content (smaller, no tall empty
+   gaps) with a modest min-height floor so it never collapses. */
 @media (max-width: 768px) {
-  .film-screen { height: clamp(600px, 86vh, 720px); }
+  .film-screen { height: auto; min-height: clamp(420px, 58vh, 500px); }
   /* Reserve a constant 2-line height for the section title so a long kind
      word ("the whole presentation.") doesn't wrap and shove the mockup
-     down relative to a short one ("the whole quiz."). The mockup now
-     starts at the same Y for every kind. */
+     down relative to a short one ("the whole quiz."). */
   .film-title { min-height: 2.15em; }
 }
 /* Drafting phase — "Murchid is drafting…" with a spinner + shimmer lines. */

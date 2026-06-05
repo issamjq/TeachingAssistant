@@ -44,8 +44,6 @@ const RESULTS = {
       rows: [
         { tag: "00–05", text: "Hook — a wilting plant by the window" },
         { tag: "05–20", text: "Light + water + CO₂ → glucose + O₂" },
-        { tag: "20–35", text: "Pair task — label a leaf cross-section", mOnly: true },
-        { tag: "35–45", text: "Exit ticket — one thing you learned", mOnly: true },
       ],
     },
     ar: {
@@ -55,8 +53,6 @@ const RESULTS = {
       rows: [
         { tag: "٠٠–٠٥", text: "تمهيد — نبتة ذابلة قرب النافذة" },
         { tag: "٠٥–٢٠", text: "ضوء + ماء + ثاني أكسيد الكربون ← غلوكوز" },
-        { tag: "٢٠–٣٥", text: "مهمة ثنائية — تسمية مقطع ورقة", mOnly: true },
-        { tag: "٣٥–٤٥", text: "بطاقة خروج — شيء تعلّمته اليوم", mOnly: true },
       ],
     },
   },
@@ -67,8 +63,6 @@ const RESULTS = {
           opts: [{ t: "Oxygen" }, { t: "Carbon dioxide", ok: true }, { t: "Nitrogen" }] },
         { tag: "Q2", badge: "T / F", stem: "Plants need light at night.",
           opts: [{ t: "True" }, { t: "False", ok: true }] },
-        { tag: "Q3", badge: "Short", stem: "Name the green pigment in leaves.",
-          opts: [{ t: "Chlorophyll", ok: true }], mOnly: true },
       ],
     },
     ar: {
@@ -77,8 +71,6 @@ const RESULTS = {
           opts: [{ t: "الأكسجين" }, { t: "ثاني أكسيد الكربون", ok: true }, { t: "النيتروجين" }] },
         { tag: "٢", badge: "صح / خطأ", stem: "تحتاج النباتات إلى الضوء ليلًا.",
           opts: [{ t: "صح" }, { t: "خطأ", ok: true }] },
-        { tag: "٣", badge: "قصير", stem: "اذكر الصبغة الخضراء في الأوراق.",
-          opts: [{ t: "الكلوروفيل", ok: true }], mOnly: true },
       ],
     },
   },
@@ -90,8 +82,6 @@ const RESULTS = {
         { tag: "1", text: "Read the short story · pp. 12–15" },
         { tag: "2", text: "Answer 5 questions in writing" },
         { tag: "3", text: "Write a three-sentence summary" },
-        { tag: "4", text: "Underline three new words", mOnly: true },
-        { tag: "5", text: "Optional — sketch a favourite scene", mOnly: true },
       ],
     },
     ar: {
@@ -101,8 +91,6 @@ const RESULTS = {
         { tag: "١", text: "اقرأ القصة القصيرة · ص ١٢–١٥" },
         { tag: "٢", text: "أجب عن ٥ أسئلة كتابةً" },
         { tag: "٣", text: "اكتب ملخصًا من ثلاث جمل" },
-        { tag: "٤", text: "ضع خطًا تحت ثلاث كلمات جديدة", mOnly: true },
-        { tag: "٥", text: "اختياري — ارسم مشهدًا أعجبك", mOnly: true },
       ],
     },
   },
@@ -151,19 +139,6 @@ export default function Showreel() {
   const reduced =
     typeof window !== "undefined" &&
     window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-
-  // Mobile shows extra result rows (rows/questions flagged mOnly) so the
-  // taller phone frame reads full + professional; desktop keeps the tight set.
-  const [isMobile, setIsMobile] = useState(
-    () => typeof window !== "undefined" && window.matchMedia("(max-width: 768px)").matches
-  );
-  useEffect(() => {
-    const mq = window.matchMedia("(max-width: 768px)");
-    const on = () => setIsMobile(mq.matches);
-    mq.addEventListener("change", on);
-    return () => mq.removeEventListener("change", on);
-  }, []);
-  const visibleRows = (rows) => (rows || []).filter((r) => isMobile || !r.mOnly);
 
   const [active, setActive] = useState(0);
   // compose → drafting → result. Reduced motion freezes on a result.
@@ -386,7 +361,7 @@ export default function Showreel() {
                       </div>
                       <span className="film-lp-obj">{R.objective}</span>
                       <ul className="film-result-rows">
-                        {visibleRows(R.rows).map((r, i) => (
+                        {R.rows.map((r, i) => (
                           <li key={i} className="film-result-row" style={{ "--i": i }}>
                             <span className="film-result-tag">{r.tag}</span>
                             <span className="film-result-text">{r.text}</span>
@@ -402,7 +377,7 @@ export default function Showreel() {
                         <span className="film-result-check" aria-hidden="true" />
                         {t(`kind.${k.v}`)} · {readyWord}
                       </span>
-                      {visibleRows(R.questions).map((q, qi) => (
+                      {R.questions.map((q, qi) => (
                         <div key={qi} className="film-qz-q" style={{ "--i": qi }}>
                           <div className="film-qz-stem">
                             <span className="film-qz-tag">{q.tag}</span>
@@ -432,7 +407,7 @@ export default function Showreel() {
                         <span className="film-hw-due">{R.due}</span>
                       </div>
                       <ul className="film-result-rows">
-                        {visibleRows(R.rows).map((r, i) => (
+                        {R.rows.map((r, i) => (
                           <li key={i} className="film-result-row" style={{ "--i": i }}>
                             <span className="film-result-tag">{r.tag}</span>
                             <span className="film-result-text">{r.text}</span>
