@@ -105,33 +105,57 @@ export default function HeroAtelier({ onEnter, signedIn }) {
   // Arabic can scale up bigger and still fit.
   const fanK = Math.min(1, (vw - 24) / 780); // opening fan fit
   const wordK = Math.min(1, (vw - 32) / (isRTL ? 440 : 720)); // wordmark + tagline + heading
-  const pitch = ROW_PITCH * k; // shared by the cards AND the toc labels
+
+  // Index ROW (landscape / tablet / desktop) — six cards across.
+  const pitch = ROW_PITCH * k;
   const cardScaleB = ROW_SCALE * k;
   const yb = 132; // row centre, just below the pin centre
-  // Anchor the labels + title to the actual card top so the whole
-  // title→labels→cards group stays one centred block at any scale.
-  const cardTopY = yb - (345 * cardScaleB) / 2;
-  const tocBottomY = cardTopY - 14; // labels sit just above the cards
-  const headBottomY = tocBottomY - 104; // title sits above the labels
 
-  // Shared card transform — fan (hero) lerped to row (index). The fit
-  // factor `k` is now applied to the FAN too (offsets + scale), not just
-  // the index row, so the whole composition shrinks to fit narrow screens
-  // identically instead of overflowing / re-laying-out.
+  // Phone portrait can't fit six legible cards across, so the settled
+  // INDEX state reflows there into a 3×2 grid (cards ~2× larger). The
+  // opening fan, the wordmark, and the scroll choreography are unchanged —
+  // only the final contents arrangement differs on this one breakpoint.
+  const isPortrait = vw < 560;
+  const G_COLS = 3;
+  const gCardScale = Math.min(0.56, (vw - 40) / (G_COLS * 230 + (G_COLS - 1) * 16));
+  const gColPitch = 230 * gCardScale + 16;
+  const gRowPitch = 345 * gCardScale + 48; // card height + a label band
+  const gRow0Y = 150 - gRowPitch / 2; // two rows centred about y≈150
+
+  // Settled (B-state) position per card — grid on portrait, row otherwise.
+  const bPos = (i) => {
+    if (isPortrait) {
+      const col = i % G_COLS;
+      const rowIdx = Math.floor(i / G_COLS);
+      return {
+        x: (col - (G_COLS - 1) / 2) * gColPitch * dir,
+        y: gRow0Y + rowIdx * gRowPitch,
+        s: gCardScale,
+      };
+    }
+    const o = i - MID;
+    return { x: o * pitch * dir, y: yb, s: cardScaleB };
+  };
+  // Label TYPE factor — matches the settled card size so labels never overlap.
+  const tocK = isPortrait ? gCardScale : k;
+  // Title anchor sits above the top row of the settled layout.
+  const settledScale = isPortrait ? gCardScale : cardScaleB;
+  const topCardY = isPortrait ? gRow0Y : yb;
+  const topCardTopY = topCardY - (345 * settledScale) / 2;
+  const headBottomY = topCardTopY - (isPortrait ? 78 : 118);
+
+  // Shared card transform — fan (hero) lerped to its settled position.
   const cardStyle = (i) => {
     const o = i - MID;
-    // A — confident fan, lifted clear of the lockup above (scaled by the
-    // larger bigK so the opening deck reads big on phones).
-    const xa = o * 128 * dir * fanK;
+    const xa = o * 128 * dir * fanK; // A — confident opening fan
     const ya = 204 + (MID * MID - o * o) * 10;
     const ra = o * 6 * dir;
     const sa = 0.67 * fanK;
-    // B — clean contact-sheet row, upright + responsive.
-    const xb = o * pitch * dir;
-    const x = lerp(xa, xb, cardsT);
-    const y = lerp(ya, yb, cardsT);
+    const b = bPos(i); // B — settled row or grid
+    const x = lerp(xa, b.x, cardsT);
+    const y = lerp(ya, b.y, cardsT);
     const r = lerp(ra, 0, cardsT);
-    const s = lerp(sa, cardScaleB, cardsT);
+    const s = lerp(sa, b.s, cardsT);
     return {
       transform: `translate(-50%, -50%) translate(${x}px, ${y}px) rotate(${r}deg) scale(${s})`,
       zIndex: 20 + i,
@@ -255,21 +279,25 @@ export default function HeroAtelier({ onEnter, signedIn }) {
           ))}
         </div>
 
-        {/* Contents numbering — sits above each card once it's in the row.
-            --toc-k scales the label TYPE with the row's fit factor so the
-            labels shrink with the pitch and never overlap on small screens. */}
-        <div className="atl-toc" style={{ opacity: tocIn, "--toc-k": k }} aria-hidden={tocIn < 0.5}>
-          {HERO_CARDS.map((kind, i) => (
+        {/* Contents numbering — sits just above each card in its settled
+            position (row or grid). --toc-k scales the label TYPE with the
+            card size so labels track the cards and never overlap. */}
+        <div className="atl-toc" style={{ opacity: tocIn, "--toc-k": tocK }} aria-hidden={tocIn < 0.5}>
+          {HERO_CARDS.map((kind, i) => {
+            const b = bPos(i);
+            const labelY = b.y - (345 * b.s) / 2 - 8; // 8px above the card top
+            return (
             <div
               key={kind}
               className="atl-toc-item"
-              style={{ transform: `translate(-50%, -100%) translate(${(i - MID) * pitch * dir}px, ${tocBottomY}px)` }}
+              style={{ transform: `translate(-50%, -100%) translate(${b.x}px, ${labelY}px)` }}
             >
               <span className="atl-toc-num">{String(i + 1).padStart(2, "0")}</span>
               <span className="atl-toc-label">{t(`atl.art.${kind}`)}</span>
               <span className="atl-toc-desc">{t(`atl.desc.${kind}`)}</span>
             </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 
