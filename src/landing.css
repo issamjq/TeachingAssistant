@@ -261,24 +261,21 @@ html { scroll-behavior: smooth; }
   .murchid-trial-twinkle { animation: none !important; }
 }
 
-/* Free-trial CTA sweep — the same skewed white "line" the Studio launcher
-   in the planner runs, looping left → right across the clay banner. Apply
-   the class to a clay/dark CTA container; its direct children ride above
-   the sweep. */
+/* Free-trial CTA sweep — the exact skewed white "line" the Studio launcher
+   uses: it rests off-screen left and glides across ON HOVER (not a
+   constant loop). Apply to a clay/dark CTA container; direct children ride
+   above the sweep. */
 .lp-trial-sweep { position: relative; overflow: hidden; }
 .lp-trial-sweep > * { position: relative; z-index: 2; }
 .lp-trial-sweep::after {
-  content: ""; position: absolute; top: 0; bottom: 0; left: -50%; width: 48%; z-index: 1;
-  background: linear-gradient(100deg, transparent 0%, rgba(255, 255, 255, 0.28) 50%, transparent 100%);
-  transform: skewX(-14deg); pointer-events: none;
-  animation: lp-trial-sweep 4.4s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+  content: ""; position: absolute; top: 0; bottom: 0; left: -40%; width: 40%; z-index: 1;
+  background: linear-gradient(100deg, transparent 0%, rgba(255, 255, 255, 0.26) 50%, transparent 100%);
+  transform: skewX(-12deg); pointer-events: none;
+  transition: left 900ms cubic-bezier(0.22, 1, 0.36, 1);
 }
-@keyframes lp-trial-sweep {
-  0%        { left: -55%; }
-  42%, 100% { left: 135%; }
-}
+.lp-trial-sweep:hover::after { left: 110%; }
 @media (prefers-reduced-motion: reduce) {
-  .lp-trial-sweep::after { animation: none; opacity: 0; }
+  .lp-trial-sweep::after { transition: none; }
 }
 
 /* ════════════════════════════════════════════════════════════════════
@@ -2451,6 +2448,10 @@ html { scroll-behavior: smooth; }
 .lp-burger[aria-expanded="true"] span:nth-child(1) { transform: translateY(7px) rotate(45deg); }
 .lp-burger[aria-expanded="true"] span:nth-child(2) { opacity: 0; }
 .lp-burger[aria-expanded="true"] span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
+/* The burger is mobile-only, but its own display:inline-flex beats
+   Tailwind's `md:hidden` (unlayered vs layered), so hide it on desktop
+   explicitly. */
+@media (min-width: 768px) { .lp-burger { display: none; } }
 
 .lp-menu { position: fixed; inset: 0; z-index: 200; }
 .lp-menu-scrim {
