@@ -119,7 +119,7 @@ export default function HeroAtelier({ onEnter, signedIn }) {
   const G_COLS = 3;
   const gCardScale = Math.min(0.56, (vw - 40) / (G_COLS * 230 + (G_COLS - 1) * 16));
   const gColPitch = 230 * gCardScale + 16;
-  const gRowPitch = 345 * gCardScale + 48; // card height + a label band
+  const gRowPitch = 345 * gCardScale + 92; // card height + a roomy label band
   const gRow0Y = 150 - gRowPitch / 2; // two rows centred about y≈150
 
   // Settled (B-state) position per card — grid on portrait, row otherwise.
@@ -136,13 +136,14 @@ export default function HeroAtelier({ onEnter, signedIn }) {
     const o = i - MID;
     return { x: o * pitch * dir, y: yb, s: cardScaleB };
   };
-  // Label TYPE factor — matches the settled card size so labels never overlap.
-  const tocK = isPortrait ? gCardScale : k;
+  // Label TYPE factor. On portrait the labels read bigger than the raw card
+  // scale (capped so "PRESENTATIONS" still fits a card's width).
+  const tocK = isPortrait ? Math.min(0.85, gCardScale * 1.6) : k;
   // Title anchor sits above the top row of the settled layout.
   const settledScale = isPortrait ? gCardScale : cardScaleB;
   const topCardY = isPortrait ? gRow0Y : yb;
   const topCardTopY = topCardY - (345 * settledScale) / 2;
-  const headBottomY = topCardTopY - (isPortrait ? 78 : 118);
+  const headBottomY = topCardTopY - (isPortrait ? 96 : 118);
 
   // Shared card transform — fan (hero) lerped to its settled position.
   const cardStyle = (i) => {
@@ -285,7 +286,7 @@ export default function HeroAtelier({ onEnter, signedIn }) {
         <div className="atl-toc" style={{ opacity: tocIn, "--toc-k": tocK }} aria-hidden={tocIn < 0.5}>
           {HERO_CARDS.map((kind, i) => {
             const b = bPos(i);
-            const labelY = b.y - (345 * b.s) / 2 - 8; // 8px above the card top
+            const labelY = b.y - (345 * b.s) / 2 - 14; // sit above the card top
             return (
             <div
               key={kind}
