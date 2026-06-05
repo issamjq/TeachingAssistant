@@ -99,7 +99,12 @@ export default function HeroAtelier({ onEnter, signedIn }) {
   // (sized to the ~760px wordmark width). The cards deal out big from the
   // fan, then settle into the tighter row as you scroll.
   const k = Math.min(1, (vw - 48) / ROW_W); // index-row shrink-to-fit
-  const bigK = Math.min(1, (vw - 32) / 760); // fan + wordmark fit-to-fit
+  // The fan and the wordmark have different widths, so they get their own
+  // fit factors (sharing one made the wide Latin "Murchid" overflow). The
+  // wordmark factor is per-script: مرشد is far narrower than Murchid, so
+  // Arabic can scale up bigger and still fit.
+  const fanK = Math.min(1, (vw - 24) / 780); // opening fan fit
+  const wordK = Math.min(1, (vw - 32) / (isRTL ? 440 : 720)); // wordmark + tagline + heading
   const pitch = ROW_PITCH * k; // shared by the cards AND the toc labels
   const cardScaleB = ROW_SCALE * k;
   const yb = 132; // row centre, just below the pin centre
@@ -117,10 +122,10 @@ export default function HeroAtelier({ onEnter, signedIn }) {
     const o = i - MID;
     // A — confident fan, lifted clear of the lockup above (scaled by the
     // larger bigK so the opening deck reads big on phones).
-    const xa = o * 128 * dir * bigK;
+    const xa = o * 128 * dir * fanK;
     const ya = 204 + (MID * MID - o * o) * 10;
     const ra = o * 6 * dir;
-    const sa = 0.67 * bigK;
+    const sa = 0.67 * fanK;
     // B — clean contact-sheet row, upright + responsive.
     const xb = o * pitch * dir;
     const x = lerp(xa, xb, cardsT);
@@ -174,7 +179,7 @@ export default function HeroAtelier({ onEnter, signedIn }) {
           className="atl-lockup"
           style={{
             opacity: 1 - lockOut,
-            transform: `translate(-50%, 0) translateY(${lockOut * -64}px) scale(${(1 - lockOut * 0.05) * bigK})`,
+            transform: `translate(-50%, 0) translateY(${lockOut * -64}px) scale(${(1 - lockOut * 0.05) * wordK})`,
           }}
         >
           {/* The watermark mirrors the foreground in the *other* script:
@@ -219,7 +224,7 @@ export default function HeroAtelier({ onEnter, signedIn }) {
             // Bottom-anchored to the card top → a clean gap above the labels.
             // Uses the larger bigK so "Everything teaching needs…" reads big
             // on phones (it's a standalone block, not the 6-across row).
-            transform: `translate(-50%, -100%) translateY(${headBottomY}px) translateY(${(1 - headIn) * 24}px) scale(${bigK})`,
+            transform: `translate(-50%, -100%) translateY(${headBottomY}px) translateY(${(1 - headIn) * 24}px) scale(${wordK})`,
           }}
         >
           <span className="atl-index-over">{t("atl.index.over")}</span>

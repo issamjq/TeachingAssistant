@@ -1482,6 +1482,12 @@ html { scroll-behavior: smooth; }
   font-size: 11px; letter-spacing: 0.34em; text-transform: uppercase;
   color: oklch(0.96 0.03 80 / 0.5); pointer-events: none;
 }
+/* The vertical gutter caption doesn't fit the short height of a phone
+   (it gets clipped), and it's a desktop editorial flourish — drop it on
+   small screens. */
+@media (max-width: 640px) {
+  .atl-spine { display: none; }
+}
 
 /* Masthead */
 .atl-masthead {
@@ -1509,7 +1515,11 @@ html { scroll-behavior: smooth; }
 .atl-lockup {
   position: absolute; z-index: 5; left: 50%;
   top: clamp(14vh, 16vh, 19vh);
-  width: min(94vw, 1180px);
+  /* Fixed DESIGN width (not viewport-relative): the lockup is uniformly
+     scaled by wordK in JS, so its box must scale symmetrically with the
+     content. A 94vw box was narrower than the wide Latin "Murchid", which
+     overflowed it asymmetrically and pushed the lockup off-centre. */
+  width: 1180px;
   text-align: center;
   display: grid; justify-items: center;
 }
