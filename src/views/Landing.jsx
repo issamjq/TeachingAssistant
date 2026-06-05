@@ -408,26 +408,9 @@ const Nav = ({ onEnter, signedIn, onJump, onPage, onSignOut, darkHero = false })
           {signedIn && (
             <NavProfile onEnter={onEnter} onSignOut={onSignOut} />
           )}
-          {/* Signed-in users reach the planner from the profile dropdown, so
-              the nav CTA only shows the Subscribe action when signed out.
-              Hidden on phones — the menu carries the action there. */}
-          {!signedIn && (
-            <button
-              type="button"
-              onClick={onEnter}
-              className="nav-cta hidden md:inline-flex"
-              style={{ ...ctaStyle, ["--cta-nudge"]: isRTL ? "-3px" : "3px" }}
-            >
-              <span>{t("lp.cta.subscribe")}</span>
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-                <path d={ctaArrow} stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </button>
-          )}
           {/* Mobile menu trigger — sits at the trailing edge of the bar.
               The editorial index is hidden below md, so phones reach the
-              section links, sign-in and subscribe through the full-screen
-              menu it opens. */}
+              section links + sign-in through the full-screen menu it opens. */}
           <button
             type="button"
             onClick={() => (menuOpen ? closeMenu() : openMenu())}
@@ -487,23 +470,15 @@ const Nav = ({ onEnter, signedIn, onJump, onPage, onSignOut, darkHero = false })
               ))}
             </nav>
 
-            {/* Footer — sign-in + the primary CTA. */}
+            {/* Footer — Sign in only (Subscribe removed). Signed-in users
+                get Open-the-planner instead. */}
             <div className="lp-menu-foot" style={{ "--i": navItems.length }}>
-              {!signedIn && (
-                <button
-                  type="button"
-                  onClick={() => { onPage("signin"); closeMenu(); }}
-                  className="lp-menu-signin"
-                >
-                  {t("lp.nav.signin")}
-                </button>
-              )}
               <button
                 type="button"
-                onClick={() => { onEnter(); closeMenu(); }}
+                onClick={() => { signedIn ? onEnter() : onPage("signin"); closeMenu(); }}
                 className="lp-menu-cta"
               >
-                <span>{signedIn ? t("lp.nav.openPlanner") : t("lp.cta.subscribe")}</span>
+                <span>{signedIn ? t("lp.nav.openPlanner") : t("lp.nav.signin")}</span>
                 <svg width="15" height="15" viewBox="0 0 14 14" fill="none" aria-hidden="true">
                   <path d={ctaArrow} stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
