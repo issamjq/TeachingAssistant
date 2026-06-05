@@ -81,9 +81,10 @@ export default function Planner() {
   const { lang } = useI18n();
   const locale = lang === "ar" ? "ar" : "en-US";
   // First-run tour: opens once on the first Planner visit per device.
-  // Mount with the seen-flag inverted so it fires on initial render
-  // (after auth + plan pick), and immediately persists once dismissed.
-  const [tourOpen, setTourOpen] = useState(() => !hasSeenPlannerTour());
+  // DEBUG: force the tour to open on every planner mount (each refresh /
+  // sign-in) for testing. Restore `!hasSeenPlannerTour()` to make it
+  // once-per-device again.
+  const [tourOpen, setTourOpen] = useState(true);
   // The visible month (1st of the displayed month). Today by default.
   const [anchor, setAnchor] = useState(() => {
     const n = new Date();
