@@ -1688,11 +1688,17 @@ html { scroll-behavior: smooth; }
 }
 .atl-m-cell-tag .atl-toc-num { font-size: 16px; }
 .atl-m-thumb {
-  /* 2:3 card (230×345) scaled 0.62 ≈ 214 tall — fit it fully, no crop. */
-  height: 214px; width: 100%; display: flex; justify-content: center;
-  align-items: flex-start; overflow: hidden;
+  /* The card face is a fixed 230×345 box; on phones the cell is narrower
+     than 230px, so the old scale(0.62) trick let the un-shrunk layout box
+     overflow and clip the (baked-in) title. Instead make the thumb a
+     fluid 2:3 frame and stretch the card to fill it — same aspect as the
+     art, so object-cover shows the whole scene with no crop. */
+  width: 100%; aspect-ratio: 230 / 345; overflow: hidden; border-radius: 16px;
 }
-.atl-m-thumb > div { transform: scale(0.62); transform-origin: top center; }
+.atl-m-thumb > div {
+  width: 100% !important; height: 100% !important;
+  transform: none !important; border-radius: 0 !important;
+}
 
 /* ── Atelier keyframes ── */
 @keyframes atl-rise { from { opacity: 0; transform: translateY(46px); } to { opacity: 1; transform: translateY(0); } }
