@@ -6441,7 +6441,20 @@ function AuthPage({ onSignUp, onPage, mode = "signup", onEnterStudio }) {
         </div>
       )}
 
-      <p className="text-xs mt-6 text-center" style={{ color: "var(--ink-3)" }}>
+      {/* Cross-link to the other auth flow. On Sign in → invite to Sign up;
+          on Sign up → point existing users to Sign in. */}
+      <p className="text-sm mt-7 text-center" style={{ color: "var(--ink-2)" }}>
+        {isSignin ? t("lp.auth.noAccount") : t("lp.auth.haveAccount")}{" "}
+        <button
+          type="button"
+          onClick={() => onPage(isSignin ? "signup" : "signin")}
+          className="auth-switch-link"
+        >
+          {isSignin ? t("lp.auth.signupCta") : t("lp.auth.signinCta")}
+        </button>
+      </p>
+
+      <p className="text-xs mt-4 text-center" style={{ color: "var(--ink-3)" }}>
         {t("lp.auth.only")}
       </p>
     </PageShell>

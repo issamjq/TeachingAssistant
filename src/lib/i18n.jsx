@@ -613,6 +613,10 @@ const EN = {
   "lp.auth.outlook": "Continue with Outlook",
   "lp.auth.email": "Continue with Email",
   "lp.auth.only": "Only Google and Outlook accounts are supported for now.",
+  "lp.auth.noAccount": "Don't have an account?",
+  "lp.auth.signupCta": "Sign up",
+  "lp.auth.haveAccount": "Already have an account?",
+  "lp.auth.signinCta": "Sign in",
   "lp.auth.terms": "By continuing you accept our privacy commitments.",
   // onboarding profile wizard (step between Auth and plan picker)
   "onb.identity.title": "Tell us who",
@@ -1545,6 +1549,10 @@ const AR = {
   "lp.auth.outlook": "المتابعة عبر Outlook",
   "lp.auth.email": "المتابعة عبر البريد الإلكتروني",
   "lp.auth.only": "ندعم حسابات Google وOutlook فقط في الوقت الحالي.",
+  "lp.auth.noAccount": "ليس لديك حساب؟",
+  "lp.auth.signupCta": "أنشئ حساباً",
+  "lp.auth.haveAccount": "لديك حساب بالفعل؟",
+  "lp.auth.signinCta": "تسجيل الدخول",
   "lp.auth.terms": "بمتابعتك فإنك توافق على التزامات الخصوصية لدينا.",
   // onboarding profile wizard (step between Auth and plan picker)
   "onb.identity.title": "عرّفنا",
