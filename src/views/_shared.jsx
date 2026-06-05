@@ -804,8 +804,8 @@ async function handleSessionSuperseded() {
     clearRoute();
     if (typeof window !== "undefined") {
       window.alert(
-        "You've been signed out because this account was just used to sign in on another device. " +
-        "You can only be signed in on one device at a time."
+        "Signed out — your Murchid account was just opened on another device. " +
+        "For security, an account stays active on only one device at a time."
       );
     }
   } catch { /* best-effort cleanup */ }

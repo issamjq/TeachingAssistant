@@ -229,6 +229,22 @@ export default function StudioApp({ onClose }) {
   const route = useRoute();
   const t = useT();
 
+  // Single-device enforcement heartbeat. While the teacher is in the
+  // studio, silently re-validate the session every 20s. If their account
+  // has since been signed in on another device, this call comes back 401
+  // `session_superseded` and api() tears this device's session down (sign
+  // out + back to landing) on its own — so the OLD device is logged out
+  // promptly and automatically, instead of the user hitting an abrupt
+  // "you've been signed out" only when they next try something (e.g. in
+  // Studio AI). The valid (newest) device just gets a 200 and carries on.
+  useEffect(() => {
+    if (!account) return undefined;
+    const id = setInterval(() => {
+      api("/api/auth/me").catch(() => { /* api() handles supersession */ });
+    }, 20000);
+    return () => clearInterval(id);
+  }, [account]);
+
   // Display name + initials used by the sidebar chip and the avatar.
   // Chip lines (top to bottom):
   //   1. Full name — "First Last" (bold)         falls back to email local-part
