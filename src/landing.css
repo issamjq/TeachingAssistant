@@ -1172,6 +1172,51 @@ html { scroll-behavior: smooth; }
   gap: clamp(14px, 1.6vw, 22px);
   align-items: stretch;
 }
+
+/* Free-trial CTA banner under the plan cards — same offer as the
+   onboarding plan picker. Wide clay banner: copy on the leading edge, a
+   cream pill CTA on the trailing edge; wraps + centers on phones. */
+.plans-trial {
+  margin-block-start: clamp(16px, 2vw, 26px);
+  width: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: clamp(12px, 2vw, 24px);
+  padding: clamp(16px, 2vw, 22px) clamp(18px, 2.4vw, 30px);
+  border-radius: clamp(16px, 1.8vw, 22px);
+  border: 0;
+  text-align: start;
+  cursor: pointer;
+  color: var(--cm-cream, #f7f3ec);
+  background:
+    radial-gradient(ellipse 92% 64% at 50% 14%, oklch(0.64 0.13 42), transparent 72%),
+    var(--cm-clay-d, #8a4b2f);
+  box-shadow: 0 14px 30px -12px rgba(26, 24, 20, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  transition: transform 600ms var(--easeOutE), box-shadow 600ms var(--easeOutE);
+}
+.plans-trial:hover { transform: translateY(-2px); box-shadow: 0 22px 44px -16px rgba(26, 24, 20, 0.55); }
+.plans-trial-text { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.plans-trial-title { font-family: 'Fraunces', Georgia, serif; font-size: clamp(17px, 2vw, 22px); line-height: 1.15; }
+.plans-trial-note { font-size: 12.5px; opacity: 0.72; }
+.plans-trial-cta {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 22px;
+  border-radius: 999px;
+  background: var(--cm-cream, #f7f3ec);
+  color: var(--cm-ink, #2a1f17);
+  font-weight: 600;
+  font-size: 14px;
+}
+@media (max-width: 540px) {
+  .plans-trial { flex-direction: column; align-items: stretch; text-align: center; }
+  .plans-trial-text { align-items: center; }
+  .plans-trial-cta { justify-content: center; }
+}
 .plans-card {
   background: var(--cm-cream-2);
   border-radius: clamp(18px, 2vw, 26px);
@@ -2033,6 +2078,24 @@ html { scroll-behavior: smooth; }
   background: oklch(0.86 0.13 60 / 0.18); border: 1px solid oklch(0.62 0.13 40 / 0.5);
   color: var(--cm-clay-d); font-family: 'Inter Tight', system-ui, sans-serif;
   font-weight: 600; font-size: 13px; cursor: pointer;
+}
+/* Mobile/tablet — the studio "video" mockup. Its screen is a FIXED height
+   on desktop (one size across phases), but on narrow widths the longer
+   wrapped prompts overflow that height and collide with the "Switch to"
+   row below. Let the screen grow to its content instead (min-height keeps
+   short phases from collapsing), and stop the inner sections from being
+   flex-stretched so they stack naturally. */
+@media (max-width: 768px) {
+  .film-screen {
+    height: auto;
+    min-height: clamp(420px, 64vh, 560px);
+  }
+  .film-compose-body,
+  .film-drafting,
+  .film-result,
+  .film-promptbox,
+  .film-prompttext { flex: 0 0 auto; }
+  .film-drafting { min-height: 180px; justify-content: flex-start; }
 }
 /* Drafting phase — "Murchid is drafting…" with a spinner + shimmer lines. */
 .film-drafting-label {

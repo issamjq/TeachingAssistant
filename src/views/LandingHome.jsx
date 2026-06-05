@@ -599,6 +599,21 @@ function Plans({ onEnter }) {
               <PlanCard key={p.id} p={p} i={i} vp={vp} onEnter={onEnter} />
             ))}
           </div>
+          {/* Wide free-trial CTA — same offer as the onboarding plan
+              picker, so visitors can start the 7-day trial straight from
+              the landing. Clicking enters the sign-up funnel. */}
+          <button
+            type="button"
+            className="plans-trial"
+            onClick={onEnter}
+            style={{ opacity: headR, transform: `translateY(${lerp(40, 0, headR)}px)` }}
+          >
+            <span className="plans-trial-text">
+              <span className="plans-trial-title">{t("lp.plan.trialTitle")}</span>
+              <span className="plans-trial-note">{t("lp.plan.trialNote")}</span>
+            </span>
+            <span className="plans-trial-cta">{t("lp.plan.trialCta")}</span>
+          </button>
         </div>
       </div>
     </section>
