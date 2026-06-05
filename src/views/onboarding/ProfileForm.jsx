@@ -301,8 +301,19 @@ export default function ProfileForm({ onDone, onBack }) {
     if (!valid) {
       // Talabat-style: surface the gaps and glide to the first one.
       setAttempted(true);
-      const first = missingFields()[0];
-      const el = first && fieldRefs.current[first];
+      const miss = missingFields();
+      // Replay the clay flash on EVERY missing field — even on repeat
+      // clicks. Clear it off all fields first (so filled ones drop their
+      // ring), force a reflow, then add it to the current gaps so the CSS
+      // animation restarts every time.
+      Object.values(fieldRefs.current).forEach((node) => node && node.classList.remove("onb-field-flash"));
+      miss.forEach((keyName) => {
+        const node = fieldRefs.current[keyName];
+        if (!node) return;
+        void node.offsetWidth; // reflow → animation restarts
+        node.classList.add("onb-field-flash");
+      });
+      const el = miss[0] && fieldRefs.current[miss[0]];
       if (el) {
         el.scrollIntoView({ behavior: "smooth", block: "center" });
         // Focus the first interactive control inside so keyboard users
@@ -852,10 +863,10 @@ function ProgressDots({ count, active }) {
 const Field = React.forwardRef(function Field({ label, hint, required, invalid, errorText, children }, ref) {
   return (
     // scroll-mt-24 keeps the field clear of the sticky-ish header when
-    // scrollIntoView jumps here after a failed Next. When a required field
-    // is missing we ALSO pulse a clay ring around the whole field (label +
-    // control) so it's unmistakable — not just a small "required" word.
-    <div ref={ref} className={`scroll-mt-24 ${invalid ? "onb-field-flash" : ""}`}>
+    // scrollIntoView jumps here after a failed Next. The clay flash ring is
+    // applied imperatively from next() (so it replays on every click), not
+    // via this className.
+    <div ref={ref} className="scroll-mt-24">
       <div className="flex items-baseline gap-2 mb-1.5">
         <span
           className="text-[13px] font-medium transition-colors"
