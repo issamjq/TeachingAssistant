@@ -1954,7 +1954,10 @@ html { scroll-behavior: smooth; }
 }
 /* Keep the italic phrase ("the whole [word].") together so the retyping word
    never wraps onto its own line; the title fits one line ≥ ~490px viewport. */
-.film-title em { font-style: italic; color: var(--cm-clay-d); white-space: nowrap; }
+/* Always break the title onto two lines — "From one line," then the
+   italic "the whole {kind}." beneath it — for every builder, regardless of
+   how long the kind word is. */
+.film-title em { display: block; font-style: italic; color: var(--cm-clay-d); white-space: nowrap; }
 .film-title-word { white-space: pre; }
 /* Cursor shown only while the title's last word is being retyped. */
 .film-title-caret {
