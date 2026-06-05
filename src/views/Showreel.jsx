@@ -254,11 +254,9 @@ export default function Showreel() {
                 <span className="film-rec-dot" />
                 REC
               </span>
-              <div
-                className="film-screen"
-                onMouseEnter={() => setPaused(true)}
-                onMouseLeave={() => setPaused(false)}
-              >
+              {/* The mockup plays continuously — no pause-on-hover (by
+                  request), on desktop and mobile alike. */}
+              <div className="film-screen">
                 <div className="film-titlebar" aria-hidden="true">
                   <span className="film-dot" />
                   <span className="film-dot" />

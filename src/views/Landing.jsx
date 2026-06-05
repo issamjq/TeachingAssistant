@@ -270,6 +270,15 @@ const Nav = ({ onEnter, signedIn, onJump, onPage, onSignOut, darkHero = false })
   const t = useT();
   const [scrolled, setScrolled] = useState(false);
   const [overDark, setOverDark] = useState(darkHero);
+  const [menuOpen, setMenuOpen] = useState(false); // mobile nav dropdown
+  // Lock body scroll while the mobile menu is open so the page behind
+  // doesn't slide under the panel.
+  useEffect(() => {
+    if (!menuOpen) return undefined;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = prev; };
+  }, [menuOpen]);
   useEffect(() => {
     const onScroll = () => {
       const y = window.scrollY;
@@ -363,6 +372,26 @@ const Nav = ({ onEnter, signedIn, onJump, onPage, onSignOut, darkHero = false })
         {/* Controls */}
         <div className="flex items-center gap-3 md:gap-4" style={{ transform: "translateY(8px)" }}>
           <LangToggle />
+          {/* Mobile menu toggle — the editorial index is hidden below md,
+              so phones reach the section links + sign-in through here. */}
+          <button
+            type="button"
+            onClick={() => setMenuOpen((o) => !o)}
+            className="md:hidden inline-flex items-center justify-center h-9 w-9 rounded-lg"
+            style={{ color: fg }}
+            aria-label={menuOpen ? "Close menu" : "Open menu"}
+            aria-expanded={menuOpen}
+          >
+            {menuOpen ? (
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+              </svg>
+            ) : (
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+              </svg>
+            )}
+          </button>
           {!signedIn && (
             <button
               type="button"
@@ -393,6 +422,70 @@ const Nav = ({ onEnter, signedIn, onJump, onPage, onSignOut, darkHero = false })
           )}
         </div>
       </div>
+
+      {/* Mobile dropdown — section links + sign-in/subscribe. Solid paper
+          panel so it's legible over both the warm drench and cream
+          sections. Closes on any selection. */}
+      {menuOpen && (
+        <div
+          className="md:hidden"
+          style={{
+            background: "var(--paper)",
+            borderTop: "1px solid var(--line)",
+            boxShadow: "0 26px 44px -26px rgba(26,24,20,0.45)",
+          }}
+        >
+          <nav className="px-6 py-3 flex flex-col">
+            {navItems.map((it, i) => (
+              <button
+                key={it.key + i}
+                type="button"
+                onClick={() => { onJump(it.to); setMenuOpen(false); }}
+                className="flex items-center gap-3 py-3.5 text-start border-b"
+                style={{ borderColor: "var(--line)", color: "var(--ink)" }}
+              >
+                <span className="font-mono text-[11px] tracking-[0.16em]" style={{ color: "var(--clay)" }}>
+                  {String(i + 1).padStart(2, "0")}
+                </span>
+                <span className="text-[15px] font-medium">{t(it.key)}</span>
+              </button>
+            ))}
+            {!signedIn && (
+              <button
+                type="button"
+                onClick={() => { onPage("signin"); setMenuOpen(false); }}
+                className="py-3.5 text-start text-[15px] font-medium border-b"
+                style={{ borderColor: "var(--line)", color: "var(--ink)" }}
+              >
+                {t("lp.nav.signin")}
+              </button>
+            )}
+            {!signedIn && (
+              <button
+                type="button"
+                onClick={() => { onEnter(); setMenuOpen(false); }}
+                className="mt-4 mb-2 w-full inline-flex items-center justify-center gap-2 px-5 py-3.5 rounded-xl text-sm font-medium"
+                style={{ background: "var(--ink)", color: "var(--paper)" }}
+              >
+                <span>{t("lp.cta.subscribe")}</span>
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+                  <path d={ctaArrow} stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </button>
+            )}
+            {signedIn && (
+              <button
+                type="button"
+                onClick={() => { onEnter(); setMenuOpen(false); }}
+                className="mt-4 mb-2 w-full inline-flex items-center justify-center gap-2 px-5 py-3.5 rounded-xl text-sm font-medium"
+                style={{ background: "var(--ink)", color: "var(--paper)" }}
+              >
+                {t("lp.nav.openPlanner")}
+              </button>
+            )}
+          </nav>
+        </div>
+      )}
     </motion.header>
   );
 };
