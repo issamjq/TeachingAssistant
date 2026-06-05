@@ -2088,6 +2088,11 @@ html { scroll-behavior: smooth; }
    shorter phases, so nothing overlaps and the frame never changes size. */
 @media (max-width: 768px) {
   .film-screen { height: clamp(600px, 86vh, 720px); }
+  /* Reserve a constant 2-line height for the section title so a long kind
+     word ("the whole presentation.") doesn't wrap and shove the mockup
+     down relative to a short one ("the whole quiz."). The mockup now
+     starts at the same Y for every kind. */
+  .film-title { min-height: 2.15em; }
 }
 /* Drafting phase — "Murchid is drafting…" with a spinner + shimmer lines. */
 .film-drafting-label {
