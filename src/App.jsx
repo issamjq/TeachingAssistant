@@ -184,10 +184,14 @@ export default function StudioApp({ onClose }) {
       off = onAuthChange(async (user) => {
         if (cancelled) return;
         if (!user) {
-          // Firebase says nobody is signed in. Drop the mock account
-          // and return to the landing page (the parent main.jsx renders
-          // landing whenever account is null).
+          // Firebase says nobody is signed in. This fires when a signed-out
+          // visitor lands on a studio URL — e.g. after Sign out they swipe
+          // back and the browser restores /planner. main.jsx routes purely
+          // on the URL, so clearing the account isn't enough; we must also
+          // reset the route to "/" so the landing page renders instead of
+          // the studio. (Security: never show the studio shell unauthed.)
           if (account) clearAccount();
+          clearRoute();
           return;
         }
         try {
