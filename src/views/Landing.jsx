@@ -399,10 +399,13 @@ const Nav = ({ onEnter, signedIn, onJump, onPage, onSignOut, darkHero = false })
             <button
               type="button"
               onClick={() => onPage("signin")}
-              className="hidden md:block nav-quiet"
+              className="hidden md:inline-flex nav-signin"
               style={{ color: fg }}
             >
-              {t("lp.nav.signin")}
+              <span>{t("lp.nav.signin")}</span>
+              <svg width="13" height="13" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+                <path d={ctaArrow} stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
             </button>
           )}
           {signedIn && (

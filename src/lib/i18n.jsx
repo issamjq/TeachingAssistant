@@ -1978,25 +1978,24 @@ export function LangToggle({ className = "" }) {
   const { lang, setLang } = useI18n();
   const opts = [
     { v: "en", label: "EN" },
-    { v: "ar", label: "Ar" },
+    { v: "ar", label: "ع" },
   ];
   return (
     <div
-      className={`inline-flex items-center rounded-full border border-line bg-paper-cool p-0.5 ${className}`}
+      className={`lang-toggle ${className}`}
+      data-active={lang}
       role="group"
       aria-label="Language"
       dir="ltr"
     >
+      {/* Sliding indicator rides under the active option. */}
+      <span className="lang-toggle-ind" aria-hidden="true" />
       {opts.map((o) => (
         <button
           key={o.v}
           type="button"
           onClick={() => setLang(o.v)}
-          className={`px-2.5 py-1 rounded-full text-[11px] font-medium leading-none transition ${
-            lang === o.v
-              ? "bg-ink text-paper-cool"
-              : "text-ink-soft hover:text-ink"
-          }`}
+          className={`lang-toggle-opt${lang === o.v ? " is-active" : ""}`}
           aria-pressed={lang === o.v}
         >
           {o.label}
