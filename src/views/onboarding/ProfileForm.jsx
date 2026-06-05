@@ -458,8 +458,6 @@ export default function ProfileForm({ onDone, onBack }) {
                 options={MAJORS}
                 selected={data.majors}
                 onToggle={(v) => toggleIn("majors", v)}
-                onSetAll={(next) => set({ majors: next })}
-                allLabel={t("onb.all.majors")}
               />
             </Field>
             <Field label={t("onb.fld.languages")} required ref={setFieldRef("languages")} invalid={isMissing("languages")} errorText={t("onb.fld.required")}>
@@ -467,8 +465,6 @@ export default function ProfileForm({ onDone, onBack }) {
                 options={QUIZ_LANGUAGES}
                 selected={data.languages}
                 onToggle={(v) => toggleIn("languages", v)}
-                onSetAll={(next) => set({ languages: next })}
-                allLabel={t("onb.all.languages")}
               />
             </Field>
           </div>
