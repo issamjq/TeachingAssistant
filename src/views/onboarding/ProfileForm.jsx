@@ -187,7 +187,6 @@ export default function ProfileForm({ onDone, onBack }) {
     }
     if (step === "schools") return schools.length > 0 ? [] : ["schools"];
     if (step === "scope") return valid ? [] : ["scope"];
-    if (step === "students") return students.length > 0 ? [] : ["students"];
     return [];
   };
   const isMissing = (key) => attempted && missingFields().includes(key);
@@ -244,7 +243,7 @@ export default function ProfileForm({ onDone, onBack }) {
                 const grades = Object.keys(gs);
                 return grades.length > 0 && grades.every((g) => (gs[g] || []).length > 0);
               })
-            : students.length > 0; // students step — required (no skip)
+            : true; // students step — optional (no forced upload, no skip link)
 
   const handleTemplateDownload = () => {
     if (downloadingTemplate) return;
@@ -516,16 +515,10 @@ export default function ProfileForm({ onDone, onBack }) {
         )}
 
         {step === "students" && (
-          <div ref={setFieldRef("students")} className="space-y-5 scroll-mt-24">
-            {/* Required now (no skip) — import at least one student roster.
-                Three numbered steps keep the flow obvious for non-technical
-                teachers; steps 1 and 3 carry their action buttons inline so
-                the order matches the reading order. Step 2 is just text. */}
-            {isMissing("students") && (
-              <p className="text-[13px] font-medium" style={{ color: "var(--clay)" }}>
-                {t("onb.students.requiredNote")}
-              </p>
-            )}
+          <div className="space-y-5">
+            {/* Optional — importing a roster is encouraged but not forced;
+                "Continue to plan" works either way. Three numbered steps
+                keep the flow obvious for non-technical teachers. */}
             <ol className="space-y-3">
               <li className="flex items-start gap-3">
                 <span className="flex-shrink-0 inline-flex h-7 w-7 rounded-full bg-accent text-paper-cool font-mono text-[12px] font-semibold items-center justify-center">
