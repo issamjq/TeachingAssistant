@@ -2413,3 +2413,133 @@ html { scroll-behavior: smooth; }
   .plans-stage, .final-stage, .film-stage { height: auto !important; }
   .plans-pin, .final-pin, .film-pin { position: static !important; height: auto !important; }
 }
+
+/* ════════════════════════════════════════════════════════════════════
+   Mobile menu — full-screen editorial takeover (premium, animated)
+   ════════════════════════════════════════════════════════════════════ */
+.lp-burger {
+  position: relative;
+  display: inline-flex; flex-direction: column; justify-content: center; align-items: center;
+  gap: 5px; width: 40px; height: 40px; border: 0; background: transparent; cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.lp-burger span {
+  display: block; width: 22px; height: 2px; border-radius: 2px;
+  background: currentColor; transition: transform 320ms var(--easeOutE), opacity 200ms ease;
+}
+.lp-burger[aria-expanded="true"] span:nth-child(1) { transform: translateY(7px) rotate(45deg); }
+.lp-burger[aria-expanded="true"] span:nth-child(2) { opacity: 0; }
+.lp-burger[aria-expanded="true"] span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
+
+.lp-menu { position: fixed; inset: 0; z-index: 200; }
+.lp-menu-scrim {
+  position: absolute; inset: 0; background: oklch(0.18 0.05 30 / 0.34);
+  opacity: 0; transition: opacity 420ms ease;
+  backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px);
+}
+.lp-menu.is-open .lp-menu-scrim { opacity: 1; }
+
+.lp-menu-panel {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column;
+  padding: clamp(18px, 4vw, 28px) clamp(22px, 6vw, 40px) clamp(28px, 5vh, 44px);
+  color: var(--cm-ink, #2a1f17);
+  background-color: var(--cm-cream, #f7f3ec);
+  background-image: radial-gradient(oklch(0.18 0.03 40 / 0.05) 1px, transparent 1.4px);
+  background-size: 22px 22px;
+  /* Opening: a soft curtain — paper drops from the top + fades, with a
+     gentle clip-path reveal so it feels like it unrolls rather than pops. */
+  opacity: 0; transform: translateY(-0.6%) scale(0.985);
+  clip-path: inset(0 0 100% 0);
+  transition:
+    opacity 360ms ease,
+    transform 520ms var(--easeOutE),
+    clip-path 560ms var(--easeOutE);
+  overflow-y: auto;
+}
+.lp-menu.is-open .lp-menu-panel {
+  opacity: 1; transform: translateY(0) scale(1); clip-path: inset(0 0 0% 0);
+}
+
+.lp-menu-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.lp-menu-top-actions { display: inline-flex; align-items: center; gap: 12px; }
+.lp-menu-close {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 44px; height: 44px; border-radius: 14px; cursor: pointer;
+  color: var(--cm-ink, #2a1f17);
+  background: oklch(0.18 0.04 40 / 0.05);
+  border: 1px solid oklch(0.18 0.04 40 / 0.08);
+  transition: background 240ms ease, transform 240ms var(--easeOutE);
+}
+.lp-menu-close:hover { background: oklch(0.18 0.04 40 / 0.1); transform: rotate(90deg); }
+
+.lp-menu-nav {
+  flex: 1 1 auto; display: flex; flex-direction: column; justify-content: center;
+  gap: clamp(2px, 0.6vh, 8px); margin-block: clamp(20px, 4vh, 40px); min-height: 0;
+}
+.lp-menu-link {
+  position: relative; display: flex; align-items: baseline; gap: 16px;
+  width: 100%; padding: clamp(14px, 2.2vh, 20px) 4px; text-align: start; cursor: pointer;
+  background: transparent; border: 0; border-bottom: 1px solid oklch(0.18 0.03 40 / 0.12);
+  color: var(--cm-ink, #2a1f17);
+  /* staggered entrance — base (closed/exit) has no delay so the whole
+     panel closes together; the .is-open rule adds the per-item stagger. */
+  opacity: 0; transform: translateY(18px);
+  transition: opacity 420ms ease, transform 520ms var(--easeOutE);
+}
+.lp-menu.is-open .lp-menu-link {
+  opacity: 1; transform: translateY(0);
+  transition-delay: calc(var(--i) * 70ms + 140ms);
+}
+.lp-menu-num {
+  font-family: 'JetBrains Mono', monospace; font-size: 12px; letter-spacing: 0.14em;
+  color: var(--cm-clay-d, #8a4b2f); flex-shrink: 0; width: 1.8em;
+}
+.lp-menu-label {
+  flex: 1 1 auto; font-family: 'Fraunces', Georgia, serif; font-weight: 400;
+  font-size: clamp(30px, 8.4vw, 46px); line-height: 1.02; letter-spacing: -0.02em;
+}
+.lp-menu-chev {
+  display: inline-flex; align-self: center; color: var(--cm-clay-d, #8a4b2f);
+  opacity: 0.45; transition: transform 320ms var(--easeOutE), opacity 240ms ease;
+}
+[dir="rtl"] .lp-menu-chev { transform: scaleX(-1); }
+.lp-menu-link:hover .lp-menu-chev,
+.lp-menu-link:active .lp-menu-chev { opacity: 1; transform: translateX(4px); }
+[dir="rtl"] .lp-menu-link:hover .lp-menu-chev { transform: scaleX(-1) translateX(4px); }
+
+.lp-menu-foot {
+  display: flex; flex-direction: column; gap: 14px;
+  opacity: 0; transform: translateY(18px);
+  transition: opacity 420ms ease, transform 520ms var(--easeOutE);
+}
+.lp-menu.is-open .lp-menu-foot {
+  opacity: 1; transform: translateY(0);
+  transition-delay: calc(var(--i) * 70ms + 160ms);
+}
+.lp-menu-signin {
+  align-self: center; padding: 6px 4px; cursor: pointer; background: transparent; border: 0;
+  font-family: 'Inter Tight', system-ui, sans-serif; font-size: 15px; font-weight: 500;
+  color: var(--cm-ink-2, #6e5c4a); text-decoration: underline; text-underline-offset: 4px;
+}
+.lp-menu-cta {
+  display: inline-flex; align-items: center; justify-content: center; gap: 9px;
+  width: 100%; padding: 17px 24px; border-radius: 16px; border: 0; cursor: pointer;
+  background: var(--cm-ink, #2a1f17); color: var(--cm-cream, #f7f3ec);
+  font-family: 'Inter Tight', system-ui, sans-serif; font-size: 16px; font-weight: 600;
+  box-shadow: 0 16px 34px -16px oklch(0.18 0.05 30 / 0.55);
+  transition: transform 260ms var(--easeOutE), box-shadow 260ms var(--easeOutE);
+}
+.lp-menu-cta:hover { transform: translateY(-2px); box-shadow: 0 24px 44px -18px oklch(0.18 0.05 30 / 0.6); }
+.lp-menu-tag {
+  text-align: center; margin: 4px 0 0;
+  font-family: 'JetBrains Mono', monospace; font-size: 10.5px; letter-spacing: 0.22em;
+  color: var(--cm-ink-3, #9b8b76);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lp-menu-panel, .lp-menu-link, .lp-menu-foot, .lp-menu-scrim, .lp-burger span, .lp-menu-close {
+    transition: none !important;
+  }
+  .lp-menu-panel { clip-path: none; }
+}

@@ -270,14 +270,29 @@ const Nav = ({ onEnter, signedIn, onJump, onPage, onSignOut, darkHero = false })
   const t = useT();
   const [scrolled, setScrolled] = useState(false);
   const [overDark, setOverDark] = useState(darkHero);
-  const [menuOpen, setMenuOpen] = useState(false); // mobile nav dropdown
-  // Lock body scroll while the mobile menu is open so the page behind
-  // doesn't slide under the panel.
+  // Mobile menu: `menuOpen` mounts it, `menuVisible` drives the open/close
+  // CSS transitions. Closing flips menuVisible off (plays the exit), then
+  // unmounts after the animation. Body scroll is locked while mounted.
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [menuVisible, setMenuVisible] = useState(false);
+  const openMenu = () => setMenuOpen(true);
+  const closeMenu = () => {
+    setMenuVisible(false);
+    window.setTimeout(() => setMenuOpen(false), 520);
+  };
   useEffect(() => {
     if (!menuOpen) return undefined;
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-    return () => { document.body.style.overflow = prev; };
+    const id = requestAnimationFrame(() => setMenuVisible(true));
+    const onKey = (e) => { if (e.key === "Escape") closeMenu(); };
+    window.addEventListener("keydown", onKey);
+    return () => {
+      document.body.style.overflow = prev;
+      cancelAnimationFrame(id);
+      window.removeEventListener("keydown", onKey);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [menuOpen]);
   useEffect(() => {
     const onScroll = () => {
@@ -372,31 +387,11 @@ const Nav = ({ onEnter, signedIn, onJump, onPage, onSignOut, darkHero = false })
         {/* Controls */}
         <div className="flex items-center gap-3 md:gap-4" style={{ transform: "translateY(8px)" }}>
           <LangToggle />
-          {/* Mobile menu toggle — the editorial index is hidden below md,
-              so phones reach the section links + sign-in through here. */}
-          <button
-            type="button"
-            onClick={() => setMenuOpen((o) => !o)}
-            className="md:hidden inline-flex items-center justify-center h-9 w-9 rounded-lg"
-            style={{ color: fg }}
-            aria-label={menuOpen ? "Close menu" : "Open menu"}
-            aria-expanded={menuOpen}
-          >
-            {menuOpen ? (
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-              </svg>
-            ) : (
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                <path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-              </svg>
-            )}
-          </button>
           {!signedIn && (
             <button
               type="button"
               onClick={() => onPage("signin")}
-              className="hidden sm:block nav-quiet"
+              className="hidden md:block nav-quiet"
               style={{ color: fg }}
             >
               {t("lp.nav.signin")}
@@ -406,12 +401,13 @@ const Nav = ({ onEnter, signedIn, onJump, onPage, onSignOut, darkHero = false })
             <NavProfile onEnter={onEnter} onSignOut={onSignOut} />
           )}
           {/* Signed-in users reach the planner from the profile dropdown, so
-              the nav CTA only shows the Subscribe action when signed out. */}
+              the nav CTA only shows the Subscribe action when signed out.
+              Hidden on phones — the menu carries the action there. */}
           {!signedIn && (
             <button
               type="button"
               onClick={onEnter}
-              className="nav-cta"
+              className="nav-cta hidden md:inline-flex"
               style={{ ...ctaStyle, ["--cta-nudge"]: isRTL ? "-3px" : "3px" }}
             >
               <span>{t("lp.cta.subscribe")}</span>
@@ -420,71 +416,95 @@ const Nav = ({ onEnter, signedIn, onJump, onPage, onSignOut, darkHero = false })
               </svg>
             </button>
           )}
+          {/* Mobile menu trigger — sits at the trailing edge of the bar.
+              The editorial index is hidden below md, so phones reach the
+              section links, sign-in and subscribe through the full-screen
+              menu it opens. */}
+          <button
+            type="button"
+            onClick={() => (menuOpen ? closeMenu() : openMenu())}
+            className="lp-burger md:hidden"
+            style={{ color: fg }}
+            aria-label="Open menu"
+            aria-expanded={menuOpen}
+          >
+            <span /><span /><span />
+          </button>
         </div>
       </div>
 
-      {/* Mobile dropdown — section links + sign-in/subscribe. Solid paper
-          panel so it's legible over both the warm drench and cream
-          sections. Closes on any selection. */}
-      {menuOpen && (
-        <div
-          className="md:hidden"
-          style={{
-            background: "var(--paper)",
-            borderTop: "1px solid var(--line)",
-            boxShadow: "0 26px 44px -26px rgba(26,24,20,0.45)",
-          }}
-        >
-          <nav className="px-6 py-3 flex flex-col">
-            {navItems.map((it, i) => (
+      {menuOpen && createPortal(
+        <div className={`lp-menu${menuVisible ? " is-open" : ""}`} role="dialog" aria-modal="true">
+          <div className="lp-menu-scrim" onClick={closeMenu} aria-hidden="true" />
+          <div className="lp-menu-panel" dir={isRTL ? "rtl" : "ltr"}>
+            {/* Top bar — mirrors the nav: wordmark, lang, close. */}
+            <div className="lp-menu-top">
+              <MurchidLogo
+                className="h-[44px] w-auto"
+                style={{ "--murchid-logo-accent": "#8e5435", transform: "translateY(3px)" }}
+              />
+              <div className="lp-menu-top-actions">
+                <LangToggle />
+                <button
+                  type="button"
+                  onClick={closeMenu}
+                  className="lp-menu-close"
+                  aria-label="Close menu"
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            {/* Editorial index — large serif links, numbered, staggered. */}
+            <nav className="lp-menu-nav" aria-label="Primary">
+              {navItems.map((it, i) => (
+                <button
+                  key={it.key + i}
+                  type="button"
+                  onClick={() => { onJump(it.to); closeMenu(); }}
+                  className="lp-menu-link"
+                  style={{ "--i": i }}
+                >
+                  <span className="lp-menu-num">{String(i + 1).padStart(2, "0")}</span>
+                  <span className="lp-menu-label">{t(it.key)}</span>
+                  <span className="lp-menu-chev" aria-hidden="true">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                      <path d="M9 6l6 6-6 6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  </span>
+                </button>
+              ))}
+            </nav>
+
+            {/* Footer — sign-in + the primary CTA. */}
+            <div className="lp-menu-foot" style={{ "--i": navItems.length }}>
+              {!signedIn && (
+                <button
+                  type="button"
+                  onClick={() => { onPage("signin"); closeMenu(); }}
+                  className="lp-menu-signin"
+                >
+                  {t("lp.nav.signin")}
+                </button>
+              )}
               <button
-                key={it.key + i}
                 type="button"
-                onClick={() => { onJump(it.to); setMenuOpen(false); }}
-                className="flex items-center gap-3 py-3.5 text-start border-b"
-                style={{ borderColor: "var(--line)", color: "var(--ink)" }}
+                onClick={() => { onEnter(); closeMenu(); }}
+                className="lp-menu-cta"
               >
-                <span className="font-mono text-[11px] tracking-[0.16em]" style={{ color: "var(--clay)" }}>
-                  {String(i + 1).padStart(2, "0")}
-                </span>
-                <span className="text-[15px] font-medium">{t(it.key)}</span>
-              </button>
-            ))}
-            {!signedIn && (
-              <button
-                type="button"
-                onClick={() => { onPage("signin"); setMenuOpen(false); }}
-                className="py-3.5 text-start text-[15px] font-medium border-b"
-                style={{ borderColor: "var(--line)", color: "var(--ink)" }}
-              >
-                {t("lp.nav.signin")}
-              </button>
-            )}
-            {!signedIn && (
-              <button
-                type="button"
-                onClick={() => { onEnter(); setMenuOpen(false); }}
-                className="mt-4 mb-2 w-full inline-flex items-center justify-center gap-2 px-5 py-3.5 rounded-xl text-sm font-medium"
-                style={{ background: "var(--ink)", color: "var(--paper)" }}
-              >
-                <span>{t("lp.cta.subscribe")}</span>
-                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-                  <path d={ctaArrow} stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                <span>{signedIn ? t("lp.nav.openPlanner") : t("lp.cta.subscribe")}</span>
+                <svg width="15" height="15" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+                  <path d={ctaArrow} stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
               </button>
-            )}
-            {signedIn && (
-              <button
-                type="button"
-                onClick={() => { onEnter(); setMenuOpen(false); }}
-                className="mt-4 mb-2 w-full inline-flex items-center justify-center gap-2 px-5 py-3.5 rounded-xl text-sm font-medium"
-                style={{ background: "var(--ink)", color: "var(--paper)" }}
-              >
-                {t("lp.nav.openPlanner")}
-              </button>
-            )}
-          </nav>
-        </div>
+              <p className="lp-menu-tag">SIX TOOLS · ONE STUDIO</p>
+            </div>
+          </div>
+        </div>,
+        document.body
       )}
     </motion.header>
   );
