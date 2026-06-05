@@ -103,14 +103,17 @@ export default function HeroAtelier({ onEnter, signedIn }) {
   const tocBottomY = cardTopY - 14; // labels sit just above the cards
   const headBottomY = tocBottomY - 104; // title sits above the labels
 
-  // Shared card transform — fan (hero) lerped to row (index).
+  // Shared card transform — fan (hero) lerped to row (index). The fit
+  // factor `k` is now applied to the FAN too (offsets + scale), not just
+  // the index row, so the whole composition shrinks to fit narrow screens
+  // identically instead of overflowing / re-laying-out.
   const cardStyle = (i) => {
     const o = i - MID;
-    // A — confident fan, lifted clear of the lockup above.
-    const xa = o * 128 * dir;
+    // A — confident fan, lifted clear of the lockup above (scaled by k).
+    const xa = o * 128 * dir * k;
     const ya = 204 + (MID * MID - o * o) * 10;
     const ra = o * 6 * dir;
-    const sa = 0.67;
+    const sa = 0.67 * k;
     // B — clean contact-sheet row, upright + responsive.
     const xb = o * pitch * dir;
     const x = lerp(xa, xb, cardsT);
@@ -164,7 +167,7 @@ export default function HeroAtelier({ onEnter, signedIn }) {
           className="atl-lockup"
           style={{
             opacity: 1 - lockOut,
-            transform: `translate(-50%, 0) translateY(${lockOut * -64}px) scale(${1 - lockOut * 0.05})`,
+            transform: `translate(-50%, 0) translateY(${lockOut * -64}px) scale(${(1 - lockOut * 0.05) * k})`,
           }}
         >
           {/* The watermark mirrors the foreground in the *other* script:
@@ -207,7 +210,7 @@ export default function HeroAtelier({ onEnter, signedIn }) {
           style={{
             opacity: headIn,
             // Bottom-anchored to the card top → a clean gap above the labels.
-            transform: `translate(-50%, -100%) translateY(${headBottomY}px) translateY(${(1 - headIn) * 24}px)`,
+            transform: `translate(-50%, -100%) translateY(${headBottomY}px) translateY(${(1 - headIn) * 24}px) scale(${k})`,
           }}
         >
           <span className="atl-index-over">{t("atl.index.over")}</span>

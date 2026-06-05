@@ -1452,16 +1452,17 @@ html { scroll-behavior: smooth; }
     radial-gradient(ellipse 120% 90% at 50% 50%, oklch(0.92 0.04 75), transparent 85%),
     var(--cm-cream);
 }
-.atl-pin { display: none; }
-.atl-mobile { display: block; }
-@media (min-width: 1024px) {
-  .atl { height: 300vh; }
-  .atl-pin {
-    display: block; position: sticky; top: 0;
-    height: 100vh; overflow: hidden; isolation: isolate;
-  }
-  .atl-mobile { display: none; }
+/* One composition at every breakpoint: the pinned title sequence renders
+   on phone + tablet too (scaled to fit), never the old re-laid-out grid.
+   The scroll choreography is a pure function of the 300vh track, so it's
+   identical across sizes. overflow:hidden on the pin (+ clip on the track)
+   guarantees the fanned cards never spill into a sideways scrollbar. */
+.atl { height: 300vh; overflow-x: clip; }
+.atl-pin {
+  display: block; position: sticky; top: 0;
+  height: 100vh; overflow: hidden; isolation: isolate;
 }
+.atl-mobile { display: none; }
 
 /* Warm drench — recedes via inline opacity. Reuses cinema-grain/orb. */
 .atl-drench {
@@ -1516,7 +1517,10 @@ html { scroll-behavior: smooth; }
   position: absolute; z-index: 0; top: 50%; left: 50%;
   transform: translate(-50%, -46%);
   font-family: 'Amiri', 'Fraunces', serif; font-weight: 400;
-  font-size: clamp(200px, 36vw, 560px); line-height: 1;
+  /* Fixed design size — the lockup is uniformly scaled by `k` in JS to fit
+     any width, so the type itself must NOT also shrink with vw (that would
+     double-scale and break the proportions). */
+  font-size: 480px; line-height: 1;
   color: oklch(0.98 0.02 80); opacity: 0.10;
   white-space: nowrap; pointer-events: none; user-select: none;
   animation: atl-wm 1.6s 0.1s var(--easeOutE) backwards;
@@ -1526,7 +1530,7 @@ html { scroll-behavior: smooth; }
    so the whole word reads as a backdrop instead of overflowing. */
 .atl-watermark--latin {
   font-family: 'Fraunces', Georgia, serif;
-  font-size: clamp(90px, 18vw, 320px); letter-spacing: -0.04em;
+  font-size: 250px; letter-spacing: -0.04em;
 }
 .atl-watermark--m.atl-watermark--latin {
   font-size: clamp(64px, 22vw, 180px);
@@ -1536,7 +1540,7 @@ html { scroll-behavior: smooth; }
   font-family: 'Fraunces', Georgia, serif; font-weight: 300;
   font-optical-sizing: auto;
   font-variation-settings: 'opsz' 144, 'SOFT' 60;
-  font-size: clamp(64px, 14vw, 224px);
+  font-size: 200px;
   line-height: 0.86; letter-spacing: -0.04em;
   color: var(--cm-cream);
   animation: atl-rise 1.2s 0.35s var(--easeOutE) backwards;
@@ -1547,7 +1551,7 @@ html { scroll-behavior: smooth; }
 }
 .atl-word--ar {
   font-family: 'Amiri', 'Fraunces', serif; font-weight: 400;
-  font-size: clamp(64px, 13vw, 216px); letter-spacing: 0;
+  font-size: 190px; letter-spacing: 0;
   /* Amiri runs taller and deeper than the Latin Fraunces. Keep a roomy
      line-height so the glyphs never overlap the meaning line beneath, but
      size it close to the Latin so the lockup isn't so tall that the CTA
@@ -1557,18 +1561,18 @@ html { scroll-behavior: smooth; }
 .atl-meaning {
   position: relative; z-index: 1;
   font-family: 'JetBrains Mono', monospace;
-  font-size: clamp(11px, 1.05vw, 14px); letter-spacing: 0.1em;
+  font-size: 14px; letter-spacing: 0.1em;
   color: oklch(0.96 0.04 80 / 0.72);
-  margin-block-start: clamp(10px, 1.6vh, 20px);
+  margin-block-start: 18px;
   animation: atl-rise-soft 0.9s 0.7s var(--easeOutE) backwards;
 }
 .atl-tagline {
   position: relative; z-index: 1;
   font-family: 'Fraunces', Georgia, serif; font-weight: 300;
-  font-size: clamp(20px, 2.6vw, 40px); line-height: 1.12;
+  font-size: 38px; line-height: 1.12;
   letter-spacing: -0.02em; color: oklch(0.97 0.025 80);
   max-width: 22ch; text-wrap: balance;
-  margin-block-start: clamp(14px, 2.2vh, 28px);
+  margin-block-start: 26px;
 }
 .atl-tagline em { font-style: italic; color: oklch(0.86 0.13 60); }
 .atl-tw {
@@ -1660,12 +1664,12 @@ html { scroll-behavior: smooth; }
 .atl-index-over {
   display: inline-block; margin-block-end: 14px;
   font-family: 'JetBrains Mono', monospace;
-  font-size: clamp(11px, 1vw, 13px); letter-spacing: 0.2em;
+  font-size: 13px; letter-spacing: 0.2em;
   text-transform: uppercase; color: oklch(0.86 0.13 60);
 }
 .atl-index-title {
   font-family: 'Fraunces', Georgia, serif; font-weight: 300;
-  font-size: clamp(32px, 4.8vw, 72px); line-height: 1.04;
+  font-size: 68px; line-height: 1.04;
   letter-spacing: -0.025em; color: var(--cm-cream); margin: 0;
 }
 .atl-index-title em { font-style: italic; color: oklch(0.86 0.13 60); }
@@ -1692,7 +1696,7 @@ html { scroll-behavior: smooth; }
 }
 .atl-toc-num {
   font-family: 'Fraunces', Georgia, serif; font-style: italic;
-  font-size: clamp(22px, 2vw, 30px); color: oklch(0.86 0.13 60); line-height: 1;
+  font-size: clamp(13px, 2vw, 30px); color: oklch(0.86 0.13 60); line-height: 1;
 }
 .atl-toc-label {
   font-family: 'JetBrains Mono', monospace; font-size: 12px;
