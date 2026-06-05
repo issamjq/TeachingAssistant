@@ -719,6 +719,21 @@ export default function ProfileForm({ onDone, onBack }) {
         @media (prefers-reduced-motion: reduce) {
           .onb-input-invalid { animation: none; }
         }
+        /* Missing required field after a failed Next — pulse a clay ring
+           around the whole field (works for chip/avatar pickers too, not
+           just text inputs) so the teacher sees exactly where to look.
+           box-shadow only → no layout shift. */
+        .onb-field-flash {
+          border-radius: 14px;
+          animation: onb-field-flash 1.15s ease-out 2;
+        }
+        @keyframes onb-field-flash {
+          0%, 100% { box-shadow: 0 0 0 5px rgba(200, 71, 43, 0); }
+          35%      { box-shadow: 0 0 0 4px rgba(200, 71, 43, 0.34); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .onb-field-flash { animation: none; box-shadow: 0 0 0 2px rgba(200, 71, 43, 0.4); }
+        }
         /* Grade rows + section chips ease in as the teacher builds out a
            school's scope, so the form feels alive while they pick. */
         .onb-pop-in {
@@ -837,8 +852,10 @@ function ProgressDots({ count, active }) {
 const Field = React.forwardRef(function Field({ label, hint, required, invalid, errorText, children }, ref) {
   return (
     // scroll-mt-24 keeps the field clear of the sticky-ish header when
-    // scrollIntoView jumps here after a failed Next (Talabat-style).
-    <div ref={ref} className="scroll-mt-24">
+    // scrollIntoView jumps here after a failed Next. When a required field
+    // is missing we ALSO pulse a clay ring around the whole field (label +
+    // control) so it's unmistakable — not just a small "required" word.
+    <div ref={ref} className={`scroll-mt-24 ${invalid ? "onb-field-flash" : ""}`}>
       <div className="flex items-baseline gap-2 mb-1.5">
         <span
           className="text-[13px] font-medium transition-colors"
