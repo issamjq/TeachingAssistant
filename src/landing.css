@@ -261,6 +261,26 @@ html { scroll-behavior: smooth; }
   .murchid-trial-twinkle { animation: none !important; }
 }
 
+/* Free-trial CTA sweep — the same skewed white "line" the Studio launcher
+   in the planner runs, looping left → right across the clay banner. Apply
+   the class to a clay/dark CTA container; its direct children ride above
+   the sweep. */
+.lp-trial-sweep { position: relative; overflow: hidden; }
+.lp-trial-sweep > * { position: relative; z-index: 2; }
+.lp-trial-sweep::after {
+  content: ""; position: absolute; top: 0; bottom: 0; left: -50%; width: 48%; z-index: 1;
+  background: linear-gradient(100deg, transparent 0%, rgba(255, 255, 255, 0.28) 50%, transparent 100%);
+  transform: skewX(-14deg); pointer-events: none;
+  animation: lp-trial-sweep 4.4s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+}
+@keyframes lp-trial-sweep {
+  0%        { left: -55%; }
+  42%, 100% { left: 135%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lp-trial-sweep::after { animation: none; opacity: 0; }
+}
+
 /* ════════════════════════════════════════════════════════════════════
    CINEMATIC HOME (2026)
    Drench-warm × scroll-driven choreography. New tokens, new motion
@@ -2547,4 +2567,11 @@ html { scroll-behavior: smooth; }
     transition: none !important;
   }
   .lp-menu-panel { clip-path: none; }
+}
+
+/* The desktop Subscribe pill + sign-in link live in the mobile menu on
+   phones. .nav-cta sets its own display, which beats Tailwind's `hidden`,
+   so hide it explicitly below md. */
+@media (max-width: 767px) {
+  .nav-cta { display: none; }
 }

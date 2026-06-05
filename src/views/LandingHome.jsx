@@ -604,7 +604,7 @@ function Plans({ onEnter }) {
               the landing. Clicking enters the sign-up funnel. */}
           <button
             type="button"
-            className="plans-trial"
+            className="plans-trial lp-trial-sweep"
             onClick={onEnter}
             style={{ opacity: headR, transform: `translateY(${lerp(40, 0, headR)}px)` }}
           >

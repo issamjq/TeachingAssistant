@@ -386,7 +386,11 @@ const Nav = ({ onEnter, signedIn, onJump, onPage, onSignOut, darkHero = false })
 
         {/* Controls */}
         <div className="flex items-center gap-3 md:gap-4" style={{ transform: "translateY(8px)" }}>
-          <LangToggle />
+          {/* Lang toggle is desktop-only here — on phones it lives inside
+              the mobile menu so the bar stays uncluttered. */}
+          <div className="hidden md:block">
+            <LangToggle />
+          </div>
           {!signedIn && (
             <button
               type="button"
@@ -6545,7 +6549,7 @@ function OnboardingPage({ onChoosePlan, onPage }) {
           quietly animating on their own (shimmer + breathe + twinkle)
           so the button feels alive without needing hover. */}
       <div
-        className="group relative mt-5 w-full rounded-[24px] overflow-hidden flex flex-wrap items-center justify-between gap-x-6 gap-y-4 px-7 py-4"
+        className="lp-trial-sweep group relative mt-5 w-full rounded-[24px] overflow-hidden flex flex-wrap items-center justify-between gap-x-6 gap-y-4 px-7 py-4"
         style={{
           background:
             "radial-gradient(ellipse 92% 64% at 50% 14%, oklch(0.64 0.13 42), transparent 72%), var(--cm-clay)",
@@ -6562,16 +6566,6 @@ function OnboardingPage({ onChoosePlan, onPage }) {
             background:
               "radial-gradient(60% 100% at 50% 100%, rgba(181,117,78,0.55), rgba(26,24,20,0) 70%)",
             animation: "murchid-trial-glow 4.5s ease-in-out infinite",
-          }}
-        />
-        {/* Slow diagonal shimmer sweeping across the bar */}
-        <span
-          aria-hidden="true"
-          className="murchid-trial-shimmer absolute inset-y-0 -left-1/2 w-1/2 pointer-events-none"
-          style={{
-            background:
-              "linear-gradient(105deg, transparent 35%, rgba(255,255,255,0.12) 50%, transparent 65%)",
-            animation: "murchid-trial-shimmer 6s linear infinite",
           }}
         />
         {/* Subtle sparkle particles, each twinkling on a staggered delay */}
