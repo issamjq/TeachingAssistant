@@ -217,7 +217,9 @@ export default function HeroAtelier({ onEnter, signedIn }) {
           style={{
             opacity: headIn,
             // Bottom-anchored to the card top → a clean gap above the labels.
-            transform: `translate(-50%, -100%) translateY(${headBottomY}px) translateY(${(1 - headIn) * 24}px) scale(${k})`,
+            // Uses the larger bigK so "Everything teaching needs…" reads big
+            // on phones (it's a standalone block, not the 6-across row).
+            transform: `translate(-50%, -100%) translateY(${headBottomY}px) translateY(${(1 - headIn) * 24}px) scale(${bigK})`,
           }}
         >
           <span className="atl-index-over">{t("atl.index.over")}</span>
@@ -248,8 +250,10 @@ export default function HeroAtelier({ onEnter, signedIn }) {
           ))}
         </div>
 
-        {/* Contents numbering — sits above each card once it's in the row */}
-        <div className="atl-toc" style={{ opacity: tocIn }} aria-hidden={tocIn < 0.5}>
+        {/* Contents numbering — sits above each card once it's in the row.
+            --toc-k scales the label TYPE with the row's fit factor so the
+            labels shrink with the pitch and never overlap on small screens. */}
+        <div className="atl-toc" style={{ opacity: tocIn, "--toc-k": k }} aria-hidden={tocIn < 0.5}>
           {HERO_CARDS.map((kind, i) => (
             <div
               key={kind}

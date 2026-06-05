@@ -1696,17 +1696,17 @@ html { scroll-behavior: smooth; }
 }
 .atl-toc-num {
   font-family: 'Fraunces', Georgia, serif; font-style: italic;
-  font-size: clamp(13px, 2vw, 30px); color: oklch(0.86 0.13 60); line-height: 1;
+  font-size: calc(28px * var(--toc-k, 1)); color: oklch(0.86 0.13 60); line-height: 1;
 }
 .atl-toc-label {
-  font-family: 'JetBrains Mono', monospace; font-size: 12px;
+  font-family: 'JetBrains Mono', monospace; font-size: calc(12px * var(--toc-k, 1));
   letter-spacing: 0.14em; text-transform: uppercase; color: oklch(0.95 0.03 80 / 0.8);
   white-space: nowrap;
 }
 .atl-toc-desc {
   margin-block-start: 3px;
   font-family: 'Inter Tight', system-ui, sans-serif;
-  font-size: 12.5px; line-height: 1.4; text-align: center;
+  font-size: calc(12.5px * var(--toc-k, 1)); line-height: 1.4; text-align: center;
   color: oklch(0.95 0.03 80 / 0.62);
   /* One line, no wrap — copy is kept short so it never collides with the
      neighbouring label even at the tightest (1024px) pitch. */
