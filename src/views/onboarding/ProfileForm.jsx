@@ -187,6 +187,7 @@ export default function ProfileForm({ onDone, onBack }) {
     }
     if (step === "schools") return schools.length > 0 ? [] : ["schools"];
     if (step === "scope") return valid ? [] : ["scope"];
+    if (step === "students") return students.length > 0 ? [] : ["students"];
     return [];
   };
   const isMissing = (key) => attempted && missingFields().includes(key);
@@ -243,7 +244,7 @@ export default function ProfileForm({ onDone, onBack }) {
                 const grades = Object.keys(gs);
                 return grades.length > 0 && grades.every((g) => (gs[g] || []).length > 0);
               })
-            : true; // students step — always valid (skippable)
+            : students.length > 0; // students step — required (no skip)
 
   const handleTemplateDownload = () => {
     if (downloadingTemplate) return;
@@ -515,11 +516,16 @@ export default function ProfileForm({ onDone, onBack }) {
         )}
 
         {step === "students" && (
-          <div className="space-y-5">
-            {/* Three numbered steps — keeps the flow obvious for
-                non-technical teachers. Steps 1 and 3 carry their
-                action buttons inline so the order matches the
-                reading order. Step 2 is just text. */}
+          <div ref={setFieldRef("students")} className="space-y-5 scroll-mt-24">
+            {/* Required now (no skip) — import at least one student roster.
+                Three numbered steps keep the flow obvious for non-technical
+                teachers; steps 1 and 3 carry their action buttons inline so
+                the order matches the reading order. Step 2 is just text. */}
+            {isMissing("students") && (
+              <p className="text-[13px] font-medium" style={{ color: "var(--clay)" }}>
+                {t("onb.students.requiredNote")}
+              </p>
+            )}
             <ol className="space-y-3">
               <li className="flex items-start gap-3">
                 <span className="flex-shrink-0 inline-flex h-7 w-7 rounded-full bg-accent text-paper-cool font-mono text-[12px] font-semibold items-center justify-center">
@@ -659,41 +665,8 @@ export default function ProfileForm({ onDone, onBack }) {
               {last ? t("onb.finish") : t("onb.next")}
               {last ? <Check size={16} /> : <ChevronRight size={16} className="rtl:rotate-180" />}
             </button>
-            {/* Skip — italic text link with permanent underline, centered
-                directly under the primary Continue button. Standard
-                pattern: low-commitment exit beneath the primary CTA. */}
-            {step === "schools" && (
-              <button
-                type="button"
-                onClick={() => {
-                  // Bypass — wipe any half-picked schools and jump PAST
-                  // the scope step (nothing to scope with no schools)
-                  // straight to the students step.
-                  setSchools([]);
-                  setPendingSchools([]);
-                  const studentsIdx = STEPS.indexOf("students");
-                  setStepIdx(studentsIdx > -1 ? studentsIdx : (i) => i + 1);
-                }}
-                className="font-serif italic text-sm text-ink-soft hover:text-ink underline underline-offset-2 transition-colors"
-              >
-                {t("onb.schools.skipBtn")}
-              </button>
-            )}
-            {step === "students" && (
-              <button
-                type="button"
-                onClick={() => {
-                  setStudents([]);
-                  setImportError(null);
-                  setPendingProfile(data);
-                  setPendingStudents([]);
-                  onDone?.({ ...data, students: [], schools });
-                }}
-                className="font-serif italic text-sm text-ink-soft hover:text-ink underline underline-offset-2 transition-colors"
-              >
-                {t("onb.students.skipBtn")}
-              </button>
-            )}
+            {/* No "skip" from the Schools step onward — the product is built
+                school → grades → sections → students, so each is required. */}
           </div>
         </div>
       </div>
