@@ -2486,13 +2486,17 @@ html { scroll-behavior: smooth; }
 .lp-menu-top-actions { display: inline-flex; align-items: center; gap: 12px; }
 .lp-menu-close {
   display: inline-flex; align-items: center; justify-content: center;
-  width: 44px; height: 44px; border-radius: 14px; cursor: pointer;
+  width: 44px; height: 44px; cursor: pointer;
   color: var(--cm-ink, #2a1f17);
-  background: oklch(0.18 0.04 40 / 0.05);
-  border: 1px solid oklch(0.18 0.04 40 / 0.08);
-  transition: background 240ms ease, transform 240ms var(--easeOutE);
+  background: transparent; border: 0;
+  transition: color 200ms ease, transform 240ms var(--easeOutE);
 }
-.lp-menu-close:hover { background: oklch(0.18 0.04 40 / 0.1); transform: rotate(90deg); }
+.lp-menu-close:hover { color: var(--cm-clay-d, #8a4b2f); transform: rotate(90deg); }
+
+/* The accessibility FAB + its reset chip use a max z-index, so they float
+   over the full-screen mobile menu. Hide them while it's open. */
+body.lp-menu-open [data-a11y-node="launcher"],
+body.lp-menu-open [data-a11y-node="reset-chip"] { display: none !important; }
 
 .lp-menu-nav {
   flex: 1 1 auto; display: flex; flex-direction: column; justify-content: center;

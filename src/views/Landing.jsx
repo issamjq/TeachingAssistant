@@ -284,11 +284,15 @@ const Nav = ({ onEnter, signedIn, onJump, onPage, onSignOut, darkHero = false })
     if (!menuOpen) return undefined;
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
+    // Hide the floating accessibility widget while the full-screen menu is
+    // up (it has a max z-index and would otherwise sit over the CTA).
+    document.body.classList.add("lp-menu-open");
     const id = requestAnimationFrame(() => setMenuVisible(true));
     const onKey = (e) => { if (e.key === "Escape") closeMenu(); };
     window.addEventListener("keydown", onKey);
     return () => {
       document.body.style.overflow = prev;
+      document.body.classList.remove("lp-menu-open");
       cancelAnimationFrame(id);
       window.removeEventListener("keydown", onKey);
     };
