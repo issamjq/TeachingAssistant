@@ -1184,19 +1184,28 @@ function SchoolsStep({ phase = "select", t, value, onChange }) {
                         its section row directly BELOW, the natural reading
                         order (not above the picker). */}
                     {remaining.length > 0 && (
-                      <div className="rounded-xl border border-dashed border-line bg-paper-cool/40 p-2.5">
-                        <p className="font-mono text-[9.5px] uppercase tracking-[0.18em] text-muted mb-2 inline-flex items-center gap-1.5">
-                          <Plus size={10} strokeWidth={2.5} />
-                          {schoolGrades.length === 0
-                            ? t("onb.school.scope.addFirst")
-                            : t("onb.school.scope.addMore")}
-                        </p>
-                        <div className="flex flex-wrap gap-1.5">
+                      <div className="rounded-xl border border-dashed border-clay/45 bg-clay/[0.04] p-3.5">
+                        <div className="flex items-start gap-2.5 mb-3">
+                          <span className="mt-0.5 inline-flex h-7 w-7 flex-shrink-0 rounded-full bg-clay/15 text-clay items-center justify-center">
+                            <Plus size={15} strokeWidth={2.5} />
+                          </span>
+                          <div className="min-w-0">
+                            <p className="text-[14px] font-semibold text-ink leading-tight">
+                              {schoolGrades.length === 0
+                                ? t("onb.school.scope.addFirst")
+                                : t("onb.school.scope.addMore")}
+                            </p>
+                            <p className="text-[12px] text-muted leading-snug mt-0.5">
+                              {t("onb.school.scope.help")}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
                           <button
                             type="button"
                             onClick={() => setSchoolAllGrades(s.school_id, allOn ? [] : [...GRADE_LEVELS])}
                             aria-pressed={allOn}
-                            className={`px-2.5 py-1 rounded-full text-[11.5px] font-semibold border transition-colors ${
+                            className={`px-3.5 py-1.5 rounded-full text-[12.5px] font-semibold border transition-colors ${
                               allOn
                                 ? "bg-accent text-paper-cool border-accent"
                                 : "bg-paper-cool text-accent border-accent hover:bg-accent/10"
@@ -1209,8 +1218,9 @@ function SchoolsStep({ phase = "select", t, value, onChange }) {
                               key={g}
                               type="button"
                               onClick={() => toggleSchoolGrade(s.school_id, g)}
-                              className="px-2.5 py-1 rounded-full text-[11.5px] font-medium border bg-paper text-ink border-line hover:border-ink transition-colors"
+                              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-[12.5px] font-medium border bg-paper text-ink border-line hover:border-clay hover:bg-clay/[0.06] hover:text-clay transition-colors"
                             >
+                              <Plus size={12} strokeWidth={2.5} className="opacity-55" />
                               {g}
                             </button>
                           ))}
