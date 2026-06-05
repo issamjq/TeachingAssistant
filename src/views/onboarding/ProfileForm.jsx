@@ -42,7 +42,7 @@ const EMPTY = {
   firstName: "",
   lastName: "",
   staffId: "",
-  gender: "",
+  gender: "man", // sensible default — teacher can switch to Woman
   avatar: "",
   bio: "",
   majors: [],
@@ -647,8 +647,7 @@ export default function ProfileForm({ onDone, onBack }) {
             <button
               type="button"
               onClick={next}
-              aria-disabled={!valid}
-              className={`inline-flex items-center gap-1.5 px-5 py-2.5 rounded-lg text-sm font-medium btn-primary transition-opacity ${!valid ? "opacity-60" : ""}`}
+              className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-lg text-sm font-medium btn-primary"
             >
               {last ? t("onb.finish") : t("onb.next")}
               {last ? <Check size={16} /> : <ChevronRight size={16} className="rtl:rotate-180" />}
