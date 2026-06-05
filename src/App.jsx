@@ -32,7 +32,7 @@ import DevConsole from "./views/DevConsole";
 import { getRole, onRoleChange, ROLE_LABELS } from "./lib/role";
 import { api } from "./views/_shared";
 import { useRoute, navigate, replace, clearRoute } from "./lib/route";
-import { useT, LangToggle } from "./lib/i18n";
+import { useT } from "./lib/i18n";
 import { useAccount, clearAccount, updateProfile } from "./lib/account";
 import AccountMenu from "./views/AccountMenu";
 import HelpPopover from "./views/HelpPopover";
@@ -732,26 +732,29 @@ export default function StudioApp({ onClose }) {
       </div>
 
       <main className="flex-1 flex flex-col min-w-0 h-full">
-        {/* Mobile top bar — the only nav affordance below md */}
-        <div className="md:hidden flex items-center gap-2 px-3 h-14 border-b border-line bg-paper-cool flex-shrink-0 print:hidden">
+        {/* Mobile top bar — the only nav affordance below md. Editorial
+            chrome: a frosted cream rail with the menu trigger and the
+            wordmark set apart by a hairline so they don't crowd. Language
+            lives in the account menu (Settings), not here. */}
+        <div className="md:hidden flex items-center gap-3.5 px-4 h-16 border-b border-line/70 bg-paper-cool/85 backdrop-blur-md flex-shrink-0 print:hidden">
           <button
             onClick={() => setNavOpen(true)}
             aria-label="Open menu"
-            className="h-10 w-10 rounded-md text-ink hover:bg-paper-warm flex items-center justify-center transition"
+            className="-ms-1 h-11 w-11 rounded-xl text-ink hover:bg-paper-warm active:scale-95 flex items-center justify-center transition"
           >
-            <Menu size={20} />
+            <Menu size={22} strokeWidth={1.9} />
           </button>
+          <span className="h-7 w-px bg-line/70" aria-hidden="true" />
           <button
             onClick={() => navigate([DEFAULT_ROUTE[role]])}
             className="flex-1 flex items-center text-start min-w-0"
             aria-label="Go home"
           >
             <MurchidLogo
-              className="h-[50px] w-auto text-ink"
+              className="h-[42px] w-auto text-ink"
               style={{ "--murchid-logo-accent": "#8e5435" }}
             />
           </button>
-          <LangToggle />
         </div>
 
         <div
