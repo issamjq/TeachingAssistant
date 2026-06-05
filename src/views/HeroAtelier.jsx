@@ -93,7 +93,13 @@ export default function HeroAtelier({ onEnter, signedIn }) {
   const ROW_SCALE = 0.84; // card scale at the full design width
   const ROW_PITCH = 210; // gap between card centres at the full width
   const ROW_W = ROW_PITCH * (N - 1) + 230 * ROW_SCALE; // ≈ row footprint
-  const k = Math.min(1, (vw - 120) / ROW_W); // shrink-to-fit factor
+  // Two fit factors. The index ROW must fit six cards across, so it has to
+  // stay compact on phones (k). But the opening FAN and the wordmark are
+  // narrow — they can be much larger and still fit, so they use `bigK`
+  // (sized to the ~760px wordmark width). The cards deal out big from the
+  // fan, then settle into the tighter row as you scroll.
+  const k = Math.min(1, (vw - 48) / ROW_W); // index-row shrink-to-fit
+  const bigK = Math.min(1, (vw - 32) / 760); // fan + wordmark fit-to-fit
   const pitch = ROW_PITCH * k; // shared by the cards AND the toc labels
   const cardScaleB = ROW_SCALE * k;
   const yb = 132; // row centre, just below the pin centre
@@ -109,11 +115,12 @@ export default function HeroAtelier({ onEnter, signedIn }) {
   // identically instead of overflowing / re-laying-out.
   const cardStyle = (i) => {
     const o = i - MID;
-    // A — confident fan, lifted clear of the lockup above (scaled by k).
-    const xa = o * 128 * dir * k;
+    // A — confident fan, lifted clear of the lockup above (scaled by the
+    // larger bigK so the opening deck reads big on phones).
+    const xa = o * 128 * dir * bigK;
     const ya = 204 + (MID * MID - o * o) * 10;
     const ra = o * 6 * dir;
-    const sa = 0.67 * k;
+    const sa = 0.67 * bigK;
     // B — clean contact-sheet row, upright + responsive.
     const xb = o * pitch * dir;
     const x = lerp(xa, xb, cardsT);
@@ -167,7 +174,7 @@ export default function HeroAtelier({ onEnter, signedIn }) {
           className="atl-lockup"
           style={{
             opacity: 1 - lockOut,
-            transform: `translate(-50%, 0) translateY(${lockOut * -64}px) scale(${(1 - lockOut * 0.05) * k})`,
+            transform: `translate(-50%, 0) translateY(${lockOut * -64}px) scale(${(1 - lockOut * 0.05) * bigK})`,
           }}
         >
           {/* The watermark mirrors the foreground in the *other* script:
