@@ -2079,23 +2079,15 @@ html { scroll-behavior: smooth; }
   color: var(--cm-clay-d); font-family: 'Inter Tight', system-ui, sans-serif;
   font-weight: 600; font-size: 13px; cursor: pointer;
 }
-/* Mobile/tablet — the studio "video" mockup. Its screen is a FIXED height
-   on desktop (one size across phases), but on narrow widths the longer
-   wrapped prompts overflow that height and collide with the "Switch to"
-   row below. Let the screen grow to its content instead (min-height keeps
-   short phases from collapsing), and stop the inner sections from being
-   flex-stretched so they stack naturally. */
+/* Mobile/tablet — the studio "video" mockup. The screen stays ONE fixed
+   size across every kind + phase (no per-chip resizing). The desktop
+   height is too short once the prompts wrap to more lines on narrow
+   widths, which made the compose box collide with the "Switch to" row —
+   so here we just use a taller fixed height sized for the busiest phase.
+   Inner sections keep flexing (as on desktop) and absorb the slack on
+   shorter phases, so nothing overlaps and the frame never changes size. */
 @media (max-width: 768px) {
-  .film-screen {
-    height: auto;
-    min-height: clamp(420px, 64vh, 560px);
-  }
-  .film-compose-body,
-  .film-drafting,
-  .film-result,
-  .film-promptbox,
-  .film-prompttext { flex: 0 0 auto; }
-  .film-drafting { min-height: 180px; justify-content: flex-start; }
+  .film-screen { height: clamp(600px, 86vh, 720px); }
 }
 /* Drafting phase — "Murchid is drafting…" with a spinner + shimmer lines. */
 .film-drafting-label {
