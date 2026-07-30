@@ -479,7 +479,22 @@ The terms this was built under, because they are what keeps it safe:
 | Not cached | a verified uid with **no** account row — that user is mid-bootstrap and a cached "no such account" would 404 their first requests |
 | Multi-instance | with `REDIS_URL` set, invalidation is global. On the in-process fallback it only clears the instance that served the write; the others stay stale until the TTL. **Set `REDIS_URL` before running more than one Render instance.** |
 
-Verified: a row changed directly in Postgres is still served from cache (proving it caches), and is re-read immediately after `invalidateAccountById()` (proving eviction works).
+**Reviewed 2026-07-30 — 18 checks, all passing.** Every revocation path was driven through its real route handler, then read back through the same `findAccountByUid()` call `requireAuth()` makes:
+
+| Path | Result |
+|---|---|
+| admin suspend | status change visible on the next request |
+| admin role change | `requireRole()` sees the new role at once |
+| superadmin permissions | evicted |
+| `PATCH /api/me` | evicted, and the edit is live |
+| `PATCH /api/teachers` | evicted, next read returns the new value |
+| session rotation | old device's `active_session_id` no longer matches |
+
+Also confirmed: the TTL really is a backstop — with the invalidation deliberately skipped, a direct Postgres change was still stale at T-2s and had refreshed by T+10s. The in-process map is bounded (6,000 writes → 5,000 entries held). `ACCOUNT_CACHE_TTL_SECONDS=0` bypasses the cache completely. An unknown uid is never cached, keeping the first-login bootstrap window open.
+
+Measured dev→Neon: cold read 95 ms, warm read sub-millisecond. Note 95 ms is dev-machine-to-Neon latency — on Render, co-located with Neon, the saving is smaller. The shape of the win (one row read per 10s instead of one per request) is what matters, not that multiple.
+
+**One known bound:** `npm run db:init` writes to `accounts` (role reconciliation) from a separate process, so it cannot clear a running server's in-memory cache. A role changed by `db:init` while the server is up is visible within the TTL. Deliberate — it is a deliberate admin action, and 10 seconds is immaterial.
 
 ### F37 — PlannerTour measure() is unthrottled 📖 Code-read — deferred
 `src/views/onboarding/PlannerTour.jsx` re-measures on every `scroll`/`resize` event with no rAF throttle, and each call does a `querySelectorAll` plus `getBoundingClientRect`. Only runs while the tour is open (max two sessions per teacher), so impact is bounded — but it should be rAF-throttled. Raised and deliberately deferred 2026-07-28.
