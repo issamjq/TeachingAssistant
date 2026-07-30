@@ -25,11 +25,25 @@ The user (Issa) calls the project "murchid" — that's the **product** name, not
 - [`docs/12-findings.md`](docs/12-findings.md) — running list of what's broken. **Mark findings ✅ Observed only after seeing them in the running app**; code-read inferences stay 📖 until confirmed
 - [`docs/11-plan.md`](docs/11-plan.md) — earlier 2-week plan, unit economics, cut list. Superseded by 13/14 but the economics still hold
 
-Three facts that shape most decisions:
+### Where we are right now
 
-1. **No payment integration exists.** `/api/auth/renew` is a placeholder — nobody can pay yet.
-2. **No AI usage metering exists.** `backend/routes/studio.js` discards `response.usage`. The `ai_studio` feature flag being off by default is the only thing preventing unbounded cost.
-3. **The AI budget is ~$1.40/user/month** (AED 29.99/mo ≈ $8.17; annual plan $6.12 after 25% off). Output tokens dominate cost — model routing and `max_tokens` caps matter more than caching.
+**Days 1–2 of [`docs/14-roadmap.md`](docs/14-roadmap.md) are done and committed to `dev`** (3 commits on top of `b4e92ab`; `dev` is local-only, no upstream yet). Shipped:
+
+- **Error boundaries** — `src/components/ErrorBoundary.jsx`, wired per surface, per route, and around `Showreel`
+- **Rate limiting** — three layers (`backend/lib/security.js`); account-keyed limiting sits *after* `requireAuth` so it keys on a verified identity
+- **AI usage ledger** — `ai_usage_ledger` + `backend/lib/aiUsage.js`, writing from all four studio endpoints
+- **Row-level security** — `withTenant()` / `bindTenant()` in `backend/lib/db.js`; 17 tables; all 45 tenant-touching queries migrated
+- **Three real leaks closed** — see F41/F42/F43 in [`docs/12-findings.md`](docs/12-findings.md)
+
+**Next: Day 3 — performance foundation.** Cursor pagination in `crudRouter` (one change, all 11 resources inherit it), route-level code splitting, Redis for the flag lookup and rate-limit store, and the short-TTL account cache that fixes F38's per-request double round-trip.
+
+Known debt, each tagged in findings: **F37** (PlannerTour `measure()` unthrottled → Day 6), **F38** (auth double round-trip → Day 3).
+
+### Three facts that shape most decisions
+
+1. **No payment integration exists.** `/api/auth/renew` is a placeholder — nobody can pay yet. → Day 10.
+2. **AI spend is now measured, but not yet capped.** `ai_usage_ledger` records cost per call in integer nano-USD, so COGS is knowable. There is still no per-account quota — that lands with the AI gateway on Day 7, and until then `ai_studio` shipping disabled is the only ceiling.
+3. **The AI budget is ~$1.40/user/month** (AED 29.99/mo ≈ $8.17; annual plan $6.12 after 25% off). Output tokens dominate. Measured on the ledger's own pricing table: a lesson plan is ~$0.019 and a quiz ~$0.037 — a quiz bills **two** Anthropic calls (stream + forced-tool restructure). At three artifacts per school day a teacher already exceeds the budget, so model routing and `max_tokens` caps matter more than caching.
 
 ## Where to find things
 
