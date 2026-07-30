@@ -249,20 +249,33 @@ graph TD
 | Student hints (Socratic) | Haiku 4.5 | 512 | tight cap prevents answer leakage |
 | Analytics summaries | Haiku 4.5 | 1024 | internal |
 
-### Voice — speech in, speech out, generation at the end
+### Four ways in, one generation path
 
-Speech recognition and synthesis both run **in the browser** (Web Speech API), not through a paid service: no per-minute cost, Arabic voices available, and audio never leaves the device. Only the resulting *text* reaches the server, which also keeps the privacy story simple — there is no voice recording to store, retain or explain.
+The teacher chooses how to work; the product does not choose for them. Every mode converges on the same `create_artifact` call, so there is exactly one generation stack.
+
+| Mode | Input | Output | Turns |
+|---|---|---|---|
+| **Type** | keyboard | artifact | one shot |
+| **Chat** | keyboard | revised artifact | many, threaded |
+| **Dictate** | 🎙 → editable text | artifact | one shot |
+| **Talk** | 🎙 conversation | artifact | many, spoken |
 
 ```mermaid
 graph LR
-    MIC[🎙 speech] --> STT[browser STT]
-    STT --> TXT[editable transcript]
-    TXT --> GW[AI gateway]
-    GW --> CONV[conversation turn<br/>Haiku · 512 tok]
+    T[⌨ Type] --> PARAMS
+    C[💬 Chat] --> PARAMS
+    D[🎙 Dictate] --> STT[browser STT]
+    STT --> TXTBOX[editable text] --> PARAMS
+    V[🗣 Talk] --> STT2[browser STT]
+    STT2 --> CONV[conversation turn<br/>Haiku · 512 tok]
     CONV --> TTS[browser TTS 🔊]
-    CONV -->|enough info| TOOL[create_artifact tool]
-    TOOL --> GEN[existing generation path]
+    CONV -->|enough info| PARAMS
+    PARAMS[chips = source of truth] --> GEN[create_artifact →<br/>existing generation path]
 ```
+
+**Talk is its own surface**, reachable from anywhere in the app rather than only from inside Studio — a teacher walking between classes shouldn't have to navigate to Studio to start talking. Chat and Dictate live on the Studio screen where the work already is.
+
+Speech recognition and synthesis both run **in the browser** (Web Speech API), not through a paid service: no per-minute cost, Arabic voices available, and audio never leaves the device. Only the resulting *text* reaches the server, which also keeps the privacy story simple — there is no voice recording to store, retain or explain.
 
 Three rules this design depends on:
 
@@ -296,9 +309,10 @@ Three rules this design depends on:
 | Surface | Feature | Priority |
 |---|---|---|
 | Grading | **camera capture** → AI marks → teacher reviews | **P0 — the 10x** |
-| Studio | generation (exists) + history, chat follow-up, presets, versions | P0 |
-| Studio | **dictate the prompt** (mic → editable text) | P0 |
-| Studio | **voice assistant** — discuss, then build | P0 |
+| Studio | generation (exists) + history, presets, versions | P0 |
+| Studio | **Chat** — typed threaded refinement | P0 |
+| Studio | **Dictate** — mic → editable text → generate | P0 |
+| Anywhere | **Talk** — dedicated spoken assistant, its own surface | P0 |
 | Reports | auto report-card comments, evidence-backed, EN/AR | P0 |
 | Lesson plans | differentiation (support/core/stretch) one click | P0 |
 | Parent portal | progress summary, translated messages | P1 |

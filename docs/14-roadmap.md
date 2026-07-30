@@ -206,27 +206,40 @@ Nothing else is safe until this exists.
 
 **Done when:** a teacher photographs 20 sheets on a phone, the run completes in the background, they accept or override, and scores land in `quiz_scores`.
 
-### Day 9 — Voice: speak the prompt, and talk to the assistant
+### Day 9 — Four ways in: type, chat, dictate, talk
 
 | | |
 |---|---|
-| **Goal** | A teacher can create an artifact without typing, and can *discuss* it first |
-| **Files** | `src/views/Studio.jsx`, `src/lib/speech.js` (new), `backend/routes/studio.js`, `backend/lib/aiGateway.js` |
+| **Goal** | The teacher picks how they want to work — the product doesn't pick for them |
+| **Files** | `src/views/Studio.jsx`, `src/views/TalkAssistant.jsx` (new), `src/lib/speech.js` (new), `backend/routes/studio.js`, `backend/lib/aiGateway.js` |
 
-Two features that share a pipeline:
+**One Studio, four entry modes, one generation path.** Every mode ends at the same `create_artifact` call, so there is never a second generation stack to keep in sync.
 
-**1. Dictate the prompt.** Mic button on the Studio prompt box. Web Speech API (`SpeechRecognition`) — browser-native, no per-minute cost, and it supports `ar-SA` / `ar-AE`, which matters because half our teachers think in Arabic. Falls back to typing where unsupported. The transcript lands in the textarea as editable text, so the teacher can fix a misheard word before generating — never fire straight from speech into a paid call.
+| Mode | How it works | When a teacher reaches for it |
+|---|---|---|
+| **Type** | What exists today — prompt box + chips | Precise wording, quiet room |
+| **Chat** | Typed back-and-forth in a thread. "Make it easier", "add a starter", "shorten question 3" | Refining something that's already drafted |
+| **Dictate** | Mic button fills the prompt box with editable text, then generate as normal | Hands full, or faster than typing — especially in Arabic |
+| **Talk** | Live spoken conversation. Murchid asks what it needs and speaks back | Thinking out loud, walking between classes |
 
-**2. Conversational voice assistant.** The teacher talks; Murchid talks back and asks the questions it actually needs ("which grade?", "how long is the lesson?"), then builds the artifact when it has enough.
+**1 · Type** — unchanged. It stays the default and is never removed.
+
+**2 · Chat.** A thread on the result, not a new surface. Each turn carries the current artifact as context and returns a revision. This is what makes Studio feel like an AI product rather than a form.
+
+**3 · Dictate.** Web Speech API (`SpeechRecognition`) — browser-native, no per-minute cost, supports `ar-SA` / `ar-AE`. Falls back to typing where unsupported. **The transcript lands as editable text and does not auto-submit.** Recognition mishears, especially across an accent or in a noisy staff room; a misheard word must never silently become a wrong quiz.
+
+**4 · Talk — the dedicated voice assistant.** Its own surface, reachable from anywhere in the app (persistent affordance in the shell, not buried inside Studio) — a teacher walking to class shouldn't have to navigate to Studio first.
 - Speech in via the same recogniser; speech out via `SpeechSynthesis` (free, built in, Arabic voices available).
-- The conversation runs through the **AI gateway** like everything else, with a dedicated short-turn system prompt.
-- Claude decides when it has enough via a forced tool call — `create_artifact(kind, params, prompt)` — which hands straight to the existing generation path. No second generation stack.
-- **The chips stay authoritative.** Anything the conversation settles fills the chips visibly, so the teacher can see and correct what Murchid heard before it generates.
-- Full transcript shown as text alongside the audio — accessibility, and teachers in a staff room can't always listen.
+- Runs through the **AI gateway** like everything else, with a short-turn system prompt.
+- Murchid asks only what it actually needs — grade, length, question count — and stops asking once it can build.
+- Ends in a forced `create_artifact(kind, params, prompt)` tool call that hands to the existing generation path.
+- **The chips stay authoritative.** Whatever the conversation settles fills the chips visibly, so the teacher can see and correct what Murchid heard before anything generates.
+- **Live transcript beside the audio**, always. Accessibility, plus you can't always listen in a staff room — and it's how a teacher catches a misheard "Grade 9" for "Grade 5".
+- Interruptible: talking over Murchid stops it, the way a real conversation works.
 
-**Cost note — this is the expensive one.** A multi-turn spoken conversation costs several times a single generation, and we already exceed the $1.40/user/month budget at three artifacts a day. Voice conversation must run on the cheap model at a tight `max_tokens`, count against the same per-account quota as everything else, and be measured on the ledger from day one. Watch the numbers for a week before making it the default entry point.
+**Cost note — Talk is the expensive one.** A multi-turn spoken exchange costs several times a single generation, and we already exceed the $1.40/user/month budget at three artifacts a day. It runs on the cheap model at a hard `max_tokens`, counts against the same per-account quota, and is measured on the ledger from day one. Review a week of real numbers before making it the default entry point.
 
-**Done when:** a teacher says *"I need a quiz on the water cycle for grade 5"*, Murchid asks how many questions, they answer out loud, and a quiz appears with the chips filled in to match — and the ledger shows what the conversation cost.
+**Done when:** the same quiz can be produced four ways — typed, refined in chat, dictated, and talked through — every one lands in the same place, and the ledger shows what each mode cost.
 
 ### Day 10 — AI teaching features
 
@@ -235,14 +248,15 @@ Two features that share a pipeline:
 | **Goal** | Studio behaves like a real LLM product |
 | **Files** | `backend/routes/studio.js`, `src/views/Studio.jsx`, `src/views/Reports.jsx` |
 
-1. **Generation history** — `generations` table, searchable, restorable. Nothing lost again.
-2. **Chat follow-up** — "make it easier", "add a starter", threaded.
-3. **Prompt presets** — save a school's lesson format once, reuse.
-4. **Differentiation** — one click → support/core/stretch.
-5. **Report comments** — evidence-backed from grades + attendance + homework, EN/AR.
-6. **Usage dashboard** — tokens, AED spend, quota remaining, per teacher.
+1. **Generation history** — `generations` table, searchable, restorable. Nothing lost again, and it stores which mode produced it (type / chat / dictate / talk) so we can see what teachers actually use.
+2. **Prompt presets** — save a school's lesson format once, reuse. Works from every mode.
+3. **Differentiation** — one click → support/core/stretch.
+4. **Report comments** — evidence-backed from grades + attendance + homework, EN/AR.
+5. **Usage dashboard** — tokens, AED spend, quota remaining, per teacher, **broken down by mode** so the cost of Talk is visible next to the cost of typing.
 
-**Done when:** a teacher generates, refines conversationally, saves a preset, and sees exactly what it cost.
+*(Chat follow-up ships on Day 9 as one of the four entry modes.)*
+
+**Done when:** a teacher generates, saves a preset, and sees exactly what it cost — and which mode cost the most.
 
 ---
 
