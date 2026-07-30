@@ -39,8 +39,12 @@ export default defineConfig({
         },
       },
     },
-    // The route chunks are all well under this. It exists to fail loudly if a
-    // future static import drags a heavy view back into the shell.
-    chunkSizeWarningLimit: 400,
+    // Set just above `mammoth` (488 kB raw), the largest chunk we ship. It is
+    // lazy — only the .docx importer pulls it — so it is not a problem, but at
+    // the 400 kB default it warned on every single build, and a warning that
+    // always fires is one nobody reads. At 520 the next thing to trip this is
+    // a real regression: a heavy view dragged back into a shared chunk by a
+    // static import. The largest route chunk today is Landing at 134 kB raw.
+    chunkSizeWarningLimit: 520,
   },
 });

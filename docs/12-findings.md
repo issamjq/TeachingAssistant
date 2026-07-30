@@ -412,6 +412,15 @@ Day 1 raised the IP-keyed limiter from 300 to 1000 per 5 min. That was deliberat
 
 Additive only — layers 2 and 3, the usage ledger, and the error boundaries are untouched. → Scheduled with Day 2 scope hardening in [`14-roadmap.md`](14-roadmap.md).
 
+### F49 — A failed route chunk could not be recovered without a reload ✅ Observed — 🔧 Fixed Day 3
+Route-level code splitting makes every screen a network request, so a teacher on school wifi will sometimes fail to load one. The error boundary caught that correctly from the start — but `React.lazy` caches the *rejected* promise on the component, so the section stayed broken for the rest of the session and the fallback's "Try again" button could not help. Only "Reload page" worked.
+
+Observed for real on 2026-07-30, unscripted: restarting the dev server mid-session made `TemplatesLibrary.jsx` and `Quizzes.jsx` genuinely fail to fetch, and both sections were stuck behind the error card until a reload.
+
+**Fixed** with [`src/lib/lazyRoute.js`](../src/lib/lazyRoute.js) — `React.lazy` plus a single retry after 500 ms, used by all 27 split routes. Deliberately one retry, not a loop: a momentary drop or a wifi handover recovers invisibly, while a chunk that is genuinely gone (a stale hashed filename after a deploy) still reaches the error card quickly, where "Reload page" is the only real fix.
+
+Verified by simulating both: a route that fails once renders normally with no error card; a route that always fails still reaches the card and does not hang. Costs 0.1 kB gz.
+
 ### F47 — Trash panel showed "Invalid Date · NaN days left" ✅ Observed — 🔧 Fixed Day 3
 Found 2026-07-30 while reviewing the pagination change, by exercising `/trash` for the first time with real soft-deleted rows.
 

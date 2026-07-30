@@ -1,4 +1,4 @@
-import React, { useEffect, useState, lazy, Suspense } from "react";
+import React, { useEffect, useState, Suspense } from "react";
 import { createRoot } from "react-dom/client";
 import "./index.css";
 import { useRoute, navigate, clearRoute } from "./lib/route.js";
@@ -7,6 +7,7 @@ import AccessibilityWidget from "./views/AccessibilityWidget.jsx";
 import { getPortalFromPath } from "./lib/portal.js";
 import ErrorBoundary from "./components/ErrorBoundary.jsx";
 import BrandLoader from "./components/BrandLoader.jsx";
+import lazyRoute from "./lib/lazyRoute.js";
 
 // The three surfaces are split at the top level, because no visitor ever needs
 // more than one of them. Landing is the largest file in the repo and a signed-in
@@ -18,9 +19,9 @@ import BrandLoader from "./components/BrandLoader.jsx";
 // Suspense on purpose: a chunk that fails to download (flaky school wifi, a
 // stale hashed filename after a deploy) rejects the lazy import, and that has
 // to land on the branded retry card rather than an empty page.
-const StudioApp = lazy(() => import("./App.jsx"));
-const Landing = lazy(() => import("./views/Landing.jsx"));
-const PortalSignIn = lazy(() => import("./views/PortalSignIn.jsx"));
+const StudioApp = lazyRoute(() => import("./App.jsx"));
+const Landing = lazyRoute(() => import("./views/Landing.jsx"));
+const PortalSignIn = lazyRoute(() => import("./views/PortalSignIn.jsx"));
 
 // Top-level surface decided entirely by URL pathname (no `#` anywhere):
 //   "/"                                → landing page

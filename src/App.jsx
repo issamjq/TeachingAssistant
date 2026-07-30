@@ -1,4 +1,4 @@
-import React, { useEffect, useState, lazy, Suspense } from "react";
+import React, { useEffect, useState, Suspense } from "react";
 import {
   ChevronRight, X, Sparkles, ArrowUpRight, ArrowRight, Crown, Menu,
   PanelLeftClose, PanelLeftOpen,
@@ -6,6 +6,7 @@ import {
 import Planner from "./views/Planner";
 import TeachingRail from "./views/TeachingRail";
 import BrandLoader from "./components/BrandLoader";
+import lazyRoute from "./lib/lazyRoute";
 
 // One chunk per route. Before this, opening the studio downloaded every screen
 // it could ever show: Studio.jsx (5,199 lines), SlideBuilder (2,603, pulled in
@@ -19,30 +20,30 @@ import BrandLoader from "./components/BrandLoader";
 //
 // Every one of these already renders inside the per-section ErrorBoundary in
 // the layout below, so a chunk that fails to load shows the retry card.
-const Dashboard = lazy(() => import("./views/Dashboard"));
-const TemplatesLibrary = lazy(() => import("./views/TemplatesLibrary"));
-const NewTemplate = lazy(() => import("./views/NewTemplate"));
-const EditDraft = lazy(() => import("./views/EditDraft"));
-const Database = lazy(() => import("./views/Database"));
-const AccountProfile = lazy(() => import("./views/AccountProfile"));
-const Schedule = lazy(() => import("./views/Schedule"));
-const Quizzes = lazy(() => import("./views/Quizzes"));
-const QuizBuilder = lazy(() => import("./views/QuizBuilder"));
-const Homework = lazy(() => import("./views/Homework"));
-const HomeworkBuilder = lazy(() => import("./views/HomeworkBuilder"));
-const Presentations = lazy(() => import("./views/Presentations"));
-const PresentationBuilder = lazy(() => import("./views/PresentationBuilder"));
-const Activities = lazy(() => import("./views/Activities"));
-const ActivityBuilder = lazy(() => import("./views/ActivityBuilder"));
-const Reports = lazy(() => import("./views/Reports"));
-const Studio = lazy(() => import("./views/Studio"));
-const AdminConsole = lazy(() => import("./views/AdminConsole"));
-const AdminDashboard = lazy(() => import("./views/AdminDashboard"));
-const SuperAdminConsole = lazy(() => import("./views/SuperAdminConsole"));
-const SuperAdminDashboard = lazy(() => import("./views/SuperAdminDashboard"));
-const OwnerDashboard = lazy(() => import("./views/OwnerDashboard"));
-const MoeDashboard = lazy(() => import("./views/MoeDashboard"));
-const DevConsole = lazy(() => import("./views/DevConsole"));
+const Dashboard = lazyRoute(() => import("./views/Dashboard"));
+const TemplatesLibrary = lazyRoute(() => import("./views/TemplatesLibrary"));
+const NewTemplate = lazyRoute(() => import("./views/NewTemplate"));
+const EditDraft = lazyRoute(() => import("./views/EditDraft"));
+const Database = lazyRoute(() => import("./views/Database"));
+const AccountProfile = lazyRoute(() => import("./views/AccountProfile"));
+const Schedule = lazyRoute(() => import("./views/Schedule"));
+const Quizzes = lazyRoute(() => import("./views/Quizzes"));
+const QuizBuilder = lazyRoute(() => import("./views/QuizBuilder"));
+const Homework = lazyRoute(() => import("./views/Homework"));
+const HomeworkBuilder = lazyRoute(() => import("./views/HomeworkBuilder"));
+const Presentations = lazyRoute(() => import("./views/Presentations"));
+const PresentationBuilder = lazyRoute(() => import("./views/PresentationBuilder"));
+const Activities = lazyRoute(() => import("./views/Activities"));
+const ActivityBuilder = lazyRoute(() => import("./views/ActivityBuilder"));
+const Reports = lazyRoute(() => import("./views/Reports"));
+const Studio = lazyRoute(() => import("./views/Studio"));
+const AdminConsole = lazyRoute(() => import("./views/AdminConsole"));
+const AdminDashboard = lazyRoute(() => import("./views/AdminDashboard"));
+const SuperAdminConsole = lazyRoute(() => import("./views/SuperAdminConsole"));
+const SuperAdminDashboard = lazyRoute(() => import("./views/SuperAdminDashboard"));
+const OwnerDashboard = lazyRoute(() => import("./views/OwnerDashboard"));
+const MoeDashboard = lazyRoute(() => import("./views/MoeDashboard"));
+const DevConsole = lazyRoute(() => import("./views/DevConsole"));
 import { getRole, onRoleChange, ROLE_LABELS } from "./lib/role";
 import { api } from "./views/_shared";
 import { useRoute, navigate, replace, clearRoute } from "./lib/route";
