@@ -44,9 +44,27 @@ router.get("/", async (req, res) => {
 // Catalog insert — used by the "school not listed?" fallback in
 // onboarding + the My-schools tab. Returns the existing row if (name,
 // emirate) already matches, so the client doesn't need to special-case
-// duplicates. No auth gate yet; tighten when Firebase lands.
+// duplicates.
+//
+// `schools` is SHARED data: every teacher sees this catalog in onboarding.
+// The route previously had no auth gate at all (its comment said "tighten
+// when Firebase lands" — Firebase landed), so an anonymous request could
+// write rows that appear in every teacher's school picker. Verified before
+// the fix: an unauthenticated POST returned 201 and inserted a row.
+//
+// The router is mounted with requireAuth({ optional: true }) because the GET
+// catalog is legitimately readable during onboarding, so we gate the write
+// here rather than at the mount. req.account is already populated by the
+// optional auth when a valid token was sent.
+//
+// Safe for onboarding: handleChoosePlan() calls POST /api/auth/firebase
+// (which provisions the account row) before it materialises custom schools,
+// and every client call site goes through api(), which attaches the token.
 router.post("/", validateBody(CreateSchoolSchema), async (req, res) => {
   try {
+    if (!req.account) {
+      return res.status(401).json({ error: "Sign in to add a school." });
+    }
     const { name, name_ar, emirate, city, type, curriculum, website } = req.body || {};
     if (!name || !emirate) {
       return res.status(400).json({ error: "name and emirate are required" });

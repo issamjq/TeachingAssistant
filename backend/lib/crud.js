@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { pool } from "./db.js";
+import { pool, withTenant } from "./db.js";
 import { buildPatch, handleErr } from "./helpers.js";
 import { loadCurrentTeacher } from "./currentTeacher.js";
 import { validateBody } from "./validate.js";
@@ -73,6 +73,22 @@ export function crudRouter({
     return { where: "account_id = $1", params: [cur.id], teacherId: cur.id };
   };
 
+  // Run one handler's database work with row-level security actually
+  // enforcing the tenant boundary.
+  //
+  // The `WHERE account_id = $1` above is unchanged and still does the real
+  // filtering — this is the layer underneath it. If a future edit drops that
+  // clause, RLS returns zero rows instead of another teacher's data; the bug
+  // surfaces as missing records rather than as a leak.
+  //
+  // Cross-tenant routers (teachers.js mounts this with teacherScoped:false so
+  // admins can list every account) have no tenant to bind and keep running on
+  // the pool, where the owner's BYPASSRLS applies. That is deliberate: an
+  // admin listing all teachers is the one case that must see across tenants,
+  // and it is already gated by requireRole() at the mount point.
+  const runScoped = (scope, fn) =>
+    scope.teacherId ? withTenant(scope.teacherId, fn) : fn(pool);
+
   router.get("/", async (req, res) => {
     try {
       const scope = await scopeFor(req);
@@ -93,10 +109,10 @@ export function crudRouter({
           params = [...params, ...(extra.params || [])];
         }
       }
-      const r = await pool.query(
+      const r = await runScoped(scope, (db) => db.query(
         `SELECT ${selectCols} FROM ${table} ${where} ORDER BY ${listOrderBy}`,
         params
-      );
+      ));
       res.json(r.rows);
     } catch (err) {
       handleErr(res, `GET ${tag}`, err);
@@ -114,19 +130,21 @@ export function crudRouter({
         if (scope.where) conds.push(scope.where);
         const params = [...scope.params];
 
-        // Purge anything older than 30 days for this teacher.
         const purgeConds = [...conds, "deleted_at IS NOT NULL", "deleted_at < NOW() - INTERVAL '30 days'"];
-        await pool.query(
-          `DELETE FROM ${table} WHERE ${purgeConds.join(" AND ")}`,
-          params
-        );
-
         const listConds = [...conds, "deleted_at IS NOT NULL"];
-        const r = await pool.query(
-          `SELECT ${selectCols} FROM ${table} WHERE ${listConds.join(" AND ")}
-             ORDER BY deleted_at DESC`,
-          params
-        );
+        // Purge-then-list share one transaction so the listing can't observe a
+        // half-completed purge, and so the tenant is bound once rather than twice.
+        const r = await runScoped(scope, async (db) => {
+          await db.query(
+            `DELETE FROM ${table} WHERE ${purgeConds.join(" AND ")}`,
+            params
+          );
+          return db.query(
+            `SELECT ${selectCols} FROM ${table} WHERE ${listConds.join(" AND ")}
+               ORDER BY deleted_at DESC`,
+            params
+          );
+        });
         res.json(r.rows);
       } catch (err) {
         handleErr(res, `GET ${tag}/trash`, err);
@@ -144,11 +162,11 @@ export function crudRouter({
           params.push(...scope.params);
           conds.push(`account_id = $${params.length}`);
         }
-        const r = await pool.query(
+        const r = await runScoped(scope, (db) => db.query(
           `UPDATE ${table} SET deleted_at = NULL ${timestampOnPatch ? `, ${timestampOnPatch} = NOW()` : ""}
              WHERE ${conds.join(" AND ")} RETURNING ${selectCols}`,
           params
-        );
+        ));
         if (r.rows.length === 0) return res.status(404).json({ error: "Not found" });
         res.json(r.rows[0]);
       } catch (err) {
@@ -166,7 +184,7 @@ export function crudRouter({
           params.push(...scope.params);
           where += ` AND account_id = $${params.length}`;
         }
-        const r = await pool.query(`DELETE FROM ${table} ${where}`, params);
+        const r = await runScoped(scope, (db) => db.query(`DELETE FROM ${table} ${where}`, params));
         if (r.rowCount === 0) return res.status(404).json({ error: "Not found" });
         res.json({ ok: true });
       } catch (err) {
@@ -190,11 +208,11 @@ export function crudRouter({
 
       const cols = allowed.filter((k) => Object.prototype.hasOwnProperty.call(body, k));
       const placeholders = params.map((_, i) => `$${i + 1}`).join(", ");
-      const r = await pool.query(
+      const r = await runScoped(scope, (db) => db.query(
         `INSERT INTO ${table} (${cols.join(", ")}) VALUES (${placeholders})
          RETURNING ${selectCols}`,
         params
-      );
+      ));
       if (afterMutation) await afterMutation(r.rows[0]);
       res.status(201).json(r.rows[0]);
     } catch (err) {
@@ -212,7 +230,8 @@ export function crudRouter({
         where += ` AND account_id = $${params.length}`;
       }
       if (softDelete) where += ` AND deleted_at IS NULL`;
-      const r = await pool.query(`SELECT ${selectCols} FROM ${table} ${where}`, params);
+      const r = await runScoped(scope, (db) =>
+        db.query(`SELECT ${selectCols} FROM ${table} ${where}`, params));
       if (r.rows.length === 0) return res.status(404).json({ error: "Not found" });
       res.json(r.rows[0]);
     } catch (err) {
@@ -235,10 +254,10 @@ export function crudRouter({
         params.push(...scope.params);
         where += ` AND account_id = $${params.length}`;
       }
-      const r = await pool.query(
+      const r = await runScoped(scope, (db) => db.query(
         `UPDATE ${table} SET ${sets.join(", ")}${ts} ${where} RETURNING ${selectCols}`,
         params
-      );
+      ));
       if (r.rows.length === 0) return res.status(404).json({ error: "Not found" });
       if (afterMutation) await afterMutation(r.rows[0]);
       res.json(r.rows[0]);
@@ -259,14 +278,14 @@ export function crudRouter({
       if (softDelete) {
         // Soft delete: flip deleted_at and leave the row in place so
         // the user has 30 days to recover from /trash.
-        const r = await pool.query(
+        const r = await runScoped(scope, (db) => db.query(
           `UPDATE ${table} SET deleted_at = NOW() ${where} AND deleted_at IS NULL`,
           params
-        );
+        ));
         if (r.rowCount === 0) return res.status(404).json({ error: "Not found" });
         return res.json({ ok: true, soft: true });
       }
-      const r = await pool.query(`DELETE FROM ${table} ${where}`, params);
+      const r = await runScoped(scope, (db) => db.query(`DELETE FROM ${table} ${where}`, params));
       if (r.rowCount === 0) return res.status(404).json({ error: "Not found" });
       res.json({ ok: true });
     } catch (err) {

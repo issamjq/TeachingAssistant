@@ -3,6 +3,12 @@ import Anthropic from "@anthropic-ai/sdk";
 import { pool } from "../lib/db.js";
 import { handleErr } from "../lib/helpers.js";
 import { loadCurrentTeacher } from "../lib/currentTeacher.js";
+import { recordAiUsage } from "../lib/aiUsage.js";
+
+// Single source of truth for the model these routes call. It was repeated as
+// a literal at five call sites; the usage ledger has to record the model that
+// actually ran, and a sixth copy of the string is one more place to drift.
+const STUDIO_MODEL = "claude-haiku-4-5";
 
 const router = Router();
 
@@ -330,7 +336,7 @@ router.post("/generate", async (req, res) => {
     // spinner. The final SSE event carries `usage` + `stop_reason` so the
     // frontend can show the same token-cost strip we had before.
     const stream = client.messages.stream({
-      model: "claude-haiku-4-5",
+      model: STUDIO_MODEL,
       max_tokens: 4096,
       thinking: { type: "disabled" },
       system: [
@@ -359,6 +365,9 @@ router.post("/generate", async (req, res) => {
         }
       }
       const message = await stream.finalMessage();
+      // Record before the done event: the ledger is the durable record, the
+      // SSE frame is a courtesy to the client. recordAiUsage never throws.
+      recordAiUsage(req, "generate", STUDIO_MODEL, message.usage, { kind: k });
       send({
         type: "done",
         kind: k,
@@ -371,6 +380,12 @@ router.post("/generate", async (req, res) => {
         },
       });
     } catch (e) {
+      // An aborted or failed stream still burned tokens upstream. Record what
+      // the SDK managed to account for so partial spend isn't invisible.
+      recordAiUsage(req, "generate", STUDIO_MODEL, e?.usage, {
+        kind: k,
+        status: req.destroyed ? "aborted" : "error",
+      });
       send({ type: "error", message: e.message });
     }
     res.end();
@@ -599,7 +614,7 @@ router.post("/quiz", async (req, res) => {
     const client = new Anthropic();
 
     const stream = client.messages.stream({
-      model: "claude-haiku-4-5",
+      model: STUDIO_MODEL,
       max_tokens: 4096,
       thinking: { type: "disabled" },
       system: [
@@ -641,7 +656,7 @@ router.post("/quiz", async (req, res) => {
       // single fast non-streaming tool call. The model only reformats —
       // it does not regenerate — so this is deterministic and cheap.
       const restructure = await client.messages.create({
-        model: "claude-haiku-4-5",
+        model: STUDIO_MODEL,
         max_tokens: 4096,
         thinking: { type: "disabled" },
         system: [
@@ -673,6 +688,14 @@ router.post("/quiz", async (req, res) => {
         send({ type: "error", message: "Could not structure the quiz. Try again." });
         return res.end();
       }
+      // The quiz path bills TWO Anthropic calls — the markdown stream and the
+      // forced-tool restructure pass. Both are recorded as separate ledger
+      // rows so per-call cost stays visible; summing them into one row would
+      // hide that a quiz is roughly twice the cost of any other artifact.
+      recordAiUsage(req, "quiz", STUDIO_MODEL, message.usage, { kind: "quiz" });
+      recordAiUsage(req, "quiz:restructure", STUDIO_MODEL, restructure.usage, {
+        kind: "quiz",
+      });
       send({
         type: "done",
         kind: "quiz",
@@ -693,6 +716,10 @@ router.post("/quiz", async (req, res) => {
       });
     } catch (e) {
       clearInterval(heartbeat);
+      recordAiUsage(req, "quiz", STUDIO_MODEL, e?.usage, {
+        kind: "quiz",
+        status: req.destroyed ? "aborted" : "error",
+      });
       send({ type: "error", message: e.message });
     }
     clearInterval(heartbeat);
@@ -809,7 +836,7 @@ router.post("/quiz-tweak", async (req, res) => {
         `and make sure total_marks equals Σ question.marks. Do not return prose.`;
 
     const stream = client.messages.stream({
-      model: "claude-haiku-4-5",
+      model: STUDIO_MODEL,
       max_tokens: 4096,
       thinking: { type: "disabled" },
       system: [
@@ -846,6 +873,9 @@ router.post("/quiz-tweak", async (req, res) => {
         send({ type: "error", message: `Model did not call ${toolName}.` });
         return res.end();
       }
+      recordAiUsage(req, "quiz-tweak", STUDIO_MODEL, message.usage, {
+        kind: "quiz",
+      });
       send({
         type: "done",
         scope,
@@ -859,6 +889,10 @@ router.post("/quiz-tweak", async (req, res) => {
         },
       });
     } catch (e) {
+      recordAiUsage(req, "quiz-tweak", STUDIO_MODEL, e?.usage, {
+        kind: "quiz",
+        status: req.destroyed ? "aborted" : "error",
+      });
       send({ type: "error", message: e.message });
     }
     res.end();
@@ -910,7 +944,7 @@ router.post("/regenerate", async (req, res) => {
       `same internal structure. Do not include any other section, no preamble, no explanation.`;
 
     const stream = client.messages.stream({
-      model: "claude-haiku-4-5",
+      model: STUDIO_MODEL,
       max_tokens: 2048,
       thinking: { type: "disabled" },
       system: [
@@ -935,6 +969,7 @@ router.post("/regenerate", async (req, res) => {
         }
       }
       const message = await stream.finalMessage();
+      recordAiUsage(req, "regenerate", STUDIO_MODEL, message.usage);
       send({
         type: "done",
         stop_reason: message.stop_reason,
@@ -946,6 +981,9 @@ router.post("/regenerate", async (req, res) => {
         },
       });
     } catch (e) {
+      recordAiUsage(req, "regenerate", STUDIO_MODEL, e?.usage, {
+        status: req.destroyed ? "aborted" : "error",
+      });
       send({ type: "error", message: e.message });
     }
     res.end();

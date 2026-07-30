@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { pool } from "../lib/db.js";
+import { withTenant } from "../lib/db.js";
 import { handleErr } from "../lib/helpers.js";
 import { loadCurrentTeacher } from "../lib/currentTeacher.js";
 
@@ -9,14 +9,14 @@ router.get("/", async (req, res) => {
   try {
     const cur = await loadCurrentTeacher(req);
     const onlyUnread = req.query.unread === "true";
-    const r = await pool.query(
+    const r = await withTenant(cur.id, (db) => db.query(
       `SELECT id, kind, message, link, is_read, created_at
          FROM notifications
         WHERE account_id = $1 ${onlyUnread ? "AND is_read = FALSE" : ""}
         ORDER BY created_at DESC
         LIMIT 50`,
       [cur.id]
-    );
+    ));
     res.json(r.rows);
   } catch (err) {
     handleErr(res, "GET /api/notifications", err);
@@ -84,28 +84,35 @@ router.post("/refresh", async (req, res) => {
       },
     ];
 
-    let created = 0;
-    for (const job of inserts) {
-      const candidates = await pool.query(job.sql, [cur.id]);
-      for (const row of candidates.rows) {
-        // Manual dedup — partial-unique-index ON CONFLICT clauses need the
-        // exact predicate, which is brittle. A pre-check is fast enough and
-        // makes intent obvious.
-        const existing = await pool.query(
-          `SELECT id FROM notifications
-            WHERE account_id = $1 AND kind = $2 AND ref_table = $3 AND ref_id = $4
-            LIMIT 1`,
-          [cur.id, job.kind, job.ref_table, row.ref_id]
-        );
-        if (existing.rowCount > 0) continue;
-        const ins = await pool.query(
-          `INSERT INTO notifications (account_id, kind, message, link, ref_table, ref_id)
-           VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
-          [cur.id, job.kind, row.message, job.link, job.ref_table, row.ref_id]
-        );
-        if (ins.rowCount > 0) created++;
+    // The whole scan-dedup-insert sweep runs in one transaction. It reads
+    // schedule_entries / homework / quizzes and writes notifications — five
+    // tenant tables in one loop — so binding the tenant once is both cheaper
+    // than a transaction per iteration and impossible to half-apply.
+    const created = await withTenant(cur.id, async (db) => {
+      let n = 0;
+      for (const job of inserts) {
+        const candidates = await db.query(job.sql, [cur.id]);
+        for (const row of candidates.rows) {
+          // Manual dedup — partial-unique-index ON CONFLICT clauses need the
+          // exact predicate, which is brittle. A pre-check is fast enough and
+          // makes intent obvious.
+          const existing = await db.query(
+            `SELECT id FROM notifications
+              WHERE account_id = $1 AND kind = $2 AND ref_table = $3 AND ref_id = $4
+              LIMIT 1`,
+            [cur.id, job.kind, job.ref_table, row.ref_id]
+          );
+          if (existing.rowCount > 0) continue;
+          const ins = await db.query(
+            `INSERT INTO notifications (account_id, kind, message, link, ref_table, ref_id)
+             VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+            [cur.id, job.kind, row.message, job.link, job.ref_table, row.ref_id]
+          );
+          if (ins.rowCount > 0) n++;
+        }
       }
-    }
+      return n;
+    });
     res.json({ ok: true, created });
   } catch (err) {
     handleErr(res, "POST /api/notifications/refresh", err);
@@ -116,17 +123,17 @@ router.post("/mark-read", async (req, res) => {
   try {
     const cur = await loadCurrentTeacher(req);
     const ids = Array.isArray(req.body?.ids) ? req.body.ids : null;
-    if (ids) {
-      await pool.query(
-        "UPDATE notifications SET is_read = TRUE WHERE account_id = $1 AND id = ANY($2::int[])",
-        [cur.id, ids]
-      );
-    } else {
-      await pool.query(
-        "UPDATE notifications SET is_read = TRUE WHERE account_id = $1",
-        [cur.id]
-      );
-    }
+    await withTenant(cur.id, (db) =>
+      ids
+        ? db.query(
+            "UPDATE notifications SET is_read = TRUE WHERE account_id = $1 AND id = ANY($2::int[])",
+            [cur.id, ids]
+          )
+        : db.query(
+            "UPDATE notifications SET is_read = TRUE WHERE account_id = $1",
+            [cur.id]
+          )
+    );
     res.json({ ok: true });
   } catch (err) {
     handleErr(res, "POST /api/notifications/mark-read", err);
@@ -136,10 +143,10 @@ router.post("/mark-read", async (req, res) => {
 router.delete("/:id", async (req, res) => {
   try {
     const cur = await loadCurrentTeacher(req);
-    const r = await pool.query(
+    const r = await withTenant(cur.id, (db) => db.query(
       "DELETE FROM notifications WHERE id = $1 AND account_id = $2",
       [req.params.id, cur.id]
-    );
+    ));
     if (r.rowCount === 0) return res.status(404).json({ error: "Not found" });
     res.json({ ok: true });
   } catch (err) {

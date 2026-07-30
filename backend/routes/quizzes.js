@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { pool } from "../lib/db.js";
+import { pool, withTenant, bindTenant } from "../lib/db.js";
 import { handleErr, buildPatch } from "../lib/helpers.js";
 import { loadCurrentTeacher } from "../lib/currentTeacher.js";
 import { crudRouter } from "../lib/crud.js";
@@ -62,6 +62,7 @@ router.post("/bulk", async (req, res) => {
     }
 
     await client.query("BEGIN");
+    await bindTenant(client, cur.id);
     const quizRes = await client.query(
       `INSERT INTO quizzes (account_id, title, subject, grade, section, language,
                             difficulty, duration_minutes, total_marks, status,
@@ -117,10 +118,10 @@ router.post("/:quizId/sync", async (req, res) => {
   try {
     const cur = await loadCurrentTeacher(req);
     if (!cur) return res.status(401).json({ error: "No current teacher" });
-    const own = await pool.query(
+    const own = await withTenant(cur.id, (db) => db.query(
       "SELECT id FROM quizzes WHERE id = $1 AND account_id = $2",
       [req.params.quizId, cur.id]
-    );
+    ));
     if (own.rows.length === 0) return res.status(404).json({ error: "Quiz not found" });
 
     const {
@@ -133,6 +134,7 @@ router.post("/:quizId/sync", async (req, res) => {
     }
 
     await client.query("BEGIN");
+    await bindTenant(client, cur.id);
     const quizRes = await client.query(
       `UPDATE quizzes
           SET title = $2, subject = $3, grade = $4, section = $5,
@@ -191,26 +193,27 @@ router.post("/:quizId/sync", async (req, res) => {
 // Helper: ensure the quiz being touched belongs to the current teacher.
 // Takes req so it can resolve the current teacher from the auth
 // middleware. Returns false if there's no teacher or no matching quiz.
+// Returns the teacher when they own the quiz, null otherwise — callers need
+// the id to run their own queries under withTenant().
 const assertOwnsQuiz = async (req, quizId) => {
   const cur = await loadCurrentTeacher(req);
-  if (!cur) return false;
-  const r = await pool.query(
+  if (!cur) return null;
+  const r = await withTenant(cur.id, (db) => db.query(
     "SELECT id FROM quizzes WHERE id = $1 AND account_id = $2",
     [quizId, cur.id]
-  );
-  return r.rows.length > 0;
+  ));
+  return r.rows.length > 0 ? cur : null;
 };
 
 // Sub-resource: questions under a quiz.
 router.get("/:quizId/questions", async (req, res) => {
   try {
-    if (!(await assertOwnsQuiz(req, req.params.quizId))) {
-      return res.status(404).json({ error: "Quiz not found" });
-    }
-    const r = await pool.query(
+    const cur = await assertOwnsQuiz(req, req.params.quizId);
+    if (!cur) return res.status(404).json({ error: "Quiz not found" });
+    const r = await withTenant(cur.id, (db) => db.query(
       `SELECT ${QUESTION_SELECT} FROM quiz_questions WHERE quiz_id = $1 ORDER BY position`,
       [req.params.quizId]
-    );
+    ));
     res.json(r.rows);
   } catch (err) {
     handleErr(res, "GET /api/quizzes/:id/questions", err);
@@ -219,9 +222,8 @@ router.get("/:quizId/questions", async (req, res) => {
 
 router.post("/:quizId/questions", async (req, res) => {
   try {
-    if (!(await assertOwnsQuiz(req, req.params.quizId))) {
-      return res.status(404).json({ error: "Quiz not found" });
-    }
+    const cur = await assertOwnsQuiz(req, req.params.quizId);
+    if (!cur) return res.status(404).json({ error: "Quiz not found" });
     const body = normalizeQuestionBody(req.body || {});
     const { sets, params } = buildPatch(body, QUESTION_FIELDS);
     if (sets.length === 0) return res.status(400).json({ error: "No fields" });
@@ -229,10 +231,10 @@ router.post("/:quizId/questions", async (req, res) => {
     cols.unshift("quiz_id");
     params.unshift(req.params.quizId);
     const placeholders = params.map((_, i) => `$${i + 1}`).join(", ");
-    const r = await pool.query(
+    const r = await withTenant(cur.id, (db) => db.query(
       `INSERT INTO quiz_questions (${cols.join(", ")}) VALUES (${placeholders}) RETURNING ${QUESTION_SELECT}`,
       params
-    );
+    ));
     res.status(201).json(r.rows[0]);
   } catch (err) {
     handleErr(res, "POST /api/quizzes/:id/questions", err);
@@ -241,18 +243,17 @@ router.post("/:quizId/questions", async (req, res) => {
 
 router.patch("/:quizId/questions/:qid", async (req, res) => {
   try {
-    if (!(await assertOwnsQuiz(req, req.params.quizId))) {
-      return res.status(404).json({ error: "Quiz not found" });
-    }
+    const cur = await assertOwnsQuiz(req, req.params.quizId);
+    if (!cur) return res.status(404).json({ error: "Quiz not found" });
     const { sets, params } = buildPatch(normalizeQuestionBody(req.body || {}), QUESTION_FIELDS);
     if (sets.length === 0) return res.status(400).json({ error: "No fields" });
     params.push(req.params.qid, req.params.quizId);
-    const r = await pool.query(
+    const r = await withTenant(cur.id, (db) => db.query(
       `UPDATE quiz_questions SET ${sets.join(", ")}
         WHERE id = $${params.length - 1} AND quiz_id = $${params.length}
         RETURNING ${QUESTION_SELECT}`,
       params
-    );
+    ));
     if (r.rows.length === 0) return res.status(404).json({ error: "Not found" });
     res.json(r.rows[0]);
   } catch (err) {
@@ -262,13 +263,12 @@ router.patch("/:quizId/questions/:qid", async (req, res) => {
 
 router.delete("/:quizId/questions/:qid", async (req, res) => {
   try {
-    if (!(await assertOwnsQuiz(req, req.params.quizId))) {
-      return res.status(404).json({ error: "Quiz not found" });
-    }
-    const r = await pool.query(
+    const cur = await assertOwnsQuiz(req, req.params.quizId);
+    if (!cur) return res.status(404).json({ error: "Quiz not found" });
+    const r = await withTenant(cur.id, (db) => db.query(
       "DELETE FROM quiz_questions WHERE id = $1 AND quiz_id = $2",
       [req.params.qid, req.params.quizId]
-    );
+    ));
     if (r.rowCount === 0) return res.status(404).json({ error: "Not found" });
     res.json({ ok: true });
   } catch (err) {
@@ -279,10 +279,9 @@ router.delete("/:quizId/questions/:qid", async (req, res) => {
 // Sub-resource: per-student scores.
 router.get("/:quizId/scores", async (req, res) => {
   try {
-    if (!(await assertOwnsQuiz(req, req.params.quizId))) {
-      return res.status(404).json({ error: "Quiz not found" });
-    }
-    const r = await pool.query(
+    const cur = await assertOwnsQuiz(req, req.params.quizId);
+    if (!cur) return res.status(404).json({ error: "Quiz not found" });
+    const r = await withTenant(cur.id, (db) => db.query(
       `SELECT s.id AS student_id, s.first_name, s.last_name, s.student_id AS code,
               qs.score, qs.max_score, qs.feedback, qs.recorded_at
          FROM students s
@@ -290,7 +289,7 @@ router.get("/:quizId/scores", async (req, res) => {
         WHERE s.account_id = (SELECT account_id FROM quizzes WHERE id = $1)
         ORDER BY s.grade, s.section, s.last_name`,
       [req.params.quizId]
-    );
+    ));
     res.json(r.rows);
   } catch (err) {
     handleErr(res, "GET /api/quizzes/:id/scores", err);
@@ -299,11 +298,23 @@ router.get("/:quizId/scores", async (req, res) => {
 
 router.put("/:quizId/scores/:studentId", async (req, res) => {
   try {
-    if (!(await assertOwnsQuiz(req, req.params.quizId))) {
-      return res.status(404).json({ error: "Quiz not found" });
-    }
+    // Both endpoints of the join must belong to this teacher. The quiz check
+    // alone let a score row attach a FOREIGN student to one of our quizzes —
+    // it writes another teacher's student id into our gradebook and confirms
+    // that id exists. The sibling route (POST /api/quiz-scores) has always
+    // checked both; this one only checked the quiz. Same rule, same shape.
+    const cur = await loadCurrentTeacher(req);
+    if (!cur) return res.status(404).json({ error: "Quiz not found" });
+    const own = await withTenant(cur.id, (db) => db.query(
+      `SELECT
+         (SELECT 1 FROM quizzes  WHERE id = $1 AND account_id = $3) AS q,
+         (SELECT 1 FROM students WHERE id = $2 AND account_id = $3) AS s`,
+      [req.params.quizId, req.params.studentId, cur.id]
+    ));
+    if (!own.rows[0].q) return res.status(404).json({ error: "Quiz not found" });
+    if (!own.rows[0].s) return res.status(404).json({ error: "Student not found" });
     const { score, max_score, feedback } = req.body || {};
-    const r = await pool.query(
+    const r = await withTenant(cur.id, (db) => db.query(
       `INSERT INTO quiz_scores (quiz_id, student_id, score, max_score, feedback)
        VALUES ($1, $2, $3, $4, $5)
        ON CONFLICT (quiz_id, student_id) DO UPDATE
@@ -313,7 +324,7 @@ router.put("/:quizId/scores/:studentId", async (req, res) => {
              recorded_at = NOW()
        RETURNING quiz_id, student_id, score, max_score, feedback, recorded_at`,
       [req.params.quizId, req.params.studentId, score ?? null, max_score ?? null, feedback ?? null]
-    );
+    ));
     res.json(r.rows[0]);
   } catch (err) {
     handleErr(res, "PUT /api/quizzes/:id/scores/:sid", err);

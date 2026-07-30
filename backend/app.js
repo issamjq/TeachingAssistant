@@ -28,7 +28,8 @@ import devRouter from "./routes/dev.js";
 import { requireAuth, requireRole } from "./lib/auth.js";
 import {
   buildHelmet, buildCors,
-  buildGlobalRateLimit, buildAuthRateLimit,
+  buildGlobalRateLimit, buildAuthRateLimit, buildAccountRateLimit, buildAiRateLimit,
+  buildPublicRateLimit,
   buildTimeout,
 } from "./lib/security.js";
 
@@ -83,9 +84,13 @@ export function buildApp() {
   // ones, fit comfortably in 2mb of JSON.
   app.use(express.json({ limit: "2mb" }));
 
-  // 7. Global rate limit. Skips /healthz so load balancers can probe
-  // freely.
-  app.use(buildGlobalRateLimit());
+  // 7. Rate limit layer 1 of 3 — the flood wall. Mounted on /api rather
+  // than globally: in dev this same app serves Vite's module graph, so a
+  // global limiter counted 100+ asset requests per page load and 429'd
+  // the entire site (including the HTML) after about three navigations.
+  // /healthz sits outside /api and is therefore never counted, so load
+  // balancers can probe freely. Layers 2 and 3 are at steps 11a and 12.
+  app.use("/api", buildGlobalRateLimit());
 
   // 8. Open endpoints.
   app.get("/healthz", (_req, res) => res.json({ ok: true }));
@@ -100,11 +105,27 @@ export function buildApp() {
   // 10. Schools — catalog GET is reachable during onboarding before
   // the teacher row exists. The /mine endpoints inside still bail with
   // 404 when there's no teacher.
-  app.use("/api/schools", requireAuth({ optional: true }), schoolsRouter);
+  // buildPublicRateLimit() sits ahead of the optional auth: this is the only
+  // route anonymous callers can reach, so it gets its own tight bucket rather
+  // than spending layer 1's ceiling (which exists for authenticated traffic).
+  app.use(
+    "/api/schools",
+    buildPublicRateLimit(),
+    requireAuth({ optional: true }),
+    schoolsRouter
+  );
 
   // 11. From here down: requireAuth() = full enforcement (valid token
   // + teacher row + non-expired subscription).
   app.use("/api", requireAuth());
+
+  // 11a. Rate limit layer 2 — per-teacher fairness. Deliberately AFTER
+  // requireAuth() so it keys on a VERIFIED account id. Placing it any
+  // earlier would mean keying on an unverified token, letting an attacker
+  // borrow another teacher's uid to exhaust their quota, or rotate uids
+  // to slip the limit entirely. This is the layer that makes a school
+  // behind one NAT gateway work: 50 teachers now hold 50 buckets, not one.
+  app.use("/api", buildAccountRateLimit());
 
   // 12. Teacher-owned data.
   app.use("/api/me", meRouter);
@@ -122,7 +143,11 @@ export function buildApp() {
   app.use("/api/notifications", notificationsRouter);
   app.use("/api/library", libraryRouter);
   app.use("/api/dashboard", dashboardRouter);
-  app.use("/api/studio", studioRouter);
+  // Rate limit layer 3 — AI generation gets its own much tighter bucket
+  // on top of layer 2. Every call bills real tokens and pins a streaming
+  // connection open, so a runaway client here is expensive in a way that
+  // fetching /api/dashboard is not.
+  app.use("/api/studio", buildAiRateLimit(), studioRouter);
   app.use("/api/images", imagesRouter);
 
   // 13. Cross-tenant — admin manages teacher accounts, dev inspects

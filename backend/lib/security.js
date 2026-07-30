@@ -18,7 +18,7 @@
 
 import helmet from "helmet";
 import cors from "cors";
-import rateLimit from "express-rate-limit";
+import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 
 const isProd = () => process.env.NODE_ENV === "production";
 
@@ -82,6 +82,17 @@ export function buildHelmet() {
       },
     },
     crossOriginEmbedderPolicy: false, // would block Firebase popups
+    // Helmet defaults COOP to "same-origin", which severs window.opener between
+    // this page and the Firebase signInWithPopup window. The popup completes the
+    // Google flow, closes, and can never post the credential back — the user sees
+    // it vanish with no error anywhere, and sign-in silently fails.
+    //
+    // "same-origin-allow-popups" is the narrowest policy that fixes it: this page
+    // keeps its opener reference to popups IT opened, while any cross-origin page
+    // that opens US is still severed from this window. Cross-origin isolation is
+    // already off (COEP is disabled above for the same OAuth reason), so this
+    // gives up nothing we currently rely on.
+    crossOriginOpenerPolicy: { policy: "same-origin-allow-popups" },
     // HSTS: enforce HTTPS for the apex + subdomains, 1 year. Only set
     // in production — devs run http://localhost.
     strictTransportSecurity: isProd()
@@ -122,29 +133,108 @@ export function buildCors() {
 }
 
 // ── Rate limiting ──────────────────────────────────────────────────────
-// Global: 300 req / 5 min per IP. Tuned for a normal teacher's session
-// (lots of small /api/dashboard, /api/schedule polls). A single page
-// load typically fires 3-8 calls; 300 in 5 min leaves headroom for
-// active studio use without unblocking brute-force attempts.
+// Three layers, deliberately keyed differently. The ordering constraint
+// is a security one and must not be "simplified" later:
+//
+//   IP layer      runs before auth, so it can only key on IP.
+//   Account layer runs AFTER requireAuth(), so req.account is a VERIFIED
+//                 identity. Keying on a token before verification would
+//                 let an attacker put someone else's uid in an unsigned
+//                 token to drain their bucket, or rotate uids to escape
+//                 limiting entirely. Never move this above requireAuth().
+//
+// A school of 50 teachers shares one NAT gateway, so an IP-only limit is
+// wrong in both directions at once: it throttles a whole staff room while
+// letting one abusive account run free inside the shared budget. The IP
+// layer is now only a flood wall; per-teacher fairness is the account
+// layer's job.
+//
+// Store note: express-rate-limit's default store is in-process, so counts
+// reset on deploy and are not shared across instances. That is acceptable
+// while we run a single Render dyno; the Redis store lands with the rest
+// of the shared-cache work.
+
+// Shared shape — every limiter reports RateLimit-* headers (RFC 9239
+// draft) so the client can back off instead of guessing.
+const LIMITER_BASE = {
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+};
+
+// Verified-account key when we have one, IP otherwise. ipKeyGenerator is
+// the library's helper — it normalises IPv6 to a /56 block so a single
+// client can't walk its own address space to get unlimited buckets.
+const byAccountOrIp = (req) =>
+  req.account?.id ? `acct:${req.account.id}` : `ip:${ipKeyGenerator(req.ip)}`;
+
+// Layer 1 — flood wall. Mounted on /api only (see app.js): in dev this
+// same Express app also serves Vite's module graph, where one page load
+// is 100+ requests, and counting those made the whole site 429 after
+// roughly three page loads. Generous, because fairness is layer 2's job.
 export function buildGlobalRateLimit() {
   return rateLimit({
+    ...LIMITER_BASE,
     windowMs: 5 * 60 * 1000,
-    limit: 300,
-    standardHeaders: "draft-7", // RateLimit-* headers per RFC 9239 draft
-    legacyHeaders: false,
-    skip: (req) => req.path === "/healthz",
+    limit: 1000,
     message: { error: "Too many requests. Please slow down." },
   });
 }
 
-// Tight limit on the auth bootstrap + renew endpoints. 10 per 15 min
-// is plenty for a real user, brick-wall for credential-stuffing.
+// Layer 2 — per-teacher fairness. Mounted immediately after requireAuth()
+// so the key is a verified account id. 300 / 5 min is far above real use
+// (a page load is 3–8 calls) but stops one account hammering the API.
+export function buildAccountRateLimit() {
+  return rateLimit({
+    ...LIMITER_BASE,
+    windowMs: 5 * 60 * 1000,
+    limit: 300,
+    keyGenerator: byAccountOrIp,
+    message: { error: "Too many requests. Please slow down." },
+  });
+}
+
+// Layer 3 — AI generation. Every call here costs real money and holds a
+// streaming connection open, so it gets its own much tighter bucket. This
+// is burst protection only; durable per-plan spend caps come with the
+// usage ledger.
+export function buildAiRateLimit() {
+  return rateLimit({
+    ...LIMITER_BASE,
+    windowMs: 5 * 60 * 1000,
+    limit: 30,
+    keyGenerator: byAccountOrIp,
+    message: {
+      error: "You're generating very quickly. Give it a moment and try again.",
+    },
+  });
+}
+
+// Public surface. `/api/schools` is the only route reachable without a token
+// (the catalog is read during onboarding, before a teacher row exists), so it
+// is the one place layer 2's per-account fairness cannot help. Layer 1's
+// ceiling is deliberately generous — that headroom exists for a NATed school's
+// AUTHENTICATED traffic, and letting anonymous callers spend it would be the
+// wrong trade. 120 per 5 min is far above real onboarding use (a teacher
+// searches the catalog a handful of times, once) and far below useful abuse.
+export function buildPublicRateLimit() {
+  return rateLimit({
+    ...LIMITER_BASE,
+    windowMs: 5 * 60 * 1000,
+    limit: 120,
+    keyGenerator: byAccountOrIp,
+    message: { error: "Too many requests. Please slow down." },
+  });
+}
+
+// Auth bootstrap + renew. Necessarily pre-auth, so IP-keyed: this is the
+// credential-stuffing brake and 10 attempts per 15 minutes is plenty for
+// a real person. Dev gets a looser ceiling purely because signing in and
+// out repeatedly is normal while building; production is never relaxed.
 export function buildAuthRateLimit() {
   return rateLimit({
+    ...LIMITER_BASE,
     windowMs: 15 * 60 * 1000,
-    limit: 10,
-    standardHeaders: "draft-7",
-    legacyHeaders: false,
+    limit: isProd() ? 10 : 200,
     message: { error: "Too many sign-in attempts. Try again later." },
   });
 }

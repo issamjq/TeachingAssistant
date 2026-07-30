@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { crudRouter } from "../lib/crud.js";
 import { StudentSchema, StudentPatchSchema } from "../lib/validate.js";
-import { pool } from "../lib/db.js";
+import { withTenant } from "../lib/db.js";
 import { handleErr } from "../lib/helpers.js";
 import { loadCurrentTeacher } from "../lib/currentTeacher.js";
 
@@ -41,10 +41,10 @@ const assertOwnsSchoolIfPresent = async (req, res, next) => {
     if (schoolId === null || schoolId === undefined || schoolId === "") return next();
     const cur = await loadCurrentTeacher(req);
     if (!cur) return res.status(401).json({ error: "Not authenticated" });
-    const r = await pool.query(
+    const r = await withTenant(cur.id, (db) => db.query(
       "SELECT 1 FROM account_schools WHERE account_id = $1 AND school_id = $2",
       [cur.id, schoolId]
-    );
+    ));
     if (r.rowCount === 0) {
       return res.status(400).json({
         error: "school_id must be one of your schools. Add it under Settings → My schools first.",

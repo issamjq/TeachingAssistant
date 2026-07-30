@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { pool } from "../lib/db.js";
+import { withTenant } from "../lib/db.js";
 import { handleErr } from "../lib/helpers.js";
 import { loadCurrentTeacher } from "../lib/currentTeacher.js";
 
@@ -75,11 +75,11 @@ router.post("/upload", async (req, res) => {
         .json({ error: "Image is too large. Keep uploads under ~8MB." });
     }
 
-    const ins = await pool.query(
+    const ins = await withTenant(cur.id, (db) => db.query(
       `INSERT INTO uploaded_images (account_id, mime, data)
        VALUES ($1, $2, $3) RETURNING id`,
       [cur.id, mime, base64]
-    );
+    ));
     res.status(201).json({ url: `/api/images/${ins.rows[0].id}` });
   } catch (err) {
     handleErr(res, "POST /api/images/upload", err);
@@ -94,10 +94,19 @@ router.get("/:id", async (req, res) => {
     if (!Number.isInteger(id) || id <= 0) {
       return res.status(404).json({ error: "Not found" });
     }
-    const r = await pool.query(
-      "SELECT mime, data FROM uploaded_images WHERE id = $1",
-      [id]
-    );
+    // Scope to the owner. Without the account_id clause this was a
+    // cross-tenant read: any authenticated teacher could walk the id space
+    // and pull down another teacher's uploads. Verified before the fix —
+    // teacher B fetched teacher A's image and got 200 plus the bytes.
+    //
+    // 404 rather than 403 on someone else's id, so the response can't be used
+    // to probe which ids exist.
+    const cur = await loadCurrentTeacher(req);
+    if (!cur) return res.status(404).json({ error: "Not found" });
+    const r = await withTenant(cur.id, (db) => db.query(
+      "SELECT mime, data FROM uploaded_images WHERE id = $1 AND account_id = $2",
+      [id, cur.id]
+    ));
     if (r.rows.length === 0) return res.status(404).json({ error: "Not found" });
     const { mime, data } = r.rows[0];
     const buf = Buffer.from(data, "base64");

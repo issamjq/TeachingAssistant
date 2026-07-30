@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { pool } from "../lib/db.js";
+import { withTenant } from "../lib/db.js";
 import { handleErr } from "../lib/helpers.js";
 import { loadCurrentTeacher } from "../lib/currentTeacher.js";
 
@@ -19,7 +19,7 @@ router.get("/", async (req, res) => {
       let extra = "";
       if (grade)   { params.push(grade);   extra += ` AND s.grade = $${params.length}`; }
       if (section) { params.push(section); extra += ` AND s.section = $${params.length}`; }
-      const r = await pool.query(
+      const r = await withTenant(cur.id, (db) => db.query(
         `SELECT s.id AS student_id, s.first_name, s.last_name, s.student_id AS code,
                 s.grade, s.section,
                 a.id AS attendance_id, a.status, a.notes
@@ -29,12 +29,12 @@ router.get("/", async (req, res) => {
           WHERE s.account_id = $1${extra}
           ORDER BY s.grade, s.section, s.last_name`,
         params
-      );
+      ));
       return res.json(r.rows);
     }
 
     // Default: recent attendance log (last 50)
-    const r = await pool.query(
+    const r = await withTenant(cur.id, (db) => db.query(
       `SELECT a.id, a.date, a.status, a.notes,
               s.first_name, s.last_name, s.grade, s.section, s.student_id AS code
          FROM attendance a
@@ -43,7 +43,7 @@ router.get("/", async (req, res) => {
         ORDER BY a.date DESC, s.last_name
         LIMIT 50`,
       [cur.id]
-    );
+    ));
     res.json(r.rows);
   } catch (err) {
     handleErr(res, "GET /api/attendance", err);
@@ -72,13 +72,15 @@ router.put("/", async (req, res) => {
     if (!["Present", "Absent", "Late", "Excused"].includes(status)) {
       return res.status(400).json({ error: "Invalid status." });
     }
-    const own = await pool.query(
-      "SELECT 1 FROM students WHERE id = $1 AND account_id = $2",
-      [student_id, cur.id]
-    );
-    if (own.rowCount === 0) return res.status(404).json({ error: "Student not found" });
-
-    const r = await pool.query(
+    // Ownership check and upsert share one transaction, so the student can't
+    // be reassigned between the two — and both run under RLS.
+    const { own, r } = await withTenant(cur.id, async (db) => {
+      const own = await db.query(
+        "SELECT 1 FROM students WHERE id = $1 AND account_id = $2",
+        [student_id, cur.id]
+      );
+      if (own.rowCount === 0) return { own, r: null };
+      const r = await db.query(
       `INSERT INTO attendance (account_id, student_id, date, status, notes)
        VALUES ($1, $2, $3, $4, $5)
        ON CONFLICT (student_id, date) DO UPDATE
@@ -86,8 +88,11 @@ router.put("/", async (req, res) => {
              notes  = EXCLUDED.notes
          WHERE attendance.account_id = $1
        RETURNING id, account_id, student_id, date, status, notes`,
-      [cur.id, student_id, date, status, notes ?? null]
-    );
+        [cur.id, student_id, date, status, notes ?? null]
+      );
+      return { own, r };
+    });
+    if (own.rowCount === 0) return res.status(404).json({ error: "Student not found" });
     if (r.rowCount === 0) {
       // The (student_id, date) row exists but belongs to a different
       // teacher (shouldn't be possible given the ownership check above,
@@ -103,10 +108,10 @@ router.put("/", async (req, res) => {
 router.delete("/:id", async (req, res) => {
   try {
     const cur = await loadCurrentTeacher(req);
-    const r = await pool.query(
+    const r = await withTenant(cur.id, (db) => db.query(
       "DELETE FROM attendance WHERE id = $1 AND account_id = $2",
       [req.params.id, cur.id]
-    );
+    ));
     if (r.rowCount === 0) return res.status(404).json({ error: "Not found" });
     res.json({ ok: true });
   } catch (err) {

@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { pool } from "../lib/db.js";
+import { withTenant } from "../lib/db.js";
 import { handleErr } from "../lib/helpers.js";
 import { loadCurrentTeacher } from "../lib/currentTeacher.js";
 
@@ -19,6 +19,11 @@ router.get("/", async (req, res) => {
   try {
     const cur = await loadCurrentTeacher(req);
 
+    // All seven reads share one tenant transaction. They already run in
+    // parallel; binding the tenant once rather than seven times keeps that
+    // shape while putting RLS underneath every one of them. The dashboard
+    // touches six different tenant tables, so it is exactly the kind of
+    // fan-out where a single missed `account_id` would be easy to overlook.
     const [
       todayLessons,
       upcomingLessons,
@@ -27,15 +32,15 @@ router.get("/", async (req, res) => {
       recentDrafts,
       counts,
       recentNotifications,
-    ] = await Promise.all([
-      pool.query(
+    ] = await withTenant(cur.id, (db) => Promise.all([
+      db.query(
         `SELECT id, title, subject, grade, section, start_time, end_time, location, status
            FROM schedule_entries
           WHERE account_id = $1 AND date = CURRENT_DATE
           ORDER BY start_time`,
         [cur.id]
       ),
-      pool.query(
+      db.query(
         `SELECT id, title, subject, grade, section, date, start_time, status
            FROM schedule_entries
           WHERE account_id = $1
@@ -45,7 +50,7 @@ router.get("/", async (req, res) => {
           LIMIT 8`,
         [cur.id]
       ),
-      pool.query(
+      db.query(
         `SELECT id, title, subject, grade, section, due_date, status
            FROM homework
           WHERE account_id = $1 AND status = 'Open'
@@ -54,7 +59,7 @@ router.get("/", async (req, res) => {
           LIMIT 8`,
         [cur.id]
       ),
-      pool.query(
+      db.query(
         `SELECT id, title, subject, grade, section, scheduled_for, total_marks, status
            FROM quizzes
           WHERE account_id = $1
@@ -65,7 +70,7 @@ router.get("/", async (req, res) => {
           LIMIT 8`,
         [cur.id]
       ),
-      pool.query(
+      db.query(
         `SELECT id, name, subject, status, progress, last_edited
            FROM drafts
           WHERE account_id = $1
@@ -73,7 +78,7 @@ router.get("/", async (req, res) => {
           LIMIT 5`,
         [cur.id]
       ),
-      pool.query(
+      db.query(
         `SELECT
            (SELECT COUNT(*)::int FROM students      WHERE account_id = $1) AS students,
            (SELECT COUNT(*)::int FROM drafts        WHERE account_id = $1) AS drafts,
@@ -84,7 +89,7 @@ router.get("/", async (req, res) => {
            (SELECT COUNT(*)::int FROM activities    WHERE account_id = $1) AS activities`,
         [cur.id]
       ),
-      pool.query(
+      db.query(
         `SELECT id, kind, message, link, is_read, created_at
            FROM notifications
           WHERE account_id = $1 AND is_read = FALSE
@@ -92,7 +97,7 @@ router.get("/", async (req, res) => {
           LIMIT 5`,
         [cur.id]
       ),
-    ]);
+    ]));
 
     res.json({
       today_lessons: todayLessons.rows,

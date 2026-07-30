@@ -387,6 +387,135 @@ ALTER TABLE audit_log ADD  CONSTRAINT audit_action_nonempty
 // 5 minutes, and consume after one successful check. Cleanup of
 // expired / consumed rows runs lazily inside the /email-verify/check
 // handler — small table, no separate cron needed.
+// AI usage ledger — one immutable row per Anthropic call, written by
+// backend/lib/aiUsage.js. This is what makes cost knowable: the studio
+// routes previously computed `usage`, shipped it to the browser, and
+// discarded it, so per-teacher spend could not be measured at all.
+//
+// Two deliberate choices:
+//
+//   cost_nano_usd is BIGINT, not NUMERIC or a float. Costs are integer
+//   nano-USD (1e-9 USD) — Anthropic's per-MTok rates divide cleanly at that
+//   scale, so nothing is ever rounded through floating point.
+//
+//   There is no prompt column, and there must never be one. Teacher prompts
+//   routinely contain real student names; the ledger is metadata only.
+//
+// account_id is SET NULL on delete rather than CASCADE — a deleted teacher
+// must not erase the spend they incurred, same reasoning as audit_log.
+const SCHEMA_AI_USAGE = `
+CREATE TABLE IF NOT EXISTS ai_usage_ledger (
+  id                 BIGSERIAL PRIMARY KEY,
+  account_id         INT REFERENCES accounts(id) ON DELETE SET NULL,
+  role               TEXT,
+  endpoint           TEXT NOT NULL,
+  kind               TEXT,
+  model              TEXT NOT NULL,
+  input_tokens       INT    NOT NULL DEFAULT 0,
+  output_tokens      INT    NOT NULL DEFAULT 0,
+  cache_read_tokens  INT    NOT NULL DEFAULT 0,
+  cache_write_tokens INT    NOT NULL DEFAULT 0,
+  cost_nano_usd      BIGINT NOT NULL DEFAULT 0,
+  price_version      TEXT   NOT NULL,
+  status             TEXT   NOT NULL DEFAULT 'ok',
+  created_at         TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+-- Per-teacher spend over a window is the query this table exists to answer;
+-- the second index serves org-wide rollups that don't filter by account.
+CREATE INDEX IF NOT EXISTS ai_usage_account_idx  ON ai_usage_ledger (account_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS ai_usage_created_idx  ON ai_usage_ledger (created_at DESC);
+CREATE INDEX IF NOT EXISTS ai_usage_model_idx    ON ai_usage_ledger (model, created_at DESC);
+-- A row with no endpoint can't be attributed to a feature, and a negative
+-- cost would corrupt any SUM() over the table.
+ALTER TABLE ai_usage_ledger DROP CONSTRAINT IF EXISTS ai_usage_endpoint_nonempty;
+ALTER TABLE ai_usage_ledger ADD  CONSTRAINT ai_usage_endpoint_nonempty
+  CHECK (endpoint <> '');
+ALTER TABLE ai_usage_ledger DROP CONSTRAINT IF EXISTS ai_usage_cost_nonneg;
+ALTER TABLE ai_usage_ledger ADD  CONSTRAINT ai_usage_cost_nonneg
+  CHECK (cost_nano_usd >= 0);
+ALTER TABLE ai_usage_ledger DROP CONSTRAINT IF EXISTS ai_usage_status_valid;
+ALTER TABLE ai_usage_ledger ADD  CONSTRAINT ai_usage_status_valid
+  CHECK (status IN ('ok','aborted','error'));
+`;
+
+// ── Row-level security ─────────────────────────────────────────────────
+//
+// The database-level backstop under crud.js's `WHERE account_id = $1`.
+// Application scoping stays the first line of defence; this catches the
+// hand-written route that forgets one. See backend/lib/db.js → withTenant()
+// for the runtime half and the full reasoning.
+//
+// The critical fact, verified against this database rather than assumed:
+// `neondb_owner` carries the BYPASSRLS role attribute, and BYPASSRLS defeats
+// even FORCE ROW LEVEL SECURITY. Enabling RLS and continuing to connect as
+// the owner would produce policies that read correctly, pass review, and
+// enforce absolutely nothing. So we create a separate `murchid_app` role with
+// no bypass; withTenant() switches into it (SET LOCAL ROLE) for the duration
+// of a transaction.
+//
+// Rollout is deliberately non-breaking. Queries still issued as the owner —
+// every route not yet migrated — keep working exactly as before, because the
+// owner bypasses. Each query path moved onto withTenant() gains enforcement
+// with no risk to the others. Nothing regresses; coverage grows.
+//
+// Policies use current_setting(..., true): the `true` returns NULL instead of
+// throwing when the tenant is unset, and NULL matches no row — so an unscoped
+// query returns zero rows. Fail closed, never fail open.
+const RLS_TENANT_TABLES = [
+  "templates", "drafts", "students", "schedule_entries", "quizzes",
+  "homework", "attendance", "student_grades", "presentations",
+  "activities", "library_resources", "notifications", "uploaded_images",
+];
+
+// Child rows carry no account_id — ownership is inherited through the parent.
+// quiz_scores, homework_submissions and activity_completions hold per-student
+// marks, so these matter as much as the parent tables.
+const RLS_CHILD_TABLES = [
+  { table: "quiz_questions",      parent: "quizzes",    fk: "quiz_id" },
+  { table: "quiz_scores",         parent: "quizzes",    fk: "quiz_id" },
+  { table: "homework_submissions", parent: "homework",  fk: "homework_id" },
+  { table: "activity_completions", parent: "activities", fk: "activity_id" },
+];
+
+const CURRENT_ACCOUNT = `NULLIF(current_setting('app.current_account', true), '')::int`;
+
+const SCHEMA_RLS = `
+-- Non-privileged role the app switches into for tenant-scoped work.
+-- NOLOGIN: it is never connected as directly, only reached via SET LOCAL ROLE.
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'murchid_app') THEN
+    CREATE ROLE murchid_app NOLOGIN;
+  END IF;
+END $$;
+
+-- SET ROLE requires membership. Granting to the connecting user is what makes
+-- withTenant() able to drop privileges mid-transaction.
+GRANT murchid_app TO CURRENT_USER;
+GRANT USAGE ON SCHEMA public TO murchid_app;
+-- DML only. No DDL, no ownership: even with a SQL-injection foothold inside a
+-- tenant transaction, the role cannot drop a table or disable a policy.
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO murchid_app;
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO murchid_app;
+
+${RLS_TENANT_TABLES.map((t) => `
+ALTER TABLE ${t} ENABLE ROW LEVEL SECURITY;
+ALTER TABLE ${t} FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS ${t}_tenant ON ${t};
+CREATE POLICY ${t}_tenant ON ${t}
+  USING      (account_id = ${CURRENT_ACCOUNT})
+  WITH CHECK (account_id = ${CURRENT_ACCOUNT});`).join("\n")}
+
+${RLS_CHILD_TABLES.map(({ table, parent, fk }) => `
+ALTER TABLE ${table} ENABLE ROW LEVEL SECURITY;
+ALTER TABLE ${table} FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS ${table}_tenant ON ${table};
+CREATE POLICY ${table}_tenant ON ${table}
+  USING      (EXISTS (SELECT 1 FROM ${parent} p
+                      WHERE p.id = ${table}.${fk} AND p.account_id = ${CURRENT_ACCOUNT}))
+  WITH CHECK (EXISTS (SELECT 1 FROM ${parent} p
+                      WHERE p.id = ${table}.${fk} AND p.account_id = ${CURRENT_ACCOUNT}));`).join("\n")}
+`;
+
 const SCHEMA_EMAIL_VERIFY = `
 CREATE TABLE IF NOT EXISTS email_verifications (
   id          BIGSERIAL PRIMARY KEY,
@@ -900,6 +1029,9 @@ export async function runInit() {
   console.log("Adding auth-path indexes...");
   await pool.query(SCHEMA_AUTH_INDEXES);
 
+  console.log("Creating ai_usage_ledger table + indexes...");
+  await pool.query(SCHEMA_AI_USAGE);
+
   console.log("Creating email_verifications table...");
   await pool.query(SCHEMA_EMAIL_VERIFY);
 
@@ -911,6 +1043,13 @@ export async function runInit() {
 
   console.log("Refreshing CHECK constraints...");
   await pool.query(CONSTRAINTS);
+
+  // Must run after every CREATE TABLE above: the GRANT ... ON ALL TABLES only
+  // covers tables that exist at the moment it executes, so a new table added
+  // earlier in this file is picked up on the next db:init, but one created
+  // after this line would not be.
+  console.log("Applying row-level security (role, grants, policies)...");
+  await pool.query(SCHEMA_RLS);
 
   // One-time cleanup: drop the old "Murchid Admin" / "Murchid Dev"
   // placeholder rows. They predate the env-driven role allowlist and

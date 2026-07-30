@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { pool } from "../lib/db.js";
+import { withTenant } from "../lib/db.js";
 import { handleErr } from "../lib/helpers.js";
 import { loadCurrentTeacher } from "../lib/currentTeacher.js";
 import { crudRouter } from "../lib/crud.js";
@@ -14,7 +14,12 @@ const router = Router();
 router.get("/summary", async (req, res) => {
   try {
     const cur = await loadCurrentTeacher(req);
-    const r = await pool.query(
+    // This query fans across four tenant tables (student_grades, quiz_scores,
+    // homework_submissions, students) and every one of them is scoped by hand
+    // below. Running it inside withTenant() puts RLS underneath that: if one
+    // of these WHEREs is ever dropped, the aggregate loses rows instead of
+    // silently averaging in another teacher's students.
+    const r = await withTenant(cur.id, (db) => db.query(
       `WITH entries AS (
          SELECT student_id, score::numeric AS score, max_score::numeric AS max_score
            FROM student_grades
@@ -39,7 +44,7 @@ router.get("/summary", async (req, res) => {
         GROUP BY s.id
         ORDER BY s.grade, s.section, s.last_name`,
       [cur.id]
-    );
+    ));
     res.json(r.rows);
   } catch (err) {
     handleErr(res, "GET /api/grades/summary", err);
@@ -57,10 +62,10 @@ const assertOwnsStudentIfPresent = async (req, res, next) => {
     if (!studentId) return next();
     const cur = await loadCurrentTeacher(req);
     if (!cur) return res.status(401).json({ error: "Not authenticated" });
-    const r = await pool.query(
+    const r = await withTenant(cur.id, (db) => db.query(
       "SELECT 1 FROM students WHERE id = $1 AND account_id = $2",
       [studentId, cur.id]
-    );
+    ));
     if (r.rowCount === 0) return res.status(404).json({ error: "Student not found" });
     next();
   } catch (err) {
