@@ -412,6 +412,15 @@ Day 1 raised the IP-keyed limiter from 300 to 1000 per 5 min. That was deliberat
 
 Additive only — layers 2 and 3, the usage ledger, and the error boundaries are untouched. → Scheduled with Day 2 scope hardening in [`14-roadmap.md`](14-roadmap.md).
 
+### F47 — Trash panel showed "Invalid Date · NaN days left" ✅ Observed — 🔧 Fixed Day 3
+Found 2026-07-30 while reviewing the pagination change, by exercising `/trash` for the first time with real soft-deleted rows.
+
+`TrashPopup` in [`src/views/_data-view.jsx`](../src/views/_data-view.jsx) renders `Deleted {new Date(r.deleted_at).toLocaleDateString()} · {daysLeft(r.deleted_at)} days left`, but **not one of the six soft-delete routers listed `deleted_at` in its `selectCols`**, so the column never reached the client. Every trash panel in the product rendered `Deleted Invalid Date · NaN days left`. Pre-existing — the `/trash` route always projected `selectCols` — and invisible until someone actually deleted something and opened the panel.
+
+**Fixed** in `crud.js` rather than in the six routers: the `/trash` route only exists because `softDelete` is on, so the column it needs is now derived from that same switch and cannot be forgotten by a router added later. The normal list is untouched, where `deleted_at` is NULL on every row by definition.
+
+Verified on all six resources, and in the browser: the panel now reads `Deleted 7/26/2026 · 26 days left` for a quiz soft-deleted four days earlier.
+
 ### F46 — Redis code paths are written but never run against a real Redis 📖 Code-read — open
 Day 3 added `REDIS_URL` support for the cache and the rate-limit store. **Neither has been exercised against a live Redis** — no instance is provisioned and there is no Docker on the dev machine. What *is* verified:
 
@@ -419,6 +428,11 @@ Day 3 added `REDIS_URL` support for the cache and the rate-limit store. **Neithe
 - with `REDIS_URL` pointing at a dead port: one warning line, `/healthz` 200, `/api/*` served, requests pass **unlimited** while the store is down (`passOnStoreError: true` — deliberate, see `security.js`)
 
 What is **not** verified: that `RedisStore` counts correctly, that cross-instance invalidation actually propagates, and that the `ready` handler re-arms the log. Provision Redis and re-check before relying on either. Until then, treat multi-instance deploys as unsupported.
+
+### F48 — Keyset tiebreaker forced ASC, disabling the fast path on DESC lists ✅ Observed — 🔧 Fixed Day 3
+`buildOrderSpec()` appended the `id` tiebreaker as a hardcoded `ASC`. On an all-`DESC` sort that made the clause mixed-direction, which disqualified it from the row-value index predicate in `keysetWhere()` — so a "newest first" list would have been pinned to the slower predicate permanently, for no reason.
+
+Not triggered by anything in the repo today: every `listOrderBy` either names `id` explicitly or leads `ASC`. Found on 2026-07-30 by deliberately testing a `DESC` clause during the pagination review. The tiebreaker now inherits the direction of the term before it, which is also the more natural tie order (newest first → highest id first). Verified: the DESC path now matches both the unpaged query and the safe predicate byte for byte across 140 rows.
 
 ### F45 — `/api/teachers` can mutate accounts without an audit trail 📖 Code-read — open
 `teachers.js` mounts the generic `crudRouter` on the `accounts` table, giving admin / super_admin / dev a `POST`, `PATCH` and `DELETE` on any account. The dedicated routes in `admin.js` do the same jobs but additionally: refuse self-suspension and self-deletion, enforce `canGrantRole()`, and write an `audit_log` row. The `crudRouter` copies do none of that — a hard `DELETE /api/teachers/:id` leaves no trace.

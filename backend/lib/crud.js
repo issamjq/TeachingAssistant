@@ -70,6 +70,20 @@ export function crudRouter({
   const listSpec  = buildOrderSpec(listOrderBy, table);
   const trashSpec = softDelete ? buildOrderSpec("deleted_at DESC", table, "trash") : null;
 
+  // /trash needs deleted_at in the payload — the recovery UI shows when an item
+  // was deleted and how many of its 30 days are left. Not one router declared it
+  // in `selectCols`, so every trash panel in the product rendered "Deleted
+  // Invalid Date · NaN days left".
+  //
+  // Added here rather than to six routers' select lists for two reasons: the
+  // /trash route only exists because `softDelete` is on, so the column it needs
+  // should come from the same switch and can't be forgotten by a router added
+  // later; and the normal list keeps its payload clean, since there deleted_at
+  // is NULL on every row by definition.
+  const trashSelect = softDelete && !/(^|,)\s*deleted_at\s*(,|$)/.test(selectCols)
+    ? `${selectCols}, deleted_at`
+    : selectCols;
+
   // Compose one page of `spec`-ordered rows.
   //
   // Split into build/finish rather than one run() because /trash must purge
@@ -78,7 +92,7 @@ export function crudRouter({
   //
   // Asks for limit+1 rows: the extra row is how we know another page exists,
   // and it costs one row rather than a second COUNT(*) over the whole table.
-  const buildPage = (req, spec, { where, params }) => {
+  const buildPage = (req, spec, { where, params, select = selectCols }) => {
     const limit = parseLimit(req.query.limit);
     const args = [...params];
     let clause = where;
@@ -94,7 +108,7 @@ export function crudRouter({
     return {
       limit,
       args,
-      sql: `SELECT ${selectCols}${spec.selectSql} FROM ${table} ${clause}
+      sql: `SELECT ${select}${spec.selectSql} FROM ${table} ${clause}
               ORDER BY ${spec.orderSql} LIMIT $${args.length}`,
     };
   };
@@ -210,6 +224,7 @@ export function crudRouter({
         const page = buildPage(req, trashSpec, {
           where: `WHERE ${listConds.join(" AND ")}`,
           params,
+          select: trashSelect,
         });
         // Purge-then-list share one transaction so the listing can't observe a
         // half-completed purge, and so the tenant is bound once rather than twice.

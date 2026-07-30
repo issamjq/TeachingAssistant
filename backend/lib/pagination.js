@@ -126,8 +126,17 @@ export function buildOrderSpec(clause, table = "", shapeSalt = "") {
   // Total order or it isn't a keyset. `id` is the primary key on every table
   // crudRouter serves; appending it only breaks ties that were previously
   // resolved arbitrarily by the planner, so no visible order changes.
+  //
+  // It inherits the direction of the term before it rather than defaulting to
+  // ASC. Two reasons, and the second is the one that bites: a "newest first"
+  // list should break ties newest-id-first, and a hardcoded ASC would make an
+  // otherwise all-DESC clause mixed-direction — which disqualifies it from the
+  // row-value fast path in keysetWhere() for no reason at all. Caught in review
+  // by testing a DESC clause, since every clause in the repo today either
+  // names `id` explicitly or leads ASC.
   if (!terms.some((t) => t.col === "id")) {
-    terms.push({ col: "id", dir: "ASC", nulls: "LAST" });
+    const last = terms[terms.length - 1];
+    terms.push({ col: "id", dir: last.dir, nulls: last.dir === "DESC" ? "FIRST" : "LAST" });
   }
   const orderSql = terms
     .map((t) => `${t.col} ${t.dir} NULLS ${t.nulls}`)
