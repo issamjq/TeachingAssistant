@@ -79,11 +79,15 @@ Existing six roles stay exactly as they are. Four added.
 | `owner` | exists | global | read-only analytics |
 | `admin` | exists | global | ops analytics |
 | `moe` | exists | emirate | aggregate analytics only |
-| `teacher` | exists | own account | **full generation + grading** |
-| `school_admin` | **new** | one school | analytics + comms, no content gen |
-| `hod` | **new** | department in school | analytics + dept content review |
+| `teacher` | exists | own account | **full generation + grading + voice** |
 | `student` | **new** | own record | **restricted — see §5** |
 | `parent` | **new** | linked children | summaries only, no generation |
+| `school_admin` | *deferred* | one school | — |
+| `hod` | *deferred* | department | — |
+
+> **Scope decision.** `school_admin`, `hod` and `departments` are **deferred to a future workspace product**, along with inspection packs, curriculum coverage reporting and school-wide billing. They sell to a school; the customer today is the teacher. Students and parents are what make the teacher's product complete, so those ship first. Nothing existing is removed — the current `admin` / `super_admin` / `owner` / `moe` / `dev` consoles stay as they are. See [`14-roadmap.md`](14-roadmap.md) → *Scope decision*.
+>
+> The practical consequence: **the tenant root stays `account_id`** (the teacher). The `school_id` scope layer described below is part of the workspace product, not the next 18 days — which also means Day 2's RLS model carries forward unchanged instead of being refactored.
 
 ### Tenant hierarchy
 
@@ -240,9 +244,33 @@ graph TD
 | Quiz question gen, short rewrite, tweak | Haiku 4.5 | 4096 | cheap, structured, high volume |
 | Lesson plan, presentation, differentiation | Sonnet | 8192 | quality visible to teacher |
 | **Grading** (vision + judgement) | Sonnet | 4096 | accuracy is the product |
+| **Voice conversation turn** | Haiku 4.5 | 512 | many short turns; the cap is what keeps it affordable |
 | Report comments, parent messages | Haiku 4.5 | 2048 | templated, high volume |
 | Student hints (Socratic) | Haiku 4.5 | 512 | tight cap prevents answer leakage |
 | Analytics summaries | Haiku 4.5 | 1024 | internal |
+
+### Voice — speech in, speech out, generation at the end
+
+Speech recognition and synthesis both run **in the browser** (Web Speech API), not through a paid service: no per-minute cost, Arabic voices available, and audio never leaves the device. Only the resulting *text* reaches the server, which also keeps the privacy story simple — there is no voice recording to store, retain or explain.
+
+```mermaid
+graph LR
+    MIC[🎙 speech] --> STT[browser STT]
+    STT --> TXT[editable transcript]
+    TXT --> GW[AI gateway]
+    GW --> CONV[conversation turn<br/>Haiku · 512 tok]
+    CONV --> TTS[browser TTS 🔊]
+    CONV -->|enough info| TOOL[create_artifact tool]
+    TOOL --> GEN[existing generation path]
+```
+
+Three rules this design depends on:
+
+- **The transcript is always editable before it costs anything.** Speech recognition mishears, especially in a noisy classroom or across an accent. Text lands in the prompt box; the teacher can fix it; nothing bills until they act.
+- **The conversation fills the chips, visibly.** Whatever is agreed out loud shows up in the normal settings chips, so the teacher can see what Murchid heard before generating. The chips remain the source of truth.
+- **Generation reuses the existing path.** The conversation ends in a forced `create_artifact` tool call that hands to the same endpoint the typed flow uses. One generation stack, not two.
+
+**Cost is the real risk.** A spoken exchange is several short calls where typing was one, and the budget is already tight at three artifacts a day. Voice runs on the cheap model at a hard 512-token cap, counts against the same per-account quota as everything else, and is measured on the ledger from the first day it ships.
 
 ### AI per role — the cheating boundary
 
@@ -267,17 +295,19 @@ graph TD
 
 | Surface | Feature | Priority |
 |---|---|---|
+| Grading | **camera capture** → AI marks → teacher reviews | **P0 — the 10x** |
 | Studio | generation (exists) + history, chat follow-up, presets, versions | P0 |
-| Grading | photo/upload → AI marks → teacher reviews | **P0 — the 10x** |
-| Gradebook | trend detection, at-risk flags | P1 |
+| Studio | **dictate the prompt** (mic → editable text) | P0 |
+| Studio | **voice assistant** — discuss, then build | P0 |
 | Reports | auto report-card comments, evidence-backed, EN/AR | P0 |
 | Lesson plans | differentiation (support/core/stretch) one click | P0 |
-| All artifacts | curriculum-standard auto-tagging | P1 |
-| Inspection | one-click KHDA/ADEK evidence pack | P1 |
 | Parent portal | progress summary, translated messages | P1 |
 | Student portal | Socratic tutor, adaptive practice | P1 |
+| Gradebook | trend detection, at-risk flags | P1 |
 | Attendance | anomaly detection, pattern alerts | P2 |
-| School admin | cohort insights, teacher workload | P2 |
+| All artifacts | curriculum-standard auto-tagging | *deferred → workspace* |
+| Inspection | one-click KHDA/ADEK evidence pack | *deferred → workspace* |
+| School admin | cohort insights, teacher workload | *deferred → workspace* |
 
 ---
 

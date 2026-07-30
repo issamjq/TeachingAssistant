@@ -6,11 +6,21 @@ Execution plan for [13 — Target Architecture](13-architecture.md). One builder
 
 | | |
 |---|---|
-| **Day 12** | **Shippable, sellable product** — teacher app solid, AI proven, payments live. Stop here and you have a business. |
-| **Day 18** | Full scope — student, parent, school-admin portals live. |
+| **Day 13** | **Shippable, sellable product** — teacher app solid, AI proven (incl. grading + voice), payments live. Stop here and you have a business. |
+| **Day 18** | Production ready with **students and parents** in the product. |
 | **Days 19–20** | Buffer. Not planned work. |
 
-14 days does not hold all four goals. Day 12 is the honest commercial milestone; roles need 6 more.
+14 days does not hold all of this. Day 13 is the honest commercial milestone.
+
+## Scope decision — what we are NOT building yet
+
+**No school-management layer.** No `school_admin` role, no head-of-department, no departments, no inspection evidence packs, no MoE analytics, no new privileged consoles. That whole layer is deferred to a future **workspace** product.
+
+Why: those features sell to a *school*, and we don't have one yet. Students and parents make the product complete for the teacher who is already using it, which is what "production ready" means here.
+
+**Nothing is deleted.** The existing `admin` / `super_admin` / `owner` / `moe` / `dev` consoles stay exactly as they are — they're built and they work. We are simply not extending that layer.
+
+**Classes stay in scope**, because a student has to belong to something and a parent has to be linked through something. Class is the minimum structure students and parents need — it is not school management.
 
 ---
 
@@ -48,17 +58,17 @@ gantt
     dateFormat X
     axisFormat Day %s
     section Foundation
-    Security + perf base     :0, 3
+    Security + perf base      :0, 3
     section Teacher
-    Fix + wire + polish      :3, 3
+    Fix + wire + polish       :3, 3
     section AI
-    Studio + grading         :6, 3
+    Gateway + grading + voice :6, 4
     section Money
-    Payments + metering      :9, 3
-    section Roles
-    Student/Parent/Admin     :12, 5
+    Payments + lifecycle      :10, 3
+    section People
+    Classes/Students/Parents  :13, 4
     section Ship
-    Harden + launch          :17, 1
+    Harden + launch           :17, 1
 ```
 
 ---
@@ -162,7 +172,7 @@ Nothing else is safe until this exists.
 
 ---
 
-# PHASE 2 — AI proven · Days 7–9
+# PHASE 2 — AI proven · Days 7–10
 
 ### Day 7 — AI gateway
 
@@ -179,7 +189,7 @@ Nothing else is safe until this exists.
 
 **Done when:** every generation writes a ledger row with real cost · exceeding quota returns 429, not a bill · no student name reaches Anthropic.
 
-### Day 8 — AI grading (the 10x)
+### Day 8 — AI grading by camera (the 10x)
 
 | | |
 |---|---|
@@ -187,15 +197,38 @@ Nothing else is safe until this exists.
 | **Files** | `backend/routes/grading.js` (new), `src/views/Grading.jsx` (new), `backend/db/init.js` |
 
 1. `submissions` + `grading_runs` tables.
-2. Upload/photograph answer sheets → object storage.
-3. Vision grading against the quiz's existing typed answer key in `quiz_questions`.
-4. **Teacher review screen** — AI score + confidence, one-click accept or override. AI never final.
-5. Low-confidence items flagged for mandatory review.
-6. Batch grading via job queue.
+2. **Camera capture in the browser** — `getUserMedia` for a live shot on a phone or iPad, plus file upload as the fallback. Multi-page capture for a stack of papers; client-side downscale before upload (a 12MP photo is wasted tokens).
+3. Images to object storage, never base64 in Postgres.
+4. Vision grading against the quiz's existing typed answer key in `quiz_questions`.
+5. **Teacher review screen** — AI score + confidence per question, one-click accept or override. AI is never final.
+6. Low-confidence and unreadable items flagged for mandatory review.
+7. Batch grading through the job queue so a 30-paper stack doesn't hold a request open.
 
-**Done when:** 20 scanned sheets → graded in one run → teacher accepts/overrides → scores land in `quiz_scores`.
+**Done when:** a teacher photographs 20 sheets on a phone, the run completes in the background, they accept or override, and scores land in `quiz_scores`.
 
-### Day 9 — AI teaching features
+### Day 9 — Voice: speak the prompt, and talk to the assistant
+
+| | |
+|---|---|
+| **Goal** | A teacher can create an artifact without typing, and can *discuss* it first |
+| **Files** | `src/views/Studio.jsx`, `src/lib/speech.js` (new), `backend/routes/studio.js`, `backend/lib/aiGateway.js` |
+
+Two features that share a pipeline:
+
+**1. Dictate the prompt.** Mic button on the Studio prompt box. Web Speech API (`SpeechRecognition`) — browser-native, no per-minute cost, and it supports `ar-SA` / `ar-AE`, which matters because half our teachers think in Arabic. Falls back to typing where unsupported. The transcript lands in the textarea as editable text, so the teacher can fix a misheard word before generating — never fire straight from speech into a paid call.
+
+**2. Conversational voice assistant.** The teacher talks; Murchid talks back and asks the questions it actually needs ("which grade?", "how long is the lesson?"), then builds the artifact when it has enough.
+- Speech in via the same recogniser; speech out via `SpeechSynthesis` (free, built in, Arabic voices available).
+- The conversation runs through the **AI gateway** like everything else, with a dedicated short-turn system prompt.
+- Claude decides when it has enough via a forced tool call — `create_artifact(kind, params, prompt)` — which hands straight to the existing generation path. No second generation stack.
+- **The chips stay authoritative.** Anything the conversation settles fills the chips visibly, so the teacher can see and correct what Murchid heard before it generates.
+- Full transcript shown as text alongside the audio — accessibility, and teachers in a staff room can't always listen.
+
+**Cost note — this is the expensive one.** A multi-turn spoken conversation costs several times a single generation, and we already exceed the $1.40/user/month budget at three artifacts a day. Voice conversation must run on the cheap model at a tight `max_tokens`, count against the same per-account quota as everything else, and be measured on the ledger from day one. Watch the numbers for a week before making it the default entry point.
+
+**Done when:** a teacher says *"I need a quiz on the water cycle for grade 5"*, Murchid asks how many questions, they answer out loud, and a quiz appears with the chips filled in to match — and the ledger shows what the conversation cost.
+
+### Day 10 — AI teaching features
 
 | | |
 |---|---|
@@ -213,9 +246,9 @@ Nothing else is safe until this exists.
 
 ---
 
-# PHASE 3 — Money · Days 10–12
+# PHASE 3 — Money · Days 11–13
 
-### Day 10 — Payment integration
+### Day 11 — Payment integration
 
 | | |
 |---|---|
@@ -230,7 +263,7 @@ Nothing else is safe until this exists.
 
 **Done when:** test card completes → webhook writes payment → subscription active → gated features unlock.
 
-### Day 11 — Subscription lifecycle
+### Day 12 — Subscription lifecycle
 
 | | |
 |---|---|
@@ -245,7 +278,7 @@ Nothing else is safe until this exists.
 
 **Done when:** trial expiry → paywall → payment → instant unlock · failed renewal → grace, not lockout.
 
-### Day 12 — 🚩 SHIPPABLE MILESTONE
+### Day 13 — 🚩 SHIPPABLE MILESTONE
 
 | | |
 |---|---|
@@ -261,40 +294,29 @@ Nothing else is safe until this exists.
 
 **Done when:** load test green at p95 < 200 ms · no critical/high vulnerabilities · restore drill succeeds.
 
-> **Stop here and you have a sellable product.** Everything below extends the market.
+> **Stop here and you have a sellable product** — one a teacher pays for and uses every day. Everything below makes it complete rather than merely sellable: students actually using it, and parents seeing the result.
 
 ---
 
-# PHASE 4 — Roles · Days 13–17
+# PHASE 4 — Students & parents · Days 14–17
 
-### Day 13 — Class + school foundation
+No school-management layer here — see the scope decision at the top. Classes exist because students belong to them and parents are linked through them, not as an org chart.
 
-| | |
-|---|---|
-| **Goal** | The structure every new role hangs off |
-| **Files** | `backend/db/init.js`, `backend/lib/crud.js`, `backend/routes/classes.js` (new) |
-
-1. `classes`, `class_enrollments`, `departments`.
-2. **`schoolScoped` scope layer** — layered above `account_id`, which keeps working untouched.
-3. RLS policies for school-level access.
-4. Backfill classes from existing `grade_sections` + `class_map`.
-
-**Done when:** existing teacher behaviour is byte-identical · a school row can reach its teachers' classes.
-
-### Day 14 — School admin + HoD
+### Day 14 — Classes
 
 | | |
 |---|---|
-| **Goal** | The buyer gets a console |
-| **Files** | `backend/routes/school-admin.js` (new), `src/views/SchoolAdminDashboard.jsx` (new), `src/App.jsx` |
+| **Goal** | The structure students and parents attach to |
+| **Files** | `backend/db/init.js`, `backend/routes/classes.js` (new), `src/views/Classes.jsx` (new) |
 
-1. `school_admin` + `hod` roles, nav maps, invite flow.
-2. School dashboard — teachers, classes, coverage, AI spend.
-3. **Enforce the permission matrix** via a single `can()` helper. *Makes F11 real.*
-4. **Inspection evidence pack** — one click, KHDA/ADEK-shaped, from data already held.
-5. School-wide billing (seats).
+1. `classes` (`teacher_id`, subject, grade, section, academic year) and `class_enrollments`.
+2. RLS policies on both, same pattern as every other tenant table.
+3. Backfill from the existing `grade_sections` / `class_map` so nobody re-enters what they typed in onboarding.
+4. Teacher UI: create a class, add students to it from the existing roster.
 
-**Done when:** a school admin sees only their school · inspection pack exports · permission toggles actually gate.
+**Deliberately NOT here:** no `departments`, no `school_id` scope layer, no school-level roles. The tenant root stays `account_id` — the teacher. That keeps Day 2's RLS model intact and avoids a refactor we don't yet need.
+
+**Done when:** existing teacher behaviour is byte-identical · a class lists its students · the day-2 scope tests still pass unchanged.
 
 ### Day 15 — Student portal
 
@@ -326,20 +348,22 @@ Nothing else is safe until this exists.
 
 **Done when:** a parent sees only their children · summary reads naturally in both languages · a guardian id in the URL changes nothing.
 
-### Day 17 — Curriculum + analytics
+### Day 17 — Close the loop: students, parents, grading, voice together
 
 | | |
 |---|---|
-| **Goal** | The moat |
-| **Files** | `backend/routes/standards.js` (new), `backend/db/init.js`, dashboards |
+| **Goal** | The three new surfaces behave as one product, not three features |
+| **Files** | `src/views/student/*`, `src/views/parent/*`, `backend/routes/grading.js`, `src/views/Classes.jsx` |
 
-1. `curriculum_standards` seeded — MoE, National Curriculum, Common Core, IB.
-2. **Auto-tag every artifact** to outcomes on generation.
-3. Coverage view — what's taught, what's missing, per class and department.
-4. Materialised views for school + MoE analytics.
-5. MoE console gets real data.
+1. **Assign to a class**, not just a grade+section — quizzes, homework and activities target a class, and its enrolled students see them.
+2. **Student submits → teacher grades → parent sees the result.** The full path, end to end, including a photographed paper submission running through Day 8's grading.
+3. **Class-level views** for the teacher: who has submitted, who hasn't, class average.
+4. Notifications wired across the three roles (homework assigned → student; result published → parent).
+5. Arabic pass over every new student and parent screen — parents are the most likely of all our users to want Arabic.
 
-**Done when:** a generated lesson carries standard codes · a HoD sees coverage gaps · MoE analytics run off materialised views, not live aggregates.
+**Done when:** one homework, assigned to a class, is seen by a student, submitted, graded from a photo, and visible to that student's parent — in both languages, with no cross-tenant leak at any hop.
+
+> **Curriculum-standards tagging moved out.** It is genuinely the strongest long-term moat, but its value shows up in coverage reporting — which is the school-management surface we just deferred. It moves to the workspace product with the rest of that layer.
 
 ---
 
@@ -349,15 +373,16 @@ Nothing else is safe until this exists.
 |---|---|
 | **Goal** | Full scope, production-hard |
 
-1. End-to-end regression across all 10 roles.
-2. Load test at full scope — exam-week simulation, 500 concurrent submissions.
+1. End-to-end regression across teacher, student and parent.
+2. Load test — exam-week simulation, 500 concurrent submissions.
 3. Penetration pass — cross-tenant, cross-role, IDOR, minors-data paths.
-4. PDPL review — consent, erasure, retention, minors handling.
-5. Mobile/tablet pass — iPad is the real device.
-6. PWA offline for read paths.
-7. Runbooks: incident, rollback, restore, key rotation.
+4. **PDPL review** — consent, erasure, retention, and minors handling. This is the one that gates launch: students are children, and a parent's data is tied to them.
+5. **Voice privacy check** — confirm nothing from the microphone is retained beyond the request, and that the transcript is treated as prompt content (never written to the usage ledger).
+6. Mobile/tablet pass — iPad is the real device, and it is also the camera for grading.
+7. PWA offline for read paths.
+8. Runbooks: incident, rollback, restore, key rotation.
 
-**Done when:** no cross-tenant leak under active attempt · exam-week load holds p95 · iPad on throttled wifi is usable.
+**Done when:** no cross-tenant leak under active attempt · exam-week load holds p95 · a teacher can photograph, grade and publish from an iPad on throttled wifi.
 
 ---
 
@@ -365,20 +390,34 @@ Nothing else is safe until this exists.
 
 | Risk | Mitigation |
 |---|---|
-| School-scope refactor breaks teacher app | additive only; scope tests from Day 2 run every day after |
+| Class/enrollment work breaks the teacher app | additive only, tenant root stays `account_id`; day-2 scope tests run every day after |
 | AI grading accuracy below trust threshold | teacher review mandatory; confidence flags; never auto-final |
-| Payment gateway approval delays | start merchant application **Day 1**, not Day 10 |
+| **Voice blows the AI budget** | cheap model, tight `max_tokens`, same per-account quota, measured on the ledger from day one — review after a week before making it the default entry point |
+| Speech recognition weak in Arabic or a noisy classroom | transcript is always editable before it triggers a paid call; typing is never removed |
+| Payment gateway approval delays | start merchant application **Day 1**, not Day 11 |
 | AI cost overrun | quotas live Day 7, before any real usage |
-| 18 days slips | Day 12 is a complete, sellable stop point |
-| Minors-data exposure | RLS Day 2, before any student row exists |
+| 18 days slips | Day 13 is a complete, sellable stop point |
+| Minors-data exposure | RLS shipped Day 2, before any student row exists |
 
 ## Dependencies to start now
 
 | Item | Needed by | Lead time |
 |---|---|---|
-| Payment merchant account | Day 10 | **1–2 weeks — start Day 1** |
+| Payment merchant account | Day 11 | **1–2 weeks — start Day 1** |
 | `ANTHROPIC_API_KEY` | Day 7 | immediate |
-| Object storage bucket | Day 3 | immediate |
+| Object storage bucket | Day 3 | immediate (also holds graded paper photos) |
 | Redis instance | Day 3 | immediate |
-| Render paid tier | Day 12 | immediate |
-| Curriculum standards data | Day 17 | 1 week to source |
+| Render paid tier | Day 13 | immediate |
+| HTTPS on the dev origin | Day 9 | immediate — `getUserMedia` and the speech APIs refuse to run on plain HTTP outside `localhost` |
+
+## Deferred to the workspace product
+
+Not cut — sequenced. These sell to a *school*, and the school is not the customer yet.
+
+| Deferred | Why |
+|---|---|
+| `school_admin` and `hod` roles, departments | Org structure with no org to serve |
+| Inspection evidence packs (KHDA / ADEK) | Bought by a principal, not a teacher |
+| Curriculum-standards tagging + coverage reporting | Strongest long-term moat, but its payoff is coverage reporting — a school-admin surface |
+| School-wide seat billing | Needs a school account first |
+| MoE analytics with real data | Needs many schools before the aggregate means anything |
