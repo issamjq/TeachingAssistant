@@ -438,6 +438,15 @@ Day 3 added `REDIS_URL` support for the cache and the rate-limit store. **Neithe
 
 What is **not** verified: that `RedisStore` counts correctly, that cross-instance invalidation actually propagates, and that the `ready` handler re-arms the log. Provision Redis and re-check before relying on either. Until then, treat multi-instance deploys as unsupported.
 
+**Blocked on access, not on work (2026-07-30).** Render's managed Redis is their "Key Value" product, and only the project manager holds the Render account — Issa cannot create it or set `REDIS_URL` in the production environment. Nothing else is outstanding: the code path, the fallback and the failure behaviour are all written and reviewed.
+
+When it is provisioned, use **two separate instances, not one**. Both environments would otherwise share `murchid:*` keys and `murchid:rl:*` rate-limit counters, so a dev restart or a `cacheFlush()` would clear production's buckets and a dev account id could collide with a production one. The free tier covers two comfortably — we need well under 1 MB.
+
+  - dev  → `REDIS_URL` in the local `.env` (gitignored)
+  - prod → `REDIS_URL` in the Render web service's environment variables
+
+Nothing depends on this to ship. One Render instance runs correctly on the in-process cache; Redis is what makes a **second** instance correct.
+
 ### F48 — Keyset tiebreaker forced ASC, disabling the fast path on DESC lists ✅ Observed — 🔧 Fixed Day 3
 `buildOrderSpec()` appended the `id` tiebreaker as a hardcoded `ASC`. On an all-`DESC` sort that made the clause mixed-direction, which disqualified it from the row-value index predicate in `keysetWhere()` — so a "newest first" list would have been pinned to the slower predicate permanently, for no reason.
 
