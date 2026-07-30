@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from "react";
+import { SkeletonCards, SkeletonList } from "../components/ui/skeleton";
 import { Search, AlertTriangle, Info } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -10,7 +11,7 @@ import {
   SortHeader,
   useSortable,
   timeAgo,
-  api,
+  api, apiList,
   selectClasses,
   fmtRowTimestamp,
 } from "./_shared";
@@ -40,7 +41,7 @@ export default function ReusableDrafts({ onEditDraft, onNewLesson }) {
 
   const reload = () => {
     setLoading(true);
-    api("/api/drafts")
+    apiList("/api/drafts")
       .then((data) => { setDrafts(data); setLoading(false); })
       .catch((err) => { setError(err.message); setLoading(false); });
   };
@@ -184,6 +185,8 @@ export default function ReusableDrafts({ onEditDraft, onNewLesson }) {
           </>
         )}
       </p>
+
+      {loading && (viewMode === "cards" ? <SkeletonCards /> : <SkeletonList />)}
 
       {viewMode === "cards" && (
         <>

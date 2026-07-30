@@ -4,7 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
   Field, Modal, ConfirmDelete, RowActions, SortHeader, useSortable,
-  inputClasses, selectClasses, api,
+  inputClasses, selectClasses, api, apiList,
 } from "./_shared";
 
 export default function DatabaseGrades() {
@@ -20,7 +20,7 @@ export default function DatabaseGrades() {
 
   const reload = () => {
     setLoading(true);
-    Promise.all([api("/api/grades"), api("/api/students")])
+    Promise.all([apiList("/api/grades"), apiList("/api/students")])
       .then(([g, s]) => {
         setRows(g);
         setStudents(s);

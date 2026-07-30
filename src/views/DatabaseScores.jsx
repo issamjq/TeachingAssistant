@@ -10,7 +10,7 @@
 // GET /api/quiz-scores?quiz_id=<id>, POST /api/quiz-scores.
 import React, { useEffect, useMemo, useState } from "react";
 import { Save, Check, X, Search } from "lucide-react";
-import { api } from "./_shared";
+import { api, apiList } from "./_shared";
 
 // "A" should match "Section A" (and vice-versa) so a quiz tagged with
 // the long form still surfaces students stored with the short form.
@@ -32,8 +32,8 @@ export default function DatabaseScores() {
   // Load quizzes + students once.
   useEffect(() => {
     Promise.all([
-      api("/api/quizzes"),
-      api("/api/students?teacher=me"),
+      apiList("/api/quizzes"),
+      apiList("/api/students?teacher=me"),
     ])
       .then(([qs, ss]) => {
         setQuizzes(Array.isArray(qs) ? qs : []);

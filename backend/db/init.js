@@ -350,6 +350,66 @@ CREATE INDEX IF NOT EXISTS drafts_deleted_at_idx        ON drafts (deleted_at);
 CREATE INDEX IF NOT EXISTS templates_deleted_at_idx     ON templates (deleted_at);
 `;
 
+// Keyset-pagination indexes.
+//
+// crudRouter pages every list with `WHERE account_id = $1 ... ORDER BY <sort>
+// LIMIT n` (see backend/lib/pagination.js). Postgres can only satisfy that
+// with an index scan — no sort node, no reading past the page — when an index
+// leads with the equality column (account_id) and then matches the ORDER BY
+// **including its NULLS placement**, either exactly or exactly reversed.
+//
+// That is why every direction and NULLS is spelled out below even where it is
+// the Postgres default: these clauses have to stay character-for-character in
+// step with each router's `listOrderBy` plus the `id` tiebreaker that
+// buildOrderSpec() appends. Change a listOrderBy and the matching index here
+// must change with it, or the list silently falls back to a full sort.
+//
+// The five soft-delete surfaces get a partial index (`WHERE deleted_at IS
+// NULL`), which is both smaller and an exact match for the list query's own
+// predicate. /trash is deliberately left un-indexed: it is bounded to a
+// 30-day window and read rarely, so it doesn't earn write amplification.
+//
+// Some older single-column indexes (quizzes_teacher_idx, presentations_
+// teacher_idx, activities_teacher_idx, library_resources_teacher_idx) are now
+// prefixes of these composites and therefore redundant for reads. They are
+// left in place deliberately — dropping indexes on live data is a separate,
+// reviewable change, not a side effect of adding new ones.
+const SCHEMA_KEYSET_INDEXES = `
+CREATE INDEX IF NOT EXISTS quizzes_keyset_idx ON quizzes
+  (account_id, scheduled_for DESC NULLS LAST, id DESC NULLS FIRST)
+  WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS homework_keyset_idx ON homework
+  (account_id, due_date ASC NULLS LAST, id DESC NULLS FIRST)
+  WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS presentations_keyset_idx ON presentations
+  (account_id, updated_at DESC NULLS FIRST, id DESC NULLS FIRST)
+  WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS activities_keyset_idx ON activities
+  (account_id, updated_at DESC NULLS FIRST, id DESC NULLS FIRST)
+  WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS drafts_keyset_idx ON drafts
+  (account_id, last_edited DESC NULLS LAST, id ASC NULLS LAST)
+  WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS templates_keyset_idx ON templates
+  (account_id, used_count DESC NULLS LAST, id ASC NULLS LAST)
+  WHERE deleted_at IS NULL;
+
+CREATE INDEX IF NOT EXISTS students_keyset_idx ON students
+  (account_id, grade ASC NULLS LAST, section ASC NULLS LAST,
+   last_name ASC NULLS LAST, first_name ASC NULLS LAST, id ASC NULLS LAST);
+CREATE INDEX IF NOT EXISTS schedule_entries_keyset_idx ON schedule_entries
+  (account_id, date ASC NULLS LAST, start_time ASC NULLS LAST, id ASC NULLS LAST);
+CREATE INDEX IF NOT EXISTS student_grades_keyset_idx ON student_grades
+  (account_id, recorded_at DESC NULLS FIRST, id DESC NULLS FIRST);
+CREATE INDEX IF NOT EXISTS library_resources_keyset_idx ON library_resources
+  (account_id, updated_at DESC NULLS FIRST, id DESC NULLS FIRST);
+
+-- /api/teachers is the one crudRouter list that is cross-tenant by design
+-- (admins list every account), so it has no account_id to lead with.
+CREATE INDEX IF NOT EXISTS accounts_keyset_idx ON accounts
+  (last_name ASC NULLS LAST, first_name ASC NULLS LAST, id ASC NULLS LAST);
+`;
+
 // Append-only audit log. Every sensitive action (sign-in, sign-up,
 // renew, plan change, role change, school removal, account suspension)
 // inserts a row here. Reads are admin-only via /api/admin/audit (TODO
@@ -1034,6 +1094,11 @@ export async function runInit() {
 
   console.log("Creating email_verifications table...");
   await pool.query(SCHEMA_EMAIL_VERIFY);
+
+  // After every table it indexes, and after SCHEMA_SOFT_DELETE in particular
+  // — the partial indexes below reference deleted_at.
+  console.log("Adding keyset-pagination indexes...");
+  await pool.query(SCHEMA_KEYSET_INDEXES);
 
   console.log("Creating schools + account_schools + students.school_id...");
   await pool.query(SCHEMA_SCHOOLS);

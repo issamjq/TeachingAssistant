@@ -13,6 +13,7 @@
 import { pool } from "./db.js";
 import { verifyIdToken } from "./firebaseAdmin.js";
 import { isPrivilegedRole } from "./roles.js";
+import { cacheGet, cacheSet, cacheDel } from "./cache.js";
 
 // Extract the client IP, honoring the X-Forwarded-For chain Render +
 // Vercel add when proxying. Fall back to socket address otherwise.
@@ -34,13 +35,96 @@ const ACCOUNT_COLS = `id, first_name, last_name, email, phone, staff_id, majors,
 
 export const ACCOUNT_COLS_SQL = ACCOUNT_COLS;
 
-// Find the account row attached to a Firebase uid (or null).
-export async function findAccountByUid(uid) {
+// ── Account cache (F38) ────────────────────────────────────────────────
+//
+// requireAuth() re-read the account row from Postgres on EVERY authenticated
+// request. Measured dev→Neon that was ~96 ms of the ~213 ms an /api/me costs;
+// co-located on Render it is smaller but it is still a round-trip in front of
+// every single call the product makes.
+//
+// This is the one cache in the codebase that holds authorisation state, so
+// the terms are strict:
+//
+//   TTL is seconds, not minutes. Everything that can change under a live
+//   session — role, sub_role, status, subscription, active_session_id — is on
+//   this row, so the TTL is the worst-case window in which a revocation is
+//   not yet visible. 10s is short enough that no realistic attack fits in it
+//   and long enough to collapse a page load's 3–8 calls onto one read.
+//
+//   Every write to `accounts` invalidates. The TTL is the backstop, not the
+//   mechanism: sign-in (which rotates active_session_id and is what evicts
+//   the previous device), suspension, role change, subscription change and
+//   profile edits all call invalidateAccount* below. Miss one and that change
+//   is delayed by the TTL — which is why the list of call sites is short and
+//   deliberate. Grep for invalidateAccount before adding an accounts write.
+//
+//   Negative lookups are NOT cached. A verified uid with no row is a user
+//   mid-bootstrap: POST /api/auth/firebase is about to create the row, and a
+//   cached "no such account" would 404 their first few requests.
+//
+//   Multi-instance caveat: with REDIS_URL set, an invalidation is global. On
+//   the in-process fallback it only clears the instance that served the write,
+//   so other instances stay stale until the TTL. Set REDIS_URL before running
+//   more than one Render instance.
+//
+// Set ACCOUNT_CACHE_TTL_SECONDS=0 to switch the cache off entirely.
+const ACCOUNT_TTL_SECONDS = Number(process.env.ACCOUNT_CACHE_TTL_SECONDS ?? 10);
+
+const uidKey = (uid) => `acct:uid:${uid}`;
+const idKey  = (id)  => `acct:id:${id}`;
+
+const readAccountByUid = async (uid) => {
   const r = await pool.query(
     `SELECT ${ACCOUNT_COLS} FROM accounts WHERE firebase_uid = $1`,
     [uid]
   );
   return r.rows[0] || null;
+};
+
+// Find the account row attached to a Firebase uid (or null).
+export async function findAccountByUid(uid) {
+  if (!(ACCOUNT_TTL_SECONDS > 0)) return readAccountByUid(uid);
+
+  const hit = await cacheGet(uidKey(uid));
+  if (hit !== undefined) return hit;
+
+  const row = await readAccountByUid(uid);
+  if (row) {
+    // The id→uid pointer is what makes invalidation by account id exact:
+    // written with the row, under the same TTL, so if the row is cached the
+    // pointer is too. Admin routes know the id, not the Firebase uid.
+    await cacheSet(uidKey(uid), row, ACCOUNT_TTL_SECONDS);
+    await cacheSet(idKey(row.id), uid, ACCOUNT_TTL_SECONDS);
+  }
+  return row;
+}
+
+/** Drop the cached row for a Firebase uid. Safe to call with null/undefined. */
+export async function invalidateAccountByUid(uid) {
+  if (!uid) return;
+  await cacheDel(uidKey(uid));
+}
+
+/**
+ * Drop the cached row for an account id, following the id→uid pointer.
+ * Falls back to the database when the pointer has expired but the row might
+ * not have — cheap, and only on write paths.
+ */
+export async function invalidateAccountById(id) {
+  if (id === null || id === undefined) return;
+  const uid = await cacheGet(idKey(id));
+  if (typeof uid === "string") {
+    await cacheDel(uidKey(uid), idKey(id));
+    return;
+  }
+  try {
+    const r = await pool.query("SELECT firebase_uid FROM accounts WHERE id = $1", [id]);
+    await cacheDel(uidKey(r.rows[0]?.firebase_uid), idKey(id));
+  } catch {
+    // Row already gone (a delete) — nothing left to resolve. The uid entry
+    // expires on its own within ACCOUNT_TTL_SECONDS.
+    await cacheDel(idKey(id));
+  }
 }
 
 // Role enforcement — separate gate from the auth check itself. Routes
@@ -118,6 +202,9 @@ export function requireAuth({ optional = false, allowExpired = false, skipSessio
               `UPDATE accounts SET subscription_status = 'expired', updated_at = NOW() WHERE id = $1`,
               [req.account.id]
             );
+            // Or the cached row keeps saying "active" and we rewrite the same
+            // UPDATE on every request for the rest of the TTL.
+            await invalidateAccountByUid(decoded.uid);
           } catch { /* non-fatal — middleware still rejects */ }
         }
         return res.status(403).json({

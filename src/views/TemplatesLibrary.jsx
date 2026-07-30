@@ -6,7 +6,7 @@ import {
   RowActions,
   ConfirmDelete,
   timeAgo,
-  api,
+  api, apiList,
   selectClasses,
 } from "./_shared";
 import { DataPageHeader, useViewMode, useDateScope, filterByDateScope } from "./_data-view";
@@ -107,12 +107,12 @@ export default function TemplatesLibrary({ onNewTemplate, onUseTemplate, onEditT
 
   const reload = () => {
     setLoading(true);
-    api("/api/templates")
+    apiList("/api/templates")
       .then((data) => { setTemplates(data); setLoading(false); })
       .catch((e) => { setError(e.message); setLoading(false); });
   };
   useEffect(() => {
-    api("/api/templates")
+    apiList("/api/templates")
       .then((data) => {
         setTemplates(data);
         setLoading(false);

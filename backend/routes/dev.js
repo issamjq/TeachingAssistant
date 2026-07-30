@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { pool } from "../lib/db.js";
+import { invalidateFeatureFlag } from "../lib/featureFlags.js";
 import { handleErr } from "../lib/helpers.js";
 import { validateBody } from "../lib/validate.js";
 import { recordAudit } from "../lib/audit.js";
@@ -45,6 +46,9 @@ router.put("/feature-flags/:key", validateBody(FlagSchema), async (req, res) => 
        RETURNING key, enabled, description, updated_at`,
       [key, enabled ?? null, description ?? null]
     );
+    // The flag is read from cache on the AI hot path; evict so the console's
+    // toggle is felt on the next generation rather than up to a TTL later.
+    await invalidateFeatureFlag(key);
     await recordAudit({
       accountId: req.account.id,
       action: "dev.flag.toggle",

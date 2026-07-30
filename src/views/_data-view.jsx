@@ -14,7 +14,7 @@ import { createPortal } from "react-dom";
 import { Plus, X, Pencil, Trash2, LayoutGrid, List, Sparkles, RotateCcw, ArrowUpDown, Calendar as CalendarIcon } from "lucide-react";
 import { useT } from "../lib/i18n";
 import { navigate } from "../lib/route";
-import { api, DatePicker } from "./_shared";
+import { api, apiList, DatePicker } from "./_shared";
 
 // Shared toolbar chip class so every action button in the page header
 // (sort dropdown, date scope, view toggle, recently deleted, +New X,
@@ -215,7 +215,7 @@ export function TrashPopup({ endpoint, titleField = "title", onClose, onChange }
   const reload = () => {
     setRows(null);
     setErr(null);
-    api(`${endpoint}/trash`)
+    apiList(`${endpoint}/trash`)
       .then((data) => setRows(data || []))
       .catch((e) => { setRows([]); setErr(e.message); });
   };

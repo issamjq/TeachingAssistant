@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { ListChecks, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
-  Modal, ConfirmDelete, api, timeAgo, fmtRowTimestamp,
+  Modal, ConfirmDelete, api, apiList, timeAgo, fmtRowTimestamp,
 } from "./_shared";
 import {
   DataPageHeader, DataCard, CardsGrid, useViewMode,
@@ -41,7 +41,7 @@ export default function Activities({ onOpenActivity }) {
 
   const reload = () => {
     setLoading(true);
-    api("/api/activities")
+    apiList("/api/activities")
       .then((data) => { setItems(data); setLoading(false); })
       .catch((err) => { setError(err.message); setLoading(false); });
   };

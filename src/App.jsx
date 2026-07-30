@@ -1,34 +1,48 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, lazy, Suspense } from "react";
 import {
   ChevronRight, X, Sparkles, ArrowUpRight, ArrowRight, Crown, Menu,
   PanelLeftClose, PanelLeftOpen,
 } from "lucide-react";
-import Dashboard from "./views/Dashboard";
-import TemplatesLibrary from "./views/TemplatesLibrary";
-import NewTemplate from "./views/NewTemplate";
-import EditDraft from "./views/EditDraft";
-import TeachingRail from "./views/TeachingRail";
-import Database from "./views/Database";
-import AccountProfile from "./views/AccountProfile";
-import Schedule from "./views/Schedule";
 import Planner from "./views/Planner";
-import Quizzes from "./views/Quizzes";
-import QuizBuilder from "./views/QuizBuilder";
-import Homework from "./views/Homework";
-import HomeworkBuilder from "./views/HomeworkBuilder";
-import Presentations from "./views/Presentations";
-import PresentationBuilder from "./views/PresentationBuilder";
-import Activities from "./views/Activities";
-import ActivityBuilder from "./views/ActivityBuilder";
-import Reports from "./views/Reports";
-import Studio from "./views/Studio";
-import AdminConsole from "./views/AdminConsole";
-import AdminDashboard from "./views/AdminDashboard";
-import SuperAdminConsole from "./views/SuperAdminConsole";
-import SuperAdminDashboard from "./views/SuperAdminDashboard";
-import OwnerDashboard from "./views/OwnerDashboard";
-import MoeDashboard from "./views/MoeDashboard";
-import DevConsole from "./views/DevConsole";
+import TeachingRail from "./views/TeachingRail";
+import BrandLoader from "./components/BrandLoader";
+
+// One chunk per route. Before this, opening the studio downloaded every screen
+// it could ever show: Studio.jsx (5,199 lines), SlideBuilder (2,603, pulled in
+// by PresentationBuilder) and all six role consoles, for a teacher who will
+// only ever look at a handful of them. A role console in particular is dead
+// weight for 99% of sessions — no teacher can reach one at all.
+//
+// Planner and TeachingRail stay static: Planner is the teacher's default route
+// and lazy-loading it would put a second round-trip in front of the first
+// screen anyone sees, and the rail renders beside five other sections.
+//
+// Every one of these already renders inside the per-section ErrorBoundary in
+// the layout below, so a chunk that fails to load shows the retry card.
+const Dashboard = lazy(() => import("./views/Dashboard"));
+const TemplatesLibrary = lazy(() => import("./views/TemplatesLibrary"));
+const NewTemplate = lazy(() => import("./views/NewTemplate"));
+const EditDraft = lazy(() => import("./views/EditDraft"));
+const Database = lazy(() => import("./views/Database"));
+const AccountProfile = lazy(() => import("./views/AccountProfile"));
+const Schedule = lazy(() => import("./views/Schedule"));
+const Quizzes = lazy(() => import("./views/Quizzes"));
+const QuizBuilder = lazy(() => import("./views/QuizBuilder"));
+const Homework = lazy(() => import("./views/Homework"));
+const HomeworkBuilder = lazy(() => import("./views/HomeworkBuilder"));
+const Presentations = lazy(() => import("./views/Presentations"));
+const PresentationBuilder = lazy(() => import("./views/PresentationBuilder"));
+const Activities = lazy(() => import("./views/Activities"));
+const ActivityBuilder = lazy(() => import("./views/ActivityBuilder"));
+const Reports = lazy(() => import("./views/Reports"));
+const Studio = lazy(() => import("./views/Studio"));
+const AdminConsole = lazy(() => import("./views/AdminConsole"));
+const AdminDashboard = lazy(() => import("./views/AdminDashboard"));
+const SuperAdminConsole = lazy(() => import("./views/SuperAdminConsole"));
+const SuperAdminDashboard = lazy(() => import("./views/SuperAdminDashboard"));
+const OwnerDashboard = lazy(() => import("./views/OwnerDashboard"));
+const MoeDashboard = lazy(() => import("./views/MoeDashboard"));
+const DevConsole = lazy(() => import("./views/DevConsole"));
 import { getRole, onRoleChange, ROLE_LABELS } from "./lib/role";
 import { api } from "./views/_shared";
 import { useRoute, navigate, replace, clearRoute } from "./lib/route";
@@ -806,7 +820,9 @@ export default function StudioApp({ onClose }) {
                   teacher is never stuck behind an error card. */}
               <div className="flex-1 min-w-0">
                 <ErrorBoundary name={`section:${section}`} resetKey={routeKey}>
-                  {mainContent}
+                  <Suspense fallback={<BrandLoader fullscreen={false} />}>
+                    {mainContent}
+                  </Suspense>
                 </ErrorBoundary>
               </div>
               {/* The rail is secondary — if it throws, the lesson content
@@ -819,7 +835,9 @@ export default function StudioApp({ onClose }) {
             </div>
           ) : (
             <ErrorBoundary name={`section:${section}`} resetKey={routeKey}>
-              {mainContent}
+              <Suspense fallback={<BrandLoader fullscreen={false} />}>
+                {mainContent}
+              </Suspense>
             </ErrorBoundary>
           )}
         </div>

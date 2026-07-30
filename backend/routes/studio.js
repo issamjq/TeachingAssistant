@@ -1,6 +1,6 @@
 import { Router } from "express";
 import Anthropic from "@anthropic-ai/sdk";
-import { pool } from "../lib/db.js";
+import { isFeatureEnabled } from "../lib/featureFlags.js";
 import { handleErr } from "../lib/helpers.js";
 import { loadCurrentTeacher } from "../lib/currentTeacher.js";
 import { recordAiUsage } from "../lib/aiUsage.js";
@@ -269,10 +269,7 @@ If the teacher's prompt is unsafe, off-topic, or asks you to write something a t
 router.post("/generate", async (req, res) => {
   try {
     // Gate behind the ai_studio feature flag — can be flipped from the Dev console.
-    const flag = await pool.query(
-      "SELECT enabled FROM feature_flags WHERE key = 'ai_studio'"
-    );
-    if (!flag.rows[0]?.enabled) {
+    if (!(await isFeatureEnabled("ai_studio"))) {
       return res.status(403).json({
         error: "AI Studio is disabled. Toggle the ai_studio feature flag in the Dev console first.",
       });
@@ -480,10 +477,7 @@ const QUIZ_TOOL = {
 
 router.post("/quiz", async (req, res) => {
   try {
-    const flag = await pool.query(
-      "SELECT enabled FROM feature_flags WHERE key = 'ai_studio'"
-    );
-    if (!flag.rows[0]?.enabled) {
+    if (!(await isFeatureEnabled("ai_studio"))) {
       return res.status(403).json({
         error: "AI Studio is disabled. Toggle the ai_studio feature flag in the Dev console first.",
       });
@@ -773,10 +767,7 @@ const QUESTION_TOOL = {
 // teacher's in-place edits unless the hint contradicts them.
 router.post("/quiz-tweak", async (req, res) => {
   try {
-    const flag = await pool.query(
-      "SELECT enabled FROM feature_flags WHERE key = 'ai_studio'"
-    );
-    if (!flag.rows[0]?.enabled) {
+    if (!(await isFeatureEnabled("ai_studio"))) {
       return res.status(403).json({
         error: "AI Studio is disabled. Toggle the ai_studio feature flag in the Dev console first.",
       });
@@ -908,10 +899,7 @@ router.post("/quiz-tweak", async (req, res) => {
 // can swap it in without re-parsing the world.
 router.post("/regenerate", async (req, res) => {
   try {
-    const flag = await pool.query(
-      "SELECT enabled FROM feature_flags WHERE key = 'ai_studio'"
-    );
-    if (!flag.rows[0]?.enabled) {
+    if (!(await isFeatureEnabled("ai_studio"))) {
       return res.status(403).json({
         error: "AI Studio is disabled. Toggle the ai_studio feature flag in the Dev console first.",
       });

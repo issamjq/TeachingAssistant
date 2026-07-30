@@ -783,6 +783,83 @@ export async function api(path, { method = "GET", body } = {}) {
   return data;
 }
 
+// ── Paginated lists ────────────────────────────────────────────────────
+//
+// Every crudRouter list endpoint returns { items, nextCursor } and caps a
+// page at 200 rows (backend/lib/pagination.js). This walks the cursor for
+// callers that need the whole set — which is most of them, because these
+// screens sort, filter and group client-side and would give wrong answers on
+// a partial set.
+//
+// So what did pagination buy us, if the client just re-assembles everything?
+// The ceiling. The server can no longer be asked for an unbounded result, one
+// slow page can't hold the whole response, and `onPage` lets a screen paint
+// the first 200 rows while the rest arrive. Screens that genuinely want one
+// page (infinite scroll, "load more") pass maxPages: 1 and follow the cursor
+// themselves.
+//
+// Endpoints that aren't paginated yet (hand-written lists like /api/attendance
+// and /api/quiz-scores) still return a bare array; those pass straight through
+// so call sites don't need to know which is which.
+
+const DEFAULT_PAGE_SIZE = 200; // the server's hard maximum — fewest round-trips
+const DEFAULT_MAX_PAGES = 25;  // 5,000 rows, then we stop and say so
+
+const withQuery = (path, params) => {
+  const qs = new URLSearchParams(params).toString();
+  return path.includes("?") ? `${path}&${qs}` : `${path}?${qs}`;
+};
+
+/**
+ * Fetch a list endpoint, following its cursor.
+ *
+ * @param {string} path                 e.g. "/api/students?teacher=me"
+ * @param {object} [opts]
+ * @param {number} [opts.limit]         rows per request (server caps at 200)
+ * @param {number} [opts.maxPages]      safety stop; truncation is logged
+ * @param {(rows, all) => void} [opts.onPage]  called per page, for progressive
+ *                                      rendering. `all` is everything so far.
+ * @returns {Promise<Array>}            every row fetched, in server order
+ */
+export async function apiList(path, {
+  limit = DEFAULT_PAGE_SIZE,
+  maxPages = DEFAULT_MAX_PAGES,
+  onPage,
+} = {}) {
+  const all = [];
+  let cursor = null;
+
+  for (let page = 0; page < maxPages; page++) {
+    const params = { limit: String(limit) };
+    if (cursor) params.cursor = cursor;
+    const res = await api(withQuery(path, params));
+
+    // Not-yet-paginated endpoint: it answered with a plain array, so there is
+    // nothing to follow.
+    if (Array.isArray(res)) {
+      onPage?.(res, res);
+      return res;
+    }
+
+    const items = Array.isArray(res?.items) ? res.items : [];
+    all.push(...items);
+    onPage?.(items, all);
+
+    cursor = res?.nextCursor || null;
+    if (!cursor) return all;
+  }
+
+  // Hit the ceiling with a cursor still outstanding. Say so loudly rather
+  // than silently returning a truncated list that looks complete — a teacher
+  // seeing 5,000 of 6,000 students has no way to tell.
+  // eslint-disable-next-line no-console
+  console.warn(
+    `[apiList] ${path}: stopped after ${maxPages} pages (${all.length} rows) ` +
+    `with more available. This screen needs real pagination.`
+  );
+  return all;
+}
+
 // Fired once when the server reports this device was superseded. Signs
 // out of Firebase, drops local state, and returns to landing with a
 // one-time notice. Guarded so a burst of in-flight requests all 401-ing

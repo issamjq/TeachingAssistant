@@ -14,6 +14,7 @@ import {
   inputClasses,
   selectClasses,
   api,
+  apiList,
   DatePicker,
 } from "./_shared";
 
@@ -37,6 +38,7 @@ export default function DatabaseStudents() {
   const [students, setStudents] = useState([]);
   const [mySchools, setMySchools] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState(null);
   const [query, setQuery] = useState("");
   const [gradeFilter, setGradeFilter] = useState("");
@@ -46,16 +48,30 @@ export default function DatabaseStudents() {
   const [deleting, setDeleting] = useState(null);
   const [busy, setBusy] = useState(false);
 
+  // The roster is the one list that reaches real size, and every filter,
+  // search and sort on this screen runs over the whole set — so we still need
+  // all of it, but we don't need to wait for all of it. onPage paints the
+  // first 200 students immediately and appends the rest as they land, so a
+  // 2,000-student school sees a usable table after one round-trip instead of
+  // ten. `loadingMore` keeps the count honest while that is happening.
   const reload = () => {
     setLoading(true);
-    api("/api/students?teacher=me")
-      .then((data) => {
-        setStudents(data);
+    setLoadingMore(true);
+    apiList("/api/students?teacher=me", {
+      onPage: (_page, all) => {
+        setStudents([...all]);
         setLoading(false);
+      },
+    })
+      .then((all) => {
+        setStudents(all);
+        setLoading(false);
+        setLoadingMore(false);
       })
       .catch((err) => {
         setError(err.message);
         setLoading(false);
+        setLoadingMore(false);
       });
   };
   useEffect(reload, []);
@@ -208,6 +224,7 @@ export default function DatabaseStudents() {
       ) : (
         <p className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted mb-4">
           Showing <span className="text-ink">{sorted.length}</span> of {students.length} students
+          {loadingMore && <span className="text-muted/70 normal-case tracking-normal font-serif italic ms-2">loading more…</span>}
         </p>
       )}
 

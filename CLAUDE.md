@@ -27,17 +27,20 @@ The user (Issa) calls the project "murchid" — that's the **product** name, not
 
 ### Where we are right now
 
-**Days 1–2 of [`docs/14-roadmap.md`](docs/14-roadmap.md) are done and committed to `dev`** (3 commits on top of `b4e92ab`; `dev` is local-only, no upstream yet). Shipped:
+**Days 1–3 of [`docs/14-roadmap.md`](docs/14-roadmap.md) are done and committed to `dev`** (`dev` is local-only, no upstream yet). Shipped:
 
 - **Error boundaries** — `src/components/ErrorBoundary.jsx`, wired per surface, per route, and around `Showreel`
 - **Rate limiting** — three layers (`backend/lib/security.js`); account-keyed limiting sits *after* `requireAuth` so it keys on a verified identity
 - **AI usage ledger** — `ai_usage_ledger` + `backend/lib/aiUsage.js`, writing from all four studio endpoints
 - **Row-level security** — `withTenant()` / `bindTenant()` in `backend/lib/db.js`; 17 tables; all 45 tenant-touching queries migrated
 - **Three real leaks closed** — see F41/F42/F43 in [`docs/12-findings.md`](docs/12-findings.md)
+- **Keyset pagination** — `backend/lib/pagination.js` + `crud.js`; all 11 resources and their `/trash` views, `{ items, nextCursor }`, default 50 / max 200
+- **Cache layer** — `backend/lib/cache.js`, Redis when `REDIS_URL` is set and an in-process TTL map otherwise; backs the feature-flag read, the account row (F38) and the rate-limit store
+- **Code splitting** — the three surfaces and all 24 studio routes are `React.lazy`; initial payload **271 KB → 92 KB gzip** of JS
 
-**Next: Day 3 — performance foundation.** Cursor pagination in `crudRouter` (one change, all 11 resources inherit it), route-level code splitting, Redis for the flag lookup and rate-limit store, and the short-TTL account cache that fixes F38's per-request double round-trip.
+**Next: Day 4 — wire the orphans.** Attendance, Gradebook, Reports, Schedule and Library are all built but unreachable; register them in `NAV_BY_ROLE` + `SECTIONS_BY_ROLE` and verify they work once they are.
 
-Known debt, each tagged in findings: **F37** (PlannerTour `measure()` unthrottled → Day 6), **F38** (auth double round-trip → Day 3).
+Known debt, each tagged in findings: **F37** (PlannerTour `measure()` unthrottled → Day 6), **F45** (`/api/teachers` mutates accounts with no audit trail), **F46** (the Redis paths have never run against a real Redis).
 
 ### Three facts that shape most decisions
 
@@ -77,8 +80,10 @@ Full documentation lives in [`docs/`](docs/README.md). Read it before making non
    - **Routes that are cross-tenant by design stay on `pool`** — `admin`, `superadmin`, `owner`, `moe`, `dev`, `auth`, `me`. They are gated by `requireRole()` at the mount point and must see across accounts; do not "fix" them with `withTenant`.
    - **Never "just enable RLS" and assume it works here.** `neondb_owner` carries `BYPASSRLS`, which defeats even `FORCE ROW LEVEL SECURITY` — policies applied while connected as the owner are silently inert. Verify enforcement with a real cross-tenant read; don't infer it from the schema.
 8. **Never hardcode majors / grade levels / nationalities / quiz enums** outside `src/lib/enums.js`, and never let users free-type them. `backend/db/init.js` compiles those lists into SQL `CHECK` constraints, so a new value isn't insertable until `npm run db:init` re-runs.
-9. **Client calls go through `api()`** from `src/views/_shared.jsx` — it attaches the Firebase token and `X-Session-Id` and throws on non-2xx. Don't call bare `fetch` for `/api/*`.
-10. **Comments explain *why*, not *what*.** The dense rationale blocks above the middleware stack in `backend/app.js` are the house style. Match that density; don't narrate self-evident code.
+9. **Client calls go through `api()`** from `src/views/_shared.jsx` — it attaches the Firebase token and `X-Session-Id` and throws on non-2xx. Don't call bare `fetch` for `/api/*`. **For a list endpoint use `apiList()`**, which follows the cursor and returns a plain array; pass `onPage` when the screen should paint the first page instead of waiting for all of them.
+10. **Every `crudRouter` list is paginated and there is no opt-out.** `?limit=` defaults to 50 and is capped at 200; `?cursor=` is opaque and shape-checked. Adding a resource inherits this for free — but its `listOrderBy` must be plain `column [ASC|DESC] [NULLS FIRST|LAST]` terms, because `buildOrderSpec()` parses it to build the keyset predicate and **throws at boot** on anything it can't express. If you change a `listOrderBy`, change the matching composite index in `backend/db/init.js` with it (`SCHEMA_KEYSET_INDEXES`), or the list silently drops to a full sort.
+11. **Cache reads through `backend/lib/cache.js`, and it always fails open.** Never let a cache miss or a Redis outage turn into an error — that is the one rule the module enforces for you. Caching anything authorisation-shaped means owning its invalidation on every write path; see the F38 table in [`docs/12-findings.md`](docs/12-findings.md) for the contract the account cache is held to.
+12. **Comments explain *why*, not *what*.** The dense rationale blocks above the middleware stack in `backend/app.js` are the house style. Match that density; don't narrate self-evident code.
 
 ## Commands
 
@@ -100,8 +105,9 @@ Verified in the running app, 2026-07-28. Each of these looks like a bug in your 
 
 - **The dev rate limiter throttles static assets.** `buildGlobalRateLimit()` is mounted ahead of the routers, and in dev the same Express app serves Vite's module graph — so ~190 requests are burned by two page loads and the whole site starts returning 429 with blank white pages. `backend/lib/security.js` currently carries a `TEMP-DEV-REVIEW` skip for non-`/api/*` paths in dev. If pages go blank, check this first.
 - **Built but unreachable views.** `src/views/DatabaseAttendance.jsx`, `DatabaseGrades.jsx` and `Library.jsx` are complete and imported by nothing; `App.jsx` has zero references to attendance or grades. The backend routes, tables and CHECK constraints all exist. `Reports` and `Schedule` are reachable by URL but absent from `NAV_BY_ROLE`. `bulletin-board` is the inverse — in the nav, no render branch, falls through to "Coming soon".
-- **There are no error boundaries anywhere.** One throwing component unmounts the entire app to a white screen. Until this is fixed, any intermittent render error reads as a total product failure.
-- **`crud.js` has no pagination.** No `LIMIT`/`OFFSET` anywhere — every list endpoint returns the full table. Fine on seed data, fatal on a real roster.
+- **List endpoints return an envelope, not an array.** Since Day 3 every `crudRouter` list answers `{ items, nextCursor }` and caps a page at 200 rows. On the client, call `apiList()` (from `_shared.jsx`) rather than `api()` — it follows the cursor and passes not-yet-paginated endpoints through untouched. A list screen that renders nothing is usually an `api()` call that should have been `apiList()`.
+- **A cursor is tied to its query shape.** Change a router's `listOrderBy` and every cursor a client is holding starts returning 400 "reload the list". That is the intended behaviour, not a bug — but it means a sort change is a client-visible change.
+- **The account row is cached for 10 seconds.** Anything you write to `accounts` must call `invalidateAccountById()` / `invalidateAccountByUid()`, or your change is invisible to that user's own session for up to a TTL. The existing call sites are listed under F38 in [`docs/12-findings.md`](docs/12-findings.md).
 - **Local `.env` is partial.** `DATABASE_URL` is set; `ANTHROPIC_API_KEY`, `PEXELS_API_KEY` and `RESEND_API_KEY` are not. So AI generation, presentation image search and email OTP all fail locally regardless of feature flags. Missing keys are deliberate — credentials are shared out-of-band, never documented in the repo.
 - **`ai_studio` ships disabled** (`backend/db/init.js`). Only a `dev` role can flip it via `PUT /api/dev/feature-flags/:key`.
 

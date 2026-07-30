@@ -4,7 +4,7 @@ import { pool } from "../lib/db.js";
 import { handleErr } from "../lib/helpers.js";
 import { validateBody } from "../lib/validate.js";
 import { recordAudit } from "../lib/audit.js";
-import { clientIp, userAgent } from "../lib/auth.js";
+import { clientIp, userAgent, invalidateAccountById } from "../lib/auth.js";
 import { canGrantRole, ROLES, isValidSubRole } from "../lib/roles.js";
 import { PLANS, TRIAL_PLAN_ID } from "../../src/lib/plans.js";
 
@@ -125,6 +125,9 @@ router.patch("/teachers/:id/status", validateBody(AdminStatusSchema), async (req
       [status, targetId]
     );
     if (r.rows.length === 0) return res.status(404).json({ error: "Not found" });
+    // Status gates requireAuth(); a suspended teacher must lose access now,
+    // not when the cached row happens to expire.
+    await invalidateAccountById(targetId);
     await recordAudit({
       accountId: req.account.id,
       action: `admin.teacher.${status}`,
@@ -174,6 +177,8 @@ router.patch("/teachers/:id/role", validateBody(AdminRoleUpdateSchema), async (r
         WHERE id = $3 RETURNING id, role, sub_role`,
       [role, sub_role || null, targetId]
     );
+    // requireRole() reads this row — a demotion has to bite immediately.
+    await invalidateAccountById(targetId);
     await recordAudit({
       accountId: req.account.id,
       action: "admin.teacher.role_update",
@@ -197,6 +202,9 @@ router.delete("/teachers/:id", async (req, res) => {
     if (targetId === req.account.id) {
       return res.status(400).json({ error: "Admins can't delete their own account." });
     }
+    // Resolve the uid BEFORE the row goes: invalidateAccountById() can only
+    // follow the id→uid pointer while the account still exists.
+    await invalidateAccountById(targetId);
     const r = await pool.query("DELETE FROM accounts WHERE id = $1", [targetId]);
     if (r.rowCount === 0) return res.status(404).json({ error: "Not found" });
     await recordAudit({

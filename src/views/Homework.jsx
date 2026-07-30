@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Pencil, Trash2 } from "lucide-react";
 import {
-  ConfirmDelete, SortHeader, useSortable, api, fmtRowTimestamp,
+  ConfirmDelete, SortHeader, useSortable, api, apiList, fmtRowTimestamp,
 } from "./_shared";
 import {
   DataPageHeader, DataCard, CardsGrid, useViewMode,
@@ -25,7 +25,7 @@ export default function Homework({ onOpenHomework }) {
 
   const reload = () => {
     setLoading(true);
-    api("/api/homework")
+    apiList("/api/homework")
       .then((data) => { setItems(data); setLoading(false); })
       .catch((err) => { setError(err.message); setLoading(false); });
   };

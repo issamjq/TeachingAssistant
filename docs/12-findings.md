@@ -412,7 +412,22 @@ Day 1 raised the IP-keyed limiter from 300 to 1000 per 5 min. That was deliberat
 
 Additive only — layers 2 and 3, the usage ledger, and the error boundaries are untouched. → Scheduled with Day 2 scope hardening in [`14-roadmap.md`](14-roadmap.md).
 
-### F38 — Every authenticated request costs two DB round-trips ✅ Observed — measured
+### F46 — Redis code paths are written but never run against a real Redis 📖 Code-read — open
+Day 3 added `REDIS_URL` support for the cache and the rate-limit store. **Neither has been exercised against a live Redis** — no instance is provisioned and there is no Docker on the dev machine. What *is* verified:
+
+- with `REDIS_URL` unset: memory cache + memory limiter store, app behaves exactly as before
+- with `REDIS_URL` pointing at a dead port: one warning line, `/healthz` 200, `/api/*` served, requests pass **unlimited** while the store is down (`passOnStoreError: true` — deliberate, see `security.js`)
+
+What is **not** verified: that `RedisStore` counts correctly, that cross-instance invalidation actually propagates, and that the `ready` handler re-arms the log. Provision Redis and re-check before relying on either. Until then, treat multi-instance deploys as unsupported.
+
+### F45 — `/api/teachers` can mutate accounts without an audit trail 📖 Code-read — open
+`teachers.js` mounts the generic `crudRouter` on the `accounts` table, giving admin / super_admin / dev a `POST`, `PATCH` and `DELETE` on any account. The dedicated routes in `admin.js` do the same jobs but additionally: refuse self-suspension and self-deletion, enforce `canGrantRole()`, and write an `audit_log` row. The `crudRouter` copies do none of that — a hard `DELETE /api/teachers/:id` leaves no trace.
+
+Noticed 2026-07-30 while wiring account-cache invalidation into every `accounts` write path (the cache made the duplicate surface obvious). Not exploited by the frontend — `AdminConsole` uses `/api/admin/teachers` — so this is a latent gap, not a live one.
+
+**Fix option:** drop `POST`/`DELETE` from the `/api/teachers` router and leave it read-only, since `admin.js` already owns account lifecycle. Left alone for now: it is a behaviour change, not a Day 3 performance concern.
+
+### F38 — Every authenticated request costs two DB round-trips ✅ Observed — 🔧 Fixed Day 3
 Measured 2026-07-28 (dev machine → Neon):
 
 | Path | Median |
@@ -429,6 +444,19 @@ Measured 2026-07-28 (dev machine → Neon):
 **Do not optimise against this number yet.** 96 ms is dev-machine-to-Neon latency; Render and Neon are co-located in production, so the real figure is far lower and tuning against the dev number would target the wrong bottleneck. The correct fix is a short-TTL account cache in `requireAuth`, which belongs with the shared-cache work — it is security-sensitive (role changes, suspension, and single-device session revocation all go stale for the TTL window) and should be done once, deliberately.
 
 **Rate limiting is not the cost.** Confirmed above: the limiter adds no measurable overhead — an `/api` path carrying it came in marginally *faster* than `/healthz` carrying none, i.e. within noise. The limiters are in-memory Map operations.
+
+**Fixed 2026-07-30 (Day 3).** `findAccountByUid()` now reads through a 10-second cache (`backend/lib/cache.js`), so a page load's 3–8 calls collapse onto one row read instead of one each. The `/api/me` half of the finding is untouched and still stands — `ME_SELECT` returns columns `ACCOUNT_COLS` does not, so that handler still issues its own query by design.
+
+The terms this was built under, because they are what keeps it safe:
+
+| | |
+|---|---|
+| TTL | 10s (`ACCOUNT_CACHE_TTL_SECONDS`, set 0 to disable) — the worst-case delay on a revocation |
+| Invalidated by | sign-in / session rotation (`claimSession`), `/api/auth/renew`, `PATCH /api/me`, admin suspend / role change / delete, superadmin permissions, `/api/teachers` PATCH+DELETE, and the expiry flip inside `requireAuth()` itself |
+| Not cached | a verified uid with **no** account row — that user is mid-bootstrap and a cached "no such account" would 404 their first requests |
+| Multi-instance | with `REDIS_URL` set, invalidation is global. On the in-process fallback it only clears the instance that served the write; the others stay stale until the TTL. **Set `REDIS_URL` before running more than one Render instance.** |
+
+Verified: a row changed directly in Postgres is still served from cache (proving it caches), and is re-read immediately after `invalidateAccountById()` (proving eviction works).
 
 ### F37 — PlannerTour measure() is unthrottled 📖 Code-read — deferred
 `src/views/onboarding/PlannerTour.jsx` re-measures on every `scroll`/`resize` event with no rAF throttle, and each call does a `querySelectorAll` plus `getBoundingClientRect`. Only runs while the tour is open (max two sessions per teacher), so impact is bounded — but it should be rAF-throttled. Raised and deliberately deferred 2026-07-28.

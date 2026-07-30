@@ -1,14 +1,26 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, lazy, Suspense } from "react";
 import { createRoot } from "react-dom/client";
 import "./index.css";
-import StudioApp from "./App.jsx";
-import Landing from "./views/Landing.jsx";
-import PortalSignIn from "./views/PortalSignIn.jsx";
 import { useRoute, navigate, clearRoute } from "./lib/route.js";
 import { LanguageProvider } from "./lib/i18n.jsx";
 import AccessibilityWidget from "./views/AccessibilityWidget.jsx";
 import { getPortalFromPath } from "./lib/portal.js";
 import ErrorBoundary from "./components/ErrorBoundary.jsx";
+import BrandLoader from "./components/BrandLoader.jsx";
+
+// The three surfaces are split at the top level, because no visitor ever needs
+// more than one of them. Landing is the largest file in the repo and a signed-in
+// teacher never renders it; the studio shell is bigger still and a first-time
+// visitor to "/" never renders that. Statically importing all three put every
+// byte of all three in the first request.
+//
+// Each is behind its own ErrorBoundary already, and the boundary sits OUTSIDE
+// Suspense on purpose: a chunk that fails to download (flaky school wifi, a
+// stale hashed filename after a deploy) rejects the lazy import, and that has
+// to land on the branded retry card rather than an empty page.
+const StudioApp = lazy(() => import("./App.jsx"));
+const Landing = lazy(() => import("./views/Landing.jsx"));
+const PortalSignIn = lazy(() => import("./views/PortalSignIn.jsx"));
 
 // Top-level surface decided entirely by URL pathname (no `#` anywhere):
 //   "/"                                → landing page
@@ -56,7 +68,9 @@ function Root() {
     return (
       <>
         <ErrorBoundary name="portal">
-          <PortalSignIn portal={portal} />
+          <Suspense fallback={<BrandLoader />}>
+            <PortalSignIn portal={portal} />
+          </Suspense>
         </ErrorBoundary>
         <ErrorBoundary name="a11y" variant="silent">
           <AccessibilityWidget />
@@ -69,11 +83,15 @@ function Root() {
     <>
       {inStudio ? (
         <ErrorBoundary name="studio">
-          <StudioApp onClose={() => clearRoute()} />
+          <Suspense fallback={<BrandLoader />}>
+            <StudioApp onClose={() => clearRoute()} />
+          </Suspense>
         </ErrorBoundary>
       ) : (
         <ErrorBoundary name="landing">
-          <Landing onOpenStudio={() => navigate(["planner"])} />
+          <Suspense fallback={<BrandLoader />}>
+            <Landing onOpenStudio={() => navigate(["planner"])} />
+          </Suspense>
         </ErrorBoundary>
       )}
       <ErrorBoundary name="a11y" variant="silent">

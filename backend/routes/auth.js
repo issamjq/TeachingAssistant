@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import bcrypt from "bcryptjs";
 import { pool } from "../lib/db.js";
 import { handleErr } from "../lib/helpers.js";
-import { requireAuth, clientIp, userAgent, ACCOUNT_COLS_SQL, findAccountByUid } from "../lib/auth.js";
+import { requireAuth, clientIp, userAgent, ACCOUNT_COLS_SQL, findAccountByUid, invalidateAccountById } from "../lib/auth.js";
 import { PLANS, TRIAL_DAYS, TRIAL_PLAN_ID, PLAN_IDS } from "../../src/lib/plans.js";
 import { FirebaseBootstrapSchema, RenewSchema, validateBody } from "../lib/validate.js";
 import { recordAudit } from "../lib/audit.js";
@@ -45,6 +45,14 @@ async function claimSession(accountId) {
     `UPDATE accounts SET active_session_id = $2, updated_at = NOW() WHERE id = $1`,
     [accountId, sessionId]
   );
+  // Both sign-in paths funnel through here, so this one call keeps the account
+  // cache honest about role, email and subscription as well as the session id.
+  // It is also the invalidation that MATTERS: until the cached row carries the
+  // new active_session_id, the device this sign-in just superseded would keep
+  // passing requireAuth()'s session check. Bounded by the cache TTL either
+  // way, but the whole point of single-device sign-in is that the eviction is
+  // immediate.
+  await invalidateAccountById(accountId);
   return sessionId;
 }
 
@@ -222,6 +230,7 @@ router.post("/renew", validateBody(RenewSchema), requireAuth({ allowExpired: tru
         RETURNING ${ACCOUNT_COLS_SQL}`,
       [req.account.id, status, plan, endsAt]
     );
+    await invalidateAccountById(req.account.id);
     await recordAudit({
       accountId: req.account.id,
       action: "auth.renew",

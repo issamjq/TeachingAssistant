@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Play, Pencil, Trash2 } from "lucide-react";
-import { ConfirmDelete, api, timeAgo, fmtRowTimestamp } from "./_shared";
+import { ConfirmDelete, api, apiList, timeAgo, fmtRowTimestamp } from "./_shared";
 import {
   DataPageHeader, DataCard, CardsGrid, useViewMode,
   useDateScope, filterByDateScope,
@@ -39,7 +39,7 @@ export default function Presentations({ onOpenPresentation }) {
 
   const reload = () => {
     setLoading(true);
-    api("/api/presentations")
+    apiList("/api/presentations")
       .then((data) => { setItems(data); setLoading(false); })
       .catch((err) => { setError(err.message); setLoading(false); });
   };

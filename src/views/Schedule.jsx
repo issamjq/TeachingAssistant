@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { GRADE_LEVELS } from "../lib/enums";
 import {
   Field, Modal, ConfirmDelete, RowActions,
-  inputClasses, selectClasses, api,
+  inputClasses, selectClasses, api, apiList,
   DatePicker,
 } from "./_shared";
 import BrandLoader from "../components/BrandLoader";
@@ -34,7 +34,7 @@ export default function Schedule() {
 
   const reload = () => {
     setLoading(true);
-    api("/api/schedule")
+    apiList("/api/schedule")
       .then((data) => { setItems(data); setLoading(false); })
       .catch((err) => { setError(err.message); setLoading(false); });
   };
@@ -286,7 +286,7 @@ function ScheduleModal({ initial, onClose, onSaved }) {
 
   // Load lesson plans so the user can link this schedule entry to one.
   useEffect(() => {
-    api("/api/drafts").then(setDrafts).catch(() => {});
+    apiList("/api/drafts").then(setDrafts).catch(() => {});
   }, []);
 
   // When the user picks a lesson plan, prefill any empty fields from it.

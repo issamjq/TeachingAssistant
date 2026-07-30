@@ -3,6 +3,7 @@ import { pool } from "../lib/db.js";
 import { buildPatch, handleErr } from "../lib/helpers.js";
 import { loadCurrentTeacher, setCurrentTeacher } from "../lib/currentTeacher.js";
 import { ProfilePatchSchema, validateBody } from "../lib/validate.js";
+import { invalidateAccountById } from "../lib/auth.js";
 
 const ME_SELECT = `id, first_name, last_name, email, phone, staff_id, majors, grade_levels,
                    languages, sections, class_map, grade_sections,
@@ -62,6 +63,9 @@ router.patch("/", validateBody(ProfilePatchSchema), async (req, res) => {
         RETURNING ${ME_SELECT}`,
       params
     );
+    // requireAuth() serves this row from cache; a profile edit must be
+    // visible on the very next request, not one TTL later.
+    await invalidateAccountById(cur.id);
     setCurrentTeacher({ id: upd.rows[0].id, grade_levels: upd.rows[0].grade_levels || [] });
     res.json(upd.rows[0]);
   } catch (err) {

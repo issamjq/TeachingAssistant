@@ -5,9 +5,9 @@ import { Button } from "@/components/ui/button";
 import { GRADE_LEVELS } from "../lib/enums";
 import {
   Field, Modal, ConfirmDelete, RowActions,
-  inputClasses, selectClasses, api, timeAgo,
+  inputClasses, selectClasses, api, apiList, timeAgo,
 } from "./_shared";
-import BrandLoader from "../components/BrandLoader";
+import { SkeletonCards } from "../components/ui/skeleton";
 
 const TYPE_ICON = {
   pdf: FileText, doc: FileText, video: Video, link: LinkIcon, image: ImageIcon, note: BookOpen,
@@ -25,7 +25,7 @@ export default function Library() {
 
   const reload = () => {
     setLoading(true);
-    api("/api/library")
+    apiList("/api/library")
       .then((data) => { setItems(data); setLoading(false); })
       .catch((err) => { setError(err.message); setLoading(false); });
   };
@@ -105,7 +105,7 @@ export default function Library() {
       )}
 
       {loading ? (
-        <BrandLoader compact fullscreen={false} />
+        <SkeletonCards />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filtered.map((r) => {

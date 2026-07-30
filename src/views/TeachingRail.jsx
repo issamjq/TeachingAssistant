@@ -7,7 +7,7 @@
 // leaving whichever surface they're on.
 import React, { useEffect, useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight, CalendarDays, Plus } from "lucide-react";
-import { api } from "./_shared";
+import { api, apiList } from "./_shared";
 import SchedulePopup from "./_schedule-popup";
 
 const DAY_LABELS = ["M", "T", "W", "T", "F", "S", "S"];
@@ -77,11 +77,11 @@ export default function TeachingRail() {
     : new Date(v).toISOString().slice(0, 10));
   const reloadEvents = () => {
     Promise.allSettled([
-      api("/api/schedule"),
-      api("/api/quizzes"),
-      api("/api/homework"),
-      api("/api/presentations"),
-      api("/api/activities"),
+      apiList("/api/schedule"),
+      apiList("/api/quizzes"),
+      apiList("/api/homework"),
+      apiList("/api/presentations"),
+      apiList("/api/activities"),
     ]).then((results) => {
       const get = (i) => (results[i].status === "fulfilled" ? results[i].value || [] : []);
       const schedule = get(0)

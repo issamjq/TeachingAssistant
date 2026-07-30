@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 import { navigate } from "../lib/route";
 import { useT, useI18n } from "../lib/i18n";
-import { api } from "./_shared";
+import { api, apiList } from "./_shared";
 import SchedulePopup from "./_schedule-popup";
 import PlannerTour, { shouldShowPlannerTour } from "./onboarding/PlannerTour";
 
@@ -169,11 +169,11 @@ export default function Planner() {
       return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
     };
     Promise.allSettled([
-      api("/api/schedule"),
-      api("/api/quizzes"),
-      api("/api/homework"),
-      api("/api/presentations"),
-      api("/api/activities"),
+      apiList("/api/schedule"),
+      apiList("/api/quizzes"),
+      apiList("/api/homework"),
+      apiList("/api/presentations"),
+      apiList("/api/activities"),
     ]).then((results) => {
       const get = (i) => (results[i].status === "fulfilled" ? results[i].value || [] : []);
       const schedule = get(0)

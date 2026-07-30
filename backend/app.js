@@ -26,6 +26,8 @@ import ownerRouter from "./routes/owner.js";
 import moeRouter from "./routes/moe.js";
 import devRouter from "./routes/dev.js";
 import { requireAuth, requireRole } from "./lib/auth.js";
+import { pool } from "./lib/db.js";
+import { verifyKeysetSpecs } from "./lib/pagination.js";
 import {
   buildHelmet, buildCors,
   buildGlobalRateLimit, buildAuthRateLimit, buildAccountRateLimit, buildAiRateLimit,
@@ -58,6 +60,20 @@ import {
 //   - /api/dev/*       — requireAuth() + requireRole("dev")
 export function buildApp() {
   const app = express();
+
+  // 0. Ask Postgres which list-sort columns are NOT NULL, which is what lets
+  // keyset pagination use the fast (index-condition) cursor predicate instead
+  // of the correct-but-unsargable one. Deliberately not awaited: it is a
+  // pure optimisation, requests that land first simply take the safe path,
+  // and a failure here must never stop the app from serving. See
+  // verifyKeysetSpecs() for why the answer has to come from the schema.
+  verifyKeysetSpecs(pool)
+    .then(({ verified, total }) =>
+      console.log(`[pagination] keyset fast path: ${verified}/${total} list specs`)
+    )
+    .catch((err) =>
+      console.warn(`[pagination] keyset verification failed, staying on the safe path: ${err.message}`)
+    );
 
   // 1. Trust the proxy header from Render/Vercel so req.ip is the real
   // client IP, not the load balancer. Without this, rate limits would

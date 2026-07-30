@@ -14,7 +14,7 @@ import { pool } from "../lib/db.js";
 import { handleErr } from "../lib/helpers.js";
 import { validateBody } from "../lib/validate.js";
 import { recordAudit } from "../lib/audit.js";
-import { clientIp, userAgent } from "../lib/auth.js";
+import { clientIp, userAgent, invalidateAccountById } from "../lib/auth.js";
 import { PLANS, TRIAL_PLAN_ID } from "../../src/lib/plans.js";
 import { PERMISSION_KEYS } from "../../src/lib/permissions.js";
 
@@ -260,6 +260,7 @@ router.patch("/account/:id/permissions", validateBody(PermissionsSchema), async 
       [JSON.stringify(filtered), id]
     );
     if (r.rows.length === 0) return res.status(404).json({ error: "Not found" });
+    await invalidateAccountById(id);
     await recordAudit({
       accountId: req.account.id,
       action: "superadmin.permissions.update",

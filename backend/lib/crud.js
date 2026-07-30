@@ -3,6 +3,10 @@ import { pool, withTenant } from "./db.js";
 import { buildPatch, handleErr } from "./helpers.js";
 import { loadCurrentTeacher } from "./currentTeacher.js";
 import { validateBody } from "./validate.js";
+import {
+  buildOrderSpec, decodeCursor, encodeCursor, keysetWhere, parseLimit,
+  stripCursorCols, PaginationError,
+} from "./pagination.js";
 
 // Build a standard CRUD router for a single table.
 //
@@ -15,10 +19,21 @@ import { validateBody } from "./validate.js";
 //                    (forbids cross-teacher reads, stamps account_id on inserts).
 //   listExtra(req, ctx) : optional, returns { where, params, skip } extending the scope.
 //   afterMutation(row)  : optional callback after each successful POST / PATCH.
+//   beforeDelete(id, req) : optional callback fired with the row's id BEFORE
+//                    it is removed, for work that needs the row to still
+//                    exist (accounts uses it to resolve a cached identity).
+//                    Throwing aborts the delete.
 //   softDelete     : if true, DELETE flips a deleted_at timestamp instead
 //                    of removing the row. GETs hide soft-deleted rows.
 //                    Adds /trash, /:id/restore, /:id/forever routes and
 //                    auto-purges anything > 30 days old on /trash access.
+//
+//   Every list endpoint is cursor-paginated — `?limit=` (default 50, hard
+//   max 200) and `?cursor=`, returning { items, nextCursor }. There is no
+//   opt-out: an unpaginated list is a table scan waiting for the first real
+//   roster, and leaving it switchable means it eventually gets switched.
+//   See pagination.js for how the cursor is built and why it is not signed.
+//
 //   jsonFields     : columns of type json/jsonb. node-postgres serializes
 //                    a JS array as a Postgres ARRAY literal ('{...}'),
 //                    which a jsonb column rejects ("invalid input syntax
@@ -35,6 +50,7 @@ export function crudRouter({
   teacherScoped = false,
   listExtra = null,
   afterMutation = null,
+  beforeDelete = null,
   softDelete = false,
   jsonFields = [],
   // Optional zod schemas. When provided, the POST / PATCH routes get a
@@ -46,6 +62,62 @@ export function crudRouter({
 }) {
   const router = Router();
   const tag = routeName || `/api/${table}`;
+
+  // Parsed once, at construction. A listOrderBy that keyset pagination can't
+  // express throws here — during import, so it takes the boot down instead of
+  // surfacing as a broken list months later. /trash has its own order and so
+  // needs its own spec; a cursor from one is rejected by the other.
+  const listSpec  = buildOrderSpec(listOrderBy, table);
+  const trashSpec = softDelete ? buildOrderSpec("deleted_at DESC", table, "trash") : null;
+
+  // Compose one page of `spec`-ordered rows.
+  //
+  // Split into build/finish rather than one run() because /trash must purge
+  // and list inside a single transaction — it owns its db handle and can't
+  // hand query execution off to a helper.
+  //
+  // Asks for limit+1 rows: the extra row is how we know another page exists,
+  // and it costs one row rather than a second COUNT(*) over the whole table.
+  const buildPage = (req, spec, { where, params }) => {
+    const limit = parseLimit(req.query.limit);
+    const args = [...params];
+    let clause = where;
+
+    if (req.query.cursor !== undefined) {
+      const values = decodeCursor(spec, req.query.cursor);
+      const ks = keysetWhere(spec, values, args.length);
+      clause = clause ? `${clause} AND ${ks.sql}` : `WHERE ${ks.sql}`;
+      args.push(...ks.params);
+    }
+    args.push(limit + 1);
+
+    return {
+      limit,
+      args,
+      sql: `SELECT ${selectCols}${spec.selectSql} FROM ${table} ${clause}
+              ORDER BY ${spec.orderSql} LIMIT $${args.length}`,
+    };
+  };
+
+  const finishPage = (rows, limit, spec) => {
+    const hasMore = rows.length > limit;
+    const page = hasMore ? rows.slice(0, limit) : rows;
+    return {
+      items: page.map((row) => stripCursorCols(row, spec)),
+      nextCursor: hasMore ? encodeCursor(spec, page[page.length - 1]) : null,
+    };
+  };
+
+  const EMPTY_PAGE = { items: [], nextCursor: null };
+
+  // A bad ?cursor= / ?limit= is the client's mistake, not a server fault, so
+  // it gets a 400 with a usable message instead of handleErr()'s opaque 500.
+  const handleListErr = (res, label, err) => {
+    if (err instanceof PaginationError) {
+      return res.status(err.status).json({ error: err.message });
+    }
+    return handleErr(res, label, err);
+  };
 
   // Stringify json/jsonb fields so an array/object value lands as valid
   // JSON instead of a Postgres array literal. Strings and null pass
@@ -100,7 +172,7 @@ export function crudRouter({
 
       if (listExtra) {
         const extra = await listExtra(req, { teacherId: scope.teacherId });
-        if (extra?.skip) return res.json([]);
+        if (extra?.skip) return res.json(EMPTY_PAGE);
         if (extra?.where) {
           // Re-base extra's $N placeholders on top of current params length.
           const offset = params.length;
@@ -109,13 +181,16 @@ export function crudRouter({
           params = [...params, ...(extra.params || [])];
         }
       }
-      const r = await runScoped(scope, (db) => db.query(
-        `SELECT ${selectCols} FROM ${table} ${where} ORDER BY ${listOrderBy}`,
-        params
-      ));
-      res.json(r.rows);
+      // The cursor predicate is appended AFTER listExtra's filters, so a
+      // cursor only ever narrows within the same filtered set. Changing the
+      // filters invalidates the position, which is why the client drops its
+      // cursor whenever a filter changes rather than paging across two
+      // different result sets.
+      const page = buildPage(req, listSpec, { where, params });
+      const r = await runScoped(scope, (db) => db.query(page.sql, page.args));
+      res.json(finishPage(r.rows, page.limit, listSpec));
     } catch (err) {
-      handleErr(res, `GET ${tag}`, err);
+      handleListErr(res, `GET ${tag}`, err);
     }
   });
 
@@ -132,22 +207,24 @@ export function crudRouter({
 
         const purgeConds = [...conds, "deleted_at IS NOT NULL", "deleted_at < NOW() - INTERVAL '30 days'"];
         const listConds = [...conds, "deleted_at IS NOT NULL"];
+        const page = buildPage(req, trashSpec, {
+          where: `WHERE ${listConds.join(" AND ")}`,
+          params,
+        });
         // Purge-then-list share one transaction so the listing can't observe a
         // half-completed purge, and so the tenant is bound once rather than twice.
+        // The purge keeps the un-paged param list — it deletes everything past
+        // the window, not just what fits on this page.
         const r = await runScoped(scope, async (db) => {
           await db.query(
             `DELETE FROM ${table} WHERE ${purgeConds.join(" AND ")}`,
             params
           );
-          return db.query(
-            `SELECT ${selectCols} FROM ${table} WHERE ${listConds.join(" AND ")}
-               ORDER BY deleted_at DESC`,
-            params
-          );
+          return db.query(page.sql, page.args);
         });
-        res.json(r.rows);
+        res.json(finishPage(r.rows, page.limit, trashSpec));
       } catch (err) {
-        handleErr(res, `GET ${tag}/trash`, err);
+        handleListErr(res, `GET ${tag}/trash`, err);
       }
     });
 
@@ -269,6 +346,7 @@ export function crudRouter({
   router.delete("/:id", async (req, res) => {
     try {
       const scope = await scopeFor(req);
+      if (beforeDelete) await beforeDelete(req.params.id, req);
       const params = [req.params.id];
       let where = `WHERE id = $1`;
       if (scope.where) {

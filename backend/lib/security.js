@@ -19,6 +19,8 @@
 import helmet from "helmet";
 import cors from "cors";
 import rateLimit, { ipKeyGenerator } from "express-rate-limit";
+import { RedisStore } from "rate-limit-redis";
+import { redisClient } from "./cache.js";
 
 const isProd = () => process.env.NODE_ENV === "production";
 
@@ -149,17 +151,70 @@ export function buildCors() {
 // layer is now only a flood wall; per-teacher fairness is the account
 // layer's job.
 //
-// Store note: express-rate-limit's default store is in-process, so counts
-// reset on deploy and are not shared across instances. That is acceptable
-// while we run a single Render dyno; the Redis store lands with the rest
-// of the shared-cache work.
+// Store: Redis when REDIS_URL is configured, in-process otherwise. This is
+// the difference between a limit and a suggestion once we run more than one
+// instance — N instances with in-process counters mean an attacker gets N×
+// the budget, and every deploy hands out a fresh one. Redis makes the counter
+// shared and deploy-durable.
+//
+// passOnStoreError is deliberate and important. Without it a Redis blip turns
+// every rate-limited route (i.e. all of /api) into a 500 — the limiter would
+// become the outage. With it, a store failure is logged and the request is
+// allowed through: we lose rate limiting for the duration rather than losing
+// the API. Availability wins here because the limiters are abuse control, not
+// an authorisation boundary — requireAuth() and requireRole() are unaffected
+// by any of this and keep enforcing on every request.
 
-// Shared shape — every limiter reports RateLimit-* headers (RFC 9239
-// draft) so the client can back off instead of guessing.
+// A Redis outage makes every limiter's store fail on every request, and the
+// library's default logger prints a full stack trace each time — so an outage
+// would bury the logs that explain it under thousands of copies of itself.
+// Collapse it: one line when it starts, one when it recovers, and re-arm so a
+// second outage is reported again.
+let storeErrorLogged = false;
+const limiterLogger = {
+  error(err) {
+    if (storeErrorLogged) return;
+    storeErrorLogged = true;
+    console.warn(
+      `[ratelimit] store unavailable — requests are passing UNLIMITED until it ` +
+      `recovers: ${err?.message || err}`
+    );
+  },
+  warn(err) { console.warn(`[ratelimit] ${err?.message || err}`); },
+};
+export const noteRateLimitStoreRecovered = () => {
+  if (storeErrorLogged) {
+    storeErrorLogged = false;
+    console.log("[ratelimit] store recovered");
+  }
+};
+
+// Shared shape — every limiter reports RateLimit headers (RFC 9239 draft-7,
+// the combined `RateLimit: limit=…, remaining=…, reset=…` form) so the client
+// can back off instead of guessing.
 const LIMITER_BASE = {
   standardHeaders: "draft-7",
   legacyHeaders: false,
+  passOnStoreError: true,
+  logger: limiterLogger,
 };
+
+// One store per limiter — they must not share a key space or the five buckets
+// would decrement each other. `prefix` keeps them separate.
+//
+// Bound at build time to the client itself, not to its connection state: the
+// socket is still opening when buildApp() runs, so a health check here would
+// always say "not ready" and pin every limiter to memory for the life of the
+// process. Commands that land before the socket is up fail, and
+// passOnStoreError turns that into an allowed request rather than a 500.
+function storeFor(prefix) {
+  const client = redisClient();
+  if (!client) return undefined; // no REDIS_URL — express-rate-limit's memory store
+  return new RedisStore({
+    prefix: `murchid:rl:${prefix}:`,
+    sendCommand: (...args) => client.call(...args),
+  });
+}
 
 // Verified-account key when we have one, IP otherwise. ipKeyGenerator is
 // the library's helper — it normalises IPv6 to a /56 block so a single
@@ -174,6 +229,7 @@ const byAccountOrIp = (req) =>
 export function buildGlobalRateLimit() {
   return rateLimit({
     ...LIMITER_BASE,
+    store: storeFor("global"),
     windowMs: 5 * 60 * 1000,
     limit: 1000,
     message: { error: "Too many requests. Please slow down." },
@@ -186,6 +242,7 @@ export function buildGlobalRateLimit() {
 export function buildAccountRateLimit() {
   return rateLimit({
     ...LIMITER_BASE,
+    store: storeFor("account"),
     windowMs: 5 * 60 * 1000,
     limit: 300,
     keyGenerator: byAccountOrIp,
@@ -200,6 +257,7 @@ export function buildAccountRateLimit() {
 export function buildAiRateLimit() {
   return rateLimit({
     ...LIMITER_BASE,
+    store: storeFor("ai"),
     windowMs: 5 * 60 * 1000,
     limit: 30,
     keyGenerator: byAccountOrIp,
@@ -219,6 +277,7 @@ export function buildAiRateLimit() {
 export function buildPublicRateLimit() {
   return rateLimit({
     ...LIMITER_BASE,
+    store: storeFor("public"),
     windowMs: 5 * 60 * 1000,
     limit: 120,
     keyGenerator: byAccountOrIp,
@@ -233,6 +292,7 @@ export function buildPublicRateLimit() {
 export function buildAuthRateLimit() {
   return rateLimit({
     ...LIMITER_BASE,
+    store: storeFor("auth"),
     windowMs: 15 * 60 * 1000,
     limit: isProd() ? 10 : 200,
     message: { error: "Too many sign-in attempts. Try again later." },
