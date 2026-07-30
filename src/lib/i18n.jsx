@@ -741,6 +741,16 @@ const EN = {
   "tour.lesson.body": "Build and manage lesson plans here — start from a template or let Studio draft one for you.",
   "tour.students.title": "My students",
   "tour.students.body": "Your class rosters live here — import students, track grades, attendance, and reports per school, grade, and section.",
+  "tour.bulletin.title": "Bulletin board",
+  "tour.bulletin.body": "Announcements for your classes — notices, reminders, and anything the whole class needs to see in one place.",
+  "tour.quizzes.title": "Quizzes & exams",
+  "tour.quizzes.body": "Build quizzes with multiple choice, true/false, short answer or essay questions — then schedule them and record every student's score.",
+  "tour.homework.title": "Homework",
+  "tour.homework.body": "Assign work to a class, set a due date, then track who has handed in, grade it and leave feedback.",
+  "tour.presentations.title": "Presentations",
+  "tour.presentations.body": "Slide decks for the classroom. Build them from scratch or let Studio draft one, then present full-screen straight from here.",
+  "tour.activities.title": "Activities",
+  "tour.activities.body": "Pair work, group tasks and individual exercises — with the materials and timing you need, and a record of who completed what.",
   "tour.create.title": "Create from the Planner",
   "tour.create.body": "The four chips above the calendar (Generate lesson, Create quiz, Assign homework, Build presentation) take you straight to Studio with that kind pre-selected.",
   "tour.calendar.title": "Your month at a glance",
@@ -964,6 +974,15 @@ const EN = {
     "Murchid is drafting the rest — flip through the sidebar to watch each question land.",
   "studio.stream.writingPrompt": "writing prompt…",
   "studio.stream.couldNotGenerate": "Could not generate",
+  // Error boundary — shown in place of a subtree that threw while rendering.
+  "error.eyebrow": "Something broke",
+  "error.title.lead": "This part didn't",
+  "error.title.accent": "load",
+  "error.body":
+    "The rest of Murchid is still working. Try again, and if it keeps happening reload the page.",
+  "error.retry": "Try again",
+  "error.reload": "Reload page",
+  "error.details": "Developer detail",
 };
 
 const AR = {
@@ -1676,6 +1695,16 @@ const AR = {
   "tour.lesson.body": "أنشئ خطط الدروس وأدِرها هنا — ابدأ من قالب أو دع الاستوديو يصيغ خطة لك.",
   "tour.students.title": "طلابي",
   "tour.students.body": "قوائم فصولك هنا — استورد الطلاب وتابع الدرجات والحضور والتقارير لكل مدرسة وصف وشعبة.",
+  "tour.bulletin.title": "لوحة الإعلانات",
+  "tour.bulletin.body": "إعلانات صفوفك — التنبيهات والتذكيرات وكل ما يحتاج الصف كله لرؤيته في مكان واحد.",
+  "tour.quizzes.title": "الاختبارات",
+  "tour.quizzes.body": "أنشئ اختبارات بأسئلة اختيار من متعدد أو صح وخطأ أو إجابة قصيرة أو مقالية — ثم جدولها وسجّل درجة كل طالب.",
+  "tour.homework.title": "الواجبات",
+  "tour.homework.body": "كلّف صفك بواجب وحدّد موعد التسليم، ثم تابع من سلّم، وصحّح وأضف ملاحظاتك.",
+  "tour.presentations.title": "العروض التقديمية",
+  "tour.presentations.body": "شرائح جاهزة للصف. ابنِها من الصفر أو دع الاستوديو يصيغها، ثم اعرضها بملء الشاشة من هنا مباشرة.",
+  "tour.activities.title": "الأنشطة",
+  "tour.activities.body": "أنشطة ثنائية وجماعية وفردية — مع المواد والتوقيت الذي تحتاجه، وسجل لمن أكملها.",
   "tour.create.title": "أنشِئ من المُخطِّط",
   "tour.create.body": "الإجراءات الأربعة فوق التقويم (أنشِئ درسًا، أنشِئ اختبارًا، كلِّف واجبًا، ابنِ عرضًا) تنقلك مباشرةً إلى الاستوديو مع تحديد النوع مسبقًا.",
   "tour.calendar.title": "شهرك في لمحة",
@@ -1898,6 +1927,15 @@ const AR = {
     "يُصيغ مرشد الباقي — تابع الأسئلة في الشريط الجانبي.",
   "studio.stream.writingPrompt": "يكتب الطلب…",
   "studio.stream.couldNotGenerate": "تعذّر الإنشاء",
+  // Error boundary — shown in place of a subtree that threw while rendering.
+  "error.eyebrow": "حدث خطأ",
+  "error.title.lead": "لم يُحمَّل",
+  "error.title.accent": "هذا الجزء",
+  "error.body":
+    "بقية مرشد تعمل بشكل طبيعي. حاول مرّة أخرى، وإذا تكرّر الأمر أعد تحميل الصفحة.",
+  "error.retry": "حاول مرّة أخرى",
+  "error.reload": "إعادة تحميل الصفحة",
+  "error.details": "تفاصيل للمطوّر",
 };
 
 const DICTS = { en: EN, ar: AR };

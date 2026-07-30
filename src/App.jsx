@@ -36,6 +36,7 @@ import { useT } from "./lib/i18n";
 import { useAccount, clearAccount, updateProfile } from "./lib/account";
 import AccountMenu from "./views/AccountMenu";
 import HelpPopover from "./views/HelpPopover";
+import ErrorBoundary from "./components/ErrorBoundary";
 import MurchidLogo from "./components/MurchidLogo";
 import Avatar from "./components/Avatar";
 
@@ -533,6 +534,11 @@ export default function StudioApp({ onClose }) {
 
   const sidebarActive = section === "account" ? "account" : section;
 
+  // Identity of the current screen, used to auto-clear a caught error when
+  // the teacher navigates elsewhere. Includes `sub` so quizzes/new →
+  // quizzes/edit/3 counts as a move, not the same screen re-rendering.
+  const routeKey = `${section}/${sub ?? ""}`;
+
   // Studio launcher — the hero CTA of the app, lifted out of the nav
   // list. Dark ink card with an accent-red bolt circle on the left, big
   // serif title, italic subtitle. Same vocabulary as the "Activate Pro"
@@ -795,13 +801,26 @@ export default function StudioApp({ onClose }) {
           )}
           {TEACHING_RAIL_SECTIONS.has(section) ? (
             <div className="lg:flex lg:gap-6 h-full">
-              <div className="flex-1 min-w-0">{mainContent}</div>
+              {/* resetKey is the current route: navigating away from a
+                  screen that threw clears the fallback on its own, so a
+                  teacher is never stuck behind an error card. */}
+              <div className="flex-1 min-w-0">
+                <ErrorBoundary name={`section:${section}`} resetKey={routeKey}>
+                  {mainContent}
+                </ErrorBoundary>
+              </div>
+              {/* The rail is secondary — if it throws, the lesson content
+                  it sits next to must still be usable. */}
               <div className="hidden lg:block flex-shrink-0">
-                <TeachingRail />
+                <ErrorBoundary name="teaching-rail" variant="silent">
+                  <TeachingRail />
+                </ErrorBoundary>
               </div>
             </div>
           ) : (
-            mainContent
+            <ErrorBoundary name={`section:${section}`} resetKey={routeKey}>
+              {mainContent}
+            </ErrorBoundary>
           )}
         </div>
       </main>

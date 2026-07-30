@@ -16,6 +16,7 @@ import { useT, useI18n } from "../lib/i18n";
 import { PLANS } from "../lib/plans";
 import HeroAtelier from "./HeroAtelier";
 import Showreel from "./Showreel";
+import ErrorBoundary from "../components/ErrorBoundary";
 
 // ── reveal hook ────────────────────────────────────────────────────
 // Adds `.in` to the element when it crosses the viewport. Used by
@@ -664,6 +665,10 @@ function FinalCTA({ onEnter, signedIn }) {
 // faces are reused by HeroAtelier. Manifest / Stage / Lineup stay
 // parked above (unrendered) in case any are wanted back later.
 export default function LandingHome({ onEnter, signedIn }) {
+  // Language is the reset trigger for the Showreel boundary below: if a
+  // flip is what broke it, flipping back should bring the section straight
+  // back rather than leaving a dead panel until a full reload.
+  const { lang } = useI18n();
   return (
     <>
       <HeroAtelier onEnter={onEnter} signedIn={signedIn} />
@@ -671,7 +676,13 @@ export default function LandingHome({ onEnter, signedIn }) {
           the nav links land at the section's start (sec-features lives in
           HeroAtelier). scrollMarginTop clears the fixed nav bar. */}
       <span id="sec-how" aria-hidden="true" style={{ display: "block", scrollMarginTop: "64px" }} />
-      <Showreel />
+      {/* Showreel animates its own DOM against React's, and was the one
+          component observed taking the whole landing page down on a
+          language flip (findings F22). Section-scoped so a failure here
+          costs the product film, not the pricing table below it. */}
+      <ErrorBoundary name="showreel" variant="section" resetKey={lang}>
+        <Showreel />
+      </ErrorBoundary>
       <span id="sec-voices" aria-hidden="true" style={{ display: "block", scrollMarginTop: "64px" }} />
       <Voices />
       <span id="sec-pricing" aria-hidden="true" style={{ display: "block", scrollMarginTop: "64px" }} />

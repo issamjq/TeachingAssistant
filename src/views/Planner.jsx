@@ -19,7 +19,7 @@ import { navigate } from "../lib/route";
 import { useT, useI18n } from "../lib/i18n";
 import { api } from "./_shared";
 import SchedulePopup from "./_schedule-popup";
-import PlannerTour, { hasSeenPlannerTour } from "./onboarding/PlannerTour";
+import PlannerTour, { shouldShowPlannerTour } from "./onboarding/PlannerTour";
 
 // Categories the calendar can show. Each maps to one of the existing
 // teaching surfaces, with a Murchid-palette color so the day cells stay
@@ -80,11 +80,11 @@ export default function Planner() {
   const t = useT();
   const { lang } = useI18n();
   const locale = lang === "ar" ? "ar" : "en-US";
-  // First-run tour: opens once on the first Planner visit per device.
-  // DEBUG: force the tour to open on every planner mount (each refresh /
-  // sign-in) for testing. Restore `!hasSeenPlannerTour()` to make it
-  // once-per-device again.
-  const [tourOpen, setTourOpen] = useState(true);
+  // First-run tour. Allowance is per account and capped at two sessions
+  // (see PlannerTour) so an accidental skip gets one more chance and no
+  // more. Evaluated once at mount: returning to the Planner later in the
+  // same session must not replay it.
+  const [tourOpen, setTourOpen] = useState(shouldShowPlannerTour);
   // The visible month (1st of the displayed month). Today by default.
   const [anchor, setAnchor] = useState(() => {
     const n = new Date();

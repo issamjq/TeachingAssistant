@@ -1,88 +1,212 @@
-// First-run walkthrough that appears the first time a teacher lands on
-// the Planner. A spotlight coachmark: each step dims the screen, cuts a
-// hole around a real sidebar element (the Studio launcher, a nav tab, the
-// account chip), and floats an explainer card beside it. Next advances
-// the spotlight to the following element. Persists a "seen" flag in
-// localStorage so it only ever runs once per device.
+// First-run walkthrough that appears when a teacher lands on the Planner.
+// A spotlight coachmark: each step dims the screen, cuts a hole around a
+// real sidebar element, and floats an explainer card beside it.
+//
+// Four things here are load-bearing and were previously wrong:
+//
+//   1. The sidebar nav SCROLLS. Targets below the fold measured at their
+//      clipped position, so the ring landed on whatever happened to sit
+//      there — the card said "My students" while the spotlight was on the
+//      Studio launcher. Every target is now scrolled into view before it
+//      is measured.
+//   2. The sidebar is rendered TWICE (desktop rail + mobile drawer), so a
+//      bare querySelector could match the hidden copy. We resolve to the
+//      first target that is actually visible.
+//   3. The card was clamped with a hardcoded height guess, so the last
+//      step (account chip, at the very bottom) overflowed the viewport and
+//      its Next button could not be clicked. The card is measured now.
+//   4. Steps were a short hand-written list, so five nav sections had no
+//      card at all. Every nav item now gets one, and steps whose target
+//      isn't on screen (other roles, narrower nav) are dropped instead of
+//      pointing at nothing.
 //
 // On narrow screens the sidebar is an off-canvas drawer, so there's
-// nothing to spotlight — we fall back to a centered card carrying the
-// same copy.
-import React, { useEffect, useLayoutEffect, useState } from "react";
+// nothing to spotlight — we fall back to a centered card with the same copy.
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   Sparkles, CalendarDays, UserCircle2, BookOpen, GraduationCap,
+  Megaphone, ListChecks, NotebookPen, Presentation, Blocks,
   ChevronRight, X,
 } from "lucide-react";
 import { useT, useI18n } from "../../lib/i18n";
+import { getAccount } from "../../lib/account";
 
-const SEEN_KEY = "murchid.tour.planner.seen";
+// ── Seen-state ─────────────────────────────────────────────────────────
+// Two independent gates, because "don't show it again" means two
+// different things:
+//
+//   viewCount  (localStorage, per account) — how many separate sessions
+//              the teacher has been shown the tour. Capped at MAX_VIEWS so
+//              someone who skips by accident gets exactly one more chance.
+//   thisSession (sessionStorage) — already shown during this sign-in, so
+//              navigating away from the Planner and back does not replay
+//              it. Clears itself when the tab closes.
+//
+// Keyed per account: school devices are shared, and one teacher finishing
+// the tour must not silence it for the next person who signs in.
+const VIEWS_KEY = "murchid.tour.planner.views";
+const SESSION_KEY = "murchid.tour.planner.session";
+const MAX_VIEWS = 2;
 
-// Each step points at a real element via its data-tour attribute. Order
-// follows the rail top-to-bottom: nav tabs, the Studio launcher, then the
-// account chip at the foot.
+// The cached account has no numeric id — staffId is the stable, unique
+// per-teacher handle, with email as the fallback for an account cached
+// before the profile step wrote one. Both already live in the same
+// localStorage record, so keying on them exposes nothing new.
+const accountKey = () => {
+  try {
+    const p = getAccount()?.profile;
+    return (p?.staffId || p?.email || "anon").toLowerCase();
+  } catch {
+    return "anon";
+  }
+};
+
+const readViews = () => {
+  try {
+    return JSON.parse(localStorage.getItem(VIEWS_KEY) || "{}") || {};
+  } catch {
+    return {};
+  }
+};
+
+/** Has this account used up its allowance, or already seen it this session? */
+export const shouldShowPlannerTour = () => {
+  const key = accountKey();
+  try {
+    if (sessionStorage.getItem(`${SESSION_KEY}.${key}`) === "1") return false;
+  } catch {
+    /* private mode — fall through to the durable count */
+  }
+  return (readViews()[key] || 0) < MAX_VIEWS;
+};
+
+/** Count one full viewing (finished or skipped — both are a chance used). */
+export const markPlannerTourSeen = () => {
+  const key = accountKey();
+  try {
+    const all = readViews();
+    all[key] = Math.min((all[key] || 0) + 1, MAX_VIEWS);
+    localStorage.setItem(VIEWS_KEY, JSON.stringify(all));
+  } catch {
+    /* ignore */
+  }
+  try {
+    sessionStorage.setItem(`${SESSION_KEY}.${key}`, "1");
+  } catch {
+    /* ignore */
+  }
+};
+
+// ── Steps ──────────────────────────────────────────────────────────────
+// One per sidebar destination, in rail order: nav items top-to-bottom,
+// then the Studio launcher, then the account chip. `id` selects the copy
+// keys (tour.<id>.title / .body); `target` is the data-tour attribute on
+// the real element.
 const STEPS = [
-  { id: "planner",  icon: CalendarDays,  selector: '[data-tour="nav-planner"]',      eyebrow: "01" },
-  { id: "lesson",   icon: BookOpen,      selector: '[data-tour="nav-lesson-plans"]', eyebrow: "02" },
-  { id: "students", icon: GraduationCap, selector: '[data-tour="nav-database"]',      eyebrow: "03" },
-  { id: "studio",   icon: Sparkles,      selector: '[data-tour="studio"]',           eyebrow: "04" },
-  { id: "menu",     icon: UserCircle2,   selector: '[data-tour="account"]',          eyebrow: "05" },
+  { id: "planner",       target: "nav-planner",       icon: CalendarDays },
+  { id: "bulletin",      target: "nav-bulletin-board", icon: Megaphone },
+  { id: "lesson",        target: "nav-lesson-plans",  icon: BookOpen },
+  { id: "quizzes",       target: "nav-quizzes",       icon: ListChecks },
+  { id: "homework",      target: "nav-homework",      icon: NotebookPen },
+  { id: "presentations", target: "nav-presentations", icon: Presentation },
+  { id: "activities",    target: "nav-activities",    icon: Blocks },
+  { id: "students",      target: "nav-database",      icon: GraduationCap },
+  { id: "studio",        target: "studio",            icon: Sparkles },
+  { id: "menu",          target: "account",           icon: UserCircle2 },
 ];
 
-export const hasSeenPlannerTour = () => {
-  try { return localStorage.getItem(SEEN_KEY) === "1"; }
-  catch { return false; }
-};
-export const markPlannerTourSeen = () => {
-  try { localStorage.setItem(SEEN_KEY, "1"); } catch { /* ignore */ }
-};
+const PAD = 6;          // breathing room around the spotlit element
+const CARD_W = 340;     // explainer card width
+const GAP = 16;         // gap between element and card
+const MARGIN = 12;      // min distance from any viewport edge
 
-const PAD = 6;        // breathing room around the spotlit element
-const CARD_W = 340;   // explainer card width
+// The sidebar renders twice (desktop rail + mobile drawer). Pick the copy
+// that is actually laid out and on screen; if neither is, return null so
+// the caller falls back to the centered card.
+function resolveTarget(target) {
+  const nodes = document.querySelectorAll(`[data-tour="${target}"]`);
+  for (const el of nodes) {
+    const r = el.getBoundingClientRect();
+    if (r.width === 0 && r.height === 0) continue;
+    if (r.right <= 0 || r.left >= window.innerWidth) continue;
+    return el;
+  }
+  return null;
+}
 
 export default function PlannerTour({ open, onClose }) {
   const t = useT();
   const { dir } = useI18n();
   const [idx, setIdx] = useState(0);
   const [rect, setRect] = useState(null);
+  const [cardH, setCardH] = useState(0);
+  const cardRef = useRef(null);
 
-  const step = STEPS[idx];
-  const last = idx === STEPS.length - 1;
+  // Only steps whose target exists for this role/layout. Computed once per
+  // opening — the rail doesn't change shape mid-tour, so re-deriving on
+  // every render would be wasted work.
+  const steps = useMemo(() => {
+    if (!open) return STEPS;
+    const live = STEPS.filter((s) => resolveTarget(s.target));
+    return live.length ? live : STEPS;
+  }, [open]);
 
-  const finish = () => {
+  const total = steps.length;
+  const step = steps[Math.min(idx, total - 1)];
+  const last = idx >= total - 1;
+
+  const finish = useCallback(() => {
     markPlannerTourSeen();
     onClose?.();
-  };
+  }, [onClose]);
 
-  useEffect(() => { if (open) setIdx(0); }, [open]);
+  useEffect(() => {
+    if (open) setIdx(0);
+  }, [open]);
 
-  // Measure the current target. Recompute on resize/scroll and whenever
-  // the step changes. A small delay lets the target scroll into view
-  // first. On phones (no visible sidebar) the target has no box → null,
-  // which triggers the centered fallback.
+  // Bring the target into view inside its own scroll container, then
+  // measure it. Without the scroll the nav items below the fold report a
+  // clipped box and the spotlight lands on the wrong element.
   useLayoutEffect(() => {
-    if (!open) return;
+    if (!open || !step) return undefined;
+    let raf = 0;
+
     const measure = () => {
-      const el = document.querySelector(step.selector);
+      const el = resolveTarget(step.target);
       if (!el) { setRect(null); return; }
       const r = el.getBoundingClientRect();
-      if (r.width === 0 && r.height === 0) { setRect(null); return; }
-      // The sidebar drawer is off-canvas below md; treat off-screen
-      // targets as "not visible" so we don't point at nothing.
-      if (r.right < 0 || r.left > window.innerWidth) { setRect(null); return; }
       setRect({ left: r.left, top: r.top, width: r.width, height: r.height });
     };
-    measure();
+
+    const el = resolveTarget(step.target);
+    if (el) {
+      // "nearest" scrolls only if it actually needs to, so steps already
+      // visible don't jump. Instant: we measure on the next frame.
+      el.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "instant" });
+    }
+    raf = requestAnimationFrame(measure);
+
     window.addEventListener("resize", measure);
     window.addEventListener("scroll", measure, true);
     return () => {
+      cancelAnimationFrame(raf);
       window.removeEventListener("resize", measure);
       window.removeEventListener("scroll", measure, true);
     };
-  }, [open, idx, step.selector]);
+  }, [open, idx, step]);
+
+  // Measure the card so the vertical clamp uses its real height. The old
+  // hardcoded 240px let the final card run off the bottom of the screen
+  // with its Next button unreachable.
+  useLayoutEffect(() => {
+    if (!open || !rect) return;
+    const h = cardRef.current?.offsetHeight || 0;
+    if (h && h !== cardH) setCardH(h);
+  }, [open, rect, idx, cardH]);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) return undefined;
     const onKey = (e) => {
       if (e.key === "Escape") finish();
       else if (e.key === "Enter" || e.key === "ArrowRight") (last ? finish() : setIdx((i) => i + 1));
@@ -90,28 +214,32 @@ export default function PlannerTour({ open, onClose }) {
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, last]);
+  }, [open, last, finish]);
 
-  if (!open) return null;
+  if (!open || !step) return null;
   const Icon = step.icon;
 
-  // Card position: float to the right of the spotlit element when there's
-  // room, otherwise to its left; clamp vertically into the viewport.
+  // Float beside the spotlit element: trailing side when there's room,
+  // otherwise leading side. Vertical position is clamped against the
+  // measured card height so the footer buttons are always reachable.
   let cardStyle;
   if (rect) {
-    let left = rect.left + rect.width + 16;
-    if (left + CARD_W > window.innerWidth - 12) {
-      left = Math.max(12, rect.left - CARD_W - 16);
+    let left = rect.left + rect.width + GAP;
+    if (left + CARD_W > window.innerWidth - MARGIN) {
+      left = rect.left - CARD_W - GAP;
     }
+    left = Math.max(MARGIN, Math.min(left, window.innerWidth - CARD_W - MARGIN));
+
+    const h = cardH || 260;
     let top = rect.top - 8;
-    top = Math.min(top, window.innerHeight - 240);
-    top = Math.max(12, top);
+    top = Math.min(top, window.innerHeight - h - MARGIN);
+    top = Math.max(MARGIN, top);
     cardStyle = { position: "fixed", left, top, width: CARD_W };
   }
 
   const Card = (
     <div
+      ref={cardRef}
       className="studio-menu-rise bg-paper-cool rounded-2xl shadow-2xl border border-line overflow-hidden"
       style={cardStyle}
     >
@@ -129,7 +257,10 @@ export default function PlannerTour({ open, onClose }) {
           <Icon size={20} strokeWidth={2} />
         </span>
         <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-1.5">
-          {t("tour.stepOf", { n: step.eyebrow, total: String(STEPS.length).padStart(2, "0") })}
+          {t("tour.stepOf", {
+            n: String(idx + 1).padStart(2, "0"),
+            total: String(total).padStart(2, "0"),
+          })}
         </p>
         <h3 className="font-serif text-xl font-medium text-ink leading-tight mb-2">
           {t(`tour.${step.id}.title`)}
@@ -140,15 +271,19 @@ export default function PlannerTour({ open, onClose }) {
       </div>
 
       <div className="px-6 py-3.5 border-t border-line bg-paper flex items-center justify-between gap-2">
-        <div className="flex items-center gap-1.5">
-          {STEPS.map((_, i) => (
+        {/* Dots stay a fixed size regardless of step count so ten steps
+            don't push the buttons out of the card. */}
+        <div className="flex items-center gap-1 min-w-0 flex-shrink">
+          {steps.map((_, i) => (
             <span
               key={i}
-              className={`h-1.5 rounded-full transition-all ${i === idx ? "w-5 bg-accent" : "w-1.5 bg-line"}`}
+              className={`h-1.5 rounded-full transition-all flex-shrink-0 ${
+                i === idx ? "w-4 bg-accent" : "w-1.5 bg-line"
+              }`}
             />
           ))}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-shrink-0">
           <button
             type="button"
             onClick={finish}
@@ -173,9 +308,9 @@ export default function PlannerTour({ open, onClose }) {
     <div className="fixed inset-0 z-[300]" role="dialog" aria-modal="true" dir={dir}>
       {rect ? (
         <>
-          {/* Click-catcher: backdrop dimming is done by the highlight's
-              giant box-shadow, so this layer is transparent and only
-              swallows clicks outside the spotlight. */}
+          {/* Click-catcher: the dimming is done by the highlight's giant
+              box-shadow, so this layer is transparent and only swallows
+              clicks outside the spotlight. */}
           <div className="absolute inset-0" onClick={finish} />
           {/* The spotlight — a transparent box with a 9999px shadow that
               dims everything except the cut-out, plus an accent ring. */}

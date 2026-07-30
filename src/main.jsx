@@ -8,6 +8,7 @@ import { useRoute, navigate, clearRoute } from "./lib/route.js";
 import { LanguageProvider } from "./lib/i18n.jsx";
 import AccessibilityWidget from "./views/AccessibilityWidget.jsx";
 import { getPortalFromPath } from "./lib/portal.js";
+import ErrorBoundary from "./components/ErrorBoundary.jsx";
 
 // Top-level surface decided entirely by URL pathname (no `#` anywhere):
 //   "/"                                → landing page
@@ -47,11 +48,19 @@ function Root() {
   // Portal takes precedence: if pathname is a portal path, render the
   // portal sign-in screen. exitPortalToStudio() replaces the pathname
   // to /dashboard, which falls through to studio rendering below.
+  // One boundary per surface, not one around all three. A throw in the
+  // studio must not be able to blank the marketing site (or vice versa),
+  // and the a11y widget is deliberately outside the surface boundary so
+  // zoom/contrast keep working on top of an error screen.
   if (portal) {
     return (
       <>
-        <PortalSignIn portal={portal} />
-        <AccessibilityWidget />
+        <ErrorBoundary name="portal">
+          <PortalSignIn portal={portal} />
+        </ErrorBoundary>
+        <ErrorBoundary name="a11y" variant="silent">
+          <AccessibilityWidget />
+        </ErrorBoundary>
       </>
     );
   }
@@ -59,11 +68,17 @@ function Root() {
   return (
     <>
       {inStudio ? (
-        <StudioApp onClose={() => clearRoute()} />
+        <ErrorBoundary name="studio">
+          <StudioApp onClose={() => clearRoute()} />
+        </ErrorBoundary>
       ) : (
-        <Landing onOpenStudio={() => navigate(["planner"])} />
+        <ErrorBoundary name="landing">
+          <Landing onOpenStudio={() => navigate(["planner"])} />
+        </ErrorBoundary>
       )}
-      <AccessibilityWidget />
+      <ErrorBoundary name="a11y" variant="silent">
+        <AccessibilityWidget />
+      </ErrorBoundary>
     </>
   );
 }
