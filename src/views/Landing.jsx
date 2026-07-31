@@ -10,6 +10,7 @@ import {
 import "../landing.css";
 import { useT, useI18n, LangToggle } from "../lib/i18n";
 import { setRole as setLocalRole } from "../lib/role";
+import { getAuthModeFromPath, takeReturnTo, peekReturnTo } from "../lib/route";
 import {
   useAccount, setAccount, clearAccount,
   getPendingProfile, clearPendingProfile,
@@ -5532,9 +5533,22 @@ function validatePassword(password, { isSignin = false } = {}) {
   return null;
 }
 
+// What a teacher sees when sign-in fails for a reason they cannot influence.
+// Deliberately identical for every configuration fault: the distinction between
+// "the provider isn't enabled" and "this domain isn't authorised" matters to us
+// and to nobody else, and spelling it out tells an attacker how we are set up.
+const CONFIG_FAULT =
+  "Sign-in isn't available right now. This is on our side, not yours — please try again shortly.";
+const GENERIC_FAULT =
+  "Something went wrong signing in. Please try again, and contact support if it keeps happening.";
+
 function AuthPage({ onSignUp, onPage, mode = "signup", onEnterStudio }) {
   const t = useT();
   const isSignin = mode === "signin";
+  // Someone who clicked a bookmark into the app and got bounced here deserves
+  // to know why, and that they will be taken back (F20). Peeked, not consumed —
+  // the destination is spent on the way in, not on the way to this banner.
+  const [returnTo] = useState(() => peekReturnTo());
 
   // Silent session restore on AuthPage mount. If Firebase still has a
   // valid token (auto-persisted ~1 year), the user is already authed
@@ -5741,6 +5755,13 @@ function AuthPage({ onSignUp, onPage, mode = "signup", onEnterStudio }) {
       const providerLabel = provider === "google" ? "Google" : "Microsoft";
 
       const code = e?.code || "";
+      // The popup was blocked and firebaseAuth handed off to a full-page
+      // redirect. The tab is navigating away right now — an error here would
+      // flash red for a moment and then vanish, which is worse than nothing.
+      if (code === "murchid/redirecting") {
+        setAuthError(null);
+        return;
+      }
       if (code === "auth/cancelled-popup-request") {
         // Two clicks too fast — Firebase noise, keep silent.
       } else if (code === "auth/popup-blocked") {
@@ -5761,18 +5782,28 @@ function AuthPage({ onSignUp, onPage, mode = "signup", onEnterStudio }) {
         }
       } else {
         const friendly = {
-          "auth/operation-not-allowed":
-            `${providerLabel} sign-in isn't enabled on this project yet.`,
-          "auth/unauthorized-domain":
-            "This domain isn't authorised for sign-in. Add it under Authentication → Settings → Authorised domains.",
           "auth/account-exists-with-different-credential":
-            `An account with this email already exists, signed up with the other provider. Try the other button.`,
+            "You already have an account with this email, created using the other sign-in button. Try that one.",
           "auth/network-request-failed":
-            "Network error during sign-in. Check your connection and try again.",
-          "auth/invalid-credential":
-            `${providerLabel} rejected the credential. Try again, and if it persists check the provider settings on the server.`,
+            "We couldn't reach the sign-in service. Check your connection and try again.",
+          "auth/too-many-requests":
+            "Too many attempts. Wait a minute and try again.",
+          "auth/user-disabled":
+            "This account has been disabled. Contact your school administrator.",
+          // The next three are configuration faults on our side. A teacher can
+          // do nothing about any of them, so they all say the same thing and
+          // the specific code goes to the console for us.
+          "auth/operation-not-allowed": CONFIG_FAULT,
+          "auth/unauthorized-domain": CONFIG_FAULT,
+          "auth/invalid-credential": CONFIG_FAULT,
         }[code];
-        setAuthError(friendly || (e?.message || String(e)));
+        // Never surface the SDK's own string. "Firebase: Error
+        // (auth/configuration-not-found)." is not something a teacher can act
+        // on, and it leaks which service we use and how it is configured.
+        // The raw error still goes to the console, where it is useful.
+        // eslint-disable-next-line no-console
+        console.error(`[auth/${provider}]`, code || e, e);
+        setAuthError(friendly || GENERIC_FAULT);
       }
       setSigningIn(false);
     }
@@ -6400,7 +6431,20 @@ function AuthPage({ onSignUp, onPage, mode = "signup", onEnterStudio }) {
           </div>
         )}
 
-        {authError && emailMode !== "sent" && emailMode !== "reset-sent" && (
+        {returnTo && (
+        <p
+          className="max-w-sm mx-auto mb-5 rounded-xl border px-4 py-3 text-sm text-center"
+          style={{
+            color: "var(--ink-2)",
+            borderColor: "var(--ink-1, rgba(15,20,16,0.12))",
+            background: "var(--paper-warm, rgba(255,253,246,0.6))",
+          }}
+        >
+          {t("lp.auth.returnNotice")}
+        </p>
+      )}
+
+      {authError && emailMode !== "sent" && emailMode !== "reset-sent" && (
           <p role="alert" className="text-xs text-center" style={{ color: "var(--clay, #b3442b)" }}>
             {authError}
           </p>
@@ -6887,7 +6931,11 @@ function MarketingPage({ page, onSignUp, onProfileDone, onChoosePlan, onPage, on
 // LANDING (exported)
 // =====================================================================
 export default function Landing({ onOpenStudio }) {
-  const [page, setPage] = useState("home");
+  // The auth screens are URLs now (F19), so the page state is seeded from the
+  // pathname rather than always starting at "home". A teacher can be linked
+  // straight to /signup, refreshing keeps their place, and the back button
+  // behaves.
+  const [page, setPage] = useState(() => getAuthModeFromPath() || "home");
   // Mock auth: an account exists only once a provider was picked AND a
   // plan chosen. Signed-in visitors skip the funnel entirely.
   const account = useAccount();
@@ -6901,8 +6949,23 @@ export default function Landing({ onOpenStudio }) {
 
   const goPage = (p) => {
     setPage(p);
+    // Keep the URL honest for the two screens that have one. Everything else on
+    // the marketing site is a section of the same page, so it keeps "/".
+    const path = p === "signin" ? "/signin" : p === "signup" ? "/signup" : "/";
+    const leavingAuth = page === "signin" || page === "signup";
+    if ((p === "signin" || p === "signup" || leavingAuth) && window.location.pathname !== path) {
+      window.history.pushState({}, "", path);
+    }
     window.scrollTo(0, 0);
   };
+
+  // Back/forward between /signin, /signup and "/" must move the page state too,
+  // or the URL and the screen drift apart.
+  useEffect(() => {
+    const sync = () => setPage(getAuthModeFromPath() || "home");
+    window.addEventListener("popstate", sync);
+    return () => window.removeEventListener("popstate", sync);
+  }, []);
 
   // Email link sign-in completion. If the user lands on the site from
   // a magic link in their inbox (URL has Firebase's ?apiKey=…&oobCode=…

@@ -154,6 +154,18 @@ Verified in the browser along the path that used to fail:
 | Email route while unticked | blocked |
 | Create-account button | disabled |
 
+### F18/F19/F20/F23 — funnel fixes, Day 5 detail 🔧 Fixed 2026-07-31
+
+**F23 — popup-blocked no longer fails silently.** `firebaseAuth.js` now tries the popup and falls back to `signInWithRedirect` when the browser refuses it (`auth/popup-blocked`, `auth/operation-not-supported-in-this-environment`, `auth/web-storage-unsupported` — the last covers in-app browsers like Teams). Redirect is the fallback, not the default: it unloads the page and loses any half-filled form, so it is only worth it when the popup cannot work at all. The caller gets a `murchid/redirecting` code and shows nothing rather than an error, because the tab is about to navigate away.
+
+**F18 — no SDK strings reach a teacher.** The fallback used to be `e?.message`, which produced `Firebase: Error (auth/configuration-not-found).` on screen. It is now a generic sentence, with the raw error going to the console where it is useful. The three configuration faults (`operation-not-allowed`, `unauthorized-domain`, `invalid-credential`) deliberately share one message: the distinction matters to us and to nobody else, and spelling it out tells an attacker how the project is configured.
+
+**F19 — `/signin` and `/signup` are real URLs.** Added to `route.js` as marketing paths so `parsePath()` returns null for them, exactly like the portals — otherwise `main.jsx` would read `/signin` as a studio section and render the app shell to a signed-out visitor. The landing seeds its page state from the pathname and pushes history on switch, with a `popstate` listener so back/forward move the screen too. Verified: `/signup` renders sign-up, switching moves the URL to `/signin`, back returns to `/signup`.
+
+**F20 — a bounced deep link explains itself and comes back.** A signed-out visit to a studio URL now stores the intended path, replaces the URL with `/signin` and shows *"Sign in to continue — we'll take you straight back to where you were."* (EN + AR). After sign-in the stored path is consumed and the teacher lands where they meant to.
+
+The stored path is a **security-relevant value**, because something later navigates to it. Both `rememberReturnTo` and `takeReturnTo` accept same-origin paths only — a value must start with `/` and must not start with `//`. Without that, sign-in becomes an open redirect. Verified with real page loads: `//evil.example`, `https://evil.example/x`, `http://evil.example` and `javascript:alert(1)` are all refused. It also lives in `sessionStorage`, not `localStorage`, so it is scoped to the tab and cannot be a stale intent from last week.
+
 ### F17 — Legal consent text is not translated into Arabic ✅ Observed — 🔧 Fixed Day 5
 Fixed 2026-07-31. The consent sentence is now six i18n keys rather than hardcoded English, because two of its words are clickable links inside the sentence and Arabic word order differs from English — a single string with placeholders would have to be parsed at render time.
 
@@ -168,7 +180,7 @@ With the site switched to Arabic, the whole page localises correctly — except 
 
 **Impact:** an Arabic-speaking teacher is asked to consent to data processing in a language the rest of the page has just demonstrated it can translate. Compounds F16 — pre-ticked *and* not in the user's language.
 
-### F18 — Raw provider errors are shown to users ✅ Observed
+### F18 — Raw provider errors are shown to users ✅ Observed — 🔧 Fixed Day 5
 Clicking "Continue with Google" surfaced this directly in the UI:
 ```
 Firebase: Error (auth/configuration-not-found).
@@ -177,12 +189,12 @@ That is the SDK's internal error string. A teacher cannot act on it. (Root cause
 
 **Fix:** map provider error codes to human sentences, with a generic fallback.
 
-### F19 — Auth screens are not routable ✅ Observed
+### F19 — Auth screens are not routable ✅ Observed — 🔧 Fixed Day 5
 Sign-in and sign-up render as state inside the landing page — the URL stays `http://localhost:5173/` throughout.
 
 **Impact:** you can't link anyone straight to sign-up, marketing can't measure funnel steps, refreshing loses your place, and the back button behaves unexpectedly.
 
-### F20 — Deep links bounce to marketing with no explanation ✅ Observed
+### F20 — Deep links bounce to marketing with no explanation ✅ Observed — 🔧 Fixed Day 5
 Visiting `/planner` while signed out silently redirects to the landing page. Correct security behaviour, but no message.
 
 **Impact:** a teacher clicking a bookmark lands on the marketing site with no idea why. Should show "please sign in to continue" and return them to the page they wanted afterwards.
@@ -216,7 +228,7 @@ The above error occurred in the <FileText> component:
 >
 > **🔧 Contained 2026-07-28 (day 1).** `src/components/ErrorBoundary.jsx` added and wired at three depths: per surface (`main.jsx` — landing / studio / portal isolated from each other), per route (`App.jsx`, auto-clearing on navigation), and around `Showreel` itself (`LandingHome.jsx`, reset on `lang`). Verified by forcing `Showreel` to throw: the landing page stayed up, pricing and testimonials kept rendering, and only the film panel was replaced by a recoverable card — in EN and in Arabic RTL. The underlying race is still unfixed and still unreproduced; it can no longer take the page down. The test throw was reverted and `Showreel.jsx` confirmed byte-identical to HEAD.
 
-### F23 — 🔴 Sign-in fails silently ✅ Observed
+### F23 — 🔴 Sign-in fails silently ✅ Observed — 🔧 Fixed Day 5
 Clicking "Continue with Google" with the popup blocked produces **no message, no console error, nothing** — the button flickers to "Opening sign-in…" and stops. We only diagnosed it by inspecting Firebase and response headers.
 
 **Impact:** worse than a visible failure — it fails invisibly at the very top of the funnel, and wouldn't even appear as a failed signup in analytics. School-managed laptops routinely block popups.

@@ -48,7 +48,7 @@ const MoeDashboard = lazyRoute(() => import("./views/MoeDashboard"));
 const DevConsole = lazyRoute(() => import("./views/DevConsole"));
 import { getRole, onRoleChange, ROLE_LABELS } from "./lib/role";
 import { api } from "./views/_shared";
-import { useRoute, navigate, replace, clearRoute } from "./lib/route";
+import { useRoute, navigate, replace, clearRoute, rememberReturnTo } from "./lib/route";
 import { useT } from "./lib/i18n";
 import { useAccount, clearAccount, updateProfile } from "./lib/account";
 import AccountMenu from "./views/AccountMenu";
@@ -211,8 +211,16 @@ export default function StudioApp({ onClose }) {
           // on the URL, so clearing the account isn't enough; we must also
           // reset the route to "/" so the landing page renders instead of
           // the studio. (Security: never show the studio shell unauthed.)
+          // Remember where they were trying to go before we clear the route,
+          // so signing in returns them there instead of dumping them on the
+          // marketing page with no explanation (F20).
+          rememberReturnTo(window.location.pathname + window.location.search);
           if (account) clearAccount();
           clearRoute();
+          // Land on the sign-in screen rather than the marketing home: they
+          // asked for a page inside the app, so the next step is obvious.
+          window.history.replaceState({}, "", "/signin");
+          window.dispatchEvent(new PopStateEvent("popstate"));
           return;
         }
         try {

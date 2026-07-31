@@ -47,6 +47,52 @@ const PORTAL_PATHS = new Set([
   "/moe", "/moe/",
 ]);
 
+// Sign-in and sign-up are real URLs, not state hidden inside the landing page.
+// They belong to the marketing surface, so parsePath() must return null for
+// them exactly as it does for portals — otherwise main.jsx would read "/signin"
+// as a studio section and render the app shell to a signed-out visitor.
+const AUTH_PATHS = new Map([
+  ["/signin", "signin"], ["/signin/", "signin"],
+  ["/signup", "signup"], ["/signup/", "signup"],
+]);
+
+/** "signin" | "signup" for those two paths, null everywhere else. */
+export const getAuthModeFromPath = (pathname) =>
+  AUTH_PATHS.get(pathname ?? (typeof window === "undefined" ? "" : window.location.pathname)) || null;
+
+// Where to send someone after they sign in. Set when a signed-out visitor is
+// bounced off a studio URL, read once on the way back. sessionStorage rather
+// than localStorage: it is scoped to this tab and dies with it, so a stale
+// intent from last week cannot hijack a later sign-in.
+const RETURN_KEY = "murchid.auth.returnTo";
+
+export const rememberReturnTo = (path) => {
+  try {
+    // Only ever a same-origin path. Storing a full URL here would turn this
+    // into an open-redirect: anything that later navigates to the stored value
+    // would happily send the user to another site after sign-in.
+    if (typeof path === "string" && path.startsWith("/") && !path.startsWith("//")) {
+      sessionStorage.setItem(RETURN_KEY, path);
+    }
+  } catch { /* private mode — we lose the return path, not the sign-in */ }
+};
+
+/** Read the pending destination WITHOUT consuming it — for showing a notice. */
+export const peekReturnTo = () => {
+  try {
+    const v = sessionStorage.getItem(RETURN_KEY);
+    return v && v.startsWith("/") && !v.startsWith("//") ? v : null;
+  } catch { return null; }
+};
+
+export const takeReturnTo = () => {
+  try {
+    const v = sessionStorage.getItem(RETURN_KEY);
+    sessionStorage.removeItem(RETURN_KEY);
+    return v && v.startsWith("/") && !v.startsWith("//") ? v : null;
+  } catch { return null; }
+};
+
 // One-time migration: old bookmarks pointing at `/#/foo/bar` get
 // rewritten in-place to `/foo/bar` so the rest of the app sees a
 // clean pathname. Runs once on module import. Browser back-button
@@ -94,6 +140,7 @@ export const parsePath = (pathname) => {
     : pathname;
   if (norm === "" || norm === "/") return null;
   if (PORTAL_PATHS.has(norm) || PORTAL_PATHS.has(norm + "/")) return null;
+  if (AUTH_PATHS.has(norm) || AUTH_PATHS.has(norm + "/")) return null;
 
   // Strip the leading "/" and split.
   const parts = norm.replace(/^\//, "").split("/").filter(Boolean);

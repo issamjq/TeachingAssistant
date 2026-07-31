@@ -1,7 +1,7 @@
 import React, { useEffect, useState, Suspense } from "react";
 import { createRoot } from "react-dom/client";
 import "./index.css";
-import { useRoute, navigate, clearRoute } from "./lib/route.js";
+import { useRoute, navigate, clearRoute, takeReturnTo } from "./lib/route.js";
 import { LanguageProvider } from "./lib/i18n.jsx";
 import AccessibilityWidget from "./views/AccessibilityWidget.jsx";
 import { getPortalFromPath } from "./lib/portal.js";
@@ -91,7 +91,13 @@ function Root() {
       ) : (
         <ErrorBoundary name="landing">
           <Suspense fallback={<BrandLoader />}>
-            <Landing onOpenStudio={() => navigate(["planner"])} />
+            <Landing onOpenStudio={() => {
+              // A signed-out visitor who was bounced off a studio URL gets
+              // taken back to it; everyone else lands on the planner.
+              const back = takeReturnTo();
+              if (back && back !== "/") window.location.assign(back);
+              else navigate(["planner"]);
+            }} />
           </Suspense>
         </ErrorBoundary>
       )}

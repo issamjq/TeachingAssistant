@@ -6,21 +6,82 @@
 // still valid (~1 hour), or auto-refreshes if it isn't. The api()
 // helper uses this on every request — no manual refresh logic needed.
 import {
-  signInWithPopup, signOut as fbSignOut,
-  onAuthStateChanged, GoogleAuthProvider,
+  signInWithPopup, signInWithRedirect, getRedirectResult, signOut as fbSignOut,
+  onAuthStateChanged,
   sendSignInLinkToEmail, isSignInWithEmailLink, signInWithEmailLink,
   createUserWithEmailAndPassword, signInWithEmailAndPassword,
   sendPasswordResetEmail,
 } from "firebase/auth";
 import { auth, googleProvider, microsoftProvider } from "./firebase";
 
+// Popup first, redirect as the fallback.
+//
+// School-managed laptops routinely block popups, and when they do, the popup
+// flow fails in the worst possible way: no message, no console error, the
+// button just stops (F23). Redirect always works — it navigates the whole tab
+// to the provider and back — but it is the worse default: the page unloads, any
+// half-filled form is lost, and the return trip has to be picked up on mount.
+//
+// So: try the popup, and only if the browser refuses it, hand off to redirect.
+// The caller sees a thrown REDIRECTING sentinel rather than a user, which tells
+// it to stop and show "taking you to Google…" instead of an error — the tab is
+// about to navigate away.
+export const REDIRECTING = Symbol.for("murchid.auth.redirecting");
+
+const POPUP_UNAVAILABLE = new Set([
+  "auth/popup-blocked",
+  "auth/operation-not-supported-in-this-environment",
+  // Some in-app browsers (Teams, embedded webviews) report this instead.
+  "auth/web-storage-unsupported",
+]);
+
+async function popupThenRedirect(provider) {
+  try {
+    const result = await signInWithPopup(auth, provider);
+    return result.user;
+  } catch (e) {
+    if (!POPUP_UNAVAILABLE.has(e?.code)) throw e;
+    // Remember where to come back to, since the tab is about to unload.
+    try {
+      sessionStorage.setItem(REDIRECT_RETURN_KEY, window.location.pathname + window.location.search);
+    } catch { /* private mode — we just lose the return path, not the sign-in */ }
+    await signInWithRedirect(auth, provider);
+    const err = new Error("Redirecting to the sign-in provider.");
+    err.code = "murchid/redirecting";
+    err.redirecting = REDIRECTING;
+    throw err;
+  }
+}
+
+const REDIRECT_RETURN_KEY = "murchid.auth.returnTo";
+
+/**
+ * Finish a redirect sign-in, if this page load is the return leg.
+ * Returns { user, returnTo } when it was, null when it wasn't.
+ * Safe to call on every mount — Firebase returns null when there is nothing
+ * pending, and a failure here must not block the page from rendering.
+ */
+export async function completeRedirectSignIn() {
+  try {
+    const result = await getRedirectResult(auth);
+    if (!result?.user) return null;
+    let returnTo = null;
+    try {
+      returnTo = sessionStorage.getItem(REDIRECT_RETURN_KEY);
+      sessionStorage.removeItem(REDIRECT_RETURN_KEY);
+    } catch { /* ignore */ }
+    return { user: result.user, returnTo };
+  } catch {
+    return null;
+  }
+}
+
 export async function signInWithGoogle() {
-  const result = await signInWithPopup(auth, googleProvider);
+  const user = await popupThenRedirect(googleProvider);
   // For analytics / debugging — the credential includes the Google
   // OAuth access token, which we don't currently use but might want
   // later (e.g. read the user's Google Calendar).
-  GoogleAuthProvider.credentialFromResult(result);
-  return result.user; // { uid, email, displayName, photoURL, ... }
+  return user; // { uid, email, displayName, photoURL, ... }
 }
 
 // Microsoft / Outlook sign-in. Identical flow to Google — Firebase
@@ -29,8 +90,7 @@ export async function signInWithGoogle() {
 // provider. The MS access token sits on the result if we ever want to
 // read mailboxes / calendars later; we drop it for now.
 export async function signInWithMicrosoft() {
-  const result = await signInWithPopup(auth, microsoftProvider);
-  return result.user;
+  return popupThenRedirect(microsoftProvider);
 }
 
 export async function signOut() {
