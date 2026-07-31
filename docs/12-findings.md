@@ -427,6 +427,20 @@ Verified: 18-check cross-tenant suite passes (teacher B cannot read, write, reta
 
 **Left open deliberately:** the recorded attendance is not yet read by anything (F50), and `GET /api/grades/summary` has no pagination — bounded per teacher and 3 ms at the scale above, so a watch item rather than a bug.
 
+### F53 — Bulletin board index direction silently disabled itself 📖 Code-read — 🔧 Fixed Day 4
+`announcements_board_idx` was written as `pinned DESC NULLS LAST`, which reads naturally for a boolean that is never null. But `buildOrderSpec()` expands the router's `pinned DESC` to `pinned DESC NULLS FIRST` (Postgres' default for DESC), so the index did not match the sort and the board fell back to a full scan — 1.98 ms and a Seq Scan at 4,000 notes.
+
+Corrected to `NULLS FIRST`: **0.06 ms on the index**, a 33× improvement, and the `?live=true` read dropped from 1.82 ms to 0.16 ms.
+
+Worth recording because this is exactly the trap rule 10 in `CLAUDE.md` warns about, written by the person who wrote the rule. Reading the clause is not enough — only `EXPLAIN` catches it.
+
+### F52 — Studio saves homework and presentations into the drafts table 📖 Code-read — open
+Studio's save has a branch for quiz (its own table) and, as of Day 4, one for activity. Everything else falls through to `/api/drafts`, which is shaped around lesson plans — so a generated **homework** or **presentation** lands under Lesson Plans rather than on the Homework or Presentations screen built for it, even though both tables exist with full CRUD.
+
+Studio's own comment admits it: *"everything else still saves there until per-kind tables exist"* — but the tables do exist. Found 2026-07-31 while wiring the activity kind, because exposing that kind without a save branch would have created the same disconnection.
+
+**Fix:** two more branches following the activity one — map the generated markdown onto each table's fields the way `activityParams` maps onto `activities`.
+
 ### F51 — Dashboard runs six queries on one client inside Promise.all 📖 Code-read — open, scheduled
 [`backend/routes/dashboard.js:35`](../backend/routes/dashboard.js) wraps six queries in `Promise.all` on a **single** `withTenant` client. node-postgres cannot run concurrent queries on one connection, so it serialises them: six sequential Neon round-trips on the app's most-loaded endpoint, wearing the costume of a parallel fetch.
 
@@ -435,6 +449,22 @@ It also warns: `Calling client.query() when the client is already executing a qu
 Observed 2026-07-31 while testing whether attendance reaches the dashboard — the warning fired on every request.
 
 **Fix options:** issue the six queries on separate pooled clients and bind the tenant on each (more connections, genuinely parallel), or accept sequential and `await` them honestly so the code stops claiming to be parallel. Measure first: on Render, co-located with Neon, six sequential round-trips may be cheap enough that clarity wins.
+
+### F32 — Bulletin board was a nav item with nothing behind it ✅ Observed — 🔧 Fixed Day 4
+`bulletin-board` sat in the sidebar with no render branch, falling through to "Coming soon" — while the onboarding tour actively promised it: *"Announcements for your classes — notices, reminders, and anything the whole class needs to see."*
+
+Built rather than removed. It is modelled on the physical thing, because that is what a teacher already knows how to use: notes go up, important ones pin to the top, out-of-date ones come down on their own, and the board belongs to a class.
+
+Two columns exist purely so the student and parent portals drop in without a migration — the same reasoning as `student_grades.published_at` (F30):
+
+- **`published_at`** — a note is written first and put up second. Nothing is visible outside the account until the teacher posts it, so a half-typed reminder never reaches a child's screen. Posting is `POST /api/announcements/post` (bulk, capped at 200), not a settable column.
+- **`audience`** — Students / Parents / Everyone. A physical board is read by whoever walks past; a digital one has to be told.
+
+Plus `starts_on` / `expires_on` so a notice can be scheduled and drop off on its own, `pinned`, `priority`, and six `kind` values compiled into CHECK constraints from `enums.js`.
+
+Built on `crudRouter` deliberately: cursor pagination, the tenant WHERE, the RLS transaction, soft delete and the 30-day trash all come for free and are already tested. A bespoke router would have been a second implementation of five things already right once.
+
+Verified: 16 API checks (draft-by-default, post/unpost, `?live=true` honouring the date window, expiry dropping a note by itself, soft delete → trash → restore), 13 cross-tenant checks (teacher B cannot read, edit, take down, un-post, restore or hard-delete teacher A's note; RLS returns zero for an unscoped read and changes nothing on an unscoped write), and a browser pass writing, posting, pinning and filtering. Plans at 4,000 notes: board page 0.06 ms, `?live=true` 0.16 ms, one class's live board 0.11 ms — all index-backed after F53.
 
 ### F50 — Attendance is recorded and then read by nothing ✅ Observed — open, scheduled
 A teacher can now mark a register (F30), and that data goes nowhere. Verified 2026-07-31 by writing attendance and then reading every surface that could plausibly show it:

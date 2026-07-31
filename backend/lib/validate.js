@@ -11,6 +11,9 @@
 // sends a few extra keys, while still preventing them from reaching
 // the SQL layer.
 import { z } from "zod";
+import {
+  ANNOUNCEMENT_KINDS, ANNOUNCEMENT_PRIORITIES, ANNOUNCEMENT_AUDIENCES,
+} from "../../src/lib/enums.js";
 
 // ── Reusable primitives ────────────────────────────────────────────────
 const safeShortText  = z.string().trim().max(200);
@@ -143,6 +146,43 @@ export const GradePatchSchema = GradeSchema.partial();
 export const GradePublishSchema = z.object({
   ids:       z.array(z.coerce.number().int().positive()).min(1).max(500),
   published: z.boolean(),
+}).strip();
+
+// ── Bulletin board ─────────────────────────────────────────────────────
+// A note on this board can end up in front of a class, and later in front of
+// their parents, so the body is bounded and the enums come from the same
+// enums.js the CHECK constraints are compiled from — a value that passes zod
+// but fails the constraint would be a 500 the teacher can do nothing about.
+// The shape, before the cross-field rule. Kept separate so both the create
+// and the patch schema can reuse it — a refined schema has no .partial().
+const AnnouncementFields = z.object({
+  title:      safeShortText.min(1),
+  body:       z.string().trim().max(4000).optional().nullable(),
+  kind:       z.enum(ANNOUNCEMENT_KINDS).optional(),
+  priority:   z.enum(ANNOUNCEMENT_PRIORITIES).optional(),
+  audience:   z.enum(ANNOUNCEMENT_AUDIENCES).optional(),
+  grade:      safeShortText.optional().nullable(),
+  section:    safeShortText.optional().nullable(),
+  pinned:     z.boolean().optional(),
+  starts_on:  isoDate.optional().nullable(),
+  expires_on: isoDate.optional().nullable(),
+}).strip();
+
+// A take-down date before the put-up date is a slip, and the CHECK constraint
+// would reject it as a 500 the teacher can do nothing about. Catch it here and
+// say which field is wrong.
+const sameWindowRule = (v) => !v.starts_on || !v.expires_on || v.expires_on >= v.starts_on;
+const windowMessage = {
+  message: "The take-down date cannot be before the put-up date.",
+  path: ["expires_on"],
+};
+
+export const AnnouncementSchema = AnnouncementFields.refine(sameWindowRule, windowMessage);
+export const AnnouncementPatchSchema = AnnouncementFields.partial().refine(sameWindowRule, windowMessage);
+
+export const AnnouncementPostSchema = z.object({
+  ids:    z.array(z.coerce.number().int().positive()).min(1).max(200),
+  posted: z.boolean(),
 }).strip();
 
 // ── /api/me ────────────────────────────────────────────────────────────

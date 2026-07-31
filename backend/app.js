@@ -15,6 +15,7 @@ import presentationsRouter from "./routes/presentations.js";
 import activitiesRouter from "./routes/activities.js";
 import notificationsRouter from "./routes/notifications.js";
 import libraryRouter from "./routes/library.js";
+import announcementsRouter from "./routes/announcements.js";
 import dashboardRouter from "./routes/dashboard.js";
 import studioRouter from "./routes/studio.js";
 import imagesRouter from "./routes/images.js";
@@ -158,6 +159,7 @@ export function buildApp() {
   app.use("/api/activities", activitiesRouter);
   app.use("/api/notifications", notificationsRouter);
   app.use("/api/library", libraryRouter);
+  app.use("/api/announcements", announcementsRouter);
   app.use("/api/dashboard", dashboardRouter);
   // Rate limit layer 3 — AI generation gets its own much tighter bucket
   // on top of layer 2. Every call bills real tokens and pins a streaming

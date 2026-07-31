@@ -92,6 +92,24 @@ export const QUIZ_SECTIONS = [
 // School year levels. Used for:
 //   - teachers.grade_levels (TEXT[])  — which grades a teacher covers
 //   - students.grade        (TEXT)    — which grade a student is in
+// ── Bulletin board ─────────────────────────────────────────────────────
+// What a real classroom board actually holds. Kept short on purpose: a board
+// with twenty categories is a filing cabinet, and teachers stop using it.
+//
+// These compile into CHECK constraints in backend/db/init.js, so adding a
+// value here needs `npm run db:init` before a row carrying it will insert.
+export const ANNOUNCEMENT_KINDS = [
+  "Notice", "Reminder", "Event", "Homework", "Achievement", "Resource",
+];
+
+export const ANNOUNCEMENT_PRIORITIES = ["Normal", "Urgent"];
+
+// Who a pinned note is for. A physical board is read by whoever walks past;
+// a digital one has to be told. This is the field the student and parent
+// portals (roadmap days 15-16) will filter on, which is why it exists now
+// rather than being added once those screens are being written.
+export const ANNOUNCEMENT_AUDIENCES = ["Students", "Parents", "Everyone"];
+
 export const GRADE_LEVELS = [
   "KG 1",
   "KG 2",

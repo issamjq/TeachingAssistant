@@ -37,6 +37,7 @@ const Activities = lazyRoute(() => import("./views/Activities"));
 const ActivityBuilder = lazyRoute(() => import("./views/ActivityBuilder"));
 const Reports = lazyRoute(() => import("./views/Reports"));
 const Library = lazyRoute(() => import("./views/Library"));
+const BulletinBoard = lazyRoute(() => import("./views/BulletinBoard"));
 const Studio = lazyRoute(() => import("./views/Studio"));
 const AdminConsole = lazyRoute(() => import("./views/AdminConsole"));
 const AdminDashboard = lazyRoute(() => import("./views/AdminDashboard"));
@@ -437,6 +438,8 @@ export default function StudioApp({ onClose }) {
     mainContent = <Reports />;
   } else if (section === "library") {
     mainContent = <Library />;
+  } else if (section === "bulletin-board") {
+    mainContent = <BulletinBoard />;
   } else if (section === "quizzes") {
     if (sub === "new" || sub === "edit") {
       crumbs = [

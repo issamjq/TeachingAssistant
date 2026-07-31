@@ -55,6 +55,13 @@ const KINDS = [
     sample: "Reading-comprehension homework for Grade 6 English on a short story — students answer 5 questions in writing.",
   },
   {
+    value: "activity",     label: "Activity",   icon: Users,
+    oneliner: "In-class task",
+    menuBlurb: "Pair, group or solo",
+    verb: "Make", inlineLabel: "activity",      suffix: "Tell Murchid the goal.",
+    sample: "A 20-minute group activity for Grade 8 geography on map reading — four stations, students rotate every five minutes.",
+  },
+  {
     value: "presentation", label: "Presentation", icon: Layers,
     oneliner: "Slide-by-slide outline",
     menuBlurb: "Deck for class",
@@ -74,6 +81,13 @@ function kindLabelFor(t, v) {
 // THIS teacher actually generated. Stored per kind, capped at 8, prepended
 // on each successful generation. First-time users see a kind-appropriate
 // seed list (so the row is never empty).
+// First H1/H2 of the generated markdown — where the model puts the artifact's
+// name. Falls back when the output opens with prose instead.
+function titleFromMarkdown(text, fallback) {
+  const line = text.split(/\r?\n/).find((l) => /^#{1,2}\s+/.test(l)) || fallback;
+  return line.replace(/^#+\s*/, "").trim().slice(0, 120) || fallback;
+}
+
 const RECENTS_STORAGE_KEY = (kind) => `murchid:studio:recents:${kind}`;
 const RECENT_SEEDS = {
   lesson_plan:  ["Photosynthesis", "Pythagoras", "Story arc", "Buoyancy"],
@@ -1651,15 +1665,38 @@ export default function Studio({ initialKind } = {}) {
         return;
       }
 
-      // Markdown path (lesson plan, homework, etc.) — keeps the existing
+      // Activity path: activities have their own table and their own screen, so
+      // a generated one belongs there rather than in the drafts pile. The params
+      // panel deliberately carries no grade or section (chip rules), so those
+      // stay null and the teacher sets them in ActivityBuilder.
+      if (result?.kind === "activity") {
+        const text = fullText();
+        if (!text) return;
+        const body = {
+          title: titleFromMarkdown(text, "Untitled activity"),
+          type: activityParams.type || null,
+          subject: activityParams.major || null,
+          duration_minutes: activityParams.duration ? Number(activityParams.duration) : null,
+          scheduled_for: activityParams.scheduled_for || null,
+          instructions: text,
+        };
+        if (savedDraftId) {
+          await api(`/api/activities/${savedDraftId}`, { method: "PATCH", body });
+        } else {
+          const created = await api("/api/activities", { method: "POST", body });
+          setSavedDraftId(created.id);
+        }
+        setIsDirty(false);
+        return;
+      }
+
+      // Markdown path (lesson plan, homework, presentation) — keeps the existing
       // drafts-table behaviour. Drafts table is structured around lesson
       // plans; everything else still saves there until per-kind tables
       // exist.
       const text = fullText();
       if (!text) return;
-      const lines = text.split(/\r?\n/);
-      const titleLine = lines.find((l) => /^#{1,2}\s+/.test(l)) || "Untitled lesson";
-      const name = titleLine.replace(/^#+\s*/, "").trim().slice(0, 120);
+      const name = titleFromMarkdown(text, "Untitled lesson");
       const draft = await api("/api/drafts", {
         method: "POST",
         body: {

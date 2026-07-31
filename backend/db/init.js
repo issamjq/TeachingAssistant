@@ -1,6 +1,6 @@
 import "dotenv/config";
 import pg from "pg";
-import { GRADE_LEVELS, NATIONALITIES } from "../../src/lib/enums.js";
+import { GRADE_LEVELS, NATIONALITIES , ANNOUNCEMENT_KINDS, ANNOUNCEMENT_PRIORITIES, ANNOUNCEMENT_AUDIENCES } from "../../src/lib/enums.js";
 import { UAE_SCHOOLS, EMIRATES, SCHOOL_TYPES, SCHOOL_CURRICULA } from "../../src/lib/schools.js";
 import { ROLES, SUB_ROLES, resolveReservedRole } from "../lib/roles.js";
 
@@ -438,6 +438,62 @@ ALTER TABLE attendance     ADD COLUMN IF NOT EXISTS created_at   TIMESTAMPTZ DEF
 ALTER TABLE attendance     ADD COLUMN IF NOT EXISTS updated_at   TIMESTAMPTZ DEFAULT NOW();
 `;
 
+
+// The class bulletin board.
+//
+// Modelled on the physical thing, because that is what a teacher already knows
+// how to use: notes go up, the important ones get pinned to the top, out-of-date
+// ones come down on their own, and the board belongs to a class rather than to
+// the whole school.
+//
+// Two columns exist purely so the student and parent portals (days 15-16) drop
+// in without a migration:
+//   published_at — NULL is a draft. A note is written now and posted when the
+//                  teacher is ready, so a half-typed reminder never appears on
+//                  a child's screen. Same gate as student_grades.
+//   audience     — a physical board is read by whoever walks past; a digital
+//                  one has to be told whether a note is for the students, the
+//                  parents, or both.
+//
+// grade/section NULL means "every class this teacher takes" — the common case,
+// so it is the default rather than something to configure.
+const SCHEMA_BULLETIN = `
+CREATE TABLE IF NOT EXISTS announcements (
+  id SERIAL PRIMARY KEY,
+  account_id INT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  body TEXT,
+  kind TEXT NOT NULL DEFAULT 'Notice',
+  priority TEXT NOT NULL DEFAULT 'Normal',
+  audience TEXT NOT NULL DEFAULT 'Students',
+  grade TEXT,
+  section TEXT,
+  pinned BOOLEAN NOT NULL DEFAULT FALSE,
+  starts_on DATE,
+  expires_on DATE,
+  published_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  deleted_at TIMESTAMPTZ
+);
+-- The board's own read: this teacher's notes, pinned first, newest next.
+-- Partial on deleted_at so the trash never bloats the index the board uses.
+--
+-- Every direction and NULLS here must match announcements.js's listOrderBy
+-- exactly once buildOrderSpec() has filled in the defaults — "pinned DESC"
+-- becomes "pinned DESC NULLS FIRST". Writing NULLS LAST here (which reads more
+-- naturally for a boolean that is never null) made the index unusable and the
+-- board fell back to a full sort. Caught by EXPLAIN, not by reading.
+DROP INDEX IF EXISTS announcements_board_idx;
+CREATE INDEX IF NOT EXISTS announcements_board_idx ON announcements
+  (account_id, pinned DESC NULLS FIRST, created_at DESC NULLS FIRST, id DESC NULLS FIRST)
+  WHERE deleted_at IS NULL;
+-- What the student/parent portals will ask for: a class's posted, in-date notes.
+CREATE INDEX IF NOT EXISTS announcements_audience_idx ON announcements
+  (account_id, grade, section, expires_on)
+  WHERE deleted_at IS NULL AND published_at IS NOT NULL;
+`;
+
 // Append-only audit log. Every sensitive action (sign-in, sign-up,
 // renew, plan change, role change, school removal, account suspension)
 // inserts a row here. Reads are admin-only via /api/admin/audit (TODO
@@ -553,6 +609,7 @@ const RLS_TENANT_TABLES = [
   "templates", "drafts", "students", "schedule_entries", "quizzes",
   "homework", "attendance", "student_grades", "presentations",
   "activities", "library_resources", "notifications", "uploaded_images",
+  "announcements",
 ];
 
 // Child rows carry no account_id — ownership is inherited through the parent.
@@ -937,6 +994,20 @@ UPDATE students SET nationality = 'Saudi Arabia' WHERE nationality = 'Saudi';
 `;
 
 const CONSTRAINTS = `
+ALTER TABLE announcements DROP CONSTRAINT IF EXISTS announcements_kind_valid;
+ALTER TABLE announcements ADD  CONSTRAINT announcements_kind_valid
+  CHECK (kind = ANY(${sqlArr(ANNOUNCEMENT_KINDS)}));
+ALTER TABLE announcements DROP CONSTRAINT IF EXISTS announcements_priority_valid;
+ALTER TABLE announcements ADD  CONSTRAINT announcements_priority_valid
+  CHECK (priority = ANY(${sqlArr(ANNOUNCEMENT_PRIORITIES)}));
+ALTER TABLE announcements DROP CONSTRAINT IF EXISTS announcements_audience_valid;
+ALTER TABLE announcements ADD  CONSTRAINT announcements_audience_valid
+  CHECK (audience = ANY(${sqlArr(ANNOUNCEMENT_AUDIENCES)}));
+-- A window that ends before it starts is a data-entry slip, not a valid note.
+ALTER TABLE announcements DROP CONSTRAINT IF EXISTS announcements_window_valid;
+ALTER TABLE announcements ADD  CONSTRAINT announcements_window_valid
+  CHECK (starts_on IS NULL OR expires_on IS NULL OR expires_on >= starts_on);
+
 ALTER TABLE accounts DROP CONSTRAINT IF EXISTS teachers_majors_valid;
 ALTER TABLE accounts DROP CONSTRAINT IF EXISTS teachers_grade_levels_valid;
 
@@ -1122,6 +1193,9 @@ export async function runInit() {
 
   console.log("Creating email_verifications table...");
   await pool.query(SCHEMA_EMAIL_VERIFY);
+
+  console.log("Creating the bulletin board...");
+  await pool.query(SCHEMA_BULLETIN);
 
   // After SCHEMA_NEW, which creates attendance + student_grades.
   console.log("Adding student-facing columns to attendance + grades...");
