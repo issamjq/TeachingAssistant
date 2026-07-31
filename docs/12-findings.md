@@ -464,6 +464,8 @@ Plus `starts_on` / `expires_on` so a notice can be scheduled and drop off on its
 
 Built on `crudRouter` deliberately: cursor pagination, the tenant WHERE, the RLS transaction, soft delete and the 30-day trash all come for free and are already tested. A bespoke router would have been a second implementation of five things already right once.
 
+**The board layout is deliberately provisional.** The current screen is a clean card grid — correct, fast and complete, but not the intended design. The product wants an actual board: notes and stickers spread across a surface and pinned the way they are in a classroom, where clicking a note opens it to read. That is a front-end job and waits for the developer joining the team (agreed 2026-07-31). Nothing about the data model, the API or the posting workflow changes when it is redesigned — the grid is a placeholder for the surface, not for the logic.
+
 Verified: 16 API checks (draft-by-default, post/unpost, `?live=true` honouring the date window, expiry dropping a note by itself, soft delete → trash → restore), 13 cross-tenant checks (teacher B cannot read, edit, take down, un-post, restore or hard-delete teacher A's note; RLS returns zero for an unscoped read and changes nothing on an unscoped write), and a browser pass writing, posting, pinning and filtering. Plans at 4,000 notes: board page 0.06 ms, `?live=true` 0.16 ms, one class's live board 0.11 ms — all index-backed after F53.
 
 ### F50 — Attendance is recorded and then read by nothing ✅ Observed — open, scheduled
