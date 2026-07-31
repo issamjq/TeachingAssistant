@@ -527,6 +527,33 @@ Changed to `lg:min-h-full`: the "fills the window" look is kept, but the page ca
 
 Verified at 1660×760: the last cell sits at 829 px, off-screen; the page now scrolls (838 > 760) and scrolling to the bottom brings it fully into view at 751 px. Pure CSS — no measurement, no listener, no performance cost.
 
+### F57 — The Planner tour replayed on every single sign-in ✅ Observed — 🔧 Fixed Day 5 (third attempt)
+Reported after signing out and in more than ten times and still being shown the tour. Two client-side fixes failed before the right one; the failures are the useful part.
+
+**Why it kept coming back.** The record was in localStorage, keyed on the teacher's identity — and that identity was read from the account profile, which arrives asynchronously and differs between sign-in paths.
+
+- *Attempt 1* keyed on `staffId || email || "anon"`. Planner evaluated the gate at mount, before `/api/me` returned, so the CHECK read bucket `"anon"` while the WRITE — seconds later, when Skip was clicked and the profile had arrived — filled `"t-test-01"`. `"anon"` never incremented.
+- *Attempt 2* dropped `"anon"` and keyed on `staffId || email`. Still broken: `Landing.jsx` has **four** `setAccount()` paths and one of them builds the profile without a `staffId`, so the same teacher keyed as `t-test-01` after one sign-in and as their email after another. A fallback chain is not an identity; it is a coin flip.
+
+Both failed the same way, one level apart. Patching the key only moved the race.
+
+**The fix: `accounts.tour_planner_seen_at`.** A timestamp on the account row, read from the same `/api/me` response that carries the identity — so there is nothing to correlate and no race to lose. Written through `POST /api/me/tour-seen`, which is write-once (`COALESCE(tour_planner_seen_at, NOW())`) so a replayed request cannot move it and nothing can un-see it. The route invalidates the account cache, or the next request would still report it unseen.
+
+It also does something no browser-local record can: it follows the teacher to a new device or a cleared browser, which is what "show it once to a new user" actually means.
+
+`sessionStorage` survives for one narrow job — not replaying the tour when the teacher leaves the Planner and returns within one sign-in, before the server write lands.
+
+Verified: a reset browser showed it once; Skip wrote `tour_planner_seen_at` to the account (confirmed in Postgres); then six cycles with **every** browser-local trace wiped each time — the state a real sign-out leaves — and it never returned.
+
+### F58 — Planner could not be scrolled on a full screen ✅ Observed — 🔧 Fixed Day 5
+Reported with a screenshot: on a maximised window the last week of the calendar is cut off and the page will not scroll. On a tablet-sized window it scrolls fine.
+
+The cause was one class. `Planner.jsx`'s root carried `lg:h-full`, which pins the whole screen to the viewport height at the `lg` breakpoint and above — so when the month needed more room than was left, the last row was simply clipped, with nothing able to scroll. Below `lg` the class did not apply, which is exactly why a tablet behaved correctly and a full screen did not.
+
+Changed to `lg:min-h-full`: the "fills the window" look is kept, but the page can grow past it, and App.jsx's `overflow-y-auto` takes over. The calendar frame also gained a floor (`lg:min-h-[34rem]`, replacing `lg:min-h-0`) so a six-week month stays readable rather than compressing.
+
+Verified at 1660×760: the last cell sits at 829 px, off-screen; the page now scrolls (838 > 760) and scrolling to the bottom brings it fully into view at 751 px. Pure CSS — no measurement, no listener, no performance cost.
+
 ### F57 — The Planner tour replayed on every single sign-in ✅ Observed — 🔧 Fixed Day 5
 Reported after signing out and in more than ten times and still being shown the tour, despite an earlier fix. The earlier fix was real; the gate was defeated by something else.
 

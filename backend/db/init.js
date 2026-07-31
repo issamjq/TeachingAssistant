@@ -432,6 +432,20 @@ CREATE INDEX IF NOT EXISTS accounts_keyset_idx ON accounts
 // Existing rows are deliberately left unpublished. They predate the concept,
 // so publishing them would be a guess — and the safe guess is the closed one.
 const SCHEMA_STUDENT_FACING = `
+-- Whether this teacher has been shown the Planner tour.
+--
+-- On the ACCOUNT, not in localStorage. The client-side version keyed on
+-- whichever profile field happened to be present when the Planner mounted —
+-- staffId, or email, or neither — and those arrive asynchronously and differ
+-- between sign-in paths. Every variant produced the same bug: the check read
+-- one bucket, the write filled another, and the tour replayed forever.
+--
+-- A timestamp on the row has no such race. It arrives with the identity it
+-- describes, in the same /api/me response, and it follows the teacher to a new
+-- device or a cleared browser — which is what "show it once to a new user"
+-- actually means.
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS tour_planner_seen_at TIMESTAMPTZ;
+
 ALTER TABLE student_grades ADD COLUMN IF NOT EXISTS published_at TIMESTAMPTZ;
 ALTER TABLE student_grades ADD COLUMN IF NOT EXISTS updated_at   TIMESTAMPTZ DEFAULT NOW();
 ALTER TABLE attendance     ADD COLUMN IF NOT EXISTS created_at   TIMESTAMPTZ DEFAULT NOW();

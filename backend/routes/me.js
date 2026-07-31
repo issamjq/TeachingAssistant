@@ -7,7 +7,7 @@ import { invalidateAccountById } from "../lib/auth.js";
 
 const ME_SELECT = `id, first_name, last_name, email, phone, staff_id, majors, grade_levels,
                    languages, sections, class_map, grade_sections,
-                   nationality, hire_date, bio,
+                   nationality, hire_date, bio, tour_planner_seen_at,
                    created_at, updated_at`;
 
 const ME_FIELDS = [
@@ -70,6 +70,32 @@ router.patch("/", validateBody(ProfilePatchSchema), async (req, res) => {
     res.json(upd.rows[0]);
   } catch (err) {
     handleErr(res, "PATCH /api/me", err);
+  }
+});
+
+// POST /api/me/tour-seen — the teacher finished or skipped the Planner tour.
+//
+// Its own route, not a field on the profile PATCH. This is an event, not
+// something the teacher edits, and COALESCE makes it write-once: the first
+// call stamps it and every later call is a no-op, so a replayed request cannot
+// move the date and nothing can un-see it.
+router.post("/tour-seen", async (req, res) => {
+  try {
+    const cur = await loadCurrentTeacher(req);
+    const r = await pool.query(
+      `UPDATE accounts
+          SET tour_planner_seen_at = COALESCE(tour_planner_seen_at, NOW()),
+              updated_at = NOW()
+        WHERE id = $1
+        RETURNING tour_planner_seen_at`,
+      [cur.id]
+    );
+    // requireAuth() serves the account row from cache; without this the next
+    // request would still report the tour as unseen.
+    await invalidateAccountById(cur.id);
+    res.json({ tour_planner_seen_at: r.rows[0]?.tour_planner_seen_at || null });
+  } catch (err) {
+    handleErr(res, "POST /api/me/tour-seen", err);
   }
 });
 

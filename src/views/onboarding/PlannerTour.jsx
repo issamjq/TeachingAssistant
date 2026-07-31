@@ -30,95 +30,40 @@ import {
   ChevronRight, X,
 } from "lucide-react";
 import { useT, useI18n } from "../../lib/i18n";
-import { getAccount } from "../../lib/account";
 
 // ── Seen-state ─────────────────────────────────────────────────────────
 // The tour is shown ONCE, to a genuinely new teacher. Finishing it or skipping
 // it both end it for good.
 //
-// Two gates, because "don't show it again" means two different things:
+// The record lives on the ACCOUNT ROW (accounts.tour_planner_seen_at), not in
+// localStorage. This is the third design, and the reason is worth keeping.
 //
-//   viewCount  (localStorage, per account) — durable. Once it reaches
-//              MAX_VIEWS the tour never opens again on this browser.
-//   thisSession (sessionStorage) — already shown during this sign-in, so
-//              navigating away from the Planner and back does not replay it.
-//              Clears itself when the tab closes.
+// Both localStorage versions keyed the record on whichever profile field
+// happened to be present when the Planner mounted. Version one fell back to the
+// string "anon" before the account had hydrated. Version two fell back from
+// staffId to email — and Landing.jsx has four setAccount() paths, one of which
+// omits staffId entirely. Both failed identically: the CHECK read one bucket,
+// the WRITE filled another, so the count never rose and the tour replayed on
+// every sign-in. Patching the key only moved the race.
 //
-// Keyed per account: school devices are shared, and one teacher finishing the
-// tour must not silence it for the next person who signs in.
+// A column on the row has no race. It arrives in the same /api/me response as
+// the identity it describes, so there is nothing to correlate. It also follows
+// the teacher to a new device or a cleared browser, which is what "show it once
+// to a new user" actually means and what no browser-local record can do.
 //
-// ── The bug this replaces ────────────────────────────────────────────────
-// accountKey() used to fall back to the literal string "anon" when the account
-// had not hydrated yet. Planner evaluates the gate at mount, and on a fresh
-// sign-in the profile arrives a moment later (App.jsx fetches /api/me
-// asynchronously). So the CHECK ran against bucket "anon" while the MARK — which
-// happens when the teacher clicks Skip or Done, seconds later — ran against
-// their real staff id. "anon" was never incremented, so the count never rose and
-// the tour reappeared on every single sign-in, indefinitely. The stored value
-// {"t-test-01": 2} was the fingerprint: incremented twice, never once consulted.
-//
-// The fix is to have no fallback bucket at all. If we do not yet know who this
-// is, we do not decide — the caller waits for the account and asks again.
-const VIEWS_KEY = "murchid.tour.planner.views";
+// sessionStorage survives for one narrow job: not replaying the tour when the
+// teacher leaves the Planner and comes back inside one sign-in, before the
+// server write has landed.
 const SESSION_KEY = "murchid.tour.planner.session";
-const MAX_VIEWS = 1;
 
-// staffId is the stable per-teacher handle, with email as the fallback for an
-// account cached before the profile step wrote one. Both already live in the
-// same localStorage record, so keying on them exposes nothing new.
-//
-// Returns null — never a placeholder — when neither is available yet.
-const accountKey = () => {
-  try {
-    const p = getAccount()?.profile;
-    const k = p?.staffId || p?.email;
-    return k ? String(k).toLowerCase() : null;
-  } catch {
-    return null;
-  }
+/** Suppress a replay within this sign-in. */
+export const markTourSeenThisSession = (id) => {
+  try { sessionStorage.setItem(`${SESSION_KEY}.${id}`, "1"); } catch { /* ignore */ }
 };
 
-/** Do we know who this teacher is yet? The caller must wait until we do. */
-export const tourIdentityReady = () => accountKey() !== null;
-
-const readViews = () => {
-  try {
-    return JSON.parse(localStorage.getItem(VIEWS_KEY) || "{}") || {};
-  } catch {
-    return {};
-  }
-};
-
-/** Has this account used up its allowance, or already seen it this session? */
-export const shouldShowPlannerTour = () => {
-  const key = accountKey();
-  // No identity yet: refuse to decide rather than guessing. Deciding here is
-  // what produced the bug above.
-  if (!key) return false;
-  try {
-    if (sessionStorage.getItem(`${SESSION_KEY}.${key}`) === "1") return false;
-  } catch {
-    /* private mode — fall through to the durable count */
-  }
-  return (readViews()[key] || 0) < MAX_VIEWS;
-};
-
-/** Record that the tour is done — finished or skipped, both end it. */
-export const markPlannerTourSeen = () => {
-  const key = accountKey();
-  if (!key) return;
-  try {
-    const all = readViews();
-    all[key] = Math.min((all[key] || 0) + 1, MAX_VIEWS);
-    localStorage.setItem(VIEWS_KEY, JSON.stringify(all));
-  } catch {
-    /* ignore */
-  }
-  try {
-    sessionStorage.setItem(`${SESSION_KEY}.${key}`, "1");
-  } catch {
-    /* ignore */
-  }
+export const tourSeenThisSession = (id) => {
+  try { return sessionStorage.getItem(`${SESSION_KEY}.${id}`) === "1"; }
+  catch { return false; }
 };
 
 // ── Steps ──────────────────────────────────────────────────────────────
@@ -180,7 +125,6 @@ export default function PlannerTour({ open, onClose }) {
   const last = idx >= total - 1;
 
   const finish = useCallback(() => {
-    markPlannerTourSeen();
     onClose?.();
   }, [onClose]);
 

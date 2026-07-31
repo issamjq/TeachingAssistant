@@ -19,8 +19,7 @@ import { navigate } from "../lib/route";
 import { useT, useI18n } from "../lib/i18n";
 import { api, apiList } from "./_shared";
 import SchedulePopup from "./_schedule-popup";
-import PlannerTour, { shouldShowPlannerTour, tourIdentityReady } from "./onboarding/PlannerTour";
-import { useAccount } from "../lib/account";
+import PlannerTour, { markTourSeenThisSession, tourSeenThisSession } from "./onboarding/PlannerTour";
 
 // Categories the calendar can show. Each maps to one of the existing
 // teaching surfaces, with a Murchid-palette color so the day cells stay
@@ -82,21 +81,51 @@ export default function Planner() {
   const { lang } = useI18n();
   const locale = lang === "ar" ? "ar" : "en-US";
   // First-run tour. Allowance is per account and capped at two sessions
-  // (see PlannerTour) so an accidental skip gets one more chance and no
   // more. Evaluated once at mount: returning to the Planner later in the
   // same session must not replay it.
-  // Deliberately NOT evaluated at mount. On a fresh sign-in the account
-  // profile is still being fetched, and deciding before it arrives is exactly
-  // what made the tour replay on every sign-in (see PlannerTour). Wait until we
-  // know who this is, then decide once and never revisit it.
+  // Whether this teacher has already seen the tour is a fact about the ACCOUNT,
+  // so it is read from the account — one /api/me call, one value, no correlation
+  // between a stored key and an identity that arrives separately. That
+  // correlation is what broke the two previous localStorage designs; see the
+  // note at the top of PlannerTour.jsx.
+  //
+  // /api/me is served from the short-TTL account cache on the server, so this
+  // costs one round-trip on the teacher's landing screen and nothing after.
   const [tourOpen, setTourOpen] = useState(false);
   const tourDecided = useRef(false);
-  const tourAccount = useAccount();
   useEffect(() => {
-    if (tourDecided.current || !tourIdentityReady()) return;
-    tourDecided.current = true;
-    if (shouldShowPlannerTour()) setTourOpen(true);
-  }, [tourAccount]);
+    if (tourDecided.current) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const me = await api("/api/me");
+        if (cancelled || tourDecided.current) return;
+        tourDecided.current = true;
+        // Already recorded on the server, or already shown earlier in this
+        // sign-in (the write may still be in flight) — either way, don't.
+        if (me?.tour_planner_seen_at || tourSeenThisSession(me?.id)) return;
+        setTourOpen(true);
+      } catch {
+        // If we cannot tell, do not guess. A tour that fails to appear is a
+        // small loss; one that reappears forever is the bug we are fixing.
+        tourDecided.current = true;
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  // Finishing or skipping both close it for good. The session flag goes first
+  // so a fast navigate-away-and-back cannot beat the network call.
+  const closeTour = useCallback(async () => {
+    setTourOpen(false);
+    try {
+      const me = await api("/api/me");
+      markTourSeenThisSession(me?.id);
+    } catch { /* ignore */ }
+    try {
+      await api("/api/me/tour-seen", { method: "POST" });
+    } catch { /* the server write failed; it will be offered once more */ }
+  }, []);
   // The visible month (1st of the displayed month). Today by default.
   const [anchor, setAnchor] = useState(() => {
     const n = new Date();
@@ -503,7 +532,7 @@ export default function Planner() {
         />
       )}
 
-      <PlannerTour open={tourOpen} onClose={() => setTourOpen(false)} />
+      <PlannerTour open={tourOpen} onClose={closeTour} />
     </div>
   );
 }
