@@ -518,6 +518,27 @@ Not fixed by running them on separate clients, which was the obvious idea: every
 
 **Why it matters under load, not just to the eye.** The pool holds 10 connections. A dashboard request used to occupy one for a full second, so roughly ten concurrent teachers would saturate the pool and the eleventh would queue. That is the failure mode Issa was asking about — "if it is like this with no data, what happens with traffic".
 
+### F56 — The Planner screen costs 25 database round-trips ✅ Observed — open, scheduled
+Found 2026-07-31 while sweeping every page for the load problem Issa reported. Measured in the browser, not inferred.
+
+`Planner.jsx` and `TeachingRail.jsx` each fetch the same five lists — schedule, quizzes, homework, presentations, activities — as five separate requests. Every one is a separate `withTenant()` transaction, and each of those costs five round-trips (BEGIN, SET LOCAL ROLE, set_config, the query, COMMIT). Five requests × five round-trips = **25 round-trips for one screen**, and Planner is the teacher's default landing page.
+
+Observed durations on that screen: **1,226–2,116 ms per call**, ten calls in flight at once (five, doubled by React StrictMode in dev).
+
+Three separate things are tangled here, and only two are real:
+
+| | real in production? |
+|---|---|
+| StrictMode firing every effect twice | **no** — dev only |
+| Five requests where one would do | **yes** |
+| Requests continuing after you navigate away | **yes** — nothing aborts on unmount |
+
+The pool holds 10 connections. Ten concurrent requests from *one teacher opening one page* is the whole pool, and because nothing aborts on unmount they keep holding it after she has moved on. On Render a round-trip is 1–2 ms so the wall-clock is ~50 ms rather than 2 s — but the connection-holding is the same, and that is what breaks under concurrency.
+
+**Fix:** one `/api/planner` endpoint returning all five lists in a single query, exactly as the dashboard now does (F51) — 25 round-trips become 5. Plus an `AbortController` in `apiList` so leaving a screen cancels its fetches. Studio already does this for generation; nothing else does.
+
+Not done today: it is a new endpoint plus a change to the shared fetch helper, and the day's work is already large.
+
 ### F55 — withTenant costs four round-trips per request 📖 Code-read — open, watch
 Measured while investigating F51. On this machine a bare query is 97 ms and `withTenant()` + one query is **482 ms** — the difference is `BEGIN`, `SET LOCAL ROLE`, `set_config` and `COMMIT`, four extra round-trips, on **every tenant-scoped request in the app**.
 
