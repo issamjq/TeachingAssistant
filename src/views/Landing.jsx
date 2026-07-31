@@ -6438,19 +6438,18 @@ function AuthPage({ onSignUp, onPage, mode = "signup", onEnterStudio }) {
               className="text-sm leading-relaxed"
               style={{ color: "var(--ink-2)" }}
             >
-              I have read and agree to the{" "}
+              {t("lp.auth.consent.pre")}{" "}
               <button
                 type="button"
                 onClick={(e) => { e.preventDefault(); onPage("terms"); }}
                 className="underline decoration-from-font font-medium hover:text-[color:var(--clay,#b3442b)]"
-              >Terms &amp; Conditions</button>{" "}
-              and the{" "}
+              >{t("lp.auth.consent.tc")}</button>{" "}
+              {t("lp.auth.consent.mid")}{" "}
               <button
                 type="button"
                 onClick={(e) => { e.preventDefault(); onPage("privacy"); }}
                 className="underline decoration-from-font font-medium hover:text-[color:var(--clay,#b3442b)]"
-              >Privacy Policy</button>, including the processing of my data
-              under UAE Federal Decree-Law No. 45 of 2021 (PDPL).
+              >{t("lp.auth.consent.privacy")}</button>{t("lp.auth.consent.post")}
             </span>
           </label>
           {tried && !accepted && (
@@ -6460,7 +6459,7 @@ function AuthPage({ onSignUp, onPage, mode = "signup", onEnterStudio }) {
               className="text-xs mt-2 ps-7"
               style={{ color: "var(--clay, #b3442b)" }}
             >
-              Please confirm you agree to the Terms and Privacy Policy before continuing.
+              {t("lp.auth.consent.error")}
             </p>
           )}
         </div>

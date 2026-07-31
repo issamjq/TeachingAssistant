@@ -154,7 +154,16 @@ Verified in the browser along the path that used to fail:
 | Email route while unticked | blocked |
 | Create-account button | disabled |
 
-### F17 — Legal consent text is not translated into Arabic ✅ Observed
+### F17 — Legal consent text is not translated into Arabic ✅ Observed — 🔧 Fixed Day 5
+Fixed 2026-07-31. The consent sentence is now six i18n keys rather than hardcoded English, because two of its words are clickable links inside the sentence and Arabic word order differs from English — a single string with placeholders would have to be parsed at render time.
+
+`lp.auth.consent.pre / tc / mid / privacy / post / error`, present in both dictionaries. The decree is named as it appears in the official Arabic text. The connective is `وعلى` rather than a bare `و`: the latter is a prefix that attaches to the following word, and the link sits in its own element with a space before it.
+
+**⚠️ This is binding legal text and has NOT had a native-speaker review.** It should get one before launch. The English is unchanged, so nothing has regressed either way.
+
+**Not covered by this fix, and deliberate:** the full Terms and Privacy documents stay English-only, with a banner saying an Arabic version is available on request. That is a legal-drafting decision, not an oversight — but the banner itself is also hardcoded English, so an Arabic reader is told in English that the document is in English. Worth translating that one paragraph.
+
+
 With the site switched to Arabic, the whole page localises correctly — except the consent sentence, which stays in English inside an RTL layout.
 
 **Impact:** an Arabic-speaking teacher is asked to consent to data processing in a language the rest of the page has just demonstrated it can translate. Compounds F16 — pre-ticked *and* not in the user's language.

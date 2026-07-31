@@ -618,6 +618,18 @@ const EN = {
   "lp.auth.haveAccount": "Already have an account?",
   "lp.auth.signinCta": "Sign in",
   "lp.auth.terms": "By continuing you accept our privacy commitments.",
+  // Legal acceptance (sign-up only). Split into five pieces because two of them
+  // are clickable links inside the sentence — a single string with placeholders
+  // would have to be parsed at render time, and the Arabic word order differs
+  // from the English, so the pieces have to be free to sit anywhere.
+  // ⚠️ This is binding legal text. Any edit to the Arabic below needs a native
+  // speaker's review before it ships — see F17 in docs/12-findings.md.
+  "lp.auth.consent.pre": "I have read and agree to the",
+  "lp.auth.consent.tc": "Terms & Conditions",
+  "lp.auth.consent.mid": "and the",
+  "lp.auth.consent.privacy": "Privacy Policy",
+  "lp.auth.consent.post": ", including the processing of my data under UAE Federal Decree-Law No. 45 of 2021 (PDPL).",
+  "lp.auth.consent.error": "Please confirm you agree to the Terms and Privacy Policy before continuing.",
   // onboarding profile wizard (step between Auth and plan picker)
   "onb.identity.title": "Tell us who",
   "onb.identity.titleEm": "you are.",
@@ -1575,6 +1587,17 @@ const AR = {
   "lp.auth.haveAccount": "لديك حساب بالفعل؟",
   "lp.auth.signinCta": "تسجيل الدخول",
   "lp.auth.terms": "بمتابعتك فإنك توافق على التزامات الخصوصية لدينا.",
+  // Legal acceptance (sign-up only) — mirrors the five EN pieces.
+  // The decree is named as it appears in the official Arabic text.
+  "lp.auth.consent.pre": "لقد قرأتُ وأوافق على",
+  "lp.auth.consent.tc": "الشروط والأحكام",
+  // "و" alone is a prefix that attaches to the following word, and the link
+  // sits in its own element with a space before it. "وعلى" is a standalone
+  // word, so the sentence reads correctly with the markup we have.
+  "lp.auth.consent.mid": "وعلى",
+  "lp.auth.consent.privacy": "سياسة الخصوصية",
+  "lp.auth.consent.post": "، بما في ذلك معالجة بياناتي بموجب المرسوم بقانون اتحادي رقم (45) لسنة 2021 في شأن حماية البيانات الشخصية.",
+  "lp.auth.consent.error": "يرجى تأكيد موافقتك على الشروط وسياسة الخصوصية قبل المتابعة.",
   // onboarding profile wizard (step between Auth and plan picker)
   "onb.identity.title": "عرّفنا",
   "onb.identity.titleEm": "بنفسك.",
