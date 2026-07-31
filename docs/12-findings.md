@@ -125,13 +125,34 @@ There is **no Microsoft/Outlook button** on the teacher sign-up screen — but t
 
 **Impact:** a teacher whose school runs on Microsoft reads "Outlook supported", finds no Outlook button, and leaves.
 
-### F16 — Legal consent checkbox is pre-ticked ✅ Observed — compliance risk
+### F16 — Legal consent checkbox is pre-ticked ✅ Observed — 🔧 Fixed Day 5
 On the sign-up screen the box is **already ticked** on arrival:
 > *"I have read and agree to the Terms & Conditions and the Privacy Policy, including the processing of my data under UAE Federal Decree-Law No. 45 of 2021 (PDPL)."*
 
 A pre-ticked box is not valid consent under PDPL-style regimes — consent must be a clear affirmative action. The notice cites the PDPL by name, which makes the defect worse, not better.
 
-**Impact:** the exact clause a school's procurement or legal reviewer will check. **Fix is one line** — default it unticked and keep the submit button disabled until it's ticked.
+**Impact:** the exact clause a school's procurement or legal reviewer will check.
+
+**Fixed 2026-07-31 — and it was not one line, because the cause was not what it looked like.** The state was already declared `useState(isSignin)`, which reads correctly: unticked for sign-up, irrelevant for sign-in. The defect was in how the screen is mounted. `MarketingPage` renders `<AuthPage mode={page}/>` in the same position for both modes, so React reuses the component instead of remounting it — and a `useState` initialiser only runs on mount. A visitor who opened **Sign in first and then switched to Sign up** carried `accepted = true` across, and the box rendered already ticked.
+
+So the fix separates two questions that had been sharing one boolean:
+
+- `accepted` now means only **"this user ticked the box"**, and starts `false` always
+- `consentSatisfied = isSignin || accepted` is what actually gates submission
+
+Plus an effect that clears the tick on every mode change, so arriving at Sign up is always a fresh affirmative act — even for someone who ticked it, bounced to Sign in and came back.
+
+Verified in the browser along the path that used to fail:
+
+| | |
+|---|---|
+| Sign up on arrival | unticked |
+| Sign in | no box at all |
+| Sign in → Sign up | unticked |
+| Tick → Sign in → Sign up | reset to unticked |
+| Provider click while unticked | blocked, error shown, box highlighted |
+| Email route while unticked | blocked |
+| Create-account button | disabled |
 
 ### F17 — Legal consent text is not translated into Arabic ✅ Observed
 With the site switched to Arabic, the whole page localises correctly — except the consent sentence, which stays in English inside an RTL layout.

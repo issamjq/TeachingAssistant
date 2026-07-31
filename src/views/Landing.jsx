@@ -5587,8 +5587,33 @@ function AuthPage({ onSignUp, onPage, mode = "signup", onEnterStudio }) {
   // Sign-in mode skips the checkbox entirely: the user already accepted
   // when they subscribed, and the consent record lives on the account
   // row server-side. Re-asking adds friction with no legal value.
-  const [accepted, setAccepted] = useState(isSignin);
+  //
+  // `accepted` means exactly one thing: THIS USER TICKED THE BOX. It is never
+  // seeded from the mode, which is the bug this replaces — it used to start as
+  // `useState(isSignin)`, and because MarketingPage renders <AuthPage mode={page}/>
+  // in the same position, switching Sign in -> Sign up reuses the component
+  // instead of remounting it. A useState initialiser only runs on mount, so
+  // `accepted` stayed true from the sign-in screen and the consent box rendered
+  // ALREADY TICKED. A pre-ticked box is not consent under the PDPL, and this is
+  // the exact clause a school's legal reviewer checks.
+  //
+  // Whether consent is *required* is a separate question from whether it was
+  // *given*, so it gets its own name below rather than being smuggled into the
+  // same boolean.
+  const [accepted, setAccepted] = useState(false);
   const [tried, setTried] = useState(false);
+
+  // Consent is a sign-up requirement. Sign-in has nothing to satisfy.
+  const consentSatisfied = isSignin || accepted;
+
+  // Same-instance reuse again: switching between the two screens must not carry
+  // a tick across. Every arrival at Sign up starts unticked, even for a user who
+  // ticked it, bounced to Sign in and came back — consent should be an
+  // affirmative act on the form actually being submitted.
+  useEffect(() => {
+    setAccepted(false);
+    setTried(false);
+  }, [mode]);
   // When a teacher taps a provider before ticking the terms box, we draw
   // their eye to it (scroll + pulse) instead of silently doing nothing.
   const termsRef = useRef(null);
@@ -5678,7 +5703,7 @@ function AuthPage({ onSignUp, onPage, mode = "signup", onEnterStudio }) {
   // fired usefully. Removed; the submit-time auth/email-already-in-use
   // error already catches duplicates correctly.)
   const handleProvider = async (provider) => {
-    if (!accepted) {
+    if (!consentSatisfied) {
       setTried(true);
       return;
     }
@@ -5758,7 +5783,7 @@ function AuthPage({ onSignUp, onPage, mode = "signup", onEnterStudio }) {
   // session persists ~1 year so the password rarely gets retyped after
   // the first sign-in on a device.
   const handleEmailPassword = async () => {
-    if (!accepted) { setTried(true); return; }
+    if (!consentSatisfied) { setTried(true); return; }
     // Surface every inline error by marking every field touched, then
     // gate the actual call on validity. Without this, a user who never
     // tabs out of the input doesn't see the inline hint.
@@ -5904,7 +5929,7 @@ function AuthPage({ onSignUp, onPage, mode = "signup", onEnterStudio }) {
   // (legacy magic-link signups) and as a no-password-needed alternative
   // on new devices.
   const handleSendEmailLink = async () => {
-    if (!accepted) { setTried(true); return; }
+    if (!consentSatisfied) { setTried(true); return; }
     const email = emailValue.trim();
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       setAuthError("Please enter a valid email address.");
@@ -5967,7 +5992,7 @@ function AuthPage({ onSignUp, onPage, mode = "signup", onEnterStudio }) {
       narrow
       centered
     >
-      <div className={`space-y-3 max-w-sm mx-auto transition-opacity ${accepted ? "opacity-100" : "opacity-90"}`}>
+      <div className={`space-y-3 max-w-sm mx-auto transition-opacity ${consentSatisfied ? "opacity-100" : "opacity-90"}`}>
         {emailMode === "idle" && (
           <>
             {/* Buttons stay visually active even before the terms box is
@@ -5983,7 +6008,7 @@ function AuthPage({ onSignUp, onPage, mode = "signup", onEnterStudio }) {
             <ProviderButton
               icon={<EmailMark />}
               label={t("lp.auth.email") || "Continue with Email"}
-              onClick={() => { if (!accepted) { setTried(true); return; } setAuthError(null); setEmailMode("entering"); }}
+              onClick={() => { if (!consentSatisfied) { setTried(true); return; } setAuthError(null); setEmailMode("entering"); }}
               disabled={signingIn}
             />
           </>
@@ -6201,7 +6226,7 @@ function AuthPage({ onSignUp, onPage, mode = "signup", onEnterStudio }) {
                 ? (isSignin ? "Signing in…" : "Creating account…")
                 : (isSignin ? "Sign in" : "Create account")}
               onClick={handleEmailPassword}
-              disabled={!accepted || emailSending || !!emailError || !!passwordError || (!isSignin && !!confirmError)}
+              disabled={!consentSatisfied || emailSending || !!emailError || !!passwordError || (!isSignin && !!confirmError)}
             />
             {isSignin && (
               <div className="flex flex-col items-center gap-2 pt-1">
