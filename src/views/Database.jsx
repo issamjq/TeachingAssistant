@@ -7,21 +7,40 @@
 // The "Teaching profile" used to live here as a third tab — moved into
 // Settings → Teaching profile so the Settings page owns all the
 // "about you" data.
-import React from "react";
-import { Users, BarChart3 } from "lucide-react";
+import React, { Suspense, lazy } from "react";
+import { Users, BarChart3, CalendarCheck, GraduationCap } from "lucide-react";
 import { navigate } from "../lib/route";
+import BrandLoader from "../components/BrandLoader";
 import DatabaseStudents from "./DatabaseStudents";
 import DatabaseScores from "./DatabaseScores";
 
+// Attendance and Gradebook are the two heaviest tabs and the two a teacher
+// opens least often, so they load on demand rather than riding along with the
+// roster. Database.jsx is itself already a route-level chunk (App.jsx), so
+// this is a second level of splitting inside it.
+const DatabaseAttendance = lazy(() => import("./DatabaseAttendance"));
+const DatabaseGrades = lazy(() => import("./DatabaseGrades"));
+
 const TABS = [
-  { key: "students", label: "Students", icon: Users, route: ["database", "students"] },
-  { key: "scores",   label: "Scores",   icon: BarChart3, route: ["database", "scores"] },
+  { key: "students",   label: "Students",   icon: Users,          route: ["database", "students"] },
+  { key: "attendance", label: "Attendance", icon: CalendarCheck,  route: ["database", "attendance"] },
+  { key: "grades",     label: "Gradebook",  icon: GraduationCap,  route: ["database", "grades"] },
+  { key: "scores",     label: "Quiz scores", icon: BarChart3,     route: ["database", "scores"] },
 ];
 
+const PANELS = {
+  students:   DatabaseStudents,
+  attendance: DatabaseAttendance,
+  grades:     DatabaseGrades,
+  scores:     DatabaseScores,
+};
+
 export default function Database({ sub }) {
-  // Default tab is Students. Legacy /database/profile URLs (from before
-  // the Teaching-profile move) fall back to Students too.
-  const active = sub === "scores" ? "scores" : "students";
+  // Default tab is Students. Anything unrecognised — including legacy
+  // /database/profile URLs from before the Teaching-profile move — falls back
+  // there rather than rendering nothing.
+  const active = PANELS[sub] ? sub : "students";
+  const Panel = PANELS[active];
 
   return (
     <div>
@@ -56,7 +75,9 @@ export default function Database({ sub }) {
         })}
       </div>
 
-      {active === "students" ? <DatabaseStudents /> : <DatabaseScores />}
+      <Suspense fallback={<BrandLoader compact fullscreen={false} />}>
+        <Panel />
+      </Suspense>
     </div>
   );
 }

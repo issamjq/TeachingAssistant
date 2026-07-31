@@ -104,6 +104,47 @@ export const StudentSchema = z.object({
 // PATCH variant — everything optional.
 export const StudentPatchSchema = StudentSchema.partial();
 
+// ── Attendance + grades ────────────────────────────────────────────────
+// These two carry data ABOUT A CHILD, so the input rules are tighter than
+// elsewhere: every field is bounded, and the free-text ones especially — a
+// note on an absence is the kind of field that ends up in front of a parent.
+//
+// Numbers are coerced rather than required-as-numbers: the forms post JSON
+// numbers today, but a coerced schema means a future caller sending "85"
+// gets a clean 85 instead of a 400 nobody can debug.
+const ATTENDANCE_STATUSES = ["Present", "Absent", "Late", "Excused"];
+
+export const AttendanceUpsertSchema = z.object({
+  student_id: z.coerce.number().int().positive(),
+  date:       isoDate,
+  status:     z.enum(ATTENDANCE_STATUSES),
+  notes:      safeLongText.optional().nullable(),
+}).strip();
+
+// score is NUMERIC in Postgres, so decimals are legitimate (7.5 / 10).
+// max_score is an INT. Both are capped well above any real mark scheme to
+// stop a typo or a hostile client writing an absurd value into a child's
+// record — 10000 allows a 10,000-point scheme and rejects 1e9.
+export const GradeSchema = z.object({
+  student_id: z.coerce.number().int().positive(),
+  subject:    safeShortText.min(1),
+  term:       safeShortText.optional().nullable(),
+  category:   safeShortText.optional().nullable(),
+  score:      z.coerce.number().min(0).max(10000),
+  max_score:  z.coerce.number().int().positive().max(10000).optional(),
+  notes:      safeLongText.optional().nullable(),
+}).strip();
+
+export const GradePatchSchema = GradeSchema.partial();
+
+// Bulk publish/unpublish. Capped at 500 ids: a teacher publishes a term for a
+// class, not a database. The cap is what stops one request turning into an
+// unbounded UPDATE.
+export const GradePublishSchema = z.object({
+  ids:       z.array(z.coerce.number().int().positive()).min(1).max(500),
+  published: z.boolean(),
+}).strip();
+
 // ── /api/me ────────────────────────────────────────────────────────────
 export const ProfilePatchSchema = z.object({
   first_name:    safeShortText.optional(),

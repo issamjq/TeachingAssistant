@@ -412,6 +412,45 @@ Day 1 raised the IP-keyed limiter from 300 to 1000 per 5 min. That was deliberat
 
 Additive only — layers 2 and 3, the usage ledger, and the error boundaries are untouched. → Scheduled with Day 2 scope hardening in [`14-roadmap.md`](14-roadmap.md).
 
+### F30 — Attendance + Gradebook were built but reachable by nobody ✅ Observed — 🔧 Fixed Day 4
+`DatabaseAttendance.jsx` and `DatabaseGrades.jsx` were complete, their routes and tables existed, and `App.jsx` referenced neither. Both are now tabs under **My students**, lazy-loaded. Reports, Schedule and Library are in the sidebar too (F31, F33).
+
+Exercised for the first time on 2026-07-31 — both work. Marked three students present/late/excused and the register persisted; recorded a grade and it reached Reports.
+
+Three things were hardened on the way, because these are the first tables in the product describing a **child** rather than a teacher's own work:
+
+- **`published_at` on `student_grades`.** A grade is a draft until released. Without it the parent portal (day 16) would have shown every mark the instant it was typed — including a mistyped one — or needed a migration plus a re-audit of every read path. NULL is the default, so the gate fails closed. Releasing is a dedicated `POST /api/grades/publish` (bulk, capped at 500), not a settable column, so it cannot be flipped by an ordinary PATCH.
+- **Timestamps.** `attendance` had none at all and `student_grades` recorded creation but not edits. "When was this marked, and was it changed?" has no answer if it was never stored, and it is the first question a parent asks.
+- **zod on both.** `student_grades` accepted unvalidated input — any score, any length of text — through the crud router. Now bounded.
+
+Verified: 18-check cross-tenant suite passes (teacher B cannot read, write, retarget, delete or **publish** teacher A's rows; a mixed-id publish batch moves only the caller's own row), and the RLS backstop returns zero rows for an unscoped query. Plans at 300 students / 19,380 attendance / 3,230 grades: register 0.23 ms, grade list 0.05 ms, drafts filter 0.12 ms, bulk publish of 500 13.5 ms on the pkey index, Reports summary 3.1 ms.
+
+**Left open deliberately:** the recorded attendance is not yet read by anything (F50), and `GET /api/grades/summary` has no pagination — bounded per teacher and 3 ms at the scale above, so a watch item rather than a bug.
+
+### F51 — Dashboard runs six queries on one client inside Promise.all 📖 Code-read — open, scheduled
+[`backend/routes/dashboard.js:35`](../backend/routes/dashboard.js) wraps six queries in `Promise.all` on a **single** `withTenant` client. node-postgres cannot run concurrent queries on one connection, so it serialises them: six sequential Neon round-trips on the app's most-loaded endpoint, wearing the costume of a parallel fetch.
+
+It also warns: `Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0`. So this is both a performance bug today and a breaking change on the next major `pg` upgrade.
+
+Observed 2026-07-31 while testing whether attendance reaches the dashboard — the warning fired on every request.
+
+**Fix options:** issue the six queries on separate pooled clients and bind the tenant on each (more connections, genuinely parallel), or accept sequential and `await` them honestly so the code stops claiming to be parallel. Measure first: on Render, co-located with Neon, six sequential round-trips may be cheap enough that clarity wins.
+
+### F50 — Attendance is recorded and then read by nothing ✅ Observed — open, scheduled
+A teacher can now mark a register (F30), and that data goes nowhere. Verified 2026-07-31 by writing attendance and then reading every surface that could plausibly show it:
+
+| Consumer | Reads attendance? |
+|---|---|
+| Reports | no — averages come from grades, quizzes, homework only |
+| Dashboard | no — `counts` covers students, drafts, templates, quizzes, homework, presentations, activities |
+| Planner / TeachingRail | no — schedule, quizzes, homework, presentations, activities |
+
+Worth recording how this nearly got missed: the first check reported that the dashboard *did* show attendance. It was a false positive — the substring `present` matching **`presentations`** in the counts payload. A grep is not a test.
+
+Contrast with the two that ARE connected, both confirmed with live data: a schedule entry written on the Schedule page appears in Planner, TeachingRail and Dashboard (one `/api/schedule` table behind all four), and a grade written in the Gradebook lands in the Reports average immediately.
+
+**Fix:** attendance rate per student in Reports, beside the grade averages. Day 16's parent portal needs exactly that ("child progress, attendance, homework"), so it is the same work whenever it is done.
+
 ### F49 — A failed route chunk could not be recovered without a reload ✅ Observed — 🔧 Fixed Day 3
 Route-level code splitting makes every screen a network request, so a teacher on school wifi will sometimes fail to load one. The error boundary caught that correctly from the start — but `React.lazy` caches the *rejected* promise on the component, so the section stayed broken for the rest of the session and the fallback's "Try again" button could not help. Only "Reload page" worked.
 

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Plus } from "lucide-react";
+import { Plus, Eye, EyeOff, Send } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -17,6 +17,25 @@ export default function DatabaseGrades() {
   const [busy, setBusy] = useState(false);
   const [studentFilter, setStudentFilter] = useState("");
   const [subjectFilter, setSubjectFilter] = useState("");
+  const [publishing, setPublishing] = useState(false);
+
+  // A grade is a draft until the teacher releases it. Nothing reads
+  // published_at yet — the student and parent portals will — but the teacher
+  // decides now, so that when those portals arrive the history is already
+  // correct rather than every past grade appearing at once.
+  const setPublished = async (ids, published) => {
+    if (!ids.length) return;
+    setPublishing(true);
+    try {
+      await api("/api/grades/publish", { method: "POST", body: { ids, published } });
+      const stamp = published ? new Date().toISOString() : null;
+      setRows((rs) => rs.map((r) => (ids.includes(r.id) ? { ...r, published_at: stamp } : r)));
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setPublishing(false);
+    }
+  };
 
   const reload = () => {
     setLoading(true);
@@ -47,6 +66,8 @@ export default function DatabaseGrades() {
     if (subjectFilter) xs = xs.filter((r) => r.subject === subjectFilter);
     return xs;
   }, [rows, studentFilter, subjectFilter]);
+
+  const draftIds = useMemo(() => filtered.filter((r) => !r.published_at).map((r) => r.id), [filtered]);
 
   const { sorted, sort, toggle } = useSortable(filtered, {
     defaultKey: "recorded_at",
@@ -97,9 +118,22 @@ export default function DatabaseGrades() {
             elsewhere flow into Reports automatically.
           </p>
         </div>
-        <Button onClick={() => setEditing("new")}>
-          <Plus size={15} className="mr-2" /> Record grade
-        </Button>
+        <div className="flex items-center gap-2">
+          {draftIds.length > 0 && (
+            <Button
+              variant="secondary"
+              disabled={publishing}
+              onClick={() => setPublished(draftIds, true)}
+              title="Make these visible to students and their parents"
+            >
+              <Send size={14} className="mr-2" />
+              {publishing ? "Releasing…" : `Release ${draftIds.length} draft${draftIds.length === 1 ? "" : "s"}`}
+            </Button>
+          )}
+          <Button onClick={() => setEditing("new")}>
+            <Plus size={15} className="mr-2" /> Record grade
+          </Button>
+        </div>
       </div>
 
       <div className="flex flex-col md:flex-row gap-3 mb-6">
@@ -139,6 +173,7 @@ export default function DatabaseGrades() {
                   <SortHeader label="Category" sortKey="category" sort={sort} onToggle={toggle} />
                   <SortHeader label="Score" sortKey="pct" sort={sort} onToggle={toggle} />
                   <SortHeader label="Recorded" sortKey="recorded_at" sort={sort} onToggle={toggle} />
+                  <th className="py-3 text-left">Visible to</th>
                   <th className="py-3 px-5"></th>
                 </tr>
               </thead>
@@ -161,6 +196,24 @@ export default function DatabaseGrades() {
                       <td className="py-3 text-muted text-xs">
                         {r.recorded_at ? new Date(r.recorded_at).toLocaleDateString() : "—"}
                       </td>
+                      <td className="py-3">
+                        <button
+                          type="button"
+                          disabled={publishing}
+                          onClick={() => setPublished([r.id], !r.published_at)}
+                          title={r.published_at
+                            ? "Visible to the student and their parents — click to withdraw"
+                            : "Only you can see this — click to release it"}
+                          className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-md border text-[11px] transition disabled:opacity-50 ${
+                            r.published_at
+                              ? "border-sage/40 bg-sage/[0.10] text-sage hover:bg-sage hover:text-paper-cool"
+                              : "border-line bg-paper-cool text-muted hover:border-ink hover:text-ink"
+                          }`}
+                        >
+                          {r.published_at ? <Eye size={11} /> : <EyeOff size={11} />}
+                          {r.published_at ? "Released" : "Only me"}
+                        </button>
+                      </td>
                       <td className="py-3 px-5">
                         <RowActions onEdit={() => setEditing(r)} onDelete={() => setDeleting(r)} />
                       </td>
@@ -169,7 +222,7 @@ export default function DatabaseGrades() {
                 })}
                 {!loading && sorted.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="py-12 text-center text-muted">
+                    <td colSpan={8} className="py-12 text-center text-muted">
                       No grade entries yet.
                     </td>
                   </tr>

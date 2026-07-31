@@ -36,6 +36,7 @@ const PresentationBuilder = lazyRoute(() => import("./views/PresentationBuilder"
 const Activities = lazyRoute(() => import("./views/Activities"));
 const ActivityBuilder = lazyRoute(() => import("./views/ActivityBuilder"));
 const Reports = lazyRoute(() => import("./views/Reports"));
+const Library = lazyRoute(() => import("./views/Library"));
 const Studio = lazyRoute(() => import("./views/Studio"));
 const AdminConsole = lazyRoute(() => import("./views/AdminConsole"));
 const AdminDashboard = lazyRoute(() => import("./views/AdminDashboard"));
@@ -63,6 +64,7 @@ const TEACHER_NAV = [
     section: "Planning",
     items: [
       { key: "planner", label: "Planner", icon: "▦" },
+      { key: "schedule", label: "Schedule", letter: "S" },
       { key: "bulletin-board", label: "Bulletin board", letter: "B" },
     ],
   },
@@ -74,12 +76,14 @@ const TEACHER_NAV = [
       { key: "homework",      label: "Homework",      letter: "H" },
       { key: "presentations", label: "Presentations", letter: "P" },
       { key: "activities",    label: "Activities",    letter: "A" },
+      { key: "library",       label: "Library",       letter: "B" },
     ],
   },
   {
     section: "Data",
     items: [
       { key: "database", label: "My students", letter: "C" },
+      { key: "reports",  label: "Reports",     letter: "R" },
     ],
   },
 ];
@@ -141,7 +145,7 @@ const SECTIONS_BY_ROLE = {
   teacher: new Set([
     "dashboard", "studio", "planner", "bulletin-board",
     "lesson-plans", "schedule", "quizzes", "homework", "presentations", "activities",
-    "database", "reports",
+    "database", "reports", "library",
     "account",
   ]),
   admin: new Set(["admin-dashboard", "admin-console", "account"]),
@@ -431,6 +435,8 @@ export default function StudioApp({ onClose }) {
     mainContent = <Studio onJump={handleNavClick} initialKind={sub} />;
   } else if (section === "reports") {
     mainContent = <Reports />;
+  } else if (section === "library") {
+    mainContent = <Library />;
   } else if (section === "quizzes") {
     if (sub === "new" || sub === "edit") {
       crumbs = [

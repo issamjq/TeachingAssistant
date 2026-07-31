@@ -2,8 +2,17 @@ import { Router } from "express";
 import { withTenant } from "../lib/db.js";
 import { handleErr } from "../lib/helpers.js";
 import { loadCurrentTeacher } from "../lib/currentTeacher.js";
+import { validateBody, AttendanceUpsertSchema } from "../lib/validate.js";
 
 const router = Router();
+
+// Both read shapes are explicitly bounded. The by-date query returns one row
+// per student in a grade/section — a class, so small — but "a class is small"
+// is an assumption about data, and those are exactly the ones that turn into
+// an unbounded query when someone loads a whole year group. The recent log was
+// already capped at 50; naming the constant makes both caps visible together.
+const BY_DATE_MAX = 500;
+const RECENT_LOG_MAX = 50;
 
 // Attendance is queried by date or by student. We expose two read shapes.
 
@@ -27,7 +36,8 @@ router.get("/", async (req, res) => {
            LEFT JOIN attendance a
              ON a.student_id = s.id AND a.date = $2 AND a.account_id = $1
           WHERE s.account_id = $1${extra}
-          ORDER BY s.grade, s.section, s.last_name`,
+          ORDER BY s.grade, s.section, s.last_name, s.id
+          LIMIT ${BY_DATE_MAX}`,
         params
       ));
       return res.json(r.rows);
@@ -40,8 +50,8 @@ router.get("/", async (req, res) => {
          FROM attendance a
          JOIN students s ON s.id = a.student_id
         WHERE a.account_id = $1
-        ORDER BY a.date DESC, s.last_name
-        LIMIT 50`,
+        ORDER BY a.date DESC, s.last_name, a.id
+        LIMIT ${RECENT_LOG_MAX}`,
       [cur.id]
     ));
     res.json(r.rows);
@@ -62,16 +72,10 @@ router.get("/", async (req, res) => {
 // never move once written. If a record exists for (student_id, date),
 // it implicitly belongs to that student's teacher; the WHERE clause
 // on the UPDATE makes this explicit.
-router.put("/", async (req, res) => {
+router.put("/", validateBody(AttendanceUpsertSchema), async (req, res) => {
   try {
     const cur = await loadCurrentTeacher(req);
-    const { student_id, date, status, notes } = req.body || {};
-    if (!student_id || !date || !status) {
-      return res.status(400).json({ error: "student_id, date, status required" });
-    }
-    if (!["Present", "Absent", "Late", "Excused"].includes(status)) {
-      return res.status(400).json({ error: "Invalid status." });
-    }
+    const { student_id, date, status, notes } = req.body;
     // Ownership check and upsert share one transaction, so the student can't
     // be reassigned between the two — and both run under RLS.
     const { own, r } = await withTenant(cur.id, async (db) => {
@@ -84,10 +88,11 @@ router.put("/", async (req, res) => {
       `INSERT INTO attendance (account_id, student_id, date, status, notes)
        VALUES ($1, $2, $3, $4, $5)
        ON CONFLICT (student_id, date) DO UPDATE
-         SET status = EXCLUDED.status,
-             notes  = EXCLUDED.notes
+         SET status     = EXCLUDED.status,
+             notes      = EXCLUDED.notes,
+             updated_at = NOW()
          WHERE attendance.account_id = $1
-       RETURNING id, account_id, student_id, date, status, notes`,
+       RETURNING id, account_id, student_id, date, status, notes, created_at, updated_at`,
         [cur.id, student_id, date, status, notes ?? null]
       );
       return { own, r };

@@ -410,6 +410,34 @@ CREATE INDEX IF NOT EXISTS accounts_keyset_idx ON accounts
   (last_name ASC NULLS LAST, first_name ASC NULLS LAST, id ASC NULLS LAST);
 `;
 
+// Student-facing readiness for attendance + grades.
+//
+// These two tables are the first records in the product that describe a CHILD
+// rather than a teacher's own work, and the student and parent portals will
+// read them directly (roadmap days 15–16). Two things have to exist before
+// that, and both are far cheaper to add now than to migrate in later:
+//
+//   published_at — a grade is a draft until the teacher says otherwise. Without
+//     this column a parent portal has two options, and both are wrong: show
+//     every grade the instant it is typed (so a mistyped 12/100 reaches a
+//     parent before the teacher notices), or bolt on a visibility rule later
+//     and re-audit every read path. NULL means "not visible outside the
+//     teacher", and it is the default, so the gate fails closed.
+//
+//   created_at / updated_at — attendance carried no timestamps at all, and a
+//     grade recorded its creation but not its edits. The moment a parent can
+//     see "Absent", "when was this marked, and was it changed?" becomes a
+//     question someone asks, and there is no answer if it was never stored.
+//
+// Existing rows are deliberately left unpublished. They predate the concept,
+// so publishing them would be a guess — and the safe guess is the closed one.
+const SCHEMA_STUDENT_FACING = `
+ALTER TABLE student_grades ADD COLUMN IF NOT EXISTS published_at TIMESTAMPTZ;
+ALTER TABLE student_grades ADD COLUMN IF NOT EXISTS updated_at   TIMESTAMPTZ DEFAULT NOW();
+ALTER TABLE attendance     ADD COLUMN IF NOT EXISTS created_at   TIMESTAMPTZ DEFAULT NOW();
+ALTER TABLE attendance     ADD COLUMN IF NOT EXISTS updated_at   TIMESTAMPTZ DEFAULT NOW();
+`;
+
 // Append-only audit log. Every sensitive action (sign-in, sign-up,
 // renew, plan change, role change, school removal, account suspension)
 // inserts a row here. Reads are admin-only via /api/admin/audit (TODO
@@ -1094,6 +1122,10 @@ export async function runInit() {
 
   console.log("Creating email_verifications table...");
   await pool.query(SCHEMA_EMAIL_VERIFY);
+
+  // After SCHEMA_NEW, which creates attendance + student_grades.
+  console.log("Adding student-facing columns to attendance + grades...");
+  await pool.query(SCHEMA_STUDENT_FACING);
 
   // After every table it indexes, and after SCHEMA_SOFT_DELETE in particular
   // — the partial indexes below reference deleted_at.
