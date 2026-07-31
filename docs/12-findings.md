@@ -154,6 +154,17 @@ Verified in the browser along the path that used to fail:
 | Email route while unticked | blocked |
 | Create-account button | disabled |
 
+### F54 — Two Day 5 features silently cancelled each other 📖 Code-read — 🔧 Fixed same day
+Found 2026-07-31 during a post-change audit, not by a test — no test would have caught it, because each feature works perfectly on its own.
+
+`route.js` stores "where the teacher was headed" under `sessionStorage["murchid.auth.returnTo"]` (F20). The popup-to-redirect fallback added the same day (F23) stored "where the tab was" under **the same key**, then consumed it on return.
+
+The interaction: a teacher is bounced off `/quizzes/new` → route.js stores it → they land on `/signin` → their browser blocks the popup → the redirect fallback overwrites the key with `/signin` and removes it on the way back. The deep-link return dies **exactly in the popup-blocked case the redirect fallback exists to serve**.
+
+Fixed by deleting the storage from `firebaseAuth.js` entirely. It never needed it: `route.js` owns the destination, and coming back from a redirect is already handled by the landing page's silent session-restore, which picks up the persisted Firebase session on mount. The same audit found `completeRedirectSignIn()` and the `REDIRECTING` symbol were dead code — written, exported, never called — and removed both.
+
+**The lesson worth keeping:** two correct features, shipped in one sitting, sharing one storage key. Grep for a new key's name across the whole repo before using it.
+
 ### F18/F19/F20/F23 — funnel fixes, Day 5 detail 🔧 Fixed 2026-07-31
 
 **F23 — popup-blocked no longer fails silently.** `firebaseAuth.js` now tries the popup and falls back to `signInWithRedirect` when the browser refuses it (`auth/popup-blocked`, `auth/operation-not-supported-in-this-environment`, `auth/web-storage-unsupported` — the last covers in-app browsers like Teams). Redirect is the fallback, not the default: it unloads the page and loses any half-filled form, so it is only worth it when the popup cannot work at all. The caller gets a `murchid/redirecting` code and shows nothing rather than an error, because the tab is about to navigate away.

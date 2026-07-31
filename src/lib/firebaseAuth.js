@@ -6,7 +6,7 @@
 // still valid (~1 hour), or auto-refreshes if it isn't. The api()
 // helper uses this on every request — no manual refresh logic needed.
 import {
-  signInWithPopup, signInWithRedirect, getRedirectResult, signOut as fbSignOut,
+  signInWithPopup, signInWithRedirect, signOut as fbSignOut,
   onAuthStateChanged,
   sendSignInLinkToEmail, isSignInWithEmailLink, signInWithEmailLink,
   createUserWithEmailAndPassword, signInWithEmailAndPassword,
@@ -23,11 +23,12 @@ import { auth, googleProvider, microsoftProvider } from "./firebase";
 // half-filled form is lost, and the return trip has to be picked up on mount.
 //
 // So: try the popup, and only if the browser refuses it, hand off to redirect.
-// The caller sees a thrown REDIRECTING sentinel rather than a user, which tells
-// it to stop and show "taking you to Google…" instead of an error — the tab is
-// about to navigate away.
-export const REDIRECTING = Symbol.for("murchid.auth.redirecting");
-
+// The caller gets a thrown error carrying code "murchid/redirecting" rather than
+// a user, which tells it to show nothing at all — the tab is about to navigate
+// away, and an error that flashes red for 200ms is worse than silence.
+//
+// Coming BACK from the redirect needs no code here: Firebase persists the
+// session, and the landing page's silent session-restore picks it up on mount.
 const POPUP_UNAVAILABLE = new Set([
   "auth/popup-blocked",
   "auth/operation-not-supported-in-this-environment",
@@ -41,38 +42,16 @@ async function popupThenRedirect(provider) {
     return result.user;
   } catch (e) {
     if (!POPUP_UNAVAILABLE.has(e?.code)) throw e;
-    // Remember where to come back to, since the tab is about to unload.
-    try {
-      sessionStorage.setItem(REDIRECT_RETURN_KEY, window.location.pathname + window.location.search);
-    } catch { /* private mode — we just lose the return path, not the sign-in */ }
+    // Deliberately does NOT record where to come back to. route.js already owns
+    // that (rememberReturnTo), and an earlier version of this function wrote the
+    // CURRENT path — which at this point is /signin — into the same key, so the
+    // teacher's real destination was overwritten and then consumed. The two
+    // features silently cancelled each other, in exactly the popup-blocked case
+    // this fallback exists to serve.
     await signInWithRedirect(auth, provider);
     const err = new Error("Redirecting to the sign-in provider.");
     err.code = "murchid/redirecting";
-    err.redirecting = REDIRECTING;
     throw err;
-  }
-}
-
-const REDIRECT_RETURN_KEY = "murchid.auth.returnTo";
-
-/**
- * Finish a redirect sign-in, if this page load is the return leg.
- * Returns { user, returnTo } when it was, null when it wasn't.
- * Safe to call on every mount — Firebase returns null when there is nothing
- * pending, and a failure here must not block the page from rendering.
- */
-export async function completeRedirectSignIn() {
-  try {
-    const result = await getRedirectResult(auth);
-    if (!result?.user) return null;
-    let returnTo = null;
-    try {
-      returnTo = sessionStorage.getItem(REDIRECT_RETURN_KEY);
-      sessionStorage.removeItem(REDIRECT_RETURN_KEY);
-    } catch { /* ignore */ }
-    return { user: result.user, returnTo };
-  } catch {
-    return null;
   }
 }
 
