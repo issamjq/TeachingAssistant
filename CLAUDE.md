@@ -27,20 +27,37 @@ The user (Issa) calls the project "murchid" — that's the **product** name, not
 
 ### Where we are right now
 
-**Days 1–3 of [`docs/14-roadmap.md`](docs/14-roadmap.md) are done and committed to `dev`** (`dev` is local-only, no upstream yet). Shipped:
+**Days 1–5 of [`docs/14-roadmap.md`](docs/14-roadmap.md) are done and pushed to `dev`** (`dev` tracks `origin/dev`; `main` is untouched at `b4e92ab` and still what deploys). Last session ended 2026-07-31.
 
-- **Error boundaries** — `src/components/ErrorBoundary.jsx`, wired per surface, per route, and around `Showreel`
-- **Rate limiting** — three layers (`backend/lib/security.js`); account-keyed limiting sits *after* `requireAuth` so it keys on a verified identity
-- **AI usage ledger** — `ai_usage_ledger` + `backend/lib/aiUsage.js`, writing from all four studio endpoints
-- **Row-level security** — `withTenant()` / `bindTenant()` in `backend/lib/db.js`; 17 tables; all 45 tenant-touching queries migrated
-- **Three real leaks closed** — see F41/F42/F43 in [`docs/12-findings.md`](docs/12-findings.md)
-- **Keyset pagination** — `backend/lib/pagination.js` + `crud.js`; all 11 resources and their `/trash` views, `{ items, nextCursor }`, default 50 / max 200
-- **Cache layer** — `backend/lib/cache.js`, Redis when `REDIS_URL` is set and an in-process TTL map otherwise; backs the feature-flag read, the account row (F38) and the rate-limit store
-- **Code splitting** — the three surfaces and all 24 studio routes are `React.lazy`; initial payload **271 KB → 92 KB gzip** of JS
+Days 1–3 shipped error boundaries, three-layer rate limiting, the AI usage ledger, row-level security, keyset pagination (`backend/lib/pagination.js`, all 11 crudRouter resources), the cache layer (`backend/lib/cache.js`) and route-level code splitting (initial payload **271 → 92 KB gzip**).
 
-**Next: Day 4 — wire the orphans.** Attendance, Gradebook, Reports, Schedule and Library are all built but unreachable; register them in `NAV_BY_ROLE` + `SECTIONS_BY_ROLE` and verify they work once they are.
+Day 4 — **wire the orphans**, all six items:
+- Attendance + Gradebook are tabs under My students; Reports, Schedule and Library are in the sidebar (F30, F31, F33)
+- `student_grades.published_at` — a grade is a draft until released through `POST /api/grades/publish`. Added *now* so the day-16 parent portal drops in without a migration and a mistyped mark never reaches a parent
+- **The bulletin board is new** — `announcements` table, `backend/routes/announcements.js` on crudRouter, `src/views/BulletinBoard.jsx` (F32). Same `published_at` gate, plus an `audience` column. **Its layout is a deliberate placeholder**: the product wants a real pinned-notes board, and that is the incoming front-end developer's job. The data model, API and draft-then-post workflow do not change when it is redesigned
+- Studio's `activity` kind is exposed and saves to `/api/activities`
 
-Known debt, each tagged in findings: **F37** (PlannerTour `measure()` unthrottled → Day 6), **F45** (`/api/teachers` mutates accounts with no audit trail), **F46** (the Redis paths have never run against a real Redis).
+Day 5 — **fix the funnel**, four of six:
+- Consent box is never pre-ticked (F16); consent text translated to Arabic (F17)
+- Popup-blocked sign-in falls back to redirect instead of failing silently (F23); no Firebase SDK string reaches a teacher (F18)
+- `/signin` and `/signup` are real URLs; a bounced deep link explains itself and returns you (F19, F20)
+- **Deferred to Sunday 2026-08-02:** the Outlook claim (item 3 — needs a decision: remove it, or add Microsoft OAuth, which needs the PM) and the device list (item 6 — see below)
+
+Also fixed this session, all found by measuring rather than reading: the dashboard ran seven queries serialised on one client (F51 — **1058 ms → 483 ms**), two Day 5 features shared one sessionStorage key and cancelled each other (F54), the Planner tour replayed on every sign-in (F57 — took three attempts, the flag now lives on `accounts.tour_planner_seen_at`), and Planner could not scroll on a maximised window (F58).
+
+### Pick up here
+
+**Blocked on credentials — Sunday 2026-08-02.** Issa adds these to `.env` himself; they never go in chat.
+- `ANTHROPIC_API_KEY` → then flip `ai_studio` on and test Studio's activity generate-and-save (Day 4 item 6's last hop)
+- `REDIS_URL` → F46. Needs the **project manager**: Render's managed Redis is their "Key Value" product and Issa has no Render access
+
+**Next work, in the order it is worth doing:**
+1. **F56 — Planner costs 25 database round-trips.** Planner and TeachingRail each fetch the same five lists as five separate `withTenant()` transactions. Nothing aborts on unmount, so they keep holding pool connections after the teacher navigates away, and the pool holds 10. The biggest remaining performance win: one `/api/planner` endpoint plus an `AbortController` in `apiList`
+2. **Day 5 item 6 — the device list** (F10, F26). Stops evicting a teacher when they open a second device. **This is an auth-path change and it collides with the Day 3 account cache**: `requireAuth` currently reads one `active_session_id` that rides along in the cached row, so a naive device list reintroduces F38's per-request query. Design it deliberately
+3. **`/dashboard` has no nav item** — reachable by URL, never registered in `TEACHER_NAV`. The third orphan, missed on Day 4
+4. Day 6 — polish + i18n sweep
+
+**Open findings worth knowing:** F50 (attendance is recorded but nothing reads it), F52 (Studio still saves homework and presentations into the drafts table), F55 (`withTenant` costs four round-trips per request — 5–10 ms on Render, fine, but the largest fixed cost), F45 (`/api/teachers` mutates accounts with no audit trail), F37 (PlannerTour `measure()` unthrottled).
 
 ### Three facts that shape most decisions
 
@@ -104,7 +121,8 @@ npm run start:backend  # standalone Express, what Render runs
 Verified in the running app, 2026-07-28. Each of these looks like a bug in your change but isn't:
 
 - **The dev rate limiter throttles static assets.** `buildGlobalRateLimit()` is mounted ahead of the routers, and in dev the same Express app serves Vite's module graph — so ~190 requests are burned by two page loads and the whole site starts returning 429 with blank white pages. `backend/lib/security.js` currently carries a `TEMP-DEV-REVIEW` skip for non-`/api/*` paths in dev. If pages go blank, check this first.
-- **Built but unreachable views.** `src/views/DatabaseAttendance.jsx`, `DatabaseGrades.jsx` and `Library.jsx` are complete and imported by nothing; `App.jsx` has zero references to attendance or grades. The backend routes, tables and CHECK constraints all exist. `Reports` and `Schedule` are reachable by URL but absent from `NAV_BY_ROLE`. `bulletin-board` is the inverse — in the nav, no render branch, falls through to "Coming soon".
+- **One view is still unreachable: `/dashboard`.** It renders and is reachable by URL, but was never registered in `TEACHER_NAV`, so nothing in the UI links to it. Attendance, Gradebook, Reports, Schedule, Library and the bulletin board were all wired on Day 4 — this is the one that was missed.
+- **The bulletin board's layout is a placeholder.** `src/views/BulletinBoard.jsx` is a card grid; the product wants a real pinned-notes board and that is the incoming front-end developer's work. The table, the API and the draft-then-post workflow are final — only the surface changes.
 - **List endpoints return an envelope, not an array.** Since Day 3 every `crudRouter` list answers `{ items, nextCursor }` and caps a page at 200 rows. On the client, call `apiList()` (from `_shared.jsx`) rather than `api()` — it follows the cursor and passes not-yet-paginated endpoints through untouched. A list screen that renders nothing is usually an `api()` call that should have been `apiList()`.
 - **A cursor is tied to its query shape.** Change a router's `listOrderBy` and every cursor a client is holding starts returning 400 "reload the list". That is the intended behaviour, not a bug — but it means a sort change is a client-visible change.
 - **The account row is cached for 10 seconds.** Anything you write to `accounts` must call `invalidateAccountById()` / `invalidateAccountByUid()`, or your change is invisible to that user's own session for up to a TTL. The existing call sites are listed under F38 in [`docs/12-findings.md`](docs/12-findings.md).

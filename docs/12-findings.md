@@ -319,33 +319,16 @@ Sidebar shows *"1 schools"* and *"1 languages"*.
 
 Signed in as `afras rahim · T-TEST-01 · teacher`. Walked every teacher surface: Planner, Studio, Lesson Plans, Quizzes, Homework, Presentations, Activities, Bulletin board, My students, Reports, Schedule, Settings, all four builders, and the trash panel. **Zero console errors across the entire session.**
 
-### F30 — 🔴 Attendance and Gradebook are fully built but unreachable ✅ Observed
-**The highest-impact finding of this pass.**
+### F31 — Reports and Schedule are reachable by URL only ✅ Observed — 🔧 Fixed Day 4
+Both are in the sidebar as of Day 4 — Schedule under Planning, Reports under Data. Verified rendering. See F30 for the rest of the orphan sweep.
 
-`src/views/DatabaseAttendance.jsx` and `src/views/DatabaseGrades.jsx` are complete, working views that are **imported by nothing**. `App.jsx` contains zero references to either — no route, no nav entry, no section key.
-
-Both halves either side of the gap are finished:
-- **Backend:** `/api/attendance` (GET roster+status by date/grade/section, PUT upsert, DELETE) and `/api/grades` (full `crudRouter` + `GET /summary`) — both teacher-scoped and ownership-checked.
-- **Database:** `attendance` with `UNIQUE(student_id, date)` and an `attendance_status_valid` CHECK; `student_grades` with score/max_score/term/category.
-- **Frontend views:** written and functional.
-
-Only the wiring in `App.jsx` is missing.
-
-**Impact:** attendance and grade entry are the two things a teacher touches *every single day* — far more often than lesson generation. Neither can be reached. It also strands a third surface: **Reports** renders "Per-student averages" and reports *"No grades recorded yet"*, reading a table that no teacher has any way to write to. `Reports.jsx` even says grades recorded "elsewhere flow into Reports automatically" — there is no elsewhere.
-
-**Fix:** register both in `NAV_BY_ROLE` and `SECTIONS_BY_ROLE` and add them as tabs in `Database.jsx` (which today hardcodes only `students` and `scores`). Likely a small change for a very large gain — verify the views actually work once reachable before assuming they're complete.
-
-### F31 — Reports and Schedule are reachable by URL only ✅ Observed
 Both render correctly at `/reports` and `/schedule`, and both are in `SECTIONS_BY_ROLE`, but neither appears in `NAV_BY_ROLE` — so no teacher will ever find them. Schedule is a working week/list calendar with a New-entry flow; Reports has CSV and PDF export.
 
 **Impact:** finished features with real value, invisible in the product.
 
-### F32 — Bulletin board is a dead nav entry ✅ Observed
-The inverse of F31: `bulletin-board` sits in the teacher sidebar under Planning, has no branch in the `App.jsx` render switch, and falls through to the placeholder. Clicking it renders **"BULLETIN BOARD / Coming soon"**.
+### F33 — `Library.jsx` is orphaned ✅ Observed — 🔧 Fixed Day 4
+Wired into the sidebar under Teaching, lazy-loaded, verified rendering. See F30 for the rest of the orphan sweep.
 
-**Impact:** the second item in the sidebar is a dead end. Either build it or drop it from the nav until it exists.
-
-### F33 — `Library.jsx` is orphaned ✅ Observed
 A complete resource-library CRUD view backed by the live `/api/library` router and the `library_resources` table — imported by nothing, reachable from nowhere. Same class of problem as F30, lower stakes.
 
 ### F27 — confirmed and quantified ✅ Observed *(strengthens the original)*
@@ -517,33 +500,6 @@ The seven queries became **one round-trip**: each block is a scalar sub-select r
 Not fixed by running them on separate clients, which was the obvious idea: every tenant-scoped query goes through `withTenant()`, and that costs four round-trips of its own. Seven parallel clients would be seven transactions — 28 round-trips to save six.
 
 **Why it matters under load, not just to the eye.** The pool holds 10 connections. A dashboard request used to occupy one for a full second, so roughly ten concurrent teachers would saturate the pool and the eleventh would queue. That is the failure mode Issa was asking about — "if it is like this with no data, what happens with traffic".
-
-### F58 — Planner could not be scrolled on a full screen ✅ Observed — 🔧 Fixed Day 5
-Reported with a screenshot: on a maximised window the last week of the calendar is cut off and the page will not scroll. On a tablet-sized window it scrolls fine.
-
-The cause was one class. `Planner.jsx`'s root carried `lg:h-full`, which pins the whole screen to the viewport height at the `lg` breakpoint and above — so when the month needed more room than was left, the last row was simply clipped, with nothing able to scroll. Below `lg` the class did not apply, which is exactly why a tablet behaved correctly and a full screen did not.
-
-Changed to `lg:min-h-full`: the "fills the window" look is kept, but the page can grow past it, and App.jsx's `overflow-y-auto` takes over. The calendar frame also gained a floor (`lg:min-h-[34rem]`, replacing `lg:min-h-0`) so a six-week month stays readable rather than compressing.
-
-Verified at 1660×760: the last cell sits at 829 px, off-screen; the page now scrolls (838 > 760) and scrolling to the bottom brings it fully into view at 751 px. Pure CSS — no measurement, no listener, no performance cost.
-
-### F57 — The Planner tour replayed on every single sign-in ✅ Observed — 🔧 Fixed Day 5 (third attempt)
-Reported after signing out and in more than ten times and still being shown the tour. Two client-side fixes failed before the right one; the failures are the useful part.
-
-**Why it kept coming back.** The record was in localStorage, keyed on the teacher's identity — and that identity was read from the account profile, which arrives asynchronously and differs between sign-in paths.
-
-- *Attempt 1* keyed on `staffId || email || "anon"`. Planner evaluated the gate at mount, before `/api/me` returned, so the CHECK read bucket `"anon"` while the WRITE — seconds later, when Skip was clicked and the profile had arrived — filled `"t-test-01"`. `"anon"` never incremented.
-- *Attempt 2* dropped `"anon"` and keyed on `staffId || email`. Still broken: `Landing.jsx` has **four** `setAccount()` paths and one of them builds the profile without a `staffId`, so the same teacher keyed as `t-test-01` after one sign-in and as their email after another. A fallback chain is not an identity; it is a coin flip.
-
-Both failed the same way, one level apart. Patching the key only moved the race.
-
-**The fix: `accounts.tour_planner_seen_at`.** A timestamp on the account row, read from the same `/api/me` response that carries the identity — so there is nothing to correlate and no race to lose. Written through `POST /api/me/tour-seen`, which is write-once (`COALESCE(tour_planner_seen_at, NOW())`) so a replayed request cannot move it and nothing can un-see it. The route invalidates the account cache, or the next request would still report it unseen.
-
-It also does something no browser-local record can: it follows the teacher to a new device or a cleared browser, which is what "show it once to a new user" actually means.
-
-`sessionStorage` survives for one narrow job — not replaying the tour when the teacher leaves the Planner and returns within one sign-in, before the server write lands.
-
-Verified: a reset browser showed it once; Skip wrote `tour_planner_seen_at` to the account (confirmed in Postgres); then six cycles with **every** browser-local trace wiped each time — the state a real sign-out leaves — and it never returned.
 
 ### F58 — Planner could not be scrolled on a full screen ✅ Observed — 🔧 Fixed Day 5
 Reported with a screenshot: on a maximised window the last week of the calendar is cut off and the page will not scroll. On a tablet-sized window it scrolls fine.
