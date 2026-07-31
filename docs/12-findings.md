@@ -518,6 +518,31 @@ Not fixed by running them on separate clients, which was the obvious idea: every
 
 **Why it matters under load, not just to the eye.** The pool holds 10 connections. A dashboard request used to occupy one for a full second, so roughly ten concurrent teachers would saturate the pool and the eleventh would queue. That is the failure mode Issa was asking about — "if it is like this with no data, what happens with traffic".
 
+### F58 — Planner could not be scrolled on a full screen ✅ Observed — 🔧 Fixed Day 5
+Reported with a screenshot: on a maximised window the last week of the calendar is cut off and the page will not scroll. On a tablet-sized window it scrolls fine.
+
+The cause was one class. `Planner.jsx`'s root carried `lg:h-full`, which pins the whole screen to the viewport height at the `lg` breakpoint and above — so when the month needed more room than was left, the last row was simply clipped, with nothing able to scroll. Below `lg` the class did not apply, which is exactly why a tablet behaved correctly and a full screen did not.
+
+Changed to `lg:min-h-full`: the "fills the window" look is kept, but the page can grow past it, and App.jsx's `overflow-y-auto` takes over. The calendar frame also gained a floor (`lg:min-h-[34rem]`, replacing `lg:min-h-0`) so a six-week month stays readable rather than compressing.
+
+Verified at 1660×760: the last cell sits at 829 px, off-screen; the page now scrolls (838 > 760) and scrolling to the bottom brings it fully into view at 751 px. Pure CSS — no measurement, no listener, no performance cost.
+
+### F57 — The Planner tour replayed on every single sign-in ✅ Observed — 🔧 Fixed Day 5
+Reported after signing out and in more than ten times and still being shown the tour, despite an earlier fix. The earlier fix was real; the gate was defeated by something else.
+
+`accountKey()` fell back to the literal string `"anon"` when the account had not hydrated. Planner evaluated the gate with `useState(shouldShowPlannerTour)` — **at mount** — and on a fresh sign-in the profile arrives a moment later, because App.jsx fetches `/api/me` asynchronously. So:
+
+- the **check** ran against bucket `"anon"`, which was always 0
+- the **mark** ran seconds later when the teacher clicked Skip, by which time the profile had arrived, so it incremented `"t-test-01"`
+
+`"anon"` was never incremented and never fell below the threshold. The stored value `{"t-test-01": 2}` was the fingerprint: written twice, read never.
+
+Fixed by removing the fallback bucket entirely — `accountKey()` returns `null` when identity is unknown, `shouldShowPlannerTour()` refuses to decide, and Planner waits on `useAccount()` before deciding once. `MAX_VIEWS` is now 1: finishing or skipping both end it for good, which is what was asked for.
+
+Verified: a reset browser shows the tour once; clicking Skip writes `{"t-test-01": 1}` under the real key; six simulated sign-in cycles afterwards never show it again.
+
+**Known limit:** the record is per browser, in localStorage. A teacher on a new device or a cleared browser sees it once more. Storing it on the account row would fix that and is the better long-term answer, but it needs a column and an endpoint.
+
 ### F56 — The Planner screen costs 25 database round-trips ✅ Observed — open, scheduled
 Found 2026-07-31 while sweeping every page for the load problem Issa reported. Measured in the browser, not inferred.
 

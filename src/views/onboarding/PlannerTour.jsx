@@ -33,34 +33,53 @@ import { useT, useI18n } from "../../lib/i18n";
 import { getAccount } from "../../lib/account";
 
 // ── Seen-state ─────────────────────────────────────────────────────────
-// Two independent gates, because "don't show it again" means two
-// different things:
+// The tour is shown ONCE, to a genuinely new teacher. Finishing it or skipping
+// it both end it for good.
 //
-//   viewCount  (localStorage, per account) — how many separate sessions
-//              the teacher has been shown the tour. Capped at MAX_VIEWS so
-//              someone who skips by accident gets exactly one more chance.
+// Two gates, because "don't show it again" means two different things:
+//
+//   viewCount  (localStorage, per account) — durable. Once it reaches
+//              MAX_VIEWS the tour never opens again on this browser.
 //   thisSession (sessionStorage) — already shown during this sign-in, so
-//              navigating away from the Planner and back does not replay
-//              it. Clears itself when the tab closes.
+//              navigating away from the Planner and back does not replay it.
+//              Clears itself when the tab closes.
 //
-// Keyed per account: school devices are shared, and one teacher finishing
-// the tour must not silence it for the next person who signs in.
+// Keyed per account: school devices are shared, and one teacher finishing the
+// tour must not silence it for the next person who signs in.
+//
+// ── The bug this replaces ────────────────────────────────────────────────
+// accountKey() used to fall back to the literal string "anon" when the account
+// had not hydrated yet. Planner evaluates the gate at mount, and on a fresh
+// sign-in the profile arrives a moment later (App.jsx fetches /api/me
+// asynchronously). So the CHECK ran against bucket "anon" while the MARK — which
+// happens when the teacher clicks Skip or Done, seconds later — ran against
+// their real staff id. "anon" was never incremented, so the count never rose and
+// the tour reappeared on every single sign-in, indefinitely. The stored value
+// {"t-test-01": 2} was the fingerprint: incremented twice, never once consulted.
+//
+// The fix is to have no fallback bucket at all. If we do not yet know who this
+// is, we do not decide — the caller waits for the account and asks again.
 const VIEWS_KEY = "murchid.tour.planner.views";
 const SESSION_KEY = "murchid.tour.planner.session";
-const MAX_VIEWS = 2;
+const MAX_VIEWS = 1;
 
-// The cached account has no numeric id — staffId is the stable, unique
-// per-teacher handle, with email as the fallback for an account cached
-// before the profile step wrote one. Both already live in the same
-// localStorage record, so keying on them exposes nothing new.
+// staffId is the stable per-teacher handle, with email as the fallback for an
+// account cached before the profile step wrote one. Both already live in the
+// same localStorage record, so keying on them exposes nothing new.
+//
+// Returns null — never a placeholder — when neither is available yet.
 const accountKey = () => {
   try {
     const p = getAccount()?.profile;
-    return (p?.staffId || p?.email || "anon").toLowerCase();
+    const k = p?.staffId || p?.email;
+    return k ? String(k).toLowerCase() : null;
   } catch {
-    return "anon";
+    return null;
   }
 };
+
+/** Do we know who this teacher is yet? The caller must wait until we do. */
+export const tourIdentityReady = () => accountKey() !== null;
 
 const readViews = () => {
   try {
@@ -73,6 +92,9 @@ const readViews = () => {
 /** Has this account used up its allowance, or already seen it this session? */
 export const shouldShowPlannerTour = () => {
   const key = accountKey();
+  // No identity yet: refuse to decide rather than guessing. Deciding here is
+  // what produced the bug above.
+  if (!key) return false;
   try {
     if (sessionStorage.getItem(`${SESSION_KEY}.${key}`) === "1") return false;
   } catch {
@@ -81,9 +103,10 @@ export const shouldShowPlannerTour = () => {
   return (readViews()[key] || 0) < MAX_VIEWS;
 };
 
-/** Count one full viewing (finished or skipped — both are a chance used). */
+/** Record that the tour is done — finished or skipped, both end it. */
 export const markPlannerTourSeen = () => {
   const key = accountKey();
+  if (!key) return;
   try {
     const all = readViews();
     all[key] = Math.min((all[key] || 0) + 1, MAX_VIEWS);

@@ -7,7 +7,7 @@
 // (/api/quizzes, /api/homework, /api/drafts, etc.) will be merged into
 // the same event shape later:
 //   { id, date: YYYY-MM-DD, kind, title, time? }
-import React, { useEffect, useMemo, useState, useCallback } from "react";
+import React, { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { createPortal } from "react-dom";
 import {
   ChevronLeft, ChevronRight, Plus, BookOpen, CalendarDays,
@@ -19,7 +19,8 @@ import { navigate } from "../lib/route";
 import { useT, useI18n } from "../lib/i18n";
 import { api, apiList } from "./_shared";
 import SchedulePopup from "./_schedule-popup";
-import PlannerTour, { shouldShowPlannerTour } from "./onboarding/PlannerTour";
+import PlannerTour, { shouldShowPlannerTour, tourIdentityReady } from "./onboarding/PlannerTour";
+import { useAccount } from "../lib/account";
 
 // Categories the calendar can show. Each maps to one of the existing
 // teaching surfaces, with a Murchid-palette color so the day cells stay
@@ -84,7 +85,18 @@ export default function Planner() {
   // (see PlannerTour) so an accidental skip gets one more chance and no
   // more. Evaluated once at mount: returning to the Planner later in the
   // same session must not replay it.
-  const [tourOpen, setTourOpen] = useState(shouldShowPlannerTour);
+  // Deliberately NOT evaluated at mount. On a fresh sign-in the account
+  // profile is still being fetched, and deciding before it arrives is exactly
+  // what made the tour replay on every sign-in (see PlannerTour). Wait until we
+  // know who this is, then decide once and never revisit it.
+  const [tourOpen, setTourOpen] = useState(false);
+  const tourDecided = useRef(false);
+  const tourAccount = useAccount();
+  useEffect(() => {
+    if (tourDecided.current || !tourIdentityReady()) return;
+    tourDecided.current = true;
+    if (shouldShowPlannerTour()) setTourOpen(true);
+  }, [tourAccount]);
   // The visible month (1st of the displayed month). Today by default.
   const [anchor, setAnchor] = useState(() => {
     const n = new Date();
@@ -260,8 +272,15 @@ export default function Planner() {
     else setVisible(new Set(CATEGORIES.map((c) => c.key)));
   };
 
+  // lg:min-h-full, not lg:h-full. h-full pinned the whole planner to the
+  // viewport on desktop, so the calendar had to compress to fit — and once the
+  // month needed more room than was left, the last week was simply clipped with
+  // nothing to scroll. Below lg the class did not apply, which is why it
+  // scrolled correctly on a tablet and not on a full screen. min-h-full keeps
+  // the "fills the window" look and lets the page grow past it, at which point
+  // App.jsx's overflow-y-auto takes over.
   return (
-    <div className="planner-view relative max-w-[1400px] mx-auto pb-0 flex flex-col lg:h-full">
+    <div className="planner-view relative max-w-[1400px] mx-auto pb-0 flex flex-col lg:min-h-full">
 
       {/* ── Month hero — stacked headline + italic editorial caption.
           No eyebrow; the page header (sidebar nav) already says where
@@ -273,7 +292,7 @@ export default function Planner() {
           right-rail This Month Overview strip so the filter chips can
           claim the full calendar-toolbar width. */}
 
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] grid-rows-[auto_1fr] gap-x-6 gap-y-3 items-stretch lg:flex-1 lg:min-h-0">
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] grid-rows-[auto_1fr] gap-x-6 gap-y-3 items-stretch lg:flex-1">
         {/* Row 1: Studio AI hero (left) + AI Insights (right), heights
             match via items-stretch. */}
         <div className="min-w-0">
@@ -310,7 +329,7 @@ export default function Planner() {
       {/* The grid. The calendar's toolbar (filter chips only) lives at
           the top of the card, then the weekday header, then day cells.
           Month-nav controls live in the right-rail This Month strip. */}
-      <div className="planner-grid planner-card-frame rounded-2xl bg-paper-cool overflow-hidden flex-1 flex flex-col min-h-[26rem] lg:min-h-0">
+      <div className="planner-grid planner-card-frame rounded-2xl bg-paper-cool overflow-hidden flex-1 flex flex-col min-h-[26rem] lg:min-h-[34rem]">
 
         {/* Filter chips only — no fade mask needed, all chips fit. */}
         <div className="planner-cal-toolbar">
