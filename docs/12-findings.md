@@ -494,14 +494,38 @@ Studio's own comment admits it: *"everything else still saves there until per-ki
 
 **Fix:** two more branches following the activity one — map the generated markdown onto each table's fields the way `activityParams` maps onto `activities`.
 
-### F51 — Dashboard runs six queries on one client inside Promise.all 📖 Code-read — open, scheduled
+### F51 — Dashboard ran seven queries on one client inside Promise.all ✅ Observed — 🔧 Fixed Day 5
 [`backend/routes/dashboard.js:35`](../backend/routes/dashboard.js) wraps six queries in `Promise.all` on a **single** `withTenant` client. node-postgres cannot run concurrent queries on one connection, so it serialises them: six sequential Neon round-trips on the app's most-loaded endpoint, wearing the costume of a parallel fetch.
 
 It also warns: `Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0`. So this is both a performance bug today and a breaking change on the next major `pg` upgrade.
 
 Observed 2026-07-31 while testing whether attendance reaches the dashboard — the warning fired on every request.
 
-**Fix options:** issue the six queries on separate pooled clients and bind the tenant on each (more connections, genuinely parallel), or accept sequential and `await` them honestly so the code stops claiming to be parallel. Measure first: on Render, co-located with Neon, six sequential round-trips may be cheap enough that clarity wins.
+**Fixed 2026-07-31**, after Issa spotted the symptom in the UI: on Reports, the counts at the top appeared *after* the table below them. That is two independent fetches racing, and the slower one losing visibly.
+
+Measured, dev machine to Neon:
+
+| | before | after |
+|---|---|---|
+| `/api/dashboard` | **1,058 ms** | **483 ms** |
+| `/api/grades/summary` (beside it) | 479 ms | 480 ms |
+
+They now finish together, so the Reports page paints in one go.
+
+The seven queries became **one round-trip**: each block is a scalar sub-select returning `json_agg`, evaluated in a single pass. The response shape is byte-identical, and `COALESCE(..., '[]')` means every list is still an array.
+
+Not fixed by running them on separate clients, which was the obvious idea: every tenant-scoped query goes through `withTenant()`, and that costs four round-trips of its own. Seven parallel clients would be seven transactions — 28 round-trips to save six.
+
+**Why it matters under load, not just to the eye.** The pool holds 10 connections. A dashboard request used to occupy one for a full second, so roughly ten concurrent teachers would saturate the pool and the eleventh would queue. That is the failure mode Issa was asking about — "if it is like this with no data, what happens with traffic".
+
+### F55 — withTenant costs four round-trips per request 📖 Code-read — open, watch
+Measured while investigating F51. On this machine a bare query is 97 ms and `withTenant()` + one query is **482 ms** — the difference is `BEGIN`, `SET LOCAL ROLE`, `set_config` and `COMMIT`, four extra round-trips, on **every tenant-scoped request in the app**.
+
+This is not a bug and it is not urgent: on Render the app and Neon sit in the same region, so a round-trip is 1–2 ms and the same four cost 5–10 ms. It looks alarming locally only because dev talks to Neon across the public internet.
+
+Recorded because it is the single biggest fixed cost per request, and if latency ever rises it multiplies by four. If it needs addressing, the route is to fold `SET LOCAL ROLE` and `set_config` into the `BEGIN` as one multi-statement — which touches the RLS boundary and therefore deserves its own careful change, not a drive-by.
+
+
 
 ### F32 — Bulletin board was a nav item with nothing behind it ✅ Observed — 🔧 Fixed Day 4
 `bulletin-board` sat in the sidebar with no render branch, falling through to "Coming soon" — while the onboarding tour actively promised it: *"Announcements for your classes — notices, reminders, and anything the whole class needs to see."*
