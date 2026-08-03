@@ -59,8 +59,19 @@ export function crudRouter({
   // any table that accepts user-typed data (students, schools, …).
   bodySchema = null,
   patchSchema = null,
+  // Register the read routes only (GET / and GET /:id). Use when another
+  // router already owns the resource's write lifecycle with guards this
+  // generic factory cannot express — refusing self-mutation, enforcing a
+  // role hierarchy, or writing an audit_log row. Without this, mounting the
+  // factory silently publishes a second, unguarded way to do the same job
+  // (see F45: /api/teachers vs the audited routes in admin.js).
+  readOnly = false,
 }) {
   const router = Router();
+  // Write routes register on `w`. When readOnly is set, `w` is a throwaway
+  // Router that is never mounted, so the handlers below keep one shape and
+  // the write verbs simply fall through to the 404 handler in app.js.
+  const w = readOnly ? Router() : router;
   const tag = routeName || `/api/${table}`;
 
   // Parsed once, at construction. A listOrderBy that keyset pagination can't
@@ -245,7 +256,7 @@ export function crudRouter({
 
     // POST /:id/restore — clear deleted_at so the row resurfaces in
     // the normal list.
-    router.post("/:id/restore", async (req, res) => {
+    w.post("/:id/restore", async (req, res) => {
       try {
         const scope = await scopeFor(req);
         const params = [req.params.id];
@@ -267,7 +278,7 @@ export function crudRouter({
     });
 
     // DELETE /:id/forever — hard delete, bypasses the 30-day window.
-    router.delete("/:id/forever", async (req, res) => {
+    w.delete("/:id/forever", async (req, res) => {
       try {
         const scope = await scopeFor(req);
         const params = [req.params.id];
@@ -288,7 +299,7 @@ export function crudRouter({
   const postMiddleware  = bodySchema  ? [validateBody(bodySchema)]  : [];
   const patchMiddleware = patchSchema ? [validateBody(patchSchema)] : [];
 
-  router.post("/", ...postMiddleware, async (req, res) => {
+  w.post("/", ...postMiddleware, async (req, res) => {
     try {
       const scope = await scopeFor(req);
       const body = coerceJson({ ...(req.body || {}) });
@@ -331,7 +342,7 @@ export function crudRouter({
     }
   });
 
-  router.patch("/:id", ...patchMiddleware, async (req, res) => {
+  w.patch("/:id", ...patchMiddleware, async (req, res) => {
     try {
       const scope = await scopeFor(req);
       const { sets, params } = buildPatch(coerceJson(req.body || {}), fields);
@@ -358,7 +369,7 @@ export function crudRouter({
     }
   });
 
-  router.delete("/:id", async (req, res) => {
+  w.delete("/:id", async (req, res) => {
     try {
       const scope = await scopeFor(req);
       if (beforeDelete) await beforeDelete(req.params.id, req);
