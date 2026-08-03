@@ -17,6 +17,7 @@ import notificationsRouter from "./routes/notifications.js";
 import libraryRouter from "./routes/library.js";
 import announcementsRouter from "./routes/announcements.js";
 import dashboardRouter from "./routes/dashboard.js";
+import plannerRouter from "./routes/planner.js";
 import studioRouter from "./routes/studio.js";
 import imagesRouter from "./routes/images.js";
 import schoolsRouter from "./routes/schools.js";
@@ -161,6 +162,9 @@ export function buildApp() {
   app.use("/api/library", libraryRouter);
   app.use("/api/announcements", announcementsRouter);
   app.use("/api/dashboard", dashboardRouter);
+  // Calendar aggregate for Planner + TeachingRail. Same reasoning as
+  // /api/dashboard: one query instead of five separate tenant transactions.
+  app.use("/api/planner", plannerRouter);
   // Rate limit layer 3 — AI generation gets its own much tighter bucket
   // on top of layer 2. Every call bills real tokens and pins a streaming
   // connection open, so a runaway client here is expensive in a way that

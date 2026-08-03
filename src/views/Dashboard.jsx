@@ -2,7 +2,7 @@ import React, { useEffect, useState, useMemo } from "react";
 import { Search, ClipboardList, GraduationCap, ArrowRight } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { api, timeAgo } from "./_shared";
+import { api, getProfile, timeAgo } from "./_shared";
 
 const fmtTime = (t) => (t ? t.slice(0, 5) : "—");
 const parseHM = (hm) => {
@@ -149,7 +149,7 @@ export default function Dashboard({ onJump }) {
   const [query, setQuery] = useState("");
 
   useEffect(() => {
-    api("/api/me").then(setMe).catch(() => {});
+    getProfile().then(setMe).catch(() => {});
     api("/api/dashboard").then(setData).catch((e) => setError(e.message));
   }, []);
 

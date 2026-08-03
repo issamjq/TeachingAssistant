@@ -7,7 +7,7 @@
 // leaving whichever surface they're on.
 import React, { useEffect, useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight, CalendarDays, Plus } from "lucide-react";
-import { api, apiList } from "./_shared";
+import { api, getProfile } from "./_shared";
 import SchedulePopup from "./_schedule-popup";
 
 const DAY_LABELS = ["M", "T", "W", "T", "F", "S", "S"];
@@ -76,61 +76,56 @@ export default function TeachingRail() {
     ? v.slice(0, 10)
     : new Date(v).toISOString().slice(0, 10));
   const reloadEvents = () => {
-    Promise.allSettled([
-      apiList("/api/schedule"),
-      apiList("/api/quizzes"),
-      apiList("/api/homework"),
-      apiList("/api/presentations"),
-      apiList("/api/activities"),
-    ]).then((results) => {
-      const get = (i) => (results[i].status === "fulfilled" ? results[i].value || [] : []);
-      const schedule = get(0)
-        .filter((r) => r.status !== "done")
-        .map((r) => ({
-          id: `schedule-${r.id}`,
-          kind: "schedule",
-          date: isoOnly(r.date),
-          title: r.title,
-          time: r.start_time ? String(r.start_time).slice(0, 5) : null,
-        }));
-      const quizzes = get(1)
-        .filter((q) => q.scheduled_for)
-        .map((q) => ({
-          id: `quiz-${q.id}`,
-          kind: "quiz",
-          date: isoOnly(q.scheduled_for),
-          title: q.title,
-          time: null,
-        }));
-      const homework = get(2)
-        .filter((h) => h.due_date)
-        .map((h) => ({
-          id: `homework-${h.id}`,
-          kind: "homework",
-          date: isoOnly(h.due_date),
-          title: h.title,
-          time: null,
-        }));
-      const presentations = get(3)
-        .filter((p) => p.scheduled_for)
-        .map((p) => ({
-          id: `presentation-${p.id}`,
-          kind: "presentation",
-          date: isoOnly(p.scheduled_for),
-          title: p.title,
-          time: null,
-        }));
-      const activities = get(4)
-        .filter((a) => a.scheduled_for)
-        .map((a) => ({
-          id: `activity-${a.id}`,
-          kind: "activity",
-          date: isoOnly(a.scheduled_for),
-          title: a.title,
-          time: null,
-        }));
+    // Shares /api/planner with Planner.jsx (F56). These two render together on
+    // the teaching sections, so the old five-calls-each pattern put ten requests
+    // and ten pool connections in flight to paint one screen.
+    const ac = new AbortController();
+    api("/api/planner", { signal: ac.signal }).then((data) => {
+      const get = (k) => (Array.isArray(data?.[k]) ? data[k] : []);
+      const schedule = get("schedule").map((r) => ({
+        id: `schedule-${r.id}`,
+        kind: "schedule",
+        date: isoOnly(r.date),
+        title: r.title,
+        time: r.start_time ? String(r.start_time).slice(0, 5) : null,
+      }));
+      const quizzes = get("quizzes").map((q) => ({
+        id: `quiz-${q.id}`,
+        kind: "quiz",
+        date: isoOnly(q.scheduled_for),
+        title: q.title,
+        time: null,
+      }));
+      const homework = get("homework").map((h) => ({
+        id: `homework-${h.id}`,
+        kind: "homework",
+        date: isoOnly(h.due_date),
+        title: h.title,
+        time: null,
+      }));
+      const presentations = get("presentations").map((p) => ({
+        id: `presentation-${p.id}`,
+        kind: "presentation",
+        date: isoOnly(p.scheduled_for),
+        title: p.title,
+        time: null,
+      }));
+      const activities = get("activities").map((a) => ({
+        id: `activity-${a.id}`,
+        kind: "activity",
+        date: isoOnly(a.scheduled_for),
+        title: a.title,
+        time: null,
+      }));
       setEvents([...schedule, ...quizzes, ...homework, ...presentations, ...activities]);
+    }).catch((err) => {
+      if (err?.code === "aborted") return;
+      console.error("[teaching-rail] calendar load failed", err);
     });
+    // `useEffect(reloadEvents, [])` below uses this as its cleanup, so leaving
+    // the teaching sections cancels the in-flight calendar load instead of
+    // holding a pool connection for a screen nobody is looking at.
+    return () => ac.abort();
   };
   useEffect(reloadEvents, []);
 
@@ -139,7 +134,7 @@ export default function TeachingRail() {
   const [teacherGrades, setTeacherGrades] = useState([]);
   const [teacherSections, setTeacherSections] = useState([]);
   useEffect(() => {
-    api("/api/me")
+    getProfile()
       .then((me) => {
         setTeacherGrades(Array.isArray(me?.grade_levels) ? me.grade_levels : []);
         setTeacherSections(Array.isArray(me?.sections) ? me.sections : []);

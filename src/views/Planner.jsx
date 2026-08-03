@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 import { navigate } from "../lib/route";
 import { useT, useI18n } from "../lib/i18n";
-import { api, apiList } from "./_shared";
+import { api, getProfile, invalidateProfile } from "./_shared";
 import SchedulePopup from "./_schedule-popup";
 import PlannerTour, { markTourSeenThisSession, tourSeenThisSession } from "./onboarding/PlannerTour";
 
@@ -98,7 +98,7 @@ export default function Planner() {
     let cancelled = false;
     (async () => {
       try {
-        const me = await api("/api/me");
+        const me = await getProfile();
         if (cancelled || tourDecided.current) return;
         tourDecided.current = true;
         // Already recorded on the server, or already shown earlier in this
@@ -119,11 +119,14 @@ export default function Planner() {
   const closeTour = useCallback(async () => {
     setTourOpen(false);
     try {
-      const me = await api("/api/me");
+      const me = await getProfile();
       markTourSeenThisSession(me?.id);
     } catch { /* ignore */ }
     try {
       await api("/api/me/tour-seen", { method: "POST" });
+      // The cached profile still says the tour is unseen — drop it so a later
+      // read reflects the write.
+      invalidateProfile();
     } catch { /* the server write failed; it will be offered once more */ }
   }, []);
   // The visible month (1st of the displayed month). Today by default.
@@ -186,7 +189,7 @@ export default function Planner() {
   const [teacherGrades, setTeacherGrades] = useState([]);
   const [teacherSections, setTeacherSections] = useState([]);
   useEffect(() => {
-    api("/api/me")
+    getProfile()
       .then((me) => {
         setTeacherGrades(Array.isArray(me?.grade_levels) ? me.grade_levels : []);
         setTeacherSections(Array.isArray(me?.sections) ? me.sections : []);
@@ -209,16 +212,15 @@ export default function Planner() {
       const d = new Date(v);
       return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
     };
-    Promise.allSettled([
-      apiList("/api/schedule"),
-      apiList("/api/quizzes"),
-      apiList("/api/homework"),
-      apiList("/api/presentations"),
-      apiList("/api/activities"),
-    ]).then((results) => {
-      const get = (i) => (results[i].status === "fulfilled" ? results[i].value || [] : []);
-      const schedule = get(0)
-        .filter((r) => r.status !== "done")
+    // One request, one database round-trip (F56). This used to be five
+    // apiList() calls — five separate withTenant() transactions, 25 round-trips
+    // — duplicated again by TeachingRail rendering alongside. /api/planner
+    // returns all five lists from a single query and has already applied the
+    // "has a date" and "not done" filters that used to run here.
+    const ac = new AbortController();
+    api("/api/planner", { signal: ac.signal }).then((data) => {
+      const get = (k) => (Array.isArray(data?.[k]) ? data[k] : []);
+      const schedule = get("schedule")
         .map((r) => ({
           id: `schedule-${r.id}`,
           raw: r,
@@ -227,42 +229,47 @@ export default function Planner() {
           title: r.title,
           time: r.start_time ? String(r.start_time).slice(0, 5) : undefined,
         }));
-      const quizzes = get(1)
-        .filter((q) => q.scheduled_for)
-        .map((q) => ({
-          id: `quiz-${q.id}`,
-          date: isoOnly(q.scheduled_for),
-          kind: "quizzes",
-          title: q.title,
-        }));
-      const homework = get(2)
-        .filter((h) => h.due_date)
-        .map((h) => ({
-          id: `homework-${h.id}`,
-          date: isoOnly(h.due_date),
-          kind: "homework",
-          title: h.title,
-        }));
-      const presentations = get(3)
-        .filter((p) => p.scheduled_for)
-        .map((p) => ({
-          id: `presentation-${p.id}`,
-          date: isoOnly(p.scheduled_for),
-          kind: "presentations",
-          title: p.title,
-        }));
-      const activities = get(4)
-        .filter((a) => a.scheduled_for)
-        .map((a) => ({
-          id: `activity-${a.id}`,
-          date: isoOnly(a.scheduled_for),
-          kind: "activities",
-          title: a.title,
-        }));
+      const quizzes = get("quizzes").map((q) => ({
+        id: `quiz-${q.id}`,
+        date: isoOnly(q.scheduled_for),
+        kind: "quizzes",
+        title: q.title,
+      }));
+      const homework = get("homework").map((h) => ({
+        id: `homework-${h.id}`,
+        date: isoOnly(h.due_date),
+        kind: "homework",
+        title: h.title,
+      }));
+      const presentations = get("presentations").map((p) => ({
+        id: `presentation-${p.id}`,
+        date: isoOnly(p.scheduled_for),
+        kind: "presentations",
+        title: p.title,
+      }));
+      const activities = get("activities").map((a) => ({
+        id: `activity-${a.id}`,
+        date: isoOnly(a.scheduled_for),
+        kind: "activities",
+        title: a.title,
+      }));
       setEvents([...schedule, ...quizzes, ...homework, ...presentations, ...activities]);
+    }).catch((err) => {
+      // An abort is this component unmounting, not a failure — stay silent.
+      if (err?.code === "aborted") return;
+      // The five-call version used Promise.allSettled, so a failure degraded to
+      // a partially-filled calendar. One request cannot do that: it either
+      // returns every list or none. Leave the grid empty rather than throwing
+      // into an unhandled rejection — the month still renders and the teacher
+      // can navigate.
+      console.error("[planner] calendar load failed", err);
     });
+    // Returned so the effect below can cancel an in-flight load on unmount;
+    // reloadEvents() is also called directly after a save, where the caller
+    // simply ignores the handle.
+    return () => ac.abort();
   }, []);
-  useEffect(() => { reloadEvents(); }, [reloadEvents]);
+  useEffect(() => reloadEvents(), [reloadEvents]);
 
   // Bucket events by ISO date for O(1) lookup per cell.
   const eventsByDate = useMemo(() => {

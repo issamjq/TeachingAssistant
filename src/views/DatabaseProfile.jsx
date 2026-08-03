@@ -3,7 +3,7 @@ import { Calendar, Hash, Pencil } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { MAJORS, QUIZ_LANGUAGES } from "../lib/enums";
-import { Field, ChipMultiSelect, inputClasses, api, DatePicker } from "./_shared";
+import { ChipMultiSelect, DatePicker, Field, api, inputClasses, invalidateProfile } from "./_shared";
 import BrandLoader from "../components/BrandLoader";
 
 const initials = (first, last) =>
@@ -160,6 +160,7 @@ function ProfileEditor({ initial, onClose, onSaved }) {
         majors,
       };
       const updated = await api("/api/me", { method: "PATCH", body });
+      invalidateProfile();
       onSaved(updated);
     } catch (e) {
       setErr(e.message);

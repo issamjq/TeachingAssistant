@@ -720,6 +720,64 @@ export function ChipMultiSelect({ value = [], onChange, options, allowCustom = f
 // /api/* call will be redirected there.
 const API_BASE = (import.meta.env.VITE_API_URL || "").replace(/\/$/, "");
 
+// ── Shared profile fetch ───────────────────────────────────────────────
+//
+// Eleven call sites fetch /api/me independently — App.jsx, Studio, Planner
+// (three times on its own), TeachingRail, Dashboard, AccountProfile,
+// DatabaseProfile, useTeacherClasses. Measured on one Planner load: FIVE
+// identical requests, because each component owns its own fetch and none of
+// them share.
+//
+// The server-side account cache (F38) does not help here: /api/me has its own
+// handler with ME_SELECT, which returns columns ACCOUNT_COLS does not carry, so
+// it issues a real query every time. Five requests were five round-trips and
+// five queries for one screen's worth of the same unchanging row.
+//
+// This collapses them to one:
+//   - concurrent callers share the in-flight promise (the common case — several
+//     components mounting in the same tick)
+//   - a short TTL covers remounts during normal navigation
+//
+// TTL is deliberately small. The profile drives which grades and sections the
+// forms offer, so a stale one shows the wrong dropdowns; 30s is long enough to
+// cover a page's mount storm and short enough that nobody notices. Any write to
+// the profile must call invalidateProfile() — PATCH /api/me does, below.
+const PROFILE_TTL_MS = 30_000;
+let _profileAt = 0;
+let _profile = null;
+let _profileInflight = null;
+
+export function invalidateProfile() {
+  _profile = null;
+  _profileAt = 0;
+  _profileInflight = null;
+}
+
+// force:true bypasses the cache — for a screen that must show a just-saved edit.
+export function getProfile({ force = false } = {}) {
+  if (!force && _profile && Date.now() - _profileAt < PROFILE_TTL_MS) {
+    return Promise.resolve(_profile);
+  }
+  if (!force && _profileInflight) return _profileInflight;
+
+  const p = api("/api/me")
+    .then((me) => {
+      _profile = me;
+      _profileAt = Date.now();
+      _profileInflight = null;
+      return me;
+    })
+    .catch((err) => {
+      // Never cache a failure: the next caller should get a real attempt, not a
+      // memoised error. Matters most right after sign-in, when the first call
+      // can land before the account row is provisioned.
+      _profileInflight = null;
+      throw err;
+    });
+  _profileInflight = p;
+  return p;
+}
+
 // Pulls the signed-in teacher's classes (grade_levels + sections) so
 // every new-entry form (Quizzes / Homework / Presentations / Schedule)
 // only offers what THIS teacher actually teaches — set in My students
@@ -728,7 +786,7 @@ export function useTeacherClasses() {
   const [data, setData] = useState({ grades: [], sections: [] });
   useEffect(() => {
     let alive = true;
-    api("/api/me")
+    getProfile()
       .then((me) => {
         if (!alive) return;
         setData({
@@ -742,7 +800,18 @@ export function useTeacherClasses() {
   return data;
 }
 
-export async function api(path, { method = "GET", body } = {}) {
+// `signal` accepts an AbortSignal so a caller can cancel a request it no longer
+// needs — a screen unmounting, a filter changing before the last fetch landed
+// (F56). This matters more on the server than on the client: every tenant-scoped
+// request holds a pool connection for its whole life, the pool holds 10, and
+// without cancellation a teacher who opens Planner and immediately navigates
+// away leaves those queries running to completion against connections nobody is
+// waiting on.
+//
+// An abort is a normal control-flow event, not a failure. It surfaces as an
+// error with `code: "aborted"` so callers can ignore it in one check instead of
+// string-matching DOMException messages.
+export async function api(path, { method = "GET", body, signal } = {}) {
   // Lazy-load the auth helper so files that import api from a non-React
   // context (init scripts, tests) don't pull Firebase into their bundle.
   const { getIdToken } = await import("../lib/firebaseAuth");
@@ -757,11 +826,22 @@ export async function api(path, { method = "GET", body } = {}) {
   // handed out. A mismatch means the account signed in elsewhere.
   if (sessionId) headers["X-Session-Id"] = sessionId;
 
-  const res = await fetch(API_BASE + path, {
-    method,
-    headers: Object.keys(headers).length ? headers : undefined,
-    body: body ? JSON.stringify(body) : undefined,
-  });
+  let res;
+  try {
+    res = await fetch(API_BASE + path, {
+      method,
+      headers: Object.keys(headers).length ? headers : undefined,
+      body: body ? JSON.stringify(body) : undefined,
+      signal,
+    });
+  } catch (err) {
+    if (err?.name === "AbortError") {
+      const aborted = new Error("Request aborted");
+      aborted.code = "aborted";
+      throw aborted;
+    }
+    throw err;
+  }
   let data = null;
   try {
     data = await res.json();

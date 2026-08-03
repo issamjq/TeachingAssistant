@@ -3,7 +3,7 @@ import { Mail, Phone, Globe, Pencil, User, GraduationCap, Building2 } from "luci
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { NATIONALITIES } from "../lib/enums";
-import { Field, Modal, inputClasses, selectClasses, api } from "./_shared";
+import { Field, Modal, api, inputClasses, invalidateProfile, selectClasses } from "./_shared";
 import { navigate } from "../lib/route";
 import DatabaseProfile from "./DatabaseProfile";
 import DatabaseSchools from "./DatabaseSchools";
@@ -304,6 +304,9 @@ function AccountEditModal({ initial, onClose, onSaved }) {
     setErr(null);
     try {
       const updated = await api("/api/me", { method: "PATCH", body: form });
+      // The shared profile cache now holds a stale row — drop it so the next
+      // reader (Studio chips, form dropdowns) sees this edit.
+      invalidateProfile();
       // Mirror name + email into the local account.profile so the
       // sidebar chip and account menu reflect the edit immediately,
       // without waiting for the next /api/me hydration on reload.
