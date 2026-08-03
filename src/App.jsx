@@ -64,6 +64,9 @@ const TEACHER_NAV = [
   {
     section: "Planning",
     items: [
+      // "Today" view — the live/next lesson. Distinct from Planner, which is
+      // the month grid. Was reachable by URL only until it was registered here.
+      { key: "dashboard", label: "Dashboard", letter: "D" },
       { key: "planner", label: "Planner", icon: "▦" },
       { key: "schedule", label: "Schedule", letter: "S" },
       { key: "bulletin-board", label: "Bulletin board", letter: "B" },
@@ -77,7 +80,9 @@ const TEACHER_NAV = [
       { key: "homework",      label: "Homework",      letter: "H" },
       { key: "presentations", label: "Presentations", letter: "P" },
       { key: "activities",    label: "Activities",    letter: "A" },
-      { key: "library",       label: "Library",       letter: "B" },
+      // Glyph rather than a letter: "B" (for Books) collided with the
+      // Bulletin board badge above, so two sidebar items rendered identically.
+      { key: "library",       label: "Library",       icon: "▤" },
     ],
   },
   {

@@ -205,11 +205,20 @@ export default function ProfileForm({ onDone, onBack }) {
       return name || data.staffId || null;
     }
     if (s === "subjects") {
-      const n = (data.majors.length || 0) + (data.languages.length || 0);
-      return n > 0 ? t("onb.rail.subjectsSummary", { m: data.majors.length, l: data.languages.length }) : null;
+      // Each half pluralises on its own count, so "1 subject · 2 languages"
+      // renders correctly instead of the old always-plural "1 subjects" (F29).
+      const m = data.majors.length || 0;
+      const l = data.languages.length || 0;
+      if (m + l === 0) return null;
+      return [
+        t(m === 1 ? "onb.rail.subjectsCount_one" : "onb.rail.subjectsCount", { m }),
+        t(l === 1 ? "onb.rail.languagesCount_one" : "onb.rail.languagesCount", { l }),
+      ].join(" · ");
     }
     if (s === "schools") {
-      return schools.length > 0 ? t("onb.rail.schoolsSummary", { n: schools.length }) : null;
+      const n = schools.length;
+      if (n === 0) return null;
+      return t(n === 1 ? "onb.rail.schoolsSummary_one" : "onb.rail.schoolsSummary", { n });
     }
     if (s === "scope") {
       const graded = schools.filter((x) => Object.keys(x.gradeSections || {}).length > 0).length;

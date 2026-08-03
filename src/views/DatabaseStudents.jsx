@@ -91,6 +91,28 @@ export default function DatabaseStudents() {
     return [...set].sort();
   }, [students]);
 
+  // Grades present in this roster, not the full KG-1..Grade-12 catalog (F35).
+  //
+  // The heading directly above promises "Only kids in the grades you teach",
+  // and the filter then offered all fourteen grades to a teacher who teaches
+  // one — every option but theirs guaranteed to return an empty table. This
+  // mirrors sectionOptions, which was already derived from the rows.
+  //
+  // Sorted by curriculum order rather than alphabetically, so it reads
+  // KG 1, KG 2, Grade 2, Grade 10 — not Grade 1, Grade 10, Grade 11, Grade 2.
+  const gradeOptions = useMemo(() => {
+    const set = new Set(students.map((s) => s.grade).filter(Boolean));
+    return [...set].sort((a, b) => {
+      const ia = GRADE_LEVELS.indexOf(a);
+      const ib = GRADE_LEVELS.indexOf(b);
+      // A grade not in the catalog (legacy or hand-typed) sorts last, by name.
+      if (ia === -1 && ib === -1) return a.localeCompare(b);
+      if (ia === -1) return 1;
+      if (ib === -1) return -1;
+      return ia - ib;
+    });
+  }, [students]);
+
   const filtered = useMemo(() => {
     let rows = students;
     if (gradeFilter) rows = rows.filter((s) => s.grade === gradeFilter);
@@ -178,7 +200,7 @@ export default function DatabaseStudents() {
           className={`${selectClasses} md:w-48 md:flex-none`}
         >
           <option value="">All grades</option>
-          {GRADE_LEVELS.map((g) => (
+          {gradeOptions.map((g) => (
             <option key={g} value={g}>
               {g}
             </option>

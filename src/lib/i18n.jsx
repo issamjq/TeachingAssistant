@@ -287,6 +287,8 @@ const EN = {
   "dp.today": "Today",
   // planner
   "nav.schedule": "Schedule",
+  "nav.dashboard": "Dashboard",
+  "nav.library": "Library",
   "planner.subtitle": "Lesson plans, schedule, quizzes, homework, presentations, and activities — all on one grid.",
   "planner.all": "All",
   "planner.schedule": "Schedule",
@@ -659,8 +661,15 @@ const EN = {
   "onb.rail.step.students": "Your students",
   "onb.rail.edit": "Edit",
   "onb.rail.current": "In progress",
+  // Composed from two halves so each noun pluralises on its own count —
+  // "1 subject · 2 languages" is not expressible in a single template (F29).
   "onb.rail.subjectsSummary": "{m} subjects · {l} languages",
+  "onb.rail.subjectsCount": "{m} subjects",
+  "onb.rail.subjectsCount_one": "{m} subject",
+  "onb.rail.languagesCount": "{l} languages",
+  "onb.rail.languagesCount_one": "{l} language",
   "onb.rail.schoolsSummary": "{n} schools",
+  "onb.rail.schoolsSummary_one": "{n} school",
   "onb.rail.scopeSummary": "{n} scoped",
   "onb.rail.studentsSummary": "{n} students",
   "onb.fld.majors": "Majors you teach",
@@ -1262,6 +1271,8 @@ const AR = {
   "dp.clear": "مسح",
   "dp.today": "اليوم",
   "nav.schedule": "الجدول",
+  "nav.dashboard": "لوحة التحكم",
+  "nav.library": "المكتبة",
   "planner.subtitle": "خطط الدروس والجدول والاختبارات والواجبات والعروض والأنشطة — كلها في شبكة واحدة.",
   "planner.all": "الكل",
   "planner.schedule": "الجدول",
@@ -1628,8 +1639,18 @@ const AR = {
   "onb.rail.step.students": "طلابك",
   "onb.rail.edit": "تعديل",
   "onb.rail.current": "قيد التنفيذ",
+  // ⚠️ Singular/plural only. Arabic also has a dual form (2) and switches back
+  // to the singular noun above 10 — proper handling needs the full CLDR set.
+  // These two forms are strictly better than the always-plural strings they
+  // replace, but the counts still want a native-speaker review before launch,
+  // like the consent text (F17).
   "onb.rail.subjectsSummary": "{m} مواد · {l} لغات",
+  "onb.rail.subjectsCount": "{m} مواد",
+  "onb.rail.subjectsCount_one": "مادة واحدة",
+  "onb.rail.languagesCount": "{l} لغات",
+  "onb.rail.languagesCount_one": "لغة واحدة",
   "onb.rail.schoolsSummary": "{n} مدارس",
+  "onb.rail.schoolsSummary_one": "مدرسة واحدة",
   "onb.rail.scopeSummary": "{n} محدّدة",
   "onb.rail.studentsSummary": "{n} طلاب",
   "onb.fld.majors": "المواد التي تُدرّسها",

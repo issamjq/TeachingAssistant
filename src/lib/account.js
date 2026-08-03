@@ -1,9 +1,18 @@
-// Mock client-side account. There is NO real auth yet — sign-up is a
-// Google/Outlook button that just records which provider was tapped,
-// which plan was chosen, and the teacher's onboarding profile, in
-// localStorage. When Firebase lands, replace the get/set internals with
-// the auth user + custom claims and keep this exact shape so callers
-// don't change.
+// Client-side account cache, held in localStorage.
+//
+// NOT the authority on identity — Firebase owns the session and the server owns
+// the account row; `/api/me` is the source of truth for anything that decides
+// what a user may do. Role checks live in requireAuth() / requireRole() on the
+// server, and nothing here is trusted for authorisation.
+//
+// What this holds is the parts of sign-up the UI needs before, or independently
+// of, a server round-trip: which provider was used, which plan was picked, and
+// the onboarding answers captured across wizard steps (`pending*` keys) before
+// the account row exists to write them to.
+//
+// The header used to read "There is NO real auth yet — replace the internals
+// when Firebase lands". Firebase landed; the shape was kept, as intended, so
+// only the description was wrong (F13).
 //
 //   account = {
 //     provider: "google" | "outlook",
