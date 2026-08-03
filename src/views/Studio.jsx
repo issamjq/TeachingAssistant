@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { api, DatePicker } from "./_shared";
+import { DatePicker, api, getProfile } from "./_shared";
 import { useT, useI18n, tIn, isArabicLang } from "../lib/i18n";
 import { parseSections, joinSections, renderMarkdown } from "../lib/markdown";
 import StudioCard from "./StudioCard";
@@ -86,6 +86,48 @@ function kindLabelFor(t, v) {
 function titleFromMarkdown(text, fallback) {
   const line = text.split(/\r?\n/).find((l) => /^#{1,2}\s+/.test(l)) || fallback;
   return line.replace(/^#+\s*/, "").trim().slice(0, 120) || fallback;
+}
+
+// The Section chip can hold one value or several ("Section(s)"), but the
+// homework / presentations tables store a single TEXT column. Join rather than
+// silently keeping the first, so a two-section assignment doesn't quietly
+// become a one-section one.
+function sectionToColumn(section) {
+  if (Array.isArray(section)) return section.filter(Boolean).join(", ") || null;
+  return section || null;
+}
+
+// Split generated markdown into deck slides — one slide per heading, with the
+// lines beneath it as the body.
+//
+// Emits { title, body } rather than a full slide object deliberately:
+// deckFromPresentation() in SlideBuilder already splits `body` into bullets
+// when `bullets` is absent, and picks layout/background itself. Producing the
+// minimal shape keeps one owner for those defaults instead of two.
+//
+// Text before the first heading becomes the opening slide, so a preamble is
+// carried rather than dropped.
+function slidesFromMarkdown(text) {
+  const lines = String(text || "").split(/\r?\n/);
+  const slides = [];
+  let current = null;
+  for (const line of lines) {
+    const heading = line.match(/^#{1,6}\s+(.*)$/);
+    if (heading) {
+      if (current) slides.push(current);
+      current = { title: heading[1].trim().slice(0, 200), body: "" };
+      continue;
+    }
+    if (!current) {
+      if (!line.trim()) continue;
+      current = { title: "", body: "" };
+    }
+    current.body += (current.body ? "\n" : "") + line;
+  }
+  if (current) slides.push(current);
+  return slides
+    .map((s) => ({ title: s.title, body: s.body.trim() }))
+    .filter((s) => s.title || s.body);
 }
 
 const RECENTS_STORAGE_KEY = (kind) => `murchid:studio:recents:${kind}`;
@@ -419,7 +461,7 @@ export default function Studio({ initialKind } = {}) {
   const [teacher, setTeacher] = useState(null);
   useEffect(() => {
     let alive = true;
-    api("/api/me")
+    getProfile()
       .then((data) => { if (alive) setTeacher(data); })
       .catch(() => { if (alive) setTeacher({}); });
     return () => { alive = false; };
@@ -428,14 +470,25 @@ export default function Studio({ initialKind } = {}) {
   // Per-chip option lists. Prefer the teacher's curated set; fall back
   // to the global enum so a first-time teacher (empty profile) still
   // gets a usable dropdown.
-  const teacherGrades = (teacher?.grade_levels || []).filter(Boolean);
-  const teacherMajors = (teacher?.majors || []).filter(Boolean);
-  const teacherLanguages = (teacher?.languages || []).filter(Boolean);
-  const teacherSections = (teacher?.sections || []).filter(Boolean);
-  const gradeOptions = teacherGrades.length ? teacherGrades : GRADE_LEVELS;
-  const majorOptions = teacherMajors.length ? teacherMajors : MAJORS;
-  const languageOptions = teacherLanguages.length ? teacherLanguages : QUIZ_LANGUAGES;
-  const sectionOptions = teacherSections.length ? teacherSections : QUIZ_SECTIONS;
+  // Memoised because these are effect dependencies (the single-option
+  // auto-select below). Rebuilt inline they would carry a new array identity on
+  // every render and re-run the effect each time.
+  const gradeOptions = useMemo(() => {
+    const own = (teacher?.grade_levels || []).filter(Boolean);
+    return own.length ? own : GRADE_LEVELS;
+  }, [teacher]);
+  const majorOptions = useMemo(() => {
+    const own = (teacher?.majors || []).filter(Boolean);
+    return own.length ? own : MAJORS;
+  }, [teacher]);
+  const languageOptions = useMemo(() => {
+    const own = (teacher?.languages || []).filter(Boolean);
+    return own.length ? own : QUIZ_LANGUAGES;
+  }, [teacher]);
+  const sectionOptions = useMemo(() => {
+    const own = (teacher?.sections || []).filter(Boolean);
+    return own.length ? own : QUIZ_SECTIONS;
+  }, [teacher]);
 
   const [busy, setBusy] = useState(false);
   // Quizzes now stream as markdown text just like every other kind, so
@@ -451,6 +504,50 @@ export default function Studio({ initialKind } = {}) {
   const [lessonParams, setLessonParams] = useState(LESSON_PARAMS_DEFAULTS);
   const [homeworkParams, setHomeworkParams] = useState(HOMEWORK_PARAMS_DEFAULTS);
   const [presentationParams, setPresentationParams] = useState(PRESENTATION_PARAMS_DEFAULTS);
+
+  // Auto-select any chip that has exactly one possible value (F27).
+  //
+  // "Make it" stays disabled until every required chip is set, but the option
+  // lists are scoped to what this teacher actually teaches — so a teacher with
+  // one grade, one language and one section had to open three menus that each
+  // contained a single choice, and click the only thing in them. Measured on a
+  // real account: three of the five required chips had exactly one option, so
+  // five menus expressed two real decisions.
+  //
+  // A one-option list carries no information, so choosing from it is not a
+  // decision the teacher is making — it is a decision the profile already made
+  // during onboarding. Filling it in is the honest representation of that.
+  //
+  // Only ever fills a field the teacher has left empty, and only when there is
+  // literally one candidate, so it can never override or guess at a choice.
+  // Runs when the profile arrives (options are derived from it) and is safe to
+  // re-run: already-set fields are left alone.
+  useEffect(() => {
+    if (!teacher) return; // profile hasn't landed yet — options aren't final
+    const only = (list) => (list.length === 1 ? list[0] : null);
+    const single = {
+      grade: only(gradeOptions),
+      major: only(majorOptions),
+      language: only(languageOptions),
+      section: only(sectionOptions),
+    };
+    const fill = (setter, keys) => setter((prev) => {
+      let next = prev;
+      for (const k of keys) {
+        if (single[k] && !prev[k]) {
+          if (next === prev) next = { ...prev };
+          next[k] = single[k];
+        }
+      }
+      return next; // unchanged reference when nothing applied — no re-render
+    });
+    fill(setQuizParams,         ["grade", "major", "language", "section"]);
+    fill(setLessonParams,       ["grade", "major", "language", "section"]);
+    fill(setHomeworkParams,     ["grade", "major", "language", "section"]);
+    fill(setPresentationParams, ["grade", "major", "language", "section"]);
+    // Activity has no grade/section chips by design — see ACTIVITY_PARAMS_DEFAULTS.
+    fill(setActivityParams,     ["major", "language"]);
+  }, [teacher, gradeOptions, majorOptions, languageOptions, sectionOptions]);
   // Optional file attachment (image or PDF) — base64-encoded, sent
   // alongside the prompt so the AI can read a textbook page, photo of
   // the board, scanned exam, etc., and base the output on it.
@@ -1690,10 +1787,65 @@ export default function Studio({ initialKind } = {}) {
         return;
       }
 
-      // Markdown path (lesson plan, homework, presentation) — keeps the existing
-      // drafts-table behaviour. Drafts table is structured around lesson
-      // plans; everything else still saves there until per-kind tables
-      // exist.
+      // Homework path (F52). homework has its own table, its own screen and its
+      // own builder — a generated one landing under Lesson Plans meant the
+      // teacher had to find it in the wrong place and could not open it in
+      // HomeworkBuilder at all. `instructions` is a text column, so the
+      // generated markdown maps straight onto it.
+      //
+      // status is left to the column default ('Open'), matching what
+      // HomeworkBuilder starts a new assignment with.
+      if (result?.kind === "homework") {
+        const text = fullText();
+        if (!text) return;
+        const body = {
+          title: titleFromMarkdown(text, "Untitled homework"),
+          subject: homeworkParams.major || null,
+          grade: homeworkParams.grade || null,
+          section: sectionToColumn(homeworkParams.section),
+          instructions: text,
+          due_date: homeworkParams.scheduled_for || null,
+        };
+        if (savedDraftId) {
+          await api(`/api/homework/${savedDraftId}`, { method: "PATCH", body });
+        } else {
+          const created = await api("/api/homework", { method: "POST", body });
+          setSavedDraftId(created.id);
+        }
+        setIsDirty(false);
+        return;
+      }
+
+      // Presentation path (F52). The deck is stored as `slides` jsonb, so the
+      // generated markdown is split into one slide per heading. We emit
+      // { title, body } rather than a full slide object on purpose:
+      // deckFromPresentation() already falls back to splitting `body` into
+      // bullets when `bullets` is absent, so this is the shape it is built to
+      // accept, and SlideBuilder owns layout/background defaults from there.
+      if (result?.kind === "presentation") {
+        const text = fullText();
+        if (!text) return;
+        const body = {
+          title: presentationTitleOverride
+            || titleFromMarkdown(text, "Untitled presentation"),
+          subject: presentationParams.major || null,
+          grade: presentationParams.grade || null,
+          section: sectionToColumn(presentationParams.section),
+          scheduled_for: presentationParams.scheduled_for || null,
+          slides: slidesFromMarkdown(text),
+        };
+        if (savedDraftId) {
+          await api(`/api/presentations/${savedDraftId}`, { method: "PATCH", body });
+        } else {
+          const created = await api("/api/presentations", { method: "POST", body });
+          setSavedDraftId(created.id);
+        }
+        setIsDirty(false);
+        return;
+      }
+
+      // Markdown path — lesson plans only now. The drafts table is structured
+      // around lesson plans, and every other kind has its own table above.
       const text = fullText();
       if (!text) return;
       const name = titleFromMarkdown(text, "Untitled lesson");
