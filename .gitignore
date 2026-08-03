@@ -7,3 +7,8 @@ dist
 .vercel/
 .DS_Store
 *.log
+
+# Firebase service-account keys — never commit
+*firebase-adminsdk*.json
+*service-account*.json
+serviceAccountKey.json
