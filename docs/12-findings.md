@@ -687,6 +687,134 @@ Measured dev→Neon: cold read 95 ms, warm read sub-millisecond. Note 95 ms is d
 
 ---
 
+## Sweep — 2026-08-03
+
+### F59 — `/dashboard` was built, routed, lazy-loaded, and in no menu ✅ Observed — 🔧 Fixed
+The third orphan, missed by the Day 4 sweep that caught Attendance, Gradebook, Reports, Schedule and Library. `dashboard` was in `SECTIONS_BY_ROLE.teacher`, had a render branch in `App.jsx` and its own `lazyRoute` import — everything except an entry in `TEACHER_NAV`. So it worked perfectly and no teacher could reach it.
+
+It is not a duplicate of Planner: `Dashboard.jsx` is the **today** view, picking the lesson the teacher is most likely in right now (`pickNowLesson` resolves live / next / done), while Planner is the month grid. Added to Planning above Planner.
+
+Two things surfaced while wiring it:
+- **`nav.dashboard` and `nav.library` did not exist in either dictionary.** `navLabel()` falls back to the hardcoded English `label` when a key is missing, so Library has been rendering "Library" in Arabic mode all along — a quiet instance of F34. Both keys added, EN + AR.
+- **Bulletin board and Library both rendered the badge letter "B"** (Bulletin / Books). Library now uses the glyph `▤`, matching Planner's `▦` rather than inventing a third letter.
+
+### F45 — closed 🔧 Fixed
+`/api/teachers` is now read-only. `crudRouter` gained a `readOnly` option that registers the two GET routes and drops POST / PATCH / DELETE (and, where soft delete is on, restore / forever).
+
+Verified by enumerating the mounted router's stack rather than by probing HTTP, because `requireAuth` runs before routing and answers 401 for every verb either way:
+
+| Router | routes | write routes |
+|---|---|---|
+| `/api/teachers` | 2 | **0** |
+| `/api/templates` (control) | 8 | 5 |
+
+Account writes keep going to `admin.js`, which refuses self-suspension and self-deletion, enforces `canGrantRole()` and writes an `audit_log` row. Nothing in the frontend called the removed verbs — `AdminConsole` uses `/api/admin/teachers` — so this closes a latent path rather than changing behaviour. Worth stating plainly why it mattered: a hard `DELETE /api/teachers/:id` cascade-deletes 15 tables *and* sets that account's `audit_log.account_id` to NULL, so the delete erased its own evidence.
+
+### F56 — closed 🔧 Fixed
+New `GET /api/planner` returns all five calendar lists from one query, in the same shape as the F51 dashboard fix. `Planner.jsx` and `TeachingRail.jsx` both call it.
+
+Measured dev-machine-to-Neon, median of three after a warm-up:
+
+| | median |
+|---|---|
+| OLD — 5 separate `withTenant()` transactions | **3,273 ms** |
+| NEW — 1 transaction, 1 query | **505 ms** |
+
+6.5×, and that is per component: these two render together on the teaching sections, so the old cost landed twice.
+
+The `scheduled_for IS NOT NULL` / `due_date IS NOT NULL` / `status <> 'done'` filters moved into SQL, since both consumers dropped those rows on arrival anyway — less payload, and the date indexes can work. `IS DISTINCT FROM` for the status filter because the column is nullable.
+
+**Also the second half of the finding:** `api()` now accepts an `AbortSignal`, and both components abort on unmount. This is the part that mattered under concurrency — the pool holds 10 connections and nothing previously stopped a query for a screen the teacher had already left. An abort surfaces as `code: "aborted"` so callers ignore it in one check instead of string-matching DOMException messages.
+
+One behaviour change worth recording: the old code used `Promise.allSettled`, so a single failing list degraded to a partly-filled calendar. One request cannot do that — it returns every list or none — so both call sites now log and leave the grid empty rather than throwing into an unhandled rejection.
+
+### F52 — closed 🔧 Fixed
+Studio's save has branches for homework and presentation, following the activity one.
+
+- **Homework** maps cleanly: `instructions` is a text column, so the generated markdown goes straight in. `status` is left to the column default (`'Open'`), which is what HomeworkBuilder starts a new assignment with.
+- **Presentations** needed a conversion, because the deck lives in `slides` jsonb while Studio produces markdown. Split on headings into `{title, body}` — deliberately the minimal shape, because `deckFromPresentation()` already splits `body` into bullets when `bullets` is absent and picks layout/background itself. Producing full slide objects would have put those defaults in two places.
+
+Text before the first heading becomes the opening slide rather than being dropped. Both payloads were checked against the routers' `FIELDS` allowlists — nothing is silently discarded — and `slides` is already declared in `jsonFields`, so the array is stringified rather than sent as a Postgres array literal.
+
+Also added `sectionToColumn()`: the Section chip can hold several values but both tables store one TEXT column, so it joins rather than keeping the first and quietly losing the rest.
+
+### F27 — closed 🔧 Fixed
+Chips with exactly one possible option are now filled in automatically once the profile arrives. On the measured account that is three of the five required chips, so `Make it` is reachable in two clicks instead of five.
+
+Only ever fills a field the teacher left empty, and only when the list has literally one candidate — it cannot override or guess at a choice. A one-option list carries no information, so picking from it was never a decision the teacher was making; it was one onboarding already made.
+
+The option lists are now `useMemo`d. They are effect dependencies, and rebuilt inline they carried a new array identity every render.
+
+### F35 — closed 🔧 Fixed
+The My-students grade filter is derived from the grades present in the roster, exactly as `sectionOptions` already was — instead of the full KG-1..Grade-12 catalog. The heading above it promises "Only kids in the grades you teach"; the filter was offering fourteen options, thirteen of which were guaranteed to return an empty table.
+
+Sorted in curriculum order rather than alphabetically, so it reads KG 1, KG 2, Grade 2, Grade 10 — not Grade 1, Grade 10, Grade 11, Grade 2. A grade not in the catalog sorts last rather than being dropped.
+
+### F29 — closed 🔧 Fixed
+"1 schools" / "1 languages" came from plural nouns baked into the i18n strings (`"{n} schools"`). `t()` is a plain key-and-substitute with no plural support, and building one was more than this needed, so the two summaries now pick between a `_one` key and the plural at the call site. The subjects line is composed from two halves so each noun pluralises on its own count — "1 subject · 2 languages" is not expressible in a single template.
+
+**⚠️ Arabic is singular/plural only.** Arabic also has a dual form and reverts to the singular noun above ten, so the counts still want a native-speaker review before launch — same standing caveat as F17.
+
+### F13 — closed 🔧 Fixed
+`src/lib/currentUser.js` deleted. It exported `CURRENT_TEACHER_STAFF_ID = "STF-001"` and claimed to be imported by `vite.config.js`; nothing in `src/`, `backend/` or the Vite config referenced it.
+
+`src/lib/account.js`'s header said "There is NO real auth yet". Firebase landed and the module's shape was kept exactly as that comment intended, so only the description was wrong. Rewritten to say what it actually is: a localStorage cache of provider / plan / pending onboarding answers, explicitly **not** the authority on identity — `/api/me` and the server's `requireAuth()` / `requireRole()` are.
+
+### F60 — 🔴 A lapsed trial ejects the teacher to marketing with no explanation and no way to renew ✅ Observed
+Found by hitting it: the test account's 7-day trial expired at 05:10 on 2026-08-03 and every studio URL began bouncing to the landing page, with the nav showing **SIGN IN** as though the session were gone. It was not — Firebase still held the user and `murchid.session.id` was intact. The only clue anywhere was one console line: `Your subscription has ended.`
+
+`requireAuth` returns 403 `subscription_expired`, and `App.jsx:247` handles it by calling `clearAccount()` and `clearRoute()`. Its comment says both cases are "bounced back to landing so they can complete plan-pick / renew". They cannot:
+
+- The landing renders its signed-out state, so the teacher is told they are logged out when they are not.
+- **`grep -rn "auth/renew" src/` returns nothing.** `POST /api/auth/renew` exists, is tested, bypasses the subscription gate via `allowExpired: true` — and has no caller anywhere in the frontend.
+
+So the renewal endpoint is unreachable from the product at the exact moment it is needed. This is the conversion moment for every trial user and it currently dead-ends in a screen that says "Sign in".
+
+Distinct from F5 (no payment integration). F5 is "nobody can pay". This is "when the trial ends, the teacher is silently ejected and cannot even reach the thing that would extend them, payment or not". Fixing F5 does not fix this; the funnel still has no door.
+
+**Also worth noting:** `requireAuth` flips `subscription_status` to `'expired'` on first detection, so the state is sticky — the row said `expired` even after the end date was pushed forward, until it was set back to `trial` explicitly.
+
+**Fix:** a real lapsed state. Keep the teacher signed in, render an "Your trial ended" screen with the plan picker wired to `POST /api/auth/renew`, and stop clearing the local account on 403 — the account is not gone, only unpaid.
+
+### F61 — `/api/me` was fetched five times on one page load ✅ Observed — 🔧 Fixed
+Measured on a clean Planner load: **five identical `/api/me` requests**. Eleven call sites fetch it independently — `App.jsx`, `Studio`, `TeachingRail`, `Dashboard`, `AccountProfile`, `DatabaseProfile`, `useTeacherClasses`, and `Planner` **three times on its own** (tour gate, tour close, form dropdowns).
+
+The Day 3 account cache (F38) does not cover this: `/api/me` has its own handler with `ME_SELECT`, which returns columns `ACCOUNT_COLS` does not carry, so it issues a real query every time. Five requests were five round-trips and five queries for one screen's worth of the same unchanging row.
+
+**Fixed** with a shared `getProfile()` in `_shared.jsx` — concurrent callers share the in-flight promise, and a 30s TTL covers the mount storm. TTL is deliberately short because the profile drives which grades and sections the forms offer, so a stale one shows the wrong dropdowns. `invalidateProfile()` is called by both `PATCH /api/me` sites and after the tour-seen write.
+
+`App.jsx`'s boot check is deliberately **left uncached**: it is the call that detects `no_teacher_row` and `subscription_expired`, and caching it could mask a revoked account for the TTL window.
+
+Measured on the same screen, before → after:
+
+| | requests |
+|---|---|
+| Before F56 | 5 × `/api/me` + 10 list calls |
+| After F56 | 5 × `/api/me` + 1 × `/api/planner` = **6** |
+| After F61 | 2 × `/api/me` + 1 × `/api/planner` = **3** |
+
+### F62 — Sidebar identity never recovers once the local account is cleared ✅ Observed — minor
+After the F60 ejection the sidebar footer read **"Teacher"** with no name, while the Dashboard header on the same screen greeted **"Good morning, afras"**. The header reads `/api/me`; the sidebar reads the localStorage account, which `clearAccount()` had just emptied.
+
+`App.jsx` does mirror `/api/me` back into the local account, but through `updateProfile(patch)`, which patches an existing account object — with nothing there it has nothing to patch, so the name never returns for the rest of the session. Any teacher who clears site data hits the same thing.
+
+**Fix:** when `/api/me` succeeds and no local account exists, seed one from the response rather than only patching.
+
+### F63 — 🔴 Opening a deleted presentation hung on the loading spinner forever ✅ Observed — 🔧 Fixed
+Found by Issa on 2026-08-03: `/presentations/edit/15` sat on the brand loader and never resolved. The row had been deleted in another tab while that URL was still open.
+
+The cause is two lines disagreeing in [`PresentationBuilder.jsx`](../src/views/PresentationBuilder.jsx). The fetch's `catch` cleared `loading`, which looks like correct error handling — but left `row` as `null`, and the render guard tested `loading || !deck`. With `row` null, `deck` is null, so `!deck` stayed true and the loader rendered **forever**. Clearing the flag achieved nothing because the other half of the condition was never false.
+
+It is not an edge case: it fires whenever a deck is opened after being deleted — a stale tab, a bookmark, a browser restoring the session — and on any network drop mid-load. The screen offers no error, no retry and no way out except the browser's back button.
+
+**Fixed** by making a failed load a distinct state rather than an absent one. `loadError` separates 404 ("This deck is no longer here", pointing at Recently deleted, which is where it actually is for 30 days) from a transport failure ("Something went wrong", with a Try again that re-runs the fetch via a `reloadKey` bump rather than a remount). Aborts are ignored — they are unmounts, not failures.
+
+Verified on the exact URL: the not-found card renders, and "Back to presentations" returns to the list.
+
+**Same class of bug, checked while here:** `QuizBuilder` has no loader guard at all, so a deleted quiz renders an *empty editor* instead of hanging — milder, but it silently invites a teacher to type into a row that no longer exists. Not fixed today; worth the same treatment.
+
+---
+
 ## To confirm once the app runs
 
 Checklist for the live walkthrough — **do not report these as findings until observed:**
