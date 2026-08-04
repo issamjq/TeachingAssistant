@@ -950,6 +950,100 @@ export async function apiList(path, {
   return all;
 }
 
+// ── Builder row loading ────────────────────────────────────────────────
+//
+// F63 and F64 were the same bug twice, in opposite disguises. PresentationBuilder
+// cleared `loading` on failure but left the row null, and its guard read
+// `loading || !deck` — so a deleted deck sat on the spinner forever. QuizBuilder
+// swallowed its failures in `.catch(() => {})` and rendered a blank *editable*
+// form for a quiz that no longer existed, inviting the teacher to retype it and
+// lose the lot on first save. Neither is an edge case: both fire whenever a row
+// is opened after being deleted (a stale tab, a bookmark, a restored session)
+// and on any network drop mid-load.
+//
+// The lesson both times: a failed load has to be a STATE, never an absence.
+// This hook is that state, so the next builder inherits it instead of
+// re-deriving it a fourth time.
+//
+// `initialId` is the subtlety. Quiz/Homework/Activity hold their id in state
+// rather than taking it from a prop — they must, since saving a brand-new row
+// assigns one, which re-runs this effect. Gating the render on that pass would
+// blank an editor the teacher is actively typing in, so only the load for the
+// id we mounted with raises the loader or the error card. A failed re-fetch of
+// a row we already hold stays quiet.
+//
+// @param {number|string|null} id         the row to load; null = brand-new, no fetch
+// @param {number|string|null} initialId  the id this component mounted with
+// @param {(id) => Promise<any>} load     performs the fetch(es)
+// @param {(data) => void} onLoaded       applies the result to component state
+// @returns {{loading: boolean, loadError: "notfound"|"error"|null, retry: () => void}}
+export function useRowLoader({ id, initialId, load, onLoaded }) {
+  const [loading, setLoading] = useState(!!initialId);
+  const [loadError, setLoadError] = useState(null);
+  // Bumped by "Try again" to re-run the fetch without a full remount, so the
+  // teacher keeps their place instead of the screen tearing down and rebuilding.
+  const [reloadKey, setReloadKey] = useState(0);
+  // Held in refs so callers can pass inline closures — otherwise a new function
+  // identity on every render would re-fetch the row on every render.
+  const loadRef = useRef(load);
+  const onLoadedRef = useRef(onLoaded);
+  loadRef.current = load;
+  onLoadedRef.current = onLoaded;
+
+  useEffect(() => {
+    if (!id) return undefined;
+    const isInitialLoad = id === initialId;
+    let alive = true;
+    if (isInitialLoad) { setLoading(true); setLoadError(null); }
+    Promise.resolve(loadRef.current(id))
+      .then((data) => {
+        if (!alive) return;
+        onLoadedRef.current?.(data);
+        if (isInitialLoad) setLoading(false);
+      })
+      .catch((e) => {
+        // An abort is an unmount, not a failure.
+        if (!alive || e?.code === "aborted") return;
+        if (!isInitialLoad) return;
+        setLoadError(e?.status === 404 ? "notfound" : "error");
+        setLoading(false);
+      });
+    return () => { alive = false; };
+  }, [id, initialId, reloadKey]);
+
+  return {
+    loading,
+    loadError,
+    retry: () => { setLoadError(null); setReloadKey((k) => k + 1); },
+  };
+}
+
+/**
+ * The card a builder shows instead of an editor it could not load.
+ *
+ * Copy stays with the caller rather than being derived from a noun: "this deck
+ * is no longer here" and "this quiz is no longer here" point at different
+ * places, and these strings will need translating individually.
+ *
+ * `onRetry` is omitted for a 404 on purpose — retrying a row that is genuinely
+ * gone just fails again, so the only honest action is the way back.
+ */
+export function LoadErrorCard({ gone, eyebrow, heading, body, backLabel, onRetry, onBack }) {
+  return (
+    <div className="flex items-center justify-center py-24 px-6">
+      <div className="max-w-md text-center">
+        <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-3">{eyebrow}</p>
+        <h2 className="font-serif text-2xl text-ink mb-3">{heading}</h2>
+        <p className="text-sm text-muted mb-6">{body}</p>
+        <div className="flex items-center justify-center gap-3">
+          {!gone && onRetry && <Button onClick={onRetry}>Try again</Button>}
+          <Button variant={gone ? undefined : "ghost"} onClick={onBack}>{backLabel}</Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export const SUBSCRIPTION_EXPIRED_EVENT = "murchid:subscription-expired";
 
 // Deliberately NOT a teardown like handleSessionSuperseded() below.

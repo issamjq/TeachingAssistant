@@ -489,6 +489,10 @@ export default function StudioApp({ onClose }) {
       ];
       mainContent = (
         <HomeworkBuilder
+          // Keyed for the same reason as QuizBuilder below — the id lives in
+          // component state, so without a remount a change of :id leaves the
+          // editor bound to the previous row.
+          key={sub === "edit" ? extraId : "new"}
           homework={sub === "edit" ? { id: Number(extraId) } : null}
           onClose={() => navigate(["homework"])}
         />
@@ -519,6 +523,10 @@ export default function StudioApp({ onClose }) {
       ];
       mainContent = (
         <ActivityBuilder
+          // Keyed for the same reason as QuizBuilder below — the id lives in
+          // component state, so without a remount a change of :id leaves the
+          // editor bound to the previous row.
+          key={sub === "edit" ? extraId : "new"}
           activity={sub === "edit" ? { id: Number(extraId) } : null}
           onClose={() => navigate(["activities"])}
         />

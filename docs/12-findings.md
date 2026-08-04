@@ -856,7 +856,9 @@ Fixed the same way F63 was — a failed load is a *state*, not an absence. `load
 
 **Found while verifying, and fixed with it: `QuizBuilder` was never keyed.** Because the id lives in state it is seeded exactly once, so changing `:id` in the URL left the editor bound to the *previous* quiz and its load guard never re-ran. `App.jsx` now passes `key={extraId}`. This surfaced by accident — a test navigation from `/quizzes/edit/abc` to `/quizzes/edit/142` kept rendering "New quiz".
 
-**`HomeworkBuilder` and `ActivityBuilder` hold their ids in state the same way and are also unkeyed** — same latent behaviour, not touched today. `PresentationBuilder` derives its id from the prop, so it re-fetches correctly and needs no key; F63's fix is sound as written.
+**`HomeworkBuilder` and `ActivityBuilder` had the identical shape and were fixed in the same session** — both swallowed their load in `.catch(() => {})`, both hold the id in state, both were unkeyed. `PresentationBuilder` derives its id from the prop, so it re-fetches correctly and needs no key; F63's fix is sound as written.
+
+**Extracted rather than pasted a fourth time.** Three near-identical copies of this guard was the signal: `useRowLoader()` and `LoadErrorCard` now live in [`_shared.jsx`](../src/views/_shared.jsx) and all three builders use them. The hook owns the `initialId` rule, the abort handling and the 404-vs-transport split, so the next builder inherits the fix instead of re-deriving it — and the error copy stays with each caller, because "this deck is no longer here" and "this quiz is no longer here" point at different places and will need translating separately.
 
 **Verified in the running app**, all four states:
 
@@ -868,6 +870,8 @@ Fixed the same way F63 was — a failed load is a *state*, not an absence. `load
 | fetch rejected (injected `TypeError`) | "Something went wrong." + **Try again**, which recovered the quiz in place once the fault was lifted |
 
 Creating a quiz and watching it transition `new → edit` confirmed the `initialQuizId` guard: no loader flash, no blanking, title and question intact. Test quiz deleted afterwards.
+
+After the extraction, re-verified: `/quizzes/edit/999999`, `/homework/edit/999999` and `/activities/edit/999999` each render their own not-found card, and creating a homework transitioned `new → edit` through the shared hook with no loader flash and the title intact. Test rows deleted; the account is back to zero quizzes, homework and activities.
 
 ---
 

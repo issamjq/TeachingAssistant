@@ -1,10 +1,11 @@
-import React, { useEffect, useState } from "react";
+import React, { useRef, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ExportMenu } from "@/components/ui/export-menu";
+import BrandLoader from "../components/BrandLoader";
 import {
   Field, AttachmentsList, inputClasses, selectClasses, api,
-  useTeacherClasses, DatePicker,
+  useTeacherClasses, DatePicker, useRowLoader, LoadErrorCard,
 } from "./_shared";
 import { homeworkToDoc } from "../lib/toDoc";
 import { useT } from "../lib/i18n";
@@ -29,10 +30,19 @@ export default function HomeworkBuilder({ homework, onClose }) {
   });
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState(null);
+  // The id we mounted with — save() assigns hwId after creating a brand-new
+  // homework, and only the load for THIS id may gate the render.
+  const initialHwId = useRef(homework?.id || null);
 
-  useEffect(() => {
-    if (!hwId) return;
-    api(`/api/homework/${hwId}`).then((row) => {
+  // The load used to end in `.catch(() => {})`, so opening homework that had
+  // been deleted in another tab rendered a blank, fully editable form with no
+  // message — the teacher could retype the whole thing and lose it on save
+  // (F64, same shape as QuizBuilder).
+  const { loading, loadError, retry } = useRowLoader({
+    id: hwId,
+    initialId: initialHwId.current,
+    load: (id) => api(`/api/homework/${id}`),
+    onLoaded: (row) => {
       if (!row) return;
       setForm({
         title: row.title || "",
@@ -44,8 +54,8 @@ export default function HomeworkBuilder({ homework, onClose }) {
         status: row.status || "Open",
         attachments: Array.isArray(row.attachments) ? row.attachments : [],
       });
-    }).catch(() => {});
-  }, [hwId]);
+    },
+  });
 
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
 
@@ -63,6 +73,25 @@ export default function HomeworkBuilder({ homework, onClose }) {
       setSaving(false);
     }
   };
+
+  if (loadError) {
+    const gone = loadError === "notfound";
+    return (
+      <LoadErrorCard
+        gone={gone}
+        eyebrow={gone ? "Homework not found" : "Could not open this homework"}
+        heading={gone ? "This homework is no longer here." : "Something went wrong."}
+        body={gone
+          ? "It may have been deleted, or moved to the trash from another tab. Deleted homework can be restored from Recently deleted for 30 days."
+          : "The homework could not be loaded. Check your connection and try again."}
+        backLabel="Back to homework"
+        onRetry={retry}
+        onBack={onClose}
+      />
+    );
+  }
+
+  if (loading) return <BrandLoader fullscreen={false} />;
 
   return (
     <div>

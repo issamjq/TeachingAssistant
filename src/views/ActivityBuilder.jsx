@@ -1,9 +1,11 @@
-import React, { useEffect, useState } from "react";
+import React, { useRef, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ExportMenu } from "@/components/ui/export-menu";
+import BrandLoader from "../components/BrandLoader";
 import {
   Field, inputClasses, selectClasses, api, DatePicker,
+  useRowLoader, LoadErrorCard,
 } from "./_shared";
 import { activityToDoc } from "../lib/toDoc";
 import { useT } from "../lib/i18n";
@@ -26,10 +28,18 @@ export default function ActivityBuilder({ activity, onClose }) {
   });
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState(null);
+  // The id we mounted with — save() assigns acId after creating a brand-new
+  // activity, and only the load for THIS id may gate the render.
+  const initialAcId = useRef(activity?.id || null);
 
-  useEffect(() => {
-    if (!acId) return;
-    api(`/api/activities/${acId}`).then((row) => {
+  // Was `.catch(() => {})`: an activity deleted in another tab opened as a
+  // blank, fully editable form with no message (F64, same shape as
+  // QuizBuilder and HomeworkBuilder).
+  const { loading, loadError, retry } = useRowLoader({
+    id: acId,
+    initialId: initialAcId.current,
+    load: (id) => api(`/api/activities/${id}`),
+    onLoaded: (row) => {
       if (!row) return;
       setForm({
         title: row.title || "",
@@ -40,8 +50,8 @@ export default function ActivityBuilder({ activity, onClose }) {
         instructions: row.instructions || "",
         materials: Array.isArray(row.materials) ? row.materials : [],
       });
-    }).catch(() => {});
-  }, [acId]);
+    },
+  });
 
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
 
@@ -60,6 +70,25 @@ export default function ActivityBuilder({ activity, onClose }) {
       setSaving(false);
     }
   };
+
+  if (loadError) {
+    const gone = loadError === "notfound";
+    return (
+      <LoadErrorCard
+        gone={gone}
+        eyebrow={gone ? "Activity not found" : "Could not open this activity"}
+        heading={gone ? "This activity is no longer here." : "Something went wrong."}
+        body={gone
+          ? "It may have been deleted, or moved to the trash from another tab. Deleted activities can be restored from Recently deleted for 30 days."
+          : "The activity could not be loaded. Check your connection and try again."}
+        backLabel="Back to activities"
+        onRetry={retry}
+        onBack={onClose}
+      />
+    );
+  }
+
+  if (loading) return <BrandLoader fullscreen={false} />;
 
   return (
     <div>
