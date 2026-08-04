@@ -760,7 +760,7 @@ Sorted in curriculum order rather than alphabetically, so it reads KG 1, KG 2, G
 
 `src/lib/account.js`'s header said "There is NO real auth yet". Firebase landed and the module's shape was kept exactly as that comment intended, so only the description was wrong. Rewritten to say what it actually is: a localStorage cache of provider / plan / pending onboarding answers, explicitly **not** the authority on identity — `/api/me` and the server's `requireAuth()` / `requireRole()` are.
 
-### F60 — 🔴 A lapsed trial ejects the teacher to marketing with no explanation and no way to renew ✅ Observed
+### F60 — 🔴 A lapsed trial ejects the teacher to marketing with no explanation and no way to renew ✅ Observed — 🔧 Fixed 2026-08-04
 Found by hitting it: the test account's 7-day trial expired at 05:10 on 2026-08-03 and every studio URL began bouncing to the landing page, with the nav showing **SIGN IN** as though the session were gone. It was not — Firebase still held the user and `murchid.session.id` was intact. The only clue anywhere was one console line: `Your subscription has ended.`
 
 `requireAuth` returns 403 `subscription_expired`, and `App.jsx:247` handles it by calling `clearAccount()` and `clearRoute()`. Its comment says both cases are "bounced back to landing so they can complete plan-pick / renew". They cannot:
@@ -775,6 +775,27 @@ Distinct from F5 (no payment integration). F5 is "nobody can pay". This is "when
 **Also worth noting:** `requireAuth` flips `subscription_status` to `'expired'` on first detection, so the state is sticky — the row said `expired` even after the end date was pushed forward, until it was set back to `trial` explicitly.
 
 **Fix:** a real lapsed state. Keep the teacher signed in, render an "Your trial ended" screen with the plan picker wired to `POST /api/auth/renew`, and stop clearing the local account on 403 — the account is not gone, only unpaid.
+
+**Fixed 2026-08-04.** [`SubscriptionLapsed.jsx`](../src/views/SubscriptionLapsed.jsx) is that screen, raised by `App.jsx` as state rather than a route — nothing is cleared and nothing is navigated, so a renew returns the teacher to the exact screen they were on.
+
+Three parts:
+
+- **`App.jsx` no longer treats an expiry as an ejection.** `no_teacher_row` still bounces to landing (that teacher genuinely has no account); `subscription_expired` now sets `lapsed` and keeps everything.
+- **The gate can be raised from anywhere, not just the boot check.** A trial that elapses mid-session surfaces on the teacher's *next action*, not at sign-in, so `api()` dispatches `murchid:subscription-expired` on any 403 and `App.jsx` listens. Deliberately an announcement and not a teardown — the mirror-image mistake to `handleSessionSuperseded()`, which *should* tear down, is exactly what caused this finding.
+- **The 403 now carries `plan` and `endedAt`.** Once the gate closes every other route 403s too, so that response is the only account data the client can still reach; without it the screen cannot say what ended or when.
+
+The 20s heartbeat pauses while lapsed — every beat would 403 and re-announce something already on screen.
+
+**Verified in the running app, both paths:**
+
+| | shows |
+|---|---|
+| `plan='trial'`, reload | "Your free trial has **ended.**" + "Your access ended on 2 August 2026" |
+| `plan='quarterly'`, expired mid-session, no reload | "Your membership has **lapsed.**" raised on the next nav click |
+
+Choosing Quarterly wrote `status=active, plan=quarterly, ends_at=+90d`, logged `auth.renew` with `prevStatus: 'expired'` (confirming the sticky flip and its recovery), dropped the gate, and returned to `/planner` with the sidebar identity intact. Test account restored to its original row afterwards.
+
+**Still true, and not this finding:** nobody can actually pay (F5). The gate says "No card required yet" rather than implying a purchase, and `POST /api/auth/renew` is what the Checkout webhook will call once Stripe lands — so the screen does not change shape when it does.
 
 ### F61 — `/api/me` was fetched five times on one page load ✅ Observed — 🔧 Fixed
 Measured on a clean Planner load: **five identical `/api/me` requests**. Eleven call sites fetch it independently — `App.jsx`, `Studio`, `TeachingRail`, `Dashboard`, `AccountProfile`, `DatabaseProfile`, `useTeacherClasses`, and `Planner` **three times on its own** (tour gate, tour close, form dropdowns).
@@ -793,12 +814,14 @@ Measured on the same screen, before → after:
 | After F56 | 5 × `/api/me` + 1 × `/api/planner` = **6** |
 | After F61 | 2 × `/api/me` + 1 × `/api/planner` = **3** |
 
-### F62 — Sidebar identity never recovers once the local account is cleared ✅ Observed — minor
+### F62 — Sidebar identity never recovers once the local account is cleared ✅ Observed — 🔧 Fixed 2026-08-04
 After the F60 ejection the sidebar footer read **"Teacher"** with no name, while the Dashboard header on the same screen greeted **"Good morning, afras"**. The header reads `/api/me`; the sidebar reads the localStorage account, which `clearAccount()` had just emptied.
 
 `App.jsx` does mirror `/api/me` back into the local account, but through `updateProfile(patch)`, which patches an existing account object — with nothing there it has nothing to patch, so the name never returns for the rest of the session. Any teacher who clears site data hits the same thing.
 
 **Fix:** when `/api/me` succeeds and no local account exists, seed one from the response rather than only patching.
+
+**Fixed 2026-08-04**, alongside F60 — which removed the eviction that caused it, but not the underlying fragility (clearing site data reproduces it identically). `App.jsx`'s `reseedLocalAccount()` rebuilds a whole account instead of patching a missing one. It needs a provider *and* a plan or `getAccount()` rejects the row on the next read, and `/api/me` carries neither — hence Firebase's `providerData` for the provider and a one-off `/api/auth/me` for the plan. It runs only when local storage is genuinely empty, and fails silently: a cosmetic re-hydrate must never interrupt a teacher whose session is working.
 
 ### F63 — 🔴 Opening a deleted presentation hung on the loading spinner forever ✅ Observed — 🔧 Fixed
 Found by Issa on 2026-08-03: `/presentations/edit/15` sat on the brand loader and never resolved. The row had been deleted in another tab while that URL was still open.

@@ -207,9 +207,16 @@ export function requireAuth({ optional = false, allowExpired = false, skipSessio
             await invalidateAccountByUid(decoded.uid);
           } catch { /* non-fatal — middleware still rejects */ }
         }
+        // Carry the plan and the end date. Once this gate closes, every
+        // other route answers 403 too — so this response is the only account
+        // data the client can still reach, and the lapsed screen needs it to
+        // say *what* ended and *when* rather than guessing (F60). It is the
+        // caller's own row; nothing here crosses a tenant boundary.
         return res.status(403).json({
           error: "Your subscription has ended.",
           code: "subscription_expired",
+          plan: req.account.subscription_plan || null,
+          endedAt: req.account.subscription_ends_at || null,
         });
       }
       // Single-device enforcement. The account holds the id of the one

@@ -27,7 +27,7 @@ The user (Issa) calls the project "murchid" — that's the **product** name, not
 
 ### Where we are right now
 
-**Days 1–5 of [`docs/14-roadmap.md`](docs/14-roadmap.md) are done and pushed to `dev`** (`dev` tracks `origin/dev`; `main` is untouched at `b4e92ab` and still what deploys). Last session ended 2026-07-31.
+**Days 1–5 of [`docs/14-roadmap.md`](docs/14-roadmap.md) are done and pushed to `dev`** (`dev` tracks `origin/dev`, currently `440d014`; `main` is untouched at `b4e92ab` and still what deploys). Last session ended 2026-08-03 with a full-app sweep — findings F59–F63, most of them fixed the same day.
 
 Days 1–3 shipped error boundaries, three-layer rate limiting, the AI usage ledger, row-level security, keyset pagination (`backend/lib/pagination.js`, all 11 crudRouter resources), the cache layer (`backend/lib/cache.js`) and route-level code splitting (initial payload **271 → 92 KB gzip**).
 
@@ -43,7 +43,14 @@ Day 5 — **fix the funnel**, four of six:
 - `/signin` and `/signup` are real URLs; a bounced deep link explains itself and returns you (F19, F20)
 - **Deferred to Sunday 2026-08-02:** the Outlook claim (item 3 — needs a decision: remove it, or add Microsoft OAuth, which needs the PM) and the device list (item 6 — see below)
 
-Also fixed this session, all found by measuring rather than reading: the dashboard ran seven queries serialised on one client (F51 — **1058 ms → 483 ms**), two Day 5 features shared one sessionStorage key and cancelled each other (F54), the Planner tour replayed on every sign-in (F57 — took three attempts, the flag now lives on `accounts.tour_planner_seen_at`), and Planner could not scroll on a maximised window (F58).
+Also fixed on Day 5, all found by measuring rather than reading: the dashboard ran seven queries serialised on one client (F51 — **1058 ms → 483 ms**), two Day 5 features shared one sessionStorage key and cancelled each other (F54), the Planner tour replayed on every sign-in (F57 — took three attempts, the flag now lives on `accounts.tour_planner_seen_at`), and Planner could not scroll on a maximised window (F58).
+
+**The 2026-08-03 sweep** closed the two biggest performance findings and three correctness ones:
+- **F56** — Planner's 25 round-trips became one `GET /api/planner` plus an `AbortController` in `apiList`
+- **F61** — `/api/me` was fetched five times per page load from eleven call sites. Now one shared `getProfile()` in `_shared.jsx` (in-flight dedupe + 30s TTL). Planner load went **16 requests → 3**
+- **F59** — `/dashboard` was the third orphan: routed, lazy-loaded, in no menu. Now in `TEACHER_NAV` under Planning. It is the *today* view, not a duplicate of Planner's month grid
+- **F63** — a deleted presentation hung the loader forever; a failed load is now a distinct `loadError` state, not an absent one. **`QuizBuilder` has the same missing guard** and renders an empty editor instead — same treatment still owed
+- **F45** (`/api/teachers` is read-only now; `admin.js` owns account lifecycle), **F52** (Studio saves per kind), F27, F35, F29, F13
 
 ### Pick up here
 
@@ -51,13 +58,17 @@ Also fixed this session, all found by measuring rather than reading: the dashboa
 - `ANTHROPIC_API_KEY` → then flip `ai_studio` on and test Studio's activity generate-and-save (Day 4 item 6's last hop)
 - `REDIS_URL` → F46. Needs the **project manager**: Render's managed Redis is their "Key Value" product and Issa has no Render access
 
-**Next work, in the order it is worth doing:**
-1. **F56 — Planner costs 25 database round-trips.** Planner and TeachingRail each fetch the same five lists as five separate `withTenant()` transactions. Nothing aborts on unmount, so they keep holding pool connections after the teacher navigates away, and the pool holds 10. The biggest remaining performance win: one `/api/planner` endpoint plus an `AbortController` in `apiList`
-2. **Day 5 item 6 — the device list** (F10, F26). Stops evicting a teacher when they open a second device. **This is an auth-path change and it collides with the Day 3 account cache**: `requireAuth` currently reads one `active_session_id` that rides along in the cached row, so a naive device list reintroduces F38's per-request query. Design it deliberately
-3. **`/dashboard` has no nav item** — reachable by URL, never registered in `TEACHER_NAV`. The third orphan, missed on Day 4
-4. Day 6 — polish + i18n sweep
+**F60 and F62 were fixed on 2026-08-04** — see the entries in [`docs/12-findings.md`](docs/12-findings.md). The lapsed teacher now gets [`src/views/SubscriptionLapsed.jsx`](src/views/SubscriptionLapsed.jsx) instead of an ejection to marketing, and `POST /api/auth/renew` finally has a caller. **The gate is state, not a route** — `App.jsx` holds `lapsed` and returns early; nothing is cleared, so a renew drops the teacher back on the screen they were on. Any 403 anywhere raises it via the `murchid:subscription-expired` event `api()` dispatches, because a trial that elapses mid-session surfaces on the next action rather than at sign-in.
 
-**Open findings worth knowing:** F50 (attendance is recorded but nothing reads it), F52 (Studio still saves homework and presentations into the drafts table), F55 (`withTenant` costs four round-trips per request — 5–10 ms on Render, fine, but the largest fixed cost), F45 (`/api/teachers` mutates accounts with no audit trail), F37 (PlannerTour `measure()` unthrottled).
+**Next work, in the order it is worth doing:**
+1. **Day 5 item 6 — the device list** (F10, F26). Stops evicting a teacher when they open a second device. **This is an auth-path change and it collides with the Day 3 account cache**: `requireAuth` currently reads one `active_session_id` that rides along in the cached row, so a naive device list reintroduces F38's per-request query. Design it deliberately
+2. Day 6 — polish + i18n sweep. F34 is bigger than it looks: **22 views are hardcoded English**, all of My students among them, and `navLabel()` silently falls back to the English label when a dictionary key is missing, so missing translations look like working ones. The lapsed gate is translated but has no language toggle of its own — an Arabic teacher gets Arabic, but cannot switch there
+3. **`QuizBuilder` has no loader guard** — the last thread from F63. A deleted quiz renders an empty editor instead of hanging, which is milder than the presentation bug but still invites a teacher to type into a row that no longer exists
+4. **F5 — payment.** The lapsed gate now says "no card required yet" and calls `/api/auth/renew` directly; that is the seam Stripe Checkout slots into without the screen changing shape (Day 10)
+
+**Open findings worth knowing:** F50 (attendance is recorded but nothing reads it), F55 (`withTenant` costs four round-trips per request — 5–10 ms on Render, fine, but the largest fixed cost), F46 (Redis paths written, never run against a real Redis), F37 (PlannerTour `measure()` unthrottled), F9 (OTP after Google sign-in, untestable without `RESEND_API_KEY`).
+
+The **"To confirm once the app runs"** checklist at the end of [`docs/12-findings.md`](docs/12-findings.md) is the live-walkthrough queue. Its rule holds: nothing there is a finding until it has been *observed*. Still unanswered — whether the builders round-trip on edit, whether trash/restore works, and mobile/tablet layout (teachers will use iPads).
 
 ### Three facts that shape most decisions
 
@@ -79,8 +90,10 @@ Full documentation lives in [`docs/`](docs/README.md). Read it before making non
 - [08 — Views](docs/08-views.md) — what each screen does
 - [09 — Conventions](docs/09-conventions.md) — rules to follow when adding code
 - [10 — Roadmap](docs/10-roadmap.md) — what's stubbed, what's missing, what's next
-- [11 — Plan](docs/11-plan.md) — **active** 2-week plan, unit economics, cut list
+- [11 — Plan](docs/11-plan.md) — earlier 2-week plan; superseded by 13/14, but the unit economics still hold
 - [12 — Findings](docs/12-findings.md) — **active** bug/issue log
+- [13 — Architecture](docs/13-architecture.md) — **active** target system design
+- [14 — Roadmap](docs/14-roadmap.md) — **active** 18-day build plan
 
 ⚠️ **Docs 04, 07, and parts of 09 are stale** — they predate the Express backend, Firebase auth, roles/portals and pathname routing. `09-conventions.md` still says "don't add a router" and "share the pool in vite.config.js"; both are now false. Trust the code over those docs, and fix the doc for whichever section you're touching. The design-system content (05, and the styling half of 09) is still accurate and worth reading before UI work.
 
@@ -97,7 +110,7 @@ Full documentation lives in [`docs/`](docs/README.md). Read it before making non
    - **Routes that are cross-tenant by design stay on `pool`** — `admin`, `superadmin`, `owner`, `moe`, `dev`, `auth`, `me`. They are gated by `requireRole()` at the mount point and must see across accounts; do not "fix" them with `withTenant`.
    - **Never "just enable RLS" and assume it works here.** `neondb_owner` carries `BYPASSRLS`, which defeats even `FORCE ROW LEVEL SECURITY` — policies applied while connected as the owner are silently inert. Verify enforcement with a real cross-tenant read; don't infer it from the schema.
 8. **Never hardcode majors / grade levels / nationalities / quiz enums** outside `src/lib/enums.js`, and never let users free-type them. `backend/db/init.js` compiles those lists into SQL `CHECK` constraints, so a new value isn't insertable until `npm run db:init` re-runs.
-9. **Client calls go through `api()`** from `src/views/_shared.jsx` — it attaches the Firebase token and `X-Session-Id` and throws on non-2xx. Don't call bare `fetch` for `/api/*`. **For a list endpoint use `apiList()`**, which follows the cursor and returns a plain array; pass `onPage` when the screen should paint the first page instead of waiting for all of them.
+9. **Client calls go through `api()`** from `src/views/_shared.jsx` — it attaches the Firebase token and `X-Session-Id` and throws on non-2xx. Don't call bare `fetch` for `/api/*`. **For a list endpoint use `apiList()`**, which follows the cursor and returns a plain array; pass `onPage` when the screen should paint the first page instead of waiting for all of them. **Never fetch `/api/me` directly — call `getProfile()`** (same module: in-flight dedupe, 30s TTL) and `invalidateProfile()` after any write that touches the profile. The TTL is short on purpose: the profile drives which grades and sections the forms offer, so a stale one shows the wrong dropdowns. `App.jsx`'s boot check is the one deliberate exception — it stays uncached because it is what detects `no_teacher_row` and `subscription_expired`.
 10. **Every `crudRouter` list is paginated and there is no opt-out.** `?limit=` defaults to 50 and is capped at 200; `?cursor=` is opaque and shape-checked. Adding a resource inherits this for free — but its `listOrderBy` must be plain `column [ASC|DESC] [NULLS FIRST|LAST]` terms, because `buildOrderSpec()` parses it to build the keyset predicate and **throws at boot** on anything it can't express. If you change a `listOrderBy`, change the matching composite index in `backend/db/init.js` with it (`SCHEMA_KEYSET_INDEXES`), or the list silently drops to a full sort.
 11. **Cache reads through `backend/lib/cache.js`, and it always fails open.** Never let a cache miss or a Redis outage turn into an error — that is the one rule the module enforces for you. Caching anything authorisation-shaped means owning its invalidation on every write path; see the F38 table in [`docs/12-findings.md`](docs/12-findings.md) for the contract the account cache is held to.
 12. **Comments explain *why*, not *what*.** The dense rationale blocks above the middleware stack in `backend/app.js` are the house style. Match that density; don't narrate self-evident code.
@@ -109,22 +122,23 @@ npm install
 npm run db:init        # one-time, and after any enums.js / init.js change. Idempotent
 npm run dev            # http://localhost:5173 — full stack, Express mounts as Vite middleware
 npm run build          # static dist/ for Vercel
-npm run start:backend  # standalone Express, what Render runs
+npm run preview        # serve the built dist/ (frontend only — no API)
+npm run start:backend  # standalone Express, what Render runs (alias: npm start)
 ```
 
-**There is no test framework, no linter and no formatter in this repo** — no `test` script, no eslint/prettier config, no test directory. Don't invent a command for them; verification today means running `npm run dev` and exercising the app. Adding a test runner is scoped in [`docs/14-roadmap.md`](docs/14-roadmap.md) day 2 (a cross-tenant scope suite is the first thing worth testing).
+**There is no test framework, no linter and no formatter in this repo** — no `test` script, no eslint/prettier config, no test directory. Don't invent a command for them; verification today means running `npm run dev` and exercising the app in a browser. Adding a test runner is scoped in [`docs/14-roadmap.md`](docs/14-roadmap.md) day 2 (a cross-tenant scope suite is the first thing worth testing).
 
-`.claude/launch.json` defines the `murchid-dev` preview config — use the preview/browser tools to run and verify, not a bare `npm run dev` in a shell.
+Because there is nothing to run, **"observed in the app" is the only evidence that counts here** — it is why [`docs/12-findings.md`](docs/12-findings.md) splits ✅ Observed from 📖 Code-read, and why the biggest wins of the last two sessions (F51, F56, F61) were all found by measuring a real page load rather than by reading code. Drive the browser to verify; don't reason a fix into being correct.
 
 ## Traps that cost time
 
-Verified in the running app, 2026-07-28. Each of these looks like a bug in your change but isn't:
+Verified in the running app, 2026-07-28 and 2026-08-03. Each of these looks like a bug in your change but isn't:
 
-- **The dev rate limiter throttles static assets.** `buildGlobalRateLimit()` is mounted ahead of the routers, and in dev the same Express app serves Vite's module graph — so ~190 requests are burned by two page loads and the whole site starts returning 429 with blank white pages. `backend/lib/security.js` currently carries a `TEMP-DEV-REVIEW` skip for non-`/api/*` paths in dev. If pages go blank, check this first.
-- **One view is still unreachable: `/dashboard`.** It renders and is reachable by URL, but was never registered in `TEACHER_NAV`, so nothing in the UI links to it. Attendance, Gradebook, Reports, Schedule, Library and the bulletin board were all wired on Day 4 — this is the one that was missed.
+- **The global rate limiter is mounted on `/api` only, and that is deliberate.** In dev this same Express app serves Vite's module graph, where one page load is 100+ requests — mounting `buildGlobalRateLimit()` app-wide made the whole site 429 into blank white pages after about three loads. Don't "tidy" it up to `app.use(limiter)`.
 - **The bulletin board's layout is a placeholder.** `src/views/BulletinBoard.jsx` is a card grid; the product wants a real pinned-notes board and that is the incoming front-end developer's work. The table, the API and the draft-then-post workflow are final — only the surface changes.
 - **List endpoints return an envelope, not an array.** Since Day 3 every `crudRouter` list answers `{ items, nextCursor }` and caps a page at 200 rows. On the client, call `apiList()` (from `_shared.jsx`) rather than `api()` — it follows the cursor and passes not-yet-paginated endpoints through untouched. A list screen that renders nothing is usually an `api()` call that should have been `apiList()`.
 - **A cursor is tied to its query shape.** Change a router's `listOrderBy` and every cursor a client is holding starts returning 400 "reload the list". That is the intended behaviour, not a bug — but it means a sort change is a client-visible change.
+- **A failed fetch must become a state, not an absence.** F63: `PresentationBuilder`'s catch cleared `loading` — textbook-looking error handling — but left `row` null, and the guard read `loading || !deck`, so the loader rendered forever. Every builder needs a distinct `loadError` that separates 404 from transport failure. **`QuizBuilder` still lacks one.**
 - **The account row is cached for 10 seconds.** Anything you write to `accounts` must call `invalidateAccountById()` / `invalidateAccountByUid()`, or your change is invisible to that user's own session for up to a TTL. The existing call sites are listed under F38 in [`docs/12-findings.md`](docs/12-findings.md).
 - **Local `.env` is partial.** `DATABASE_URL` is set; `ANTHROPIC_API_KEY`, `PEXELS_API_KEY` and `RESEND_API_KEY` are not. So AI generation, presentation image search and email OTP all fail locally regardless of feature flags. Missing keys are deliberate — credentials are shared out-of-band, never documented in the repo.
 - **`ai_studio` ships disabled** (`backend/db/init.js`). Only a `dev` role can flip it via `PUT /api/dev/feature-flags/:key`.

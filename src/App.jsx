@@ -46,11 +46,15 @@ const SuperAdminDashboard = lazyRoute(() => import("./views/SuperAdminDashboard"
 const OwnerDashboard = lazyRoute(() => import("./views/OwnerDashboard"));
 const MoeDashboard = lazyRoute(() => import("./views/MoeDashboard"));
 const DevConsole = lazyRoute(() => import("./views/DevConsole"));
-import { getRole, onRoleChange, ROLE_LABELS } from "./lib/role";
-import { api } from "./views/_shared";
+// Split like a route even though it isn't one: it renders for a teacher whose
+// paid window has closed, which is a handful of sessions, and it carries the
+// plan cards. No reason for it to sit in the bundle every teacher downloads.
+const SubscriptionLapsed = lazyRoute(() => import("./views/SubscriptionLapsed"));
+import { getRole, onRoleChange, ROLE_LABELS, setRole as setLocalRole } from "./lib/role";
+import { api, SUBSCRIPTION_EXPIRED_EVENT } from "./views/_shared";
 import { useRoute, navigate, replace, clearRoute, rememberReturnTo } from "./lib/route";
 import { useT } from "./lib/i18n";
-import { useAccount, clearAccount, updateProfile } from "./lib/account";
+import { useAccount, clearAccount, updateProfile, getAccount, setAccount } from "./lib/account";
 import AccountMenu from "./views/AccountMenu";
 import HelpPopover from "./views/HelpPopover";
 import ErrorBoundary from "./components/ErrorBoundary";
@@ -180,6 +184,48 @@ function NavBadge({ letter, icon, lucide: Lucide }) {
 
 const SIDEBAR_COLLAPSED_KEY = "murchid.sidebar.collapsed";
 
+// getAccount() only accepts a row that carries a known provider AND a known
+// plan, so a rebuild needs both. Firebase knows the provider; only the account
+// row knows the plan.
+const PROVIDER_BY_FIREBASE_ID = {
+  "google.com": "google",
+  "microsoft.com": "microsoft",
+  password: "email",
+  emailLink: "email",
+};
+
+// Rebuild the local account from the server after it has been lost — cleared
+// site data, or (until F60 was fixed) an expiry eviction. Same shape the four
+// Landing.jsx sign-in paths write, so the sidebar, avatar and role read
+// identically whether the account was created at sign-up or recovered here.
+// Silent on failure: this is a nicety, and a teacher with a working session
+// must never be interrupted because a cosmetic re-hydrate did not land.
+async function reseedLocalAccount(user, me) {
+  try {
+    const acct = await api("/api/auth/me");
+    if (!acct?.id) return;
+    const providerId = user?.providerData?.[0]?.providerId;
+    setAccount({
+      provider: PROVIDER_BY_FIREBASE_ID[providerId] || "google",
+      plan: acct.subscription_plan || "trial",
+      profile: {
+        firstName: me?.first_name || acct.first_name || "",
+        lastName:  me?.last_name  || acct.last_name  || "",
+        staffId:   me?.staff_id   || acct.staff_id   || "",
+        email:     me?.email      || acct.email      || "",
+        avatarUrl: acct.avatar_url || "",
+      },
+      role:     acct.role,
+      sub_role: acct.sub_role || null,
+      subscriptionStatus: acct.subscription_status,
+      subscriptionEndsAt: acct.subscription_ends_at,
+    });
+    if (acct.role) setLocalRole(acct.role);
+  } catch {
+    // No session, no teacher row, or offline — leave the sidebar as it is.
+  }
+}
+
 export default function StudioApp({ onClose }) {
   const [role, setRoleState] = useState(getRole());
   const [navOpen, setNavOpen] = useState(false); // mobile drawer
@@ -198,6 +244,22 @@ export default function StudioApp({ onClose }) {
     });
   };
   const account = useAccount();
+  // Non-null once the server has told us the paid window closed. Holds the
+  // 403's body ({ plan, endedAt }) so the gate can name what ended. Note this
+  // is state, not a route: nothing is navigated or cleared, so a renew puts
+  // the teacher back on the exact screen they were on (F60).
+  const [lapsed, setLapsed] = useState(null);
+
+  // The boot check below only catches this at sign-in. A teacher whose trial
+  // elapses while the tab is open hits it on their next action instead — the
+  // 20s heartbeat, a save, any list — so listen for the announcement api()
+  // makes from wherever that happens.
+  useEffect(() => {
+    const onExpired = (e) => setLapsed((cur) => cur || e.detail || {});
+    window.addEventListener(SUBSCRIPTION_EXPIRED_EVENT, onExpired);
+    return () => window.removeEventListener(SUBSCRIPTION_EXPIRED_EVENT, onExpired);
+  }, []);
+
   // Wait for Firebase to resolve the auth state, then either hydrate
   // /api/me into the local account.profile (signed in) or clear the
   // local mock account + bounce to landing (signed out from outside
@@ -238,16 +300,32 @@ export default function StudioApp({ onClose }) {
           if (me.staff_id   && cur.staffId   !== me.staff_id)   patch.staffId   = me.staff_id;
           if (me.email      && cur.email     !== me.email)      patch.email     = me.email;
           if (Object.keys(patch).length > 0) updateProfile(patch);
+          // F62 — patching is not enough when there is nothing to patch.
+          // updateProfile() writes a bare { profile } object, which getAccount()
+          // rejects for having no provider/plan, so useAccount() keeps
+          // returning null and the sidebar shows "Teacher" with no name for the
+          // rest of the session while the header greets them by name. Rebuild
+          // a whole account instead. /api/me has no provider or plan columns,
+          // hence the one-off /api/auth/me — it only runs when local storage
+          // has genuinely been emptied (cleared site data, an older eviction).
+          if (!getAccount()) await reseedLocalAccount(user, me);
         } catch (err) {
-          // Edge cases worth handling: a Firebase-authed user with no
-          // DB row (closed the tab during onboarding) or whose
-          // subscription has elapsed (trial ended, didn't renew).
-          // Both need to be bounced back to landing so they can
-          // complete plan-pick / renew. Other errors stay silent.
-          if (err?.code === "no_teacher_row" || err?.code === "subscription_expired") {
+          // A Firebase-authed user with no DB row closed the tab during
+          // onboarding — bounce them back to landing to finish plan-pick.
+          if (err?.code === "no_teacher_row") {
             if (account) clearAccount();
             clearRoute();
+            return;
           }
+          // An elapsed subscription is NOT an ejection. Clearing the account
+          // here was F60: the teacher was thrown to the marketing page under
+          // a "Sign in" nav while still perfectly authenticated, with no
+          // route to the renew endpoint. Keep everything and raise the gate.
+          if (err?.code === "subscription_expired") {
+            setLapsed(err.detail || {});
+            return;
+          }
+          // Other errors stay silent.
         }
       });
     })();
@@ -271,13 +349,16 @@ export default function StudioApp({ onClose }) {
   // promptly and automatically, instead of the user hitting an abrupt
   // "you've been signed out" only when they next try something (e.g. in
   // Studio AI). The valid (newest) device just gets a 200 and carries on.
+  // Paused while lapsed: every beat would 403 and re-announce something the
+  // gate is already showing, and a device that cannot act cannot be superseded
+  // in any way that matters.
   useEffect(() => {
-    if (!account) return undefined;
+    if (!account || lapsed) return undefined;
     const id = setInterval(() => {
       api("/api/auth/me").catch(() => { /* api() handles supersession */ });
     }, 20000);
     return () => clearInterval(id);
-  }, [account]);
+  }, [account, lapsed]);
 
   // Display name + initials used by the sidebar chip and the avatar.
   // Chip lines (top to bottom):
@@ -749,6 +830,42 @@ export default function StudioApp({ onClose }) {
         </div>
     </>
   );
+
+  // The gate takes the whole screen instead of rendering inside the shell.
+  // Every /api/* call behind it answers 403, so a studio underneath would be
+  // a grid of failed panels — and the sidebar would offer nav items that
+  // cannot load. One screen, one action.
+  if (lapsed) {
+    return (
+      <Suspense fallback={<BrandLoader />}>
+        <SubscriptionLapsed
+          detail={lapsed}
+          email={account?.profile?.email || ""}
+          onRenewed={() => {
+            // The window is open again. Drop the gate and let the studio
+            // remount against a live subscription — the route was never
+            // touched, so they land back where they were.
+            setLapsed(null);
+          }}
+          onSignOut={async () => {
+            try {
+              const { signOut } = await import("./lib/firebaseAuth");
+              await signOut();
+            } catch (e) {
+              // eslint-disable-next-line no-console
+              console.warn("Firebase signOut failed:", e);
+            }
+            const { clearSessionId } = await import("./lib/session");
+            clearSessionId();
+            clearAccount();
+            clearRoute();
+            setLapsed(null);
+            onClose?.();
+          }}
+        />
+      </Suspense>
+    );
+  }
 
   return (
     <div className="murchid-studio-app h-[100dvh] bg-paper flex text-ink font-sans overflow-hidden">

@@ -854,10 +854,20 @@ export async function api(path, { method = "GET", body, signal } = {}) {
     if (data?.code === "session_superseded") {
       await handleSessionSuperseded();
     }
+    // The subscription window closed. Every route behind requireAuth() now
+    // answers 403, so this can surface from any screen and not just the boot
+    // check — announce it once and let App.jsx raise the lapsed gate, rather
+    // than leaving each caller to render its own unexplained empty state.
+    if (data?.code === "subscription_expired") {
+      announceSubscriptionExpired(data);
+    }
     const msg = data?.error || `HTTP ${res.status}`;
     const err = new Error(msg);
     err.status = res.status;
     err.code = data?.code;
+    // The 403 above carries plan + endedAt; keep the body reachable so the
+    // gate can use it instead of issuing another (also-403) request.
+    err.detail = data || null;
     throw err;
   }
   return data;
@@ -938,6 +948,25 @@ export async function apiList(path, {
     `with more available. This screen needs real pagination.`
   );
   return all;
+}
+
+export const SUBSCRIPTION_EXPIRED_EVENT = "murchid:subscription-expired";
+
+// Deliberately NOT a teardown like handleSessionSuperseded() below.
+//
+// The two look similar — both are the server refusing a request about the
+// account — but they are opposites. A superseded session means this device
+// must stop being signed in. An expired subscription means the teacher is
+// still signed in, their session is still valid, and only the paid window
+// closed. Treating the second like the first is precisely F60: the nav read
+// "Sign in" while Firebase still held the user, and nothing on screen could
+// reach POST /api/auth/renew.
+//
+// So this only announces. Nothing is cleared here, and the listener decides
+// what to show.
+function announceSubscriptionExpired(detail) {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new CustomEvent(SUBSCRIPTION_EXPIRED_EVENT, { detail }));
 }
 
 // Fired once when the server reports this device was superseded. Signs
