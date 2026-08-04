@@ -838,6 +838,39 @@ Verified on the exact URL: the not-found card renders, and "Back to presentation
 
 ---
 
+## Sweep — 2026-08-04
+
+### F64 — QuizBuilder rendered a blank editor for a quiz that was not there ✅ Observed — 🔧 Fixed
+The tail of F63, now closed. Both loads ended in `.catch(() => {})`:
+
+```js
+api(`/api/quizzes/${quizId}`).then(...).catch(() => {});
+api(`/api/quizzes/${quizId}/questions`).then(setQuestions).catch(() => {});
+```
+
+So opening a quiz that had been trashed in another tab produced a clean, empty, fully editable form — no message, no clue. Worse than F63's hang in one respect: a hang at least stops the teacher. This one invites them to retype a quiz into a row that no longer exists, and lose it on the first save.
+
+Fixed the same way F63 was — a failed load is a *state*, not an absence. `loadError` separates 404 ("This quiz is no longer here", pointing at Recently deleted) from a transport failure ("Something went wrong", with Try again re-running the fetch via a `reloadKey` bump rather than a remount). Both requests now go through one `Promise.all`, because a quiz whose meta arrived but whose questions did not is the same empty editor by another route.
+
+**`initialQuizId` is the subtlety.** `quizId` is state, not a prop, because `saveMeta()` assigns one after creating a brand-new quiz — which re-runs the load effect. Gating the render on that pass would blank the editor a teacher is actively typing in, so only the initial load raises the loader or the error card; a failed re-fetch of a row we already hold stays quiet.
+
+**Found while verifying, and fixed with it: `QuizBuilder` was never keyed.** Because the id lives in state it is seeded exactly once, so changing `:id` in the URL left the editor bound to the *previous* quiz and its load guard never re-ran. `App.jsx` now passes `key={extraId}`. This surfaced by accident — a test navigation from `/quizzes/edit/abc` to `/quizzes/edit/142` kept rendering "New quiz".
+
+**`HomeworkBuilder` and `ActivityBuilder` hold their ids in state the same way and are also unkeyed** — same latent behaviour, not touched today. `PresentationBuilder` derives its id from the prop, so it re-fetches correctly and needs no key; F63's fix is sound as written.
+
+**Verified in the running app**, all four states:
+
+| State | Renders |
+|---|---|
+| `/quizzes/new` | the blank form, no loader |
+| existing quiz | editor with title, meta and questions |
+| trashed quiz (`deleted_at` set, opened by URL) | "This quiz is no longer here." — no Try again, since retrying a 404 cannot help |
+| fetch rejected (injected `TypeError`) | "Something went wrong." + **Try again**, which recovered the quiz in place once the fault was lifted |
+
+Creating a quiz and watching it transition `new → edit` confirmed the `initialQuizId` guard: no loader flash, no blanking, title and question intact. Test quiz deleted afterwards.
+
+---
+
 ## To confirm once the app runs
 
 Checklist for the live walkthrough — **do not report these as findings until observed:**

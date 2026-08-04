@@ -1,8 +1,9 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Plus, Trash2, Scale } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ExportMenu } from "@/components/ui/export-menu";
+import BrandLoader from "../components/BrandLoader";
 import { Field, inputClasses, selectClasses, api, useTeacherClasses, DatePicker } from "./_shared";
 import { quizToDoc } from "../lib/toDoc";
 import { useT } from "../lib/i18n";
@@ -33,29 +34,69 @@ export default function QuizBuilder({ quiz, onClose }) {
   const [savingMeta, setSavingMeta] = useState(false);
   const [err, setErr] = useState(null);
 
-  // Load existing meta + questions + scores when editing. Callers may pass
-  // just `{ id }` (e.g. the Quizzes list hands us a stub by route), so we
-  // always re-fetch the full quiz here and seed the meta state from the
-  // server. Without this the title / subject / grade fields all render blank
-  // even though the row in the DB has them.
+  // The same class of bug F63 fixed in PresentationBuilder, in its milder
+  // form. Both loads used to end in `.catch(() => {})`, so opening a quiz that
+  // had been deleted in another tab rendered a blank editor with no questions
+  // and no message — silently inviting the teacher to type into a row that no
+  // longer exists, and to lose the lot on the first save. A network drop looked
+  // identical. A failed load has to be a state, not an absence.
+  const [loadError, setLoadError] = useState(null);
+  // Bumped by "Try again" to re-run the fetch without a full remount.
+  const [reloadKey, setReloadKey] = useState(0);
+  // The id we mounted with, if any. saveMeta() sets quizId after creating a
+  // brand-new quiz, which re-runs this effect — that pass must never blank the
+  // editor the teacher is actively working in, so only the initial load gates
+  // the render.
+  const initialQuizId = useRef(quiz?.id || null);
+  const [loading, setLoading] = useState(!!quiz?.id);
+
+  // Load existing meta + questions when editing. Callers may pass just
+  // `{ id }` (e.g. the Quizzes list hands us a stub by route), so we always
+  // re-fetch the full quiz here and seed the meta state from the server.
+  // Without this the title / subject / grade fields all render blank even
+  // though the row in the DB has them.
+  //
+  // Both requests together: the questions are not optional decoration, and a
+  // quiz whose meta loaded but whose questions did not is exactly the empty
+  // editor this guard exists to prevent.
   useEffect(() => {
-    if (!quizId) return;
-    api(`/api/quizzes/${quizId}`).then((row) => {
-      if (!row) return;
-      setMeta({
-        title: row.title || "",
-        subject: row.subject || "",
-        grade: row.grade || "",
-        section: row.section || "",
-        duration_minutes: row.duration_minutes ?? 30,
-        total_marks: row.total_marks ?? 0,
-        status: row.status || "Draft",
-        scheduled_for: row.scheduled_for ? String(row.scheduled_for).slice(0, 10) : "",
-        instructions: row.instructions || "",
+    if (!quizId) return undefined;
+    const isInitialLoad = quizId === initialQuizId.current;
+    let alive = true;
+    if (isInitialLoad) { setLoading(true); setLoadError(null); }
+    Promise.all([
+      api(`/api/quizzes/${quizId}`),
+      api(`/api/quizzes/${quizId}/questions`),
+    ])
+      .then(([row, qs]) => {
+        if (!alive) return;
+        if (row) {
+          setMeta({
+            title: row.title || "",
+            subject: row.subject || "",
+            grade: row.grade || "",
+            section: row.section || "",
+            duration_minutes: row.duration_minutes ?? 30,
+            total_marks: row.total_marks ?? 0,
+            status: row.status || "Draft",
+            scheduled_for: row.scheduled_for ? String(row.scheduled_for).slice(0, 10) : "",
+            instructions: row.instructions || "",
+          });
+        }
+        setQuestions(Array.isArray(qs) ? qs : []);
+        if (isInitialLoad) setLoading(false);
+      })
+      .catch((e) => {
+        if (!alive || e?.code === "aborted") return;
+        // A re-fetch of a quiz we just created failing is a transient on a row
+        // we already hold — staying quiet beats throwing the teacher out of an
+        // editor whose content is intact.
+        if (!isInitialLoad) return;
+        setLoadError(e?.status === 404 ? "notfound" : "error");
+        setLoading(false);
       });
-    }).catch(() => {});
-    api(`/api/quizzes/${quizId}/questions`).then(setQuestions).catch(() => {});
-  }, [quizId]);
+    return () => { alive = false; };
+  }, [quizId, reloadKey]);
 
   const setMetaField = (k, v) => setMeta((m) => ({ ...m, [k]: v }));
 
@@ -204,6 +245,39 @@ export default function QuizBuilder({ quiz, onClose }) {
       : remainingMarks > 0
         ? <span className="text-muted">{remainingMarks} mark{remainingMarks === 1 ? "" : "s"} left · {assignedMarks} / {targetMarks}</span>
         : <span className="text-accent">{-remainingMarks} over · {assignedMarks} / {targetMarks}</span>;
+
+  if (loadError) {
+    const gone = loadError === "notfound";
+    return (
+      <div className="flex items-center justify-center py-24 px-6">
+        <div className="max-w-md text-center">
+          <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-3">
+            {gone ? "Quiz not found" : "Could not open this quiz"}
+          </p>
+          <h2 className="font-serif text-2xl text-ink mb-3">
+            {gone ? "This quiz is no longer here." : "Something went wrong."}
+          </h2>
+          <p className="text-sm text-muted mb-6">
+            {gone
+              ? "It may have been deleted, or moved to the trash from another tab. Deleted quizzes can be restored from Recently deleted for 30 days."
+              : "The quiz could not be loaded. Check your connection and try again."}
+          </p>
+          <div className="flex items-center justify-center gap-3">
+            {!gone && (
+              <Button onClick={() => { setLoadError(null); setReloadKey((k) => k + 1); }}>
+                Try again
+              </Button>
+            )}
+            <Button variant={gone ? undefined : "ghost"} onClick={onClose}>
+              Back to quizzes
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (loading) return <BrandLoader fullscreen={false} />;
 
   return (
     <div>

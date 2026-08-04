@@ -542,6 +542,13 @@ export default function StudioApp({ onClose }) {
       ];
       mainContent = (
         <QuizBuilder
+          // Keyed because QuizBuilder holds its id in STATE, not from this
+          // prop — it has to, since saveMeta() assigns one after creating a
+          // brand-new quiz. That state is seeded once, so without a remount a
+          // change of :id here leaves the editor bound to the previous quiz
+          // and its load guard never re-runs. PresentationBuilder derives its
+          // id from the prop and needs no key.
+          key={sub === "edit" ? extraId : "new"}
           quiz={sub === "edit" ? { id: Number(extraId) } : null}
           onClose={() => navigate(["quizzes"])}
         />
