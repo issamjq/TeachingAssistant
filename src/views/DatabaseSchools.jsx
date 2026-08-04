@@ -392,7 +392,7 @@ function EditGradesModal({ school, onClose, onSave, busy }) {
                     : "bg-paper-cool text-accent border-accent hover:bg-accent/10"
                 }`}
               >
-                All grades
+                {t("sc2.allGrades")}
               </button>
               {remaining.map((g) => (
                 <button
@@ -576,7 +576,7 @@ function PickSchoolModal({ existingIds, onClose, onPicked, busy }) {
             emirate === "" ? "bg-ink text-paper-cool border-ink" : "bg-paper-cool text-ink border-line hover:border-ink"
           }`}
         >
-          All emirates
+          {t("sc2.allEmirates")}
         </button>
         {EMIRATES.map((em) => {
           const on = emirate === em;

@@ -7,6 +7,7 @@ import { Field, Modal, api, inputClasses, invalidateProfile, selectClasses } fro
 import { navigate } from "../lib/route";
 import DatabaseProfile from "./DatabaseProfile";
 import DatabaseSchools from "./DatabaseSchools";
+import { useT } from "../lib/i18n";
 import Avatar from "../components/Avatar";
 import { avatarsFor } from "../lib/avatars";
 import { useAccount, updateProfile } from "../lib/account";
@@ -22,6 +23,7 @@ const initials = (first, last) =>
 // `sub` comes from the URL (#/account/teaching → "teaching"). Anything
 // unrecognised falls back to the personal tab.
 export default function AccountProfile({ sub }) {
+  const t = useT();
   const active =
     sub === "teaching" ? "teaching" :
     sub === "schools"  ? "schools"  :
@@ -30,10 +32,10 @@ export default function AccountProfile({ sub }) {
     <div>
       <header className="mb-6">
         <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-2 inline-flex items-center gap-2.5">
-          <span className="w-6 h-px bg-accent" /> Settings
+          <span className="w-6 h-px bg-accent" /> {t("ap.eyebrow")}
         </p>
         <h2 className="font-serif text-4xl font-medium text-ink">
-          Your <em className="italic font-light text-accent">account</em>
+          {t("ap.titleA")} <em className="italic font-light text-accent">{t("ap.titleEm")}</em>
         </h2>
       </header>
 
@@ -47,14 +49,15 @@ export default function AccountProfile({ sub }) {
 }
 
 function Tabs({ active }) {
+  const t = useT();
   const items = [
-    { key: "personal", label: "Personal details", icon: User, route: ["account"] },
-    { key: "teaching", label: "Teaching profile", icon: GraduationCap, route: ["account", "teaching"] },
-    { key: "schools",  label: "My schools",       icon: Building2,     route: ["account", "schools"] },
+    { key: "personal", icon: User,          route: ["account"] },
+    { key: "teaching", icon: GraduationCap, route: ["account", "teaching"] },
+    { key: "schools",  icon: Building2,     route: ["account", "schools"] },
   ];
   return (
     <div className="flex flex-wrap items-center gap-1 border-b border-line mb-6">
-      {items.map(({ key, label, icon: Icon, route }) => {
+      {items.map(({ key, icon: Icon, route }) => {
         const on = active === key;
         return (
           <button
@@ -69,7 +72,7 @@ function Tabs({ active }) {
             }`}
           >
             <Icon size={14} />
-            {label}
+            {t(`ap.tab.${key}`)}
           </button>
         );
       })}
@@ -80,6 +83,7 @@ function Tabs({ active }) {
 // Personal details — the previous AccountProfile body, lifted into its
 // own component so the parent can decide which tab to render.
 function PersonalDetails() {
+  const t = useT();
   const account = useAccount();
   const [me, setMe] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -112,11 +116,11 @@ function PersonalDetails() {
     <div>
       <div className="mb-6 flex flex-col md:flex-row md:items-end md:justify-between gap-4">
         <p className="text-muted">
-          How the school reaches you. Languages, majors, and grades you teach live under the Teaching profile tab.
+          {t("ap.lead")}
         </p>
         {me && (
           <Button onClick={() => setEditing(true)}>
-            <Pencil size={14} className="mr-2" /> Edit details
+            <Pencil size={14} className="mr-2" /> {t("ap.editDetails")}
           </Button>
         )}
       </div>
@@ -124,7 +128,7 @@ function PersonalDetails() {
       {error && (
         <div className="mb-4 bg-paper border border-accent rounded-lg p-4">
           <p className="font-mono text-[10px] uppercase tracking-wider text-accent mb-1">
-            Could not load your account
+            {t("ap.loadError")}
           </p>
           <p className="text-sm text-ink-soft">{error}</p>
         </div>
@@ -139,8 +143,8 @@ function PersonalDetails() {
               <button
                 type="button"
                 onClick={() => setPickingAvatar(true)}
-                title="Change avatar"
-                aria-label="Change avatar"
+                title={t("ap.changeAvatar")}
+                aria-label={t("ap.changeAvatar")}
                 className="relative group rounded-full flex-shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-paper-cool"
               >
                 <Avatar avatarId={avatarId} initial={initials(me.first_name, me.last_name)} size={64} />
@@ -153,16 +157,16 @@ function PersonalDetails() {
                   {me.first_name} {me.last_name}
                 </h3>
                 <p className="font-mono text-[11px] uppercase tracking-wider text-muted mt-1.5">
-                  Teacher
+                  {t("account.teacher")}
                 </p>
               </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-5 pt-6 border-t border-line">
-              <Stat label="Staff ID" value={me.staff_id || "—"} icon={<User size={13} />} mono />
-              <Stat label="Email" value={me.email || "—"} icon={<Mail size={13} />} />
-              <Stat label="Phone" value={me.phone || "—"} icon={<Phone size={13} />} mono />
-              <Stat label="Nationality" value={me.nationality || "—"} icon={<Globe size={13} />} />
+              <Stat label={t("ap.f.staffId")} value={me.staff_id || t("common.none")} icon={<User size={13} />} mono />
+              <Stat label={t("ap.f.email")} value={me.email || t("common.none")} icon={<Mail size={13} />} />
+              <Stat label={t("ap.f.phone")} value={me.phone || t("common.none")} icon={<Phone size={13} />} mono />
+              <Stat label={t("ap.f.nationality")} value={me.nationality || t("common.none")} icon={<Globe size={13} />} />
             </div>
           </CardContent>
         </Card>
@@ -192,6 +196,7 @@ function PersonalDetails() {
 // gender and the chosen avatar persist into the localStorage account profile,
 // which the sidebar and landing nav read.
 function AvatarPickerModal({ currentAvatar, currentGender, onClose, onSave }) {
+  const t = useT();
   const [gender, setGender] = useState(currentGender || "man");
   const [sel, setSel] = useState(currentAvatar || "");
 
@@ -205,19 +210,19 @@ function AvatarPickerModal({ currentAvatar, currentGender, onClose, onSave }) {
     <Modal
       open
       onClose={onClose}
-      eyebrow="Your account"
-      title="Choose your avatar"
+      eyebrow={t("ap.yourAccount")}
+      title={t("ap.avatarTitle")}
       footer={
         <>
           <Button variant="secondary" onClick={onClose}>
-            Cancel
+            {t("common.cancel")}
           </Button>
-          <Button onClick={() => onSave(gender, sel)}>Save avatar</Button>
+          <Button onClick={() => onSave(gender, sel)}>{t("ap.saveAvatar")}</Button>
         </>
       }
     >
       <p className="text-sm text-muted mb-4">
-        Pick a portrait to represent you across Murchid. Tap the selected one again to clear it.
+        {t("ap.avatarLead")}
       </p>
       <div className="flex gap-2 mb-5">
         {["man", "woman"].map((g) => {
@@ -234,7 +239,7 @@ function AvatarPickerModal({ currentAvatar, currentGender, onClose, onSave }) {
                   : "bg-paper-cool text-ink border-line hover:border-ink"
               }`}
             >
-              {g === "man" ? "Man" : "Woman"}
+              {g === "man" ? t("ap.man") : t("ap.woman")}
             </button>
           );
         })}
@@ -248,7 +253,7 @@ function AvatarPickerModal({ currentAvatar, currentGender, onClose, onSave }) {
               type="button"
               onClick={() => setSel(on ? "" : a.id)}
               aria-pressed={on}
-              aria-label="Choose avatar"
+              aria-label={t("ap.chooseAvatar")}
               style={{
                 padding: 0,
                 border: 0,
@@ -287,6 +292,7 @@ function Stat({ label, value, icon, mono = false }) {
 }
 
 function AccountEditModal({ initial, onClose, onSaved }) {
+  const t = useT();
   const [form, setForm] = useState({
     first_name: initial.first_name || "",
     last_name: initial.last_name || "",
@@ -327,15 +333,15 @@ function AccountEditModal({ initial, onClose, onSaved }) {
     <Modal
       open
       onClose={onClose}
-      eyebrow="Edit account"
-      title="Update your details"
+      eyebrow={t("ap.editEyebrow")}
+      title={t("ap.editTitle")}
       footer={
         <>
           <Button variant="secondary" onClick={onClose} disabled={saving}>
-            Cancel
+            {t("common.cancel")}
           </Button>
           <Button onClick={submit} disabled={saving}>
-            {saving ? "Saving…" : "Save changes"}
+            {saving ? t("sch.saving") : t("tp.saveChanges")}
           </Button>
         </>
       }
@@ -346,29 +352,29 @@ function AccountEditModal({ initial, onClose, onSaved }) {
         </div>
       )}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Field label="First name">
+        <Field label={t("ap.f.firstName")}>
           <input
             className={inputClasses}
             value={form.first_name}
             onChange={(e) => set("first_name", e.target.value)}
           />
         </Field>
-        <Field label="Last name">
+        <Field label={t("ap.f.lastName")}>
           <input
             className={inputClasses}
             value={form.last_name}
             onChange={(e) => set("last_name", e.target.value)}
           />
         </Field>
-        <Field label="Staff ID" hint="As issued by your school">
+        <Field label={t("ap.f.staffId")} hint={t("ap.f.staffHint")}>
           <input
             className={inputClasses}
             value={form.staff_id}
             onChange={(e) => set("staff_id", e.target.value)}
-            placeholder="e.g. T-1042"
+            placeholder={t("ap.f.staffPlaceholder")}
           />
         </Field>
-        <Field label="Email">
+        <Field label={t("ap.f.email")}>
           <input
             type="email"
             className={inputClasses}
@@ -376,7 +382,7 @@ function AccountEditModal({ initial, onClose, onSaved }) {
             onChange={(e) => set("email", e.target.value)}
           />
         </Field>
-        <Field label="Phone">
+        <Field label={t("ap.f.phone")}>
           <input
             className={inputClasses}
             value={form.phone}
@@ -384,7 +390,7 @@ function AccountEditModal({ initial, onClose, onSaved }) {
           />
         </Field>
         <div className="md:col-span-2">
-          <Field label="Nationality">
+          <Field label={t("ap.f.nationality")}>
             <select
               className={selectClasses}
               value={form.nationality || ""}

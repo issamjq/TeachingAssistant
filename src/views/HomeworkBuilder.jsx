@@ -79,12 +79,10 @@ export default function HomeworkBuilder({ homework, onClose }) {
     return (
       <LoadErrorCard
         gone={gone}
-        eyebrow={gone ? "Homework not found" : "Could not open this homework"}
-        heading={gone ? "This homework is no longer here." : "Something went wrong."}
-        body={gone
-          ? "It may have been deleted, or moved to the trash from another tab. Deleted homework can be restored from Recently deleted for 30 days."
-          : "The homework could not be loaded. Check your connection and try again."}
-        backLabel="Back to homework"
+        eyebrow={gone ? t("lec.hw.notFound") : t("lec.hw.couldNotOpen")}
+        heading={gone ? t("lec.hw.gone") : t("lec.somethingWrong")}
+        body={gone ? t("lec.hw.goneBody") : t("lec.hw.errBody")}
+        backLabel={t("lec.hw.back")}
         onRetry={retry}
         onBack={onClose}
       />

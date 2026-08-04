@@ -356,7 +356,7 @@ export default function Dashboard({ onJump }) {
                 <GraduationCap size={18} className="text-accent" /> {t("dash.quiz.title")}
               </h2>
               <Button variant="ghost" size="sm" onClick={() => onJump?.("quizzes")}>
-                Manage <ArrowRight size={13} />
+                {t("common.manage")} <ArrowRight size={13} />
               </Button>
             </div>
             {pendingQuizzes.length === 0 ? (

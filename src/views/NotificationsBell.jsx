@@ -1,9 +1,11 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Bell, X } from "lucide-react";
 import { api, timeAgo } from "./_shared";
+import { useT } from "../lib/i18n";
 
 // Header bell — drops down a list of unread notifications, click to dismiss.
 export default function NotificationsBell() {
+  const t = useT();
   const [items, setItems] = useState([]);
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
@@ -48,7 +50,7 @@ export default function NotificationsBell() {
       <button
         onClick={() => setOpen((o) => !o)}
         className="h-9 w-9 rounded-md border border-line hover:bg-paper-warm flex items-center justify-center transition relative"
-        title="Notifications"
+        title={t("nb.title")}
       >
         <Bell size={15} className="text-ink-soft" />
         {unreadCount > 0 && (
@@ -61,19 +63,19 @@ export default function NotificationsBell() {
       {open && (
         <div className="absolute right-0 mt-2 w-96 bg-paper-cool border border-line rounded-xl shadow-lg z-50">
           <div className="px-5 py-3 border-b border-line flex items-center justify-between">
-            <p className="font-serif text-lg text-ink">Notifications</p>
+            <p className="font-serif text-lg text-ink">{t("nb.title")}</p>
             {unreadCount > 0 && (
               <button
                 onClick={markAllRead}
                 className="text-accent hover:text-ink font-mono text-[10px] uppercase tracking-wider"
               >
-                Mark all read
+                {t("nb.markAllRead")}
               </button>
             )}
           </div>
           <div className="max-h-96 overflow-y-auto">
             {items.length === 0 ? (
-              <p className="px-5 py-6 text-sm text-muted text-center">All caught up.</p>
+              <p className="px-5 py-6 text-sm text-muted text-center">{t("nb.empty")}</p>
             ) : (
               items.map((n) => (
                 <div
@@ -96,7 +98,7 @@ export default function NotificationsBell() {
                   <button
                     onClick={() => dismiss(n.id)}
                     className="text-muted hover:text-ink"
-                    title="Dismiss"
+                    title={t("nb.dismiss")}
                   >
                     <X size={13} />
                   </button>

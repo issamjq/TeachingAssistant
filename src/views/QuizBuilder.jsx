@@ -226,12 +226,10 @@ export default function QuizBuilder({ quiz, onClose }) {
     return (
       <LoadErrorCard
         gone={gone}
-        eyebrow={gone ? "Quiz not found" : "Could not open this quiz"}
-        heading={gone ? "This quiz is no longer here." : "Something went wrong."}
-        body={gone
-          ? "It may have been deleted, or moved to the trash from another tab. Deleted quizzes can be restored from Recently deleted for 30 days."
-          : "The quiz could not be loaded. Check your connection and try again."}
-        backLabel="Back to quizzes"
+        eyebrow={gone ? t("lec.quiz.notFound") : t("lec.quiz.couldNotOpen")}
+        heading={gone ? t("lec.quiz.gone") : t("lec.somethingWrong")}
+        body={gone ? t("lec.quiz.goneBody") : t("lec.quiz.errBody")}
+        backLabel={t("lec.quiz.back")}
         onRetry={retry}
         onBack={onClose}
       />

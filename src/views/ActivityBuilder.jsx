@@ -76,12 +76,10 @@ export default function ActivityBuilder({ activity, onClose }) {
     return (
       <LoadErrorCard
         gone={gone}
-        eyebrow={gone ? "Activity not found" : "Could not open this activity"}
-        heading={gone ? "This activity is no longer here." : "Something went wrong."}
-        body={gone
-          ? "It may have been deleted, or moved to the trash from another tab. Deleted activities can be restored from Recently deleted for 30 days."
-          : "The activity could not be loaded. Check your connection and try again."}
-        backLabel="Back to activities"
+        eyebrow={gone ? t("lec.act.notFound") : t("lec.act.couldNotOpen")}
+        heading={gone ? t("lec.act.gone") : t("lec.somethingWrong")}
+        body={gone ? t("lec.act.goneBody") : t("lec.act.errBody")}
+        backLabel={t("lec.act.back")}
         onRetry={retry}
         onBack={onClose}
       />
