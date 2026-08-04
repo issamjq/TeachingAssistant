@@ -873,6 +873,22 @@ Creating a quiz and watching it transition `new → edit` confirmed the `initial
 
 After the extraction, re-verified: `/quizzes/edit/999999`, `/homework/edit/999999` and `/activities/edit/999999` each render their own not-found card, and creating a homework transitioned `new → edit` through the shared hook with no loader flash and the title intact. Test rows deleted; the account is back to zero quizzes, homework and activities.
 
+### F65 — 🔴 The Quiz scores tab crashed on first use ✅ Observed — 🔧 Fixed
+`DatabaseScores.jsx` rendered `<BrandLoader …/>` and never imported it. `busy` goes true the moment a teacher picks a quiz — the only way to use the tab — so the identifier resolved to `undefined` at render and threw a ReferenceError straight into the error boundary. The whole surface was unusable.
+
+Vite does not catch this: a JSX tag is only an identifier lookup at render time, so `npm run build` passes cleanly. It survived because nothing exercised the loading state.
+
+Found incidentally while translating the file. Swept every `.jsx` under `src/` for the same shape — a capitalised JSX tag that is neither imported nor defined in the file — and the remaining hits are all destructured aliases (`icon: Icon`), not bugs. This was the only one.
+
+### F66 — The shared DatePicker rendered English dates in Arabic ✅ Observed — 🔧 Fixed
+Caught in the walkthrough, not in code: the Attendance date field read **"Aug 2026 04"** with the language set to Arabic. `DatePicker` made three `toLocaleDateString(undefined, …)` calls and held a hardcoded `["M","T","W","T","F","S","S"]` weekday row.
+
+`undefined` means *the browser's* locale, not the app's. It looks correct in review, which is why it survived — and because DatePicker is the date field in every form in the product, one component was leaking English into a dozen screens at once.
+
+Fixed with `useLocale()`, and the weekday initials are now derived from the locale the same way TeachingRail's are. Same root cause was fixed in `timeAgo()`, which returned "3 minutes ago" in both languages — it is a plain function called from twelve components, so it reads `currentLang()` off `<html lang>` (which `LanguageProvider` already maintains) rather than taking a hook.
+
+**The lesson worth keeping:** `toLocaleDateString(undefined, …)` is the bug. Grep for it before declaring any i18n work done — key parity cannot catch it, because nothing is missing.
+
 ---
 
 ## To confirm once the app runs
