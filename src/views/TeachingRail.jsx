@@ -8,13 +8,16 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight, CalendarDays, Plus } from "lucide-react";
 import { api, getProfile } from "./_shared";
+import { useT, useLocale } from "../lib/i18n";
 import SchedulePopup from "./_schedule-popup";
 
-const DAY_LABELS = ["M", "T", "W", "T", "F", "S", "S"];
-const MONTH_NAMES = [
-  "January", "February", "March", "April", "May", "June",
-  "July", "August", "September", "October", "November", "December",
-];
+// Weekday initials and month names are derived from the active locale rather
+// than held in English arrays — 1 Jan 2024 was a Monday, so walking seven days
+// from it gives the week in the right order for whichever language is on.
+const dayLabelsFor = (locale) =>
+  Array.from({ length: 7 }, (_, i) =>
+    new Date(2024, 0, 1 + i).toLocaleDateString(locale, { weekday: "narrow" })
+  );
 
 const isoKey = (d) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -40,6 +43,9 @@ function monthMatrix(anchor) {
 const PREF_KEY = "murchid.teaching-rail.collapsed";
 
 export default function TeachingRail() {
+  const t = useT();
+  const locale = useLocale();
+  const dayLabels = useMemo(() => dayLabelsFor(locale), [locale]);
   const [collapsed, setCollapsed] = useState(() => {
     try { return localStorage.getItem(PREF_KEY) === "1"; }
     catch { return false; }
@@ -175,14 +181,21 @@ export default function TeachingRail() {
         date: d,
         iso: isoKey(d),
         isToday,
-        label: isToday ? "Today" : isTomorrow ? "Tomorrow" : d.toLocaleDateString(undefined, { weekday: "long" }),
-        sub: d.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" }),
+        label: isToday
+          ? t("planner.today")
+          : isTomorrow
+            ? t("rail.tomorrow")
+            : d.toLocaleDateString(locale, { weekday: "long" }),
+        sub: d.toLocaleDateString(locale, { weekday: "long", day: "numeric", month: "long" }),
         events: (eventsByDate.get(isoKey(d)) || []).sort((a, b) =>
           (a.time || "").localeCompare(b.time || "")
         ),
       };
     });
-  }, [today, selectedDate, eventsByDate]);
+    // `locale` is in here because the labels above are language-dependent —
+    // without it the day names stay in the previous language until some other
+    // dependency happens to change.
+  }, [today, selectedDate, eventsByDate, locale, t]);
 
   // pt-14 keeps the rail's top controls below the page-level X close
   // button (absolute top-3 right-8 in App.jsx) so they don't visually
@@ -193,8 +206,8 @@ export default function TeachingRail() {
         <button
           type="button"
           onClick={() => setCollapsed(false)}
-          aria-label="Expand calendar rail"
-          title="Show calendar"
+          aria-label={t("rail.expand")}
+          title={t("rail.showCalendar")}
           className="planner-nav-btn h-8 w-8 rounded-lg border border-line bg-paper-cool hover:bg-paper-warm hover:border-ink flex items-center justify-center"
         >
           <ChevronLeft size={14} />
@@ -217,13 +230,13 @@ export default function TeachingRail() {
             onClick={() =>
               setAnchor((a) => new Date(a.getFullYear(), a.getMonth() - 1, 1))
             }
-            aria-label="Previous month"
+            aria-label={t("planner.prevMonth")}
             className="planner-nav-btn h-6 w-6 rounded-md border border-line bg-paper-cool hover:bg-paper-warm flex items-center justify-center"
           >
             <ChevronLeft size={12} />
           </button>
           <h3 className="font-serif text-[15px] font-medium text-ink leading-none">
-            {MONTH_NAMES[anchor.getMonth()]}{" "}
+            {anchor.toLocaleDateString(locale, { month: "long" })}{" "}
             <span className="text-muted font-normal">{anchor.getFullYear()}</span>
           </h3>
           <button
@@ -231,7 +244,7 @@ export default function TeachingRail() {
             onClick={() =>
               setAnchor((a) => new Date(a.getFullYear(), a.getMonth() + 1, 1))
             }
-            aria-label="Next month"
+            aria-label={t("planner.nextMonth")}
             className="planner-nav-btn h-6 w-6 rounded-md border border-line bg-paper-cool hover:bg-paper-warm flex items-center justify-center"
           >
             <ChevronRight size={12} />
@@ -240,8 +253,8 @@ export default function TeachingRail() {
         <button
           type="button"
           onClick={() => setCollapsed(true)}
-          aria-label="Collapse calendar rail"
-          title="Hide calendar"
+          aria-label={t("rail.collapse")}
+          title={t("rail.hideCalendar")}
           className="planner-nav-btn h-7 w-7 rounded-md border border-line bg-paper-cool hover:bg-paper-warm flex items-center justify-center"
         >
           <ChevronRight size={13} />
@@ -251,7 +264,7 @@ export default function TeachingRail() {
       {/* Mini month grid */}
       <div>
         <div className="grid grid-cols-7 mb-1">
-          {DAY_LABELS.map((d, i) => (
+          {dayLabels.map((d, i) => (
             <div
               key={i}
               className="text-center font-mono text-[9.5px] uppercase tracking-wider text-muted py-1"
@@ -271,7 +284,7 @@ export default function TeachingRail() {
                 key={i}
                 type="button"
                 onClick={() => onPickDay(d)}
-                aria-label={d.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric", year: "numeric" })}
+                aria-label={d.toLocaleDateString(locale, { weekday: "long", month: "long", day: "numeric", year: "numeric" })}
                 aria-pressed={isSelected}
                 className="aspect-square flex flex-col items-center justify-center focus:outline-none"
               >
@@ -309,7 +322,7 @@ export default function TeachingRail() {
         className="planner-nav-btn inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border border-accent/30 bg-accent/[0.10] hover:bg-accent/[0.18] hover:border-accent/50 text-accent text-[11.5px] font-semibold shadow-sm"
       >
         <Plus size={13} strokeWidth={2.5} />
-        New entry
+        {t("planner.newEntry")}
       </button>
 
       <div className="h-px bg-line/40" />
@@ -328,7 +341,7 @@ export default function TeachingRail() {
             </p>
             {day.events.length === 0 ? (
               <p className="text-[11.5px] text-muted/80 italic">
-                No events scheduled
+                {t("rail.noEvents")}
               </p>
             ) : (
               <div className="flex flex-col gap-1">

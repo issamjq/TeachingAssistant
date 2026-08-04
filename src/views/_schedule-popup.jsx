@@ -7,6 +7,7 @@ import React, { useState, useCallback, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { api, inputClasses, selectClasses, DatePicker } from "./_shared";
+import { useT } from "../lib/i18n";
 
 export default function SchedulePopup({
   initial,
@@ -41,6 +42,7 @@ export default function SchedulePopup({
     };
   });
   const [form, setForm] = useState(initialForm);
+  const t = useT();
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState(null);
   const [showDiscard, setShowDiscard] = useState(false);
@@ -140,7 +142,7 @@ export default function SchedulePopup({
         <button
           type="button"
           onClick={attemptClose}
-          aria-label="Close"
+          aria-label={t("common.close")}
           className="absolute top-4 right-4 z-10 h-9 w-9 rounded-lg text-ink-soft hover:bg-paper-warm hover:text-ink flex items-center justify-center transition"
         >
           <X size={16} strokeWidth={1.75} />
@@ -148,10 +150,10 @@ export default function SchedulePopup({
 
         <div className="px-7 pt-6 pb-4 border-b border-line">
           <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-1.5 inline-flex items-center gap-2.5">
-            <span className="w-6 h-px bg-accent" /> {isEdit ? "Edit entry" : "New entry"}
+            <span className="w-6 h-px bg-accent" /> {isEdit ? t("sch.modal.editEyebrow") : t("planner.newEntry")}
           </p>
           <h2 className="font-serif text-2xl font-medium text-ink leading-none">
-            {isEdit ? "Edit schedule entry" : "Add a schedule entry"}
+            {isEdit ? t("sp.editTitle") : t("sch.modal.newTitle")}
           </h2>
         </div>
 
@@ -162,55 +164,55 @@ export default function SchedulePopup({
             </div>
           )}
           <div className="grid grid-cols-2 gap-x-4 gap-y-3">
-            <SerifField label="Title" wide>
+            <SerifField label={t("sch.f.title")} wide>
               <input className={inputClasses} value={form.title} onChange={(e) => set("title", e.target.value)} />
             </SerifField>
-            <SerifField label="Subject">
+            <SerifField label={t("sch.f.subject")}>
               <input className={inputClasses} value={form.subject} onChange={(e) => set("subject", e.target.value)} />
             </SerifField>
-            <SerifField label="Grade">
+            <SerifField label={t("sch.f.grade")}>
               <select
                 className={selectClasses}
                 value={form.grade}
                 onChange={(e) => set("grade", e.target.value)}
               >
-                <option value="">{teacherGrades.length ? "—" : "No grades on your profile"}</option>
+                <option value="">{teacherGrades.length ? t("common.none") : t("sp.noGrades")}</option>
                 {teacherGrades.map((g) => <option key={g} value={g}>{g}</option>)}
                 {form.grade && !teacherGrades.includes(form.grade) && (
                   <option value={form.grade}>{form.grade}</option>
                 )}
               </select>
             </SerifField>
-            <SerifField label="Section">
+            <SerifField label={t("sch.f.section")}>
               <select
                 className={selectClasses}
                 value={form.section}
                 onChange={(e) => set("section", e.target.value)}
               >
-                <option value="">{teacherSections.length ? "—" : "No sections on your profile"}</option>
+                <option value="">{teacherSections.length ? t("common.none") : t("sp.noSections")}</option>
                 {teacherSections.map((s) => <option key={s} value={s}>{s}</option>)}
                 {form.section && !teacherSections.includes(form.section) && (
                   <option value={form.section}>{form.section}</option>
                 )}
               </select>
             </SerifField>
-            <SerifField label="Date">
+            <SerifField label={t("sch.f.date")}>
               <DatePicker value={form.date} onChange={(v) => set("date", v)} />
             </SerifField>
-            <SerifField label="Start time">
+            <SerifField label={t("sch.f.start")}>
               <input type="time" className={inputClasses} value={form.start_time} onChange={(e) => set("start_time", e.target.value)} />
             </SerifField>
-            <SerifField label="End time">
+            <SerifField label={t("sch.f.end")}>
               <input type="time" className={inputClasses} value={form.end_time} onChange={(e) => set("end_time", e.target.value)} />
             </SerifField>
-            <SerifField label="Status" wide>
+            <SerifField label={t("sch.f.status")} wide>
               <select className={selectClasses} value={form.status} onChange={(e) => set("status", e.target.value)}>
-                <option value="planned">Planned</option>
-                <option value="done">Done</option>
-                <option value="cancelled">Cancelled</option>
+                <option value="planned">{t("sch.st.planned")}</option>
+                <option value="done">{t("sch.st.done")}</option>
+                <option value="cancelled">{t("sch.st.cancelled")}</option>
               </select>
             </SerifField>
-            <SerifField label="Notes" wide>
+            <SerifField label={t("sch.f.notes")} wide>
               <textarea rows={2} className={inputClasses} value={form.notes} onChange={(e) => set("notes", e.target.value)} />
             </SerifField>
           </div>
@@ -225,7 +227,7 @@ export default function SchedulePopup({
                 disabled={saving}
                 className="planner-nav-btn px-4 py-2 rounded-lg border border-accent/40 bg-paper-cool hover:bg-accent hover:text-paper-cool hover:border-accent text-sm text-accent disabled:opacity-50"
               >
-                Delete
+                {t("sp.delete")}
               </button>
               <button
                 type="button"
@@ -233,7 +235,7 @@ export default function SchedulePopup({
                 disabled={saving}
                 className="planner-nav-btn px-4 py-2 rounded-lg border border-sage/40 bg-paper-cool hover:bg-sage hover:text-paper-cool hover:border-sage text-sm text-sage disabled:opacity-50"
               >
-                Mark done
+                {t("sp.markDone")}
               </button>
             </>
           )}
@@ -244,7 +246,7 @@ export default function SchedulePopup({
             disabled={saving}
             className="planner-nav-btn px-4 py-2 rounded-lg border border-line bg-paper-cool hover:border-ink hover:bg-paper-warm text-sm text-ink"
           >
-            Cancel
+            {t("common.cancel")}
           </button>
           <button
             type="button"
@@ -252,7 +254,7 @@ export default function SchedulePopup({
             disabled={saving || !form.title}
             className="planner-nav-btn px-4 py-2 rounded-lg bg-ink text-paper-cool text-sm font-medium hover:bg-ink-soft disabled:opacity-50"
           >
-            {saving ? "Saving…" : "Save"}
+            {saving ? t("sch.saving") : t("common.save")}
           </button>
         </div>
 
@@ -260,10 +262,10 @@ export default function SchedulePopup({
           <div className="absolute inset-0 z-20 flex items-center justify-center bg-ink/40 backdrop-blur-sm rounded-2xl animate-[fadeIn_140ms_ease-out]">
             <div className="bg-paper-cool border border-line rounded-xl shadow-[0_18px_44px_-18px_rgba(15,20,16,0.35)] p-5 max-w-[360px] mx-4">
               <h4 className="font-serif text-lg font-medium text-ink leading-tight mb-1">
-                Discard changes?
+                {t("sp.discardTitle")}
               </h4>
               <p className="text-[12.5px] text-muted mb-4 leading-snug">
-                You have unsaved edits on this entry. Closing now will lose them.
+                {t("sp.discardBody")}
               </p>
               <div className="flex justify-end gap-2">
                 <button
@@ -271,14 +273,14 @@ export default function SchedulePopup({
                   onClick={() => setShowDiscard(false)}
                   className="planner-nav-btn px-3.5 py-2 rounded-lg border border-line bg-paper-cool hover:border-ink hover:bg-paper-warm text-[13px] text-ink"
                 >
-                  Keep editing
+                  {t("sp.keepEditing")}
                 </button>
                 <button
                   type="button"
                   onClick={() => { setShowDiscard(false); onClose(); }}
                   className="planner-nav-btn px-3.5 py-2 rounded-lg bg-accent text-paper-cool text-[13px] font-medium hover:bg-accent/90"
                 >
-                  Discard
+                  {t("sp.discard")}
                 </button>
               </div>
             </div>

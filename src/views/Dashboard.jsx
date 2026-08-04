@@ -3,6 +3,7 @@ import { Search, ClipboardList, GraduationCap, ArrowRight } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { api, getProfile, timeAgo } from "./_shared";
+import { useT, useLocale, useStatusLabel } from "../lib/i18n";
 
 const fmtTime = (t) => (t ? t.slice(0, 5) : "—");
 const parseHM = (hm) => {
@@ -52,14 +53,19 @@ function useMinuteTick() {
 // two primary actions. Reads as a continuation of the landing.
 function NowPlayingHero({ me, todayLessons, onJump }) {
   useMinuteTick();
-  const today = new Date().toLocaleDateString(undefined, {
+  const t = useT();
+  const locale = useLocale();
+  const today = new Date().toLocaleDateString(locale, {
     weekday: "long",
     month: "long",
     day: "numeric",
   });
   const hour = new Date().getHours();
-  const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
-  const first = me?.first_name || "there";
+  const greeting =
+    hour < 12 ? t("dash.greeting.morning")
+      : hour < 17 ? t("dash.greeting.afternoon")
+        : t("dash.greeting.evening");
+  const first = me?.first_name || t("dash.there");
 
   const status = useMemo(() => pickNowLesson(todayLessons), [todayLessons]);
   const now = new Date();
@@ -73,52 +79,59 @@ function NowPlayingHero({ me, todayLessons, onJump }) {
     const left = Math.max(0, status.endM - nowM);
     headline = (
       <>
-        Right now, <em>{l.title || "your class"}</em> with {l.section || l.grade || "your group"}.
+        {t("dash.now.prefix")} <em>{l.title || t("dash.now.yourClass")}</em>{" "}
+        {t("dash.now.with")} {l.section || l.grade || t("dash.now.yourGroup")}.
       </>
     );
     meta = (
       <>
-        <span><span className="dash-nowcard-pulse" aria-hidden="true" />Live · {left} min left</span>
+        <span>
+          <span className="dash-nowcard-pulse" aria-hidden="true" />
+          {t("dash.now.live")} · {t("dash.now.minLeft", { n: left })}
+        </span>
         <span>{l.subject ? <b>{l.subject}</b> : null} · {fmtTime(l.start_time)}–{fmtTime(l.end_time)}</span>
-        <span>{l.location || "—"}</span>
+        <span>{l.location || t("common.none")}</span>
       </>
     );
-    cta = "Open class";
+    cta = t("dash.cta.openClass");
   } else if (status.mode === "next") {
     const l = status.lesson;
     const until = Math.max(0, status.startM - nowM);
     const inText =
-      until < 60 ? `in ${until} min` : `at ${fmtTime(l.start_time)}`;
+      until < 60
+        ? t("dash.next.inMin", { n: until })
+        : t("dash.next.atTime", { time: fmtTime(l.start_time) });
     headline = (
       <>
-        Next up, <em>{l.title || "your next class"}</em> {inText}.
+        {t("dash.next.prefix")} <em>{l.title || t("dash.next.yourNextClass")}</em> {inText}.
       </>
     );
     meta = (
       <>
-        <span><b>{l.section || l.grade || "—"}</b></span>
-        <span>{l.subject || "—"} · {fmtTime(l.start_time)}–{fmtTime(l.end_time)}</span>
-        <span>{l.location || "—"}</span>
+        <span><b>{l.section || l.grade || t("common.none")}</b></span>
+        <span>{l.subject || t("common.none")} · {fmtTime(l.start_time)}–{fmtTime(l.end_time)}</span>
+        <span>{l.location || t("common.none")}</span>
       </>
     );
-    cta = "See today";
+    cta = t("dash.cta.seeToday");
   } else {
     headline = (
       <>
-        {greeting}, <em>{first}</em>. You're <em>clear</em> for today.
+        {greeting}, <em>{first}</em>{t("dash.clear.mid")} <em>{t("dash.clear.word")}</em>{" "}
+        {t("dash.clear.end")}
       </>
     );
     meta = (
       <>
         <span>{today}</span>
-        <span>Nothing more on the schedule.</span>
+        <span>{t("dash.nothingMore")}</span>
       </>
     );
-    cta = "Plan tomorrow";
+    cta = t("dash.cta.planTomorrow");
   }
 
   return (
-    <section className="dash-nowcard" aria-label="Now playing">
+    <section className="dash-nowcard" aria-label={t("dash.nowPlaying")}>
       <div className="dash-nowcard-eyebrow">{today}</div>
       <h1 className="dash-nowcard-h">{headline}</h1>
       <div className="dash-nowcard-meta">{meta}</div>
@@ -135,7 +148,7 @@ function NowPlayingHero({ me, todayLessons, onJump }) {
           className="dash-nowcard-ghost"
           onClick={() => onJump?.("planner")}
         >
-          Open planner
+          {t("dash.cta.openPlanner")}
         </button>
       </div>
     </section>
@@ -143,6 +156,9 @@ function NowPlayingHero({ me, todayLessons, onJump }) {
 }
 
 export default function Dashboard({ onJump }) {
+  const t = useT();
+  const locale = useLocale();
+  const statusLabel = useStatusLabel();
   const [data, setData] = useState(null);
   const [me, setMe] = useState(null);
   const [error, setError] = useState(null);
@@ -170,10 +186,10 @@ export default function Dashboard({ onJump }) {
     : recentDrafts;
 
   const kpis = [
-    { label: "Today",    value: todayLessons.length, em: "lessons",   caption: "scheduled today" },
-    { label: "Ahead",    value: (pendingHomework.length || 0) + (pendingQuizzes.length || 0), em: "items", caption: "homework + quizzes in flight" },
-    { label: "Drafts",   value: counts.drafts ?? 0,  em: "plans",     caption: "lesson plans in progress" },
-    { label: "Students", value: counts.students ?? 0, em: "in roster", caption: "across every class" },
+    { key: "today",    value: todayLessons.length },
+    { key: "ahead",    value: (pendingHomework.length || 0) + (pendingQuizzes.length || 0) },
+    { key: "drafts",   value: counts.drafts ?? 0 },
+    { key: "students", value: counts.students ?? 0 },
   ];
 
   // Section header chrome — used by every sub-card so the dashboard
@@ -196,7 +212,7 @@ export default function Dashboard({ onJump }) {
       {error && (
         <div className="bg-paper border border-accent/30 rounded-xl p-4">
           <p className="text-[11px] uppercase tracking-[0.18em] font-medium text-accent mb-1">
-            Could not load dashboard
+            {t("dash.error")}
           </p>
           <p className="text-sm text-ink-soft">{error}</p>
         </div>
@@ -207,12 +223,15 @@ export default function Dashboard({ onJump }) {
           account. */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {kpis.map((k) => (
-          <div key={k.label} className="dash-kpi">
-            <p className="dash-kpi-label">{k.label}</p>
+          <div key={k.key} className="dash-kpi">
+            <p className="dash-kpi-label">{t(`dash.kpi.${k.key}`)}</p>
             <p className="dash-kpi-value">
-              {k.value}<em className="text-[0.4em] font-serif italic ml-1 text-muted not-italic"> {k.em}</em>
+              {k.value}
+              <em className="text-[0.4em] font-serif italic ml-1 text-muted not-italic">
+                {" "}{t(`dash.kpi.${k.key}.em`)}
+              </em>
             </p>
-            <p className="dash-kpi-cap">{k.caption}</p>
+            <p className="dash-kpi-cap">{t(`dash.kpi.${k.key}.cap`)}</p>
           </div>
         ))}
       </div>
@@ -221,12 +240,12 @@ export default function Dashboard({ onJump }) {
         <Card elevation="flat">
           <CardContent className="p-5 md:p-6">
             <SectionHead
-              title="Today's schedule"
-              action="View calendar"
+              title={t("dash.today.title")}
+              action={t("dash.today.action")}
               onAction={() => onJump?.("schedule")}
             />
             {todayLessons.length === 0 ? (
-              <p className="text-sm text-muted py-4">Nothing scheduled today.</p>
+              <p className="text-sm text-muted py-4">{t("dash.today.empty")}</p>
             ) : (
               <div>
                 {todayLessons.map((s, i) => (
@@ -244,11 +263,11 @@ export default function Dashboard({ onJump }) {
                         {s.title} · {s.section || s.grade || ""}
                       </p>
                       <p className="text-xs text-muted mt-1">
-                        {s.subject ? `${s.subject} · ` : ""}{s.location || "—"} · {fmtTime(s.start_time)} – {fmtTime(s.end_time)}
+                        {s.subject ? `${s.subject} · ` : ""}{s.location || t("common.none")} · {fmtTime(s.start_time)} – {fmtTime(s.end_time)}
                       </p>
                     </div>
                     <span className="text-[10px] uppercase tracking-wider font-medium px-2.5 py-1 rounded-full border bg-paper-cool text-ink-soft border-line whitespace-nowrap flex-shrink-0">
-                      {s.status}
+                      {statusLabel(s.status)}
                     </span>
                   </div>
                 ))}
@@ -260,12 +279,12 @@ export default function Dashboard({ onJump }) {
         <Card elevation="flat">
           <CardContent className="p-5 md:p-6">
             <SectionHead
-              title="Upcoming this week"
-              action="Full week"
+              title={t("dash.week.title")}
+              action={t("dash.week.action")}
               onAction={() => onJump?.("schedule")}
             />
             {upcomingLessons.length === 0 ? (
-              <p className="text-sm text-muted py-4">Nothing scheduled in the next 7 days.</p>
+              <p className="text-sm text-muted py-4">{t("dash.week.empty")}</p>
             ) : (
               <div>
                 {upcomingLessons.map((s, i) => (
@@ -276,12 +295,12 @@ export default function Dashboard({ onJump }) {
                     }`}
                   >
                     <span className="text-[10px] uppercase tracking-wider font-medium text-muted w-20 flex-shrink-0 mt-0.5">
-                      {new Date(s.date).toLocaleDateString(undefined, { weekday: "short", day: "numeric" })}
+                      {new Date(s.date).toLocaleDateString(locale, { weekday: "short", day: "numeric" })}
                     </span>
                     <div className="flex-1 min-w-0">
                       <p className="text-ink truncate">{s.title}</p>
                       <p className="text-xs text-muted mt-0.5">
-                        {fmtTime(s.start_time)} · {s.subject || "—"} · {s.section || s.grade || "—"}
+                        {fmtTime(s.start_time)} · {s.subject || t("common.none")} · {s.section || s.grade || t("common.none")}
                       </p>
                     </div>
                   </div>
@@ -297,14 +316,14 @@ export default function Dashboard({ onJump }) {
           <CardContent className="p-5 md:p-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="font-serif text-xl md:text-2xl font-medium text-ink inline-flex items-center gap-2">
-                <ClipboardList size={18} className="text-accent" /> Homework due soon
+                <ClipboardList size={18} className="text-accent" /> {t("dash.hw.title")}
               </h2>
               <Button variant="ghost" size="sm" onClick={() => onJump?.("homework")}>
-                Manage <ArrowRight size={13} />
+                {t("common.manage")} <ArrowRight size={13} />
               </Button>
             </div>
             {pendingHomework.length === 0 ? (
-              <p className="text-sm text-muted py-4">No homework due in the next 7 days.</p>
+              <p className="text-sm text-muted py-4">{t("dash.hw.empty")}</p>
             ) : (
               <ul>
                 {pendingHomework.map((h, i) => (
@@ -317,11 +336,11 @@ export default function Dashboard({ onJump }) {
                     <div>
                       <p className="text-ink">{h.title}</p>
                       <p className="text-xs text-muted mt-0.5">
-                        {h.subject || "—"} · {h.grade || ""}{h.section ? ` · ${h.section}` : ""}
+                        {h.subject || t("common.none")} · {h.grade || ""}{h.section ? ` · ${h.section}` : ""}
                       </p>
                     </div>
                     <span className="text-[10px] uppercase tracking-wider font-medium text-muted whitespace-nowrap mt-0.5">
-                      {h.due_date ? new Date(h.due_date).toLocaleDateString() : "—"}
+                      {h.due_date ? new Date(h.due_date).toLocaleDateString(locale) : t("common.none")}
                     </span>
                   </li>
                 ))}
@@ -334,14 +353,14 @@ export default function Dashboard({ onJump }) {
           <CardContent className="p-5 md:p-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="font-serif text-xl md:text-2xl font-medium text-ink inline-flex items-center gap-2">
-                <GraduationCap size={18} className="text-accent" /> Quizzes ahead
+                <GraduationCap size={18} className="text-accent" /> {t("dash.quiz.title")}
               </h2>
               <Button variant="ghost" size="sm" onClick={() => onJump?.("quizzes")}>
                 Manage <ArrowRight size={13} />
               </Button>
             </div>
             {pendingQuizzes.length === 0 ? (
-              <p className="text-sm text-muted py-4">No quizzes scheduled in the next 14 days.</p>
+              <p className="text-sm text-muted py-4">{t("dash.quiz.empty")}</p>
             ) : (
               <ul>
                 {pendingQuizzes.map((q, i) => (
@@ -354,11 +373,11 @@ export default function Dashboard({ onJump }) {
                     <div>
                       <p className="text-ink">{q.title}</p>
                       <p className="text-xs text-muted mt-0.5">
-                        {q.subject || "—"} · {q.grade || ""}{q.section ? ` · ${q.section}` : ""} · {q.total_marks ?? "—"} marks
+                        {q.subject || t("common.none")} · {q.grade || ""}{q.section ? ` · ${q.section}` : ""} · {t("dash.quiz.marks", { n: q.total_marks ?? "—" })}
                       </p>
                     </div>
                     <span className="text-[10px] uppercase tracking-wider font-medium text-muted whitespace-nowrap mt-0.5">
-                      {q.scheduled_for ? new Date(q.scheduled_for).toLocaleDateString() : "—"}
+                      {q.scheduled_for ? new Date(q.scheduled_for).toLocaleDateString(locale) : t("common.none")}
                     </span>
                   </li>
                 ))}
@@ -371,27 +390,27 @@ export default function Dashboard({ onJump }) {
       <Card elevation="flat">
         <CardContent className="p-5 md:p-6">
           <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
-            <h2 className="font-serif text-xl md:text-2xl font-medium text-ink">Recent lesson drafts</h2>
+            <h2 className="font-serif text-xl md:text-2xl font-medium text-ink">{t("dash.drafts.title")}</h2>
             <div className="flex items-center gap-2">
               <div className="bg-paper-cool border border-line rounded-full px-3.5 py-1.5 flex items-center gap-2 w-44 sm:w-56">
                 <Search size={14} className="text-muted" />
                 <input
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Filter drafts…"
+                  placeholder={t("dash.drafts.filter")}
                   className="bg-transparent outline-none text-sm w-full text-ink placeholder:text-muted"
                 />
               </div>
               <Button variant="ghost" size="sm" onClick={() => onJump?.("lesson-plans")}>
-                All drafts <ArrowRight size={13} />
+                {t("dash.drafts.all")} <ArrowRight size={13} />
               </Button>
             </div>
           </div>
           {filteredDrafts.length === 0 ? (
             <p className="text-sm text-muted py-4">
               {recentDrafts.length === 0
-                ? "No drafts yet — start one in Lesson Plans."
-                : "No drafts match your filter."}
+                ? t("dash.drafts.empty")
+                : t("dash.drafts.noMatch")}
             </p>
           ) : (
             <div>
@@ -405,7 +424,7 @@ export default function Dashboard({ onJump }) {
                   <div className="min-w-0">
                     <p className="text-ink truncate">{d.name}</p>
                     <p className="text-xs text-muted mt-0.5">
-                      {d.subject} · {d.status} · {d.progress}%
+                      {d.subject} · {statusLabel(d.status)} · {d.progress}%
                     </p>
                   </div>
                   <span className="text-[10px] uppercase tracking-wider font-medium text-muted whitespace-nowrap">

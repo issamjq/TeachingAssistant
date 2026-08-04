@@ -4,6 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { renderMarkdown } from "../lib/markdown";
 import { inputClasses } from "./_shared";
+import { useT } from "../lib/i18n";
 
 // One per parsed section. Three modes:
 //   view       — rendered markdown + Edit / Regenerate / Remove icon row
@@ -17,6 +18,7 @@ import { inputClasses } from "./_shared";
 // clicks the corresponding section in the live preview. The ts changes on
 // every click so re-clicking the same section re-fires the effect.
 export default function StudioCard({ section, editTrigger, onSave, onRegenerate, onCancelRegenerate, onRemove }) {
+  const t = useT();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(section.markdown);
   const [hintOpen, setHintOpen] = useState(false);
@@ -56,11 +58,11 @@ export default function StudioCard({ section, editTrigger, onSave, onRegenerate,
         <CardContent className="p-4">
           <div className="flex items-center justify-between mb-2 gap-2">
             <p className="text-xs text-accent inline-flex items-center gap-2">
-              <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" /> Regenerating · {section.title}
+              <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" /> {t("sc.regenerating")} · {section.title}
             </p>
             <button
               onClick={onCancelRegenerate}
-              title="Cancel regeneration"
+              title={t("sc.cancelRegen")}
               className="text-muted hover:text-accent"
             >
               <X size={13} />
@@ -95,7 +97,7 @@ export default function StudioCard({ section, editTrigger, onSave, onRegenerate,
         <CardContent className="p-4">
           <div className="flex items-center justify-between mb-2">
             <p className="text-xs text-muted">
-              Editing · {section.title}
+              {t("sc.editing")} · {section.title}
             </p>
           </div>
           <textarea
@@ -109,14 +111,14 @@ export default function StudioCard({ section, editTrigger, onSave, onRegenerate,
           <div className="flex items-center justify-between gap-2 mt-3">
             <div className="flex items-center gap-2">
               <Button onClick={commitEdit} className="text-xs px-3 py-1.5">
-                <Check size={13} className="mr-1.5" /> Save
+                <Check size={13} className="mr-1.5" /> {t("studio.save")}
               </Button>
               <Button variant="secondary" onClick={() => setEditing(false)} className="text-xs px-3 py-1.5">
-                Cancel
+                {t("studio.cancel")}
               </Button>
             </div>
             <p className="text-[10px] text-muted">
-              Enter to save · Shift + Enter for newline · Esc to cancel
+              {t("sc.shortcuts")}
             </p>
           </div>
         </CardContent>
@@ -130,22 +132,22 @@ export default function StudioCard({ section, editTrigger, onSave, onRegenerate,
       <Card className="border-accent">
         <CardContent className="p-4">
           <p className="text-xs text-muted mb-2">
-            Regenerate · {section.title}
+            {t("sc.regenerate")} · {section.title}
           </p>
           <input
             value={hint}
             onChange={(e) => setHint(e.target.value)}
-            placeholder='e.g. "make it harder" / "add a real-world example" / leave blank for a fresh take'
+            placeholder={t("sc.hintPlaceholder")}
             onKeyDown={(e) => { if (e.key === "Enter") fireRegen(); }}
             autoFocus
             className={`${inputClasses}`}
           />
           <div className="flex items-center gap-2 mt-3">
             <Button onClick={fireRegen} className="text-xs px-3 py-1.5">
-              <Sparkles size={13} className="mr-1.5" /> Regenerate
+              <Sparkles size={13} className="mr-1.5" /> {t("sc.regenerate")}
             </Button>
             <Button variant="secondary" onClick={() => setHintOpen(false)} className="text-xs px-3 py-1.5">
-              Cancel
+              {t("studio.cancel")}
             </Button>
           </div>
         </CardContent>
@@ -164,14 +166,14 @@ export default function StudioCard({ section, editTrigger, onSave, onRegenerate,
           <div className="flex items-center gap-1 flex-shrink-0">
             <button
               onClick={beginEdit}
-              title="Edit"
+              title={t("sc.edit")}
               className="h-7 w-7 rounded-md border border-line hover:border-ink hover:bg-paper-warm flex items-center justify-center text-ink-soft transition"
             >
               <Pencil size={12} />
             </button>
             <button
               onClick={beginRegen}
-              title="Regenerate"
+              title={t("sc.regenerate")}
               className="h-7 w-7 rounded-md border border-line hover:border-accent hover:bg-paper-warm flex items-center justify-center text-ink-soft hover:text-accent transition"
             >
               <Sparkles size={12} />
@@ -179,7 +181,7 @@ export default function StudioCard({ section, editTrigger, onSave, onRegenerate,
             {onRemove && (
               <button
                 onClick={onRemove}
-                title="Remove"
+                title={t("sc.remove")}
                 className="h-7 w-7 rounded-md border border-line hover:border-accent hover:bg-paper-warm flex items-center justify-center text-ink-soft hover:text-accent transition"
               >
                 <Trash2 size={12} />

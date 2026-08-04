@@ -9,6 +9,7 @@ import {
   DatePicker,
 } from "./_shared";
 import BrandLoader from "../components/BrandLoader";
+import { useT, useLocale } from "../lib/i18n";
 
 const fmtTime = (t) => (t ? t.slice(0, 5) : "");
 
@@ -23,6 +24,8 @@ const startOfWeek = (d) => {
 const isoDate = (d) => new Date(d).toISOString().slice(0, 10);
 
 export default function Schedule() {
+  const t = useT();
+  const locale = useLocale();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -87,15 +90,15 @@ export default function Schedule() {
       <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-8">
         <div>
           <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-2 inline-flex items-center gap-2.5">
-            <span className="w-6 h-px bg-accent" /> Schedule
+            <span className="w-6 h-px bg-accent" /> {t("sch.eyebrow")}
           </p>
           <h2 className="font-serif text-4xl font-medium text-ink">
-            Your <em className="italic font-light text-accent">schedule</em>
+            {t("sch.titleA")} <em className="italic font-light text-accent">{t("sch.titleEm")}</em>
           </h2>
-          <p className="text-muted mt-2">Pick a slot and assign a lesson. Calendar sync coming later.</p>
+          <p className="text-muted mt-2">{t("sch.lead")}</p>
         </div>
         <Button onClick={() => setEditing("new")}>
-          <Plus size={15} className="mr-2" /> New entry
+          <Plus size={15} className="mr-2" /> {t("planner.newEntry")}
         </Button>
       </div>
 
@@ -109,7 +112,7 @@ export default function Schedule() {
                 view === v ? "bg-ink text-paper-cool" : "text-muted hover:text-ink"
               }`}
             >
-              {v}
+              {t(`sch.view.${v}`)}
             </button>
           ))}
         </div>
@@ -122,8 +125,8 @@ export default function Schedule() {
               <ChevronLeft size={14} />
             </button>
             <span className="font-mono text-[11px] uppercase tracking-wider text-ink-soft">
-              {weekStart.toLocaleDateString(undefined, { month: "short", day: "numeric" })} —{" "}
-              {new Date(weekStart.getTime() + 6 * 86400000).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+              {weekStart.toLocaleDateString(locale, { month: "short", day: "numeric" })} —{" "}
+              {new Date(weekStart.getTime() + 6 * 86400000).toLocaleDateString(locale, { month: "short", day: "numeric" })}
             </span>
             <button
               onClick={() => shiftWeek(1)}
@@ -135,7 +138,7 @@ export default function Schedule() {
               onClick={() => setWeekStart(startOfWeek(new Date()))}
               className="font-mono text-[10px] uppercase tracking-wider text-accent border-b border-accent hover:text-ink hover:border-ink"
             >
-              Today
+              {t("planner.today")}
             </button>
           </div>
         )}
@@ -159,7 +162,7 @@ export default function Schedule() {
               <Card key={key} className={isToday ? "border-ink" : ""}>
                 <CardContent className="p-3 min-h-[200px]">
                   <p className="font-mono text-[10px] uppercase tracking-wider text-muted">
-                    {d.toLocaleDateString(undefined, { weekday: "short" })}
+                    {d.toLocaleDateString(locale, { weekday: "short" })}
                   </p>
                   <p className={`font-serif text-2xl ${isToday ? "text-accent" : "text-ink"} mt-0.5`}>
                     {d.getDate()}
@@ -194,11 +197,11 @@ export default function Schedule() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted border-b border-line">
-                    <th className="text-left py-3 px-5 font-medium">Date</th>
-                    <th className="text-left py-3 font-medium">Time</th>
-                    <th className="text-left py-3 font-medium">Lesson</th>
-                    <th className="text-left py-3 font-medium">Subject</th>
-                    <th className="text-left py-3 font-medium">Class</th>
+                    <th className="text-left py-3 px-5 font-medium">{t("sch.col.date")}</th>
+                    <th className="text-left py-3 font-medium">{t("sch.col.time")}</th>
+                    <th className="text-left py-3 font-medium">{t("sch.col.lesson")}</th>
+                    <th className="text-left py-3 font-medium">{t("sch.col.subject")}</th>
+                    <th className="text-left py-3 font-medium">{t("sch.col.class")}</th>
                     <th className="py-3 px-5"></th>
                   </tr>
                 </thead>
@@ -208,7 +211,7 @@ export default function Schedule() {
                       key={it.id}
                       className="border-b border-line/60 last:border-0 hover:bg-paper-warm transition"
                     >
-                      <td className="py-3 px-5 text-ink-soft">{new Date(it.date).toLocaleDateString()}</td>
+                      <td className="py-3 px-5 text-ink-soft">{new Date(it.date).toLocaleDateString(locale)}</td>
                       <td className="py-3 font-mono text-[11px] text-ink-soft">
                         {fmtTime(it.start_time)} – {fmtTime(it.end_time)}
                       </td>
@@ -223,7 +226,7 @@ export default function Schedule() {
                   {items.length === 0 && (
                     <tr>
                       <td colSpan={6} className="py-12 text-center text-muted">
-                        No schedule entries yet — click &ldquo;New entry&rdquo; to create one.
+                        {t("sch.empty")}
                       </td>
                     </tr>
                   )}
@@ -247,8 +250,8 @@ export default function Schedule() {
         onClose={() => setDeleting(null)}
         onConfirm={confirmDelete}
         busy={busy}
-        title={deleting ? `Delete "${deleting.title}"?` : ""}
-        message="This entry will be removed from your schedule."
+        title={deleting ? t("sch.deleteTitle", { title: deleting.title }) : ""}
+        message={t("sch.deleteMsg")}
       />
     </div>
   );
@@ -268,6 +271,7 @@ const EMPTY = {
 };
 
 function ScheduleModal({ initial, onClose, onSaved }) {
+  const t = useT();
   const isNew = !initial;
   const [form, setForm] = useState(() => {
     if (!initial) return { ...EMPTY, date: new Date().toISOString().slice(0, 10) };
@@ -321,13 +325,13 @@ function ScheduleModal({ initial, onClose, onSaved }) {
     <Modal
       open
       onClose={onClose}
-      eyebrow={isNew ? "New entry" : "Edit entry"}
-      title={isNew ? "Add a schedule entry" : `Edit "${initial.title}"`}
+      eyebrow={isNew ? t("sch.modal.newEyebrow") : t("sch.modal.editEyebrow")}
+      title={isNew ? t("sch.modal.newTitle") : t("sch.modal.editTitle", { title: initial.title })}
       wide
       footer={
         <>
-          <Button variant="secondary" onClick={onClose} disabled={saving}>Cancel</Button>
-          <Button onClick={submit} disabled={saving}>{saving ? "Saving…" : "Save"}</Button>
+          <Button variant="secondary" onClick={onClose} disabled={saving}>{t("common.cancel")}</Button>
+          <Button onClick={submit} disabled={saving}>{saving ? t("sch.saving") : t("common.save")}</Button>
         </>
       }
     >
@@ -338,13 +342,13 @@ function ScheduleModal({ initial, onClose, onSaved }) {
       )}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="md:col-span-2">
-          <Field label="Link to lesson plan (optional)">
+          <Field label={t("sch.f.link")}>
             <select
               className={selectClasses}
               value={form.draft_id || ""}
               onChange={(e) => linkDraft(e.target.value)}
             >
-              <option value="">— Standalone entry, no linked plan</option>
+              <option value="">{t("sch.f.standalone")}</option>
               {drafts.map((d) => (
                 <option key={d.id} value={d.id}>
                   {d.name}{d.subject ? ` · ${d.subject}` : ""}{d.grade ? ` · ${d.grade}` : ""}
@@ -354,41 +358,41 @@ function ScheduleModal({ initial, onClose, onSaved }) {
           </Field>
         </div>
         <div className="md:col-span-2">
-          <Field label="Title">
+          <Field label={t("sch.f.title")}>
             <input className={inputClasses} value={form.title} onChange={(e) => set("title", e.target.value)} />
           </Field>
         </div>
-        <Field label="Subject">
+        <Field label={t("sch.f.subject")}>
           <input className={inputClasses} value={form.subject} onChange={(e) => set("subject", e.target.value)} />
         </Field>
-        <Field label="Grade">
+        <Field label={t("sch.f.grade")}>
           <select className={selectClasses} value={form.grade} onChange={(e) => set("grade", e.target.value)}>
             <option value="">—</option>
             {GRADE_LEVELS.map((g) => <option key={g} value={g}>{g}</option>)}
           </select>
         </Field>
-        <Field label="Section">
+        <Field label={t("sch.f.section")}>
           <input className={inputClasses} value={form.section} onChange={(e) => set("section", e.target.value)} />
         </Field>
-        <Field label="Date">
+        <Field label={t("sch.f.date")}>
           <DatePicker value={form.date} onChange={(v) => set("date", v)} />
         </Field>
-        <Field label="Status">
+        <Field label={t("sch.f.status")}>
           <select className={selectClasses} value={form.status} onChange={(e) => set("status", e.target.value)}>
-            <option value="planned">Planned</option>
-            <option value="done">Done</option>
-            <option value="cancelled">Cancelled</option>
+            <option value="planned">{t("sch.st.planned")}</option>
+            <option value="done">{t("sch.st.done")}</option>
+            <option value="cancelled">{t("sch.st.cancelled")}</option>
           </select>
         </Field>
-        <Field label="Start time">
+        <Field label={t("sch.f.start")}>
           <input type="time" className={inputClasses} value={form.start_time} onChange={(e) => set("start_time", e.target.value)} />
         </Field>
-        <Field label="End time">
+        <Field label={t("sch.f.end")}>
           <input type="time" className={inputClasses} value={form.end_time} onChange={(e) => set("end_time", e.target.value)} />
         </Field>
       </div>
       <div className="mt-4">
-        <Field label="Notes">
+        <Field label={t("sch.f.notes")}>
           <textarea rows={2} className={inputClasses} value={form.notes} onChange={(e) => set("notes", e.target.value)} />
         </Field>
       </div>
