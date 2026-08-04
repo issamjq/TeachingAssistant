@@ -13,6 +13,7 @@ import { navigate } from "../lib/route";
 import BrandLoader from "../components/BrandLoader";
 import DatabaseStudents from "./DatabaseStudents";
 import DatabaseScores from "./DatabaseScores";
+import { useT } from "../lib/i18n";
 
 // Attendance and Gradebook are the two heaviest tabs and the two a teacher
 // opens least often, so they load on demand rather than riding along with the
@@ -21,11 +22,13 @@ import DatabaseScores from "./DatabaseScores";
 const DatabaseAttendance = lazy(() => import("./DatabaseAttendance"));
 const DatabaseGrades = lazy(() => import("./DatabaseGrades"));
 
+// Labels come from `db.tab.<key>` at render time rather than living here, so
+// the tab strip follows the language toggle without a second lookup table.
 const TABS = [
-  { key: "students",   label: "Students",   icon: Users,          route: ["database", "students"] },
-  { key: "attendance", label: "Attendance", icon: CalendarCheck,  route: ["database", "attendance"] },
-  { key: "grades",     label: "Gradebook",  icon: GraduationCap,  route: ["database", "grades"] },
-  { key: "scores",     label: "Quiz scores", icon: BarChart3,     route: ["database", "scores"] },
+  { key: "students",   icon: Users,         route: ["database", "students"] },
+  { key: "attendance", icon: CalendarCheck, route: ["database", "attendance"] },
+  { key: "grades",     icon: GraduationCap, route: ["database", "grades"] },
+  { key: "scores",     icon: BarChart3,     route: ["database", "scores"] },
 ];
 
 const PANELS = {
@@ -36,6 +39,7 @@ const PANELS = {
 };
 
 export default function Database({ sub }) {
+  const t = useT();
   // Default tab is Students. Anything unrecognised — including legacy
   // /database/profile URLs from before the Teaching-profile move — falls back
   // there rather than rendering nothing.
@@ -46,15 +50,15 @@ export default function Database({ sub }) {
     <div>
       <header className="mb-6">
         <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-2 inline-flex items-center gap-2.5">
-          <span className="w-6 h-px bg-accent" /> My students
+          <span className="w-6 h-px bg-accent" /> {t("db.eyebrow")}
         </p>
         <h2 className="font-serif text-4xl font-medium text-ink">
-          Your <em className="italic font-light text-accent">class</em>
+          {t("db.titleA")} <em className="italic font-light text-accent">{t("db.titleEm")}</em>
         </h2>
       </header>
 
       <div className="flex flex-wrap items-center gap-1 border-b border-line mb-6">
-        {TABS.map(({ key, label, icon: Icon, route }) => {
+        {TABS.map(({ key, icon: Icon, route }) => {
           const on = active === key;
           return (
             <button
@@ -69,7 +73,7 @@ export default function Database({ sub }) {
               }`}
             >
               <Icon size={14} />
-              {label}
+              {t(`db.tab.${key}`)}
             </button>
           );
         })}

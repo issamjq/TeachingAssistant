@@ -3,8 +3,10 @@ import { FileDown, FileSpreadsheet } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { api } from "./_shared";
+import { useT } from "../lib/i18n";
 
 export default function Reports() {
+  const t = useT();
   const [summary, setSummary] = useState([]);
   const [counts, setCounts] = useState(null);
   const [error, setError] = useState(null);
@@ -16,7 +18,10 @@ export default function Reports() {
 
   const exportCsv = () => {
     const rows = [
-      ["Student ID", "First name", "Last name", "Grade", "Section", "Entries", "Average %"].join(","),
+      [
+        t("rep.csv.studentId"), t("rep.csv.firstName"), t("rep.csv.lastName"),
+        t("rep.csv.grade"), t("rep.csv.section"), t("rep.csv.entries"), t("rep.csv.averagePct"),
+      ].join(","),
       ...summary.map((s) => [
         s.student_id, s.first_name, s.last_name, s.grade, s.section, s.entries, s.average_pct,
       ].join(",")),
@@ -40,19 +45,19 @@ export default function Reports() {
       <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-8">
         <div>
           <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-2 inline-flex items-center gap-2.5">
-            <span className="w-6 h-px bg-accent" /> Reports
+            <span className="w-6 h-px bg-accent" /> {t("rep.eyebrow")}
           </p>
           <h2 className="font-serif text-4xl font-medium text-ink">
-            Class <em className="italic font-light text-accent">reports</em>
+            {t("rep.titleA")} <em className="italic font-light text-accent">{t("rep.titleEm")}</em>
           </h2>
-          <p className="text-muted mt-2">A snapshot of your class — averages, counts, exportable to CSV.</p>
+          <p className="text-muted mt-2">{t("rep.lead")}</p>
         </div>
         <div className="flex gap-3">
           <Button variant="secondary" onClick={exportCsv} className="print:hidden">
-            <FileSpreadsheet size={14} className="mr-2" /> Export CSV
+            <FileSpreadsheet size={14} className="mr-2" /> {t("rep.exportCsv")}
           </Button>
           <Button variant="secondary" onClick={exportPdf} className="print:hidden">
-            <FileDown size={14} className="mr-2" /> Export PDF
+            <FileDown size={14} className="mr-2" /> {t("rep.exportPdf")}
           </Button>
         </div>
       </div>
@@ -66,17 +71,17 @@ export default function Reports() {
       {counts && (
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 mb-6">
           {[
-            ["Students", counts.students],
-            ["Lessons", counts.drafts],
-            ["Templates", counts.templates],
-            ["Quizzes", counts.quizzes],
-            ["Homework", counts.homework],
-            ["Slides", counts.presentations],
-            ["Activities", counts.activities],
-          ].map(([label, value]) => (
-            <Card key={label}>
+            ["students", counts.students],
+            ["lessons", counts.drafts],
+            ["templates", counts.templates],
+            ["quizzes", counts.quizzes],
+            ["homework", counts.homework],
+            ["slides", counts.presentations],
+            ["activities", counts.activities],
+          ].map(([key, value]) => (
+            <Card key={key}>
               <CardContent className="p-4">
-                <p className="font-mono text-[9px] uppercase tracking-[0.18em] text-muted mb-1">{label}</p>
+                <p className="font-mono text-[9px] uppercase tracking-[0.18em] text-muted mb-1">{t(`rep.c.${key}`)}</p>
                 <p className="font-serif text-3xl font-medium text-accent leading-none">{value ?? "—"}</p>
               </CardContent>
             </Card>
@@ -87,17 +92,17 @@ export default function Reports() {
       <Card>
         <CardContent>
           <div className="px-5 pt-5 pb-3 border-b border-line">
-            <h3 className="font-serif text-2xl font-medium text-ink">Per-student averages</h3>
-            <p className="text-sm text-muted mt-1">Across every grade entry recorded for each student.</p>
+            <h3 className="font-serif text-2xl font-medium text-ink">{t("rep.avgTitle")}</h3>
+            <p className="text-sm text-muted mt-1">{t("rep.avgLead")}</p>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted border-b border-line">
-                  <th className="text-left py-3 px-5 font-medium">Student</th>
-                  <th className="text-left py-3 font-medium">Class</th>
-                  <th className="text-left py-3 font-medium">Entries</th>
-                  <th className="text-left py-3 px-5 font-medium">Average</th>
+                  <th className="text-left py-3 px-5 font-medium">{t("rep.col.student")}</th>
+                  <th className="text-left py-3 font-medium">{t("rep.col.class")}</th>
+                  <th className="text-left py-3 font-medium">{t("rep.col.entries")}</th>
+                  <th className="text-left py-3 px-5 font-medium">{t("rep.col.average")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -120,7 +125,7 @@ export default function Reports() {
                   </tr>
                 ))}
                 {summary.length === 0 && (
-                  <tr><td colSpan={4} className="py-8 text-center text-muted">No grades recorded yet.</td></tr>
+                  <tr><td colSpan={4} className="py-8 text-center text-muted">{t("rep.empty")}</td></tr>
                 )}
               </tbody>
             </table>

@@ -8,12 +8,14 @@ import {
   inputClasses, selectClasses, api, apiList, timeAgo,
 } from "./_shared";
 import { SkeletonCards } from "../components/ui/skeleton";
+import { useT } from "../lib/i18n";
 
 const TYPE_ICON = {
   pdf: FileText, doc: FileText, video: Video, link: LinkIcon, image: ImageIcon, note: BookOpen,
 };
 
 export default function Library() {
+  const t = useT();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -40,7 +42,7 @@ export default function Library() {
         (r) => r.title.toLowerCase().includes(q) ||
                (r.subject || "").toLowerCase().includes(q) ||
                (r.notes || "").toLowerCase().includes(q) ||
-               (r.tags || []).some((t) => t.toLowerCase().includes(q))
+               (r.tags || []).some((tag) => tag.toLowerCase().includes(q))
       );
     }
     return rows;
@@ -70,15 +72,15 @@ export default function Library() {
       <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-8">
         <div>
           <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-2 inline-flex items-center gap-2.5">
-            <span className="w-6 h-px bg-accent" /> Library
+            <span className="w-6 h-px bg-accent" /> {t("lib.eyebrow")}
           </p>
           <h2 className="font-serif text-4xl font-medium text-ink">
-            Teaching <em className="italic font-light text-accent">library</em>
+            {t("lib.titleA")} <em className="italic font-light text-accent">{t("lib.titleEm")}</em>
           </h2>
-          <p className="text-muted mt-2">Saved files, links, and notes — your personal stash, only visible to you.</p>
+          <p className="text-muted mt-2">{t("lib.lead")}</p>
         </div>
         <Button onClick={() => setEditing("new")}>
-          <Plus size={15} className="mr-2" /> Add resource
+          <Plus size={15} className="mr-2" /> {t("lib.add")}
         </Button>
       </div>
 
@@ -89,12 +91,12 @@ export default function Library() {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             className="outline-none w-full text-sm bg-transparent text-ink placeholder:text-muted"
-            placeholder="Search by title, subject, tag…"
+            placeholder={t("lib.search")}
           />
         </div>
         <select className={selectClasses} value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}>
-          <option value="">All types</option>
-          {Object.keys(TYPE_ICON).map((t) => <option key={t} value={t}>{t}</option>)}
+          <option value="">{t("lib.allTypes")}</option>
+          {Object.keys(TYPE_ICON).map((ty) => <option key={ty} value={ty}>{t(`lib.type.${ty}`)}</option>)}
         </select>
       </div>
 
@@ -124,7 +126,7 @@ export default function Library() {
                   </div>
                   <h3 className="font-serif text-lg text-ink mb-1">{r.title}</h3>
                   <p className="font-mono text-[10px] uppercase tracking-wider text-muted mb-2">
-                    {r.type || "—"}{r.subject ? ` · ${r.subject}` : ""}{r.grade ? ` · ${r.grade}` : ""}
+                    {r.type ? t(`lib.type.${r.type}`) : t("common.none")}{r.subject ? ` · ${r.subject}` : ""}{r.grade ? ` · ${r.grade}` : ""}
                   </p>
                   {r.notes && <p className="text-xs text-ink-soft mb-2 line-clamp-2">{r.notes}</p>}
                   <div className="flex items-center justify-between mt-3 pt-3 border-t border-dashed border-line">
@@ -138,7 +140,7 @@ export default function Library() {
                         rel="noreferrer"
                         className="inline-flex items-center gap-1.5 text-accent hover:text-ink font-serif italic text-sm border-b border-accent hover:border-ink transition"
                       >
-                        Open <ExternalLink size={12} />
+                        {t("lib.open")} <ExternalLink size={12} />
                       </a>
                     )}
                   </div>
@@ -152,7 +154,7 @@ export default function Library() {
               className="border border-dashed border-line bg-paper-cool/50 rounded-xl p-5 flex flex-col items-center justify-center text-muted hover:border-ink hover:text-ink transition min-h-[180px] md:col-span-3"
             >
               <Plus size={20} className="mb-3" />
-              <p className="font-medium text-sm">Add your first resource</p>
+              <p className="font-medium text-sm">{t("lib.addFirst")}</p>
             </button>
           )}
         </div>
@@ -171,14 +173,15 @@ export default function Library() {
         onClose={() => setDeleting(null)}
         onConfirm={confirmDelete}
         busy={busy}
-        title={deleting ? `Delete "${deleting.title}"?` : ""}
-        message="This resource will be removed from your library."
+        title={deleting ? t("lib.deleteTitle", { title: deleting.title }) : ""}
+        message={t("lib.deleteMsg")}
       />
     </div>
   );
 }
 
 function ResourceModal({ initial, onClose, onSaved }) {
+  const t = useT();
   const isNew = !initial;
   const [form, setForm] = useState(() => ({
     title: initial?.title || "",
@@ -211,53 +214,53 @@ function ResourceModal({ initial, onClose, onSaved }) {
     <Modal
       open
       onClose={onClose}
-      eyebrow={isNew ? "New resource" : "Edit resource"}
-      title={isNew ? "Add a resource" : `Edit "${initial.title}"`}
+      eyebrow={isNew ? t("lib.modal.newEyebrow") : t("lib.modal.editEyebrow")}
+      title={isNew ? t("lib.modal.newTitle") : t("lib.modal.editTitle", { title: initial.title })}
       footer={
         <>
-          <Button variant="secondary" onClick={onClose} disabled={saving}>Cancel</Button>
-          <Button onClick={submit} disabled={saving}>{saving ? "Saving…" : "Save"}</Button>
+          <Button variant="secondary" onClick={onClose} disabled={saving}>{t("common.cancel")}</Button>
+          <Button onClick={submit} disabled={saving}>{saving ? t("sch.saving") : t("common.save")}</Button>
         </>
       }
     >
       {err && <div className="mb-4 bg-paper border border-accent rounded-lg p-3"><p className="text-sm text-accent">{err}</p></div>}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="md:col-span-2">
-          <Field label="Title">
+          <Field label={t("lib.f.title")}>
             <input className={inputClasses} value={form.title} onChange={(e) => set("title", e.target.value)} />
           </Field>
         </div>
-        <Field label="Type">
+        <Field label={t("lib.f.type")}>
           <select className={selectClasses} value={form.type} onChange={(e) => set("type", e.target.value)}>
-            {Object.keys(TYPE_ICON).map((t) => <option key={t} value={t}>{t}</option>)}
+            {Object.keys(TYPE_ICON).map((ty) => <option key={ty} value={ty}>{t(`lib.type.${ty}`)}</option>)}
           </select>
         </Field>
-        <Field label="Subject">
+        <Field label={t("lib.f.subject")}>
           <input className={inputClasses} value={form.subject} onChange={(e) => set("subject", e.target.value)} />
         </Field>
-        <Field label="Grade">
+        <Field label={t("lib.f.grade")}>
           <select className={selectClasses} value={form.grade} onChange={(e) => set("grade", e.target.value)}>
             <option value="">—</option>
             {GRADE_LEVELS.map((g) => <option key={g} value={g}>{g}</option>)}
           </select>
         </Field>
-        <Field label="URL">
+        <Field label={t("lib.f.url")}>
           <input className={inputClasses} value={form.url} onChange={(e) => set("url", e.target.value)} placeholder="https://…" />
         </Field>
         <div className="md:col-span-2">
-          <Field label="Notes">
+          <Field label={t("lib.f.notes")}>
             <textarea rows={2} className={inputClasses} value={form.notes} onChange={(e) => set("notes", e.target.value)} />
           </Field>
         </div>
       </div>
 
       <div className="mt-4">
-        <p className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted mb-2">Tags</p>
+        <p className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted mb-2">{t("lib.f.tags")}</p>
         <div className="flex flex-wrap gap-1.5 mb-2">
-          {(form.tags || []).map((t) => (
-            <span key={t} className="px-2 py-0.5 bg-paper border border-line text-ink-soft font-mono text-[9px] uppercase tracking-wider rounded inline-flex items-center gap-1">
-              {t}
-              <button onClick={() => set("tags", form.tags.filter((x) => x !== t))} className="hover:text-accent">×</button>
+          {(form.tags || []).map((tag) => (
+            <span key={tag} className="px-2 py-0.5 bg-paper border border-line text-ink-soft font-mono text-[9px] uppercase tracking-wider rounded inline-flex items-center gap-1">
+              {tag}
+              <button onClick={() => set("tags", form.tags.filter((x) => x !== tag))} className="hover:text-accent">×</button>
             </span>
           ))}
         </div>
@@ -272,7 +275,7 @@ function ResourceModal({ initial, onClose, onSaved }) {
                 setTagInput("");
               }
             }}
-            placeholder="Add a tag and press Enter"
+            placeholder={t("lib.f.tagPlaceholder")}
             className={inputClasses + " py-1.5 text-xs max-w-xs"}
           />
         </div>

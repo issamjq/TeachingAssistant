@@ -11,6 +11,8 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Save, Check, X, Search } from "lucide-react";
 import { api, apiList } from "./_shared";
+import BrandLoader from "../components/BrandLoader";
+import { useT } from "../lib/i18n";
 
 // "A" should match "Section A" (and vice-versa) so a quiz tagged with
 // the long form still surfaces students stored with the short form.
@@ -18,6 +20,7 @@ const normSection = (s) =>
   String(s || "").toLowerCase().replace(/^section\s+/, "").trim();
 
 export default function DatabaseScores() {
+  const t = useT();
   const [quizzes, setQuizzes] = useState([]);
   const [students, setStudents] = useState([]);
   const [scores, setScores] = useState({});  // student_id → { score, max_score, feedback }
@@ -148,17 +151,17 @@ export default function DatabaseScores() {
       <div className="flex flex-col sm:flex-row sm:items-end gap-3">
         <div className="flex-1 max-w-md">
           <label className="block text-[11px] font-mono uppercase tracking-[0.16em] text-muted mb-1.5">
-            Quiz
+            {t("qs.quiz")}
           </label>
           <select
             value={quizId}
             onChange={(e) => setQuizId(e.target.value)}
             className="w-full px-3 py-2 rounded-lg border border-line bg-paper-cool text-sm text-ink outline-none focus:border-ink"
           >
-            <option value="">Select a quiz…</option>
+            <option value="">{t("qs.selectQuiz")}</option>
             {quizzes.map((q) => (
               <option key={q.id} value={q.id}>
-                {q.title || "Untitled"}
+                {q.title || t("qs.untitled")}
                 {q.grade ? ` · ${q.grade}` : ""}
                 {q.section && q.section !== "All sections" ? ` ${q.section}` : ""}
                 {q.total_marks ? ` · /${q.total_marks}` : ""}
@@ -180,11 +183,11 @@ export default function DatabaseScores() {
               type="button"
               onClick={() => setMatchOnly(false)}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-accent/[0.10] text-accent border border-accent/30 text-[12px] font-medium hover:bg-accent/[0.16] transition-colors"
-              title="Click to show all students"
+              title={t("qs.showAll")}
             >
-              Matching {quiz?.grade}
+              {t("qs.matching")} {quiz?.grade}
               {quiz?.section && quiz.section !== "All sections" ? ` · ${quiz.section}` : ""}
-              <span className="opacity-70">({matchCount} of {students.length})</span>
+              <span className="opacity-70">{t("qs.matchCount", { n: matchCount, total: students.length })}</span>
               <X size={12} />
             </button>
           ) : matchCount === 0 ? (
@@ -193,10 +196,10 @@ export default function DatabaseScores() {
             // an action — teachers don't need to know there's a chip
             // they could have toggled.
             <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-paper-warm border border-line text-[12px] text-ink-soft">
-              No one in your roster is tagged
+              {t("qs.noneTagged")}
               {quiz?.grade ? ` ${quiz.grade}` : ""}
               {quiz?.section && quiz.section !== "All sections" ? ` · ${quiz.section}` : ""}
-              {" — showing all "}{students.length}{" students."}
+              {t("qs.showingAllSuffix", { n: students.length })}
             </span>
           ) : (
             <button
@@ -204,7 +207,7 @@ export default function DatabaseScores() {
               onClick={() => setMatchOnly(true)}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-paper-cool border border-line text-[12px] font-medium text-ink-soft hover:border-ink transition-colors"
             >
-              Showing all {students.length} — re-apply match ({matchCount})
+              {t("qs.showingAll", { n: students.length, m: matchCount })}
             </button>
           )}
           <div className="relative flex-1 min-w-[180px] max-w-sm">
@@ -213,7 +216,7 @@ export default function DatabaseScores() {
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search by name…"
+              placeholder={t("qs.search")}
               className="w-full ps-9 pe-3 py-1.5 rounded-full border border-line bg-paper-cool text-sm text-ink placeholder:text-muted outline-none focus:border-ink"
             />
           </div>
@@ -228,19 +231,19 @@ export default function DatabaseScores() {
 
       {!quizId && !error && (
         <p className="text-sm text-muted italic">
-          Pick a quiz above to start entering scores.
+          {t("qs.pickQuiz")}
         </p>
       )}
 
       {quizId && !busy && eligible.length === 0 && students.length === 0 && (
         <p className="text-sm text-muted italic">
-          You don't have any students yet — add them under the Students tab first.
+          {t("qs.noStudents")}
         </p>
       )}
 
       {quizId && !busy && eligible.length === 0 && students.length > 0 && query && (
         <p className="text-sm text-muted italic">
-          No students match "{query}".
+          {t("qs.noMatchQuery", { q: query })}
         </p>
       )}
 
@@ -252,11 +255,11 @@ export default function DatabaseScores() {
           <table className="w-full min-w-[36rem] text-sm">
             <thead className="bg-paper-warm/50">
               <tr className="text-[11px] font-mono uppercase tracking-[0.14em] text-muted">
-                <th className="text-start px-4 py-2.5">Student</th>
-                <th className="text-start px-4 py-2.5 w-28">Grade · Sec</th>
-                <th className="text-start px-4 py-2.5 w-24">Score</th>
-                <th className="text-start px-4 py-2.5 w-24">Out of</th>
-                <th className="text-start px-4 py-2.5">Feedback</th>
+                <th className="text-start px-4 py-2.5">{t("qs.col.student")}</th>
+                <th className="text-start px-4 py-2.5 w-28">{t("qs.col.gradeSec")}</th>
+                <th className="text-start px-4 py-2.5 w-24">{t("qs.col.score")}</th>
+                <th className="text-start px-4 py-2.5 w-24">{t("qs.col.outOf")}</th>
+                <th className="text-start px-4 py-2.5">{t("qs.col.feedback")}</th>
                 <th className="px-4 py-2.5 w-28"></th>
               </tr>
             </thead>
@@ -295,7 +298,7 @@ export default function DatabaseScores() {
                     <td className="px-4 py-2.5">
                       <input
                         type="text"
-                        placeholder="Optional"
+                        placeholder={t("qs.optional")}
                         value={row.feedback ?? ""}
                         onChange={(e) => setCell(s.id, { feedback: e.target.value })}
                         className="w-full px-2 py-1 rounded-md border border-line bg-paper text-sm outline-none focus:border-ink"
@@ -309,7 +312,7 @@ export default function DatabaseScores() {
                         className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md bg-ink text-paper-cool text-[12px] font-medium hover:bg-ink-soft disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                       >
                         {justSaved ? <Check size={12} /> : <Save size={12} />}
-                        {justSaved ? "Saved" : saving ? "…" : "Save"}
+                        {justSaved ? t("qs.saved") : saving ? "…" : t("common.save")}
                       </button>
                     </td>
                   </tr>

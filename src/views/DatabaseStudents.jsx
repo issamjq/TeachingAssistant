@@ -4,6 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { GRADE_LEVELS, NATIONALITIES } from "../lib/enums";
 import BrandLoader from "../components/BrandLoader";
+import { useT } from "../lib/i18n";
 import {
   Field,
   Modal,
@@ -35,6 +36,7 @@ const ageYears = (dob) => {
 const fullName = (s) => `${s.first_name} ${s.last_name}`;
 
 export default function DatabaseStudents() {
+  const t = useT();
   const [students, setStudents] = useState([]);
   const [mySchools, setMySchools] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -148,7 +150,7 @@ export default function DatabaseStudents() {
       setStudents((rows) => rows.filter((r) => r.id !== deleting.id));
       setDeleting(null);
     } catch (e) {
-      alert(`Could not delete: ${e.message}`);
+      alert(t("st.deleteFailed", { msg: e.message }));
     } finally {
       setBusy(false);
     }
@@ -165,17 +167,17 @@ export default function DatabaseStudents() {
       <div className="mb-8 flex flex-col md:flex-row md:items-end md:justify-between gap-4">
         <div>
           <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-2 inline-flex items-center gap-2.5">
-            <span className="w-6 h-px bg-accent" /> My students
+            <span className="w-6 h-px bg-accent" /> {t("db.eyebrow")}
           </p>
           <h2 className="font-serif text-4xl font-medium text-ink">
-            Your <em className="italic font-light text-accent">students</em>
+            {t("st.titleA")} <em className="italic font-light text-accent">{t("st.titleEm")}</em>
           </h2>
           <p className="text-muted mt-2">
-            Only kids in the grades you teach. No one else&rsquo;s class is visible.
+            {t("st.lead")}
           </p>
         </div>
         <Button onClick={() => setEditing("new")}>
-          <Plus size={15} className="mr-2" /> New student
+          <Plus size={15} className="mr-2" /> {t("st.new")}
         </Button>
       </div>
 
@@ -191,7 +193,7 @@ export default function DatabaseStudents() {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             className="outline-none w-full text-sm bg-transparent text-ink placeholder:text-muted"
-            placeholder="Search by name, student ID, guardian, section…"
+            placeholder={t("st.search")}
           />
         </div>
         <select
@@ -199,7 +201,7 @@ export default function DatabaseStudents() {
           onChange={(e) => setGradeFilter(e.target.value)}
           className={`${selectClasses} md:w-48 md:flex-none`}
         >
-          <option value="">All grades</option>
+          <option value="">{t("st.allGrades")}</option>
           {gradeOptions.map((g) => (
             <option key={g} value={g}>
               {g}
@@ -211,7 +213,7 @@ export default function DatabaseStudents() {
           onChange={(e) => setSectionFilter(e.target.value)}
           className={`${selectClasses} md:w-48 md:flex-none`}
         >
-          <option value="">All sections</option>
+          <option value="">{t("st.allSections")}</option>
           {sectionOptions.map((s) => (
             <option key={s} value={s}>
               {s}
@@ -224,7 +226,7 @@ export default function DatabaseStudents() {
             onChange={(e) => setSchoolFilter(e.target.value)}
             className={`${selectClasses} md:w-56 md:flex-none`}
           >
-            <option value="">All schools</option>
+            <option value="">{t("st.allSchools")}</option>
             {mySchools.map((s) => (
               <option key={s.id} value={s.id}>{s.name}</option>
             ))}
@@ -235,7 +237,7 @@ export default function DatabaseStudents() {
       {error && (
         <div className="mb-4 bg-paper border border-accent rounded-lg p-4">
           <p className="font-mono text-[10px] uppercase tracking-wider text-accent mb-1">
-            Could not load students
+            {t("st.loadError")}
           </p>
           <p className="text-sm text-ink-soft">{error}</p>
         </div>
@@ -245,8 +247,8 @@ export default function DatabaseStudents() {
         <BrandLoader compact fullscreen={false} />
       ) : (
         <p className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted mb-4">
-          Showing <span className="text-ink">{sorted.length}</span> of {students.length} students
-          {loadingMore && <span className="text-muted/70 normal-case tracking-normal font-serif italic ms-2">loading more…</span>}
+          {t("st.showing")} <span className="text-ink">{sorted.length}</span> {t("st.ofStudents", { total: students.length })}
+          {loadingMore && <span className="text-muted/70 normal-case tracking-normal font-serif italic ms-2">{t("st.loadingMore")}</span>}
         </p>
       )}
 
@@ -256,12 +258,12 @@ export default function DatabaseStudents() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted border-b border-line">
-                  <SortHeader label="Student" sortKey="name" sort={sort} onToggle={toggle} className="px-5" />
-                  <SortHeader label="ID" sortKey="student_id" sort={sort} onToggle={toggle} />
-                  <SortHeader label="Grade · Section" sortKey="grade" sort={sort} onToggle={toggle} />
-                  <SortHeader label="Age" sortKey="age" sort={sort} onToggle={toggle} />
-                  <SortHeader label="Nationality" sortKey="nationality" sort={sort} onToggle={toggle} />
-                  <SortHeader label="Primary guardian" sortKey="guardian" sort={sort} onToggle={toggle} className="px-5" />
+                  <SortHeader label={t("st.col.student")} sortKey="name" sort={sort} onToggle={toggle} className="px-5" />
+                  <SortHeader label={t("st.col.id")} sortKey="student_id" sort={sort} onToggle={toggle} />
+                  <SortHeader label={t("st.col.gradeSection")} sortKey="grade" sort={sort} onToggle={toggle} />
+                  <SortHeader label={t("st.col.age")} sortKey="age" sort={sort} onToggle={toggle} />
+                  <SortHeader label={t("st.col.nationality")} sortKey="nationality" sort={sort} onToggle={toggle} />
+                  <SortHeader label={t("st.col.guardian")} sortKey="guardian" sort={sort} onToggle={toggle} className="px-5" />
                   <th className="py-3 px-5"></th>
                 </tr>
               </thead>
@@ -331,7 +333,7 @@ export default function DatabaseStudents() {
                 {!loading && sorted.length === 0 && (
                   <tr>
                     <td colSpan={7} className="py-12 text-center text-muted">
-                      No students match the current filters.
+                      {t("st.noMatch")}
                     </td>
                   </tr>
                 )}
@@ -354,10 +356,13 @@ export default function DatabaseStudents() {
         onClose={() => setDeleting(null)}
         onConfirm={confirmDelete}
         busy={busy}
-        title={deleting ? `Delete ${fullName(deleting)}?` : ""}
+        title={deleting ? t("st.deleteTitle", { name: fullName(deleting) }) : ""}
         message={
           deleting
-            ? `${fullName(deleting)} (${deleting.student_id || "no ID"}) will be removed from the database.`
+            ? t("st.deleteMsg", {
+                name: fullName(deleting),
+                id: deleting.student_id || t("st.noId"),
+              })
             : ""
         }
       />
@@ -391,6 +396,7 @@ const EMPTY_STUDENT = {
 };
 
 function StudentEditModal({ initial, onClose, onSaved }) {
+  const t = useT();
   const isNew = !initial;
   const [form, setForm] = useState(() => {
     if (!initial) return EMPTY_STUDENT;
@@ -440,16 +446,16 @@ function StudentEditModal({ initial, onClose, onSaved }) {
     <Modal
       open
       onClose={onClose}
-      eyebrow={isNew ? "New student" : "Edit student"}
-      title={isNew ? "Add a student" : `Edit ${initial.first_name} ${initial.last_name}`}
+      eyebrow={isNew ? t("st.modal.newEyebrow") : t("st.modal.editEyebrow")}
+      title={isNew ? t("st.modal.newTitle") : t("st.modal.editTitle", { name: `${initial.first_name} ${initial.last_name}` })}
       wide
       footer={
         <>
           <Button variant="secondary" onClick={onClose} disabled={saving}>
-            Cancel
+            {t("common.cancel")}
           </Button>
           <Button onClick={submit} disabled={saving}>
-            {saving ? "Saving…" : isNew ? "Create student" : "Save changes"}
+            {saving ? t("sch.saving") : isNew ? t("st.create") : t("st.saveChanges")}
           </Button>
         </>
       }
@@ -460,33 +466,33 @@ function StudentEditModal({ initial, onClose, onSaved }) {
         </div>
       )}
 
-      <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-3">Basics</p>
+      <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-3">{t("st.sec.basics")}</p>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-        <Field label="First name">
+        <Field label={t("st.f.firstName")}>
           <input className={inputClasses} value={form.first_name}
             onChange={(e) => set("first_name", e.target.value)} required />
         </Field>
-        <Field label="Last name">
+        <Field label={t("st.f.lastName")}>
           <input className={inputClasses} value={form.last_name}
             onChange={(e) => set("last_name", e.target.value)} required />
         </Field>
-        <Field label="Student ID">
+        <Field label={t("st.f.studentId")}>
           <input className={inputClasses} value={form.student_id}
             onChange={(e) => set("student_id", e.target.value)} />
         </Field>
-        <Field label="Date of birth">
+        <Field label={t("st.f.dob")}>
           <DatePicker value={form.date_of_birth} onChange={(v) => set("date_of_birth", v)} />
         </Field>
-        <Field label="Gender">
+        <Field label={t("st.f.gender")}>
           <select className={selectClasses} value={form.gender}
             onChange={(e) => set("gender", e.target.value)}>
             <option value="">—</option>
-            <option value="Male">Male</option>
-            <option value="Female">Female</option>
-            <option value="Other">Other</option>
+            <option value="Male">{t("st.g.male")}</option>
+            <option value="Female">{t("st.g.female")}</option>
+            <option value="Other">{t("st.g.other")}</option>
           </select>
         </Field>
-        <Field label="Nationality">
+        <Field label={t("st.f.nationality")}>
           <select className={selectClasses} value={form.nationality}
             onChange={(e) => set("nationality", e.target.value)}>
             <option value="">—</option>
@@ -495,27 +501,27 @@ function StudentEditModal({ initial, onClose, onSaved }) {
         </Field>
       </div>
 
-      <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-3">Class</p>
+      <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-3">{t("st.sec.class")}</p>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        <Field label="Grade">
+        <Field label={t("st.f.grade")}>
           <select className={selectClasses} value={form.grade}
             onChange={(e) => set("grade", e.target.value)} required>
             <option value="">—</option>
             {GRADE_LEVELS.map((g) => <option key={g} value={g}>{g}</option>)}
           </select>
         </Field>
-        <Field label="Section">
+        <Field label={t("st.f.section")}>
           <input className={inputClasses} value={form.section}
             onChange={(e) => set("section", e.target.value)} required />
         </Field>
-        <Field label="Enrollment date">
+        <Field label={t("st.f.enrollment")}>
           <DatePicker value={form.enrollment_date} onChange={(v) => set("enrollment_date", v)} />
         </Field>
         {mySchools.length > 0 && (
           <div className={mySchools.length === 1 ? "hidden" : "md:col-span-3"}>
             <Field
-              label="School"
-              hint={mySchools.length === 1 ? "auto-assigned" : "pick which of your schools"}
+              label={t("st.f.school")}
+              hint={mySchools.length === 1 ? t("st.f.schoolAuto") : t("st.f.schoolPick")}
             >
               <select
                 className={selectClasses}
@@ -525,7 +531,7 @@ function StudentEditModal({ initial, onClose, onSaved }) {
                 <option value="">—</option>
                 {mySchools.map((s) => (
                   <option key={s.id} value={s.id}>
-                    {s.name}{s.is_primary ? " · primary" : ""} ({s.emirate})
+                    {s.name}{s.is_primary ? ` · ${t("st.primarySchool")}` : ""} ({s.emirate})
                   </option>
                 ))}
               </select>
@@ -534,18 +540,18 @@ function StudentEditModal({ initial, onClose, onSaved }) {
         )}
       </div>
 
-      <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-3">Contact</p>
+      <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-3">{t("st.sec.contact")}</p>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-        <Field label="Email">
+        <Field label={t("st.f.email")}>
           <input type="email" className={inputClasses} value={form.email}
             onChange={(e) => set("email", e.target.value)} />
         </Field>
-        <Field label="Phone">
+        <Field label={t("st.f.phone")}>
           <input className={inputClasses} value={form.phone}
             onChange={(e) => set("phone", e.target.value)} />
         </Field>
         <div className="md:col-span-2">
-          <Field label="Address">
+          <Field label={t("st.f.address")}>
             <input className={inputClasses} value={form.address}
               onChange={(e) => set("address", e.target.value)} />
           </Field>
@@ -553,50 +559,50 @@ function StudentEditModal({ initial, onClose, onSaved }) {
       </div>
 
       <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-3">
-        Primary guardian
+        {t("st.sec.guardian1")}
       </p>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-        <Field label="Name">
+        <Field label={t("st.f.name")}>
           <input className={inputClasses} value={form.primary_guardian_name}
             onChange={(e) => set("primary_guardian_name", e.target.value)} />
         </Field>
-        <Field label="Relationship">
+        <Field label={t("st.f.relationship")}>
           <input className={inputClasses} value={form.primary_guardian_relationship}
             onChange={(e) => set("primary_guardian_relationship", e.target.value)} />
         </Field>
-        <Field label="Email">
+        <Field label={t("st.f.email")}>
           <input type="email" className={inputClasses} value={form.primary_guardian_email}
             onChange={(e) => set("primary_guardian_email", e.target.value)} />
         </Field>
-        <Field label="Phone">
+        <Field label={t("st.f.phone")}>
           <input className={inputClasses} value={form.primary_guardian_phone}
             onChange={(e) => set("primary_guardian_phone", e.target.value)} />
         </Field>
       </div>
 
       <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-3">
-        Secondary guardian (optional)
+        {t("st.sec.guardian2")}
       </p>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-        <Field label="Name">
+        <Field label={t("st.f.name")}>
           <input className={inputClasses} value={form.secondary_guardian_name}
             onChange={(e) => set("secondary_guardian_name", e.target.value)} />
         </Field>
-        <Field label="Relationship">
+        <Field label={t("st.f.relationship")}>
           <input className={inputClasses} value={form.secondary_guardian_relationship}
             onChange={(e) => set("secondary_guardian_relationship", e.target.value)} />
         </Field>
-        <Field label="Email">
+        <Field label={t("st.f.email")}>
           <input type="email" className={inputClasses} value={form.secondary_guardian_email}
             onChange={(e) => set("secondary_guardian_email", e.target.value)} />
         </Field>
-        <Field label="Phone">
+        <Field label={t("st.f.phone")}>
           <input className={inputClasses} value={form.secondary_guardian_phone}
             onChange={(e) => set("secondary_guardian_phone", e.target.value)} />
         </Field>
       </div>
 
-      <Field label="Notes">
+      <Field label={t("st.f.notes")}>
         <textarea rows={2} className={inputClasses} value={form.notes}
           onChange={(e) => set("notes", e.target.value)} />
       </Field>

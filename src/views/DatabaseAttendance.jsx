@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { GRADE_LEVELS } from "../lib/enums";
 import { selectClasses, inputClasses, api, DatePicker } from "./_shared";
 import BrandLoader from "../components/BrandLoader";
+import { useT } from "../lib/i18n";
 
 const STATUSES = ["Present", "Absent", "Late", "Excused"];
 
@@ -18,6 +19,7 @@ const STATUS_COLORS = {
 const isoDate = (d) => new Date(d).toISOString().slice(0, 10);
 
 export default function DatabaseAttendance() {
+  const t = useT();
   const [date, setDate] = useState(isoDate(new Date()));
   const [grade, setGrade] = useState("");
   const [section, setSection] = useState("");
@@ -99,15 +101,15 @@ export default function DatabaseAttendance() {
       <div className="mb-8 flex flex-col md:flex-row md:items-end md:justify-between gap-4">
         <div>
           <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-2 inline-flex items-center gap-2.5">
-            <span className="w-6 h-px bg-accent" /> Attendance
+            <span className="w-6 h-px bg-accent" /> {t("att.eyebrow")}
           </p>
           <h2 className="font-serif text-4xl font-medium text-ink">
-            Daily <em className="italic font-light text-accent">attendance</em>
+            {t("att.titleA")} <em className="italic font-light text-accent">{t("att.titleEm")}</em>
           </h2>
-          <p className="text-muted mt-2">Pick a date, mark present / absent / late / excused. Saves on each click.</p>
+          <p className="text-muted mt-2">{t("att.lead")}</p>
         </div>
         <Button onClick={markAllPresent} variant="secondary">
-          Mark unmarked → Present
+          {t("att.markAll")}
         </Button>
       </div>
 
@@ -134,15 +136,15 @@ export default function DatabaseAttendance() {
             onClick={() => setDate(isoDate(new Date()))}
             className="font-mono text-[10px] uppercase tracking-wider text-accent border-b border-accent hover:text-ink hover:border-ink ml-2"
           >
-            Today
+            {t("planner.today")}
           </button>
         </div>
         <select className={selectClasses + " md:max-w-xs"} value={grade} onChange={(e) => setGrade(e.target.value)}>
-          <option value="">All grades</option>
+          <option value="">{t("st.allGrades")}</option>
           {GRADE_LEVELS.map((g) => <option key={g} value={g}>{g}</option>)}
         </select>
         <select className={selectClasses + " md:max-w-xs"} value={section} onChange={(e) => setSection(e.target.value)}>
-          <option value="">All sections</option>
+          <option value="">{t("st.allSections")}</option>
           {sectionOptions.map((s) => <option key={s} value={s}>{s}</option>)}
         </select>
       </div>
@@ -151,7 +153,7 @@ export default function DatabaseAttendance() {
         {Object.entries(counts).map(([label, value]) => (
           <Card key={label}>
             <CardContent className="p-4">
-              <p className="font-mono text-[9px] uppercase tracking-[0.18em] text-muted mb-1">{label}</p>
+              <p className="font-mono text-[9px] uppercase tracking-[0.18em] text-muted mb-1">{t(`att.st.${label}`)}</p>
               <p className="font-serif text-3xl font-medium text-accent leading-none">{value}</p>
             </CardContent>
           </Card>
@@ -170,17 +172,17 @@ export default function DatabaseAttendance() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted border-b border-line">
-                  <th className="text-left py-3 px-5 font-medium">Student</th>
-                  <th className="text-left py-3 font-medium">Class</th>
-                  <th className="text-left py-3 font-medium">Status</th>
-                  <th className="text-left py-3 px-5 font-medium">Notes</th>
+                  <th className="text-left py-3 px-5 font-medium">{t("att.col.student")}</th>
+                  <th className="text-left py-3 font-medium">{t("att.col.class")}</th>
+                  <th className="text-left py-3 font-medium">{t("att.col.status")}</th>
+                  <th className="text-left py-3 px-5 font-medium">{t("att.col.notes")}</th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
                   <tr><td colSpan={4} className="py-8 text-center"><BrandLoader compact fullscreen={false} /></td></tr>
                 ) : rows.length === 0 ? (
-                  <tr><td colSpan={4} className="py-8 text-center text-muted">No students match the current filter.</td></tr>
+                  <tr><td colSpan={4} className="py-8 text-center text-muted">{t("att.noMatch")}</td></tr>
                 ) : rows.map((r) => (
                   <tr key={r.student_id} className="border-b border-line/60 last:border-0 hover:bg-paper-warm transition">
                     <td className="py-3 px-5 text-ink">
@@ -196,13 +198,14 @@ export default function DatabaseAttendance() {
                           <button
                             key={s}
                             onClick={() => setStatus(r, s)}
+                            title={t(`att.st.${s}`)}
                             className={`px-3 py-1 rounded-full font-mono text-[10px] uppercase tracking-wider border transition ${
                               r.status === s
                                 ? STATUS_COLORS[s]
                                 : "border-transparent text-muted hover:text-ink"
                             }`}
                           >
-                            {s[0]}
+                            {t(`att.ab.${s}`)}
                           </button>
                         ))}
                       </div>
@@ -210,7 +213,7 @@ export default function DatabaseAttendance() {
                     <td className="py-3 px-5">
                       <input
                         defaultValue={r.notes ?? ""}
-                        placeholder="Optional note…"
+                        placeholder={t("att.notePlaceholder")}
                         onBlur={(e) => setNotes(r, e.target.value || null)}
                         className={inputClasses + " py-1 text-xs"}
                       />

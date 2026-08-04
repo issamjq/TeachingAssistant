@@ -6,6 +6,7 @@ import { EMIRATES } from "../lib/schools";
 import { GRADE_LEVELS, QUIZ_SECTIONS } from "../lib/enums";
 import { Field, Modal, ConfirmDelete, inputClasses, selectClasses, api } from "./_shared";
 import BrandLoader from "../components/BrandLoader";
+import { useT } from "../lib/i18n";
 
 // Settings → My schools tab. The full CRUD surface for a teacher's school
 // list:
@@ -18,6 +19,7 @@ import BrandLoader from "../components/BrandLoader";
 // The page is its own surface (no surrounding Card) so the AccountProfile
 // shell can render it directly under the Tabs strip.
 export default function DatabaseSchools() {
+  const t = useT();
   const [mine, setMine] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -50,7 +52,7 @@ export default function DatabaseSchools() {
       // into the grades & sections chips for the school they just added.
       setEditingGrades(row && row.id ? row : { ...school, grade_sections: {} });
     } catch (e) {
-      alert(`Could not add school: ${e.message}`);
+      alert(t("sc2.err.add", { msg: e.message }));
     } finally {
       setBusy(false);
     }
@@ -68,7 +70,7 @@ export default function DatabaseSchools() {
       // Same onboarding-style continuation: configure grades/sections now.
       setEditingGrades(row && row.id ? row : { ...created, grade_sections: {} });
     } catch (e) {
-      alert(`Could not add school: ${e.message}`);
+      alert(t("sc2.err.add", { msg: e.message }));
     } finally {
       setBusy(false);
     }
@@ -81,7 +83,7 @@ export default function DatabaseSchools() {
       });
       reload();
     } catch (e) {
-      alert(`Could not update: ${e.message}`);
+      alert(t("sc2.err.update", { msg: e.message }));
     }
   };
   const saveGrades = async (school, gradeSections) => {
@@ -94,7 +96,7 @@ export default function DatabaseSchools() {
       setEditingGrades(null);
       reload();
     } catch (e) {
-      alert(`Could not save grades: ${e.message}`);
+      alert(t("sc2.err.grades", { msg: e.message }));
     } finally {
       setBusy(false);
     }
@@ -106,7 +108,7 @@ export default function DatabaseSchools() {
       setMine((r) => r.filter((s) => s.id !== removing.id));
       setRemoving(null);
     } catch (e) {
-      alert(`Could not remove: ${e.message}`);
+      alert(t("sc2.err.remove", { msg: e.message }));
     } finally {
       setBusy(false);
     }
@@ -117,24 +119,21 @@ export default function DatabaseSchools() {
       <div className="mb-8 flex flex-col md:flex-row md:items-end md:justify-between gap-4">
         <div>
           <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-2 inline-flex items-center gap-2.5">
-            <span className="w-6 h-px bg-accent" /> My schools
+            <span className="w-6 h-px bg-accent" /> {t("sc2.eyebrow")}
           </p>
           <h2 className="font-serif text-4xl font-medium text-ink">
-            Where you <em className="italic font-light text-accent">teach</em>
+            {t("sc2.titleA")} <em className="italic font-light text-accent">{t("sc2.titleEm")}</em>
           </h2>
           <p className="text-muted mt-2 max-w-xl">
-            The UAE schools you work at. New students are filed under your primary school
-            by default — flip the star to change. <span className="text-ink">Each school
-            has its own grades &amp; sections</span> — tap <em className="not-italic font-medium text-ink">Edit</em> on
-            a card to customise what you teach there.
+            {t("sc2.leadA")} <span className="text-ink">{t("sc2.leadB")}</span> {t("sc2.leadC")} <em className="not-italic font-medium text-ink">{t("common.edit")}</em> {t("sc2.leadD")}
           </p>
         </div>
         <div className="flex items-center gap-2">
           <Button variant="secondary" onClick={() => setCreating(true)}>
-            <Plus size={14} className="mr-1.5" /> School not listed
+            <Plus size={14} className="mr-1.5" /> {t("sc2.notListed")}
           </Button>
           <Button onClick={() => setPicking(true)}>
-            <Plus size={14} className="mr-1.5" /> Add school
+            <Plus size={14} className="mr-1.5" /> {t("sc2.add")}
           </Button>
         </div>
       </div>
@@ -142,7 +141,7 @@ export default function DatabaseSchools() {
       {error && (
         <div className="mb-4 bg-paper border border-accent rounded-lg p-4">
           <p className="font-mono text-[10px] uppercase tracking-wider text-accent mb-1">
-            Could not load your schools
+            {t("sc2.loadError")}
           </p>
           <p className="text-sm text-ink-soft">{error}</p>
         </div>
@@ -154,13 +153,12 @@ export default function DatabaseSchools() {
         <Card>
           <CardContent className="p-10 text-center">
             <Building2 size={28} className="mx-auto mb-3 text-muted" />
-            <p className="font-serif text-2xl text-ink mb-1">No schools yet</p>
+            <p className="font-serif text-2xl text-ink mb-1">{t("sc2.emptyTitle")}</p>
             <p className="text-sm text-muted mb-5 max-w-md mx-auto">
-              Add the UAE school(s) you teach at — you can pick from the directory or add a
-              custom one if yours isn't listed.
+              {t("sc2.emptyBody")}
             </p>
             <Button onClick={() => setPicking(true)}>
-              <Plus size={14} className="mr-1.5" /> Add your first school
+              <Plus size={14} className="mr-1.5" /> {t("sc2.addFirst")}
             </Button>
           </CardContent>
         </Card>
@@ -210,8 +208,8 @@ export default function DatabaseSchools() {
         open={!!removing}
         onClose={() => setRemoving(null)}
         onConfirm={confirmRemove}
-        title="Remove school?"
-        message={removing ? `Remove ${removing.name} from your schools? Students you've already filed under this school keep their reference; you just won't see it in your list any more.` : ""}
+        title={t("sc2.removeTitle")}
+        message={removing ? t("sc2.removeMsg", { name: removing.name }) : ""}
         busy={busy}
       />
     </div>
@@ -219,6 +217,7 @@ export default function DatabaseSchools() {
 }
 
 function SchoolCard({ school, onMakePrimary, onRemove, onEditGrades }) {
+  const t = useT();
   const gs = school.grade_sections || {};
   const grades = Object.keys(gs).filter((g) => (gs[g] || []).length > 0);
 
@@ -237,16 +236,16 @@ function SchoolCard({ school, onMakePrimary, onRemove, onEditGrades }) {
         </div>
         {school.is_primary && (
           <span className="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-clay/15 text-clay text-[10px] font-mono uppercase tracking-wider">
-            <Star size={9} fill="currentColor" /> Primary
+            <Star size={9} fill="currentColor" /> {t("sc2.primary")}
           </span>
         )}
       </div>
 
       <div className="grid grid-cols-2 gap-x-4 gap-y-2 mb-4">
-        <Meta icon={<MapPin size={11} />} label="Emirate" value={school.emirate} />
-        <Meta icon={<MapPin size={11} />} label="City" value={school.city || "—"} />
-        <Meta label="Type" value={school.type || "—"} />
-        <Meta label="Curriculum" value={school.curriculum || "—"} />
+        <Meta icon={<MapPin size={11} />} label={t("sc2.m.emirate")} value={school.emirate} />
+        <Meta icon={<MapPin size={11} />} label={t("sc2.m.city")} value={school.city || t("common.none")} />
+        <Meta label={t("sc2.m.type")} value={school.type ? t(`sc2.type.${school.type.toLowerCase()}`) : t("common.none")} />
+        <Meta label={t("sc2.m.curriculum")} value={school.curriculum || t("common.none")} />
       </div>
 
       {/* Per-school grades & sections. Empty state nudges the teacher
@@ -255,19 +254,19 @@ function SchoolCard({ school, onMakePrimary, onRemove, onEditGrades }) {
       <div className="rounded-xl border border-line/80 bg-paper p-3 mb-3">
         <div className="flex items-center justify-between gap-2 mb-2">
           <p className="font-mono text-[9.5px] uppercase tracking-[0.18em] text-muted inline-flex items-center gap-1.5">
-            <GraduationCap size={11} /> Grades & sections
+            <GraduationCap size={11} /> {t("sc2.gradesTitle")}
           </p>
           <button
             type="button"
             onClick={onEditGrades}
             className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11.5px] font-medium text-ink border border-line hover:border-clay hover:text-clay hover:bg-clay/[0.04] transition-colors"
           >
-            <Pencil size={11} /> Edit grades
+            <Pencil size={11} /> {t("sc2.editGrades")}
           </button>
         </div>
         {grades.length === 0 ? (
           <p className="text-[12px] italic text-muted">
-            No grades set yet — click <span className="text-ink">Edit</span> to add what you teach here.
+            {t("sc2.noGrades")} <span className="text-ink">{t("common.edit")}</span> {t("sc2.noGradesB")}
           </p>
         ) : (
           <ul className="space-y-1">
@@ -284,13 +283,13 @@ function SchoolCard({ school, onMakePrimary, onRemove, onEditGrades }) {
       <div className="flex items-center gap-2 pt-3 border-t border-line/80">
         {!school.is_primary && (
           <Button variant="secondary" onClick={onMakePrimary} className="!h-8 !px-3 !text-[12px]">
-            <Star size={12} className="mr-1.5" /> Make primary
+            <Star size={12} className="mr-1.5" /> {t("sc2.makePrimary")}
           </Button>
         )}
         <button
           type="button"
           onClick={onRemove}
-          aria-label="Remove school"
+          aria-label={t("sc2.removeSchool")}
           className="ml-auto h-8 w-8 inline-flex items-center justify-center rounded-md border border-line bg-paper hover:bg-accent hover:border-accent hover:text-paper-cool text-ink-soft transition-colors"
         >
           <Trash2 size={13} />
@@ -311,6 +310,7 @@ function SchoolCard({ school, onMakePrimary, onRemove, onEditGrades }) {
 // anything outside { string → string[] } shape; DB CHECK
 // (jsonb_typeof = 'object') is the last line.
 function EditGradesModal({ school, onClose, onSave, busy }) {
+  const t = useT();
   // Local working copy — only commit on Save.
   const [gs, setGs] = useState(() => {
     const init = school.grade_sections || {};
@@ -341,19 +341,19 @@ function EditGradesModal({ school, onClose, onSave, busy }) {
       open
       onClose={onClose}
       eyebrow={school.name}
-      title="Grades & sections you teach here"
+      title={t("sc2.gradesModal")}
       wide
       footer={
         <>
-          <Button variant="secondary" onClick={onClose} disabled={busy}>Cancel</Button>
+          <Button variant="secondary" onClick={onClose} disabled={busy}>{t("common.cancel")}</Button>
           <Button onClick={() => onSave(gs)} disabled={busy || !allFilled}>
-            {busy ? "Saving…" : "Save"}
+            {busy ? t("sch.saving") : t("common.save")}
           </Button>
         </>
       }
     >
       <p className="text-sm text-muted mb-4">
-        Pick the grades you teach at {school.name}, then which sections inside each grade.
+        {t("sc2.gradesLead", { name: school.name })}
       </p>
 
       {/* Grade picker FIRST — tapping a grade reveals its section row
@@ -379,7 +379,7 @@ function EditGradesModal({ school, onClose, onSave, busy }) {
           <div className="rounded-xl border border-dashed border-line bg-paper-cool/40 p-3.5">
             <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-2.5 inline-flex items-center gap-1.5">
               <Plus size={11} strokeWidth={2.5} />
-              {selectedGrades.length === 0 ? "Tap a grade to start — pick more than one" : "Add another grade"}
+              {selectedGrades.length === 0 ? t("sc2.tapGrade") : t("sc2.addGrade")}
             </p>
             <div className="flex flex-wrap gap-1.5">
               <button
@@ -427,6 +427,7 @@ function EditGradesModal({ school, onClose, onSave, busy }) {
 }
 
 function EditSectionsRow({ grade, sections, onChange, onRemove }) {
+  const t = useT();
   const [draft, setDraft] = useState("");
   const presets = QUIZ_SECTIONS.filter((s) => s !== "All sections");
   const allOptions = useMemo(() => {
@@ -453,14 +454,16 @@ function EditSectionsRow({ grade, sections, onChange, onRemove }) {
         <div className="inline-flex items-center gap-2 min-w-0">
           <p className="font-mono text-[10.5px] uppercase tracking-[0.18em] text-ink">{grade}</p>
           <span className={`text-[11px] ${empty ? "text-clay" : "text-muted"}`}>
-            · {empty ? "Pick at least one section" : `${sections.length} section${sections.length > 1 ? "s" : ""}`}
+            · {empty
+              ? t("sc2.pickSection")
+              : t(sections.length === 1 ? "sc2.sectionCount" : "sc2.sectionCountPlural", { n: sections.length })}
           </span>
         </div>
         {onRemove && (
           <button
             type="button"
             onClick={onRemove}
-            title="Remove this grade"
+            title={t("sc2.removeGrade")}
             aria-label={`Remove ${grade}`}
             className="shrink-0 h-7 w-7 inline-flex items-center justify-center rounded-md text-ink-soft hover:bg-accent hover:text-paper-cool transition"
           >
@@ -493,7 +496,7 @@ function EditSectionsRow({ grade, sections, onChange, onRemove }) {
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); add(); } }}
-          placeholder="e.g. Honors, Maths Track"
+          placeholder={t("sc2.customSection")}
           className={inputClasses + " !py-1.5 !text-[12.5px]"}
         />
         <Button variant="secondary" onClick={add} disabled={!draft.trim()} className="!h-8 !px-3 !text-[12px]">
@@ -518,6 +521,7 @@ function Meta({ label, value, icon }) {
 
 // ── Pick from catalog ──────────────────────────────────────────────────
 function PickSchoolModal({ existingIds, onClose, onPicked, busy }) {
+  const t = useT();
   const [catalog, setCatalog] = useState([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState(null);
@@ -549,9 +553,9 @@ function PickSchoolModal({ existingIds, onClose, onPicked, busy }) {
       open
       onClose={onClose}
       eyebrow="Add school"
-      title="Pick from the UAE directory"
+      title={t("sc2.dirTitle")}
       wide
-      footer={<Button variant="secondary" onClick={onClose}>Done</Button>}
+      footer={<Button variant="secondary" onClick={onClose}>{t("sc2.done")}</Button>}
     >
       <div className="relative mb-3">
         <Search size={18} strokeWidth={2.25} className="absolute top-1/2 -translate-y-1/2 left-4 text-ink-soft pointer-events-none rtl:left-auto rtl:right-4" />
@@ -559,7 +563,7 @@ function PickSchoolModal({ existingIds, onClose, onPicked, busy }) {
           type="text"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search by school name, emirate, or city…"
+          placeholder={t("sc2.dirSearch")}
           className="w-full !pl-12 pr-4 py-3.5 rounded-xl border-2 border-line bg-paper text-ink text-[16px] font-medium outline-none transition-all placeholder:text-muted placeholder:font-normal focus:border-clay focus:shadow-[0_0_0_4px_rgba(200,71,43,0.10)] rtl:!pl-4 rtl:!pr-12"
           autoFocus
         />
@@ -596,7 +600,7 @@ function PickSchoolModal({ existingIds, onClose, onPicked, busy }) {
       ) : err ? (
         <p className="text-sm text-accent">{err}</p>
       ) : filtered.length === 0 ? (
-        <p className="text-sm text-muted italic">No schools match your search.</p>
+        <p className="text-sm text-muted italic">{t("sc2.dirNoMatch")}</p>
       ) : (
         <ul className="max-h-[360px] overflow-y-auto rounded-xl border border-line divide-y divide-line/70">
           {filtered.map((s) => {
@@ -620,7 +624,7 @@ function PickSchoolModal({ existingIds, onClose, onPicked, busy }) {
                       : "bg-paper-cool text-ink border-line hover:border-ink disabled:opacity-50"
                   }`}
                 >
-                  {on ? (<><Check size={11} /> Added</>) : (<><Plus size={11} /> Add</>)}
+                  {on ? (<><Check size={11} /> {t("sc2.added")}</>) : (<><Plus size={11} /> {t("sc2.addBtn")}</>)}
                 </button>
               </li>
             );
@@ -633,6 +637,7 @@ function PickSchoolModal({ existingIds, onClose, onPicked, busy }) {
 
 // ── Custom catalog entry ───────────────────────────────────────────────
 function CreateSchoolModal({ onClose, onCreate, busy }) {
+  const t = useT();
   const [form, setForm] = useState({
     name: "",
     name_ar: "",
@@ -648,12 +653,12 @@ function CreateSchoolModal({ onClose, onCreate, busy }) {
       open
       onClose={onClose}
       eyebrow="Add school"
-      title="Add a school not in the directory"
+      title={t("sc2.customTitle")}
       footer={
         <>
-          <Button variant="secondary" onClick={onClose} disabled={busy}>Cancel</Button>
+          <Button variant="secondary" onClick={onClose} disabled={busy}>{t("common.cancel")}</Button>
           <Button onClick={() => onCreate(form)} disabled={!can || busy}>
-            {busy ? "Adding…" : "Add school"}
+            {busy ? t("sc2.adding") : t("sc2.add")}
           </Button>
         </>
       }
@@ -663,28 +668,28 @@ function CreateSchoolModal({ onClose, onCreate, busy }) {
         from the same school can find it too.
       </p>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Field label="School name (English)">
+        <Field label={t("sc2.f.nameEn")}>
           <input className={inputClasses} value={form.name} onChange={(e) => set("name", e.target.value)} autoFocus />
         </Field>
-        <Field label="School name (Arabic)" hint="(optional)">
+        <Field label={t("sc2.f.nameAr")} hint={t("sc2.f.optional")}>
           <input className={inputClasses} value={form.name_ar} onChange={(e) => set("name_ar", e.target.value)} dir="rtl" />
         </Field>
-        <Field label="Emirate">
+        <Field label={t("sc2.f.emirate")}>
           <select className={selectClasses} value={form.emirate} onChange={(e) => set("emirate", e.target.value)}>
             {EMIRATES.map((em) => <option key={em} value={em}>{em}</option>)}
           </select>
         </Field>
-        <Field label="City / area" hint="(optional)">
+        <Field label={t("sc2.f.city")} hint={t("sc2.f.optional")}>
           <input className={inputClasses} value={form.city} onChange={(e) => set("city", e.target.value)} />
         </Field>
-        <Field label="Type" hint="(optional)">
+        <Field label={t("sc2.f.type")} hint={t("sc2.f.optional")}>
           <select className={selectClasses} value={form.type} onChange={(e) => set("type", e.target.value)}>
             <option value="">—</option>
-            <option value="Public">Public</option>
-            <option value="Private">Private</option>
+            <option value="Public">{t("sc2.type.public")}</option>
+            <option value="Private">{t("sc2.type.private")}</option>
           </select>
         </Field>
-        <Field label="Curriculum" hint="(optional)">
+        <Field label={t("sc2.f.curriculum")} hint={t("sc2.f.optional")}>
           <select className={selectClasses} value={form.curriculum} onChange={(e) => set("curriculum", e.target.value)}>
             <option value="">—</option>
             {["MOE", "British", "American", "IB", "Indian", "French", "Other"].map((c) => (

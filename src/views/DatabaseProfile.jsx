@@ -5,11 +5,14 @@ import { Button } from "@/components/ui/button";
 import { MAJORS, QUIZ_LANGUAGES } from "../lib/enums";
 import { ChipMultiSelect, DatePicker, Field, api, inputClasses, invalidateProfile } from "./_shared";
 import BrandLoader from "../components/BrandLoader";
+import { useT, useLocale } from "../lib/i18n";
 
 const initials = (first, last) =>
   `${(first || "")[0] || ""}${(last || "")[0] || ""}`.toUpperCase();
 
 export default function DatabaseProfile() {
+  const t = useT();
+  const locale = useLocale();
   const [me, setMe] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -37,18 +40,18 @@ export default function DatabaseProfile() {
       <div className="mb-8 flex flex-col md:flex-row md:items-end md:justify-between gap-4">
         <div>
           <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-2 inline-flex items-center gap-2.5">
-            <span className="w-6 h-px bg-accent" /> Teaching profile
+            <span className="w-6 h-px bg-accent" /> {t("tp.eyebrow")}
           </p>
           <h2 className="font-serif text-4xl font-medium text-ink">
-            Your <em className="italic font-light text-accent">teaching profile</em>
+            {t("tp.titleA")} <em className="italic font-light text-accent">{t("tp.titleEm")}</em>
           </h2>
           <p className="text-muted mt-2">
-            Subjects, grades, and bio. Personal contact details live under your account.
+            {t("tp.lead")}
           </p>
         </div>
         {me && !editing && (
           <Button onClick={() => setEditing(true)}>
-            <Pencil size={14} className="mr-2" /> Edit
+            <Pencil size={14} className="mr-2" /> {t("common.edit")}
           </Button>
         )}
       </div>
@@ -56,7 +59,7 @@ export default function DatabaseProfile() {
       {error && (
         <div className="mb-4 bg-paper border border-accent rounded-lg p-4">
           <p className="font-mono text-[10px] uppercase tracking-wider text-accent mb-1">
-            Could not load your profile
+            {t("tp.loadError")}
           </p>
           <p className="text-sm text-ink-soft">{error}</p>
         </div>
@@ -84,16 +87,16 @@ export default function DatabaseProfile() {
                       {me.first_name} {me.last_name}
                     </h3>
                     <p className="font-mono text-[11px] uppercase tracking-wider text-muted mt-1.5">
-                      {(me.majors || []).join(" · ") || "No majors set"}
+                      {(me.majors || []).join(" · ") || t("tp.noMajors")}
                     </p>
                     <p className="font-mono text-[11px] uppercase tracking-wider text-muted mt-1">
-                      {(me.grade_levels || []).join(" · ") || "No grades set"}
+                      {(me.grade_levels || []).join(" · ") || t("tp.noGrades")}
                     </p>
                     <p className="font-mono text-[11px] uppercase tracking-wider text-muted mt-1">
-                      {(me.languages || []).join(" · ") || "No languages set"}
+                      {(me.languages || []).join(" · ") || t("tp.noLanguages")}
                     </p>
                     <p className="font-mono text-[11px] uppercase tracking-wider text-muted mt-1">
-                      {(me.sections || []).join(" · ") || "No sections set"}
+                      {(me.sections || []).join(" · ") || t("tp.noSections")}
                     </p>
                     {me.bio && (
                       <p className="text-sm text-ink-soft mt-3 max-w-2xl leading-relaxed">{me.bio}</p>
@@ -102,10 +105,10 @@ export default function DatabaseProfile() {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-5 pt-6 border-t border-line">
-                  <Stat label="Staff ID" value={me.staff_id || "—"} icon={<Hash size={13} />} mono />
+                  <Stat label={t("tp.staffId")} value={me.staff_id || t("common.none")} icon={<Hash size={13} />} mono />
                   <Stat
-                    label="Registered"
-                    value={me.hire_date ? new Date(me.hire_date).toLocaleDateString() : "—"}
+                    label={t("tp.registered")}
+                    value={me.hire_date ? new Date(me.hire_date).toLocaleDateString(locale) : t("common.none")}
                     icon={<Calendar size={13} />}
                   />
                 </div>
@@ -140,6 +143,7 @@ function Stat({ label, value, icon, mono = false }) {
 // lives next to the school it applies to, which removes the duplicate
 // "edit this in two places" trap.
 function ProfileEditor({ initial, onClose, onSaved }) {
+  const t = useT();
   const [staffId, setStaffId] = useState(initial.staff_id || "");
   const [hireDate, setHireDate] = useState(initial.hire_date ? initial.hire_date.slice(0, 10) : "");
   const [bio, setBio] = useState(initial.bio || "");
@@ -177,21 +181,21 @@ function ProfileEditor({ initial, onClose, onSaved }) {
         )}
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <Field label="Staff ID">
+          <Field label={t("tp.staffId")}>
             <input
               className={inputClasses}
               value={staffId}
               onChange={(e) => setStaffId(e.target.value)}
-              placeholder="STF-001"
+              placeholder={t("tp.staffPlaceholder")}
             />
           </Field>
-          <Field label="Registered">
+          <Field label={t("tp.registered")}>
             <DatePicker value={hireDate || ""} onChange={(v) => setHireDate(v)} />
           </Field>
         </div>
 
         <div className="mt-5">
-          <Field label="Bio">
+          <Field label={t("tp.bio")}>
             <textarea
               rows={3}
               className={inputClasses}
@@ -203,42 +207,42 @@ function ProfileEditor({ initial, onClose, onSaved }) {
 
         <div className="mt-6">
           <p className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted mb-2">
-            Languages you teach
+            {t("tp.langsTitle")}
           </p>
           <ChipMultiSelect
             value={languages}
             onChange={setLanguages}
             options={QUIZ_LANGUAGES}
             allowCustom
-            customPlaceholder="Add a language (e.g. Swahili)…"
+            customPlaceholder={t("tp.langsPlaceholder")}
           />
           <p className="text-xs text-muted mt-2">
-            Studio's Language dropdown shows only what you teach. Custom languages are private to you.
+            {t("tp.langsHint")}
           </p>
         </div>
 
         <div className="mt-7">
           <p className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted mb-2">
-            Majors you teach
+            {t("tp.majorsTitle")}
           </p>
           <ChipMultiSelect
             value={majors}
             onChange={setMajors}
             options={MAJORS}
             allowCustom
-            customPlaceholder="Add a major not listed (e.g. Robotics)…"
+            customPlaceholder={t("tp.majorsPlaceholder")}
           />
           <p className="text-xs text-muted mt-2">
-            Grades and sections live <em className="italic">per school</em> — open <span className="text-ink">My schools</span> and tap <span className="text-ink">Edit grades</span> on a school card to set what you teach where.
+            {t("tp.perSchoolA")} <em className="italic">{t("tp.perSchoolEm")}</em> {t("tp.perSchoolB")} <span className="text-ink">{t("tp.mySchools")}</span> {t("tp.perSchoolC")} <span className="text-ink">{t("tp.editGrades")}</span> {t("tp.perSchoolD")}
           </p>
         </div>
 
       <div className="mt-8 pt-5 border-t border-line flex items-center justify-end gap-3">
         <Button variant="secondary" onClick={onClose} disabled={saving}>
-          Cancel
+          {t("common.cancel")}
         </Button>
         <Button onClick={submit} disabled={saving}>
-          {saving ? "Saving…" : "Save changes"}
+          {saving ? t("sch.saving") : t("tp.saveChanges")}
         </Button>
       </div>
     </div>
