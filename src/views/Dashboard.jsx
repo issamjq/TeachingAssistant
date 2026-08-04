@@ -117,7 +117,7 @@ function NowPlayingHero({ me, todayLessons, onJump }) {
   } else {
     headline = (
       <>
-        {greeting}, <em>{first}</em>{t("dash.clear.mid")} <em>{t("dash.clear.word")}</em>{" "}
+        {greeting}{t("dash.greetSep")}<em>{first}</em>{t("dash.clear.mid")} <em>{t("dash.clear.word")}</em>{" "}
         {t("dash.clear.end")}
       </>
     );

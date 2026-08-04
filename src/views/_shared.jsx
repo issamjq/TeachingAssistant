@@ -5,7 +5,7 @@ import {
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { useT } from "../lib/i18n";
+import { useT, useLocale, tIn, currentLang, localeFor } from "../lib/i18n";
 
 const subjectStyles = {
   English: { code: "EN", border: "border-line", text: "text-ink" },
@@ -142,18 +142,25 @@ const DP_PARSE = (s) => {
   const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(s || ""));
   return m ? new Date(+m[1], +m[2] - 1, +m[3]) : null;
 };
-const DP_WD = ["M", "T", "W", "T", "F", "S", "S"];
+// Weekday initials, derived from the locale rather than hardcoded English —
+// 1 Jan 2024 was a Monday, so seven days from it gives the week in order.
+const DP_WD_FOR = (locale) =>
+  Array.from({ length: 7 }, (_, i) =>
+    new Date(2024, 0, 1 + i).toLocaleDateString(locale, { weekday: "narrow" })
+  );
 
 // Months grid — short labels for the month picker view. Localised at
 // render time via toLocaleDateString so AR shows Arabic month names.
-const DP_MONTH_LABEL = (y, m) =>
-  new Date(y, m, 1).toLocaleDateString(undefined, { month: "short" });
+const DP_MONTH_LABEL = (y, m, locale) =>
+  new Date(y, m, 1).toLocaleDateString(locale, { month: "short" });
 
 export function DatePicker({
   value, onChange, placeholder, className = inputClasses,
   min, max, disabled = false,
 }) {
   const t = useT();
+  const locale = useLocale();
+  const DP_WD = useMemo(() => DP_WD_FOR(locale), [locale]);
   const ph = placeholder || t("dp.placeholder");
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
@@ -198,7 +205,7 @@ export function DatePicker({
     (maxD && d > new Date(maxD.getFullYear(), maxD.getMonth(), maxD.getDate()));
 
   const label = selected
-    ? selected.toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "numeric" })
+    ? selected.toLocaleDateString(locale, { day: "2-digit", month: "short", year: "numeric" })
     : "";
   const pick = (d) => { onChange?.(DP_ISO(d)); setOpen(false); };
 
@@ -242,10 +249,10 @@ export function DatePicker({
               type="button"
               onClick={() => setMode(mode === "days" ? "months" : mode === "months" ? "years" : "days")}
               className="font-serif text-[15px] font-medium text-ink hover:text-accent transition px-3 py-0.5 rounded-md"
-              aria-label="Switch picker grain"
+              aria-label={t("dp.switchGrain")}
             >
               {mode === "days" &&
-                view.toLocaleDateString(undefined, { month: "long", year: "numeric" })}
+                view.toLocaleDateString(locale, { month: "long", year: "numeric" })}
               {mode === "months" && y}
               {mode === "years" && (() => {
                 const base = Math.floor(y / 12) * 12;
@@ -329,7 +336,7 @@ export function DatePicker({
                           : "text-ink-soft hover:bg-paper-warm"
                     }`}
                   >
-                    {DP_MONTH_LABEL(y, mi)}
+                    {DP_MONTH_LABEL(y, mi, locale)}
                   </button>
                 );
               })}
@@ -389,20 +396,27 @@ export function DatePicker({
   );
 }
 
+// Plain function, not a hook: twelve components call it, several from inside
+// table cells and map callbacks where a hook cannot go. It reads the active
+// language from <html lang> via currentLang() instead, which LanguageProvider
+// already maintains — so every existing call site became bilingual without a
+// signature change.
 export function timeAgo(timestamp) {
   if (!timestamp) return "—";
+  const lang = currentLang();
+  const tr = (key, vars) => tIn(lang, key, vars);
   const seconds = Math.floor((Date.now() - new Date(timestamp).getTime()) / 1000);
-  if (seconds < 60) return "just now";
+  if (seconds < 60) return tr("ta.justNow");
   const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes} minute${minutes === 1 ? "" : "s"} ago`;
+  if (minutes < 60) return tr(minutes === 1 ? "ta.minute" : "ta.minutes", { n: minutes });
   const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours} hour${hours === 1 ? "" : "s"} ago`;
+  if (hours < 24) return tr(hours === 1 ? "ta.hour" : "ta.hours", { n: hours });
   const days = Math.floor(hours / 24);
-  if (days === 1) return "yesterday";
-  if (days < 7) return `${days} days ago`;
-  if (days < 14) return "last week";
-  if (days < 30) return `${Math.floor(days / 7)} weeks ago`;
-  return new Date(timestamp).toLocaleDateString();
+  if (days === 1) return tr("ta.yesterday");
+  if (days < 7) return tr("ta.days", { n: days });
+  if (days < 14) return tr("ta.lastWeek");
+  if (days < 30) return tr("ta.weeks", { n: Math.floor(days / 7) });
+  return new Date(timestamp).toLocaleDateString(localeFor(lang));
 }
 
 // --- CRUD primitives -------------------------------------------------------

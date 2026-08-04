@@ -256,6 +256,19 @@ const EN = {
   "ch.final.cta": "Start the free trial →",
   "ch.final.ctaGhost": "See the plans",
   // common
+  // Relative timestamps — rendered by the plain timeAgo() helper.
+  "ta.justNow": "just now",
+  "ta.minute": "{n} minute ago",
+  "ta.minutes": "{n} minutes ago",
+  "ta.hour": "{n} hour ago",
+  "ta.hours": "{n} hours ago",
+  "ta.yesterday": "yesterday",
+  "ta.days": "{n} days ago",
+  "ta.lastWeek": "last week",
+  "ta.weeks": "{n} weeks ago",
+  "dp.switchGrain": "Switch picker grain",
+  "dash.greetSep": ", ",
+
   "common.deleting": "Deleting…",
   "common.cantUndo": "This action can’t be undone.",
   "common.manage": "Manage",
@@ -1761,6 +1774,19 @@ const AR = {
     "افتح الاستوديو، اذكر موضوعًا، وشاهده يصبح أسبوع تدريس — مبنيّ، لا مستعار.",
   "ch.final.cta": "ابدأ النسخة المجانية ←",
   "ch.final.ctaGhost": "اعرض الباقات",
+  // الطوابع الزمنية النسبية
+  "ta.justNow": "الآن",
+  "ta.minute": "قبل دقيقة",
+  "ta.minutes": "قبل {n} دقيقة",
+  "ta.hour": "قبل ساعة",
+  "ta.hours": "قبل {n} ساعات",
+  "ta.yesterday": "أمس",
+  "ta.days": "قبل {n} أيام",
+  "ta.lastWeek": "الأسبوع الماضي",
+  "ta.weeks": "قبل {n} أسابيع",
+  "dp.switchGrain": "تغيير نطاق المُنتقي",
+  "dash.greetSep": "، ",
+
   "common.deleting": "جارٍ الحذف…",
   "common.cantUndo": "لا يمكن التراجع عن هذا الإجراء.",
   "common.manage": "إدارة",
@@ -3107,6 +3133,15 @@ export function useT() {
 // teacher who switched Murchid to Arabic still got "Tuesday 4 August" from
 // every date in the product. That is English leakage by another route, and it
 // is invisible in code review because the call looks correct.
+// The active language, readable from outside React.
+//
+// LanguageProvider already stamps it on <html lang> (applyDocumentLang), so
+// this needs no extra state and cannot drift from what the provider set. It
+// exists for the handful of PLAIN functions that render user-visible text —
+// timeAgo() is called from a dozen components and cannot take a hook.
+export const currentLang = () =>
+  (typeof document !== "undefined" && document.documentElement.lang) || "en";
+
 export const localeFor = (lang) => (isArabicLang(lang) ? "ar" : "en-US");
 
 // Convenience: const locale = useLocale();
