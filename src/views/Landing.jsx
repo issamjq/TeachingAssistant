@@ -278,7 +278,7 @@ const Nav = ({ onEnter, signedIn, onJump, onPage, onSignOut, darkHero = false })
   // (amber on the drench, clay on the cream page); the CTA pill inverts
   // its fill with the surface. `isRTL` flips the CTA arrow + hover nudge.
   const { isRTL } = useI18n();
-  const accent = onDark ? "oklch(0.86 0.13 60)" : "var(--clay)";
+  const accent = onDark ? "var(--cm-on-drench)" : "var(--clay)";
   const ctaStyle = onDark
     ? { background: "var(--paper)", color: "var(--cm-clay-dd)" }
     : { background: "var(--ink)", color: "var(--paper)" };
@@ -311,7 +311,7 @@ const Nav = ({ onEnter, signedIn, onJump, onPage, onSignOut, darkHero = false })
         <button type="button" onClick={() => onPage("home")} className="nav-brand" style={{ color: fg }} aria-label="Murchid — home">
           <MurchidLogo
             className="h-[50px] w-auto"
-            style={{ "--murchid-logo-accent": onDark ? "#fcb979" : "#8e5435", transform: "translateY(5px)" }}
+            style={{ "--murchid-logo-accent": onDark ? "var(--cm-on-drench)" : "var(--color-accent)", transform: "translateY(5px)" }}
           />
         </button>
 
@@ -372,7 +372,7 @@ const Nav = ({ onEnter, signedIn, onJump, onPage, onSignOut, darkHero = false })
             <div className="lp-menu-top">
               <MurchidLogo
                 className="h-[44px] w-auto"
-                style={{ "--murchid-logo-accent": "#8e5435", transform: "translateY(3px)" }}
+                style={{ "--murchid-logo-accent": "var(--color-accent)", transform: "translateY(3px)" }}
               />
               <div className="lp-menu-top-actions">
                 <LangToggle />
@@ -2893,7 +2893,7 @@ function FunnelHeader({ onHome }) {
         >
           <MurchidLogo
             className="h-[44px] w-auto"
-            style={{ "--murchid-logo-accent": "#8e5435", transform: "translateY(3px)" }}
+            style={{ "--murchid-logo-accent": "var(--color-accent)", transform: "translateY(3px)" }}
           />
         </button>
         <LangToggle />
