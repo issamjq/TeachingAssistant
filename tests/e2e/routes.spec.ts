@@ -88,10 +88,17 @@ test("landing page renders its marketing content", async ({ page }) => {
   });
 });
 
-test("unknown paths still resolve rather than hard-404", async ({ page }) => {
-  // The legacy router bounces unknown sections back to the role default,
-  // so a nonsense path must not produce a framework-level 404.
+test("an unknown path 404s but recovers the visitor", async ({ page }) => {
+  // Behaviour change from the pre-migration SPA, and a deliberate one.
+  //
+  // The old catch-all matched literally every path, so a nonsense URL
+  // returned HTTP 200 and the client quietly bounced it. Now that routes
+  // resolve natively the status is an honest 404 — correct for crawlers and
+  // monitoring — while app/not-found.tsx preserves the recovery a user sees.
   const response = await page.goto("/this-section-does-not-exist");
-  expect(response?.status()).toBeLessThan(400);
-  await expectAppMounted(page);
+  expect(response?.status(), "unknown paths report 404").toBe(404);
+
+  // Signed out, recovery lands on the marketing page rather than the studio.
+  await expect(page).toHaveURL(/localhost:\d+\/$/, { timeout: 15_000 });
+  await expect(page.locator("body")).toContainText(/murchid/i);
 });
