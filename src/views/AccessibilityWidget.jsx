@@ -4,7 +4,7 @@ import {
   Accessibility, X, Type, Eye, Volume2, RotateCcw,
   MousePointer2, Link2, Pause, Contrast, Droplet, Minus, Plus,
 } from "lucide-react";
-import { useI18n } from "../lib/i18n.jsx";
+import { useI18n } from "../lib/i18n";
 
 // Native accessibility toolbar. Floating launcher + panel, portaled to
 // document.body so it sits OUTSIDE #root and stays unaffected by the

@@ -328,11 +328,37 @@ Fixed by introducing **`src/config/env.ts`** as the single place client env is r
 
 > **Deploy blocker:** the Vercel project env vars must be renamed `VITE_FIREBASE_*` → `NEXT_PUBLIC_FIREBASE_*` before this branch ships, or sign-in breaks in production.
 
-### ⏭ Next — Phase 2
+### ✅ Phase 2 — Typed foundation (done)
 
-Port `src/lib/*` and `src/components/*` to TypeScript · split `i18n.jsx` (2,018 lines) into `en/`+`ar/` namespaces · typed `apiClient` with zod-inferred types from `backend/lib/validate.js` · routing shim over `next/navigation` · `features/`/`shared/` skeleton · ESLint import-boundary + file-size rules.
+**Routing shim resolved the open risk.** `src/lib/route.js` → `route.tsx`, reimplemented over `next/navigation` (`usePathname` + `router.push`) while keeping its exact public API, so the 8 legacy views importing it are untouched. A `<RouterBridge />` parks the router instance where `navigate()`/`replace()` can reach it from plain event handlers.
 
-Open question to spike early: `setNavGuard` (unsaved-changes protection) has no direct App Router equivalent.
+`setNavGuard` needed no bespoke replacement after all — routing every navigation through the same `tryNav()` gate preserves it exactly. The `popstate` buffer and `beforeunload` handlers in `views/Studio.jsx` are independent of the router and still work untouched.
+
+> **Verified, not assumed.** The shim's load-bearing assumption — that `router.push()` between two paths served by the *same* catch-all segment still re-renders — can't be exercised through the real UI, because every in-app navigation sits behind auth. Added `/nav-probe` (non-production, `notFound()` in prod) plus 8 tests covering push, replace, back/forward, multi-segment paths, query-string preservation, and guard hold/release. All pass.
+>
+> Gotcha found on the way: a folder named `__nav-probe` was silently swallowed by the catch-all — Next treats `_`-prefixed folders as **private folders excluded from routing**.
+
+**Types.** `role · session · currentUser · portal · plans · permissions · account · avatars` ported to TypeScript with real types, not `any`. `shared/types/domain.ts` now owns the `Role`/`SubRole`/`PermissionKey` unions that were previously duplicated as loose string arrays across `src/lib/role.js` and `backend/lib/roles.js` under a "keep the two in sync" comment with nothing enforcing it.
+
+**API contracts inferred from the backend.** `shared/types/api.ts` does `z.infer<typeof Schemas.StudentSchema>` against `backend/lib/validate.js`. Verified working: a wrong field type and an invented field name both fail compilation. `import type` is fully erased, so no backend code reaches the browser. Add a field to a schema on the server and every frontend call site that builds that object is a compile error until updated.
+
+**`apiClient`.** The `api()` implementation moved out of `views/_shared.jsx` into `shared/lib/apiClient.ts` — generic over request/response, with a real `ApiError` class carrying `status` and `code` (previously bolted onto a plain `Error`, so every call site needed a cast). `_shared.jsx` re-exports it; there is one implementation, not two.
+
+**i18n split.** 2,018 lines → `shared/i18n/en.ts` (967) + `ar.ts` (943) + `index.tsx` (128 lines of provider/hooks). `TranslationKey` is derived from the EN dictionary, so a mistyped key is now a compile error instead of silently rendering as itself. `ar.ts` is typed `Partial<Record<TranslationKey, string>>` — a key absent from EN fails to compile, a missing key still falls back at runtime. Compiling it validated all ~930 Arabic keys against English.
+
+**Boundaries enforced.** `eslint.config.mjs` with the §6 rules made mechanical: features can't import each other's internals, `shared/` can't import `features/`, 600-line cap on new code. Legacy folders are carved out — turning the cap on globally would emit ~30 errors for untouched files and train everyone to ignore the linter. Rules verified by probe files that correctly failed. `backend/` is excluded (out of scope). Lint added as CI gate 2.
+
+**Verified:** `tsc --noEmit` clean · lint 0 errors (2 warnings, both pre-existing in legacy `export.js`) · build passes · **60/60 Playwright tests** green · landing page screenshot unchanged.
+
+> The suite paid for itself: it caught `api is not defined` at runtime on three builder routes. A bare `export { api } from …` creates no local binding, and `useTeacherClasses()` in that same file calls `api()` internally. Type-checking and the build both passed — only the browser tests caught it.
+
+### ⏭ Next — Phase 3
+
+Peel routes off the catch-all, easiest first: portals → leaf studio sections → data-heavy sections → role consoles → studio shell → `Studio.jsx`/`SlideBuilder.jsx` → landing.
+
+Carried into Phase 3: `next/link` and a direct `useRouter().push()` still bypass `setNavGuard`. Peeled routes reachable from a guarded flow must keep navigating via `navigate()`/`replace()` until a proper App Router replacement lands.
+
+Deferred from Phase 2: `export.js`, `toDoc.js`, `markdown.jsx` and `src/components/*` are still JavaScript. They're DOM/document-generation heavy, where types add least, and none block peeling — they convert with the features that use them.
 
 ---
 

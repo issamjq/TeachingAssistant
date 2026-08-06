@@ -26,11 +26,16 @@ jobs:
       - name: Type check
         run: npm run typecheck
 
-      # Gate 2 — the app must compile.
+      # Gate 2 — architectural rules: module boundaries and file-size budget
+      # (docs/11-nextjs-migration.md §6).
+      - name: Lint
+        run: npm run lint
+
+      # Gate 3 — the app must compile.
       - name: Build
         run: npm run build
 
-      # Gate 3 — every route must still resolve and mount. This is what
+      # Gate 4 — every route must still resolve and mount. This is what
       # catches a mis-nested segment when a route is peeled in Phase 3.
       # No secrets needed: the smoke tests assert on the shell, not on data.
       - name: Install Playwright browsers

@@ -8,7 +8,25 @@
 //
 // Key conventions: `<surface>.<feature>` lowercased, dot-separated.
 
-export const PERMISSION_GROUPS = [
+import type {
+  PermissionKey,
+  PermissionMap,
+  Role,
+} from "../shared/types/domain";
+
+export interface PermissionEntry {
+  key: PermissionKey;
+  label: string;
+}
+
+export interface PermissionGroup {
+  id: string;
+  label: string;
+  description: string;
+  keys: PermissionEntry[];
+}
+
+export const PERMISSION_GROUPS: PermissionGroup[] = [
   {
     id: "studio",
     label: "Studio",
@@ -58,15 +76,19 @@ export const PERMISSION_GROUPS = [
 ];
 
 // Flat catalog for validation (every legal key).
-export const PERMISSION_KEYS = PERMISSION_GROUPS.flatMap((g) => g.keys.map((k) => k.key));
+export const PERMISSION_KEYS: PermissionKey[] = PERMISSION_GROUPS.flatMap(
+  (g) => g.keys.map((k) => k.key)
+);
 
 // Role defaults — applied when the per-account override doesn't set a
 // key. Heads-up: this is the source of truth for "out of the box"
 // permissions per role. The super admin can override on a per-account
 // basis through the drawer.
-export const ROLE_DEFAULTS = {
-  dev: Object.fromEntries(PERMISSION_KEYS.map((k) => [k, true])),
-  super_admin: Object.fromEntries(PERMISSION_KEYS.map((k) => [k, true])),
+export const ROLE_DEFAULTS: Record<Role, PermissionMap> = {
+  dev: Object.fromEntries(PERMISSION_KEYS.map((k) => [k, true])) as PermissionMap,
+  super_admin: Object.fromEntries(
+    PERMISSION_KEYS.map((k) => [k, true])
+  ) as PermissionMap,
   admin: {
     "studio.lesson_plans":  false,
     "studio.quizzes":       false,
@@ -152,19 +174,30 @@ export const ROLE_DEFAULTS = {
 // Resolve the effective permissions for an account: per-account
 // overrides take precedence over the role defaults. Keys not set in
 // either fall back to false (deny by default).
-export function resolvePermissions(account) {
+export interface PermissionedAccount {
+  role: Role;
+  permissions?: PermissionMap | null;
+}
+
+export function resolvePermissions(
+  account: PermissionedAccount | null | undefined
+): PermissionMap {
   if (!account) return {};
   const defaults = ROLE_DEFAULTS[account.role] || {};
-  const overrides = (account.permissions && typeof account.permissions === "object")
-    ? account.permissions
-    : {};
-  const out = {};
+  const overrides =
+    account.permissions && typeof account.permissions === "object"
+      ? account.permissions
+      : {};
+  const out: PermissionMap = {};
   for (const k of PERMISSION_KEYS) {
     out[k] = k in overrides ? !!overrides[k] : !!defaults[k];
   }
   return out;
 }
 
-export function isPermitted(account, key) {
+export function isPermitted(
+  account: PermissionedAccount | null | undefined,
+  key: PermissionKey
+): boolean {
   return resolvePermissions(account)[key] === true;
 }

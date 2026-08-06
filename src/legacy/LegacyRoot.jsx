@@ -4,10 +4,10 @@ import React, { useEffect, useState } from "react";
 import StudioApp from "../App.jsx";
 import Landing from "../views/Landing.jsx";
 import PortalSignIn from "../views/PortalSignIn.jsx";
-import { useRoute, navigate, clearRoute } from "../lib/route.js";
-import { LanguageProvider } from "../lib/i18n.jsx";
+import { useRoute, navigate, clearRoute, RouterBridge } from "../lib/route";
+import { LanguageProvider } from "../lib/i18n";
 import AccessibilityWidget from "../views/AccessibilityWidget.jsx";
-import { getPortalFromPath } from "../lib/portal.js";
+import { getPortalFromPath } from "../lib/portal";
 
 // ─────────────────────────────────────────────────────────────────────
 // MIGRATION SCAFFOLDING — this file is temporary.
@@ -78,6 +78,10 @@ function Root() {
 export default function LegacyRoot() {
   return (
     <LanguageProvider>
+      {/* Parks the App Router instance where navigate()/replace() can reach
+          it from plain event handlers. Must sit above any view that
+          navigates. Renders nothing. */}
+      <RouterBridge />
       <Root />
     </LanguageProvider>
   );

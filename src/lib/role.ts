@@ -1,14 +1,18 @@
 // Role catalog for the frontend. Mirrors backend/lib/roles.js — keep
 // the two in sync (top-level roles + sub-role taxonomy + grant rules).
 //
-// The canonical role lives in the teachers row on the server (set by
+// The canonical role lives in the accounts row on the server (set by
 // the env allowlist on login). The localStorage value here is a *dev
 // preview override* — lets the operator preview another role's
 // sidebar/views without re-auth.
+//
+// The Role / SubRole unions live in shared/types/domain.ts so a typo like
+// "superadmin" fails to compile rather than silently failing a check.
+import type { Actor, Role, SubRole } from "../shared/types/domain";
 
 const KEY = "murchid_role";
 
-export const ROLES = [
+export const ROLES: readonly Role[] = [
   "dev",
   "super_admin",
   "admin",
@@ -19,7 +23,7 @@ export const ROLES = [
 
 // Sub-role taxonomy per top-level role. Empty array = no sub-roles
 // (the dropdown is hidden).
-export const SUB_ROLES = {
+export const SUB_ROLES: Record<Role, readonly SubRole[]> = {
   dev:         [],
   super_admin: [],
   admin:       ["operations", "accountant", "support"],
@@ -28,7 +32,7 @@ export const SUB_ROLES = {
   teacher:     [],
 };
 
-export const ROLE_LABELS = {
+export const ROLE_LABELS: Record<Role, string> = {
   teacher:     "Teacher",
   admin:       "Admin",
   dev:         "Dev",
@@ -37,7 +41,7 @@ export const ROLE_LABELS = {
   owner:       "Owner",
 };
 
-export const SUB_ROLE_LABELS = {
+export const SUB_ROLE_LABELS: Record<SubRole, string> = {
   operations: "Operations",
   accountant: "Accountant",
   support:    "Support",
@@ -46,7 +50,7 @@ export const SUB_ROLE_LABELS = {
   staff:      "Staff",
 };
 
-export const ROLE_DESCRIPTIONS = {
+export const ROLE_DESCRIPTIONS: Record<Role, string> = {
   teacher:     "Your full personal teaching workspace — lessons, students, schedule, quizzes, homework.",
   admin:       "Manage teacher accounts and see system stats. No access to any teacher's content.",
   dev:         "Read-only data inspector, feature flags, and runtime info for debugging.",
@@ -58,26 +62,35 @@ export const ROLE_DESCRIPTIONS = {
 // Mirror of backend rolesGrantableBy(). The actor's role + sub_role
 // determines which top-level roles they can assign through the admin /
 // super-admin UI. See backend/lib/roles.js for the canonical rules.
-export function rolesGrantableBy(actor) {
+export function rolesGrantableBy(actor: Actor | null | undefined): Role[] {
   if (!actor) return [];
   if (actor.role === "dev" || actor.role === "super_admin") return [...ROLES];
   if (actor.role === "admin" && actor.sub_role === "operations") return ["teacher"];
   return [];
 }
 
-export const getRole = () => {
+// Narrows an untrusted string (localStorage, a URL param) to a real Role.
+export const isRole = (v: unknown): v is Role =>
+  typeof v === "string" && (ROLES as readonly string[]).includes(v);
+
+export const getRole = (): Role => {
   if (typeof localStorage === "undefined") return "teacher";
   const v = localStorage.getItem(KEY);
-  return ROLES.includes(v) ? v : "teacher";
+  return isRole(v) ? v : "teacher";
 };
 
-const listeners = new Set();
-export const setRole = (r) => {
-  if (!ROLES.includes(r)) return;
+type RoleListener = (role: Role) => void;
+const listeners = new Set<RoleListener>();
+
+export const setRole = (r: Role): void => {
+  if (!isRole(r)) return;
   localStorage.setItem(KEY, r);
   listeners.forEach((fn) => fn(r));
 };
-export const onRoleChange = (fn) => {
+
+export const onRoleChange = (fn: RoleListener): (() => void) => {
   listeners.add(fn);
-  return () => listeners.delete(fn);
+  return () => {
+    listeners.delete(fn);
+  };
 };

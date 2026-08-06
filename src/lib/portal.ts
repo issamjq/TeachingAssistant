@@ -1,3 +1,5 @@
+import type { Role } from "../shared/types/domain";
+
 // Portal routing — privileged-role sign-in pages live at distinct
 // pathnames so they can be shared as a link without exposing them in
 // the marketing nav.
@@ -17,17 +19,31 @@
 //   /owner       → owner (+ dev)
 //   /            → landing (teacher sign-up funnel)
 //
-// Vercel's SPA fallback (vercel.json) rewrites all paths to /index.html
-// while preserving the browser's pathname, so window.location.pathname
-// is the source of truth. Vite's dev server does the same out of the
-// box for unknown paths.
+// The App Router resolves these pathnames natively — the old Vercel SPA
+// fallback rewrite is gone. window.location.pathname stays the source of
+// truth here because this runs outside React (see getPortalFromPath).
 //
 // After a successful portal sign-in, the URL is replaced with /dashboard
 // (clean pathname studio route) so refreshes don't re-trigger the portal
 // page. App.jsx's role-based routing bounces to the right console for
 // each role's default section (super_admin → /superadmin-dashboard, etc.).
 
-export const PORTALS = {
+export interface Portal {
+  id: PortalId;
+  /** Pathnames that resolve to this portal, with and without a trailing slash. */
+  paths: string[];
+  allowedRoles: Role[];
+  /** When a dev enters this portal, preview as this role (UI only). */
+  previewRoleForDev?: Role;
+  titleKey: string;
+  titleEmKey: string;
+  eyebrowKey: string;
+  leadKey: string;
+}
+
+export type PortalId = "dev" | "superadmin" | "admin" | "owner" | "moe";
+
+export const PORTALS: Record<PortalId, Portal> = {
   dev: {
     id: "dev",
     paths: ["/dev", "/dev/"],
@@ -80,7 +96,7 @@ export const PORTALS = {
   },
 };
 
-export function getPortalFromPath() {
+export function getPortalFromPath(): Portal | null {
   if (typeof window === "undefined") return null;
   const p = window.location.pathname;
   for (const portal of Object.values(PORTALS)) {
@@ -93,7 +109,7 @@ export function getPortalFromPath() {
 // studio dashboard. App.jsx's SECTIONS_BY_ROLE bounce handles routing
 // to the right console for whatever role just signed in. A refresh on
 // /dashboard re-enters the studio, not the portal.
-export function exitPortalToStudio() {
+export function exitPortalToStudio(): void {
   if (typeof window === "undefined") return;
   window.history.replaceState(null, "", "/dashboard");
   window.dispatchEvent(new Event("popstate"));
