@@ -1,13 +1,37 @@
 # Murchid — Teacher Studio
 
-AI lesson director for teachers (KG–G12). **Standalone React app.** Two surfaces, one bundle:
+AI lesson director for teachers (KG–G12). **Next.js (App Router) frontend + Express API.** Two surfaces:
 
-- **Landing page** — marketing site, the default view at `/`. Lives in `src/views/Landing.jsx` + `src/landing.css` (extracted from the original static HTML). Includes an interactive demo (`LandingDemo.jsx`).
-- **Studio** — the teacher workspace. Lives in `src/App.jsx` + `src/views/*`. Opened by clicking "Lesson Planner →" in the landing nav. The studio's header × button returns to landing.
-
-`main.jsx` holds a top-level `view: "landing" | "studio"` state and switches between the two. There's no client router yet.
+- **Landing page** — marketing site at `/`. Lives in `src/views/Landing.jsx` + `src/landing.css`.
+- **Studio** — the teacher workspace. Lives in `src/App.jsx` + `src/views/*`. Opened by "Lesson Planner →" in the landing nav; the studio's × button returns to landing.
 
 The user (Issa) calls the project "murchid" — that's the **product** name, not the assistant.
+
+## ⚠️ Mid-migration — read this first
+
+The frontend is migrating **Vite → Next.js + TypeScript + Tailwind + CSS Modules**. Read [docs/11-nextjs-migration.md](docs/11-nextjs-migration.md) before touching frontend code.
+
+**Phase 1 is complete.** Next.js owns the build. The whole pre-migration SPA currently renders inside a single catch-all route:
+
+```
+app/[[...slug]]/page.tsx → LegacyAppMount (ssr: false) → src/legacy/LegacyRoot.jsx → src/App.jsx + src/views/*
+```
+
+What this means in practice:
+
+- **`src/views/*` and `src/App.jsx` are legacy.** They still ship, but they are being dismantled route by route. Don't build new features there.
+- **New work goes in `src/features/<feature>/`** with a matching route segment under `app/`. Feature modules own their components, `api.ts`, and `types.ts`.
+- **Peeling a route is additive** — create the real segment (e.g. `app/(studio)/quizzes/page.tsx`) and it automatically stops reaching the catch-all. Nothing needs removing.
+- `src/legacy/` and `app/[[...slug]]/` are **scaffolding** and get deleted in Phase 4.
+- **Backend is out of scope.** `backend/` and Firebase auth are untouched by this migration.
+
+## Frontend conventions (post-migration)
+
+- **TypeScript for anything new.** `strict` is off while `.jsx` remains; it flips on in Phase 5. A file becomes `.tsx` when it's peeled, not speculatively.
+- **Styling, three non-overlapping tiers:** design tokens + reset in `app/globals.css`; layout/spacing/colour via Tailwind utilities; keyframes and complex selectors in a co-located `Component.module.css`. No new global CSS.
+- **Client env vars go through `src/config/env.ts`** — never read `process.env` in a component. `import.meta.env` no longer exists (that was Vite); `NEXT_PUBLIC_*` values are public and inlined into the browser bundle.
+- **`app/**` files stay thin** — resolve params, set metadata, render one feature component. No business logic.
+- **Keep `"use client"` at the feature-component boundary**, not in layouts, so layouts stay server components.
 
 ## Where to find things
 
@@ -15,37 +39,56 @@ Full documentation lives in [`docs/`](docs/README.md). Read it before making non
 
 - [01 — Overview](docs/01-overview.md) — what Murchid is, who it's for
 - [02 — Getting started](docs/02-getting-started.md) — env, scripts, prereqs
-- [03 — Tech stack](docs/03-tech-stack.md) — Vite 5, React 18, Tailwind v4, Neon Postgres
-- [04 — Architecture](docs/04-architecture.md) — file layout, boot flow, view router
+- [03 — Tech stack](docs/03-tech-stack.md) — React 18, Tailwind v4, Neon Postgres *(pre-migration: says Vite)*
+- [04 — Architecture](docs/04-architecture.md) — file layout, boot flow, view router *(pre-migration)*
 - [05 — Design system](docs/05-design-system.md) — brand tokens, fonts, patterns
 - [06 — Database](docs/06-database.md) — schema, status / subject values, seeds
-- [07 — API](docs/07-api.md) — Vite-middleware endpoints (dev-only)
+- [07 — API](docs/07-api.md) — endpoints
 - [08 — Views](docs/08-views.md) — what each screen does
 - [09 — Conventions](docs/09-conventions.md) — rules to follow when adding code
 - [10 — Roadmap](docs/10-roadmap.md) — what's stubbed, what's missing, what's next
+- [11 — Next.js migration](docs/11-nextjs-migration.md) — **current**: plan, phases, architecture
+
+⚠️ **Docs 01–10 drifted badly** (roadmap still claims there's no auth and no production deploy — both long since shipped) and 03/04 describe the Vite build. Trust the code and doc 11 over them until they're rewritten in Phase 5.
 
 ## Hard rules when working in this repo
 
-1. **Visual quality matters.** The user compares against polished editorial design references. Match the Murchid aesthetic precisely: cream paper bg, Fraunces serif titles with red italic accents, JetBrains Mono eyebrows in uppercase tracking, Inter Tight body. See [Design system](docs/05-design-system.md).
+1. **Visual quality matters.** The user compares against polished editorial design references. Match the Murchid aesthetic precisely: cream paper bg, Fraunces serif titles with red italic accents, mono-styled uppercase tracked eyebrows, Inter Tight body. See [Design system](docs/05-design-system.md).
 2. **Don't override `bg-*` / `text-*` on `<Button>` via `className`** — class collisions cause invisible buttons. Add a variant in `src/components/ui/button.jsx` instead.
-3. **`index.html` is the Vite shell only** (`<div id="root">` + Google Fonts: Fraunces, Inter Tight, JetBrains Mono, Amiri). All marketing markup lives in `src/views/Landing.jsx`, all marketing CSS in `src/landing.css`. Don't put marketing content in `index.html`.
+3. **`app/layout.tsx` is the shell** (fonts + `globals.css`). It's a server component — keep it one. All marketing markup lives in `src/views/Landing.jsx`, all marketing CSS in `src/landing.css`. Don't put marketing content in the layout.
 4. **Don't commit `.env`.** It's gitignored. Connection strings stay local.
-5. **No router, no state library** for now. Top-level Landing/Studio toggle is in `main.jsx`. Studio sub-view state is in `App.jsx`. Both plain `useState`. See [Architecture](docs/04-architecture.md).
-6. **The landing page CSS is global and class-scoped** (`.hero`, `.lesson-card`, `.dash-mock`, etc.) — it coexists with the studio's Tailwind. Don't reuse those class names in studio components.
+5. **Routing is the App Router.** Peeled routes use `next/navigation`. Unpeeled legacy views still use `src/lib/route.js` (`pushState`-based) — that shim goes away in Phase 4. Don't add a router library.
+6. **The landing page CSS is global and class-scoped** (`.hero`, `.lesson-card`, `.dash-mock`, etc.) — it coexists with the studio's Tailwind. Don't reuse those class names in studio components. *(Converting it to CSS Modules in Phase 3 removes this hazard.)*
 
 ## Quickstart
 
 ```bash
 npm install
-npm run db:init   # one-time
-npm run dev       # http://localhost:5173
+cp .env.example .env   # fill in DATABASE_URL + NEXT_PUBLIC_FIREBASE_*
+npm run db:init        # one-time
+npm run dev            # web http://localhost:3000 · api :3001
 ```
+
+`npm run dev` starts Next **and** the Express API concurrently. Next rewrites `/api/*` to the API port, so the browser stays same-origin. (Vite used to mount Express as middleware; Next has no equivalent.)
+
+Checks: `npm run typecheck` · `npm run build` · `npm run test:e2e`
 
 ## Deploy policy — push without asking
 
 When a unit of work is finished, ship it. Do **not** ask for confirmation first. The deploy story is:
 
-- **`git push origin main`** → Vercel auto-deploys the frontend (static `dist/`) **and** Render auto-deploys the backend (`npm run start:backend`). One push covers both.
+- **`git push origin main`** → Vercel auto-deploys the frontend **and** Render auto-deploys the backend (`npm run start:backend`). One push covers both.
+- ⚠️ **Before the first deploy of the Next branch**, rename the Vercel env vars `VITE_FIREBASE_*` → `NEXT_PUBLIC_FIREBASE_*`. Without this, sign-in fails with `auth/invalid-api-key`.
 - **`npm run db:init`** → applies schema / seed / `CHECK` constraints to Neon Postgres. Run this whenever `backend/db/init.js` or `src/lib/enums.js` changes. The script is idempotent — re-running it against an already-seeded DB is safe and will not duplicate rows.
 
 Carve-out: actions that **delete or rewrite live data** on Neon (`TRUNCATE`, dropping columns, destructive migrations) still need explicit confirmation. Idempotent re-init does not.
+
+<!-- BEGIN:nextjs-agent-rules -->
+
+# This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->

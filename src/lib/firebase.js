@@ -1,23 +1,13 @@
 // Firebase Web SDK — initialised once at module import.
 //
-// All VITE_FIREBASE_* values come from .env (and Vercel's project env
-// vars in production). Analytics is initialised lazily on the client
-// only — it crashes during SSR / first server render and we don't need
-// it server-side anyway.
+// Configuration comes from src/config/env.ts (NEXT_PUBLIC_FIREBASE_* env
+// vars). Analytics is initialised lazily on the client only — it crashes
+// during SSR / first server render and we don't need it server-side anyway.
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider, OAuthProvider } from "firebase/auth";
+import { firebaseConfig } from "../config/env";
 
-const firebaseConfig = {
-  apiKey:            import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain:        import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId:         import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket:     import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId:             import.meta.env.VITE_FIREBASE_APP_ID,
-  measurementId:     import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
-};
-
-// Vite hot-reloads the module on save; guard against double-init.
+// Next fast-refreshes the module on save; guard against double-init.
 export const firebaseApp = getApps().length ? getApp() : initializeApp(firebaseConfig);
 export const auth = getAuth(firebaseApp);
 export const googleProvider = new GoogleAuthProvider();

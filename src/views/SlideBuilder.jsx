@@ -21,7 +21,7 @@ import {
 import { api, DatePicker } from "./_shared";
 import { useT } from "../lib/i18n";
 
-const API_BASE = (import.meta.env.VITE_API_URL || "").replace(/\/$/, "");
+import { API_BASE } from "../config/env";
 const resolveSrc = (u) =>
   !u ? "" : /^https?:\/\//.test(u) ? u : API_BASE + u;
 

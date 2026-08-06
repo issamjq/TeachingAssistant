@@ -1,5 +1,12 @@
 @import "tailwindcss";
 
+/* Tailwind v4 infers content sources from the stylesheet's location. This
+   file lives in app/ but most components are still under src/, so the
+   scan roots are declared explicitly — without these, utilities used only
+   in src/ would be tree-shaken out of the build. */
+@source "../app";
+@source "../src";
+
 @theme {
   --color-paper: #f4ede0;
   --color-paper-warm: #ede4d3;

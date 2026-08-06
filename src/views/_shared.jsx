@@ -718,7 +718,7 @@ export function ChipMultiSelect({ value = [], onChange, options, allowCustom = f
 // Vite's mounted Express app. In production, set VITE_API_URL on Vercel to
 // the Render backend URL (e.g. https://murchid-api.onrender.com) and every
 // /api/* call will be redirected there.
-const API_BASE = (import.meta.env.VITE_API_URL || "").replace(/\/$/, "");
+import { API_BASE } from "../config/env";
 
 // Pulls the signed-in teacher's classes (grade_levels + sections) so
 // every new-entry form (Quizzes / Homework / Presentations / Schedule)

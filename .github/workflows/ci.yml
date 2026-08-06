@@ -1,0 +1,47 @@
+name: CI
+
+# The gates that keep the Next.js migration honest. Before this workflow the
+# repo had no automated checks of any kind — see docs/11-nextjs-migration.md §6.
+
+on:
+  push:
+    branches: [main, dev, "feat/**"]
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # Gate 1 — the typed surface must not regress while .jsx files are
+      # still being ported.
+      - name: Type check
+        run: npm run typecheck
+
+      # Gate 2 — the app must compile.
+      - name: Build
+        run: npm run build
+
+      # Gate 3 — every route must still resolve and mount. This is what
+      # catches a mis-nested segment when a route is peeled in Phase 3.
+      # No secrets needed: the smoke tests assert on the shell, not on data.
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Smoke tests
+        run: npm run test:e2e
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7

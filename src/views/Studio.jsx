@@ -23,7 +23,7 @@ import {
 
 // Same base URL the rest of the app uses (Vercel rewrites /api → Render in
 // prod; same-origin in dev via the Vite middleware).
-const API_BASE = (import.meta.env.VITE_API_URL || "").replace(/\/$/, "");
+import { API_BASE } from "../config/env";
 
 // Each kind has its headline split into three parts so the noun-phrase can
 // be rendered as an inline-clickable element inside the Murchid sentence:

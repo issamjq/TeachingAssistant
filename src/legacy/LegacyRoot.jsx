@@ -1,13 +1,28 @@
+"use client";
+
 import React, { useEffect, useState } from "react";
-import { createRoot } from "react-dom/client";
-import "./index.css";
-import StudioApp from "./App.jsx";
-import Landing from "./views/Landing.jsx";
-import PortalSignIn from "./views/PortalSignIn.jsx";
-import { useRoute, navigate, clearRoute } from "./lib/route.js";
-import { LanguageProvider } from "./lib/i18n.jsx";
-import AccessibilityWidget from "./views/AccessibilityWidget.jsx";
-import { getPortalFromPath } from "./lib/portal.js";
+import StudioApp from "../App.jsx";
+import Landing from "../views/Landing.jsx";
+import PortalSignIn from "../views/PortalSignIn.jsx";
+import { useRoute, navigate, clearRoute } from "../lib/route.js";
+import { LanguageProvider } from "../lib/i18n.jsx";
+import AccessibilityWidget from "../views/AccessibilityWidget.jsx";
+import { getPortalFromPath } from "../lib/portal.js";
+
+// ─────────────────────────────────────────────────────────────────────
+// MIGRATION SCAFFOLDING — this file is temporary.
+//
+// This is the body of the old src/main.jsx, minus the createRoot() call
+// (Next owns mounting now). It is rendered by app/[[...slug]]/page.tsx,
+// which catches every pathname the App Router has no real segment for.
+//
+// As routes are peeled off into app/(marketing|portal|studio)/* during
+// Phase 3, they stop reaching this component. When the last one is
+// peeled, this file and the catch-all are deleted together (Phase 4).
+//
+// Do NOT add features here. New work goes in src/features/*.
+// See docs/11-nextjs-migration.md §2.
+// ─────────────────────────────────────────────────────────────────────
 
 // Top-level surface decided entirely by URL pathname (no `#` anywhere):
 //   "/"                                → landing page
@@ -15,14 +30,6 @@ import { getPortalFromPath } from "./lib/portal.js";
 //     | "/owner" | "/moe"              → privileged-role sign-in portal
 //   anything else (e.g. "/dashboard",
 //     "/planner", "/lesson-plans/…")   → studio
-//
-// Portals live at distinct pathnames so they can be shared as direct
-// links without exposing them in the marketing nav. Vercel's SPA
-// rewrite (vercel.json) serves /index.html for any path so deep
-// links + refreshes work in production.
-//
-// Old bookmarks pointing at "#/foo" are auto-rewritten to "/foo" by
-// the one-time migration in src/lib/route.js on module import.
 function Root() {
   // useRoute() returns null for "/" AND for portal paths (route.js
   // filters them out), so this state captures: "are we in the
@@ -68,10 +75,10 @@ function Root() {
   );
 }
 
-createRoot(document.getElementById("root")).render(
-  <React.StrictMode>
+export default function LegacyRoot() {
+  return (
     <LanguageProvider>
       <Root />
     </LanguageProvider>
-  </React.StrictMode>
-);
+  );
+}

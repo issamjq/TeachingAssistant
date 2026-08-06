@@ -7,3 +7,20 @@ dist
 .vercel/
 .DS_Store
 *.log
+.idea/
+.vscode/
+
+# Next.js
+.next/
+out/
+next-env.d.ts
+*.tsbuildinfo
+
+# Playwright
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+
+# Business/project documents — not part of the codebase
+new-docs/
