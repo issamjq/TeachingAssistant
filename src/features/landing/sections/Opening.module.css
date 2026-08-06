@@ -27,7 +27,7 @@
   gap: 1rem;
   padding-block: 1rem;
   border-bottom: var(--rule);
-  color: var(--ink-2, oklch(0.36 0.03 40));
+  color: var(--color-ink-soft);
 }
 
 .mastheadCentre {
@@ -55,7 +55,7 @@
   align-items: center;
   gap: 1rem;
   margin-block-end: clamp(1.5rem, 4vh, 3rem);
-  color: var(--ink-3, oklch(0.52 0.03 50));
+  color: var(--color-muted);
 }
 .standfirst::after {
   content: "";
@@ -94,7 +94,7 @@
   font-size: clamp(2rem, 5vw, 4rem);
   font-weight: 400;
   line-height: 1;
-  color: var(--ink, oklch(0.18 0.03 40));
+  color: var(--color-ink);
 }
 
 .gloss {
@@ -124,7 +124,7 @@
    A rule-bounded link, not a pill. The underline grows on hover — a
    print-native affordance rather than a shadow lift. */
 .cta {
-  --cta-fg: var(--ink, oklch(0.18 0.03 40));
+  --cta-fg: var(--color-ink);
   position: relative;
   display: inline-flex;
   align-items: center;
@@ -138,7 +138,7 @@
   font-weight: 400;
   color: var(--cta-fg);
   letter-spacing: -0.01em;
-  transition: color 220ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
+  transition: color 220ms var(--ease-out-expo);
 }
 .cta::after {
   content: "";
@@ -150,21 +150,21 @@
   background: currentColor;
   transform: scaleX(1);
   transform-origin: inline-start;
-  transition: transform 420ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
+  transition: transform 420ms var(--ease-out-expo);
 }
 .cta:hover {
-  color: var(--accent, oklch(0.56 0.13 36));
+  color: var(--color-accent);
 }
 .cta:hover::after {
   transform: scaleX(1.06);
 }
 .cta:focus-visible {
-  outline: 2px solid var(--accent, oklch(0.56 0.13 36));
+  outline: 2px solid var(--color-accent);
   outline-offset: 6px;
   border-radius: 2px;
 }
 .ctaArrow {
-  transition: transform 420ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
+  transition: transform 420ms var(--ease-out-expo);
 }
 .cta:hover .ctaArrow {
   transform: translateX(0.3rem);
@@ -188,7 +188,7 @@
   height: 1px;
   background: currentColor;
   transform-origin: inline-start;
-  animation: cueSlide 2.6s var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1)) infinite;
+  animation: cueSlide 2.6s var(--ease-out-expo) infinite;
 }
 @keyframes cueSlide {
   0%, 100% { transform: scaleX(0.4); opacity: 0.4; }

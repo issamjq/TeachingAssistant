@@ -24,16 +24,23 @@
    rhythm. Every size is clamped so the composition holds from 360px to
    ultrawide without breakpoint-specific overrides. */
 .root {
+  /* The page paints its own ground. Without this the landing inherits the
+     document background and the palette never shows — which is exactly what
+     happened on the first build. */
+  background: var(--color-paper);
+  color: var(--color-ink);
+  min-height: 100svh;
+
   --measure: 68ch; /* readable line length — ~65-75 chars */
   --gutter: clamp(1.25rem, 4vw, 5rem);
-  --rule: 1px solid oklch(0.18 0.03 40 / 0.14);
-  --rule-strong: 1px solid oklch(0.18 0.03 40 / 0.28);
+  --rule: 1px solid color-mix(in oklab, var(--color-ink) 14%, transparent);
+  --rule-strong: 1px solid color-mix(in oklab, var(--color-ink) 26%, transparent);
 
   /* Display sizes. The top of the scale is deliberately enormous —
      "exaggerated minimalism" only works if the display type is brave
      enough to carry the negative space around it. */
   --t-display: clamp(3.5rem, 13vw, 13rem);
-  --t-chapter: clamp(2.5rem, 7vw, 6rem);
+  --t-chapter: clamp(1.75rem, 3.4vw, 3.25rem);
   --t-section: clamp(1.75rem, 4vw, 3.25rem);
   --t-lede: clamp(1.0625rem, 1.6vw, 1.5rem);
   --t-body: clamp(0.9375rem, 1.05vw, 1.0625rem);
@@ -109,7 +116,7 @@
   font-family: var(--font-serif);
   font-style: italic;
   font-weight: 300;
-  font-size: var(--t-chapter);
+  font-size: clamp(1.5rem, 2.6vw, 2.5rem);
   line-height: 0.8;
   opacity: 0.32;
   font-variant-numeric: oldstyle-nums;
@@ -140,7 +147,7 @@
 .em {
   font-style: italic;
   font-weight: 300;
-  color: var(--accent, oklch(0.56 0.13 36));
+  color: var(--color-accent);
 }
 
 /* ── Body copy ─────────────────────────────────────────────────────*/
@@ -170,7 +177,7 @@
   line-height: 0.82;
   padding-inline-end: 0.08em;
   padding-block-start: 0.06em;
-  color: var(--accent, oklch(0.56 0.13 36));
+  color: var(--color-accent);
 }
 @supports (initial-letter: 3) {
   .dropCap::first-letter {
@@ -242,7 +249,7 @@
 }
 
 .rise {
-  animation: rise 0.9s var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1)) both;
+  animation: rise 0.9s var(--ease-out-expo) both;
   animation-delay: calc(var(--i, 0) * 90ms);
 }
 
