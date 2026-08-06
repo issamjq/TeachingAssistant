@@ -44,6 +44,17 @@ jobs:
       - name: Smoke tests
         run: npm run test:e2e
 
+      # Visual regression (tests/e2e/visual.spec.ts) is deliberately NOT run
+      # here. Its baselines are rendered on macOS; Playwright namespaces
+      # snapshots per-platform, so a Linux runner would look for -linux.png
+      # files that do not exist and fail every job.
+      #
+      # Committing a second Linux baseline set is possible but means every
+      # intentional visual change has to be re-recorded twice, on two
+      # machines, or the two sets drift and people stop trusting either.
+      # Until this runs in a container matching the dev platform, treat it as
+      # a local pre-merge gate: `npm run test:visual`.
+
       - uses: actions/upload-artifact@v4
         if: failure()
         with:

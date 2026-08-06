@@ -11,12 +11,14 @@
     "start:web": "next start",
     "preview": "next build && next start",
     "typecheck": "tsc --noEmit",
-    "test:e2e": "playwright test",
+    "test:e2e": "playwright test routes navigation",
     "test:e2e:ui": "playwright test --ui",
     "db:init": "node backend/db/init.js",
     "start": "node backend/index.js",
     "start:backend": "node backend/index.js",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "test:visual": "playwright test visual --project=desktop",
+    "test:visual:update": "playwright test visual --project=desktop --update-snapshots"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.94.0",
