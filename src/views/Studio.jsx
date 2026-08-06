@@ -388,7 +388,9 @@ function detectChipPromptConflicts(promptText, params, kind) {
   return out;
 }
 
-export default function Studio({ initialKind } = {}) {
+// App.jsx also passed an `onJump` prop here; it was never destructured, so
+// it has always been a no-op. Not carried over by the route peel.
+export default function Studio({ initialKind = null }) {
   // initialKind comes from the URL (#/studio/<kind>) so the Teaching
   // surfaces can deep-link straight to "Make a quiz", "Make a
   // homework", etc. Falls back to lesson_plan when the route is bare
