@@ -1,3 +1,5 @@
+"use client";
+
 import React, { useEffect, useRef, useState } from "react";
 import { Download, FileText, FileType2, Loader2 } from "lucide-react";
 import { printDoc, exportDocx } from "../../lib/export";

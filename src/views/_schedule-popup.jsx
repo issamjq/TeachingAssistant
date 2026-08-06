@@ -1,3 +1,5 @@
+"use client";
+
 // SchedulePopup — full-bleed blurred backdrop with the Add / Edit a
 // schedule entry form inside a centered panel. Used by Planner (when
 // a teacher clicks "+ Schedule" or an existing entry on the calendar)

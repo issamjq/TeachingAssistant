@@ -1,3 +1,5 @@
+"use client";
+
 // First-run walkthrough that appears the first time a teacher lands on
 // the Planner. A spotlight coachmark: each step dims the screen, cuts a
 // hole around a real sidebar element (the Studio launcher, a nav tab, the

@@ -1,3 +1,5 @@
+"use client";
+
 import React, { useEffect, useMemo, useState } from "react";
 import { api } from "./_shared";
 import SlideBuilder, { deckFromPresentation } from "./SlideBuilder";

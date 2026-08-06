@@ -1,3 +1,5 @@
+"use client";
+
 // TeachingRail — Outlook-style mini-calendar + upcoming-days list that
 // rides on the right edge of the Teaching surfaces (Lesson Plans,
 // Quizzes, Homework, Presentations, Activities). Collapses to a thin

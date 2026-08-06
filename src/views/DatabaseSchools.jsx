@@ -1,3 +1,5 @@
+"use client";
+
 import React, { useEffect, useMemo, useState } from "react";
 import { MapPin, Search, Star, Trash2, Plus, Check, Building2, Pencil, GraduationCap, X } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";

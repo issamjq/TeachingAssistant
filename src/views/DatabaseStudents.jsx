@@ -1,3 +1,5 @@
+"use client";
+
 import React, { useState, useMemo, useEffect } from "react";
 import { Search, Phone, Plus } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";

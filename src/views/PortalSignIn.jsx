@@ -1,3 +1,5 @@
+"use client";
+
 // Portal sign-in — shared component for /admin, /owner, /moe.
 //
 // Privileged-role accounts (admin/super_admin/owner/moe) sign in here

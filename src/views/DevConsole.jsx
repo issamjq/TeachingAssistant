@@ -1,3 +1,5 @@
+"use client";
+
 // Dev console — engineering inspector for the platform.
 //
 // Five sections, top to bottom:

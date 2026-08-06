@@ -1,3 +1,5 @@
+"use client";
+
 // Account drawer — opens when the super admin clicks a row in the
 // access table OR a row in any of the dashboard's "recent activity"
 // lists. Shows the canonical account row plus content counts,

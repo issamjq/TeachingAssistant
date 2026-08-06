@@ -1,3 +1,5 @@
+"use client";
+
 // SlideBuilder — a "smart deck" editor (Gamma/Pitch style) plus a
 // read-only presenter. Used in two places:
 //   • Studio  — pass `markdown` (the AI output) to author a fresh deck.

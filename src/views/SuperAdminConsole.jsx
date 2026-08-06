@@ -1,3 +1,5 @@
+"use client";
+
 // Super admin console — pyramid top. Creates / edits / removes accounts
 // across roles (admin, moe, owner, teacher) and assigns sub-roles where
 // applicable. Per-role business rules (what each role *does* in the app)

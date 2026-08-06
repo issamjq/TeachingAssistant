@@ -1,3 +1,5 @@
+"use client";
+
 // =====================================================================
 // Murchid — Hero Atelier (2026 editorial title sequence)
 //

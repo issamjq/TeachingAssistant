@@ -1,3 +1,5 @@
+"use client";
+
 // Shared building blocks for the Teaching surfaces (Templates, Drafts,
 // Quizzes, Homework, Presentations, Activities) so they all look and
 // behave the same:

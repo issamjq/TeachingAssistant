@@ -1,3 +1,5 @@
+"use client";
+
 import React, { useEffect, useState } from "react";
 import { Plus, Trash2, Scale } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";

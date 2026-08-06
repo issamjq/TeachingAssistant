@@ -1,3 +1,5 @@
+"use client";
+
 // Admin dashboard — operational view, sub-role aware.
 //
 // Three sub-roles, three flavors of the same page:

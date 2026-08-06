@@ -1,3 +1,5 @@
+"use client";
+
 // Client-side account cache.
 //
 // Mirrors the signed-in account in localStorage: which provider was used,

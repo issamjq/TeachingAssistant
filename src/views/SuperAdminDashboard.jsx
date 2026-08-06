@@ -1,3 +1,5 @@
+"use client";
+
 // Super admin dashboard — everything the head of the project needs at
 // a glance:
 //

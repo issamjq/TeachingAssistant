@@ -1,3 +1,5 @@
+"use client";
+
 // Planner — the teacher's monthly calendar. Aggregates every teaching
 // surface (lesson plans, schedule, quizzes, homework, presentations,
 // activities) onto one grid. Designed as the "where am I this month"

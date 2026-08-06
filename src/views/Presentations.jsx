@@ -1,3 +1,5 @@
+"use client";
+
 import React, { useEffect, useState } from "react";
 import { Play, Pencil, Trash2 } from "lucide-react";
 import { ConfirmDelete, api, timeAgo, fmtRowTimestamp } from "./_shared";

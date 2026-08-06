@@ -1,3 +1,5 @@
+"use client";
+
 // My students → Scores tab. Lets the teacher record a per-student
 // score on a specific quiz.
 //

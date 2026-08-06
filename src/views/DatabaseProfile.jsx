@@ -1,3 +1,5 @@
+"use client";
+
 import React, { useState, useEffect } from "react";
 import { Calendar, Hash, Pencil } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";

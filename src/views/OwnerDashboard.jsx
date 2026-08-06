@@ -1,3 +1,5 @@
+"use client";
+
 // Owner dashboard — business-focused, read-only view of the project.
 //
 // The owner is the head from a business perspective. They watch

@@ -1,3 +1,5 @@
+"use client";
+
 // =====================================================================
 // Murchid — Hero Journey (lifted from v1.1, commit 2fdf076)
 //

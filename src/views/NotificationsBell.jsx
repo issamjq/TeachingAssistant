@@ -1,3 +1,5 @@
+"use client";
+
 import React, { useEffect, useRef, useState } from "react";
 import { Bell, X } from "lucide-react";
 import { api, timeAgo } from "./_shared";

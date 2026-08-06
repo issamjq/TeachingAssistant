@@ -1,3 +1,5 @@
+"use client";
+
 // The popover that opens when the teacher clicks their name/avatar at
 // the bottom of the sidebar. Modeled after Claude's account menu —
 // Settings / Language / Get help / Upgrade plan / Log out. Language

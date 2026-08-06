@@ -6,7 +6,8 @@ import { getAvatar } from "../lib/avatars";
 // user's initial on a clay circle. `size` is the diameter in px. Used in the
 // landing nav dropdown, the studio sidebar, and the avatar picker — colours
 // are inline so it works in both the landing and studio stylesheets.
-export default function Avatar({ avatarId, initial = "U", size = 38, className = "", style }) {
+// `style = undefined` marks the prop optional for TypeScript callers.
+export default function Avatar({ avatarId, initial = "U", size = 38, className = "", style = undefined }) {
   const av = getAvatar(avatarId);
   const base = {
     width: size,

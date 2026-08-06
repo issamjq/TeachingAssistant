@@ -1,3 +1,5 @@
+"use client";
+
 // MoE (Ministry of Education) dashboard — oversight + curriculum view.
 //
 // Renders four KPI cards + three charts + a schools directory. The

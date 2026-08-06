@@ -1,3 +1,5 @@
+"use client";
+
 // First-run profile form. Sits between AuthPage (Google/Outlook) and
 // OnboardingPage (plan picker) in the landing funnel.
 //

@@ -1,3 +1,5 @@
+"use client";
+
 // Thin wrapper around Firebase Auth so the rest of the app touches one
 // import surface. Keeps signInWithPopup, signOut, getIdToken, and the
 // onAuthStateChanged subscription in one place.

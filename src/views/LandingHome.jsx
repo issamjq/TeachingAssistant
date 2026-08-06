@@ -1,3 +1,5 @@
+"use client";
+
 // =====================================================================
 // Murchid — Landing home (2026 cinematic rebuild)
 //

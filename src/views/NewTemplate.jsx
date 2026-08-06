@@ -1,3 +1,5 @@
+"use client";
+
 import React, { useState } from "react";
 import { X, Sparkles } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";

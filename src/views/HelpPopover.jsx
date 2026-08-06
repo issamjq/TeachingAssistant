@@ -1,3 +1,5 @@
+"use client";
+
 // Claude-style help popover. Opens from the account menu.
 // Three rows: send us a message (mailto), search-for-help input, FAQ list.
 // No AI answers — articles are static and live in HELP_ARTICLES below.
