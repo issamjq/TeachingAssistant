@@ -5,7 +5,9 @@
 // the brand orange; override to a darker clay on light surfaces for contrast).
 import React from "react";
 
-export default function MurchidLogo({ className = "h-10 w-auto", style, title = "Murchid" }) {
+// Explicit `style = undefined` marks the prop optional for TypeScript
+// callers; passing undefined to the SVG is what already happened.
+export default function MurchidLogo({ className = "h-10 w-auto", style = undefined, title = "Murchid" }) {
   return (
       <svg viewBox="0 0 768.378 369.823" className={className} style={style} role="img" aria-label={title} xmlns="http://www.w3.org/2000/svg">
         <g id="Layer_1-2" data-name="Layer 1">

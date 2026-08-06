@@ -1,0 +1,79 @@
+/* Segmented language control with a sliding ink indicator.
+ *
+ * Moved out of src/landing.css during the Phase 3 portal peel. It had to
+ * move: the rules were global but only *loaded* when Landing.jsx rendered
+ * (which imports landing.css), so the toggle rendered as bare unstyled text
+ * on every surface outside the landing — the portals, once peeled, included.
+ *
+ * Now self-contained. The old rules read landing-scoped vars like --cm-ink
+ * and --easeOutE that only exist under `.murchid-landing`; those are
+ * resolved here against the global design tokens in app/globals.css, or
+ * inlined where no global equivalent exists. Colours are deliberately
+ * literal so the control reads on both the warm drench and cream sections.
+ */
+
+.toggle {
+  position: relative;
+  display: inline-flex;
+  align-items: stretch;
+  height: 32px;
+  padding: 3px;
+  border-radius: 999px;
+  background: oklch(0.97 0.014 85 / 0.92);
+  border: 1px solid oklch(0.18 0.05 30 / 0.1);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.6),
+    0 2px 6px oklch(0.18 0.05 30 / 0.12);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+.indicator {
+  position: absolute;
+  z-index: 0;
+  top: 3px;
+  bottom: 3px;
+  left: 3px;
+  width: calc(50% - 3px);
+  border-radius: 999px;
+  background: oklch(0.18 0.03 40);
+  box-shadow: 0 2px 7px oklch(0.18 0.05 30 / 0.3);
+  /* --ease-out-expo in globals.css is the same curve the landing's
+     --easeOutE declared: cubic-bezier(0.16, 1, 0.3, 1). */
+  transition: left 0.42s var(--ease-out-expo);
+}
+
+.toggle[data-active="ar"] .indicator {
+  left: 50%;
+}
+
+.option {
+  position: relative;
+  z-index: 1;
+  min-width: 34px;
+  padding: 0 11px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  line-height: 1;
+  color: oklch(0.52 0.03 50);
+  transition: color 0.32s var(--ease-out-expo);
+}
+
+/* The Arabic option renders in an Arabic face at a larger optical size. */
+.option:last-child {
+  font-family: "Amiri", "Fraunces", serif;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.option.active {
+  color: oklch(0.96 0.025 80);
+}

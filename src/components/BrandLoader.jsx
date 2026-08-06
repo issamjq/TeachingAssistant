@@ -18,7 +18,10 @@ import React from "react";
 import MurchidLogo from "./MurchidLogo";
 import { useT } from "../lib/i18n";
 
-export default function BrandLoader({ fullscreen = true, compact = false, label }) {
+// `label = ""` rather than bare `label`: the empty default makes the prop
+// optional to TypeScript callers, and `label || t(...)` below already
+// treats empty as absent, so behaviour is unchanged.
+export default function BrandLoader({ fullscreen = true, compact = false, label = "" }) {
   const t = useT();
   const text = label || t("loader.label");
 

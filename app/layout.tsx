@@ -47,7 +47,23 @@ export default function RootLayout({
         />
         <link href={GOOGLE_FONTS_HREF} rel="stylesheet" />
       </head>
-      <body>{children}</body>
+      {/* The #root wrapper reproduces the element index.html provided before
+          the migration. It is NOT vestigial — it's a live styling contract:
+
+            - globals.css targets `#root.a11y-zoom-on`, `.a11y-readable`,
+              `.a11y-spaced`, the colour-blind filters, etc. The
+              accessibility toolbar toggles those classes via
+              document.getElementById("root").
+            - The print/export stylesheet scopes `html, body, #root` when
+              generating PDFs.
+
+          Without it every accessibility control and the print path silently
+          no-op: the toolbar still renders (it portals to <body>) but nothing
+          it does has any effect. The toolbar deliberately sits OUTSIDE #root
+          so the visual filters never apply to the toolbar itself. */}
+      <body>
+        <div id="root">{children}</div>
+      </body>
     </html>
   );
 }

@@ -1,3 +1,9 @@
+"use client";
+
+// Renders into a portal, reads localStorage, and uses layout effects —
+// unambiguously a client component. The directive was unnecessary while
+// everything mounted below legacy/LegacyRoot (already "use client"); it is
+// required now that peeled server-component layouts import it directly.
 import React, { useEffect, useLayoutEffect, useRef, useState, useCallback } from "react";
 import { createPortal } from "react-dom";
 import {
@@ -89,8 +95,14 @@ export default function AccessibilityWidget() {
   // then read as a dark halo behind the button until the page is
   // refreshed. Reusing #a11y-root — and clearing any leftover children on
   // (re)mount — keeps exactly one launcher in the DOM.
-  const portalRoot = useState(() => {
-    if (typeof document === "undefined") return null;
+  // Created in an effect, not during render. createPortal cannot be
+  // server-rendered, so building the container during render made the server
+  // and client trees disagree — React reported a hydration mismatch and threw
+  // the whole subtree away, which is why the launcher vanished entirely on
+  // server-rendered routes. Deferring to an effect means SSR emits nothing
+  // here and the portal appears on mount.
+  const [portalRoot, setPortalRoot] = useState(null);
+  useEffect(() => {
     let node = document.getElementById("a11y-root");
     if (node) {
       node.replaceChildren(); // drop orphans from a previous (hot-reloaded) tree
@@ -99,8 +111,8 @@ export default function AccessibilityWidget() {
       node.id = "a11y-root";
       document.body.appendChild(node);
     }
-    return node;
-  })[0];
+    setPortalRoot(node);
+  }, []);
 
   // Persist + apply on every change.
   useEffect(() => {
@@ -469,6 +481,10 @@ export default function AccessibilityWidget() {
   );
 
   if (!portalRoot) return null;
+  // Nothing to render until the effect above has attached the container
+  // (i.e. during SSR and the first client render).
+  if (!portalRoot) return null;
+
   return createPortal(
     <>
       <ColorBlindDefs />

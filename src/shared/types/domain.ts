@@ -90,22 +90,36 @@ export interface AccountProfile {
   firstName?: string;
   lastName?: string;
   staffId?: string;
+  email?: string;
   bio?: string;
   gender?: "man" | "woman";
   avatarId?: string;
+  avatarUrl?: string;
   majors?: string[];
   languages?: string[];
   grades?: string[];
   sections?: string[];
 }
 
-/** The locally-cached account mirror (localStorage), not the server row. */
+/**
+ * The locally-cached account mirror (localStorage), not the server row.
+ *
+ * The server (`/api/auth/me`) is authoritative for `role`, `sub_role` and the
+ * subscription fields — they're mirrored here only so the sidebar chip and
+ * role-based nav can render synchronously on first paint without waiting for
+ * a fetch. Never make an authorisation decision from these: every API route
+ * re-checks server-side against the token.
+ */
 export interface Account {
   provider: AuthProvider;
   plan: PlanId;
   profile?: AccountProfile;
   email?: string;
   createdAt: number;
+  role?: Role;
+  sub_role?: SubRole | null;
+  subscriptionStatus?: SubscriptionStatus;
+  subscriptionEndsAt?: string | null;
 }
 
 /** Shape queued during onboarding before the account row exists. */

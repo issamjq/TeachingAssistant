@@ -9,6 +9,7 @@
 // account row exists, so closing the tab mid-flow doesn't lose typed answers.
 import { useEffect, useState } from "react";
 import { PLAN_IDS } from "./plans";
+import { readJSON } from "../shared/lib/storage";
 import type {
   Account,
   AccountProfile,
@@ -28,9 +29,8 @@ const PROVIDERS: AuthProvider[] = ["google", "outlook", "email", "microsoft"];
 // Returns null unless the stored blob is a COMPLETE account — an
 // half-finished onboarding record is treated as "not signed up yet".
 export const getAccount = (): Account | null => {
-  if (typeof localStorage === "undefined") return null;
   try {
-    const a = JSON.parse(localStorage.getItem(KEY) || "null") as Account | null;
+    const a = readJSON<Account | null>(KEY, null);
     if (
       !a ||
       !PROVIDERS.includes(a.provider) ||

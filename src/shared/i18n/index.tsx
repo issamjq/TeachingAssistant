@@ -20,6 +20,8 @@ import React, {
 import type { Lang } from "../types/domain";
 import { EN } from "./en";
 import { AR } from "./ar";
+import { readStorage, writeStorage } from "../lib/storage";
+import styles from "./LangToggle.module.css";
 
 const STORAGE_KEY = "murchid.lang";
 const RTL_LANGS = new Set<Lang>(["ar"]);
@@ -101,8 +103,7 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
   // Server-render as "en" and correct on mount. Reading localStorage in the
   // initialiser would produce a hydration mismatch for Arabic users.
   const [lang, setLangState] = useState<Lang>(() => {
-    if (typeof localStorage === "undefined") return "en";
-    const saved = localStorage.getItem(STORAGE_KEY);
+    const saved = readStorage(STORAGE_KEY);
     return saved === "ar" || saved === "en" ? saved : "en";
   });
 
@@ -112,11 +113,7 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
 
   const setLang = useCallback((next: Lang) => {
     const v: Lang = next === "ar" ? "ar" : "en";
-    try {
-      localStorage.setItem(STORAGE_KEY, v);
-    } catch {
-      /* ignore */
-    }
+    writeStorage(STORAGE_KEY, v);
     setLangState(v);
   }, []);
 
@@ -140,7 +137,11 @@ export function useT(): TFunction {
 }
 
 // ── Language toggle ───────────────────────────────────────────────
-// Compact EN | ع pill. Drop it anywhere (sidebar, landing nav).
+// Compact EN | ع pill. Drop it anywhere (sidebar, landing nav, portals).
+//
+// Styles are a co-located CSS Module rather than global classes in
+// landing.css. They used to live there, which meant the toggle silently
+// lost all styling on any surface that didn't also render the landing page.
 export function LangToggle({ className = "" }: { className?: string }) {
   const { lang, setLang } = useI18n();
   const opts: { v: Lang; label: string }[] = [
@@ -149,20 +150,20 @@ export function LangToggle({ className = "" }: { className?: string }) {
   ];
   return (
     <div
-      className={`lang-toggle ${className}`}
+      className={`${styles.toggle} ${className}`}
       data-active={lang}
       role="group"
       aria-label="Language"
       dir="ltr"
     >
       {/* Sliding indicator rides under the active option. */}
-      <span className="lang-toggle-ind" aria-hidden="true" />
+      <span className={styles.indicator} aria-hidden="true" />
       {opts.map((o) => (
         <button
           key={o.v}
           type="button"
           onClick={() => setLang(o.v)}
-          className={`lang-toggle-opt${lang === o.v ? " is-active" : ""}`}
+          className={`${styles.option}${lang === o.v ? ` ${styles.active}` : ""}`}
           aria-pressed={lang === o.v}
         >
           {o.label}

@@ -9,6 +9,7 @@
 // The Role / SubRole unions live in shared/types/domain.ts so a typo like
 // "superadmin" fails to compile rather than silently failing a check.
 import type { Actor, Role, SubRole } from "../shared/types/domain";
+import { readStorage, writeStorage } from "../shared/lib/storage";
 
 const KEY = "murchid_role";
 
@@ -74,8 +75,7 @@ export const isRole = (v: unknown): v is Role =>
   typeof v === "string" && (ROLES as readonly string[]).includes(v);
 
 export const getRole = (): Role => {
-  if (typeof localStorage === "undefined") return "teacher";
-  const v = localStorage.getItem(KEY);
+  const v = readStorage(KEY);
   return isRole(v) ? v : "teacher";
 };
 
@@ -84,7 +84,7 @@ const listeners = new Set<RoleListener>();
 
 export const setRole = (r: Role): void => {
   if (!isRole(r)) return;
-  localStorage.setItem(KEY, r);
+  writeStorage(KEY, r);
   listeners.forEach((fn) => fn(r));
 };
 
