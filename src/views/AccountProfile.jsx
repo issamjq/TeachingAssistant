@@ -1,11 +1,12 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Mail, Phone, Globe, Pencil, User, GraduationCap, Building2 } from "lucide-react";
+import { Mail, Phone, Globe, Pencil, User, GraduationCap, Building2, Palette } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { NATIONALITIES } from "../lib/enums";
 import { Field, Modal, inputClasses, selectClasses, api } from "./_shared";
+import AppearanceSettings from "../features/account/components/AppearanceSettings";
 import { navigate } from "../lib/route";
 import DatabaseProfile from "./DatabaseProfile";
 import DatabaseSchools from "./DatabaseSchools";
@@ -25,8 +26,9 @@ const initials = (first, last) =>
 // unrecognised falls back to the personal tab.
 export default function AccountProfile({ sub }) {
   const active =
-    sub === "teaching" ? "teaching" :
-    sub === "schools"  ? "schools"  :
+    sub === "teaching"   ? "teaching"   :
+    sub === "schools"    ? "schools"    :
+    sub === "appearance" ? "appearance" :
     "personal";
   return (
     <div>
@@ -44,6 +46,7 @@ export default function AccountProfile({ sub }) {
       {active === "personal" && <PersonalDetails />}
       {active === "teaching" && <DatabaseProfile />}
       {active === "schools"  && <DatabaseSchools />}
+      {active === "appearance" && <AppearanceSettings />}
     </div>
   );
 }
@@ -53,6 +56,7 @@ function Tabs({ active }) {
     { key: "personal", label: "Personal details", icon: User, route: ["account"] },
     { key: "teaching", label: "Teaching profile", icon: GraduationCap, route: ["account", "teaching"] },
     { key: "schools",  label: "My schools",       icon: Building2,     route: ["account", "schools"] },
+    { key: "appearance", label: "Appearance",     icon: Palette,       route: ["account", "appearance"] },
   ];
   return (
     <div className="flex flex-wrap items-center gap-1 border-b border-line mb-6">

@@ -1,0 +1,131 @@
+/* Account → Appearance.
+ *
+ * Every colour here comes from the palette tokens, so the settings screen
+ * re-themes along with the choice being made on it — picking a palette
+ * visibly changes the page you are picking it on, which is the clearest
+ * possible confirmation the setting took.
+ */
+
+.head {
+  margin-block-end: 1.25rem;
+}
+
+.title {
+  font-family: var(--font-serif);
+  font-size: 1.375rem;
+  font-weight: 500;
+  color: var(--color-ink);
+  margin: 0 0 0.35rem;
+}
+.title em {
+  font-style: italic;
+  font-weight: 300;
+  color: var(--color-accent);
+}
+
+.lede {
+  color: var(--color-muted);
+  font-size: 0.875rem;
+  line-height: 1.6;
+  max-width: 52ch;
+  margin: 0;
+}
+
+.grid {
+  display: grid;
+  gap: 0.875rem;
+  grid-template-columns: 1fr;
+}
+@media (min-width: 640px) {
+  .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+  text-align: start;
+  background: var(--color-paper-cool);
+  border: 1px solid var(--color-line);
+  border-radius: 10px;
+  cursor: pointer;
+  transition:
+    border-color 200ms var(--ease-out-quint),
+    box-shadow 200ms var(--ease-out-quint);
+}
+.card:hover {
+  border-color: var(--color-ink-soft);
+}
+/* Focus is on the card, not a child, so keyboard order matches what is
+   visibly selectable. */
+.card:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+.cardOn {
+  border-color: var(--color-accent);
+  box-shadow: inset 0 0 0 1px var(--color-accent);
+}
+
+/* Preview — paper, line, accent, in that order, at the proportions they
+   actually appear in the interface rather than as equal thirds. */
+.preview {
+  display: grid;
+  grid-template-columns: 5fr 1fr 2fr;
+  height: 76px;
+  border-bottom: 1px solid var(--color-line);
+}
+.swatch {
+  display: block;
+  height: 100%;
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.75rem 0.9rem 0.9rem;
+}
+
+.name {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  color: var(--color-ink);
+}
+
+.check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  flex-shrink: 0;
+}
+
+.origin {
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--color-muted);
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}

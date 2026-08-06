@@ -7,7 +7,11 @@ import { defineConfig, devices } from "@playwright/test";
 // Deliberately shallow: they assert routes resolve, the app mounts, and the
 // console stays clean. They are a regression net, not a feature test suite.
 
-const PORT = Number(process.env.E2E_PORT || 4321);
+// Default to 3000 — the same port `npm run dev` uses — so the suite reuses
+// the dev server that is already running instead of starting a second one.
+// Next refuses two dev servers in one directory, so the old behaviour (start
+// our own on 4321) meant tests and the browser could not both have the app.
+const PORT = Number(process.env.E2E_PORT || 3000);
 const BASE_URL = process.env.E2E_BASE_URL || `http://localhost:${PORT}`;
 
 export default defineConfig({
@@ -33,10 +37,15 @@ export default defineConfig({
   // tests must pass without DATABASE_URL or Firebase credentials, so they
   // assert on the shell rather than on data. Point E2E_BASE_URL at a full
   // environment to run them against real data.
+  // Reuses a dev server already listening on PORT; only starts one if
+  // nothing is there. Locally that means the app stays continuously
+  // available at http://localhost:3000 while tests run against it.
   webServer: {
     command: `npx next dev -p ${PORT}`,
     url: BASE_URL,
     reuseExistingServer: !process.env.CI,
-    timeout: 120_000,
+    timeout: 180_000,
+    stdout: "ignore",
+    stderr: "pipe",
   },
 });
