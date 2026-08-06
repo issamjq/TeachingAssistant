@@ -13,6 +13,11 @@ import { test, expect, type Page } from "@playwright/test";
 // already reached this branch that every other gate passed: a dead
 // backdrop-filter and a hero stuck at desktop scale on phones.
 //
+// `threshold` is set explicitly on every assertion. Playwright's default
+// per-pixel threshold is 0.2 in YIQ space — permissive enough that an entire
+// brand-palette swap passed unnoticed the first time it was tried. Anything
+// looser than ~0.05 makes these snapshots decorative rather than protective.
+//
 // Baselines live in tests/e2e/visual.spec.ts-snapshots/ and are committed.
 // If a change is intentional, re-record with:
 //     npm run test:visual:update
@@ -84,6 +89,7 @@ test.describe("landing page", () => {
         fullPage: true,
         // The Next dev-tools badge is dev-only and absent in production.
         mask: [page.locator("nextjs-portal")],
+        threshold: 0.04,
         maxDiffPixelRatio: 0.002,
         timeout: 30_000,
       });
@@ -104,7 +110,8 @@ test.describe("landing page", () => {
     await expect(page).toHaveScreenshot("landing-arabic.png", {
       fullPage: true,
       mask: [page.locator("nextjs-portal")],
-      maxDiffPixelRatio: 0.002,
+      threshold: 0.04,
+        maxDiffPixelRatio: 0.002,
       timeout: 30_000,
     });
   });
@@ -126,7 +133,8 @@ test("sign-in funnel renders unchanged", async ({ page }) => {
   await expect(page).toHaveScreenshot("funnel-signin.png", {
     fullPage: true,
     mask: [page.locator("nextjs-portal")],
-    maxDiffPixelRatio: 0.002,
+    threshold: 0.04,
+        maxDiffPixelRatio: 0.002,
     timeout: 30_000,
   });
 });
@@ -182,6 +190,7 @@ test.describe("scrolled chrome", () => {
       // element-screenshot version green and fails this one.
       await expect(page).toHaveScreenshot(`nav-${pos.name}.png`, {
         clip: { x: 0, y: 0, width: 1440, height: 90 },
+        threshold: 0.04,
         maxDiffPixelRatio: 0.002,
         timeout: 20_000,
       });
@@ -214,7 +223,8 @@ test("portal renders unchanged", async ({ page }) => {
   await expect(page).toHaveScreenshot("portal-dev.png", {
     fullPage: true,
     mask: [page.locator("nextjs-portal")],
-    maxDiffPixelRatio: 0.002,
+    threshold: 0.04,
+        maxDiffPixelRatio: 0.002,
     timeout: 30_000,
   });
 });

@@ -1,0 +1,262 @@
+/* ═══════════════════════════════════════════════════════════════════
+   Editorial foundation — the shared vocabulary of the redesigned
+   landing page.
+   ═══════════════════════════════════════════════════════════════════
+
+   The page is set like a printed issue: a masthead, numbered chapters,
+   hairline rules, a contents page with leaders, pull-quotes, marginalia
+   and a colophon. Everything below is the type and grid system those
+   parts share.
+
+   Two rules govern the whole thing:
+
+   1. THE HAIRLINE IS THE PRIMARY DIVIDER. Not shadows, not cards, not
+      background blocks. A 1px rule at low opacity, used consistently,
+      is what makes a page read as print rather than as a dashboard.
+
+   2. ARABIC IS A SECOND VOICE, NOT DECORATION. مرشد is set in Amiri at
+      a matched optical size beside the Latin, never shrunk into an
+      ornament. The layout mirrors wholesale under [dir="rtl"].
+*/
+
+/* ── Scale ─────────────────────────────────────────────────────────
+   A modular scale (1.333, "perfect fourth") gives the page an audible
+   rhythm. Every size is clamped so the composition holds from 360px to
+   ultrawide without breakpoint-specific overrides. */
+.root {
+  --measure: 68ch; /* readable line length — ~65-75 chars */
+  --gutter: clamp(1.25rem, 4vw, 5rem);
+  --rule: 1px solid oklch(0.18 0.03 40 / 0.14);
+  --rule-strong: 1px solid oklch(0.18 0.03 40 / 0.28);
+
+  /* Display sizes. The top of the scale is deliberately enormous —
+     "exaggerated minimalism" only works if the display type is brave
+     enough to carry the negative space around it. */
+  --t-display: clamp(3.5rem, 13vw, 13rem);
+  --t-chapter: clamp(2.5rem, 7vw, 6rem);
+  --t-section: clamp(1.75rem, 4vw, 3.25rem);
+  --t-lede: clamp(1.0625rem, 1.6vw, 1.5rem);
+  --t-body: clamp(0.9375rem, 1.05vw, 1.0625rem);
+  --t-caption: clamp(0.75rem, 0.85vw, 0.8125rem);
+  --t-folio: 0.6875rem;
+
+  /* Vertical rhythm between chapters. */
+  --chapter-gap: clamp(6rem, 14vh, 12rem);
+}
+
+/* ── Page frame ────────────────────────────────────────────────────
+   A max-width column with generous outer margin, like a trimmed page.
+   Content sits inside; rules bleed to the trim. */
+.page {
+  width: 100%;
+  max-width: 1440px;
+  margin-inline: auto;
+  padding-inline: var(--gutter);
+}
+
+/* ── The editorial grid ────────────────────────────────────────────
+   12 columns. Sections opt into asymmetry by spanning odd ranges —
+   that asymmetry is the single biggest difference between an editorial
+   layout and a generic centred landing page. */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  column-gap: clamp(1rem, 2.5vw, 2.5rem);
+}
+
+/* ── Rules ─────────────────────────────────────────────────────────*/
+.ruleTop {
+  border-top: var(--rule);
+}
+.ruleBottom {
+  border-bottom: var(--rule);
+}
+
+/* A rule with a label sitting on it, the way a print section opener
+   carries its running head. */
+.ruleLabel {
+  display: flex;
+  align-items: center;
+  gap: clamp(0.75rem, 2vw, 1.5rem);
+  padding-block: 0.875rem;
+  border-top: var(--rule);
+}
+.ruleLabel::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: currentColor;
+  opacity: 0.16;
+}
+
+/* ── Eyebrow / running head ────────────────────────────────────────
+   Mono, uppercase, wide tracking. The workhorse label of the whole
+   design. */
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: var(--t-caption);
+  text-transform: uppercase;
+  letter-spacing: 0.22em;
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+/* ── Chapter numerals ──────────────────────────────────────────────
+   Roman numerals in Fraunces italic. These are the page's spine: they
+   tell you where you are without a progress bar. */
+.numeral {
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-weight: 300;
+  font-size: var(--t-chapter);
+  line-height: 0.8;
+  opacity: 0.32;
+  font-variant-numeric: oldstyle-nums;
+}
+
+/* ── Display + headings ────────────────────────────────────────────*/
+.display {
+  font-family: var(--font-serif);
+  font-size: var(--t-display);
+  font-weight: 300;
+  line-height: 0.86;
+  letter-spacing: -0.035em;
+  margin: 0;
+}
+
+.chapterTitle {
+  font-family: var(--font-serif);
+  font-size: var(--t-chapter);
+  font-weight: 300;
+  line-height: 0.94;
+  letter-spacing: -0.025em;
+  margin: 0;
+  text-wrap: balance;
+}
+
+/* The accent word. Italic, lighter weight, clay — carried over from the
+   existing brand, which already used this device well. */
+.em {
+  font-style: italic;
+  font-weight: 300;
+  color: var(--accent, oklch(0.56 0.13 36));
+}
+
+/* ── Body copy ─────────────────────────────────────────────────────*/
+.lede {
+  font-size: var(--t-lede);
+  line-height: 1.5;
+  max-width: 42ch;
+  text-wrap: pretty;
+  margin: 0;
+}
+
+.body {
+  font-size: var(--t-body);
+  line-height: 1.65;
+  max-width: var(--measure);
+  text-wrap: pretty;
+}
+
+/* Drop cap — one per chapter at most. Uses initial-letter where
+   supported, with a float fallback so the effect degrades to something
+   deliberate rather than broken. */
+.dropCap::first-letter {
+  font-family: var(--font-serif);
+  font-weight: 400;
+  float: left;
+  font-size: 3.4em;
+  line-height: 0.82;
+  padding-inline-end: 0.08em;
+  padding-block-start: 0.06em;
+  color: var(--accent, oklch(0.56 0.13 36));
+}
+@supports (initial-letter: 3) {
+  .dropCap::first-letter {
+    float: none;
+    font-size: inherit;
+    initial-letter: 3;
+    padding-inline-end: 0.14em;
+  }
+}
+
+/* ── Marginalia ────────────────────────────────────────────────────
+   Small notes set in the outer margin. On narrow screens they drop
+   inline above the content they annotate, rather than disappearing. */
+.margin {
+  font-family: var(--font-mono);
+  font-size: var(--t-caption);
+  line-height: 1.5;
+  letter-spacing: 0.01em;
+  opacity: 0.62;
+  border-inline-start: var(--rule-strong);
+  padding-inline-start: 0.875rem;
+}
+
+/* ── Bilingual lockup ──────────────────────────────────────────────
+   Latin and Arabic set as equals on a shared baseline, divided by a
+   hairline. Amiri runs optically smaller than Fraunces at the same
+   px size, so it is nudged up to match. */
+.bilingual {
+  display: flex;
+  align-items: baseline;
+  gap: clamp(0.75rem, 2vw, 1.5rem);
+}
+.bilingual > .ar {
+  font-family: "Amiri", "Fraunces", serif;
+  font-size: 1.12em;
+  font-weight: 400;
+  line-height: 1;
+}
+.bilingualDivider {
+  width: 1px;
+  align-self: stretch;
+  background: currentColor;
+  opacity: 0.2;
+}
+
+/* ── Folio ─────────────────────────────────────────────────────────
+   Page-number furniture, bottom of each chapter. */
+.folio {
+  font-family: var(--font-mono);
+  font-size: var(--t-folio);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  opacity: 0.4;
+}
+
+/* ── Motion ────────────────────────────────────────────────────────
+   One entrance, used everywhere: a short rise with a soft fade. Set on
+   a custom property so a section can stagger children by index without
+   writing new keyframes. */
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(1.25rem);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.rise {
+  animation: rise 0.9s var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1)) both;
+  animation-delay: calc(var(--i, 0) * 90ms);
+}
+
+/* Only animate when the element is about to be seen, and never when the
+   viewer has asked for less motion. */
+@media (prefers-reduced-motion: reduce) {
+  .rise {
+    animation: none;
+  }
+}
+
+/* ── RTL ───────────────────────────────────────────────────────────
+   Logical properties do most of the work. These are the few places
+   that need an explicit flip. */
+[dir="rtl"] .dropCap::first-letter {
+  float: right;
+}

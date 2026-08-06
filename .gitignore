@@ -24,3 +24,8 @@ next-env.d.ts
 
 # Business/project documents — not part of the codebase
 new-docs/
+
+# graphify knowledge-graph output. Generated artefacts + extraction cache —
+# rebuildable with `/graphify .`, and the cache alone runs to hundreds of
+# files. Regenerate rather than version it.
+graphify-out/

@@ -15,24 +15,131 @@
 @source "../app";
 @source "../src";
 
+
+/* ═══════════════════════════════════════════════════════════════════
+   PALETTE LAYER — the only place raw colour values are written.
+   ═══════════════════════════════════════════════════════════════════
+
+   Two brand palettes ship. The default is Firozeh & Plaster; teachers
+   and institutions can switch to Verdigris & Bone from Account →
+   Appearance. The choice is a DEVICE preference applied everywhere,
+   including the logged-out landing page — signing in is only where the
+   control lives, so a returning teacher never sees the palette switch
+   under them at login.
+
+   Selection happens on <html data-palette="...">, stamped by a blocking
+   script in app/layout.tsx before first paint. Anything later than that
+   flashes the wrong palette on every load.
+
+   HOW THIS RE-THEMES THE APP FOR FREE
+   The @theme block below maps Tailwind's colour tokens onto these
+   variables rather than onto literals, so every existing `bg-paper`,
+   `text-ink`, `border-line` utility already in the JSX re-themes with
+   no component changes at all.
+
+   Light ground only for now. The token names carry no lightness in them
+   ("paper", not "white"), so a dark ground is a third block here rather
+   than a rename across the codebase.
+
+   ── 01 · Firozeh & Plaster (default) ────────────────────────────────
+   Turquoise as it appears in tilework and dome glaze — firozeh, the
+   stone the colour is named after — against cool lime plaster. The
+   accent is the most saturated thing in the system and is meant to stay
+   rationed: roughly one primary action per screen. */
+:root {
+  --p-paper:        #e8e7e2;
+  --p-paper-warm:   #e0dfd9;
+  --p-paper-cool:   #f4f3ef;
+  --p-surface:      #f4f3ef;
+  --p-ink:          #101718;
+  --p-ink-soft:     #364043;
+  --p-muted:        #646e72;
+  --p-line:         #cdcdc6;
+  --p-accent:       #16646c;
+  --p-accent-hover: #0f4e55;
+  --p-accent-soft:  #d3e2e3;
+  --p-on-accent:    #f4f3ef;
+
+  /* Status carries meaning, so it is deliberately NOT derived from the
+     accent — a teacher must be able to tell "ready" from "brand". */
+  --p-ok:   #2f6e52;
+  --p-warn: #94661f;
+  --p-crit: #a0453c;
+
+  /* Ambient tones used by gradients and glows. Named for their role,
+     not their hue, so a palette swap doesn't leave "clay" meaning
+     turquoise. `--p-*-legacy` aliases below keep old class names alive
+     until their call sites are tokenised. */
+  --p-ambient-deep: #0b3c42;
+  --p-ambient-mid:  #17646c;
+  --p-ambient-lift: #57a6ad;
+  --p-ambient-pale: #e3efef;
+}
+
+/* ── 02 · Verdigris & Bone (alternate) ──────────────────────────────
+   The patina that forms on bronze as it ages — quieter and greyer than
+   firozeh, reading archival rather than jewelled. Only the values that
+   actually differ are redeclared. */
+:root[data-palette="verdigris"] {
+  --p-paper:        #edeae1;
+  --p-paper-warm:   #e4e0d5;
+  --p-paper-cool:   #f7f5ef;
+  --p-surface:      #f7f5ef;
+  --p-ink:          #141917;
+  --p-ink-soft:     #3a423f;
+  --p-muted:        #6c7471;
+  --p-line:         #d5d0c4;
+  --p-accent:       #3c6b60;
+  --p-accent-hover: #2f574e;
+  --p-accent-soft:  #dce7e2;
+  --p-on-accent:    #f7f5ef;
+
+  /* Verdigris sits near the green of "ok", so success is pushed bluer
+     to stay distinguishable from the brand colour at a glance. */
+  --p-ok:   #2f6e86;
+  --p-warn: #9a6b22;
+  --p-crit: #a0453c;
+
+  --p-ambient-deep: #24413b;
+  --p-ambient-mid:  #3c6b60;
+  --p-ambient-lift: #74ac9c;
+  --p-ambient-pale: #e7efec;
+}
+
 @theme {
-  --color-paper: #f4ede0;
-  --color-paper-warm: #ede4d3;
-  --color-paper-cool: #faf6ec;
-  --color-ink: #1a1814;
-  --color-ink-soft: #2d2a24;
-  --color-accent: #c8472b;
-  --color-accent-soft: #e87a55;
-  --color-gold: #b8893d;
-  --color-sage: #6b7f5a;
-  --color-line: #d4c9b3;
-  --color-muted: #6b6354;
-  /* Drench tones, kept in sync with the landing — used by ambient
-     surfaces in the studio (now-playing hero, focus rings, sparkles). */
-  --color-clay: oklch(0.56 0.13 36);
-  --color-clay-deep: oklch(0.42 0.13 30);
-  --color-amber: oklch(0.72 0.16 65);
-  --color-cream: oklch(0.96 0.025 80);
+  /* These deliberately reference the palette layer instead of holding
+     literals. That indirection is what makes every utility already in
+     the JSX (bg-paper, text-ink, border-line, …) palette-aware without
+     touching a single component. */
+  --color-paper: var(--p-paper);
+  --color-paper-warm: var(--p-paper-warm);
+  --color-paper-cool: var(--p-paper-cool);
+  --color-surface: var(--p-surface);
+  --color-ink: var(--p-ink);
+  --color-ink-soft: var(--p-ink-soft);
+  --color-accent: var(--p-accent);
+  --color-accent-soft: var(--p-accent-soft);
+  --color-line: var(--p-line);
+  --color-muted: var(--p-muted);
+  --color-on-accent: var(--p-on-accent);
+
+  /* Status. Separate from the accent on purpose — these encode meaning,
+     so they must not double as decoration. */
+  --color-ok: var(--p-ok);
+  --color-warn: var(--p-warn);
+  --color-crit: var(--p-crit);
+
+  /* LEGACY ALIASES — retire as call sites are tokenised.
+     `gold`, `sage`, `clay`, `amber` and `cream` were named after the
+     old terracotta scheme's hues, so under a turquoise palette their
+     names lie. They are mapped onto the nearest role-equivalent so
+     nothing breaks mid-migration; new code must use the roles above. */
+  --color-gold: var(--p-warn);
+  --color-sage: var(--p-ok);
+  --color-clay: var(--p-ambient-mid);
+  --color-clay-deep: var(--p-ambient-deep);
+  --color-amber: var(--p-ambient-lift);
+  --color-cream: var(--p-ambient-pale);
 
   --font-sans: "Inter Tight", ui-sans-serif, system-ui, sans-serif;
   --font-serif: "Fraunces", Georgia, serif;

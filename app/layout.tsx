@@ -19,6 +19,27 @@ import "./globals.css";
 const GOOGLE_FONTS_HREF =
   "https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700;0,9..144,900;1,9..144,400&family=Inter+Tight:wght@400;500;600;700&family=Amiri:wght@400;700&family=Playfair+Display:ital,wght@0,400;0,600;0,800;1,400&family=Lora:ital,wght@0,400;0,600;1,400&family=EB+Garamond:ital,wght@0,400;0,600;1,400&family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Source+Serif+4:ital,wght@0,400;0,600;1,400&family=Crimson+Pro:ital,wght@0,400;0,600;1,400&family=Manrope:wght@400;600;700&family=Plus+Jakarta+Sans:ital,wght@0,400;0,600;0,700;1,400&family=Space+Grotesk:wght@400;500;700&family=DM+Sans:ital,wght@0,400;0,600;1,400&family=Outfit:wght@400;600;700&family=IBM+Plex+Mono:ital,wght@0,400;0,600;1,400&family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Bebas+Neue&family=Shrikhand&family=Pacifico&family=Caveat:wght@400;600&family=Dancing+Script:wght@400;600&family=Cairo:wght@400;600;700&family=Reem+Kufi:wght@400;600&display=swap";
 
+
+// Runs BEFORE first paint, stamping the saved palette onto <html>.
+//
+// This has to be a blocking inline script, not an effect. The server cannot
+// know a device preference, so it always renders the default; if the
+// correction waited for React to hydrate, anyone on the alternate palette
+// would see the default flash on every single page load. Keep it tiny and
+// dependency-free — it is on the critical path for first paint.
+//
+// The storage key is duplicated from src/config/palette.ts on purpose: this
+// string is inlined into the document head and cannot import a module.
+const PALETTE_BOOTSTRAP = `
+(function(){try{
+  var p = localStorage.getItem("murchid.palette");
+  document.documentElement.dataset.palette =
+    (p === "firozeh" || p === "verdigris") ? p : "firozeh";
+}catch(e){
+  document.documentElement.dataset.palette = "firozeh";
+}})();
+`;
+
 export const metadata: Metadata = {
   title: "Murchid — The lesson director",
   icons: { icon: "/favicon.svg" },
@@ -37,8 +58,15 @@ export default function RootLayout({
   return (
     // lang/dir are the server default; LanguageProvider rewrites both on the
     // client when the teacher switches to Arabic (see src/lib/i18n.jsx).
-    <html lang="en" dir="ltr">
+    // data-palette is set by PALETTE_BOOTSTRAP below before paint; the
+    // attribute here is the server-render default so the markup is never
+    // palette-less.
+    <html lang="en" dir="ltr" data-palette="firozeh">
       <head>
+        <script
+          // Must run before the stylesheet paints, so it goes first in head.
+          dangerouslySetInnerHTML={{ __html: PALETTE_BOOTSTRAP }}
+        />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link
           rel="preconnect"
