@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "concurrently -n api,web -c yellow,cyan \"npm:dev:backend\" \"npm:dev:web\"",
     "dev:web": "next dev",
-    "dev:backend": "node backend/index.js",
+    "dev:backend": "node --env-file-if-exists=.env.local --env-file-if-exists=.env backend/index.js",
     "build": "next build",
     "start:web": "next start",
     "preview": "next build && next start",

@@ -8,25 +8,19 @@
 //
 // Key conventions: `<surface>.<feature>` lowercased, dot-separated.
 
-import type {
-  PermissionKey,
-  PermissionMap,
-  Role,
-} from "../shared/types/domain";
+// ⚠️ THIS FILE MUST STAY PLAIN JAVASCRIPT.
+// backend/routes/superadmin.js imports PERMISSION_KEYS from here to validate
+// permission payloads. Node runs it untranspiled, so a .ts extension breaks
+// the API server at boot. Types come from JSDoc, read by TypeScript via
+// allowJs.
 
-export interface PermissionEntry {
-  key: PermissionKey;
-  label: string;
-}
+/** @typedef {import("../shared/types/domain").PermissionKey} PermissionKey */
+/** @typedef {import("../shared/types/domain").PermissionMap} PermissionMap */
+/** @typedef {import("../shared/types/domain").Role} Role */
+/** @typedef {{ key: PermissionKey, label: string }} PermissionEntry */
+/** @typedef {{ id: string, label: string, description: string, keys: PermissionEntry[] }} PermissionGroup */
 
-export interface PermissionGroup {
-  id: string;
-  label: string;
-  description: string;
-  keys: PermissionEntry[];
-}
-
-export const PERMISSION_GROUPS: PermissionGroup[] = [
+export const PERMISSION_GROUPS = /** @type {PermissionGroup[]} */ ([
   {
     id: "studio",
     label: "Studio",
@@ -73,22 +67,20 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
       { key: "account.invite_others", label: "Invite other users" },
     ],
   },
-];
+]);
 
 // Flat catalog for validation (every legal key).
-export const PERMISSION_KEYS: PermissionKey[] = PERMISSION_GROUPS.flatMap(
-  (g) => g.keys.map((k) => k.key)
+export const PERMISSION_KEYS = /** @type {PermissionKey[]} */ (
+  PERMISSION_GROUPS.flatMap((g) => g.keys.map((k) => k.key))
 );
 
 // Role defaults — applied when the per-account override doesn't set a
 // key. Heads-up: this is the source of truth for "out of the box"
 // permissions per role. The super admin can override on a per-account
 // basis through the drawer.
-export const ROLE_DEFAULTS: Record<Role, PermissionMap> = {
-  dev: Object.fromEntries(PERMISSION_KEYS.map((k) => [k, true])) as PermissionMap,
-  super_admin: Object.fromEntries(
-    PERMISSION_KEYS.map((k) => [k, true])
-  ) as PermissionMap,
+export const ROLE_DEFAULTS = /** @type {Record<Role, PermissionMap>} */ ({
+  dev: Object.fromEntries(PERMISSION_KEYS.map((k) => [k, true])),
+  super_admin: Object.fromEntries(PERMISSION_KEYS.map((k) => [k, true])),
   admin: {
     "studio.lesson_plans":  false,
     "studio.quizzes":       false,
@@ -169,35 +161,38 @@ export const ROLE_DEFAULTS: Record<Role, PermissionMap> = {
     "account.change_plan":  true,
     "account.invite_others": false,
   },
-};
+});
 
 // Resolve the effective permissions for an account: per-account
 // overrides take precedence over the role defaults. Keys not set in
 // either fall back to false (deny by default).
-export interface PermissionedAccount {
-  role: Role;
-  permissions?: PermissionMap | null;
-}
+/** @typedef {{ role: Role, permissions?: PermissionMap | null }} PermissionedAccount */
 
-export function resolvePermissions(
-  account: PermissionedAccount | null | undefined
-): PermissionMap {
+/**
+ * Effective permissions for an account: per-account overrides win over role
+ * defaults; anything set in neither denies.
+ * @param {PermissionedAccount | null | undefined} account
+ * @returns {PermissionMap}
+ */
+export function resolvePermissions(account) {
   if (!account) return {};
   const defaults = ROLE_DEFAULTS[account.role] || {};
   const overrides =
     account.permissions && typeof account.permissions === "object"
       ? account.permissions
       : {};
-  const out: PermissionMap = {};
+  const out = /** @type {PermissionMap} */ ({});
   for (const k of PERMISSION_KEYS) {
     out[k] = k in overrides ? !!overrides[k] : !!defaults[k];
   }
   return out;
 }
 
-export function isPermitted(
-  account: PermissionedAccount | null | undefined,
-  key: PermissionKey
-): boolean {
+/**
+ * @param {PermissionedAccount | null | undefined} account
+ * @param {PermissionKey} key
+ * @returns {boolean}
+ */
+export function isPermitted(account, key) {
   return resolvePermissions(account)[key] === true;
 }
