@@ -31,9 +31,10 @@ const splitByH2 = (markdown) => {
     } else if (line.trim() && !preambleSeen) {
       preambleSeen = true;
       current = { id: "header", title: "Header", markdown: line + "\n" };
-    } else if (current) {
-      current.markdown += line + "\n";
     }
+    // A fourth `else if (current)` used to sit here, duplicating the second
+    // branch. It was unreachable — anything with `current` set is caught
+    // above — so removing it changes nothing.
   }
   if (current) blocks.push(current);
   return blocks.map((b) => ({ ...b, markdown: b.markdown.trim() }));

@@ -331,7 +331,7 @@ export default function TemplatesLibrary({ onNewTemplate, onUseTemplate, onEditT
           ))}
 
           <button
-            onClick={() => setNewPopupOpen(true)}
+            onClick={() => onNewTemplate?.()}
             className="border border-dashed border-line bg-paper-cool/50 rounded-xl p-5 flex flex-col items-center justify-center text-muted hover:border-ink hover:text-ink transition min-h-[260px]"
           >
             <div className="h-10 w-10 rounded-full border border-current flex items-center justify-center mb-3">

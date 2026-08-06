@@ -33,10 +33,16 @@ export default tseslint.config(
   ...tseslint.configs.recommended,
 
   {
+    // `files` is REQUIRED here. ESLint flat config's implicit default covers
+    // .js/.mjs/.cjs (plus .ts/.tsx via typescript-eslint) but NOT .jsx — so
+    // without this every legacy view silently reported "File ignored because
+    // no matching configuration was supplied" and 61 files went unlinted.
+    files: ["**/*.{js,mjs,cjs,jsx,ts,tsx}"],
     plugins: { "react-hooks": reactHooks },
     languageOptions: {
       ecmaVersion: 2022,
       sourceType: "module",
+      parserOptions: { ecmaFeatures: { jsx: true } },
       globals: {
         window: "readonly",
         document: "readonly",
@@ -77,6 +83,18 @@ export default tseslint.config(
         MutationObserver: "readonly",
         SpeechSynthesisUtterance: "readonly",
         speechSynthesis: "readonly",
+        confirm: "readonly",
+        prompt: "readonly",
+        Node: "readonly",
+        TextDecoder: "readonly",
+        TextEncoder: "readonly",
+        DOMParser: "readonly",
+        XMLHttpRequest: "readonly",
+        HTMLImageElement: "readonly",
+        HTMLCanvasElement: "readonly",
+        SVGElement: "readonly",
+        MediaRecorder: "readonly",
+        requestIdleCallback: "readonly",
       },
     },
     rules: {
@@ -181,6 +199,23 @@ export default tseslint.config(
       "no-useless-escape": "warn",
       "no-useless-assignment": "warn",
       "preserve-caught-error": "warn",
+      // Extending lint to .jsx surfaced ~110 pre-existing react-hooks
+      // findings across the legacy views. They are genuine (stale closures,
+      // components redefined per render, refs read during render) but they
+      // predate the migration and none is a live crash — the two that were,
+      // an unimported BrandLoader and an undefined setNewPopupOpen, are
+      // fixed. Kept visible as warnings so CI isn't red on untouched files;
+      // each converts as its view is decomposed.
+      "react-hooks/set-state-in-effect": "warn",
+      "react-hooks/static-components": "warn",
+      "react-hooks/refs": "warn",
+      "react-hooks/purity": "warn",
+      "react-hooks/immutability": "warn",
+      "react-hooks/preserve-manual-memoization": "warn",
+      "react-hooks/incompatible-library": "warn",
+      "react-hooks/unsupported-syntax": "warn",
+      "@typescript-eslint/no-unused-expressions": "warn",
+      "no-irregular-whitespace": "warn",
     },
   },
 

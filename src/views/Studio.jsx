@@ -1067,7 +1067,7 @@ export default function Studio({ initialKind = null }) {
   // the teacher gets a chance to save first.
   const makeAnother = () => {
     const hasInflight = busy || !!streamingText;
-    const hasUnsavedContent = !!result
+    const hasUnsavedContent = result
       ? !savedDraftId || isDirty
       : sections.length > 0;
     // Presentations: SlideBuilder owns its own save — no studio confirm.
