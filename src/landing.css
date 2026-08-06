@@ -150,7 +150,6 @@ html { scroll-behavior: smooth; }
 
 .murchid-landing .nav-blur {
   backdrop-filter: blur(12px) saturate(180%);
-  -webkit-backdrop-filter: blur(12px) saturate(180%);
   background: rgba(247, 243, 236, 0.78);
 }
 /* The nav surface while sitting over the cinematic dark drench. A
@@ -160,7 +159,6 @@ html { scroll-behavior: smooth; }
 .murchid-landing .nav-shade {
   background: linear-gradient(to bottom, oklch(0.18 0.05 30 / 0.32), oklch(0.18 0.05 30 / 0));
   backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
 }
 
 .murchid-landing .workflow-line {
@@ -1098,7 +1096,6 @@ html { scroll-behavior: smooth; }
   background: oklch(0.95 0.03 78 / 0.06);
   border: 1px solid oklch(0.95 0.03 78 / 0.12);
   backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
   border-radius: 16px;
   padding: 18px 20px;
   display: grid;
@@ -2474,8 +2471,7 @@ html { scroll-behavior: smooth; }
 .lp-menu-scrim {
   position: absolute; inset: 0; background: oklch(0.18 0.05 30 / 0.34);
   opacity: 0; transition: opacity 420ms ease;
-  backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px);
-}
+  backdrop-filter: blur(2px);}
 .lp-menu.is-open .lp-menu-scrim { opacity: 1; }
 
 .lp-menu-panel {

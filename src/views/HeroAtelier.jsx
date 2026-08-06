@@ -43,14 +43,39 @@ function useTaglineWords(t) {
   return out;
 }
 
+// Placeholder viewport width for the server render, where there is no
+// window. Corrected on mount — see the note inside the component.
+const SSR_VIEWPORT_W = 1280;
+
 export default function HeroAtelier({ onEnter, signedIn }) {
   const t = useT();
   const { isRTL } = useI18n();
   const dir = isRTL ? -1 : 1;
   const trackRef = useRef(null);
   const [p, setP] = useState(0);
-  // Viewport width drives the responsive index row (pitch + card scale).
-  const [vw, setVw] = useState(() => (typeof window !== "undefined" ? window.innerWidth : 1280));
+  // Viewport width drives the responsive index row (pitch + card scale) and
+  // the wordmark/fan shrink-to-fit factors.
+  //
+  // The initial value MUST NOT read window, even though it is available on
+  // the client. This used to be
+  //   useState(() => typeof window !== "undefined" ? window.innerWidth : 1280)
+  // which is subtly broken under server rendering:
+  //
+  //   - the server renders transforms computed from 1280
+  //   - on the client the initialiser returns the REAL width, so state is
+  //     already correct and the mount effect's setVw() is a no-op
+  //   - React bails out of a same-value update, so no re-render happens
+  //   - and React hydration does not repair mismatched inline styles (it
+  //     only fixes text), so the DOM keeps the server's 1280 transforms
+  //
+  // On a phone that left a wordmark scaled for a 1280px viewport —
+  // overflowing the screen with the card fan clipped — until the user
+  // happened to resize or scroll, which finally forced a re-render. Under
+  // Vite there was no SSR, so the first render was always correct.
+  //
+  // Seeding both renders with the same placeholder guarantees the mount
+  // effect produces a real state change, and with it a corrected DOM.
+  const [vw, setVw] = useState(SSR_VIEWPORT_W);
 
   useEffect(() => {
     let raf = 0;
@@ -58,14 +83,19 @@ export default function HeroAtelier({ onEnter, signedIn }) {
       if (raf) return;
       raf = requestAnimationFrame(() => {
         raf = 0;
+        // Width first, and unconditionally — it must not be skipped by the
+        // ref guard below, or the hydration placeholder above never clears.
+        setVw(window.innerWidth);
         const el = trackRef.current;
         if (!el) return;
         const r = el.getBoundingClientRect();
         const span = r.height - window.innerHeight;
         setP(span > 0 ? clamp01(-r.top / span) : 0);
-        setVw(window.innerWidth);
       });
     };
+    // Synchronous correction on mount so the real width applies on the first
+    // post-hydration render rather than a frame later.
+    setVw(window.innerWidth);
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
     window.addEventListener("resize", onScroll);

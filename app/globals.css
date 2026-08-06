@@ -1,5 +1,13 @@
 @import "tailwindcss";
 
+/* Vendor prefixes for backdrop-filter are deliberately NOT hand-written.
+   Lightning CSS (Turbopack's CSS pipeline) treats a trailing
+   `-webkit-backdrop-filter` as superseding the standard property and emits
+   ONLY the prefixed form — which current Chrome no longer supports
+   (CSS.supports("-webkit-backdrop-filter", …) is false). Every frosted
+   surface in the app silently lost its blur. Declare the standard property
+   alone and let the build add prefixes from the browserslist targets. */
+
 /* Tailwind v4 infers content sources from the stylesheet's location. This
    file lives in app/ but most components are still under src/, so the
    scan roots are declared explicitly — without these, utilities used only
@@ -439,7 +447,6 @@ select:focus-visible {
   cursor: pointer;
   text-align: start;
   backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
   transition: transform var(--dur-hover) var(--ease-out-quart),
               background var(--dur-hover) var(--ease-out-quart),
               border-color var(--dur-hover) var(--ease-out-quart),
