@@ -44,7 +44,7 @@ import {
   SECTIONS_BY_ROLE,
   TEACHING_RAIL_SECTIONS,
   navTargetFor,
-} from "./nav";
+} from "@/config/nav";
 
 const SIDEBAR_COLLAPSED_KEY = "murchid.sidebar.collapsed";
 

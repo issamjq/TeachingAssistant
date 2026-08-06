@@ -13,6 +13,7 @@
 //     icons in the top-right corner.
 import React, { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
+import { useMounted } from "../shared/hooks/useMounted";
 import { Plus, X, Pencil, Trash2, LayoutGrid, List, Sparkles, RotateCcw, ArrowUpDown, Calendar as CalendarIcon } from "lucide-react";
 import { useT } from "../lib/i18n";
 import { navigate } from "../lib/route";
@@ -198,6 +199,7 @@ export function DataPageHeader({
 // (e.g., "/api/quizzes"); we hit /trash, /:id/restore, /:id/forever.
 // ──────────────────────────────────────────────────────────────────
 export function TrashPopup({ endpoint, titleField = "title", onClose, onChange }) {
+  const mounted = useMounted();
   const t = useT();
   const [rows, setRows] = useState(null);  // null = loading
   const [err, setErr] = useState(null);
@@ -254,6 +256,8 @@ export function TrashPopup({ endpoint, titleField = "title", onClose, onChange }
     return Math.max(0, Math.ceil(ms / 86400000));
   };
 
+  // Portals cannot be server-rendered — see useMounted().
+  if (!mounted) return null;
   return createPortal(
     <div
       className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-ink/45 backdrop-blur-lg backdrop-saturate-150 animate-[fadeIn_180ms_ease-out]"
@@ -467,6 +471,7 @@ export function filterByDateScope(items, range, getDate) {
 // "How do you want to create this?" popup
 // ──────────────────────────────────────────────────────────────────
 export function NewKindPopup({ kind, aiKind, onClose, onManual }) {
+  const mounted = useMounted();
   const t = useT();
   useEffect(() => {
     const onKey = (e) => { if (e.key === "Escape") onClose(); };
@@ -484,6 +489,8 @@ export function NewKindPopup({ kind, aiKind, onClose, onManual }) {
     navigate(aiKind ? ["studio", aiKind] : ["studio"]);
   };
 
+  // Portals cannot be server-rendered — see useMounted().
+  if (!mounted) return null;
   return createPortal(
     <div
       className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-ink/45 backdrop-blur-lg backdrop-saturate-150 animate-[fadeIn_180ms_ease-out]"

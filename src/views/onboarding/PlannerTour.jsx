@@ -12,6 +12,7 @@
 // same copy.
 import React, { useEffect, useLayoutEffect, useState } from "react";
 import { createPortal } from "react-dom";
+import { useMounted } from "../../shared/hooks/useMounted";
 import {
   Sparkles, CalendarDays, UserCircle2, BookOpen, GraduationCap,
   ChevronRight, X,
@@ -43,6 +44,7 @@ const PAD = 6;        // breathing room around the spotlit element
 const CARD_W = 340;   // explainer card width
 
 export default function PlannerTour({ open, onClose }) {
+  const mounted = useMounted();
   const t = useT();
   const { dir } = useI18n();
   const [idx, setIdx] = useState(0);
@@ -171,6 +173,8 @@ export default function PlannerTour({ open, onClose }) {
     </div>
   );
 
+  // Portals cannot be server-rendered — see useMounted().
+  if (!mounted) return null;
   return createPortal(
     <div className="fixed inset-0 z-[300]" role="dialog" aria-modal="true" dir={dir}>
       {rect ? (

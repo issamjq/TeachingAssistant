@@ -7,6 +7,7 @@
 // mini-calendar), so it lives in its own module.
 import React, { useState, useCallback, useEffect } from "react";
 import { createPortal } from "react-dom";
+import { useMounted } from "../shared/hooks/useMounted";
 import { X } from "lucide-react";
 import { api, inputClasses, selectClasses, DatePicker } from "./_shared";
 
@@ -18,6 +19,7 @@ export default function SchedulePopup({
   onClose,
   onSaved,
 }) {
+  const mounted = useMounted();
   const isEdit = !!initial;
   // Snapshot the initial form once — used to detect dirty state for the
   // discard-changes guard. Lazy init so it doesn't reshuffle each render.
@@ -130,6 +132,8 @@ export default function SchedulePopup({
   // ancestor with `transform` (e.g. animated planner-view) — otherwise
   // `fixed inset-0` is clipped to the parent column and the sidebar
   // stays sharp behind the dialog.
+  // Portals cannot be server-rendered — see useMounted().
+  if (!mounted) return null;
   return createPortal(
     <div
       className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-ink/45 backdrop-blur-lg backdrop-saturate-150 animate-[fadeIn_180ms_ease-out]"

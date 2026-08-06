@@ -1,6 +1,12 @@
 import type { Role } from "@/shared/types/domain";
 
-// Sidebar navigation config, lifted out of App.jsx.
+// App-wide navigation config, lifted out of App.jsx.
+//
+// Lives in config/ rather than inside the studio-shell feature because more
+// than one feature needs it: the shell renders the sidebar from it, and the
+// dashboard routes its jump-tiles through navTargetFor so a tile and its nav
+// item always land in the same place. The lint boundary caught the original
+// placement — features must not reach into each other.
 //
 // Sectioned nav: italic Fraunces section headers with small letter/icon
 // badges next to each label.

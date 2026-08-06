@@ -60,7 +60,11 @@ const SORTS = {
   name_desc: { label: "Name Z → A", cmp: (a, b) => b.name.localeCompare(a.name) },
 };
 
-export default function TemplatesLibrary({ onNewTemplate, onUseTemplate, onEditTemplate }) {
+// `onEditTemplate` is optional and currently never supplied by any caller —
+// App.jsx never passed it, so the per-card Edit action has always rendered
+// as undefined (the call sites below guard for exactly that). Defaulted to
+// undefined so the optionality is explicit rather than accidental.
+export default function TemplatesLibrary({ onNewTemplate, onUseTemplate, onEditTemplate = undefined }) {
   const t = useT();
   const [query, setQuery] = useState("");
   const [subjectFilter, setSubjectFilter] = useState("");

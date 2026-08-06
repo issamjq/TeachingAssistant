@@ -11,6 +11,7 @@
 //   { id, date: YYYY-MM-DD, kind, title, time? }
 import React, { useEffect, useMemo, useState, useCallback } from "react";
 import { createPortal } from "react-dom";
+import { useMounted } from "../shared/hooks/useMounted";
 import {
   ChevronLeft, ChevronRight, Plus, BookOpen, CalendarDays,
   GraduationCap, ClipboardList, Presentation, Sparkles, ArrowRight,
@@ -520,10 +521,13 @@ function useModalChrome(onClose) {
 }
 
 function DayListPopup({ date, dayEvents, onClose, onSelect, onNew }) {
+  const mounted = useMounted();
   useModalChrome(onClose);
   const t = useT();
   const { lang } = useI18n();
   const { weekday, full } = dayHeaderParts(date, lang === "ar" ? "ar" : "en-US");
+  // Portals cannot be server-rendered — see useMounted().
+  if (!mounted) return null;
   return createPortal(
     <div
       className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-ink/45 backdrop-blur-lg backdrop-saturate-150 animate-[fadeIn_180ms_ease-out]"

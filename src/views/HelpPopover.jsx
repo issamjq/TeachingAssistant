@@ -6,6 +6,7 @@
 // Modeled after Claude's in-product help so the shape feels familiar.
 import React, { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
+import { useMounted } from "../shared/hooks/useMounted";
 import {
   X, Send, Sparkles, CheckCircle2, ChevronRight, ArrowLeft,
   MessageSquare, HelpCircle,
@@ -76,6 +77,7 @@ const HELP_ARTICLES = [
 // A previous version had a third "Home" tab that duplicated Help — dropped.
 
 export default function HelpPopover({ open, onClose }) {
+  const mounted = useMounted();
   const t = useT();
   const { lang, dir } = useI18n();
   const [query, setQuery] = useState("");
@@ -154,6 +156,8 @@ export default function HelpPopover({ open, onClose }) {
     ? HELP_ARTICLES.find((a) => a.id === openArticle)
     : null;
 
+  // Portals cannot be server-rendered — see useMounted().
+  if (!mounted) return null;
   return createPortal(
     <div
       className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center p-0 sm:p-4"
