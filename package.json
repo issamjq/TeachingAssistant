@@ -18,7 +18,8 @@
     "start:backend": "node backend/index.js",
     "lint": "eslint .",
     "test:visual": "playwright test visual --project=desktop",
-    "test:visual:update": "playwright test visual --project=desktop --update-snapshots"
+    "test:visual:update": "playwright test visual --project=desktop --update-snapshots",
+    "verify:auth": "node scripts/verify-auth.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.94.0",
