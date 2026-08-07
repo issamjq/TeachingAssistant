@@ -18,6 +18,7 @@ import { useT, useI18n } from "../lib/i18n";
 import { PLANS } from "../lib/plans";
 import HeroAtelier from "./HeroAtelier";
 import Showreel from "./Showreel";
+import PointerFx from "../features/landing-motion/PointerFx";
 
 // ── reveal hook ────────────────────────────────────────────────────
 // Adds `.in` to the element when it crosses the viewport. Used by
@@ -506,7 +507,14 @@ function Voices() {
           className="voices-shell"
           style={{ opacity: headIn, transform: `translateY(${lerp(34, 0, headIn)}px)` }}
         >
-          <h2 className="voices-h1">
+          <h2
+            className="voices-h1 lm-mask vf-bloom"
+            style={{
+              "--lm": `${lerp(0, 118, headIn)}%`,
+              "--vf-wght": lerp(300, 420, headIn),
+              "--vf-opsz": lerp(24, 144, headIn),
+            }}
+          >
             {t("ch.voices.h1.a")} <em>{t("ch.voices.h1.em")}</em> {t("ch.voices.h1.b")}
           </h2>
           <p className="voices-sub">{t("ch.voices.sub")}</p>
@@ -553,7 +561,7 @@ function PlanCard({ p, i, vp, onEnter }) {
     r >= 1 ? { opacity: 1 } : { opacity: r, transform: `translateY(${lerp(56, 0, r)}px)` };
   return (
     <article
-      className={`plans-card${featured ? " featured" : ""}`}
+      className={`plans-card lp-spotlight${featured ? " featured" : ""}`}
       style={revealStyle}
     >
       {featured && <div className="plans-badge">{t("lp.plan.best")}</div>}
@@ -570,7 +578,7 @@ function PlanCard({ p, i, vp, onEnter }) {
           {t("lp.plan.save", { n: p.savePct })}
         </div>
       )}
-      <button type="button" className="plans-cta" onClick={onEnter}>
+      <button type="button" className="plans-cta lp-magnetic" onClick={onEnter}>
         {t("lp.plan.choose")}
       </button>
     </article>
@@ -591,7 +599,14 @@ function Plans({ onEnter }) {
             className="plans-head"
             style={{ opacity: headR, transform: `translateY(${lerp(40, 0, headR)}px)` }}
           >
-            <h2 className="plans-h1">
+            <h2
+              className="plans-h1 lm-mask vf-bloom"
+              style={{
+                "--lm": `${lerp(0, 118, headR)}%`,
+                "--vf-wght": lerp(300, 420, headR),
+                "--vf-opsz": lerp(24, 144, headR),
+              }}
+            >
               {t("ch.plans.h1.a")} <em>{t("ch.plans.h1.em")}</em>
             </h2>
             <p className="plans-sub">{t("ch.plans.sub")}</p>
@@ -633,17 +648,24 @@ function FinalCTA({ onEnter, signedIn }) {
       <div className="final-pin">
         <div className="final-shell" style={{ opacity: r, transform: `translateY(${lerp(46, 0, r)}px)` }}>
           <div className="final-kicker">{t("ch.final.kicker")}</div>
-          <h2 className="final-q">
+          <h2
+            className="final-q lm-mask vf-bloom"
+            style={{
+              "--lm": `${lerp(0, 118, r)}%`,
+              "--vf-wght": lerp(300, 430, r),
+              "--vf-opsz": lerp(24, 144, r),
+            }}
+          >
             {t("ch.final.q.a")} <em>{t("ch.final.q.em")}</em> {t("ch.final.q.b")}
           </h2>
           <p className="final-sub">{t("ch.final.sub")}</p>
           <div className="final-cta-row">
-            <button type="button" className="cinema-pill" onClick={onEnter}>
+            <button type="button" className="cinema-pill lp-magnetic" onClick={onEnter}>
               {signedIn ? t("landing.nav.openPlanner") : t("ch.final.cta")}
             </button>
             <button
               type="button"
-              className="cinema-ghost"
+              className="cinema-ghost lp-magnetic"
               onClick={() => {
                 const el = document.getElementById("ch-plans");
                 if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -668,6 +690,10 @@ function FinalCTA({ onEnter, signedIn }) {
 export default function LandingHome({ onEnter, signedIn }) {
   return (
     <>
+      {/* Renders nothing — installs the cursor listeners that drive the
+          magnetic CTAs, the plan-card sheen, and the hero orb parallax.
+          Inert on touch and under reduced motion. */}
+      <PointerFx />
       <HeroAtelier onEnter={onEnter} signedIn={signedIn} />
       {/* Nav scroll anchors — sit in normal flow just before each section so
           the nav links land at the section's start (sec-features lives in

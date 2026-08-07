@@ -2801,3 +2801,108 @@ body.lp-menu-open [data-a11y-node="reset-chip"] { display: none !important; }
   .murchid-landing .nav-brand svg,
   .plans-card { transition: none; }
 }
+
+/* ─── 4. Signature motion ──────────────────────────────────────────
+   Two effects the rest of the landing didn't have. Both are pure
+   functions of scroll, set as inline custom properties by the section
+   that owns them — the same no-library technique used everywhere else
+   here, so there is nothing to keep in sync with a timeline.
+
+   .lm-mask  a curtain that draws the headline down into view. --lm runs
+             0% → ~118%; the 16% soft edge is what stops it reading as a
+             hard wipe. Works with the inline <em> accents the headlines
+             use, which a per-line split would have had to reconstruct.
+
+   .vf-bloom the Fraunces variable axes. Weight and optical size are
+             animated together so the type gains presence as it settles
+             rather than just fading up — the axes are why the family was
+             chosen, and nothing was using them. Requires the variable
+             range requested in app/layout.tsx. */
+.lm-mask {
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(var(--lm, 118%) - 16%), transparent var(--lm, 118%));
+  mask-image: linear-gradient(to bottom, #000 calc(var(--lm, 118%) - 16%), transparent var(--lm, 118%));
+}
+.vf-bloom {
+  font-variation-settings: 'opsz' var(--vf-opsz, 120), 'wght' var(--vf-wght, 400);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Reveal state, not opening state — the scrub still sets the property,
+     so the mask has to be neutralised rather than left at its start. */
+  .lm-mask {
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
+  .vf-bloom { font-variation-settings: 'opsz' 120, 'wght' 400; }
+}
+
+/* ─── 5. Pointer-reactive surfaces ─────────────────────────────────
+   Consumes the custom properties written by PointerFx. Every rule below
+   is inert when those properties are unset — which is the case on touch,
+   under reduced motion, and before the first pointer event — so nothing
+   here needs a fallback path. */
+
+/* Magnetic CTAs. The transform composes the cursor pull with the existing
+   hover lift; these rules sit after the originals in source order and at
+   equal specificity, so they win without !important. Box-shadow, colour
+   and the conic sheen are all left to the original rules. */
+.lp-magnetic {
+  transform: translate3d(var(--mgx, 0px), var(--mgy, 0px), 0);
+  transition: transform 340ms var(--easeOutE), box-shadow 300ms var(--easeOutE);
+}
+.lp-magnetic:hover {
+  transform: translate3d(var(--mgx, 0px), calc(var(--mgy, 0px) - 2px), 0);
+}
+.lp-magnetic:active {
+  transform: translate3d(var(--mgx, 0px), var(--mgy, 0px), 0) scale(0.985);
+}
+
+/* Spotlight — a soft specular follow on the plan cards. Sits above the
+   card's own background but below its content. */
+/* isolation + z-index:-1 puts the sheen above the card's own background but
+   below its content, WITHOUT positioning the children. Forcing
+   `position: relative` on `> *` would have reset .plans-badge, which is
+   absolutely positioned to hang off the card's top edge. */
+.lp-spotlight { position: relative; isolation: isolate; }
+.lp-spotlight::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 420ms var(--easeOutE);
+  background: radial-gradient(
+    360px circle at var(--sx, 50%) var(--sy, 0%),
+    oklch(0.72 0.1 200 / 0.16),
+    transparent 62%);
+}
+.lp-spotlight:hover::after { opacity: 1; }
+/* On the dark featured card the same sheen has to be lighter to register. */
+.plans-card.featured.lp-spotlight::after {
+  background: radial-gradient(
+    360px circle at var(--sx, 50%) var(--sy, 0%),
+    oklch(0.95 0.04 200 / 0.14),
+    transparent 62%);
+}
+
+/* Ambient parallax — the hero's two drifting orbs lean into the cursor.
+   Deliberately tiny and slow: this should be felt, not seen. */
+.cinema-orb-a {
+  transform: translate3d(calc(var(--mx, 0) * 18px), calc(var(--my, 0) * 12px), 0);
+  transition: transform 1.6s var(--easeOutE);
+}
+.cinema-orb-b {
+  transform: translate3d(calc(var(--mx, 0) * -22px), calc(var(--my, 0) * -14px), 0);
+  transition: transform 1.9s var(--easeOutE);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lp-magnetic,
+  .lp-magnetic:hover,
+  .lp-magnetic:active,
+  .cinema-orb-a,
+  .cinema-orb-b { transform: none; transition: none; }
+  .lp-spotlight::after { display: none; }
+}

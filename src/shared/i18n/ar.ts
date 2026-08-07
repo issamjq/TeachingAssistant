@@ -143,6 +143,51 @@ export const AR: Partial<Record<TranslationKey, string>> = {
   "atl.desc.presentation": "خطِّط أسبوعك",
   "atl.desc.activity": "ثنائي وجماعي وفردي",
   "atl.desc.homework": "مساعدك التعليمي",
+  // واجهات البطاقات — النصوص البنيوية مشتركة بين النسختين، والنصوص
+  // الموضوعية تحمل اللاحقة ‎.b‎ لنسخة الرياضيات التي تتحول إليها البطاقات
+  // أثناء التمرير. المفاتيح بمعرّفات الخانات الأصلية.
+  "atl.card.lesson.eyebrow": "اختبار · الصف السابع",
+  "atl.card.lesson.title": "التنفس الخلوي",
+  "atl.card.lesson.o1": "الميتوكوندريا",
+  "atl.card.lesson.o2": "البلاستيدة الخضراء",
+  "atl.card.lesson.o3": "الرايبوسوم",
+  "atl.card.lesson.title.b": "جدول الضرب",
+  "atl.card.lesson.o1.b": "ستة وخمسون",
+  "atl.card.lesson.o2.b": "اثنان وأربعون",
+  "atl.card.lesson.o3.b": "أربعة وستون",
+  "atl.card.lesson.foot": "٣ أسئلة · تصحيح تلقائي",
+
+  "atl.card.quiz.eyebrow": "واجب",
+  "atl.card.quiz.title": "ورقة عمل ٤",
+  "atl.card.quiz.due": "الموعد الخميس · ٧أ",
+  "atl.card.quiz.title.b": "الكتاب ص ٤٢",
+  "atl.card.quiz.due.b": "الموعد الاثنين · ٤ب",
+  "atl.card.quiz.foot": "١٨ / ٢٨ سُلِّمت",
+
+  "atl.card.deck.eyebrow": "عرض تقديمي",
+  "atl.card.deck.title": "دورة الماء",
+  "atl.card.deck.slide": "التبخّر",
+  "atl.card.deck.title.b": "التماثل",
+  "atl.card.deck.slide.b": "محاور التماثل",
+  "atl.card.deck.foot": "١٢ شريحة · جاهزة للحصة",
+
+  "atl.card.presentation.eyebrow": "المخطِّط · الأسبوع ١٢",
+  "atl.card.presentation.title": "الأسبوع في لمحة",
+  "atl.card.presentation.title.b": "نظرة على الفصل",
+  "atl.card.presentation.foot": "٤ دروس · اختباران",
+
+  "atl.card.activity.eyebrow": "نشاط",
+  "atl.card.activity.title": "مناظرة جماعية",
+  "atl.card.activity.title.b": "حوار الأعداد",
+  "atl.card.activity.c1": "ثنائي · ١٠ د",
+  "atl.card.activity.c2": "جماعي · ٢٠ د",
+  "atl.card.activity.c3": "فردي · ٥ د",
+
+  "atl.card.homework.eyebrow": "استوديو الذكاء",
+  "atl.card.homework.title": "اسأل مرشد",
+  "atl.card.homework.prompt": "درس عن البناء الضوئي للصف السابع",
+  "atl.card.homework.prompt.b": "درس عن الكسور للصف الرابع",
+  "atl.card.homework.foot": "جارٍ الصياغة…",
   // ── product film / showreel (film.*) ─────────────────────────────
   "film.eyebrow": "شاهِدها تُصاغ",
   "film.title.a": "من سطرٍ واحد،",

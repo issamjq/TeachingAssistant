@@ -154,6 +154,52 @@ export const EN = {
   "atl.desc.presentation": "Plan your week",
   "atl.desc.activity": "Pair, group, solo",
   "atl.desc.homework": "Teaching copilot",
+  // Card faces (atl.card.*). Structural strings are shared across both
+  // variants; the topical ones carry a `.b` suffix for variant B, which is
+  // the Maths set the hero cross-fades to mid-scroll. Slot ids again, so
+  // `lesson` is the Quizzes card. See src/features/hero-artifacts/.
+  "atl.card.lesson.eyebrow": "Quiz · Grade 7",
+  "atl.card.lesson.title": "Cell respiration",
+  "atl.card.lesson.o1": "Mitochondria",
+  "atl.card.lesson.o2": "Chloroplast",
+  "atl.card.lesson.o3": "Ribosome",
+  "atl.card.lesson.title.b": "Times tables",
+  "atl.card.lesson.o1.b": "Fifty-six",
+  "atl.card.lesson.o2.b": "Forty-two",
+  "atl.card.lesson.o3.b": "Sixty-four",
+  "atl.card.lesson.foot": "3 questions · auto-graded",
+
+  "atl.card.quiz.eyebrow": "Homework",
+  "atl.card.quiz.title": "Worksheet 4",
+  "atl.card.quiz.due": "Due Thursday · 7A",
+  "atl.card.quiz.title.b": "Workbook p.42",
+  "atl.card.quiz.due.b": "Due Monday · 4B",
+  "atl.card.quiz.foot": "18 / 28 submitted",
+
+  "atl.card.deck.eyebrow": "Presentation",
+  "atl.card.deck.title": "The Water Cycle",
+  "atl.card.deck.slide": "Evaporation",
+  "atl.card.deck.title.b": "Symmetry",
+  "atl.card.deck.slide.b": "Lines of symmetry",
+  "atl.card.deck.foot": "12 slides · class-ready",
+
+  "atl.card.presentation.eyebrow": "Planner · Week 12",
+  "atl.card.presentation.title": "Week at a glance",
+  "atl.card.presentation.title.b": "Term overview",
+  "atl.card.presentation.foot": "4 lessons · 2 quizzes",
+
+  "atl.card.activity.eyebrow": "Activity",
+  "atl.card.activity.title": "Group debate",
+  "atl.card.activity.title.b": "Number talk",
+  "atl.card.activity.c1": "Pair · 10m",
+  "atl.card.activity.c2": "Group · 20m",
+  "atl.card.activity.c3": "Solo · 5m",
+
+  "atl.card.homework.eyebrow": "AI Studio",
+  "atl.card.homework.title": "Ask Murchid",
+  "atl.card.homework.prompt": "A Grade 7 lesson on photosynthesis",
+  "atl.card.homework.prompt.b": "A Grade 4 lesson on fractions",
+  "atl.card.homework.foot": "Drafting…",
   // ── product film / showreel (film.*) ─────────────────────────────
   "film.eyebrow": "Watch it draft",
   "film.title.a": "From one line,",

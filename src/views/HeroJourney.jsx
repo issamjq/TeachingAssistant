@@ -20,6 +20,14 @@ import {
   ClipboardList, Presentation, Layers, Pencil, FileText,
 } from "lucide-react";
 import { useT, useI18n } from "../lib/i18n";
+import HeroArtifact from "../features/hero-artifacts/HeroArtifact";
+
+// The six slots HeroArtifact draws. Anything outside this set falls through
+// to the older inline card faces further down HeroCardFace (still used by
+// the parked Acts B/C of this file).
+const HERO_ARTIFACT_KINDS = new Set([
+  "lesson", "quiz", "deck", "presentation", "activity", "homework",
+]);
 
 // Animations removed by request — no-op shims for the framer-motion
 // API. Same approach v1.1 used so nothing in this section depends on
@@ -122,34 +130,24 @@ function GeoArt({ stroke, fill }) {
 // arc), "b" = a Math lesson (the index). Same six card *types*, different
 // artifacts — so the page reads "one studio, any topic".
 export function HeroCardFace({ kind, variant = "a" }) {
-  const { isRTL } = useI18n();
   const SHELL =
     "w-[230px] h-[300px] rounded-2xl border overflow-hidden flex flex-col p-5";
   const SH = { boxShadow: "0 30px 60px -28px rgba(26,24,20,0.45)" };
   const EBC = "font-mono text-[10px] uppercase tracking-[0.16em]";
 
-  // Each of the six card slots is a fully-designed scene (PNG) that fills
-  // the whole face. The slot *keys* stay the original artifact ids (so the
-  // scroll animation + React keys never move) — the displayed concept is a
-  // product tour: lesson→Quizzes, quiz→Homework, deck→Presentations,
-  // presentation→Planner, activity→Activities, homework→AI Studio, in this
-  // 1-based order. Variant picks the section: a ("1st" / hero arc) → s1.N,
-  // b ("2nd" / index) → s2.N. The text is baked into the art, so RTL swaps
-  // to the Arabic build under /ar. The frame is the art's native 2:3
-  // (230×345) — object-cover fills it with no crop and no letterbox.
-  const SLOT = { lesson: 1, quiz: 2, deck: 3, presentation: 4, activity: 5, homework: 6 };
-  const slot = SLOT[kind];
-  if (slot) {
-    const section = variant === "b" ? 2 : 1;
-    const cardImg = `${isRTL ? "/ar" : ""}/s${section}.${slot}.png`;
-    return (
-      <div
-        className="w-[230px] h-[345px] rounded-2xl border overflow-hidden relative"
-        style={{ ...SH, borderColor: "var(--line)" }}
-      >
-        <img src={cardImg} alt="" className="absolute inset-0 w-full h-full object-cover" />
-      </div>
-    );
+  // Each of the six card slots is a designed specimen of one artifact. The
+  // slot *keys* stay the original artifact ids (so the scroll animation +
+  // React keys never move) — the displayed concept is a product tour:
+  // lesson→Quizzes, quiz→Homework, deck→Presentations, presentation→Planner,
+  // activity→Activities, homework→AI Studio. Variant picks the topic set:
+  // a = Science (hero arc), b = Maths (contents index).
+  //
+  // These were 24 PNGs (~11 MB: six cards × two variants × an Arabic build
+  // with the text baked in). They are now vector + live type, so they stay
+  // crisp across the scroll's 0.37→0.84 scale ramp and read Arabic straight
+  // from the dictionary. See src/features/hero-artifacts/.
+  if (HERO_ARTIFACT_KINDS.has(kind)) {
+    return <HeroArtifact kind={kind} variant={variant} />;
   }
 
   if (kind === "deck" || kind === "presentation") {

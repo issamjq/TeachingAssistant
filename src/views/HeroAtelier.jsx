@@ -263,7 +263,7 @@ export default function HeroAtelier({ onEnter, signedIn }) {
             ))}
           </h2>
           <div className="atl-cta-row">
-            <button type="button" className="atl-pill" onClick={onEnter}>
+            <button type="button" className="atl-pill lp-magnetic" onClick={onEnter}>
               {ctaLabel}
             </button>
             <span className="atl-scroll">
@@ -285,7 +285,20 @@ export default function HeroAtelier({ onEnter, signedIn }) {
           }}
         >
           <span className="atl-index-over">{t("atl.index.over")}</span>
-          <h2 className="atl-index-title">{t("atl.index.title")}</h2>
+          {/* The contents title blooms rather than fades: the curtain draws it
+              down while Fraunces' weight and optical-size axes travel with it,
+              so the type gains presence as it settles. Both are pure functions
+              of the same headIn segment — see .lm-mask / .vf-bloom. */}
+          <h2
+            className="atl-index-title lm-mask vf-bloom"
+            style={{
+              "--lm": `${lerp(0, 118, easeInOut(headIn))}%`,
+              "--vf-wght": lerp(280, 420, easeInOut(headIn)),
+              "--vf-opsz": lerp(18, 144, easeInOut(headIn)),
+            }}
+          >
+            {t("atl.index.title")}
+          </h2>
         </div>
 
         {/* The ONE card layer — fan → contents row */}
@@ -362,7 +375,7 @@ export default function HeroAtelier({ onEnter, signedIn }) {
                 <span key={i}>{tok.brand ? <em>{tok.w}</em> : tok.w} </span>
               ))}
             </h2>
-            <button type="button" className="atl-pill" onClick={onEnter}>
+            <button type="button" className="atl-pill lp-magnetic" onClick={onEnter}>
               {ctaLabel}
             </button>
           </div>

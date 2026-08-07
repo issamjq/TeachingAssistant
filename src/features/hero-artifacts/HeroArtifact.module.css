@@ -1,0 +1,346 @@
+/* =====================================================================
+   Hero artifacts — the six card faces the landing's title sequence deals
+   out and resolves into a contents index.
+
+   These replaced 24 full-bleed PNGs (~11 MB, two language builds of six
+   cards × two topic variants). Everything here is vector and type, so it
+   is a few KB, stays crisp at every step of the scroll scale ramp
+   (0.37 → 0.84), and picks up Arabic from the i18n dictionary instead of
+   needing a separate set of baked-in-text images.
+
+   The card box is a fixed 230 × 345 — the transform ramp in HeroAtelier
+   scales it, so nothing in here is responsive by design. Sizes are px on
+   purpose for exactly that reason.
+   ===================================================================== */
+
+.card {
+  position: relative;
+  width: 230px;
+  height: 345px;
+  border-radius: 16px;
+  padding: 18px 17px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  isolation: isolate;
+  /* Contact shadow + a wider ambient one. The cards sit on both cream and
+     the deep drench, so the shadow is tuned to read on either. */
+  box-shadow:
+    0 1px 2px oklch(0.18 0.05 197 / 0.16),
+    0 24px 48px -22px oklch(0.18 0.05 197 / 0.5);
+}
+
+/* Two grounds, alternating down the row for a piano-key rhythm. */
+.light {
+  background:
+    linear-gradient(168deg, oklch(0.98 0.005 200), var(--cm-cream-2, #e6eef0));
+  border: 1px solid oklch(0.18 0.03 210 / 0.1);
+  color: var(--cm-ink, #17272a);
+}
+.dark {
+  background:
+    radial-gradient(ellipse 120% 80% at 12% 0%, oklch(0.4 0.085 205), transparent 62%),
+    linear-gradient(168deg, var(--cm-clay-d, #2c545e), var(--cm-clay-dd, #1c3840));
+  border: 1px solid oklch(1 0 0 / 0.1);
+  color: var(--cm-cream, #f2f7f8);
+}
+/* A specular top edge — the single cheapest cue that a surface is lit. */
+.card::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 1px;
+  pointer-events: none;
+}
+.light::before { background: oklch(1 0 0 / 0.9); }
+.dark::before { background: oklch(1 0 0 / 0.16); }
+
+/* The Murchid points grain, at card scale. */
+.card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: radial-gradient(circle at 1px 1px, currentColor 0.5px, transparent 0);
+  background-size: 3px 3px;
+  opacity: 0.05;
+}
+
+/* ── type ────────────────────────────────────────────────────────── */
+.eyebrow {
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+  font-size: 8.5px;
+  letter-spacing: 0.17em;
+  text-transform: uppercase;
+  line-height: 1;
+}
+.light .eyebrow { color: var(--cm-clay, #3d7b8a); }
+.dark .eyebrow { color: var(--cm-on-drench, #b6dbe2); }
+
+.title {
+  font-family: 'Fraunces', Georgia, serif;
+  font-weight: 400;
+  font-size: 23px;
+  line-height: 1.1;
+  letter-spacing: -0.018em;
+  margin-block: 9px 0;
+  /* Fraunces is variable across 9..144 optical size; a display-ish opsz at
+     this size tightens the modulation so the card titles feel set, not
+     scaled down from body copy. */
+  font-variation-settings: 'opsz' 40;
+}
+.dark .title { color: var(--cm-cream, #f2f7f8); }
+
+.foot {
+  margin-block-start: auto;
+  font-family: 'Inter Tight', system-ui, sans-serif;
+  font-size: 10px;
+  letter-spacing: 0.01em;
+  padding-block-start: 12px;
+}
+.light .foot { color: var(--cm-ink-3, #7d8b8f); }
+.dark .foot { color: oklch(0.95 0.03 210 / 0.6); }
+
+.rule {
+  height: 1px;
+  margin-block: 13px 0;
+}
+.light .rule { background: oklch(0.18 0.03 210 / 0.1); }
+.dark .rule { background: oklch(1 0 0 / 0.12); }
+
+.body {
+  margin-block-start: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+/* A big Fraunces figure carries the stat cards (submission rate) — it fills
+   the height the way a headline does and keeps the editorial voice. */
+.statRow { display: flex; align-items: baseline; gap: 10px; margin-block-start: 4px; }
+.statN {
+  font-family: 'Fraunces', Georgia, serif;
+  font-weight: 300;
+  font-size: 40px;
+  line-height: 0.9;
+  letter-spacing: -0.04em;
+  font-variation-settings: 'opsz' 96;
+}
+.statL {
+  font-family: 'Inter Tight', system-ui, sans-serif;
+  font-size: 10.5px;
+  line-height: 1.25;
+  letter-spacing: 0.02em;
+  opacity: 0.7;
+  max-width: 74px;
+}
+
+/* ── 01 Quizzes — option rows, one chosen ────────────────────────── */
+/* Rows are boxed rather than bare text: three lines of 12px type left the
+   card bottom-heavy with dead space, and a real quiz reads as selectable
+   targets anyway. */
+.opt {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 10px 11px;
+  border-radius: 9px;
+  background: oklch(1 0 0 / 0.6);
+  border: 1px solid oklch(0.18 0.03 210 / 0.07);
+  font-family: 'Inter Tight', system-ui, sans-serif;
+  font-size: 11.5px;
+  color: var(--cm-ink-2, #4a5c60);
+}
+.dot {
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  border: 1.5px solid oklch(0.18 0.03 210 / 0.22);
+  flex: none;
+  display: grid;
+  place-items: center;
+}
+.optOn .dot {
+  border-color: var(--cm-clay, #3d7b8a);
+  background: var(--cm-clay, #3d7b8a);
+}
+.optOn {
+  color: var(--cm-ink, #17272a);
+  font-weight: 500;
+  background: oklch(0.62 0.1 200 / 0.11);
+  border-color: oklch(0.5 0.09 205 / 0.28);
+}
+.tick { width: 7px; height: 7px; display: block; }
+
+/* ── 02 Homework — submission progress ───────────────────────────── */
+.meter {
+  height: 5px;
+  border-radius: 999px;
+  background: oklch(1 0 0 / 0.14);
+  overflow: hidden;
+}
+.meterFill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--cm-sage, #4f9d92), var(--cm-on-drench, #b6dbe2));
+}
+.avatars { display: flex; margin-block-start: 12px; }
+.avatar {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 1.5px solid var(--cm-clay-dd, #1c3840);
+  margin-inline-start: -6px;
+  font-family: 'Inter Tight', system-ui, sans-serif;
+  font-size: 8.5px;
+  font-weight: 600;
+  color: oklch(0.2 0.05 197);
+  display: grid;
+  place-items: center;
+}
+.avatar:first-child { margin-inline-start: 0; }
+
+/* ── 03 Presentations — slide stack ──────────────────────────────── */
+.slideStack { position: relative; height: 150px; margin-block-start: 14px; }
+.slide {
+  position: absolute;
+  inset-inline: 0;
+  height: 134px;
+  border-radius: 8px;
+  border: 1px solid oklch(0.18 0.03 210 / 0.12);
+  background: oklch(1 0 0 / 0.75);
+}
+.slideBack2 { transform: translate(0, 2px) rotate(-4.5deg); opacity: 0.55; }
+.slideBack1 { transform: translate(0, 5px) rotate(3deg); opacity: 0.8; }
+.slideFront {
+  position: relative;
+  padding: 9px 10px;
+  background: linear-gradient(150deg, oklch(0.99 0.004 200), oklch(0.94 0.012 200));
+  box-shadow: 0 6px 14px -8px oklch(0.18 0.05 197 / 0.5);
+}
+.slideCap {
+  font-family: 'Fraunces', Georgia, serif;
+  font-size: 11.5px;
+  letter-spacing: -0.01em;
+  color: var(--cm-ink, #17272a);
+}
+.slideArt {
+  margin-block-start: 8px;
+  height: 84px;
+  border-radius: 5px;
+  background: linear-gradient(160deg, oklch(0.86 0.05 200), oklch(0.7 0.08 205));
+  position: relative;
+  overflow: hidden;
+}
+.dots { display: flex; gap: 4px; margin-block-start: 12px; }
+.pip {
+  width: 4px; height: 4px; border-radius: 50%;
+  background: oklch(0.18 0.03 210 / 0.18);
+}
+.pipOn { background: var(--cm-clay, #3d7b8a); width: 12px; border-radius: 999px; }
+
+/* ── 04 Planner — the week grid ──────────────────────────────────── */
+.days {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 4px;
+  margin-block-start: 14px;
+}
+.dayName {
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+  font-size: 8px;
+  letter-spacing: 0.08em;
+  text-align: center;
+  color: oklch(0.95 0.03 210 / 0.55);
+  padding-block-end: 3px;
+}
+.grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 4px;
+}
+.cell {
+  height: 25px;
+  border-radius: 4px;
+  background: oklch(1 0 0 / 0.07);
+}
+.cellA { background: oklch(0.62 0.1 200 / 0.85); }
+.cellB { background: oklch(0.72 0.09 180 / 0.7); }
+.cellC { background: oklch(0.8 0.09 196 / 0.55); }
+
+/* ── 05 Activities — mode chips + geometry ───────────────────────── */
+.chips { display: flex; flex-wrap: wrap; gap: 5px; margin-block-start: 14px; }
+.chip {
+  font-family: 'Inter Tight', system-ui, sans-serif;
+  font-size: 9.5px;
+  font-weight: 500;
+  padding: 4px 9px;
+  border-radius: 999px;
+  border: 1px solid oklch(0.18 0.03 210 / 0.14);
+  color: var(--cm-ink-2, #4a5c60);
+  background: oklch(1 0 0 / 0.6);
+}
+.chipOn {
+  background: var(--cm-clay, #3d7b8a);
+  border-color: transparent;
+  color: var(--cm-cream, #f2f7f8);
+}
+.geo {
+  margin-block-start: 16px;
+  display: block;
+  width: 100%;
+  height: 112px;
+  overflow: visible;
+}
+
+/* ── 06 AI Studio — prompt + streaming answer ────────────────────── */
+.prompt {
+  margin-block-start: 14px;
+  padding: 9px 11px;
+  border-radius: 10px 10px 10px 3px;
+  background: oklch(1 0 0 / 0.1);
+  border: 1px solid oklch(1 0 0 / 0.12);
+  font-family: 'Inter Tight', system-ui, sans-serif;
+  font-size: 11px;
+  line-height: 1.4;
+  color: oklch(0.96 0.02 200 / 0.92);
+}
+.stream { margin-block-start: 15px; display: flex; flex-direction: column; gap: 8px; }
+.streamRow {
+  height: 7px;
+  border-radius: 999px;
+  background: linear-gradient(90deg,
+    var(--cm-on-drench, #b6dbe2) 0%,
+    oklch(0.72 0.08 190 / 0.6) 62%,
+    oklch(1 0 0 / 0.16) 100%);
+  /* Each bar wipes in on its own beat, so the card reads as mid-generation
+     rather than as a finished static mock. */
+  transform-origin: left center;
+  animation: streamIn 2.6s var(--easeOutE, cubic-bezier(0.16, 1, 0.3, 1)) infinite;
+  animation-delay: calc(var(--r) * 260ms);
+}
+[dir="rtl"] .streamRow { transform-origin: right center; }
+@keyframes streamIn {
+  0%, 8% { transform: scaleX(0); opacity: 0.3; }
+  38%, 72% { transform: scaleX(1); opacity: 1; }
+  100% { transform: scaleX(1); opacity: 0.25; }
+}
+.spark {
+  position: absolute;
+  inset-block-start: 15px;
+  inset-inline-end: 15px;
+  width: 15px;
+  height: 15px;
+  color: var(--cm-on-drench, #b6dbe2);
+  animation: sparkPulse 3.4s ease-in-out infinite;
+}
+@keyframes sparkPulse {
+  0%, 100% { opacity: 0.55; transform: scale(0.9) rotate(0deg); }
+  50% { opacity: 1; transform: scale(1.08) rotate(45deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .streamRow,
+  .spark { animation: none; }
+  .streamRow { transform: scaleX(1); opacity: 1; }
+}
