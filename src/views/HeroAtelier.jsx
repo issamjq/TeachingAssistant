@@ -45,6 +45,23 @@ const ramp = (v, a, b) => smooth(clamp01((v - a) / (b - a)));
 const N = HERO_CARDS.length; // 6
 const MID = (N - 1) / 2; // 2.5
 
+// ── Track budget ─────────────────────────────────────────────────────
+// The timeline is authored in viewport-heights rather than in abstract
+// 0–1 fractions, because the thing that actually matters is how much
+// scrolling a reader spends on each beat — and that was the bug: with the
+// whole sequence packed into 240vh, each tool got about 16vh, roughly one
+// notch of a wheel. Six cards went past before you had read one.
+//
+// INTRO covers masthead → fan → numbered index → gather. SLOT is what one
+// tool gets. The section's height is derived from these, so the CSS and
+// the choreography cannot drift apart.
+const INTRO_VH = 120;
+const SLOT_VH = 52;
+const TRAVEL_VH = INTRO_VH + SLOT_VH * N; // 432
+export const HERO_TRACK_VH = TRAVEL_VH + 100; // + the pinned viewport
+/** viewport-heights → progress fraction of the track's travel */
+const at = (v) => v / TRAVEL_VH;
+
 // Build the value line "The teacher directs. Murchid drafts." as a
 // word list so each token can stagger in on load. The brand word is
 // flagged so it renders in clay italic.
@@ -125,49 +142,51 @@ export default function HeroAtelier({ onEnter, signedIn }) {
   }, []);
 
   // ── Choreography — all pure functions of scroll `p` ──────────────
-  // One timeline, five acts. Beats overlap on purpose: run end-to-end they
-  // leave frames where nothing is arriving, which reads as the page having
-  // stalled rather than as a pause.
+  // Beats are given in viewport-heights (see the track budget above) and
+  // overlap on purpose: run end-to-end they leave frames where nothing is
+  // arriving, which reads as the page having stalled rather than paused.
   //
-  //   .04–.28  masthead recedes
-  //   .06–.34  fan resolves into the numbered index row
-  //   .17–.32  index heading arrives as the masthead clears
-  //   .26–.42  01–06 labels
-  //   .42–.50  HOLD — the finished index, the frame the page is "about"
-  //   .50–.60  the row gathers to the side and stacks into a deck
-  //   .60–1.0  six slots, one per tool
-  const lockOut = easeInOut(seg(p, 0.04, 0.28)); // masthead + lockup recede
-  const cardsT = easeInOut(seg(p, 0.06, 0.34)); // fan → editorial index row
-  const swap = easeInOut(clamp01((p - 0.15) / 0.12)); // card set A → B, blur crossfade
-  const headIn = seg(p, 0.17, 0.32); // index header reveal
-  const tocIn = seg(p, 0.26, 0.42); // 01–06 contents labels
+  //   0–40vh    masthead recedes
+  //   10–58vh   fan resolves into the numbered index row
+  //   30–56vh   index heading arrives as the masthead clears
+  //   44–74vh   01–06 labels
+  //   74–92vh   HOLD — the finished index, the frame the page is "about"
+  //   92–120vh  the row gathers to the side and stacks into a deck
+  //   120vh+    52vh per tool
+  const lockOut = easeInOut(seg(p, at(6), at(40)));
+  const cardsT = easeInOut(seg(p, at(10), at(58)));
+  const swap = easeInOut(seg(p, at(26), at(46)));
+  const headIn = seg(p, at(30), at(56));
+  const tocIn = seg(p, at(44), at(74));
 
   // ── gather: index row → deck ─────────────────────────────────────
-  const GATHER_A = 0.5;
-  const GATHER_B = 0.6;
+  const GATHER_A = at(92);
+  const GATHER_B = at(INTRO_VH);
   const gRaw = clamp01((p - GATHER_A) / (GATHER_B - GATHER_A));
   const gather = smooth(gRaw); // geometry
   // The two headings share a slot. Cross-fading them symmetrically
   // superimposed two long serif lines and made both illegible, so the
   // outgoing one clears before the incoming one starts.
-  const indexOut = 1 - smooth(clamp01(gRaw / 0.42)); // index heading + labels
-  const twHeadIn = smooth(clamp01((gRaw - 0.62) / 0.38)); // walkthrough heading
+  const indexOut = 1 - smooth(clamp01(gRaw / 0.42));
+  const twHeadIn = smooth(clamp01((gRaw - 0.62) / 0.38));
 
   // ── walkthrough slots ────────────────────────────────────────────
   const cProg = clamp01((p - GATHER_B) / (1 - GATHER_B)) * N;
   const active = Math.min(Math.floor(cProg), N - 1);
   const local = clamp01(cProg - active);
-  // The annotation lands, holds, then clears just before the next card takes
-  // over, so the two never overlap mid-swap.
-  const outT = 1 - ramp(local, 0.88, 1);
-  const dotIn = ramp(local, 0.04, 0.2) * outT;
-  const lineIn = ramp(local, 0.16, 0.46) * outT;
-  const textIn = ramp(local, 0.24, 0.5) * outT;
+  // The annotation is up for most of the slot, not a sliver of it. It used
+  // to arrive at 24% and start leaving at 88%, so a 16vh slot showed its
+  // description for about 10vh. Now it lands by 30% and holds to 90%, which
+  // over a 52vh slot is ~31vh of fully-legible text before anything moves.
+  const outT = 1 - ramp(local, 0.9, 1);
+  const dotIn = ramp(local, 0.03, 0.13) * outT;
+  const lineIn = ramp(local, 0.07, 0.24) * outT;
+  const textIn = ramp(local, 0.12, 0.3) * outT;
   // How far the deck has moved toward the NEXT card. Flat for the body of
   // the slot, then a quick hand-off inside the window where the annotation
   // has already cleared — otherwise the following card overtakes the
   // selected one at the front while its description is still on screen.
-  const advance = ramp(local, 0.86, 1);
+  const advance = ramp(local, 0.9, 1);
 
   const ctaLabel = signedIn ? t("landing.nav.openPlanner") : t("ch.hero.cta");
   const tagline = useTaglineWords(t);
@@ -271,7 +290,7 @@ export default function HeroAtelier({ onEnter, signedIn }) {
   }
 
   return (
-    <section ref={trackRef} className="atl">
+    <section ref={trackRef} className="atl" style={{ height: `${HERO_TRACK_VH}vh` }}>
       {/* Scroll target for the nav "Features" link. Sits ~halfway down the
           pinned track, which is the scroll depth where the "Six tools"
           index is fully revealed (p ≈ 0.75). */}

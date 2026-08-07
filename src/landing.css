@@ -2928,11 +2928,10 @@ body.lp-menu-open [data-a11y-node="reset-chip"] { display: none !important; }
    in normalised progress, so halving the runway (200vh span → 100vh)
    compresses the whole choreography proportionally with no retiming. */
 /* One pin for the whole sequence: masthead → fan → numbered index → deck
-   → six tool slots. 240vh of travel.
-   This replaced a 200vh hero plus a separate 240vh walkthrough. Merging
-   them removed a full viewport, because the seam between the two used to
-   hold the same index row twice — once as the hero's last frame and again
-   as the walkthrough's first. */
+   → six tool slots.
+   The height is set inline from HERO_TRACK_VH in HeroAtelier, because the
+   choreography is authored in viewport-heights per beat and the two must
+   not drift. The value here is only a pre-hydration floor. */
 .atl { height: 340vh; }
 
 @media (min-width: 1024px) {
