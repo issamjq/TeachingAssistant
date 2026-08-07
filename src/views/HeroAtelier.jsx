@@ -243,20 +243,38 @@ export default function HeroAtelier({ onEnter, signedIn }) {
       }
     : L.pos;
 
+  // Where the opening hand sits. A fixed offset put its lowest card 50px
+  // below the pin on a 700pt window — the pin clips, so the bottom of the
+  // fan was simply cut off. Bounded against the viewport instead.
+  const fanScaleMax = 0.52 * fanK;
+  const fanArc = MID * MID * 5; // the arc is deepest at its centre
+  const fanBase = Math.min(
+    isPortrait ? 168 : 250,
+    vh / 2 - 28 - (CARD_H * fanScaleMax) / 2 - fanArc
+  );
+
   // Shared card transform — fan (hero) lerped to its settled position.
   const cardStyle = (i) => {
     const o = i - MID;
-    const xa = o * 128 * dir * fanK; // A — confident opening fan
-    // Sits below the CTA block. The taller lockup (bigger tagline, a second
-    // button, and the trust line) grew downward into where the fan used to
-    // start, so the arc was overlapping the reassurance copy.
+    const om = Math.abs(o);
+
+    // ── A: the opening hand ────────────────────────────────────────
+    // These constants were tuned when there were six cards, where MID is
+    // 2.5. At eight, MID is 3.5, and every one of them scaled with it: the
+    // spread went to ±448px, the outermost cards tilted 21°, and the arc
+    // deepened to 122px. The result was a wide, heavily-rotated pile that
+    // overlapped itself and ran off the bottom of the viewport.
     //
-    // Narrow viewports need a smaller offset, not the same one: the lockup
-    // is scaled down by wordK there, so it ends higher, and a fixed 262
-    // stranded the fan near the bottom edge behind a band of empty screen.
-    const ya = (isPortrait ? 172 : 262) + (MID * MID - o * o) * 10;
-    const ra = o * 6 * dir;
-    const sa = 0.64 * fanK;
+    // Retuned for eight as a HAND rather than a spread: tighter pitch,
+    // gentle tilt, a shallow arc, and a depth falloff so the outer cards
+    // recede instead of competing. It reads as held, not scattered.
+    const xa = o * 86 * dir * fanK;
+    const ya = fanBase + (MID * MID - o * o) * 5;
+    const ra = o * 3.2 * dir;
+    // Cards further from centre sit further back.
+    const sa = 0.52 * fanK * (1 - om * 0.028);
+    const fanOpacity = 1 - om * 0.055;
+
     const b = bPos(i); // B — settled row or grid
     // C — the deck. Distance from its front; before the gather starts,
     // `active` and `advance` are both 0, so this is simply i.
@@ -272,7 +290,8 @@ export default function HeroAtelier({ onEnter, signedIn }) {
     const y = lerp(ry, deckY + dp.y, gather);
     const r = lerp(rr, dp.rot, gather);
     const sc = lerp(rs, dp.s * deckScale, gather);
-    const opacity = lerp(1, dp.opacity, gather);
+    // Fan depth resolves to flat as the cards settle into the index.
+    const opacity = lerp(lerp(fanOpacity, 1, cardsT), dp.opacity, gather);
     return {
       transform: `translate(-50%, -50%) translate(${x}px, ${y}px) rotate(${r}deg) scale(${sc})`,
       opacity,
