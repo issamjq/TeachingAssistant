@@ -32,6 +32,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { useT, useI18n } from "../lib/i18n";
 import { HERO_CARDS, HeroCardFace } from "./HeroJourney";
 import { CARD_H, deckCenterX, deckPos, indexLayout } from "../features/hero-artifacts/indexLayout";
+
 import WalkthroughLayer, { WalkthroughStacked } from "../features/tool-walkthrough/WalkthroughLayer";
 
 const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
@@ -198,7 +199,7 @@ export default function HeroAtelier({ onEnter, signedIn }) {
   // Positions come from the shared module so ToolWalkthrough, which opens on
   // this exact row before collapsing it into a deck, can reproduce the last
   // frame of this section precisely. See features/hero-artifacts/indexLayout.
-  const L = indexLayout(N, vw, dir, isRTL);
+  const L = indexLayout(N, vw, vh, dir, isRTL);
   const wordK = L.wordK;
   const tocK = L.tocK;
   const headBottomY = L.headBottomY;
@@ -454,7 +455,7 @@ export default function HeroAtelier({ onEnter, signedIn }) {
         {/* Labels ride WITH their card into the deck rather than staying put:
             pinned to the row while the cards swept away, they read for a
             moment as six stranded captions. */}
-        <div className="atl-toc" style={{ opacity: skipIndexRow ? 0 : tocIn * indexOut, "--toc-k": tocK }} aria-hidden={skipIndexRow || tocIn * indexOut < 0.5}>
+        <div className="atl-toc atl-toc--compact" style={{ opacity: skipIndexRow ? 0 : tocIn * indexOut, "--toc-k": tocK }} aria-hidden={skipIndexRow || tocIn * indexOut < 0.5}>
           {HERO_CARDS.map((kind, i) => {
             const b = bPos(i);
             const dp = deckPos(i, dir);

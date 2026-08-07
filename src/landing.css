@@ -3085,3 +3085,15 @@ body.lp-menu-open [data-a11y-node="reset-chip"] { display: none !important; }
   max-width: 900px;
   margin-inline: auto;
 }
+
+/* Contents index laid out as a 4×2 grid rather than a row of eight. The
+   label band has to be short there, because height is what limits the card
+   size — so the number sits inline with the name instead of above it. */
+.atl-toc--compact .atl-toc-item {
+  display: grid;
+  grid-template-columns: auto auto;
+  justify-content: center;
+  align-items: baseline;
+  gap: 0 8px;
+}
+.atl-toc--compact .atl-toc-desc { grid-column: 1 / -1; }
