@@ -138,13 +138,32 @@ export default function Showreel() {
   const vp = useViewportProgress(ref);
   const reveal = easeInOut(clamp01((vp - 0.04) / 0.3));
 
-  const reduced =
-    typeof window !== "undefined" &&
-    window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  // Read in an effect, NOT during render.
+  //
+  // This used to be a bare `typeof window !== "undefined" && matchMedia(...)`
+  // in the render body, which is the first case React's hydration-mismatch
+  // error names. The server has no window, so it always resolved false and
+  // rendered phase "compose"; a client that prefers reduced motion resolved
+  // true and rendered "result" on its very first pass. Those two trees do
+  // not match, so hydration failed and React threw away and re-rendered the
+  // whole landing — for exactly the users least able to absorb a re-render.
+  //
+  // Seeding false on both sides and correcting in an effect is the same
+  // approach HeroAtelier documents for its viewport width.
+  const [reduced, setReduced] = useState(false);
+  useEffect(() => {
+    const r = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    setReduced(r);
+    // Jump straight to the finished result, which is what seeding `phase`
+    // from `reduced` used to achieve. Doing it here instead of in useState
+    // keeps the first render identical on both sides; the auto-advance
+    // timer is already inert while `reduced`, so this sticks.
+    if (r) setPhase("result");
+  }, []);
 
   const [active, setActive] = useState(0);
   // compose → drafting → result. Reduced motion freezes on a result.
-  const [phase, setPhase] = useState(reduced ? "result" : "compose");
+  const [phase, setPhase] = useState("compose");
   const [paused, setPaused] = useState(false);
 
   // Section-title typewriter — the last word of "From one line, the whole

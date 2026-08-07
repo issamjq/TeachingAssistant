@@ -20,6 +20,7 @@ import HeroAtelier from "./HeroAtelier";
 import Showreel from "./Showreel";
 import PointerFx from "../features/landing-motion/PointerFx";
 import StatsBand from "../features/landing-stats/StatsBand";
+import ToolWalkthrough from "../features/tool-walkthrough/ToolWalkthrough";
 
 // ── reveal hook ────────────────────────────────────────────────────
 // Adds `.in` to the element when it crosses the viewport. Used by
@@ -699,6 +700,10 @@ export default function LandingHome({ onEnter, signedIn }) {
       {/* Nav scroll anchors — sit in normal flow just before each section so
           the nav links land at the section's start (sec-features lives in
           HeroAtelier). scrollMarginTop clears the fixed nav bar. */}
+      {/* Walks the six tools the hero index just revealed — overview, then
+          detail. Sits on the drench, continuing the hero, and carries the
+          feather into the cream Showreel below it. */}
+      <ToolWalkthrough onEnter={onEnter} />
       <span id="sec-how" aria-hidden="true" style={{ display: "block", scrollMarginTop: "64px" }} />
       <Showreel />
       {/* Cream ground, continuing the Showreel — so the feather into the

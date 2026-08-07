@@ -140,6 +140,11 @@ export const EN = {
   "atl.meaning": "Murchid · مُرشِد — the one who guides",
   "atl.index.over": "Six tools. One studio.",
   "atl.trust": "Free for 7 days · No card required · English and Arabic",
+  // Tool walkthrough (src/features/tool-walkthrough) — the pinned deck that
+  // deals through the six artifacts one at a time.
+  "tw.over": "One studio, six tools",
+  "tw.h2.a": "See each one",
+  "tw.h2.em": "at work.",
   "atl.index.title": "Everything teaching needs, in one place.",
   // Keys are the original slot ids (lesson/quiz/deck/…); the labels are the
   // product tour shown on the cards — see CARD_IMG in HeroJourney.jsx.

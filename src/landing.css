@@ -2688,11 +2688,11 @@ body.lp-menu-open [data-a11y-node="reset-chip"] { display: none !important; }
   z-index: 4;
   pointer-events: none;
 }
-/* Hero drench → cream Showreel */
-.atl::after {
-  bottom: -1px;
-  background: linear-gradient(to bottom, transparent, var(--cm-cream));
-}
+/* The hero used to feather straight into the cream Showreel. The tool
+   walkthrough now sits between them on the same drench, so the hero must
+   NOT fade to cream here — the walkthrough carries the seam instead (see
+   .track::after in ToolWalkthrough.module.css). */
+.atl::after { display: none; }
 /* Cream Showreel → Voices drench */
 .voices-pin-track::before {
   top: -1px;
