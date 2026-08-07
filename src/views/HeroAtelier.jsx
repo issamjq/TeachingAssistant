@@ -182,7 +182,12 @@ export default function HeroAtelier({ onEnter, signedIn }) {
   // to arrive at 24% and start leaving at 88%, so a 16vh slot showed its
   // description for about 10vh. Now it lands by 30% and holds to 90%, which
   // over a 52vh slot is ~31vh of fully-legible text before anything moves.
-  const outT = 1 - ramp(local, 0.9, 1);
+  // The LAST tool must not clear. Fading every slot out at 90% left the
+  // final one ending on an empty screen — the deck and its description
+  // both gone, with the rest of the track still to scroll. There is no
+  // next card to make room for, so it holds.
+  const isLast = active === N - 1;
+  const outT = isLast ? 1 : 1 - ramp(local, 0.9, 1);
   const dotIn = ramp(local, 0.03, 0.13) * outT;
   const lineIn = ramp(local, 0.07, 0.24) * outT;
   const textIn = ramp(local, 0.12, 0.3) * outT;
@@ -190,7 +195,7 @@ export default function HeroAtelier({ onEnter, signedIn }) {
   // the slot, then a quick hand-off inside the window where the annotation
   // has already cleared — otherwise the following card overtakes the
   // selected one at the front while its description is still on screen.
-  const advance = ramp(local, 0.9, 1);
+  const advance = isLast ? 0 : ramp(local, 0.9, 1);
 
   const ctaLabel = signedIn ? t("landing.nav.openPlanner") : t("ch.hero.cta");
   const tagline = useTaglineWords(t);

@@ -3097,3 +3097,70 @@ body.lp-menu-open [data-a11y-node="reset-chip"] { display: none !important; }
   gap: 0 8px;
 }
 .atl-toc--compact .atl-toc-desc { grid-column: 1 / -1; }
+
+/* ─── 10. Mobile corrections ───────────────────────────────────────
+   The voices rail sizes its cards at a 240px floor, which is 62% of a
+   390px phone — so the visible run was one card between two heavily
+   clipped neighbours, with words cut mid-syllable at both edges. */
+@media (max-width: 560px) {
+  .voices-card {
+    width: 208px;
+    padding: 15px 16px;
+  }
+  .voices-quote { font-size: 14px; }
+}
+
+/* Phones: sections stop reserving a full screen each.
+   .plans-pin, .final-pin and .film-pin carry min-height: 100vh so their
+   content sits centred on a desktop screen. Section 6 above relaxes that
+   for the unpinned desktop layout, but only at >=1024px — so phones kept
+   the full-screen reservation AND the desktop-scale padding, which put a
+   200px band of empty ground above and below content that had already
+   finished. Length is the visible symptom; the dead space is the actual
+   problem. */
+@media (max-width: 720px) {
+  .plans-pin,
+  .final-pin,
+  .film-pin {
+    min-height: 0;
+    padding-block: clamp(60px, 9vh, 92px);
+  }
+  .voices-pin { padding-block: clamp(52px, 8vh, 84px); }
+}
+
+/* The accessibility widget is a fixed bottom-right button ~76px across.
+   It sat on top of the footer's trailing links ("Security" was entirely
+   behind it on a 390px screen), so the footer reserves room for it. */
+@media (max-width: 720px) {
+  .murchid-landing footer { padding-block-end: 118px; }
+}
+
+/* Narrow phones: the nav bar overflowed.
+   Brand (104px) + controls (170px) + the two 32px `px-8` gutters comes to
+   338 of a 360px screen, and the flex row cannot compress the pill or the
+   burger — so the bar pushed the document to 385px wide and the whole page
+   scrolled sideways. Tightening the gutter and the pill buys ~40px. */
+@media (max-width: 420px) {
+  .murchid-landing header > div { padding-inline: 16px; }
+  .murchid-landing .nav-brand svg { height: 42px; }
+  .murchid-landing .nav-signin {
+    padding-inline: 12px;
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    gap: 7px;
+  }
+}
+
+/* Footer grid on narrow phones.
+   It is `grid-cols-12 gap-8`. Below ~370px the twelve tracks compute to
+   0px each, so a `col-span-12` child measures the sum of the eleven 32px
+   gaps — 352px — inside a 256px container. That one row was widening the
+   whole document and making every page scroll sideways. Collapsing to a
+   single track removes the gap arithmetic entirely. */
+@media (max-width: 480px) {
+  .murchid-landing footer .grid.grid-cols-12 {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 30px;
+  }
+  .murchid-landing footer .grid.grid-cols-12 > * { grid-column: auto; }
+}
