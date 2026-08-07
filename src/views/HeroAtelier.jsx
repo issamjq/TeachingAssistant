@@ -188,14 +188,25 @@ export default function HeroAtelier({ onEnter, signedIn }) {
   const topCardY = isPortrait ? gRow0Y : yb;
   const topCardTopY = topCardY - (345 * settledScale) / 2;
   const headBottomY = topCardTopY - (isPortrait ? 96 : 118);
+  // Row hint sits under the LAST row of the settled layout — the second grid
+  // row on portrait, the single row otherwise.
+  const bottomCardY = isPortrait ? gRow0Y + gRowPitch : yb;
+  const settledHintY = bottomCardY + (345 * settledScale) / 2 + 34;
 
   // Shared card transform — fan (hero) lerped to its settled position.
   const cardStyle = (i) => {
     const o = i - MID;
     const xa = o * 128 * dir * fanK; // A — confident opening fan
-    const ya = 204 + (MID * MID - o * o) * 10;
+    // Sits below the CTA block. The taller lockup (bigger tagline, a second
+    // button, and the trust line) grew downward into where the fan used to
+    // start, so the arc was overlapping the reassurance copy.
+    //
+    // Narrow viewports need a smaller offset, not the same one: the lockup
+    // is scaled down by wordK there, so it ends higher, and a fixed 262
+    // stranded the fan near the bottom edge behind a band of empty screen.
+    const ya = (isPortrait ? 172 : 262) + (MID * MID - o * o) * 10;
     const ra = o * 6 * dir;
-    const sa = 0.67 * fanK;
+    const sa = 0.64 * fanK;
     const b = bPos(i); // B — settled row or grid
     const x = lerp(xa, b.x, cardsT);
     const y = lerp(ya, b.y, cardsT);
@@ -278,11 +289,20 @@ export default function HeroAtelier({ onEnter, signedIn }) {
             <button type="button" className="atl-pill lp-magnetic" onClick={onEnter}>
               {ctaLabel}
             </button>
-            <span className="atl-scroll">
-              {t("ch.hero.scroll")}
-              <span className="atl-scroll-line" />
-            </span>
+            {/* A second path for anyone not ready to open the studio. Jumps to
+                the Showreel, which is the "watch it draft" demo. */}
+            <button
+              type="button"
+              className="cinema-ghost lp-magnetic"
+              onClick={() => {
+                const el = document.getElementById("sec-how");
+                if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+              }}
+            >
+              {t("landing.hero.ctaGhost")}
+            </button>
           </div>
+          <div className="atl-trust">{t("atl.trust")}</div>
         </div>
 
         {/* First act — editorial index header (resolves on the cream page) */}
@@ -344,8 +364,15 @@ export default function HeroAtelier({ onEnter, signedIn }) {
                     </div>
                   </div>
                 </div>
-                <span className="atl-card-more" aria-hidden="true">
-                  {t("atl.more.open")}
+                {/* Persistent affordance. This used to be a text label that
+                    only appeared on hover, which meant the cards looked inert
+                    until you happened to cross one — and on touch, where there
+                    is no hover, it never appeared at all. A always-visible
+                    plus is the conventional "expand" cue and works on both. */}
+                <span className="atl-card-plus" aria-hidden="true">
+                  <svg viewBox="0 0 14 14" fill="none">
+                    <path d="M7 2.4 V11.6 M2.4 7 H11.6" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+                  </svg>
                 </span>
               </button>
             </div>
@@ -355,6 +382,16 @@ export default function HeroAtelier({ onEnter, signedIn }) {
         {/* Contents numbering — sits just above each card in its settled
             position (row or grid). --toc-k scales the label TYPE with the
             card size so labels track the cards and never overlap. */}
+        {/* One instruction for the whole row, rather than six repeated labels.
+            Fades in with the contents index it describes. */}
+        <div
+          className="atl-row-hint"
+          style={{ opacity: settled ? tocIn : 0, transform: `translate(-50%, 0) translateY(${settledHintY}px)` }}
+          aria-hidden={!settled}
+        >
+          {t("atl.more.hint")}
+        </div>
+
         <div className="atl-toc" style={{ opacity: tocIn, "--toc-k": tocK }} aria-hidden={tocIn < 0.5}>
           {HERO_CARDS.map((kind, i) => {
             const b = bPos(i);

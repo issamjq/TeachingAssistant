@@ -130,6 +130,7 @@ export const AR: Partial<Record<TranslationKey, string>> = {
   // ── 2026 editorial hero (atl.*) ──────────────────────────────────
   "atl.meaning": "Murchid · مُرشِد — مَن يدلّك على الطريق",
   "atl.index.over": "ستّ أدوات. استوديو واحد.",
+  "atl.trust": "مجانًا ٧ أيام · بدون بطاقة · بالعربية والإنجليزية",
   "atl.index.title": "كل ما يحتاجه التدريس، في مكان واحد.",
   "atl.art.lesson": "اختبارات",
   "atl.art.quiz": "واجبات",
@@ -190,6 +191,7 @@ export const AR: Partial<Record<TranslationKey, string>> = {
   "atl.card.homework.foot": "جارٍ الصياغة…",
   // التفاصيل الموسّعة — تُفتح عند النقر على بطاقة في فهرس المحتويات.
   "atl.more.open": "المزيد عن هذه الأداة",
+  "atl.more.hint": "اختر أداة لمعرفة ما تقوم به",
   "atl.more.close": "إغلاق",
   "atl.more.cta": "جرّبها في الاستوديو →",
   "atl.more.lesson.body":

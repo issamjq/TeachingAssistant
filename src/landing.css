@@ -2889,21 +2889,25 @@ body.lp-menu-open [data-a11y-node="reset-chip"] { display: none !important; }
 
 /* Ambient parallax — the hero's two drifting orbs lean into the cursor.
    Deliberately tiny and slow: this should be felt, not seen. */
+/* NOTE: these orbs run `animation: cm-orb-a/b` on `transform`. A running
+   animation beats a static `transform` declaration, so setting transform
+   here did nothing. `translate` is its own property and composes with the
+   animated transform instead of competing with it. */
 .cinema-orb-a {
-  transform: translate3d(calc(var(--mx, 0) * 18px), calc(var(--my, 0) * 12px), 0);
-  transition: transform 1.6s var(--easeOutE);
+  translate: calc(var(--mx, 0) * 20px) calc(var(--my, 0) * 14px);
+  transition: translate 1.6s var(--easeOutE);
 }
 .cinema-orb-b {
-  transform: translate3d(calc(var(--mx, 0) * -22px), calc(var(--my, 0) * -14px), 0);
-  transition: transform 1.9s var(--easeOutE);
+  translate: calc(var(--mx, 0) * -26px) calc(var(--my, 0) * -16px);
+  transition: translate 1.9s var(--easeOutE);
 }
 
 @media (prefers-reduced-motion: reduce) {
   .lp-magnetic,
   .lp-magnetic:hover,
-  .lp-magnetic:active,
+  .lp-magnetic:active { transform: none; transition: none; }
   .cinema-orb-a,
-  .cinema-orb-b { transform: none; transition: none; }
+  .cinema-orb-b { translate: none; transition: none; }
   .lp-spotlight::after { display: none; }
 }
 
@@ -2972,33 +2976,152 @@ body.lp-menu-open [data-a11y-node="reset-chip"] { display: none !important; }
 }
 .atl-card-hit:focus-visible { outline: 2px solid var(--cm-on-drench); outline-offset: 6px; }
 
-/* "More about this" — hidden until the row settles, then revealed on
-   hover so the affordance is discoverable without adding permanent chrome
-   to six cards at once. */
-.atl-card-more {
+/* Persistent expand affordance.
+
+   This was a text label revealed on hover, which was the wrong call: the
+   cards read as inert until the cursor happened to cross one, and on touch
+   — where there is no hover — the affordance never appeared at all. A
+   plus badge is the conventional "expand" cue, it is visible the moment
+   the row settles, and it works the same on both input types. One hint
+   line under the whole row carries the instruction, instead of repeating
+   a label six times. */
+.atl-card-plus {
   position: absolute;
-  inset-inline: 0;
-  inset-block-end: -26px;
-  text-align: center;
-  font-family: 'IBM Plex Mono', ui-monospace, monospace;
-  font-size: 9px;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--cm-on-drench, #b6dbe2);
+  inset-block-start: 11px;
+  inset-inline-end: 11px;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: var(--cm-clay-dd, #16323a);
+  background: oklch(0.96 0.008 200 / 0.94);
+  box-shadow: 0 2px 8px oklch(0.1 0.04 210 / 0.35);
   opacity: 0;
-  transform: translateY(-6px);
-  pointer-events: none;
-  transition: opacity 340ms var(--easeOutE), transform 340ms var(--easeOutE);
+  transform: scale(0.7);
+  transition: opacity 420ms var(--easeOutE), transform 420ms var(--easeOutE),
+              background 260ms var(--easeOutE);
 }
-.atl-cards.is-settled .atl-card-hit:hover .atl-card-more,
-.atl-cards.is-settled .atl-card-hit:focus-visible .atl-card-more {
-  opacity: 1;
-  transform: none;
+.atl-card-plus svg { width: 12px; height: 12px; display: block; }
+.atl-cards.is-settled .atl-card-plus { opacity: 1; transform: none; }
+.atl-cards.is-settled .atl-card-hit:hover .atl-card-plus,
+.atl-cards.is-settled .atl-card-hit:focus-visible .atl-card-plus {
+  transform: rotate(90deg) scale(1.12);
+  background: var(--cm-on-drench, #b6dbe2);
+}
+
+/* One instruction for the row. Positioned by JS to sit under the last row
+   of whichever settled layout is active (single row, or 3×2 on portrait). */
+.atl-row-hint {
+  position: absolute;
+  z-index: 6;
+  inset-inline-start: 50%;
+  inset-block-start: 50%;
+  white-space: nowrap;
+  pointer-events: none;
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: oklch(0.96 0.02 200 / 0.66);
+  transition: opacity 500ms var(--easeOutE);
 }
 
 @media (prefers-reduced-motion: reduce) {
   .atl-card-hit,
-  .atl-card-more { transition: none; }
+  .atl-card-plus,
+  .atl-row-hint { transition: none; }
   .atl-cards.is-settled .atl-card-hit:hover,
   .atl-cards.is-settled .atl-card-hit:focus-visible { transform: none; }
+  .atl-cards.is-settled .atl-card-hit:hover .atl-card-plus { transform: none; }
+}
+
+/* ─── 8. Hero opening ──────────────────────────────────────────────
+   The opening frame was a flat colour field: one teal gradient, two orbs
+   blurred past visibility, and nothing between the type and the edges of
+   the screen. It read as a background rather than a place.
+
+   Three layers of depth now sit under the masthead, all on .atl-drench
+   so the receding animation carries them out together:
+
+     ::before  concentric rings radiating from behind the wordmark. A
+               compass figure, which is what "murchid" means — the one
+               who guides. Barely-there on purpose; it should register as
+               texture, not as a graphic.
+     ::after   a vignette that darkens the corners so the centre reads as
+               lit, and the type sits in the light rather than on top of
+               a flat wash.
+     + a light shaft in the drench gradient itself.  */
+.atl-drench {
+  background:
+    /* Shaft of light from above the masthead. */
+    radial-gradient(ellipse 58% 46% at 50% -10%, oklch(0.8 0.1 190 / 0.5), transparent 72%),
+    radial-gradient(ellipse 92% 64% at 50% 14%, oklch(0.64 0.13 197), transparent 72%),
+    radial-gradient(circle at 86% 92%, oklch(0.36 0.1 197), transparent 60%),
+    /* A cooler counter-pool bottom-left, so the field is not one hue. */
+    radial-gradient(circle at 6% 86%, oklch(0.3 0.085 216), transparent 58%),
+    var(--cm-clay);
+}
+.atl-drench::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-radial-gradient(
+    circle at 50% 24%,
+    transparent 0 74px,
+    oklch(0.92 0.06 190 / 0.05) 74px 75px);
+  /* Fade the rings out toward the edges so they never terminate on a hard
+     line at the viewport boundary. */
+  -webkit-mask-image: radial-gradient(ellipse 70% 62% at 50% 26%, #000 30%, transparent 78%);
+  mask-image: radial-gradient(ellipse 70% 62% at 50% 26%, #000 30%, transparent 78%);
+}
+.atl-drench::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(
+    ellipse 82% 74% at 50% 42%,
+    transparent 38%,
+    oklch(0.13 0.04 214 / 0.58) 100%);
+}
+/* The orbs were blurred to 60px at 0.55 opacity over a mid-tone ground,
+   which put them below the threshold of visible. */
+.cinema-orb { filter: blur(76px); opacity: 0.72; }
+
+/* Hierarchy. The wordmark at 200px against a 38px tagline meant a first
+   visit read the brand name before it read what the product does. The
+   masthead stays the signature — it just stops crowding the proposition. */
+.atl-word { font-size: 168px; }
+.atl-tagline {
+  font-size: 50px;
+  max-width: 19ch;
+  color: var(--cm-cream);
+  margin-block-start: 22px;
+}
+.atl-meaning { margin-block-start: 14px; }
+
+/* Trust line under the CTAs — the first screen had no reassurance at all. */
+.atl-trust {
+  margin-block-start: 16px;
+  font-family: 'Inter Tight', system-ui, sans-serif;
+  font-size: 12.5px;
+  letter-spacing: 0.01em;
+  color: oklch(0.96 0.02 200 / 0.62);
+  animation: atl-rise-soft 0.9s 1.7s var(--easeOutE) backwards;
+}
+.atl-trust b { font-weight: 600; color: oklch(0.96 0.02 200 / 0.9); }
+
+@media (max-width: 900px) {
+  .atl-word { font-size: 128px; }
+  .atl-tagline { font-size: 38px; }
+}
+
+/* The masthead bar puts the eyebrow at the leading edge and the issue meta
+   at the trailing one. Below ~640px there is not room for both and they
+   collided mid-line; the meta is decorative, so it goes. */
+@media (max-width: 640px) {
+  .atl-meta { display: none; }
+  .atl-masthead { justify-content: flex-start; }
 }

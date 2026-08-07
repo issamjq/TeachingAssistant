@@ -139,6 +139,7 @@ export const EN = {
   // ── 2026 editorial hero (atl.*) ──────────────────────────────────
   "atl.meaning": "Murchid · مُرشِد — the one who guides",
   "atl.index.over": "Six tools. One studio.",
+  "atl.trust": "Free for 7 days · No card required · English and Arabic",
   "atl.index.title": "Everything teaching needs, in one place.",
   // Keys are the original slot ids (lesson/quiz/deck/…); the labels are the
   // product tour shown on the cards — see CARD_IMG in HeroJourney.jsx.
@@ -202,6 +203,7 @@ export const EN = {
   "atl.card.homework.foot": "Drafting…",
   // Expanded detail — opened by clicking a card in the contents index.
   "atl.more.open": "More about this",
+  "atl.more.hint": "Select a tool to see what it does",
   "atl.more.close": "Close",
   "atl.more.cta": "Try it in the studio →",
   "atl.more.lesson.body":
