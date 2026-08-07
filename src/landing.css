@@ -2654,3 +2654,150 @@ body.lp-menu-open [data-a11y-node="reset-chip"] { display: none !important; }
 }
 .auth-switch-link:hover { color: var(--cm-clay, #4EA4B5); }
 .auth-switch-link:hover::after { transform: scaleX(1); }
+
+/* ════════════════════════════════════════════════════════════════════
+   PREMIUM POLISH PASS (2026)
+   Additive refinements over the cinematic landing. Three concerns, in
+   order of visual impact:
+
+     1. Feathered section seams — the drench sections used to butt against
+        the cream ones on a razor edge, which reads as unfinished. Each
+        drench edge now dissolves into cream over ~150px.
+     2. Plan-card elevation — the two unfeatured cards had no resting
+        shadow and no border, so they nearly vanished on the cream ground.
+     3. Nav chrome — deeper frosted glass, a hairline, and a slight
+        condense on scroll.
+
+   Nothing here changes layout or copy; it is all surface. Motion is
+   guarded by prefers-reduced-motion at the end of the block.
+   ════════════════════════════════════════════════════════════════════ */
+
+/* ─── 1. Feathered seams ───────────────────────────────────────────
+   The cream sections (.film-stage, .plans-stage) stay untouched — the
+   fade lives on the drench side and resolves to the exact cream token,
+   so the blend is invisible rather than a visible band. */
+.atl::after,
+.voices-pin-track::before,
+.voices-pin-track::after,
+.final-stage::before,
+.final-stage::after {
+  content: '';
+  position: absolute;
+  inset-inline: 0;
+  height: clamp(90px, 11vh, 160px);
+  z-index: 4;
+  pointer-events: none;
+}
+/* Hero drench → cream Showreel */
+.atl::after {
+  bottom: -1px;
+  background: linear-gradient(to bottom, transparent, var(--cm-cream));
+}
+/* Cream Showreel → Voices drench */
+.voices-pin-track::before {
+  top: -1px;
+  background: linear-gradient(to top, transparent, var(--cm-cream));
+}
+/* Voices drench → cream Plans */
+.voices-pin-track::after {
+  bottom: -1px;
+  background: linear-gradient(to bottom, transparent, var(--cm-cream));
+}
+/* Cream Plans → final drench */
+.final-stage::before {
+  top: -1px;
+  background: linear-gradient(to top, transparent, var(--cm-cream));
+}
+/* Final drench → cream footer */
+.final-stage::after {
+  bottom: -1px;
+  background: linear-gradient(to bottom, transparent, var(--cm-cream));
+}
+
+/* ─── 2. Plan cards ────────────────────────────────────────────────
+   A resting elevation plus a hairline and a specular top edge, so the
+   cards sit ON the paper instead of being cut out of it. The featured
+   card already had depth; it only gains a warmer ambient bloom. */
+.plans-card:not(.featured) {
+  border: 1px solid oklch(0.18 0.03 210 / 0.07);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.75),
+    0 1px 2px oklch(0.18 0.05 197 / 0.05),
+    0 10px 28px oklch(0.18 0.05 197 / 0.07);
+}
+.plans-card:not(.featured):hover {
+  transform: translateY(-6px);
+  border-color: oklch(0.18 0.03 210 / 0.11);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.85),
+    0 2px 4px oklch(0.18 0.05 197 / 0.07),
+    0 26px 60px oklch(0.18 0.05 197 / 0.15);
+}
+/* Featured card — a soft coloured bloom under the elevation reads as
+   light spilling off the card rather than a flat drop shadow. */
+.plans-card.featured {
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.16),
+    0 1px 2px oklch(0.18 0.05 197 / 0.12),
+    0 34px 76px oklch(0.18 0.05 197 / 0.26),
+    0 8px 40px oklch(0.55 0.13 197 / 0.18);
+}
+.plans-card.featured:hover {
+  transform: translateY(-10px);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.2),
+    0 2px 5px oklch(0.18 0.05 197 / 0.16),
+    0 44px 96px oklch(0.18 0.05 197 / 0.3),
+    0 12px 52px oklch(0.55 0.13 197 / 0.26);
+}
+.plans-badge {
+  box-shadow: 0 4px 14px oklch(0.7 0.14 70 / 0.4);
+}
+
+/* ─── 3. Nav chrome ────────────────────────────────────────────────
+   Deeper glass than before, with a hairline that belongs to the bar
+   rather than the border-b utility (which only applied on cream). */
+.murchid-landing .nav-blur {
+  backdrop-filter: blur(20px) saturate(190%);
+  -webkit-backdrop-filter: blur(20px) saturate(190%);
+  background: oklch(0.96 0.008 200 / 0.72);
+  box-shadow:
+    inset 0 -1px 0 oklch(0.18 0.03 210 / 0.08),
+    0 8px 30px oklch(0.18 0.05 197 / 0.06);
+}
+.murchid-landing .nav-shade {
+  background: linear-gradient(to bottom,
+    oklch(0.18 0.05 197 / 0.42),
+    oklch(0.18 0.05 197 / 0.14) 62%,
+    oklch(0.18 0.05 197 / 0));
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  box-shadow: inset 0 -1px 0 oklch(1 0 0 / 0.07);
+}
+/* Condense on scroll — 64px at rest, 58px once the page moves. The inner
+   bar is a Tailwind h-16; this overrides it only in the scrolled states.
+   Desktop only: the 50px logo has no headroom to give up on a phone bar. */
+@media (min-width: 768px) {
+  .murchid-landing .nav-blur > div,
+  .murchid-landing .nav-shade > div {
+    height: 58px;
+  }
+  .murchid-landing .nav-blur .nav-brand svg,
+  .murchid-landing .nav-shade .nav-brand svg {
+    transform: translateY(5px) scale(0.92);
+  }
+}
+.murchid-landing header > div {
+  transition: height 480ms var(--easeOutE);
+}
+.murchid-landing .nav-brand svg {
+  transition: transform 480ms var(--easeOutE);
+  transform-origin: left center;
+}
+[dir="rtl"] .murchid-landing .nav-brand svg { transform-origin: right center; }
+
+@media (prefers-reduced-motion: reduce) {
+  .murchid-landing header > div,
+  .murchid-landing .nav-brand svg,
+  .plans-card { transition: none; }
+}
