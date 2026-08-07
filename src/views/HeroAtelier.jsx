@@ -226,20 +226,50 @@ export default function HeroAtelier({ onEnter, signedIn }) {
   const deckScale = narrow ? Math.max(0.5, Math.min(0.86, (bandH - 20) / CARD_H)) : 1;
   const deckY = narrow ? (bandTop + SPLIT * vh) / 2 - vh / 2 : 46;
 
-  // Eight cards cannot form a legible contents index on a phone. The
-  // portrait grid is 3 columns, so eight needs three rows, and three rows of
-  // card-plus-label do not fit a 100vh pin — the last row fell off the
-  // bottom. Shrinking to fit put the labels at about 7px.
+  // Eight cards cannot form a legible contents GRID on a phone — three
+  // columns needs three rows, which does not fit a 100vh pin, and shrinking
+  // to fit puts the labels near 8px. Skipping the stage entirely was worse
+  // though: phones lost the overview beat that gives the section its point,
+  // and went from a fan straight to a deck with nothing explaining what the
+  // eight things were.
   //
-  // So portrait skips the index arrangement altogether: the fan resolves
-  // straight into the deck, and the walkthrough presents all eight one at a
-  // time at full size, which is the better reading of them on a phone
-  // anyway. Landscape and desktop keep the numbered row.
-  const skipIndexRow = isPortrait;
-  const bPos = skipIndexRow
+  // So portrait gets the same beat in the form a phone can actually hold: a
+  // typographic contents LIST, which is what a magazine contents page is
+  // anyway. The cards ride above it as a compact deck and grow into the
+  // walkthrough as the list clears.
+  // Short phones have to give the list room, so the index deck shrinks
+  // further there — the deck is context at this beat, the list is content.
+  const mShort = vh < 700;
+  const mIndexScale = deckScale * (mShort ? 0.5 : 0.66);
+  const mIndexY = -vh / 2 + padTop + 40 + (CARD_H * mIndexScale) / 2;
+  // Where the list starts, measured from the deck rather than set at a fixed
+  // percentage — a fixed 46% put the list 75px INTO the cards. The tail
+  // allowance is generous because the deck's cards are rotated up to 31
+  // degrees, and a rotated box is a good deal taller than the card is.
+  // The rotation allowance scales with the deck: a flat 92px was right on a
+  // 844pt phone and pushed the list off the bottom of a 667pt one, where the
+  // deck (and so its rotated overhang) is much smaller.
+  // Row height mirrors .atl-mlist (measured, not guessed — the first
+  // estimate of 29 was 8px short and pushed the eighth row off a 568pt
+  // screen). Descriptions are dropped under 700pt.
+  const mRowH = mShort ? 37 : 41;
+  // Under ~620pt there is not room for the deck AND eight rows. The list is
+  // the content of this beat and the deck is context, so the deck dims to a
+  // backdrop and the list takes the space. It returns at full strength for
+  // the walkthrough.
+  const mTiny = vh < 620;
+  const mListH = N * mRowH;
+  const mListTop = mTiny
+    ? -vh / 2 + padTop + 52
+    : Math.min(
+        mIndexY + 16 * (N - 1) * 0.7 + (CARD_H * mIndexScale) / 2 + 34 + CARD_H * mIndexScale * 0.28,
+        // Never start so low that the eighth row falls off the pin.
+        vh / 2 - 20 - mListH
+      );
+  const bPos = isPortrait
     ? (i) => {
         const dp = deckPos(i, dir);
-        return { x: deckX + dp.x, y: deckY + dp.y, s: dp.s * deckScale };
+        return { x: dp.x * 0.7, y: mIndexY + dp.y * 0.7, s: dp.s * mIndexScale };
       }
     : L.pos;
 
@@ -291,7 +321,8 @@ export default function HeroAtelier({ onEnter, signedIn }) {
     const r = lerp(rr, dp.rot, gather);
     const sc = lerp(rs, dp.s * deckScale, gather);
     // Fan depth resolves to flat as the cards settle into the index.
-    const opacity = lerp(lerp(fanOpacity, 1, cardsT), dp.opacity, gather);
+    let opacity = lerp(lerp(fanOpacity, 1, cardsT), dp.opacity, gather);
+    if (mTiny) opacity *= 1 - 0.86 * (tocIn * indexOut);
     return {
       transform: `translate(-50%, -50%) translate(${x}px, ${y}px) rotate(${r}deg) scale(${sc})`,
       opacity,
@@ -479,7 +510,7 @@ export default function HeroAtelier({ onEnter, signedIn }) {
         {/* Labels ride WITH their card into the deck rather than staying put:
             pinned to the row while the cards swept away, they read for a
             moment as six stranded captions. */}
-        <div className="atl-toc atl-toc--compact" style={{ opacity: skipIndexRow ? 0 : tocIn * indexOut, "--toc-k": tocK }} aria-hidden={skipIndexRow || tocIn * indexOut < 0.5}>
+        <div className="atl-toc atl-toc--compact" style={{ opacity: isPortrait ? 0 : tocIn * indexOut, "--toc-k": tocK }} aria-hidden={isPortrait || tocIn * indexOut < 0.5}>
           {HERO_CARDS.map((kind, i) => {
             const b = bPos(i);
             const dp = deckPos(i, dir);
@@ -500,6 +531,23 @@ export default function HeroAtelier({ onEnter, signedIn }) {
             );
           })}
         </div>
+
+        {/* Phone contents list — the portrait form of the index stage. */}
+        {isPortrait && (
+          <ol
+            className="atl-mlist"
+            style={{ opacity: tocIn * indexOut, insetBlockStart: `calc(50% + ${Math.round(mListTop)}px)` }}
+            aria-hidden={tocIn * indexOut < 0.5}
+          >
+            {HERO_CARDS.map((kind, i) => (
+              <li key={kind} className="atl-mrow">
+                <span className="atl-mnum">{String(i + 1).padStart(2, "0")}</span>
+                <span className="atl-mname">{t(`atl.art.${kind}`)}</span>
+                <span className="atl-mdesc">{t(`atl.desc.${kind}`)}</span>
+              </li>
+            ))}
+          </ol>
+        )}
 
         {/* Selection dot on the trailing edge of the front card. */}
         <span

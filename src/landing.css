@@ -3164,3 +3164,57 @@ body.lp-menu-open [data-a11y-node="reset-chip"] { display: none !important; }
   }
   .murchid-landing footer .grid.grid-cols-12 > * { grid-column: auto; }
 }
+
+/* ─── 11. Phone contents list ──────────────────────────────────────
+   The portrait form of the index stage. Desktop lays the eight cards out
+   as a 4x2 grid; a phone cannot — three columns needs three rows, which
+   overruns the pin, and shrinking to fit puts the labels near 8px. So the
+   same beat becomes typographic: a numbered contents list at real reading
+   sizes, with the cards riding above it as a compact deck. */
+.atl-mlist {
+  position: absolute;
+  z-index: 6;
+  inset-inline: clamp(20px, 6vw, 34px);
+  /* insetBlockStart is set inline from mListTop in HeroAtelier. */
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  pointer-events: none;
+  transition: opacity 400ms var(--easeOutE);
+}
+.atl-mrow {
+  display: grid;
+  grid-template-columns: 30px 1fr auto;
+  align-items: baseline;
+  gap: 0 10px;
+  padding-block: 9px;
+  border-block-end: 1px solid oklch(1 0 0 / 0.1);
+}
+.atl-mrow:last-child { border-block-end: 0; }
+.atl-mnum {
+  font-family: 'Fraunces', Georgia, serif;
+  font-style: italic;
+  font-size: 15px;
+  color: var(--cm-on-drench, #b6dbe2);
+}
+.atl-mname {
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+  font-size: 10.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--cm-cream, #f2f7f8);
+}
+.atl-mdesc {
+  font-family: 'Inter Tight', system-ui, sans-serif;
+  font-size: 11.5px;
+  color: oklch(0.96 0.02 200 / 0.62);
+  text-align: end;
+}
+/* Very short phones cannot show eight rows and the deck; the descriptions
+   go before the rows do, since the names carry the index on their own. */
+@media (max-height: 700px) {
+  .atl-mdesc { display: none; }
+  .atl-mrow { padding-block: 7px; }
+}
