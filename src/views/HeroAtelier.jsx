@@ -55,9 +55,12 @@ const MID = (N - 1) / 2; // 2.5
 // INTRO covers masthead → fan → numbered index → gather. SLOT is what one
 // tool gets. The section's height is derived from these, so the CSS and
 // the choreography cannot drift apart.
-const INTRO_VH = 120;
-const SLOT_VH = 52;
-const TRAVEL_VH = INTRO_VH + SLOT_VH * N; // 432
+const INTRO_VH = 112;
+// 44vh per tool over eight of them. Sized against the reading, not the
+// clock: the description is fully opaque from 30% to 90% of a slot, so a
+// tool holds ~26vh of legible text before anything moves.
+const SLOT_VH = 44;
+const TRAVEL_VH = INTRO_VH + SLOT_VH * N;
 export const HERO_TRACK_VH = TRAVEL_VH + 100; // + the pinned viewport
 /** viewport-heights → progress fraction of the track's travel */
 const at = (v) => v / TRAVEL_VH;
@@ -153,14 +156,14 @@ export default function HeroAtelier({ onEnter, signedIn }) {
   //   74–92vh   HOLD — the finished index, the frame the page is "about"
   //   92–120vh  the row gathers to the side and stacks into a deck
   //   120vh+    52vh per tool
-  const lockOut = easeInOut(seg(p, at(6), at(40)));
-  const cardsT = easeInOut(seg(p, at(10), at(58)));
-  const swap = easeInOut(seg(p, at(26), at(46)));
-  const headIn = seg(p, at(30), at(56));
-  const tocIn = seg(p, at(44), at(74));
+  const lockOut = easeInOut(seg(p, at(5), at(37)));
+  const cardsT = easeInOut(seg(p, at(9), at(54)));
+  const swap = easeInOut(seg(p, at(24), at(43)));
+  const headIn = seg(p, at(28), at(52));
+  const tocIn = seg(p, at(41), at(69)); // suppressed on portrait — see skipIndexRow
 
   // ── gather: index row → deck ─────────────────────────────────────
-  const GATHER_A = at(92);
+  const GATHER_A = at(86);
   const GATHER_B = at(INTRO_VH);
   const gRaw = clamp01((p - GATHER_A) / (GATHER_B - GATHER_A));
   const gather = smooth(gRaw); // geometry
@@ -197,7 +200,6 @@ export default function HeroAtelier({ onEnter, signedIn }) {
   // frame of this section precisely. See features/hero-artifacts/indexLayout.
   const L = indexLayout(N, vw, dir, isRTL);
   const wordK = L.wordK;
-  const bPos = L.pos;
   const tocK = L.tocK;
   const headBottomY = L.headBottomY;
   const isPortrait = L.isPortrait;
@@ -217,6 +219,23 @@ export default function HeroAtelier({ onEnter, signedIn }) {
   const bandH = SPLIT * vh - bandTop;
   const deckScale = narrow ? Math.max(0.5, Math.min(0.86, (bandH - 20) / CARD_H)) : 1;
   const deckY = narrow ? (bandTop + SPLIT * vh) / 2 - vh / 2 : 46;
+
+  // Eight cards cannot form a legible contents index on a phone. The
+  // portrait grid is 3 columns, so eight needs three rows, and three rows of
+  // card-plus-label do not fit a 100vh pin — the last row fell off the
+  // bottom. Shrinking to fit put the labels at about 7px.
+  //
+  // So portrait skips the index arrangement altogether: the fan resolves
+  // straight into the deck, and the walkthrough presents all eight one at a
+  // time at full size, which is the better reading of them on a phone
+  // anyway. Landscape and desktop keep the numbered row.
+  const skipIndexRow = isPortrait;
+  const bPos = skipIndexRow
+    ? (i) => {
+        const dp = deckPos(i, dir);
+        return { x: deckX + dp.x, y: deckY + dp.y, s: dp.s * deckScale };
+      }
+    : L.pos;
 
   // Shared card transform — fan (hero) lerped to its settled position.
   const cardStyle = (i) => {
@@ -435,7 +454,7 @@ export default function HeroAtelier({ onEnter, signedIn }) {
         {/* Labels ride WITH their card into the deck rather than staying put:
             pinned to the row while the cards swept away, they read for a
             moment as six stranded captions. */}
-        <div className="atl-toc" style={{ opacity: tocIn * indexOut, "--toc-k": tocK }} aria-hidden={tocIn * indexOut < 0.5}>
+        <div className="atl-toc" style={{ opacity: skipIndexRow ? 0 : tocIn * indexOut, "--toc-k": tocK }} aria-hidden={skipIndexRow || tocIn * indexOut < 0.5}>
           {HERO_CARDS.map((kind, i) => {
             const b = bPos(i);
             const dp = deckPos(i, dir);

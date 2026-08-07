@@ -1,22 +1,27 @@
 "use client";
 
 // =====================================================================
-// Hero artifacts — the six card faces for the landing title sequence.
+// Hero artifacts — one card face per product module.
 //
-// Each card is a *specimen* of one teaching artifact: the thing Murchid
-// makes, drawn as type and vector rather than photographed. They replace
-// 24 baked PNGs (~11 MB) that carried their own text and so needed a
-// separate Arabic build; these read the dictionary, so RTL is free.
+// These are the eight top-level modules from new-docs/LMS_Project_Report
+// §3–§8, not a flattened list of one module's outputs. The previous six
+// (Quizzes, Homework, Presentations, Planner, Activities, AI Studio)
+// were all capabilities of §3.1 AI Studio alone, presented as though
+// they were the whole product.
 //
-// Slot ids are the original hero keys (lesson/quiz/deck/…) and are NOT
-// the displayed concept — the product tour renumbered them. The mapping
-// is fixed by HERO_CARDS order and the atl.art.* labels:
+//   studio     §3.1  AI Studio — the content workspace
+//   planner    §3.3  Goal Preparation — syllabus to a dated plan
+//   profile    §3.4  Faculty Skills — the profile that personalises output
+//   roster     §3.2  Subjects & Students — workspaces and cohorts
+//   proctor    §5    Exam proctoring, client-side (Phase 2)
+//   insights   §7    Dashboard — analytics and AI insights
+//   schedule   §6    Scheduling — one calendar, conflict-aware
+//   assistant  §8    Platform assistant chatbot
 //
-//   lesson → Quizzes        quiz  → Homework      deck     → Presentations
-//   presentation → Planner  activity → Activities homework → AI Studio
-//
-// Grounds alternate light/dark down that order so the settled contents
-// row reads as a rhythm rather than six of the same thing.
+// Each is a drawn specimen of what the module produces, in vector and
+// live type — so it stays crisp across the scroll's scale ramp and reads
+// Arabic straight from the dictionary. Grounds alternate light/dark down
+// the row so the settled index reads as a rhythm.
 // =====================================================================
 import React from "react";
 import { useI18n, useT } from "@/shared/i18n";
@@ -24,244 +29,223 @@ import type { TranslationKey } from "@/shared/i18n";
 import s from "./HeroArtifact.module.css";
 
 export type ArtifactKind =
-  | "lesson"
-  | "quiz"
-  | "deck"
-  | "presentation"
-  | "activity"
-  | "homework";
+  | "studio" | "planner" | "profile" | "roster"
+  | "proctor" | "insights" | "schedule" | "assistant";
 
 export interface HeroArtifactProps {
   kind: ArtifactKind;
-  /** "a" = the Science set (hero arc), "b" = the Maths set (contents index). */
+  /** Kept for the hero's A→B cross-fade; varies the sample content only. */
   variant?: "a" | "b";
 }
 
-// Every `.b` key used below is declared in en.ts alongside its base key, so
-// the suffixed lookup is always a real TranslationKey. TypeScript can't see
-// that through a template literal, hence the single cast here rather than
-// one at each call site.
-const bKey = (k: string): TranslationKey => `${k}.b` as TranslationKey;
+const GROUND: Record<ArtifactKind, "light" | "dark"> = {
+  studio: "dark", planner: "light", profile: "dark", roster: "light",
+  proctor: "dark", insights: "light", schedule: "dark", assistant: "light",
+};
+
+const Tick = () => (
+  <svg viewBox="0 0 8 8" fill="none" aria-hidden="true" className={s.tick}>
+    <path d="M1.4 4.2 L3.1 5.9 L6.6 2.3" stroke="currentColor" strokeWidth="1.6"
+      strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
 
 export default function HeroArtifact({ kind, variant = "a" }: HeroArtifactProps) {
   const t = useT();
   const { isRTL } = useI18n();
-  // Topical strings swap with the variant; structural ones don't.
-  const tv = (k: string): string =>
-    t(variant === "b" ? bKey(k) : (k as TranslationKey));
   const tk = (k: string): string => t(k as TranslationKey);
+  const b = variant === "b";
+  const cls = `${s.card} ${GROUND[kind] === "dark" ? s.dark : s.light}`;
+  const head = (
+    <>
+      <span className={s.eyebrow}>{tk(`atl.art.${kind}`)}</span>
+      <h4 className={s.title}>{tk(`atl.desc.${kind}`)}</h4>
+    </>
+  );
 
-  const ground = KIND_GROUND[kind];
-  const cls = `${s.card} ${ground === "dark" ? s.dark : s.light}`;
-
-  // ── 01 · Quizzes ───────────────────────────────────────────────
-  if (kind === "lesson") {
-    const opts = [
-      { label: tv("atl.card.lesson.o1"), on: true },
-      { label: tv("atl.card.lesson.o2"), on: false },
-      { label: tv("atl.card.lesson.o3"), on: false },
-    ];
+  // ── §3.1 AI Studio ─────────────────────────────────────────────
+  if (kind === "studio") {
     return (
       <div className={cls}>
-        <span className={s.eyebrow}>{tk("atl.card.lesson.eyebrow")}</span>
-        <h4 className={s.title}>{tv("atl.card.lesson.title")}</h4>
-        <div className={s.rule} />
-        <div className={s.body}>
-          {opts.map((o) => (
-            <div key={o.label} className={`${s.opt} ${o.on ? s.optOn : ""}`}>
-              <span className={s.dot}>
-                {o.on && (
-                  <svg className={s.tick} viewBox="0 0 8 8" fill="none" aria-hidden="true">
-                    <path
-                      d="M1.4 4.2 L3.1 5.9 L6.6 2.3"
-                      stroke="#fff"
-                      strokeWidth="1.6"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                )}
-              </span>
-              <span>{o.label}</span>
-            </div>
-          ))}
-        </div>
-        <div className={s.foot}>{tk("atl.card.lesson.foot")}</div>
-      </div>
-    );
-  }
-
-  // ── 02 · Homework ──────────────────────────────────────────────
-  if (kind === "quiz") {
-    const marks = ["A", "M", "S", "R"];
-    const tints = [
-      "oklch(0.78 0.1 195)",
-      "oklch(0.72 0.09 175)",
-      "oklch(0.82 0.08 205)",
-      "oklch(0.68 0.1 190)",
-    ];
-    return (
-      <div className={cls}>
-        <span className={s.eyebrow}>{tk("atl.card.quiz.eyebrow")}</span>
-        <h4 className={s.title}>{tv("atl.card.quiz.title")}</h4>
-        <div className={s.rule} />
-        <div className={s.body}>
-          <div style={{ fontFamily: "'Inter Tight', system-ui, sans-serif", fontSize: 11, opacity: 0.78 }}>
-            {tv("atl.card.quiz.due")}
-          </div>
-          <div className={s.statRow}>
-            <span className={s.statN}>64%</span>
-            <span className={s.statL}>{tk("atl.card.quiz.foot")}</span>
-          </div>
-          <div className={s.meter}>
-            <div className={s.meterFill} style={{ width: "64%" }} />
-          </div>
-          <div className={s.avatars}>
-            {marks.map((m, i) => (
-              <span key={m} className={s.avatar} style={{ background: tints[i] }}>
-                {m}
-              </span>
-            ))}
-          </div>
-        </div>
-        <div className={s.foot}>{tk("atl.desc.quiz")}</div>
-      </div>
-    );
-  }
-
-  // ── 03 · Presentations ─────────────────────────────────────────
-  if (kind === "deck") {
-    return (
-      <div className={cls}>
-        <span className={s.eyebrow}>{tk("atl.card.deck.eyebrow")}</span>
-        <h4 className={s.title}>{tv("atl.card.deck.title")}</h4>
-        <div className={s.slideStack}>
-          <div className={`${s.slide} ${s.slideBack2}`} />
-          <div className={`${s.slide} ${s.slideBack1}`} />
-          <div className={`${s.slide} ${s.slideFront}`}>
-            <div className={s.slideCap}>{tv("atl.card.deck.slide")}</div>
-            <div className={s.slideArt}>
-              {/* A horizon: water below, sun above — legible at 40% scale. */}
-              <svg viewBox="0 0 180 60" preserveAspectRatio="none" width="100%" height="100%" aria-hidden="true">
-                <circle cx="138" cy="18" r="9" fill="oklch(0.95 0.06 190 / 0.85)" />
-                <path d="M0 42 Q 30 32 60 42 T 120 42 T 180 42 V60 H0 Z" fill="oklch(0.98 0.01 200 / 0.4)" />
-                <path d="M0 50 Q 34 41 68 50 T 136 50 T 200 50 V60 H0 Z" fill="oklch(0.99 0.005 200 / 0.55)" />
-              </svg>
-            </div>
-          </div>
-        </div>
-        <div className={s.dots}>
-          <span className={`${s.pip} ${s.pipOn}`} />
-          <span className={s.pip} />
-          <span className={s.pip} />
-          <span className={s.pip} />
-        </div>
-        <div className={s.foot}>{tk("atl.card.deck.foot")}</div>
-      </div>
-    );
-  }
-
-  // ── 04 · Planner ───────────────────────────────────────────────
-  if (kind === "presentation") {
-    const dayNames = isRTL ? ["ن", "ث", "ر", "خ", "ج"] : ["M", "T", "W", "T", "F"];
-    // A plausible week: a couple of doubles, a free Wednesday morning.
-    const plan = [
-      "a", "", "b", "", "c",
-      "", "b", "a", "c", "",
-      "c", "a", "", "b", "b",
-      "", "c", "a", "", "a",
-    ];
-    const tone = (v: string) =>
-      v === "a" ? s.cellA : v === "b" ? s.cellB : v === "c" ? s.cellC : "";
-    return (
-      <div className={cls}>
-        <span className={s.eyebrow}>{tk("atl.card.presentation.eyebrow")}</span>
-        <h4 className={s.title}>{tv("atl.card.presentation.title")}</h4>
-        <div className={s.rule} />
-        <div className={s.days}>
-          {dayNames.map((d, i) => (
-            <span key={i} className={s.dayName}>
-              {d}
-            </span>
-          ))}
-        </div>
-        <div className={s.grid}>
-          {plan.map((v, i) => (
-            <span key={i} className={`${s.cell} ${tone(v)}`} />
-          ))}
-        </div>
-        <div className={s.foot}>{tk("atl.card.presentation.foot")}</div>
-      </div>
-    );
-  }
-
-  // ── 05 · Activities ────────────────────────────────────────────
-  if (kind === "activity") {
-    return (
-      <div className={cls}>
-        <span className={s.eyebrow}>{tk("atl.card.activity.eyebrow")}</span>
-        <h4 className={s.title}>{tv("atl.card.activity.title")}</h4>
-        <div className={s.chips}>
-          <span className={`${s.chip} ${s.chipOn}`}>{tk("atl.card.activity.c1")}</span>
-          <span className={s.chip}>{tk("atl.card.activity.c2")}</span>
-          <span className={s.chip}>{tk("atl.card.activity.c3")}</span>
-        </div>
-        {/* Three grouping modes as pure geometry: a pair, a cluster, a single. */}
-        <svg className={s.geo} viewBox="0 0 196 112" fill="none" aria-hidden="true">
-          {/* Pair — two overlapping discs */}
-          <circle cx="26" cy="46" r="17" fill="oklch(0.62 0.1 200 / 0.9)" />
-          <circle cx="52" cy="46" r="17" fill="oklch(0.62 0.1 200 / 0.42)" />
-          {/* Group — a cluster of three */}
-          <rect x="90" y="24" width="26" height="26" rx="6" fill="oklch(0.72 0.09 178 / 0.85)" />
-          <rect x="120" y="24" width="26" height="26" rx="6" fill="oklch(0.72 0.09 178 / 0.5)" />
-          <rect x="105" y="54" width="26" height="26" rx="6" fill="oklch(0.72 0.09 178 / 0.68)" />
-          {/* Solo — one mark, standing apart */}
-          <path d="M172 26 L190 62 H154 Z" fill="oklch(0.55 0.11 205 / 0.85)" />
-          <line
-            x1="10" y1="98" x2="186" y2="98"
-            stroke="oklch(0.18 0.03 210 / 0.14)"
-            strokeWidth="1"
-            strokeDasharray="2 4"
-          />
+        <svg className={s.spark} viewBox="0 0 16 16" fill="none" aria-hidden="true">
+          <path d="M8 0 C8.6 5 11 7.4 16 8 C11 8.6 8.6 11 8 16 C7.4 11 5 8.6 0 8 C5 7.4 7.4 5 8 0 Z" fill="currentColor" />
         </svg>
-        <div className={s.foot}>{tk("atl.desc.activity")}</div>
+        {head}
+        <div className={s.prompt}>
+          {b ? "A Grade 9 physics lesson on the second law"
+             : "A Grade 7 lesson on photosynthesis"}
+        </div>
+        <div className={s.stream}>
+          {[92, 100, 74, 88, 58].map((w, i) => (
+            <span key={i} className={s.streamRow} style={{ width: `${w}%`, ["--r" as string]: i }} />
+          ))}
+        </div>
+        <div className={s.foot}>Lesson · Quiz · Deck · Homework</div>
       </div>
     );
   }
 
-  // ── 06 · AI Studio ─────────────────────────────────────────────
+  // ── §3.3 Goal Preparation ──────────────────────────────────────
+  if (kind === "planner") {
+    // 30 days. Tone marks the phase: foundations, the weight of it, revision.
+    const days = Array.from({ length: 30 }, (_, i) =>
+      i < 10 ? "a" : i < 24 ? "b" : "c");
+    return (
+      <div className={cls}>
+        {head}
+        <div className={s.rule} />
+        <div className={s.planGrid}>
+          {days.map((d, i) => (
+            <span key={i} className={`${s.day} ${d === "a" ? s.dayA : d === "b" ? s.dayB : s.dayC}`} />
+          ))}
+        </div>
+        <div className={s.legend}>
+          <span><i className={s.dayA} /> Foundations</span>
+          <span><i className={s.dayB} /> Core</span>
+          <span><i className={s.dayC} /> Revision</span>
+        </div>
+        <div className={s.foot}>{b ? "480 pages · 30 days" : "500 pages · 30 days"}</div>
+      </div>
+    );
+  }
+
+  // ── §3.4 Faculty Skills ────────────────────────────────────────
+  if (kind === "profile") {
+    const traits: [string, number][] = b
+      ? [["Pace", 0.5], ["Visual", 0.82], ["Frequent checks", 0.7], ["Warm", 0.9]]
+      : [["Pace", 0.68], ["Visual", 0.55], ["Frequent checks", 0.86], ["Formal", 0.44]];
+    return (
+      <div className={cls}>
+        {head}
+        <div className={s.rule} />
+        <div className={s.traits}>
+          {traits.map(([label, v]) => (
+            <div key={label} className={s.trait}>
+              <span className={s.traitL}>{label}</span>
+              <span className={s.traitBar}><i style={{ width: `${v * 100}%` }} /></span>
+            </div>
+          ))}
+        </div>
+        <div className={s.foot}>profile.md · referenced everywhere</div>
+      </div>
+    );
+  }
+
+  // ── §3.2 Subjects & Students ───────────────────────────────────
+  if (kind === "roster") {
+    const rows: [string, string, string][] = b
+      ? [["A", "Aisha N.", "94"], ["R", "Rami H.", "88"], ["S", "Sara P.", "81"], ["Y", "Yusuf K.", "76"]]
+      : [["L", "Layla H.", "96"], ["O", "Omar K.", "91"], ["M", "Mariam B.", "84"], ["F", "Faisal A.", "79"]];
+    return (
+      <div className={cls}>
+        {head}
+        <div className={s.rule} />
+        <div className={s.rHead}><span>Student</span><span>Score</span></div>
+        <div className={s.rows}>
+          {rows.map(([ini, name, score], i) => (
+            <div key={name} className={s.rRow}>
+              <span className={s.rAv} style={{ ["--av" as string]: `oklch(${0.78 - i * 0.05} 0.09 ${190 + i * 8})` }}>{ini}</span>
+              <span className={s.rName}>{name}</span>
+              <span className={s.rScore}>{score}</span>
+            </div>
+          ))}
+        </div>
+        <div className={s.foot}>{b ? "Grade 9 · Division B" : "Grade 7 · Division A"}</div>
+      </div>
+    );
+  }
+
+  // ── §5 Exam proctoring ─────────────────────────────────────────
+  if (kind === "proctor") {
+    const feeds = ["Camera", "Screen", "Microphone"];
+    return (
+      <div className={cls}>
+        <span className={s.rec} aria-hidden="true"><i />LIVE</span>
+        {head}
+        <div className={s.rule} />
+        <div className={s.feeds}>
+          {feeds.map((f) => (
+            <div key={f} className={s.feed}>
+              <span className={s.feedDot} />
+              <span>{f}</span>
+              <Tick />
+            </div>
+          ))}
+        </div>
+        <div className={s.statRow}>
+          <span className={s.statN}>0</span>
+          <span className={s.statL}>flags raised</span>
+        </div>
+        <div className={s.foot}>Analysed in the browser</div>
+      </div>
+    );
+  }
+
+  // ── §7 Dashboard ───────────────────────────────────────────────
+  if (kind === "insights") {
+    const bars = b ? [46, 58, 54, 70, 82, 88] : [52, 49, 61, 58, 74, 86];
+    return (
+      <div className={cls}>
+        {head}
+        <div className={s.rule} />
+        <div className={s.bars}>
+          {bars.map((h, i) => (
+            <span key={i} className={s.bar} style={{ height: `${h}%`, opacity: 0.45 + i * 0.09 }} />
+          ))}
+        </div>
+        <div className={s.note}>
+          <Tick />
+          <span>{b ? "Division C is 8 points behind — try the same order." : "Division B gained 11 points after you moved the derivation first."}</span>
+        </div>
+        <div className={s.foot}>Six assessments · this term</div>
+      </div>
+    );
+  }
+
+  // ── §6 Scheduling ──────────────────────────────────────────────
+  if (kind === "schedule") {
+    const events: [string, string, string][] = b
+      ? [["Mon 09:00", "Lesson · 9B", "a"], ["Wed 11:30", "Homework due", "b"], ["Fri 08:00", "Unit paper", "c"]]
+      : [["Tue 10:00", "Lesson · 7A", "a"], ["Thu 13:00", "Quiz · 7A", "b"], ["Fri 09:30", "Unit paper", "c"]];
+    return (
+      <div className={cls}>
+        {head}
+        <div className={s.rule} />
+        <div className={s.events}>
+          {events.map(([time, name, tone]) => (
+            <div key={time} className={`${s.ev} ${tone === "a" ? s.evA : tone === "b" ? s.evB : s.evC}`}>
+              <span className={s.evTime}>{time}</span>
+              <span className={s.evName}>{name}</span>
+            </div>
+          ))}
+        </div>
+        <div className={s.note}>
+          <Tick />
+          <span>No clashes across your subjects</span>
+        </div>
+        <div className={s.foot}>Week 12</div>
+      </div>
+    );
+  }
+
+  // ── §8 Platform assistant ──────────────────────────────────────
   return (
     <div className={cls}>
-      <span className={s.eyebrow}>{tk("atl.card.homework.eyebrow")}</span>
-      {/* The Murchid four-point spark, the mark used across the studio. */}
-      <svg className={s.spark} viewBox="0 0 16 16" fill="none" aria-hidden="true">
-        <path
-          d="M8 0 C8.6 5 11 7.4 16 8 C11 8.6 8.6 11 8 16 C7.4 11 5 8.6 0 8 C5 7.4 7.4 5 8 0 Z"
-          fill="currentColor"
-        />
-      </svg>
-      <h4 className={s.title}>{tk("atl.card.homework.title")}</h4>
-      <div className={s.prompt}>{tv("atl.card.homework.prompt")}</div>
-      <div className={s.stream}>
-        {[92, 100, 74, 88, 58].map((w, i) => (
-          <span
-            key={i}
-            className={s.streamRow}
-            style={{ width: `${w}%`, ["--r" as string]: i }}
-          />
-        ))}
+      {head}
+      <div className={s.rule} />
+      <div className={s.chat}>
+        <div className={`${s.bubble} ${s.bubbleMe}`} dir={isRTL ? "rtl" : "ltr"}>
+          {b ? "How do I import a division?" : "How do I set a paper to observed?"}
+        </div>
+        <div className={s.bubble}>
+          {b ? "Open the subject, then Students → Import CSV." : "In the paper's settings, switch Observation on."}
+        </div>
       </div>
-      <div className={s.foot}>{tk("atl.card.homework.foot")}</div>
+      <div className={s.chips}>
+        <span className={s.chip}>Set up a subject</span>
+        <span className={s.chip}>Plan a term</span>
+      </div>
+      <div className={s.foot}>Knows every screen you are on</div>
     </div>
   );
 }
-
-// Light/dark alternation down the HERO_CARDS order.
-const KIND_GROUND: Record<ArtifactKind, "light" | "dark"> = {
-  lesson: "light",
-  quiz: "dark",
-  deck: "light",
-  presentation: "dark",
-  activity: "light",
-  homework: "dark",
-};

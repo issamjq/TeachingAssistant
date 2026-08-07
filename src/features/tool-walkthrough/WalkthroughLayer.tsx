@@ -22,9 +22,7 @@ import type { TranslationKey } from "@/shared/i18n";
 import HeroArtifact, { type ArtifactKind } from "../hero-artifacts/HeroArtifact";
 import s from "./ToolWalkthrough.module.css";
 
-export const TOOL_KINDS: ArtifactKind[] = [
-  "lesson", "quiz", "deck", "presentation", "activity", "homework",
-];
+export const TOOL_KINDS: ArtifactKind[] = ["studio", "planner", "profile", "roster", "proctor", "insights", "schedule", "assistant"];
 
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 

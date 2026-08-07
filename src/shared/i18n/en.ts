@@ -138,113 +138,76 @@ export const EN = {
   "ch.hero.scroll": "Scroll",
   // ── 2026 editorial hero (atl.*) ──────────────────────────────────
   "atl.meaning": "Murchid · مُرشِد — the one who guides",
-  "atl.index.over": "Six tools. One studio.",
+  "atl.index.over": "Eight modules. One studio.",
   "atl.trust": "Free for 7 days · No card required · English and Arabic",
   // Tool walkthrough (src/features/tool-walkthrough) — the pinned deck that
   // deals through the six artifacts one at a time.
-  "tw.over": "One studio, six tools",
+  "tw.over": "One studio, eight modules",
   "tw.h2.a": "See each one",
   "tw.h2.em": "at work.",
   "atl.index.title": "Everything teaching needs, in one place.",
   // Keys are the original slot ids (lesson/quiz/deck/…); the labels are the
   // product tour shown on the cards — see CARD_IMG in HeroJourney.jsx.
-  "atl.art.lesson": "Quizzes",
-  "atl.art.quiz": "Homework",
-  "atl.art.deck": "Presentations",
-  "atl.art.presentation": "Planner",
-  "atl.art.activity": "Activities",
-  "atl.art.homework": "AI Studio",
-  "atl.desc.lesson": "Auto-graded",
-  "atl.desc.quiz": "Assign + track",
-  "atl.desc.deck": "Class-ready slides",
-  "atl.desc.presentation": "Plan your week",
-  "atl.desc.activity": "Pair, group, solo",
-  "atl.desc.homework": "Teaching copilot",
-  // Card faces (atl.card.*). Structural strings are shared across both
-  // variants; the topical ones carry a `.b` suffix for variant B, which is
-  // the Maths set the hero cross-fades to mid-scroll. Slot ids again, so
-  // `lesson` is the Quizzes card. See src/features/hero-artifacts/.
-  "atl.card.lesson.eyebrow": "Quiz · Grade 7",
-  "atl.card.lesson.title": "Cell respiration",
-  "atl.card.lesson.o1": "Mitochondria",
-  "atl.card.lesson.o2": "Chloroplast",
-  "atl.card.lesson.o3": "Ribosome",
-  "atl.card.lesson.title.b": "Times tables",
-  "atl.card.lesson.o1.b": "Fifty-six",
-  "atl.card.lesson.o2.b": "Forty-two",
-  "atl.card.lesson.o3.b": "Sixty-four",
-  "atl.card.lesson.foot": "3 questions · auto-graded",
+  // ── The eight product modules (new-docs/LMS_Project_Report.pdf §3–§8).
+  // These replace the previous six, which were all sub-capabilities of
+  // §3.1 AI Studio presented as if they were the whole product.
+  "atl.art.studio": "AI Studio",
+  "atl.desc.studio": "Make the material",
+  "atl.art.planner": "Goal Planner",
+  "atl.desc.planner": "A term, structured",
+  "atl.art.profile": "Teaching Profile",
+  "atl.desc.profile": "It sounds like you",
+  "atl.art.roster": "Subjects & Students",
+  "atl.desc.roster": "Every class, held",
+  "atl.art.proctor": "Proctored Papers",
+  "atl.desc.proctor": "Sat under observation",
+  "atl.art.insights": "Dashboard",
+  "atl.desc.insights": "A record that teaches back",
+  "atl.art.schedule": "Scheduling",
+  "atl.desc.schedule": "Timed, spaced, balanced",
+  "atl.art.assistant": "Assistant",
+  "atl.desc.assistant": "Knows the platform",
 
-  "atl.card.quiz.eyebrow": "Homework",
-  "atl.card.quiz.title": "Worksheet 4",
-  "atl.card.quiz.due": "Due Thursday · 7A",
-  "atl.card.quiz.title.b": "Workbook p.42",
-  "atl.card.quiz.due.b": "Due Monday · 4B",
-  "atl.card.quiz.foot": "18 / 28 submitted",
-
-  "atl.card.deck.eyebrow": "Presentation",
-  "atl.card.deck.title": "The Water Cycle",
-  "atl.card.deck.slide": "Evaporation",
-  "atl.card.deck.title.b": "Symmetry",
-  "atl.card.deck.slide.b": "Lines of symmetry",
-  "atl.card.deck.foot": "12 slides · class-ready",
-
-  "atl.card.presentation.eyebrow": "Planner · Week 12",
-  "atl.card.presentation.title": "Week at a glance",
-  "atl.card.presentation.title.b": "Term overview",
-  "atl.card.presentation.foot": "4 lessons · 2 quizzes",
-
-  "atl.card.activity.eyebrow": "Activity",
-  "atl.card.activity.title": "Group debate",
-  "atl.card.activity.title.b": "Number talk",
-  "atl.card.activity.c1": "Pair · 10m",
-  "atl.card.activity.c2": "Group · 20m",
-  "atl.card.activity.c3": "Solo · 5m",
-
-  "atl.card.homework.eyebrow": "AI Studio",
-  "atl.card.homework.title": "Ask Murchid",
-  "atl.card.homework.prompt": "A Grade 7 lesson on photosynthesis",
-  "atl.card.homework.prompt.b": "A Grade 4 lesson on fractions",
-  "atl.card.homework.foot": "Drafting…",
-  // Expanded detail — opened by clicking a card in the contents index.
-  "atl.more.open": "More about this",
-  "atl.more.hint": "Select a tool to see what it does",
-  "atl.more.close": "Close",
-  "atl.more.cta": "Try it in the studio →",
-  // Copy below is taken from new-docs/LMS_Project_Report.pdf §3 (Feature
-  // Specifications) — the six AI Studio capabilities, Goal Preparation, and
-  // the studio hub. It replaces invented copy that claimed things the
-  // product spec does not describe.
-  "atl.more.lesson.body":
-    "Auto-creates a quiz from a topic, or from content you upload. Murchid writes the questions and the answer key; you review before it goes out.",
-  "atl.more.lesson.b1": "Multiple choice, short answer, true/false, fill-in-the-blank",
-  "atl.more.lesson.b2": "Generated from a topic or an uploaded document",
-  "atl.more.lesson.b3": "Download as PDF, or set it as an interactive paper",
-  "atl.more.quiz.body":
-    "Builds homework with the difficulty graded across the set, and an answer key written alongside it.",
-  "atl.more.quiz.b1": "Difficulty graded across the assignment",
-  "atl.more.quiz.b2": "Answer key generated with it",
-  "atl.more.quiz.b3": "Download as PDF or DOCX",
-  "atl.more.deck.body":
-    "Generates a slide deck through the Canva integration — themes and layouts you can change, not a flattened export.",
-  "atl.more.deck.b1": "Customisable themes and layouts",
-  "atl.more.deck.b2": "Built through the Canva integration",
-  "atl.more.deck.b3": "Export as PPTX, PDF, or a Canva link",
-  "atl.more.presentation.body":
+  "atl.more.studio.body":
+    "Describe the lesson by typing or by speaking. Lesson plans, quizzes, decks, homework and activities come back from one workspace, in the formats you actually hand out.",
+  "atl.more.studio.b1": "Lessons, quizzes, decks, homework, activities",
+  "atl.more.studio.b2": "Type your prompt, or speak it",
+  "atl.more.studio.b3": "Version history kept on everything generated",
+  "atl.more.planner.body":
     "Hand over a subject or a textbook with a finish date. Murchid returns a day-by-day plan paced to how you actually teach.",
-  "atl.more.presentation.b1": "Paced from your teaching profile, not a default",
-  "atl.more.presentation.b2": "Review and assessment points suggested for you",
-  "atl.more.presentation.b3": "Says no, with reasons, when a timeline will not fit",
-  "atl.more.activity.body":
-    "Designs classroom activities, group projects, and hands-on exercises around the lesson you are about to run.",
-  "atl.more.activity.b1": "Group projects and hands-on exercises",
-  "atl.more.activity.b2": "Built around the lesson in front of you",
-  "atl.more.activity.b3": "Download as PDF or DOCX",
-  "atl.more.homework.body":
-    "The workspace the other five sit in. Describe what you need by typing or speaking, and it answers in the way you already teach.",
-  "atl.more.homework.b1": "Type your prompt, or speak it",
-  "atl.more.homework.b2": "Context-aware prompt suggestions as you go",
-  "atl.more.homework.b3": "Version history kept on everything generated",
+  "atl.more.planner.b1": "Paced from your teaching profile, not a default",
+  "atl.more.planner.b2": "Review and assessment points suggested for you",
+  "atl.more.planner.b3": "Pushes back, with reasons, on a timeline that will not fit",
+  "atl.more.profile.body":
+    "A conversational, gamified assessment builds your teaching profile once — pace, content style, assessment philosophy, tone. Everything generated afterwards is shaped by it.",
+  "atl.more.profile.b1": "Scenario puzzles, not a survey",
+  "atl.more.profile.b2": "Pace, style, assessment philosophy, tone",
+  "atl.more.profile.b3": "Referenced by the Studio, the Planner and the Assistant",
+  "atl.more.roster.body":
+    "A workspace for each subject, holding its own roster, content, schedule and analytics. Bring a class in by CSV or by hand.",
+  "atl.more.roster.b1": "ID, name, email, grade and division",
+  "atl.more.roster.b2": "Score and rank calculated for you",
+  "atl.more.roster.b3": "CSV upload with duplicate detection",
+  "atl.more.proctor.body":
+    "Students sit their papers in the browser under camera, screen and microphone observation — all of it analysed on their own device.",
+  "atl.more.proctor.b1": "Camera, screen and microphone",
+  "atl.more.proctor.b2": "Analysed in the browser; no video or audio is sent",
+  "atl.more.proctor.b3": "A text summary of flags reaches you when the paper closes",
+  "atl.more.insights.body":
+    "Performance trends, grade distribution and how each division compares — alongside the teaching suggestions those numbers actually support.",
+  "atl.more.insights.b1": "Trends per student, per class, per division",
+  "atl.more.insights.b2": "Alerts for students falling behind",
+  "atl.more.insights.b3": "Method suggestions drawn from what worked",
+  "atl.more.schedule.body":
+    "Exams, homework, lessons and activities on one calendar, with the scheduler watching for clashes and clustering.",
+  "atl.more.schedule.b1": "Exam timing suggested from lesson completion",
+  "atl.more.schedule.b2": "Assessment spacing and homework load balancing",
+  "atl.more.schedule.b3": "Conflict detection across every subject you hold",
+  "atl.more.assistant.body":
+    "A chatbot with full awareness of the platform. It walks you through setup, troubleshoots, and offers the prompt you were about to write.",
+  "atl.more.assistant.b1": "Guides Studio and Planner setup step by step",
+  "atl.more.assistant.b2": "Context-aware prompt suggestions as you work",
+  "atl.more.assistant.b3": "Answers on subscription, features and limits",
   // ── product film / showreel (film.*) ─────────────────────────────
   "film.eyebrow": "Watch it draft",
   "film.title.a": "From one line,",

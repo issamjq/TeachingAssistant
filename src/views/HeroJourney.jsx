@@ -25,9 +25,7 @@ import HeroArtifact from "../features/hero-artifacts/HeroArtifact";
 // The six slots HeroArtifact draws. Anything outside this set falls through
 // to the older inline card faces further down HeroCardFace (still used by
 // the parked Acts B/C of this file).
-const HERO_ARTIFACT_KINDS = new Set([
-  "lesson", "quiz", "deck", "presentation", "activity", "homework",
-]);
+const HERO_ARTIFACT_KINDS = new Set(["studio", "planner", "profile", "roster", "proctor", "insights", "schedule", "assistant"]);
 
 // Animations removed by request — no-op shims for the framer-motion
 // API. Same approach v1.1 used so nothing in this section depends on
@@ -240,7 +238,7 @@ export function HeroCardFace({ kind, variant = "a" }) {
   );
 }
 
-export const HERO_CARDS = ["lesson", "quiz", "deck", "presentation", "activity", "homework"];
+export const HERO_CARDS = ["studio", "planner", "profile", "roster", "proctor", "insights", "schedule", "assistant"];
 
 // Phase-C headline — each token fades + un-blurs + colour-shifts in turn.
 // Per-language word lists so the reveal works in EN and AR (RTL).

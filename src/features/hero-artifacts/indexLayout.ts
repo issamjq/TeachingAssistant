@@ -66,7 +66,10 @@ export function indexLayout(n: number, vw: number, dir: number, isRTL = false): 
   const gScale = Math.min(0.56, (vw - 40) / (G_COLS * CARD_W + (G_COLS - 1) * 16));
   const gColPitch = CARD_W * gScale + 16;
   const gRowPitch = CARD_H * gScale + 92; // card height + a roomy label band
-  const gRow0Y = 150 - gRowPitch / 2; // two rows centred about y≈150
+  // Rows are derived, not assumed. This used to hard-code two rows, which
+  // was right for six cards and silently wrong the moment there were eight.
+  const gRows = Math.ceil(n / G_COLS);
+  const gRow0Y = 150 - (gRowPitch * (gRows - 1)) / 2; // rows centred about y≈150
 
   const pos = (i: number): CardPos => {
     if (isPortrait) {
@@ -83,7 +86,7 @@ export function indexLayout(n: number, vw: number, dir: number, isRTL = false): 
 
   const scale = isPortrait ? gScale : rowScale;
   const topY = isPortrait ? gRow0Y : ROW_Y;
-  const bottomY = isPortrait ? gRow0Y + gRowPitch : ROW_Y;
+  const bottomY = isPortrait ? gRow0Y + gRowPitch * (gRows - 1) : ROW_Y;
 
   return {
     pos,
