@@ -19,6 +19,7 @@ import { PLANS } from "../lib/plans";
 import HeroAtelier from "./HeroAtelier";
 import Showreel from "./Showreel";
 import PointerFx from "../features/landing-motion/PointerFx";
+import StatsBand from "../features/landing-stats/StatsBand";
 
 // ── reveal hook ────────────────────────────────────────────────────
 // Adds `.in` to the element when it crosses the viewport. Used by
@@ -700,6 +701,9 @@ export default function LandingHome({ onEnter, signedIn }) {
           HeroAtelier). scrollMarginTop clears the fixed nav bar. */}
       <span id="sec-how" aria-hidden="true" style={{ display: "block", scrollMarginTop: "64px" }} />
       <Showreel />
+      {/* Cream ground, continuing the Showreel — so the feather into the
+          Voices drench below stays where it is. */}
+      <StatsBand />
       <span id="sec-voices" aria-hidden="true" style={{ display: "block", scrollMarginTop: "64px" }} />
       <Voices />
       <span id="sec-pricing" aria-hidden="true" style={{ display: "block", scrollMarginTop: "64px" }} />

@@ -23,6 +23,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useT, useI18n } from "../lib/i18n";
 import { HERO_CARDS, HeroCardFace } from "./HeroJourney";
+import ArtifactDetail from "../features/hero-artifacts/ArtifactDetail";
 
 const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
 const seg = (p, a, b) => clamp01((p - a) / (b - a));
@@ -76,6 +77,8 @@ export default function HeroAtelier({ onEnter, signedIn }) {
   // Seeding both renders with the same placeholder guarantees the mount
   // effect produces a real state change, and with it a corrected DOM.
   const [vw, setVw] = useState(SSR_VIEWPORT_W);
+  // Which artifact's expanded detail is open, if any.
+  const [openKind, setOpenKind] = useState(null);
 
   useEffect(() => {
     let raf = 0;
@@ -109,11 +112,20 @@ export default function HeroAtelier({ onEnter, signedIn }) {
   // ── Choreography — all pure functions of scroll `p` ──────────────
   // The drench stays full-opacity now (the index lives ON the warm gradient,
   // matching Voices / membership / final CTA), so there's no bleach-to-cream.
-  const lockOut = easeInOut(seg(p, 0.05, 0.30)); // masthead + lockup recede
-  const cardsT = easeInOut(seg(p, 0.12, 0.62)); // fan → editorial index row
-  const swap = easeInOut(clamp01((p - 0.28) / 0.2)); // card set A → B, blur crossfade
-  const headIn = seg(p, 0.42, 0.66); // index header reveal
-  const tocIn = seg(p, 0.52, 0.8); // 01–06 contents labels
+  // Beats overlap deliberately. They used to run end-to-end, which left a
+  // gap between the masthead finishing its exit (0.30) and the index header
+  // starting (0.42) where the screen held nothing but cards in transit — a
+  // dead frame that was easy to miss on a 300vh runway and obvious once the
+  // track was compressed to 200vh. The header now begins as the masthead
+  // clears, so something is always arriving.
+  const lockOut = easeInOut(seg(p, 0.04, 0.28)); // masthead + lockup recede
+  const cardsT = easeInOut(seg(p, 0.10, 0.55)); // fan → editorial index row
+  const swap = easeInOut(clamp01((p - 0.24) / 0.18)); // card set A → B, blur crossfade
+  const headIn = seg(p, 0.28, 0.52); // index header reveal
+  const tocIn = seg(p, 0.42, 0.70); // 01–06 contents labels
+
+  // The cards have reached their index positions and are safe to click.
+  const settled = cardsT > 0.92;
 
   const ctaLabel = signedIn ? t("landing.nav.openPlanner") : t("ch.hero.cta");
   const tagline = useTaglineWords(t);
@@ -305,22 +317,37 @@ export default function HeroAtelier({ onEnter, signedIn }) {
         {/* Each slot holds two faces: set A (Science — the hero arc) and set
             B (Math — the index). They cross-fade with a blur as you scroll
             between the two, so the six "images" swap mid-journey. */}
-        <div className="atl-cards">
+        {/* Interactive only once the cards have settled into the index. While
+            they are still fanning out they are decoration, and a hit target
+            that moves under the cursor is worse than none. */}
+        <div className={`atl-cards${settled ? " is-settled" : ""}`}>
           {HERO_CARDS.map((kind, i) => (
             <div key={kind} className="atl-card" style={cardStyle(i)}>
-              <div className="atl-card-in" style={{ "--i": i }}>
-                <div className="atl-stack">
-                  <div className="atl-face" style={{ opacity: 1 - swap, filter: `blur(${swap * 9}px)` }}>
-                    <HeroCardFace kind={kind} />
-                  </div>
-                  <div
-                    className="atl-face atl-face--b"
-                    style={{ opacity: swap, filter: `blur(${(1 - swap) * 9}px)` }}
-                  >
-                    <HeroCardFace kind={kind} variant="b" />
+              <button
+                type="button"
+                className="atl-card-hit"
+                onClick={settled ? () => setOpenKind(kind) : undefined}
+                disabled={!settled}
+                tabIndex={settled ? 0 : -1}
+                aria-label={`${t(`atl.art.${kind}`)} — ${t("atl.more.open")}`}
+              >
+                <div className="atl-card-in" style={{ "--i": i }}>
+                  <div className="atl-stack">
+                    <div className="atl-face" style={{ opacity: 1 - swap, filter: `blur(${swap * 9}px)` }}>
+                      <HeroCardFace kind={kind} />
+                    </div>
+                    <div
+                      className="atl-face atl-face--b"
+                      style={{ opacity: swap, filter: `blur(${(1 - swap) * 9}px)` }}
+                    >
+                      <HeroCardFace kind={kind} variant="b" />
+                    </div>
                   </div>
                 </div>
-              </div>
+                <span className="atl-card-more" aria-hidden="true">
+                  {t("atl.more.open")}
+                </span>
+              </button>
             </div>
           ))}
         </div>
@@ -347,58 +374,23 @@ export default function HeroAtelier({ onEnter, signedIn }) {
         </div>
       </div>
 
-      {/* ───────────── MOBILE — static (no scrub) ───────────── */}
-      <div className="atl-mobile">
-        <div className="atl-m-hero">
-          <span className="cinema-grain" aria-hidden="true" />
-          <div className="atl-m-masthead">
-            <span className="atl-rule" />
-            <span className="atl-eyebrow">{t("landing.hero.eyebrow")}</span>
-          </div>
-          <div className="atl-m-lockup">
-            <span
-              className={`atl-watermark atl-watermark--m${isRTL ? " atl-watermark--latin" : ""}`}
-              aria-hidden="true"
-            >
-              {isRTL ? "Murchid" : "مرشد"}
-            </span>
-            {isRTL ? (
-              <h1 className="atl-word atl-word--ar">مرشد</h1>
-            ) : (
-              <h1 className="atl-word">
-                Mu<em>r</em>chid
-              </h1>
-            )}
-            <div className="atl-meaning">{t("atl.meaning")}</div>
-            <h2 className="atl-tagline" dir={isRTL ? "rtl" : "ltr"}>
-              {tagline.map((tok, i) => (
-                <span key={i}>{tok.brand ? <em>{tok.w}</em> : tok.w} </span>
-              ))}
-            </h2>
-            <button type="button" className="atl-pill lp-magnetic" onClick={onEnter}>
-              {ctaLabel}
-            </button>
-          </div>
-        </div>
+      {openKind && (
+        <ArtifactDetail
+          kind={openKind}
+          index={HERO_CARDS.indexOf(openKind) + 1}
+          variant="b"
+          onClose={() => setOpenKind(null)}
+          onEnter={onEnter}
+        />
+      )}
 
-        <div className="atl-m-index">
-          <span className="atl-index-over">{t("atl.index.over")}</span>
-          <h2 className="atl-index-title">{t("atl.index.title")}</h2>
-          <div className="atl-m-grid">
-            {HERO_CARDS.map((kind, i) => (
-              <div key={kind} className="atl-m-cell">
-                <span className="atl-m-cell-tag">
-                  <span className="atl-toc-num">{String(i + 1).padStart(2, "0")}</span>
-                  {t(`atl.art.${kind}`)}
-                </span>
-                <div className="atl-m-thumb">
-                  <HeroCardFace kind={kind} />
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
+      {/* The old static mobile fallback lived here. It was `display: none`
+          with no media query anywhere that revealed it — the pinned sequence
+          above renders at every width, phone included (see the isPortrait
+          branch in bPos, which reflows the index into a 3×2 grid). Harmless
+          while the cards were <img>s; now that they are live components it
+          was mounting six of them off-screen with their animations running.
+          Removed rather than left to rot. */}
     </section>
   );
 }

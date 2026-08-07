@@ -2906,3 +2906,99 @@ body.lp-menu-open [data-a11y-node="reset-chip"] { display: none !important; }
   .cinema-orb-b { transform: none; transition: none; }
   .lp-spotlight::after { display: none; }
 }
+
+/* ─── 6. Scroll economy ────────────────────────────────────────────
+   The page ran 8.6 viewports, but ~2.9 of those were the page holding
+   still: a 300vh hero track whose sequence only needs 100vh of travel,
+   plus four 130vh tracks each pinning 100vh of content so the last 30vh
+   scrolled against a frozen screen. Dead runway reads as slowness no
+   amount of polish fixes.
+
+   The reduced-motion block above already unpinned three of these for
+   exactly this reason ("no empty scroll runway"). This applies the same
+   judgement to everyone.
+
+   The hero keeps its pin — the title sequence genuinely needs one — but
+   at 200vh instead of 300vh. Every segment in HeroAtelier is expressed
+   in normalised progress, so halving the runway (200vh span → 100vh)
+   compresses the whole choreography proportionally with no retiming. */
+.atl { height: 200vh; }
+
+@media (min-width: 1024px) {
+  .film-stage,
+  .voices-pin-track,
+  .plans-stage,
+  .final-stage {
+    height: auto;
+  }
+  /* Content keeps its full-screen presence via min-height; it just stops
+     being sticky, so the section ends when its content ends. overflow and
+     isolation stay — the marquee and the grain overlays depend on them. */
+  .film-pin,
+  .voices-pin,
+  .plans-pin,
+  .final-pin {
+    position: static;
+    height: auto;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+}
+
+/* ─── 7. Clickable index cards ─────────────────────────────────────
+   The contents index is now a set of hit targets that open an expanded
+   detail panel. The button is a bare wrapper — the card's own visual
+   treatment comes from HeroArtifact — so it carries no background,
+   border, or padding of its own. */
+.atl-card-hit {
+  display: block;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: default;
+  border-radius: 16px;
+  position: relative;
+  /* Transitions live here rather than on .atl-card, whose transform is
+     rewritten every scroll frame and must never be eased. */
+  transition: transform 420ms var(--easeOutE), filter 420ms var(--easeOutE);
+}
+.atl-cards.is-settled .atl-card-hit { cursor: pointer; }
+.atl-cards.is-settled .atl-card-hit:hover,
+.atl-cards.is-settled .atl-card-hit:focus-visible {
+  transform: translateY(-10px);
+  filter: drop-shadow(0 26px 44px oklch(0.1 0.04 210 / 0.5));
+}
+.atl-card-hit:focus-visible { outline: 2px solid var(--cm-on-drench); outline-offset: 6px; }
+
+/* "More about this" — hidden until the row settles, then revealed on
+   hover so the affordance is discoverable without adding permanent chrome
+   to six cards at once. */
+.atl-card-more {
+  position: absolute;
+  inset-inline: 0;
+  inset-block-end: -26px;
+  text-align: center;
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+  font-size: 9px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--cm-on-drench, #b6dbe2);
+  opacity: 0;
+  transform: translateY(-6px);
+  pointer-events: none;
+  transition: opacity 340ms var(--easeOutE), transform 340ms var(--easeOutE);
+}
+.atl-cards.is-settled .atl-card-hit:hover .atl-card-more,
+.atl-cards.is-settled .atl-card-hit:focus-visible .atl-card-more {
+  opacity: 1;
+  transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .atl-card-hit,
+  .atl-card-more { transition: none; }
+  .atl-cards.is-settled .atl-card-hit:hover,
+  .atl-cards.is-settled .atl-card-hit:focus-visible { transform: none; }
+}

@@ -200,6 +200,40 @@ export const EN = {
   "atl.card.homework.prompt": "A Grade 7 lesson on photosynthesis",
   "atl.card.homework.prompt.b": "A Grade 4 lesson on fractions",
   "atl.card.homework.foot": "Drafting…",
+  // Expanded detail — opened by clicking a card in the contents index.
+  "atl.more.open": "More about this",
+  "atl.more.close": "Close",
+  "atl.more.cta": "Try it in the studio →",
+  "atl.more.lesson.body":
+    "Generate a quiz from any topic, lesson, or passage. Murchid writes the questions, the distractors, and the mark scheme — then grades the submissions for you.",
+  "atl.more.lesson.b1": "Multiple choice, short answer, extended response",
+  "atl.more.lesson.b2": "Difficulty tiers per student group",
+  "atl.more.lesson.b3": "Auto-marked, with per-question analytics",
+  "atl.more.quiz.body":
+    "Set homework once and track it across every class. Murchid drafts the task, the rubric, and the parent note — and tells you who has not started.",
+  "atl.more.quiz.b1": "Assign to a class, a group, or one student",
+  "atl.more.quiz.b2": "Live submission and completion tracking",
+  "atl.more.quiz.b3": "Bilingual parent notes, sent for you",
+  "atl.more.deck.body":
+    "Turn a lesson plan into a class-ready deck. Slides, speaker notes, and visuals — laid out and on-brand before your first coffee.",
+  "atl.more.deck.b1": "Editable slides, never flattened images",
+  "atl.more.deck.b2": "Speaker notes written per slide",
+  "atl.more.deck.b3": "Export to PowerPoint, Google Slides, or PDF",
+  "atl.more.presentation.body":
+    "See the whole week at a glance and let Murchid fill the gaps. It knows your timetable, your curriculum, and what you taught last.",
+  "atl.more.presentation.b1": "Timetable-aware lesson scheduling",
+  "atl.more.presentation.b2": "MoE curriculum coverage tracking",
+  "atl.more.presentation.b3": "Drag to reschedule — everything follows",
+  "atl.more.activity.body":
+    "Pair, group, or solo. Murchid builds the activity, the grouping, and the timing, with a printable set of instructions for the room.",
+  "atl.more.activity.b1": "Differentiated by ability and by language",
+  "atl.more.activity.b2": "Timings and transitions built in",
+  "atl.more.activity.b3": "Printable station cards and sheets",
+  "atl.more.homework.body":
+    "The copilot behind all of it. Ask for anything in plain English or Arabic; Murchid drafts it, keeps to your curriculum, and keeps your voice.",
+  "atl.more.homework.b1": "Knows your school's curriculum",
+  "atl.more.homework.b2": "Works in English and Arabic",
+  "atl.more.homework.b3": "Every draft stays editable, and yours",
   // ── product film / showreel (film.*) ─────────────────────────────
   "film.eyebrow": "Watch it draft",
   "film.title.a": "From one line,",
@@ -223,6 +257,10 @@ export const EN = {
   "ch.manifest.stat1": "From topic to teaching package",
   "ch.manifest.stat2": "Every grade, every subject",
   "ch.manifest.stat3": "Aligned to UAE Ministry standards",
+  // Stats band (src/features/landing-stats). stat1–3 are shared with the
+  // parked Manifest section; stat4 and the landmark label are new.
+  "ch.stats.stat4": "English and Arabic, natively",
+  "ch.stats.aria": "Murchid by the numbers",
   "ch.stage.h1.a": "One studio.",
   "ch.stage.h1.em": "Every teaching",
   "ch.stage.h1.b": "artifact.",

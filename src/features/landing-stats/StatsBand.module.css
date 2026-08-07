@@ -1,0 +1,75 @@
+/* =====================================================================
+   Stats band — a compact credibility beat between the product demo and
+   the testimonials.
+
+   Cream ground, continuing the Showreel above it, so the existing feather
+   into the Voices drench below is untouched. Deliberately short: this is
+   rhythm and density, not a section in its own right.
+   ===================================================================== */
+
+.band {
+  position: relative;
+  background: var(--cm-cream, #f2f7f8);
+  color: var(--cm-ink, #17272a);
+  padding-block: clamp(48px, 7vh, 88px);
+  padding-inline: clamp(20px, 5vw, 56px);
+}
+/* A hairline rather than a rule the full width of the viewport — it should
+   read as the end of the section above, not a divider of its own. */
+.band::before {
+  content: '';
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline: clamp(20px, 5vw, 56px);
+  height: 1px;
+  background: oklch(0.18 0.03 210 / 0.1);
+}
+
+.grid {
+  max-width: 1180px;
+  margin-inline: auto;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: clamp(18px, 3vw, 40px);
+}
+
+.cell {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-inline-start: clamp(14px, 2vw, 26px);
+  border-inline-start: 1px solid oklch(0.18 0.03 210 / 0.1);
+}
+.cell:first-child { border-inline-start: 0; padding-inline-start: 0; }
+
+.n {
+  font-family: 'Fraunces', Georgia, serif;
+  font-weight: 300;
+  font-size: clamp(38px, 4.6vw, 62px);
+  line-height: 0.95;
+  letter-spacing: -0.04em;
+  color: var(--cm-clay-d, #2c545e);
+  /* Both axes travel with the reveal, matching the headline treatment. */
+  font-variation-settings: 'opsz' var(--vf-opsz, 144), 'wght' var(--vf-wght, 300);
+}
+.n em {
+  font-style: italic;
+  font-size: 0.52em;
+  color: var(--cm-clay, #3d7b8a);
+  margin-inline-start: 2px;
+}
+
+.l {
+  font-family: 'Inter Tight', system-ui, sans-serif;
+  font-size: clamp(11.5px, 1.1vw, 13px);
+  line-height: 1.45;
+  color: var(--cm-ink-2, #4a5c60);
+  max-width: 22ch;
+}
+
+@media (max-width: 860px) {
+  .grid { grid-template-columns: repeat(2, 1fr); gap: 28px 20px; }
+  /* With two per row the third cell starts a new row and must lose the
+     divider it would otherwise inherit from being mid-sequence. */
+  .cell:nth-child(odd) { border-inline-start: 0; padding-inline-start: 0; }
+}
