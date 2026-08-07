@@ -3175,7 +3175,7 @@ body.lp-menu-open [data-a11y-node="reset-chip"] { display: none !important; }
   position: absolute;
   z-index: 6;
   inset-inline: clamp(20px, 6vw, 34px);
-  /* insetBlockStart is set inline from mListTop in HeroAtelier. */
+  /* `top` is set inline from mListTop in HeroAtelier. */
   margin: 0;
   padding: 0;
   list-style: none;

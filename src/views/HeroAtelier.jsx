@@ -240,7 +240,9 @@ export default function HeroAtelier({ onEnter, signedIn }) {
   // Short phones have to give the list room, so the index deck shrinks
   // further there — the deck is context at this beat, the list is content.
   const mShort = vh < 700;
-  const mIndexScale = deckScale * (mShort ? 0.5 : 0.66);
+  /** Vertical step between cards in the phone index stack. */
+  const M_STEP = 9;
+  const mIndexScale = deckScale * (mShort ? 0.56 : 0.76);
   const mIndexY = -vh / 2 + padTop + 40 + (CARD_H * mIndexScale) / 2;
   // Where the list starts, measured from the deck rather than set at a fixed
   // percentage — a fixed 46% put the list 75px INTO the cards. The tail
@@ -262,15 +264,22 @@ export default function HeroAtelier({ onEnter, signedIn }) {
   const mListTop = mTiny
     ? -vh / 2 + padTop + 52
     : Math.min(
-        mIndexY + 16 * (N - 1) * 0.7 + (CARD_H * mIndexScale) / 2 + 34 + CARD_H * mIndexScale * 0.28,
+        // No rotation in the stack any more, so no rotated-overhang
+        // allowance is needed — just the stack's own depth and a gap.
+        mIndexY + M_STEP * (N - 1) + (CARD_H * mIndexScale) / 2 + 40,
         // Never start so low that the eighth row falls off the pin.
         vh / 2 - 20 - mListH
       );
+  // A TIDY STACK, not the walkthrough deck.
+  //
+  // Reusing deckPos here meant the phone's index stage inherited the deck's
+  // sideways drift and its rotation — up to 31 degrees across eight cards —
+  // which on a 390px screen read as a spilled pile rather than a set of
+  // eight things. Straight down, no rotation, a slight scale falloff: a
+  // stack of papers seen square on. The card on top is 01, and the rest
+  // show as clean edges beneath it.
   const bPos = isPortrait
-    ? (i) => {
-        const dp = deckPos(i, dir);
-        return { x: dp.x * 0.7, y: mIndexY + dp.y * 0.7, s: dp.s * mIndexScale };
-      }
+    ? (i) => ({ x: 0, y: mIndexY + i * M_STEP, s: mIndexScale * (1 - i * 0.02) })
     : L.pos;
 
   // Where the opening hand sits. A fixed offset put its lowest card 50px
@@ -326,7 +335,14 @@ export default function HeroAtelier({ onEnter, signedIn }) {
     return {
       transform: `translate(-50%, -50%) translate(${x}px, ${y}px) rotate(${r}deg) scale(${sc})`,
       opacity,
-      zIndex: gather < 0.5 ? 20 + i : 50 - Math.round(Math.abs(i - active - advance) * 6),
+      // In the phone stack the FIRST card sits on top, so the order is
+      // reversed against the opening hand's left-to-right overlap.
+      zIndex:
+        gather >= 0.5
+          ? 50 - Math.round(Math.abs(i - active - advance) * 6)
+          : isPortrait && cardsT > 0.6
+          ? 50 - i
+          : 20 + i,
     };
   };
 
@@ -536,7 +552,9 @@ export default function HeroAtelier({ onEnter, signedIn }) {
         {isPortrait && (
           <ol
             className="atl-mlist"
-            style={{ opacity: tocIn * indexOut, insetBlockStart: `calc(50% + ${Math.round(mListTop)}px)` }}
+            // `top`, not insetBlockStart: React does not map the logical
+            // property, so it was dropped and the list pinned to 0.
+            style={{ opacity: tocIn * indexOut, top: `calc(50% + ${Math.round(mListTop)}px)` }}
             aria-hidden={tocIn * indexOut < 0.5}
           >
             {HERO_CARDS.map((kind, i) => (
