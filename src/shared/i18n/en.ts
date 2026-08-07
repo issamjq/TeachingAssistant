@@ -145,7 +145,7 @@ export const EN = {
   "tw.over": "One studio, eight modules",
   "tw.h2.a": "See each one",
   "tw.h2.em": "at work.",
-  "atl.index.title": "Everything teaching needs, in one place.",
+  "atl.index.title": "Teach better, all in one place.",
   // Keys are the original slot ids (lesson/quiz/deck/…); the labels are the
   // product tour shown on the cards — see CARD_IMG in HeroJourney.jsx.
   // ── The eight product modules (new-docs/LMS_Project_Report.pdf §3–§8).

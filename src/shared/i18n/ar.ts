@@ -134,7 +134,7 @@ export const AR: Partial<Record<TranslationKey, string>> = {
   "tw.over": "استوديو واحد، ثماني وحدات",
   "tw.h2.a": "شاهد كل أداة",
   "tw.h2.em": "أثناء العمل.",
-  "atl.index.title": "كل ما يحتاجه التدريس، في مكان واحد.",
+  "atl.index.title": "تدريس أفضل، في مكان واحد.",
   // الوحدات الثماني للمنتج (LMS_Project_Report.pdf الأقسام ٣–٨).
   "atl.art.studio": "استوديو الذكاء",
   "atl.desc.studio": "اصنع المادة",
