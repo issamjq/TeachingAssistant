@@ -26,6 +26,7 @@ import LandingHome from "./LandingHome";
 import MurchidLogo from "../components/MurchidLogo";
 import Avatar from "../components/Avatar";
 import BrandLoader from "../components/BrandLoader";
+import SetupOverlay from "../features/onboarding/components/SetupOverlay";
 
 // Animations removed by request. These are no-op stand-ins for the
 // framer-motion API so the page renders fully static — no fades, no
@@ -2109,9 +2110,13 @@ function OnboardingPage({ onChoosePlan, onPage }) {
   // duplicate POSTs. We swallow further clicks once one is in flight,
   // and overlay a BrandLoader so the whole funnel reads as "working".
   const [pickingPlan, setPickingPlan] = useState(null);
+  // Which provisioning stage is in flight. Drives SetupOverlay so the
+  // teacher sees the sequence advance instead of one frozen line.
+  const [setupStage, setSetupStage] = useState("account");
   const choose = async (planId) => {
     if (pickingPlan) return;
     setPickingPlan(planId);
+    setSetupStage("account");
     try {
       await onChoosePlan(planId);
       // On success the studio opens and this component unmounts — the
@@ -2248,23 +2253,7 @@ function OnboardingPage({ onChoosePlan, onPage }) {
           `fixed` is trapped inside a narrow centered column). Unmounts as
           soon as the studio opens. This is the ONLY loader across the
           boarding → first-launch handoff. */}
-      {pickingPlan && createPortal(
-        <div
-          className="fixed inset-0 z-[9999] flex items-center justify-center"
-          style={{ background: "rgba(247,243,236,0.96)", backdropFilter: "blur(6px)" }}
-          role="status"
-          aria-live="polite"
-        >
-          <BrandLoader
-            label={
-              pickingPlan === "trial"
-                ? (t("lp.plan.trialStarting") || "Starting your free trial…")
-                : (t("lp.plan.settingUp") || "Setting up your account…")
-            }
-          />
-        </div>,
-        document.body
-      )}
+      {pickingPlan && <SetupOverlay stage={setupStage} />}
     </PageShell>
   );
 }
@@ -2754,6 +2743,7 @@ export default function Landing({ onOpenStudio }) {
     // grades / sections / languages to the live teacher row so the
     // studio dropdowns match what they entered.
     if (profile) {
+      setSetupStage("profile");
       try {
         await apiFetch("/api/me", {
           method: "PATCH",
@@ -2778,6 +2768,7 @@ export default function Landing({ onOpenStudio }) {
     // Persist the onboarding school picks. Custom rows (negative
     // pseudo-ids) get materialised in the catalog first. Non-fatal —
     // the studio still opens and the teacher can retry from My schools.
+    if (pendingSchools.length > 0) setSetupStage("schools");
     try {
       for (const s of pendingSchools) {
         let schoolId = s.school_id;
@@ -2810,6 +2801,10 @@ export default function Landing({ onOpenStudio }) {
     clearPendingSchools();
     setPendingFirebaseUser(null);
 
+    // Final stage. The overlay stays mounted through the handoff — it is
+    // unmounted by the route change, not by a timer, so it never clears
+    // before the studio is actually on screen.
+    setSetupStage("studio");
     onOpenStudio();
   };
   // Signs the teacher out of Firebase, drops the local account record,

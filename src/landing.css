@@ -34,8 +34,8 @@ html { scroll-behavior: smooth; }
   --brick:       var(--color-accent);
   --brick-deep:  var(--p-ambient-deep);
   --brick-soft:  var(--p-ambient-lift);
-  --line:        color-mix(in oklab, var(--color-ink) 8%, transparent);
-  --line-strong: color-mix(in oklab, var(--color-ink) 14%, transparent);
+  --line:        var(--p-line-soft);
+  --line-strong: var(--p-line-strong);
 
   font-family: 'Inter Tight', system-ui, sans-serif;
   background: var(--paper);

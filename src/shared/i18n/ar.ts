@@ -750,6 +750,12 @@ export const AR: Partial<Record<TranslationKey, string>> = {
   "lp.plan.trialTitle": "ابدأ تجربتك المجانية.",
   "lp.plan.trialNote": "بدون بطاقة · أوقف في أي وقت",
   "lp.plan.trialCta": "ابدأ الآن",
+  // landing — first-launch setup overlay
+  "setup.step.account": "إنشاء حسابك",
+  "setup.step.profile": "حفظ ملفك التعليمي",
+  "setup.step.schools": "إضافة مدارسك",
+  "setup.step.studio": "فتح الاستوديو",
+  "setup.reassure": "ثوانٍ قليلة · اترك هذه الصفحة مفتوحة",
   "lp.plan.trialStarting": "جارٍ بدء تجربتك…",
   "lp.plan.yearOff": "بالإضافة إلى خصم {n}% لمدة سنة",
   // landing — membership section

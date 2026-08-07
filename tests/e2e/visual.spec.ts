@@ -60,15 +60,24 @@ async function waitForContent(page: Page) {
 // the top. Without this the snapshot captures a half-revealed page whose
 // state depends on machine speed.
 async function settle(page: Page) {
+  // Freeze FIRST, then scroll. The landing has a fixed nav with a real
+  // backdrop-filter over an 8,500px scroll-choreographed page, so a single
+  // scroll step costs roughly a second with animation running — fifteen of
+  // them blew the per-test budget. Pausing animation before scrolling makes
+  // each step cheap, and reveals still fire because they key off position,
+  // not time.
+  await freeze(page);
   const h = await page.evaluate(() => document.body.scrollHeight);
-  for (let y = 0; y < h; y += 600) {
+  for (let y = 0; y < h; y += 1600) {
     await page.evaluate((v) => window.scrollTo(0, v), y);
-    await page.waitForTimeout(120);
+    await page.waitForTimeout(90);
   }
   await page.evaluate(() => window.scrollTo(0, 0));
-  await page.waitForTimeout(1200);
+  await page.waitForTimeout(900);
+  // Re-apply: styles added before a navigation-free scroll can be dropped
+  // when new nodes mount during the pass.
   await freeze(page);
-  await page.waitForTimeout(300);
+  await page.waitForTimeout(250);
 }
 
 const VIEWPORTS = [

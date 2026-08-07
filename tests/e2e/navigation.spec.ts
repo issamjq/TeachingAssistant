@@ -15,13 +15,21 @@ import { test, expect } from "@playwright/test";
 
 const PROBE = "/nav-probe";
 
+// Navigating away from the probe lands on a route the dev server may not
+// have compiled yet — Turbopack builds route segments on first request, and
+// under parallel test load that first hit can take several seconds. These
+// assertions are waiting on a build, not on product latency, so they get a
+// longer budget than Playwright's 5s default. In a production build the
+// same navigations resolve immediately.
+const NAV_TIMEOUT = 20_000;
+
 test("navigate() pushes AND swaps the rendered route", async ({ page }) => {
   await page.goto(PROBE);
   await expect(page.getByTestId("route")).toHaveText(/nav-probe/);
 
   await page.getByTestId("go-quizzes").click();
 
-  await expect(page).toHaveURL(/\/quizzes$/);
+  await expect(page).toHaveURL(/\/quizzes$/, { timeout: NAV_TIMEOUT });
   // The re-render is the real assertion. A URL-only change would mean the
   // App Router treated the push as a no-op — the exact failure this probe
   // exists to catch. The probe segment must unmount and the catch-all must
@@ -35,7 +43,7 @@ test("navigate() builds multi-segment paths correctly", async ({ page }) => {
   await page.getByTestId("go-edit").click();
 
   // pathFor() must join parts and coerce the numeric id.
-  await expect(page).toHaveURL(/\/lesson-plans\/edit\/42$/);
+  await expect(page).toHaveURL(/\/lesson-plans\/edit\/42$/, { timeout: NAV_TIMEOUT });
   await expect(page.getByTestId("route")).toHaveCount(0);
 });
 
@@ -53,20 +61,20 @@ test("useRoute() parses a pathname into section/sub/extra", async ({
 test("browser back and forward drive useRoute()", async ({ page }) => {
   await page.goto(PROBE);
   await page.getByTestId("go-quizzes").click();
-  await expect(page).toHaveURL(/\/quizzes$/);
+  await expect(page).toHaveURL(/\/quizzes$/, { timeout: NAV_TIMEOUT });
 
   await page.goBack();
-  await expect(page).toHaveURL(/nav-probe$/);
+  await expect(page).toHaveURL(/nav-probe$/, { timeout: NAV_TIMEOUT });
   await expect(page.getByTestId("route")).toHaveText(/nav-probe/);
 
   await page.goForward();
-  await expect(page).toHaveURL(/\/quizzes$/);
+  await expect(page).toHaveURL(/\/quizzes$/, { timeout: NAV_TIMEOUT });
 });
 
 test("replace() does not add a history entry", async ({ page }) => {
   await page.goto(PROBE);
   await page.getByTestId("replace-homework").click();
-  await expect(page).toHaveURL(/\/homework$/);
+  await expect(page).toHaveURL(/\/homework$/, { timeout: NAV_TIMEOUT });
 
   // One step back must land before the probe, not on it — proving the
   // replace consumed the entry rather than pushing a new one.
@@ -79,7 +87,7 @@ test("query strings survive navigation", async ({ page }) => {
   // router did the same and some flows depend on it.
   await page.goto(`${PROBE}?ref=campaign`);
   await page.getByTestId("go-quizzes").click();
-  await expect(page).toHaveURL(/\/quizzes\?ref=campaign$/);
+  await expect(page).toHaveURL(/\/quizzes\?ref=campaign$/, { timeout: NAV_TIMEOUT });
 });
 
 test("setNavGuard holds a transition until released", async ({ page }) => {
@@ -90,15 +98,15 @@ test("setNavGuard holds a transition until released", async ({ page }) => {
 
   // Guard returned false: the URL must NOT have changed yet.
   await expect(page.getByTestId("guard-held")).toHaveText("held");
-  await expect(page).toHaveURL(/nav-probe$/);
+  await expect(page).toHaveURL(/nav-probe$/, { timeout: NAV_TIMEOUT });
 
   // Releasing runs the stashed `proceed`, completing the navigation.
   await page.getByTestId("release-guard").click();
-  await expect(page).toHaveURL(/\/quizzes$/);
+  await expect(page).toHaveURL(/\/quizzes$/, { timeout: NAV_TIMEOUT });
 });
 
 test("clearRoute() returns to the site root", async ({ page }) => {
   await page.goto(PROBE);
   await page.getByTestId("go-root").click();
-  await expect(page).toHaveURL(/localhost:\d+\/$/);
+  await expect(page).toHaveURL(/localhost:\d+\/$/, { timeout: NAV_TIMEOUT });
 });

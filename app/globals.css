@@ -59,6 +59,8 @@
   --p-accent-hover: #0f4e55;
   --p-accent-soft:  #d3e2e3;
   --p-on-accent:    #f4f3ef;
+  --p-line-soft:    #dcdbd6;
+  --p-line-strong:  #c9c9c2;
 
   /* Status carries meaning, so it is deliberately NOT derived from the
      accent — a teacher must be able to tell "ready" from "brand". */
@@ -93,6 +95,8 @@
   --p-accent-hover: #2f574e;
   --p-accent-soft:  #dce7e2;
   --p-on-accent:    #f7f5ef;
+  --p-line-soft:    #e0dcd2;
+  --p-line-strong:  #cdc7b8;
 
   /* Verdigris sits near the green of "ok", so success is pushed bluer
      to stay distinguishable from the brand colour at a glance. */

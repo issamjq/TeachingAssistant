@@ -773,6 +773,13 @@ export const EN = {
   "lp.plan.trialTitle": "Start your free trial.",
   "lp.plan.trialNote": "No card required · Cancel anytime",
   "lp.plan.trialCta": "Start now",
+  // landing — first-launch setup overlay. Each stage is a real network
+  // call in handleChoosePlan, not a timed animation.
+  "setup.step.account": "Creating your account",
+  "setup.step.profile": "Saving your teaching profile",
+  "setup.step.schools": "Adding your schools",
+  "setup.step.studio": "Opening the studio",
+  "setup.reassure": "A few seconds · please keep this tab open",
   "lp.plan.trialStarting": "Starting your free trial…",
   "lp.plan.yearOff": "Plus {n}% off for 1 year",
   // landing — membership section
