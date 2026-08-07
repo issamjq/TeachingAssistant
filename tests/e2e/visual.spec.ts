@@ -32,7 +32,8 @@ test.describe.configure({ timeout: 120_000 });
 // ignore prefers-reduced-motion.
 async function freeze(page: Page) {
   await page.addStyleTag({
-    content: `*, *::before, *::after {
+    content: `html { scroll-behavior: auto !important; }
+    *, *::before, *::after {
       animation-play-state: paused !important;
       animation-delay: -1ms !important;
       animation-duration: 1ms !important;
@@ -60,12 +61,13 @@ async function waitForContent(page: Page) {
 // the top. Without this the snapshot captures a half-revealed page whose
 // state depends on machine speed.
 async function settle(page: Page) {
-  // Freeze FIRST, then scroll. The landing has a fixed nav with a real
-  // backdrop-filter over an 8,500px scroll-choreographed page, so a single
-  // scroll step costs roughly a second with animation running — fifteen of
-  // them blew the per-test budget. Pausing animation before scrolling makes
-  // each step cheap, and reveals still fire because they key off position,
-  // not time.
+  // Freeze FIRST — and the important half of freeze() here is
+  // `scroll-behavior: auto`. landing.css sets `scroll-behavior: smooth` on
+  // <html>, so every programmatic scrollTo animates for ~580ms. Measured on
+  // a production build the cost was identical with animation paused, which
+  // ruled out the scroll choreography and pointed at smooth scrolling
+  // itself: fifteen steps meant ~9s per test before a single screenshot,
+  // and the settling time varied enough to make the snapshots flaky.
   await freeze(page);
   const h = await page.evaluate(() => document.body.scrollHeight);
   for (let y = 0; y < h; y += 1600) {
