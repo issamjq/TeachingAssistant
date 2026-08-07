@@ -29,3 +29,10 @@ new-docs/
 # rebuildable with `/graphify .`, and the cache alone runs to hundreds of
 # files. Regenerate rather than version it.
 graphify-out/
+
+# Service-account credentials. Never commit these — GitHub push protection
+# caught one that `git add -A` swept in from the repo root. Keep the file on
+# disk and point GOOGLE_APPLICATION_CREDENTIALS at it from .env.local.
+firebase-admin.json
+*-service-account*.json
+**/serviceAccountKey*.json
