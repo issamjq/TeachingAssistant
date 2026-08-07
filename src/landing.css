@@ -1684,6 +1684,11 @@ html { scroll-behavior: smooth; }
      whole title+labels+cards group reads as one centred block. */
   top: 50%;
   width: min(94vw, 1040px); text-align: center;
+  /* Bottom-centre, so the inline scale(wordK) shrinks the block toward its
+     own baseline instead of moving it. With the default 50% 50% origin the
+     scale shifted the anchor by half the collapsed height, which is how a
+     heading clamped to sit 96px below the nav still ended up behind it. */
+  transform-origin: 50% 100%;
 }
 .atl-index-over {
   display: inline-block; margin-block-end: 14px;
@@ -3185,24 +3190,50 @@ body.lp-menu-open [data-a11y-node="reset-chip"] { display: none !important; }
   transition: opacity 400ms var(--easeOutE);
 }
 .atl-mrow {
+  position: relative;
   display: grid;
-  grid-template-columns: 30px 1fr auto;
+  grid-template-columns: 34px 1fr auto;
   align-items: baseline;
-  gap: 0 10px;
-  padding-block: 9px;
-  border-block-end: 1px solid oklch(1 0 0 / 0.1);
+  gap: 0 12px;
+  padding-block: 11px;
+  padding-inline-start: 10px;
 }
-.atl-mrow:last-child { border-block-end: 0; }
+/* The rule draws in with its row rather than being there waiting. */
+.atl-mrow::after {
+  content: '';
+  position: absolute;
+  inset-block-end: 0;
+  inset-inline: 0;
+  height: 1px;
+  background: oklch(1 0 0 / 0.13);
+  transform: scaleX(var(--row, 1));
+  transform-origin: left center;
+}
+[dir="rtl"] .atl-mrow::after { transform-origin: right center; }
+.atl-mrow:last-child::after { display: none; }
+/* A short accent tick at the leading edge, keyed to the same beat. */
+.atl-mrow::before {
+  content: '';
+  position: absolute;
+  inset-block: 11px;
+  inset-inline-start: 0;
+  width: 2px;
+  border-radius: 2px;
+  background: var(--cm-on-drench, #b6dbe2);
+  opacity: calc(var(--row, 1) * 0.55);
+  transform: scaleY(var(--row, 1));
+}
 .atl-mnum {
   font-family: 'Fraunces', Georgia, serif;
   font-style: italic;
-  font-size: 15px;
+  font-size: 19px;
+  line-height: 1;
   color: var(--cm-on-drench, #b6dbe2);
 }
 .atl-mname {
   font-family: 'IBM Plex Mono', ui-monospace, monospace;
-  font-size: 10.5px;
-  letter-spacing: 0.14em;
+  font-size: 11px;
+  letter-spacing: 0.15em;
   text-transform: uppercase;
   color: var(--cm-cream, #f2f7f8);
 }
@@ -3216,5 +3247,25 @@ body.lp-menu-open [data-a11y-node="reset-chip"] { display: none !important; }
    go before the rows do, since the names carry the index on their own. */
 @media (max-height: 700px) {
   .atl-mdesc { display: none; }
-  .atl-mrow { padding-block: 7px; }
+  .atl-mrow { padding-block: 8px; }
+  .atl-mrow::before { inset-block: 8px; }
+  .atl-mnum { font-size: 17px; }
+}
+
+/* The index heading is uniformly scaled by wordK, which is sized for the
+   wordmark. On a phone that shrank the block to ~190px of effective width
+   and the title wrapped to four lines, making it 128px tall — too tall to
+   fit between the nav and the card stack. Portrait skips that scale (see
+   HeroAtelier) and sizes the type directly instead. */
+@media (max-width: 560px) {
+  .atl-index-head { width: min(90vw, 420px); }
+  .atl-index-title { font-size: 27px; line-height: 1.16; }
+  .atl-index-over { font-size: 9.5px; }
+}
+
+/* Portrait index heading: pinned below the nav rather than hung off the
+   top of the card block. See the note in HeroAtelier. */
+.atl-index-head--m {
+  top: 76px;
+  transform-origin: 50% 0;
 }

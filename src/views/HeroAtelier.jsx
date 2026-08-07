@@ -207,7 +207,6 @@ export default function HeroAtelier({ onEnter, signedIn }) {
   const L = indexLayout(N, vw, vh, dir, isRTL);
   const wordK = L.wordK;
   const tocK = L.tocK;
-  const headBottomY = L.headBottomY;
   const isPortrait = L.isPortrait;
   // The opening fan is narrow, so it can be larger than the row and still fit.
   const fanK = Math.min(1, (vw - 24) / 780);
@@ -242,8 +241,19 @@ export default function HeroAtelier({ onEnter, signedIn }) {
   const mShort = vh < 700;
   /** Vertical step between cards in the phone index stack. */
   const M_STEP = 9;
-  const mIndexScale = deckScale * (mShort ? 0.56 : 0.76);
-  const mIndexY = -vh / 2 + padTop + 40 + (CARD_H * mIndexScale) / 2;
+  const mIndexScale = deckScale * (mShort ? 0.52 : 0.66);
+  const mIndexY = -vh / 2 + padTop + 96 + (CARD_H * mIndexScale) / 2;
+
+  // On portrait this must come from the STACK, not from indexLayout — that
+  // returns the anchor for the 3-column grid, which portrait no longer
+  // uses, and it was placing the heading at y=49, behind a 64px nav.
+  // Clamped so it can never tuck under the bar whatever the stack does.
+  const headBottomY = isPortrait
+    ? Math.max(
+        -vh / 2 + 64 + 112,
+        mIndexY - (CARD_H * mIndexScale) / 2 - 30
+      )
+    : L.headBottomY;
   // Where the list starts, measured from the deck rather than set at a fixed
   // percentage — a fixed 46% put the list 75px INTO the cards. The tail
   // allowance is generous because the deck's cards are rotated up to 31
@@ -260,9 +270,13 @@ export default function HeroAtelier({ onEnter, signedIn }) {
   // backdrop and the list takes the space. It returns at full strength for
   // the walkthrough.
   const mTiny = vh < 620;
+  /** Per-row entrance for the phone list — each row lands on its own beat. */
+  const mRowIn = (i) => ramp(tocIn, 0.04 + i * 0.05, 0.34 + i * 0.05);
   const mListH = N * mRowH;
   const mListTop = mTiny
-    ? -vh / 2 + padTop + 52
+    // Clear of the top-anchored heading (76px + ~100px of type + a gap),
+    // not of the pin padding — the heading moved and this did not follow.
+    ? -vh / 2 + 196
     : Math.min(
         // No rotation in the stack any more, so no rotated-overhang
         // allowance is needed — just the stack's own depth and a gap.
@@ -469,13 +483,21 @@ export default function HeroAtelier({ onEnter, signedIn }) {
 
         {/* First act — editorial index header (resolves on the cream page) */}
         <div
-          className="atl-index-head"
+          className={`atl-index-head${isPortrait ? " atl-index-head--m" : ""}`}
           style={{
             opacity: headIn * indexOut,
             // Bottom-anchored to the card top → a clean gap above the labels.
             // Uses the larger bigK so "Everything teaching needs…" reads big
             // on phones (it's a standalone block, not the 6-across row).
-            transform: `translate(-50%, -100%) translateY(${headBottomY}px) translateY(${(1 - headIn) * 24}px) scale(${wordK})`,
+            // Portrait anchors from the TOP of the pin, not the bottom of
+            // the card block. Bottom-anchoring depends on the heading's own
+            // rendered height, which on a phone varies with how the title
+            // wraps — so a clamp meant to hold it 112px below the nav still
+            // let it drift underneath. From the top there is nothing to
+            // mis-predict.
+            transform: isPortrait
+              ? `translate(-50%, 0) translateY(${(1 - headIn) * 24}px)`
+              : `translate(-50%, -100%) translateY(${headBottomY}px) translateY(${(1 - headIn) * 24}px) scale(${wordK})`,
           }}
         >
           <span className="atl-index-over">{t("atl.index.over")}</span>
@@ -557,13 +579,24 @@ export default function HeroAtelier({ onEnter, signedIn }) {
             style={{ opacity: tocIn * indexOut, top: `calc(50% + ${Math.round(mListTop)}px)` }}
             aria-hidden={tocIn * indexOut < 0.5}
           >
-            {HERO_CARDS.map((kind, i) => (
-              <li key={kind} className="atl-mrow">
-                <span className="atl-mnum">{String(i + 1).padStart(2, "0")}</span>
-                <span className="atl-mname">{t(`atl.art.${kind}`)}</span>
-                <span className="atl-mdesc">{t(`atl.desc.${kind}`)}</span>
-              </li>
-            ))}
+            {HERO_CARDS.map((kind, i) => {
+              const r = mRowIn(i);
+              return (
+                <li
+                  key={kind}
+                  className="atl-mrow"
+                  style={{
+                    opacity: r,
+                    transform: `translateY(${lerp(14, 0, r)}px)`,
+                    ["--row"]: r,
+                  }}
+                >
+                  <span className="atl-mnum">{String(i + 1).padStart(2, "0")}</span>
+                  <span className="atl-mname">{t(`atl.art.${kind}`)}</span>
+                  <span className="atl-mdesc">{t(`atl.desc.${kind}`)}</span>
+                </li>
+              );
+            })}
           </ol>
         )}
 
