@@ -2688,11 +2688,12 @@ body.lp-menu-open [data-a11y-node="reset-chip"] { display: none !important; }
   z-index: 4;
   pointer-events: none;
 }
-/* The hero used to feather straight into the cream Showreel. The tool
-   walkthrough now sits between them on the same drench, so the hero must
-   NOT fade to cream here — the walkthrough carries the seam instead (see
-   .track::after in ToolWalkthrough.module.css). */
-.atl::after { display: none; }
+/* Hero drench → cream Showreel. The walkthrough is part of this section
+   again, so this section owns the seam once more. */
+.atl::after {
+  bottom: -1px;
+  background: linear-gradient(to bottom, transparent, var(--cm-cream));
+}
 /* Cream Showreel → Voices drench */
 .voices-pin-track::before {
   top: -1px;
@@ -2926,7 +2927,13 @@ body.lp-menu-open [data-a11y-node="reset-chip"] { display: none !important; }
    at 200vh instead of 300vh. Every segment in HeroAtelier is expressed
    in normalised progress, so halving the runway (200vh span → 100vh)
    compresses the whole choreography proportionally with no retiming. */
-.atl { height: 200vh; }
+/* One pin for the whole sequence: masthead → fan → numbered index → deck
+   → six tool slots. 240vh of travel.
+   This replaced a 200vh hero plus a separate 240vh walkthrough. Merging
+   them removed a full viewport, because the seam between the two used to
+   hold the same index row twice — once as the hero's last frame and again
+   as the walkthrough's first. */
+.atl { height: 340vh; }
 
 @media (min-width: 1024px) {
   .film-stage,
@@ -3044,4 +3051,38 @@ body.lp-menu-open [data-a11y-node="reset-chip"] { display: none !important; }
 @media (max-width: 640px) {
   .atl-meta { display: none; }
   .atl-masthead { justify-content: flex-start; }
+}
+
+
+/* ─── 9. Merged hero/walkthrough pin ───────────────────────────────
+   The walkthrough's own layers now render inside .atl-pin, so they need
+   to sit above the drench and share the pin's coordinate space. */
+.atl-dot {
+  position: absolute;
+  z-index: 60;
+  inset-inline-start: 50%;
+  inset-block-start: 50%;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background: var(--cm-on-drench, #b6dbe2);
+  box-shadow: 0 0 0 5px oklch(0.72 0.09 195 / 0.22), 0 2px 10px oklch(0.1 0.04 210 / 0.5);
+  pointer-events: none;
+}
+/* PHYSICAL left, not inset-inline-start: the transform already mirrors
+   itself through `dir`, so a logical anchor flips the origin twice under
+   RTL. Same reason as the card layer. */
+[dir="rtl"] .atl-dot { inset-inline-start: auto; left: 50%; }
+
+/* Reduced motion: no pin, no scrub. The masthead sits statically and the
+   six tools follow as a stacked list, so nothing that was carried by the
+   scroll sequence is simply lost. */
+.atl--static { height: auto; }
+.atl--static .atl-pin { position: static; height: auto; overflow: visible; padding-block: clamp(64px, 10vh, 120px); }
+.atl-lockup--static {
+  position: static;
+  transform: none;
+  width: auto;
+  max-width: 900px;
+  margin-inline: auto;
 }

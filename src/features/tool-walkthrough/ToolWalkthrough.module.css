@@ -1,120 +1,31 @@
 /* =====================================================================
-   Tool walkthrough — a pinned deck that deals through the six artifacts.
+   Tool walkthrough — the annotation half of the hero's single pinned
+   timeline: heading, connector, detail, progress rail.
 
-   One card is selected at a time. A dot lands on it, a line draws out to
-   the side, and that tool's detail resolves at the far end. Scroll moves
-   to the next card and the annotation re-draws.
+   It used to be its own pinned section with its own copy of the cards.
+   It could not stay that way: the hero's pin released and its index row
+   scrolled away, then this pin entered with the same row, so the row
+   left and came back. Two sticky elements cannot hand off mid-flight.
+   The cards now belong to the hero's timeline and these layers position
+   themselves inside .atl-pin.
 
-   This section is pinned, unlike the four that were unpinned earlier for
-   holding still. The distinction is whether scroll buys anything: here
-   every pixel advances the sequence, so the runway is the content.
-
-   Desktop lays out deck | connector | detail across three columns. On
-   phones the same three parts stack, and the connector draws downward
-   instead of sideways.
+   Desktop lays out deck | connector | detail across three columns, with
+   the deck column a spacer for cards drawn in the hero's layer above.
+   Phones stack the same three parts and draw the connector downward.
    ===================================================================== */
 
-.track {
-  position: relative;
-  /* 100vh of pin + a slot per card. 140vh of travel over six cards is
-     roughly 23vh each — brisk, but every one of those pixels selects a new
-     card, which is the whole justification for pinning at all. */
-  height: 240vh;
-  color: var(--cm-cream, #f2f7f8);
-  background:
-    radial-gradient(circle at 1px 1px, oklch(0.2 0.05 197 / 0.12) 0.6px, transparent 0) 0 0 / 3px 3px,
-    radial-gradient(ellipse 90% 60% at 50% 10%, oklch(0.52 0.1 200), transparent 70%),
-    radial-gradient(circle at 88% 88%, oklch(0.3 0.085 214), transparent 58%),
-    var(--cm-clay, #2f6b78);
-}
-/* Feathers into the cream Showreel below, matching every other seam. */
-.track::after {
-  content: '';
-  position: absolute;
-  inset-inline: 0;
-  inset-block-end: -1px;
-  height: clamp(90px, 11vh, 160px);
-  pointer-events: none;
-  z-index: 4;
-  background: linear-gradient(to bottom, transparent, var(--cm-cream, #f2f7f8));
-}
-
-.pin {
-  position: sticky;
-  top: 0;
-  height: 100vh;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  padding-inline: clamp(20px, 5vw, 64px);
-}
-
-/* Both headings share one slot and cross-fade, so neither reserves layout
-   the other has to match. Height is fixed to the taller of the two. */
-.headSlot {
-  position: relative;
-  height: clamp(74px, 12vh, 118px);
-  margin-block-end: clamp(12px, 2vh, 26px);
-  z-index: 3;
-}
+/* Walkthrough heading. Shares the hero index heading's slot and
+   cross-fades with it. */
 .headLayer {
   position: absolute;
-  inset: 0;
+  inset-inline: 0;
+  inset-block-start: clamp(88px, 15vh, 150px);
+  z-index: 6;
   text-align: center;
   display: flex;
   flex-direction: column;
-  justify-content: flex-start;
   gap: 8px;
-}
-.head { text-align: center; margin-block-end: clamp(18px, 3vh, 40px); }
-
-/* Cards span the whole pin: in phase A they are a full-width numbered row
-   and only become a column-sized deck once gathered, so they cannot live
-   inside the stage grid. */
-.cardLayer {
-  position: absolute;
-  inset: 0;
   pointer-events: none;
-  z-index: 2;
-}
-/* PHYSICAL left/top, deliberately — not inset-inline-start.
-   The transform math already mirrors itself through `dir`, so a logical
-   anchor flips the origin a second time under RTL and lands every card a
-   card-width off. */
-.cardLayer .card,
-.cardLayer .dot,
-.cardLayer .tocItem {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-}
-
-/* 01–06 labels for the row phase — same treatment as the hero's index. */
-.tocItem {
-  width: 230px;
-  text-align: center;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-.tocNum {
-  font-family: 'Fraunces', Georgia, serif;
-  font-style: italic;
-  font-size: calc(21px * var(--toc-k, 1));
-  color: oklch(0.96 0.02 200 / 0.72);
-}
-.tocLabel {
-  font-family: 'IBM Plex Mono', ui-monospace, monospace;
-  font-size: calc(11px * var(--toc-k, 1));
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--cm-cream, #f2f7f8);
-}
-.tocDesc {
-  font-family: 'Inter Tight', system-ui, sans-serif;
-  font-size: calc(12px * var(--toc-k, 1));
-  color: oklch(0.96 0.02 200 / 0.66);
 }
 .over {
   font-family: 'IBM Plex Mono', ui-monospace, monospace;
@@ -129,41 +40,25 @@
   font-size: clamp(26px, 3.4vw, 46px);
   line-height: 1.1;
   letter-spacing: -0.022em;
-  margin: 8px 0 0;
+  margin: 0;
+  color: var(--cm-cream, #f2f7f8);
   font-variation-settings: 'opsz' 144;
 }
 .h2 em { font-style: italic; color: var(--cm-on-drench, #b6dbe2); }
 
 .stage {
-  position: relative;
-  z-index: 3;
+  position: absolute;
+  z-index: 5;
+  inset-inline: 0;
+  inset-block-start: 50%;
+  /* Level with the deck, which the hero parks 46px below the pin centre. */
+  transform: translateY(calc(-50% + 46px));
   display: grid;
-  /* Column 1 is a spacer holding the deck's footprint — the cards live in
-     .cardLayer above, which spans the pin. */
   grid-template-columns: 300px 132px minmax(0, 1fr);
   align-items: center;
-  gap: 0;
   max-width: 1120px;
-  width: 100%;
   margin-inline: auto;
-  min-height: 400px;
-}
-
-/* ── deck ────────────────────────────────────────────────────────── */
-.card {
-  /* Transform is written per frame from scroll; never transition it. */
-  will-change: transform, opacity;
-}
-
-/* The selection dot, pinned to the trailing edge of the active card. */
-.dot {
-  z-index: 60;
-  width: 15px;
-  height: 15px;
-  border-radius: 50%;
-  background: var(--cm-on-drench, #b6dbe2);
-  box-shadow: 0 0 0 5px oklch(0.72 0.09 195 / 0.22), 0 2px 10px oklch(0.1 0.04 210 / 0.5);
-  pointer-events: none;
+  padding-inline: clamp(20px, 5vw, 64px);
 }
 
 /* ── connector ───────────────────────────────────────────────────── */
@@ -186,6 +81,11 @@
   color: var(--cm-on-drench, #b6dbe2);
 }
 .name {
+  /* Explicit, not inherited. This used to come from the section wrapper
+     (.track set color: var(--cm-cream)); once the walkthrough moved inside
+     the hero's pin that ancestor vanished and the headings fell back to the
+     page's near-black ink — invisible on the drench. */
+  color: var(--cm-cream, #f2f7f8);
   font-family: 'Fraunces', Georgia, serif;
   font-weight: 400;
   font-size: clamp(26px, 3.2vw, 40px);
@@ -224,12 +124,14 @@
 
 /* ── progress rail ───────────────────────────────────────────────── */
 .rail {
-  position: relative;
-  z-index: 3;
+  position: absolute;
+  z-index: 6;
+  inset-inline: 0;
+  inset-block-end: clamp(28px, 7vh, 70px);
   display: flex;
   justify-content: center;
   gap: 7px;
-  margin-block-start: clamp(18px, 3vh, 36px);
+  pointer-events: none;
 }
 .tick {
   width: 26px;
@@ -249,22 +151,19 @@
 
 /* ── phone / narrow ──────────────────────────────────────────────── */
 @media (max-width: 900px) {
-  .track { height: 260vh; }
-  .pin { justify-content: flex-start; padding-block-start: clamp(72px, 12vh, 110px); }
+  .headLayer { inset-block-start: clamp(72px, 12vh, 110px); }
+  /* Phones stack deck over copy. The stage is pinned to the lower part of
+     the pin; the hero centres the deck in the band above it, using the same
+     56% split. */
   .stage {
+    inset-block-start: 56%;
+    transform: none;
     grid-template-columns: minmax(0, 1fr);
     justify-items: center;
-    gap: 0;
+    max-width: none;
   }
-  /* The card is 345px and the deck box centres it, so a shorter box lets
-     the card overhang into the heading above. Match the card height and
-     add the clearance to the header instead. */
-  .deck { height: 350px; }
-  .head { margin-block-end: 22px; }
-  /* The connector turns to run downward, from the base of the card into
-     the copy beneath it. */
   .wire { height: 54px; width: 100%; }
-  .wire svg { height: 54px; }
+  .wire svg { width: 20px; height: 54px; }
   .detail {
     text-align: center;
     padding-inline: 0;
@@ -274,6 +173,7 @@
   .body { font-size: 13.5px; margin-block-start: 9px; }
   .list { align-items: start; margin-block-start: 14px; gap: 8px; text-align: start; }
   .item { font-size: 12.5px; }
+  .rail { inset-block-end: 26px; }
 }
 @media (max-width: 900px) and (max-height: 720px) {
   /* Short phones cannot show the deck AND three bullets; drop the bullets
@@ -282,6 +182,20 @@
 }
 
 /* Reduced motion renders a plain stacked list instead of the deck. */
+.stackedWrap {
+  /* MUST be positioned. The hero's .atl-drench is `position: absolute;
+     z-index: 0`, and in CSS painting order a positioned element with
+     z-index 0 paints above non-positioned block content — so the drench
+     covered this text while leaving the cards visible (HeroArtifact's card
+     is itself positioned, so it painted in the same later step). The text
+     was in the DOM, correctly coloured, and hit-testable, but never drawn. */
+  position: relative;
+  z-index: 1;
+  padding-block: clamp(56px, 9vh, 110px);
+  padding-inline: clamp(20px, 5vw, 64px);
+  color: var(--cm-cream, #f2f7f8);
+}
+.stackedWrap .headLayer { position: static; text-align: center; }
 .stackedItem {
   display: grid;
   grid-template-columns: 230px minmax(0, 1fr);

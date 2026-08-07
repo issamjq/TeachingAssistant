@@ -9,10 +9,18 @@
 // fitting for a UAE-first product whose name *means* "the one who
 // guides".
 //
-// ONE pinned scroll act: the warm drench bleaches to cream as the
-// masthead recedes and the six teaching artifacts deal out of a fan,
-// then resolve into an editorial INDEX — a magazine contents page
-// (01 — Lesson plan, 02 — Quiz, …).
+// ONE pinned act, start to finish. The masthead recedes, six artifacts
+// deal out of a fan, resolve into a numbered editorial INDEX, gather to
+// the side into a deck, and are then walked through one at a time with
+// their descriptions.
+//
+// That last half used to be a second pinned section. It could not be:
+// the hero's sticky element released and its row scrolled away, then the
+// next section's sticky element entered with the SAME row — so the row
+// left and came back, which reads as a duplicate, not a continuation.
+// Two pins cannot hand off mid-flight. Folding it into this timeline
+// also drops a whole viewport of track, because the duplicated hold at
+// the seam is gone.
 //
 // Motion is a pure function of scroll (rAF → `p`), the same no-library
 // technique the rest of the landing uses. Bilingual via useT(); RTL is
@@ -23,12 +31,16 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useT, useI18n } from "../lib/i18n";
 import { HERO_CARDS, HeroCardFace } from "./HeroJourney";
-import { indexLayout } from "../features/hero-artifacts/indexLayout";
+import { CARD_H, deckCenterX, deckPos, indexLayout } from "../features/hero-artifacts/indexLayout";
+import WalkthroughLayer, { WalkthroughStacked } from "../features/tool-walkthrough/WalkthroughLayer";
 
 const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
 const seg = (p, a, b) => clamp01((p - a) / (b - a));
 const lerp = (a, b, t) => a + (b - a) * t;
 const easeInOut = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+const smooth = (t) => t * t * (3 - 2 * t);
+/** Eased 0→1 ramp across [a,b] of some progress value. */
+const ramp = (v, a, b) => smooth(clamp01((v - a) / (b - a)));
 
 const N = HERO_CARDS.length; // 6
 const MID = (N - 1) / 2; // 2.5
@@ -77,8 +89,11 @@ export default function HeroAtelier({ onEnter, signedIn }) {
   // Seeding both renders with the same placeholder guarantees the mount
   // effect produces a real state change, and with it a corrected DOM.
   const [vw, setVw] = useState(SSR_VIEWPORT_W);
+  const [vh, setVh] = useState(800);
+  const [reduced, setReduced] = useState(false);
 
   useEffect(() => {
+    setReduced(window.matchMedia("(prefers-reduced-motion: reduce)").matches);
     let raf = 0;
     const onScroll = () => {
       if (raf) return;
@@ -87,6 +102,7 @@ export default function HeroAtelier({ onEnter, signedIn }) {
         // Width first, and unconditionally — it must not be skipped by the
         // ref guard below, or the hydration placeholder above never clears.
         setVw(window.innerWidth);
+        setVh(window.innerHeight);
         const el = trackRef.current;
         if (!el) return;
         const r = el.getBoundingClientRect();
@@ -97,6 +113,7 @@ export default function HeroAtelier({ onEnter, signedIn }) {
     // Synchronous correction on mount so the real width applies on the first
     // post-hydration render rather than a frame later.
     setVw(window.innerWidth);
+    setVh(window.innerHeight);
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
     window.addEventListener("resize", onScroll);
@@ -108,19 +125,49 @@ export default function HeroAtelier({ onEnter, signedIn }) {
   }, []);
 
   // ── Choreography — all pure functions of scroll `p` ──────────────
-  // The drench stays full-opacity now (the index lives ON the warm gradient,
-  // matching Voices / membership / final CTA), so there's no bleach-to-cream.
-  // Beats overlap deliberately. They used to run end-to-end, which left a
-  // gap between the masthead finishing its exit (0.30) and the index header
-  // starting (0.42) where the screen held nothing but cards in transit — a
-  // dead frame that was easy to miss on a 300vh runway and obvious once the
-  // track was compressed to 200vh. The header now begins as the masthead
-  // clears, so something is always arriving.
+  // One timeline, five acts. Beats overlap on purpose: run end-to-end they
+  // leave frames where nothing is arriving, which reads as the page having
+  // stalled rather than as a pause.
+  //
+  //   .04–.28  masthead recedes
+  //   .06–.34  fan resolves into the numbered index row
+  //   .17–.32  index heading arrives as the masthead clears
+  //   .26–.42  01–06 labels
+  //   .42–.50  HOLD — the finished index, the frame the page is "about"
+  //   .50–.60  the row gathers to the side and stacks into a deck
+  //   .60–1.0  six slots, one per tool
   const lockOut = easeInOut(seg(p, 0.04, 0.28)); // masthead + lockup recede
-  const cardsT = easeInOut(seg(p, 0.10, 0.55)); // fan → editorial index row
-  const swap = easeInOut(clamp01((p - 0.24) / 0.18)); // card set A → B, blur crossfade
-  const headIn = seg(p, 0.28, 0.52); // index header reveal
-  const tocIn = seg(p, 0.42, 0.70); // 01–06 contents labels
+  const cardsT = easeInOut(seg(p, 0.06, 0.34)); // fan → editorial index row
+  const swap = easeInOut(clamp01((p - 0.15) / 0.12)); // card set A → B, blur crossfade
+  const headIn = seg(p, 0.17, 0.32); // index header reveal
+  const tocIn = seg(p, 0.26, 0.42); // 01–06 contents labels
+
+  // ── gather: index row → deck ─────────────────────────────────────
+  const GATHER_A = 0.5;
+  const GATHER_B = 0.6;
+  const gRaw = clamp01((p - GATHER_A) / (GATHER_B - GATHER_A));
+  const gather = smooth(gRaw); // geometry
+  // The two headings share a slot. Cross-fading them symmetrically
+  // superimposed two long serif lines and made both illegible, so the
+  // outgoing one clears before the incoming one starts.
+  const indexOut = 1 - smooth(clamp01(gRaw / 0.42)); // index heading + labels
+  const twHeadIn = smooth(clamp01((gRaw - 0.62) / 0.38)); // walkthrough heading
+
+  // ── walkthrough slots ────────────────────────────────────────────
+  const cProg = clamp01((p - GATHER_B) / (1 - GATHER_B)) * N;
+  const active = Math.min(Math.floor(cProg), N - 1);
+  const local = clamp01(cProg - active);
+  // The annotation lands, holds, then clears just before the next card takes
+  // over, so the two never overlap mid-swap.
+  const outT = 1 - ramp(local, 0.88, 1);
+  const dotIn = ramp(local, 0.04, 0.2) * outT;
+  const lineIn = ramp(local, 0.16, 0.46) * outT;
+  const textIn = ramp(local, 0.24, 0.5) * outT;
+  // How far the deck has moved toward the NEXT card. Flat for the body of
+  // the slot, then a quick hand-off inside the window where the annotation
+  // has already cleared — otherwise the following card overtakes the
+  // selected one at the front while its description is still on screen.
+  const advance = ramp(local, 0.86, 1);
 
   const ctaLabel = signedIn ? t("landing.nav.openPlanner") : t("ch.hero.cta");
   const tagline = useTaglineWords(t);
@@ -138,6 +185,20 @@ export default function HeroAtelier({ onEnter, signedIn }) {
   // The opening fan is narrow, so it can be larger than the row and still fit.
   const fanK = Math.min(1, (vw - 24) / 780);
 
+  // ── deck geometry (the walkthrough half) ─────────────────────────
+  const narrow = vw <= 900;
+  const deckX = deckCenterX(vw, dir, narrow);
+  // Phones stack deck over copy, so the deck gets the band between the
+  // heading and the split, and scales to whatever that band measures —
+  // derived rather than guessed, so it holds from a 667pt phone to a 932pt
+  // one. Both constants mirror ToolWalkthrough.module.css exactly.
+  const SPLIT = 0.56;
+  const padTop = Math.min(110, Math.max(72, vh * 0.12));
+  const bandTop = padTop + 84;
+  const bandH = SPLIT * vh - bandTop;
+  const deckScale = narrow ? Math.max(0.5, Math.min(0.86, (bandH - 20) / CARD_H)) : 1;
+  const deckY = narrow ? (bandTop + SPLIT * vh) / 2 - vh / 2 : 46;
+
   // Shared card transform — fan (hero) lerped to its settled position.
   const cardStyle = (i) => {
     const o = i - MID;
@@ -153,15 +214,61 @@ export default function HeroAtelier({ onEnter, signedIn }) {
     const ra = o * 6 * dir;
     const sa = 0.64 * fanK;
     const b = bPos(i); // B — settled row or grid
-    const x = lerp(xa, b.x, cardsT);
-    const y = lerp(ya, b.y, cardsT);
-    const r = lerp(ra, 0, cardsT);
-    const s = lerp(sa, b.s, cardsT);
+    // C — the deck. Distance from its front; before the gather starts,
+    // `active` and `advance` are both 0, so this is simply i.
+    const dp = deckPos(i - active - advance, dir);
+    // Two lerps in sequence, not a blend: the fan resolves into the row
+    // first, and only then does the row gather into the deck. The windows
+    // do not overlap, so composing them this way is exact.
+    const rx = lerp(xa, b.x, cardsT);
+    const ry = lerp(ya, b.y, cardsT);
+    const rr = lerp(ra, 0, cardsT);
+    const rs = lerp(sa, b.s, cardsT);
+    const x = lerp(rx, deckX + dp.x, gather);
+    const y = lerp(ry, deckY + dp.y, gather);
+    const r = lerp(rr, dp.rot, gather);
+    const sc = lerp(rs, dp.s * deckScale, gather);
+    const opacity = lerp(1, dp.opacity, gather);
     return {
-      transform: `translate(-50%, -50%) translate(${x}px, ${y}px) rotate(${r}deg) scale(${s})`,
-      zIndex: 20 + i,
+      transform: `translate(-50%, -50%) translate(${x}px, ${y}px) rotate(${r}deg) scale(${sc})`,
+      opacity,
+      zIndex: gather < 0.5 ? 20 + i : 50 - Math.round(Math.abs(i - active - advance) * 6),
     };
   };
+
+  // Reduced motion cannot scrub a deck, and the tools must not simply
+  // vanish for those users — they were the whole second half of the
+  // sequence. The pin is dropped (see the media query in landing.css) and
+  // the six tools render as a plain stacked list after the masthead.
+  if (reduced) {
+    return (
+      <section className="atl atl--static">
+        <div className="atl-pin">
+          <div className="atl-drench" aria-hidden="true">
+            <span className="cinema-grain" />
+          </div>
+          <div className="atl-lockup atl-lockup--static">
+            {isRTL ? (
+              <h1 className="atl-word atl-word--ar">مرشد</h1>
+            ) : (
+              <h1 className="atl-word">Mu<em>r</em>chid</h1>
+            )}
+            <div className="atl-meaning">{t("atl.meaning")}</div>
+            <h2 className="atl-tagline" dir={isRTL ? "rtl" : "ltr"}>
+              {tagline.map((tok, i) => (
+                <span key={i}>{tok.brand ? <em>{tok.w}</em> : tok.w} </span>
+              ))}
+            </h2>
+            <div className="atl-cta-row">
+              <button type="button" className="atl-pill" onClick={onEnter}>{ctaLabel}</button>
+            </div>
+            <div className="atl-trust">{t("atl.trust")}</div>
+          </div>
+          <WalkthroughStacked />
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section ref={trackRef} className="atl">
@@ -254,7 +361,7 @@ export default function HeroAtelier({ onEnter, signedIn }) {
         <div
           className="atl-index-head"
           style={{
-            opacity: headIn,
+            opacity: headIn * indexOut,
             // Bottom-anchored to the card top → a clean gap above the labels.
             // Uses the larger bigK so "Everything teaching needs…" reads big
             // on phones (it's a standalone block, not the 6-across row).
@@ -306,15 +413,22 @@ export default function HeroAtelier({ onEnter, signedIn }) {
           ))}
         </div>
 
-        <div className="atl-toc" style={{ opacity: tocIn, "--toc-k": tocK }} aria-hidden={tocIn < 0.5}>
+        {/* Labels ride WITH their card into the deck rather than staying put:
+            pinned to the row while the cards swept away, they read for a
+            moment as six stranded captions. */}
+        <div className="atl-toc" style={{ opacity: tocIn * indexOut, "--toc-k": tocK }} aria-hidden={tocIn * indexOut < 0.5}>
           {HERO_CARDS.map((kind, i) => {
             const b = bPos(i);
-            const labelY = b.y - (345 * b.s) / 2 - 14; // sit above the card top
+            const dp = deckPos(i, dir);
+            const lx = lerp(b.x, deckX + dp.x, gather);
+            const ly = lerp(b.y, deckY + dp.y, gather);
+            const ls = lerp(b.s, dp.s * deckScale, gather);
+            const labelY = ly - (CARD_H * ls) / 2 - 14; // sit above the card top
             return (
             <div
               key={kind}
               className="atl-toc-item"
-              style={{ transform: `translate(-50%, -100%) translate(${b.x}px, ${labelY}px)` }}
+              style={{ transform: `translate(-50%, -100%) translate(${lx}px, ${labelY}px)` }}
             >
               <span className="atl-toc-num">{String(i + 1).padStart(2, "0")}</span>
               <span className="atl-toc-label">{t(`atl.art.${kind}`)}</span>
@@ -323,6 +437,30 @@ export default function HeroAtelier({ onEnter, signedIn }) {
             );
           })}
         </div>
+
+        {/* Selection dot on the trailing edge of the front card. */}
+        <span
+          className="atl-dot"
+          style={{
+            transform: narrow
+              ? `translate(-50%, -50%) translate(${deckX}px, ${deckY + 150 * deckScale}px) scale(${lerp(0.2, 1, dotIn)})`
+              : `translate(-50%, -50%) translate(${deckX + 118 * dir}px, ${deckY}px) scale(${lerp(0.2, 1, dotIn)})`,
+            opacity: dotIn,
+          }}
+          aria-hidden="true"
+        />
+
+        <WalkthroughLayer
+          active={active}
+          local={local}
+          gather={gather}
+          headIn={twHeadIn}
+          dotIn={dotIn}
+          lineIn={lineIn}
+          textIn={textIn}
+          narrow={narrow}
+          isRTL={isRTL}
+        />
       </div>
 
       {/* The old static mobile fallback lived here. It was `display: none`
