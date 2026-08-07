@@ -23,7 +23,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useT, useI18n } from "../lib/i18n";
 import { HERO_CARDS, HeroCardFace } from "./HeroJourney";
-import ArtifactDetail from "../features/hero-artifacts/ArtifactDetail";
+import { indexLayout } from "../features/hero-artifacts/indexLayout";
 
 const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
 const seg = (p, a, b) => clamp01((p - a) / (b - a));
@@ -77,8 +77,6 @@ export default function HeroAtelier({ onEnter, signedIn }) {
   // Seeding both renders with the same placeholder guarantees the mount
   // effect produces a real state change, and with it a corrected DOM.
   const [vw, setVw] = useState(SSR_VIEWPORT_W);
-  // Which artifact's expanded detail is open, if any.
-  const [openKind, setOpenKind] = useState(null);
 
   useEffect(() => {
     let raf = 0;
@@ -124,74 +122,21 @@ export default function HeroAtelier({ onEnter, signedIn }) {
   const headIn = seg(p, 0.28, 0.52); // index header reveal
   const tocIn = seg(p, 0.42, 0.70); // 01–06 contents labels
 
-  // The cards have reached their index positions and are safe to click.
-  const settled = cardsT > 0.92;
-
   const ctaLabel = signedIn ? t("landing.nav.openPlanner") : t("ch.hero.cta");
   const tagline = useTaglineWords(t);
 
   // ── Responsive index row ─────────────────────────────────────────
-  // The six cards + their 01–06 labels scale and tighten to fit (and stay
-  // centred) from the 1024px pin breakpoint up to the design width —
-  // bigger than before on a normal desktop, never overflowing a small one.
-  const ROW_SCALE = 0.84; // card scale at the full design width
-  const ROW_PITCH = 210; // gap between card centres at the full width
-  const ROW_W = ROW_PITCH * (N - 1) + 230 * ROW_SCALE; // ≈ row footprint
-  // Two fit factors. The index ROW must fit six cards across, so it has to
-  // stay compact on phones (k). But the opening FAN and the wordmark are
-  // narrow — they can be much larger and still fit, so they use `bigK`
-  // (sized to the ~760px wordmark width). The cards deal out big from the
-  // fan, then settle into the tighter row as you scroll.
-  const k = Math.min(1, (vw - 48) / ROW_W); // index-row shrink-to-fit
-  // The fan and the wordmark have different widths, so they get their own
-  // fit factors (sharing one made the wide Latin "Murchid" overflow). The
-  // wordmark factor is per-script: مرشد is far narrower than Murchid, so
-  // Arabic can scale up bigger and still fit.
-  const fanK = Math.min(1, (vw - 24) / 780); // opening fan fit
-  const wordK = Math.min(1, (vw - 32) / (isRTL ? 440 : 720)); // wordmark + tagline + heading
-
-  // Index ROW (landscape / tablet / desktop) — six cards across.
-  const pitch = ROW_PITCH * k;
-  const cardScaleB = ROW_SCALE * k;
-  const yb = 132; // row centre, just below the pin centre
-
-  // Phone portrait can't fit six legible cards across, so the settled
-  // INDEX state reflows there into a 3×2 grid (cards ~2× larger). The
-  // opening fan, the wordmark, and the scroll choreography are unchanged —
-  // only the final contents arrangement differs on this one breakpoint.
-  const isPortrait = vw < 560;
-  const G_COLS = 3;
-  const gCardScale = Math.min(0.56, (vw - 40) / (G_COLS * 230 + (G_COLS - 1) * 16));
-  const gColPitch = 230 * gCardScale + 16;
-  const gRowPitch = 345 * gCardScale + 92; // card height + a roomy label band
-  const gRow0Y = 150 - gRowPitch / 2; // two rows centred about y≈150
-
-  // Settled (B-state) position per card — grid on portrait, row otherwise.
-  const bPos = (i) => {
-    if (isPortrait) {
-      const col = i % G_COLS;
-      const rowIdx = Math.floor(i / G_COLS);
-      return {
-        x: (col - (G_COLS - 1) / 2) * gColPitch * dir,
-        y: gRow0Y + rowIdx * gRowPitch,
-        s: gCardScale,
-      };
-    }
-    const o = i - MID;
-    return { x: o * pitch * dir, y: yb, s: cardScaleB };
-  };
-  // Label TYPE factor. On portrait the labels read bigger than the raw card
-  // scale (capped so "PRESENTATIONS" still fits a card's width).
-  const tocK = isPortrait ? Math.min(0.85, gCardScale * 1.6) : k;
-  // Title anchor sits above the top row of the settled layout.
-  const settledScale = isPortrait ? gCardScale : cardScaleB;
-  const topCardY = isPortrait ? gRow0Y : yb;
-  const topCardTopY = topCardY - (345 * settledScale) / 2;
-  const headBottomY = topCardTopY - (isPortrait ? 96 : 118);
-  // Row hint sits under the LAST row of the settled layout — the second grid
-  // row on portrait, the single row otherwise.
-  const bottomCardY = isPortrait ? gRow0Y + gRowPitch : yb;
-  const settledHintY = bottomCardY + (345 * settledScale) / 2 + 34;
+  // Positions come from the shared module so ToolWalkthrough, which opens on
+  // this exact row before collapsing it into a deck, can reproduce the last
+  // frame of this section precisely. See features/hero-artifacts/indexLayout.
+  const L = indexLayout(N, vw, dir, isRTL);
+  const wordK = L.wordK;
+  const bPos = L.pos;
+  const tocK = L.tocK;
+  const headBottomY = L.headBottomY;
+  const isPortrait = L.isPortrait;
+  // The opening fan is narrow, so it can be larger than the row and still fit.
+  const fanK = Math.min(1, (vw - 24) / 780);
 
   // Shared card transform — fan (hero) lerped to its settled position.
   const cardStyle = (i) => {
@@ -337,59 +282,28 @@ export default function HeroAtelier({ onEnter, signedIn }) {
         {/* Each slot holds two faces: set A (Science — the hero arc) and set
             B (Math — the index). They cross-fade with a blur as you scroll
             between the two, so the six "images" swap mid-journey. */}
-        {/* Interactive only once the cards have settled into the index. While
-            they are still fanning out they are decoration, and a hit target
-            that moves under the cursor is worse than none. */}
-        <div className={`atl-cards${settled ? " is-settled" : ""}`}>
+        {/* The cards are presentational here. They used to be buttons that
+            opened a detail lightbox, but the walkthrough section below now
+            takes each one in turn and shows the same content in place, so a
+            second, modal route to it was redundant. */}
+        <div className="atl-cards">
           {HERO_CARDS.map((kind, i) => (
             <div key={kind} className="atl-card" style={cardStyle(i)}>
-              <button
-                type="button"
-                className="atl-card-hit"
-                onClick={settled ? () => setOpenKind(kind) : undefined}
-                disabled={!settled}
-                tabIndex={settled ? 0 : -1}
-                aria-label={`${t(`atl.art.${kind}`)} — ${t("atl.more.open")}`}
-              >
-                <div className="atl-card-in" style={{ "--i": i }}>
-                  <div className="atl-stack">
-                    <div className="atl-face" style={{ opacity: 1 - swap, filter: `blur(${swap * 9}px)` }}>
-                      <HeroCardFace kind={kind} />
-                    </div>
-                    <div
-                      className="atl-face atl-face--b"
-                      style={{ opacity: swap, filter: `blur(${(1 - swap) * 9}px)` }}
-                    >
-                      <HeroCardFace kind={kind} variant="b" />
-                    </div>
+              <div className="atl-card-in" style={{ "--i": i }}>
+                <div className="atl-stack">
+                  <div className="atl-face" style={{ opacity: 1 - swap, filter: `blur(${swap * 9}px)` }}>
+                    <HeroCardFace kind={kind} />
+                  </div>
+                  <div
+                    className="atl-face atl-face--b"
+                    style={{ opacity: swap, filter: `blur(${(1 - swap) * 9}px)` }}
+                  >
+                    <HeroCardFace kind={kind} variant="b" />
                   </div>
                 </div>
-                {/* Persistent affordance. This used to be a text label that
-                    only appeared on hover, which meant the cards looked inert
-                    until you happened to cross one — and on touch, where there
-                    is no hover, it never appeared at all. A always-visible
-                    plus is the conventional "expand" cue and works on both. */}
-                <span className="atl-card-plus" aria-hidden="true">
-                  <svg viewBox="0 0 14 14" fill="none">
-                    <path d="M7 2.4 V11.6 M2.4 7 H11.6" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
-                  </svg>
-                </span>
-              </button>
+              </div>
             </div>
           ))}
-        </div>
-
-        {/* Contents numbering — sits just above each card in its settled
-            position (row or grid). --toc-k scales the label TYPE with the
-            card size so labels track the cards and never overlap. */}
-        {/* One instruction for the whole row, rather than six repeated labels.
-            Fades in with the contents index it describes. */}
-        <div
-          className="atl-row-hint"
-          style={{ opacity: settled ? tocIn : 0, transform: `translate(-50%, 0) translateY(${settledHintY}px)` }}
-          aria-hidden={!settled}
-        >
-          {t("atl.more.hint")}
         </div>
 
         <div className="atl-toc" style={{ opacity: tocIn, "--toc-k": tocK }} aria-hidden={tocIn < 0.5}>
@@ -410,16 +324,6 @@ export default function HeroAtelier({ onEnter, signedIn }) {
           })}
         </div>
       </div>
-
-      {openKind && (
-        <ArtifactDetail
-          kind={openKind}
-          index={HERO_CARDS.indexOf(openKind) + 1}
-          variant="b"
-          onClose={() => setOpenKind(null)}
-          onEnter={onEnter}
-        />
-      )}
 
       {/* The old static mobile fallback lived here. It was `display: none`
           with no media query anywhere that revealed it — the pinned sequence

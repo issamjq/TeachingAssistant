@@ -50,9 +50,71 @@
   padding-inline: clamp(20px, 5vw, 64px);
 }
 
-.head {
+/* Both headings share one slot and cross-fade, so neither reserves layout
+   the other has to match. Height is fixed to the taller of the two. */
+.headSlot {
+  position: relative;
+  height: clamp(74px, 12vh, 118px);
+  margin-block-end: clamp(12px, 2vh, 26px);
+  z-index: 3;
+}
+.headLayer {
+  position: absolute;
+  inset: 0;
   text-align: center;
-  margin-block-end: clamp(18px, 3vh, 40px);
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 8px;
+}
+.head { text-align: center; margin-block-end: clamp(18px, 3vh, 40px); }
+
+/* Cards span the whole pin: in phase A they are a full-width numbered row
+   and only become a column-sized deck once gathered, so they cannot live
+   inside the stage grid. */
+.cardLayer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2;
+}
+/* PHYSICAL left/top, deliberately — not inset-inline-start.
+   The transform math already mirrors itself through `dir`, so a logical
+   anchor flips the origin a second time under RTL and lands every card a
+   card-width off. */
+.cardLayer .card,
+.cardLayer .dot,
+.cardLayer .tocItem {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+}
+
+/* 01–06 labels for the row phase — same treatment as the hero's index. */
+.tocItem {
+  width: 230px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.tocNum {
+  font-family: 'Fraunces', Georgia, serif;
+  font-style: italic;
+  font-size: calc(21px * var(--toc-k, 1));
+  color: oklch(0.96 0.02 200 / 0.72);
+}
+.tocLabel {
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+  font-size: calc(11px * var(--toc-k, 1));
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--cm-cream, #f2f7f8);
+}
+.tocDesc {
+  font-family: 'Inter Tight', system-ui, sans-serif;
+  font-size: calc(12px * var(--toc-k, 1));
+  color: oklch(0.96 0.02 200 / 0.66);
 }
 .over {
   font-family: 'IBM Plex Mono', ui-monospace, monospace;
@@ -73,31 +135,28 @@
 .h2 em { font-style: italic; color: var(--cm-on-drench, #b6dbe2); }
 
 .stage {
+  position: relative;
+  z-index: 3;
   display: grid;
+  /* Column 1 is a spacer holding the deck's footprint — the cards live in
+     .cardLayer above, which spans the pin. */
   grid-template-columns: 300px 132px minmax(0, 1fr);
   align-items: center;
   gap: 0;
   max-width: 1120px;
   width: 100%;
   margin-inline: auto;
+  min-height: 400px;
 }
 
 /* ── deck ────────────────────────────────────────────────────────── */
-.deck {
-  position: relative;
-  height: 400px;
-  display: grid;
-  place-items: center;
-}
 .card {
-  position: absolute;
   /* Transform is written per frame from scroll; never transition it. */
   will-change: transform, opacity;
 }
 
 /* The selection dot, pinned to the trailing edge of the active card. */
 .dot {
-  position: absolute;
   z-index: 60;
   width: 15px;
   height: 15px;
@@ -165,6 +224,8 @@
 
 /* ── progress rail ───────────────────────────────────────────────── */
 .rail {
+  position: relative;
+  z-index: 3;
   display: flex;
   justify-content: center;
   gap: 7px;
@@ -218,6 +279,19 @@
   /* Short phones cannot show the deck AND three bullets; drop the bullets
      rather than let the panel overflow the pin. */
   .list { display: none; }
+}
+
+/* Reduced motion renders a plain stacked list instead of the deck. */
+.stackedItem {
+  display: grid;
+  grid-template-columns: 230px minmax(0, 1fr);
+  gap: clamp(24px, 4vw, 56px);
+  align-items: start;
+  max-width: 1000px;
+  margin: 48px auto 0;
+}
+@media (max-width: 900px) {
+  .stackedItem { grid-template-columns: minmax(0, 1fr); justify-items: center; }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -2951,90 +2951,10 @@ body.lp-menu-open [data-a11y-node="reset-chip"] { display: none !important; }
   }
 }
 
-/* ─── 7. Clickable index cards ─────────────────────────────────────
-   The contents index is now a set of hit targets that open an expanded
-   detail panel. The button is a bare wrapper — the card's own visual
-   treatment comes from HeroArtifact — so it carries no background,
-   border, or padding of its own. */
-.atl-card-hit {
-  display: block;
-  padding: 0;
-  border: 0;
-  background: none;
-  cursor: default;
-  border-radius: 16px;
-  position: relative;
-  /* Transitions live here rather than on .atl-card, whose transform is
-     rewritten every scroll frame and must never be eased. */
-  transition: transform 420ms var(--easeOutE), filter 420ms var(--easeOutE);
-}
-.atl-cards.is-settled .atl-card-hit { cursor: pointer; }
-.atl-cards.is-settled .atl-card-hit:hover,
-.atl-cards.is-settled .atl-card-hit:focus-visible {
-  transform: translateY(-10px);
-  filter: drop-shadow(0 26px 44px oklch(0.1 0.04 210 / 0.5));
-}
-.atl-card-hit:focus-visible { outline: 2px solid var(--cm-on-drench); outline-offset: 6px; }
-
-/* Persistent expand affordance.
-
-   This was a text label revealed on hover, which was the wrong call: the
-   cards read as inert until the cursor happened to cross one, and on touch
-   — where there is no hover — the affordance never appeared at all. A
-   plus badge is the conventional "expand" cue, it is visible the moment
-   the row settles, and it works the same on both input types. One hint
-   line under the whole row carries the instruction, instead of repeating
-   a label six times. */
-.atl-card-plus {
-  position: absolute;
-  inset-block-start: 11px;
-  inset-inline-end: 11px;
-  width: 26px;
-  height: 26px;
-  border-radius: 50%;
-  display: grid;
-  place-items: center;
-  color: var(--cm-clay-dd, #16323a);
-  background: oklch(0.96 0.008 200 / 0.94);
-  box-shadow: 0 2px 8px oklch(0.1 0.04 210 / 0.35);
-  opacity: 0;
-  transform: scale(0.7);
-  transition: opacity 420ms var(--easeOutE), transform 420ms var(--easeOutE),
-              background 260ms var(--easeOutE);
-}
-.atl-card-plus svg { width: 12px; height: 12px; display: block; }
-.atl-cards.is-settled .atl-card-plus { opacity: 1; transform: none; }
-.atl-cards.is-settled .atl-card-hit:hover .atl-card-plus,
-.atl-cards.is-settled .atl-card-hit:focus-visible .atl-card-plus {
-  transform: rotate(90deg) scale(1.12);
-  background: var(--cm-on-drench, #b6dbe2);
-}
-
-/* One instruction for the row. Positioned by JS to sit under the last row
-   of whichever settled layout is active (single row, or 3×2 on portrait). */
-.atl-row-hint {
-  position: absolute;
-  z-index: 6;
-  inset-inline-start: 50%;
-  inset-block-start: 50%;
-  white-space: nowrap;
-  pointer-events: none;
-  font-family: 'IBM Plex Mono', ui-monospace, monospace;
-  font-size: 10px;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  color: oklch(0.96 0.02 200 / 0.66);
-  transition: opacity 500ms var(--easeOutE);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .atl-card-hit,
-  .atl-card-plus,
-  .atl-row-hint { transition: none; }
-  .atl-cards.is-settled .atl-card-hit:hover,
-  .atl-cards.is-settled .atl-card-hit:focus-visible { transform: none; }
-  .atl-cards.is-settled .atl-card-hit:hover .atl-card-plus { transform: none; }
-}
+/* Section 7 (clickable index cards) removed. The cards briefly opened a
+   detail lightbox; the tool walkthrough below now takes each one in turn
+   and shows the same content in place, so the modal route — and the plus
+   badge and hint line that advertised it — are gone. */
 
 /* ─── 8. Hero opening ──────────────────────────────────────────────
    The opening frame was a flat colour field: one teal gradient, two orbs

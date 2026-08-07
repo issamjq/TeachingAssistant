@@ -20,6 +20,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { useI18n, useT } from "@/shared/i18n";
 import type { TranslationKey } from "@/shared/i18n";
 import HeroArtifact, { type ArtifactKind } from "../hero-artifacts/HeroArtifact";
+import { CARD_H, deckCenterX, deckPos, indexLayout } from "../hero-artifacts/indexLayout";
 import s from "./ToolWalkthrough.module.css";
 
 const KINDS: ArtifactKind[] = ["lesson", "quiz", "deck", "presentation", "activity", "homework"];
@@ -41,6 +42,11 @@ export default function ToolWalkthrough({ onEnter }: { onEnter?: () => void }) {
   const [p, setP] = useState(0);
   const [narrow, setNarrow] = useState(false);
   const [reduced, setReduced] = useState(false);
+  // Same SSR placeholder discipline as HeroAtelier: never read window during
+  // render, and seed both sides identically so the mount effect produces a
+  // real state change React will actually re-render from.
+  const [vw, setVw] = useState(1280);
+  const [vh, setVh] = useState(800);
 
   useEffect(() => {
     if (typeof window === "undefined") return undefined;
@@ -54,6 +60,8 @@ export default function ToolWalkthrough({ onEnter }: { onEnter?: () => void }) {
       raf = requestAnimationFrame(() => {
         raf = 0;
         setNarrow(window.innerWidth <= NARROW);
+        setVw(window.innerWidth);
+        setVh(window.innerHeight);
         const el = trackRef.current;
         if (!el) return;
         const r = el.getBoundingClientRect();
@@ -62,6 +70,8 @@ export default function ToolWalkthrough({ onEnter }: { onEnter?: () => void }) {
       });
     };
     setNarrow(window.innerWidth <= NARROW);
+    setVw(window.innerWidth);
+    setVh(window.innerHeight);
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
     window.addEventListener("resize", onScroll);
@@ -74,12 +84,59 @@ export default function ToolWalkthrough({ onEnter }: { onEnter?: () => void }) {
 
   const tk = (k: string): string => t(k as TranslationKey);
 
-  // ── selection ────────────────────────────────────────────────────
-  // prog runs 0→N across the track. `active` is the card in front and
-  // `local` is how far through its own slot we are.
-  const prog = clamp01(p) * N;
-  const active = Math.min(Math.floor(prog), N - 1);
-  const local = clamp01(prog - active);
+  // ── three phases ─────────────────────────────────────────────────
+  //   A  0 → HOLD      the numbered contents row, exactly as the hero
+  //                    left it — same layout function, same strings, so
+  //                    the pin handoff is a continuous picture
+  //   B  HOLD → GATHER the row collapses to the side and stacks into a
+  //                    deck; numbers and the hero title fade out, the
+  //                    walkthrough's own header fades in
+  //   C  GATHER → 1    the deck deals through the six tools
+  const HOLD = 0.1;
+  const GATHER = 0.26;
+
+  const L = indexLayout(N, vw, dir, isRTL);
+  // Linear position within phase B, for staging the fades against each other.
+  const gRaw = clamp01((p - HOLD) / (GATHER - HOLD));
+  // Eased, for the geometry — so the row does not lurch out of the hold.
+  const gather = smooth(gRaw);
+  // The two headings must NOT cross-fade symmetrically. Overlapping them at
+  // 50/50 superimposed two long serif lines in the same place and rendered
+  // both illegible. The outgoing one clears before the incoming one starts.
+  const rowOut = 1 - smooth(clamp01(gRaw / 0.42)); // hero title + numbers
+  const deckIn = smooth(clamp01((gRaw - 0.62) / 0.38)); // walkthrough header
+  const deckX = deckCenterX(vw, dir, narrow);
+  // Deck centre relative to the pin centre.
+  //
+  // Desktop puts the detail BESIDE the deck, so the deck can sit near the
+  // middle. Phones stack them, so the deck has to clear the upper third and
+  // leave the lower half for the connector and copy — and that split has to
+  // be a fraction of viewport height, not a fixed offset, or it breaks
+  // between a 667pt phone and an 932pt one. The stage is pinned to the same
+  // fraction in CSS (--tw-split).
+  const SPLIT = 0.56;
+  // The band the deck gets on a phone, derived rather than guessed. An
+  // earlier fixed offset ignored the pin's own top padding and put the card
+  // through the heading. Both values below mirror the CSS exactly:
+  //   .pin  padding-block-start: clamp(72px, 12vh, 110px)
+  //   .headSlot height: 84px  (narrow override)
+  //   .stage inset-block-start: 56%
+  const padTop = Math.min(110, Math.max(72, vh * 0.12));
+  const bandTop = padTop + 84;
+  const bandH = SPLIT * vh - bandTop;
+  // A full-size 345px card does not fit that band on a short phone, so the
+  // deck scales to whatever is actually available — this holds from a 667pt
+  // phone through a 932pt one instead of only looking right on the one I
+  // happened to test.
+  const deckScale = narrow ? Math.max(0.5, Math.min(0.86, (bandH - 20) / CARD_H)) : 1;
+  const deckY = narrow ? (bandTop + SPLIT * vh) / 2 - vh / 2 : 46;
+
+  // ── selection (phase C) ──────────────────────────────────────────
+  // prog runs 0→N across the remainder of the track. `active` is the card
+  // in front and `local` is how far through its own slot we are.
+  const cProg = clamp01((p - GATHER) / (1 - GATHER)) * N;
+  const active = Math.min(Math.floor(cProg), N - 1);
+  const local = clamp01(cProg - active);
 
   // The annotation lands, holds, then clears just before the next card
   // takes over — so the two never overlap mid-swap.
@@ -112,12 +169,11 @@ export default function ToolWalkthrough({ onEnter }: { onEnter?: () => void }) {
             </h2>
           </header>
           {KINDS.map((k, i) => (
-            <div key={k} className={s.stage} style={{ marginBlockStart: 40 }}>
-              <div className={s.deck} style={{ height: 380 }}>
-                <HeroArtifact kind={k} variant="b" />
+            <div key={k} className={s.stackedItem}>
+              <HeroArtifact kind={k} variant="b" />
+              <div className={s.detail}>
+                <Detail k={k} i={i} tk={tk} />
               </div>
-              <div />
-              <Detail k={k} i={i} tk={tk} />
             </div>
           ))}
         </div>
@@ -128,57 +184,97 @@ export default function ToolWalkthrough({ onEnter }: { onEnter?: () => void }) {
   return (
     <section ref={trackRef} className={s.track} aria-label={tk("tw.over")}>
       <div className={s.pin}>
-        <header className={s.head}>
-          <span className={s.over}>{tk("tw.over")}</span>
-          <h2 className={s.h2}>
-            {tk("tw.h2.a")} <em>{tk("tw.h2.em")}</em>
-          </h2>
-        </header>
+        {/* Two headings occupy the same slot. The hero's carries over into
+            phase A so the handoff between pins is seamless; the
+            walkthrough's replaces it as the deck gathers. */}
+        <div className={s.headSlot}>
+          <div className={s.headLayer} style={{ opacity: rowOut }} aria-hidden={rowOut < 0.5}>
+            <span className={s.over}>{tk("atl.index.over")}</span>
+            <h2 className={s.h2}>{tk("atl.index.title")}</h2>
+          </div>
+          <div className={s.headLayer} style={{ opacity: deckIn }} aria-hidden={deckIn < 0.5}>
+            <span className={s.over}>{tk("tw.over")}</span>
+            <h2 className={s.h2}>
+              {tk("tw.h2.a")} <em>{tk("tw.h2.em")}</em>
+            </h2>
+          </div>
+        </div>
 
-        <div className={s.stage}>
-          {/* deck */}
-          <div className={s.deck}>
-            {KINDS.map((k, i) => {
-              // Signed distance from the front of the deck. Negative once a
-              // card has been passed, positive while it is still waiting.
-              const d = i - active - advance;
-              const back = d >= 0;
-              const m = Math.abs(d);
-              const x = (back ? 13 * d : -18 * m) * dir;
-              const y = back ? 16 * d : -62 * m;
-              const rot = (back ? 4.5 * d : -7 * m) * dir;
-              const scale = back ? 1 - 0.055 * d : 1 - 0.06 * m;
-              const opacity = back ? Math.max(0, 1 - d * 0.26) : Math.max(0, 1 - m * 1.5);
-              if (opacity <= 0.01) return null;
+        {/* Cards live in a layer spanning the whole pin, not inside the grid
+            column, because in phase A they are a full-width row and only
+            become a column-sized deck once gathered. */}
+        <div className={s.cardLayer}>
+          {KINDS.map((k, i) => {
+            const rp = L.pos(i);
+            // Distance from the front of the deck. Until the deck exists
+            // (phase A/B) active and advance are both 0, so this is just i.
+            const d = i - active - advance;
+            const dp = deckPos(d, dir);
+            const opacity = lerp(1, dp.opacity, gather);
+            if (opacity <= 0.01) return null;
+            const x = lerp(rp.x, deckX + dp.x, gather);
+            const y = lerp(rp.y, deckY + dp.y, gather);
+            const rot = lerp(0, dp.rot, gather);
+            const sc = lerp(rp.s, dp.s * deckScale, gather);
+            return (
+              <div
+                key={k}
+                className={s.card}
+                style={{
+                  transform: `translate(-50%, -50%) translate(${x}px, ${y}px) rotate(${rot}deg) scale(${sc})`,
+                  opacity,
+                  zIndex: 50 - Math.round(Math.abs(gather < 0.5 ? i : d) * 6),
+                }}
+                aria-hidden={gather > 0.5 && i !== active}
+              >
+                <HeroArtifact kind={k} variant="b" />
+              </div>
+            );
+          })}
+
+          {/* 01–06 labels. They ride WITH their card rather than staying put:
+              pinned to the row while the cards swept away, they read as six
+              stranded captions for a moment. */}
+          {rowOut > 0.01 &&
+            KINDS.map((k, i) => {
+              const rp = L.pos(i);
+              const dp = deckPos(i, dir);
+              const lx = lerp(rp.x, deckX + dp.x, gather);
+              const ly = lerp(rp.y, deckY + dp.y, gather);
+              const ls = lerp(rp.s, dp.s * deckScale, gather);
               return (
                 <div
-                  key={k}
-                  className={s.card}
+                  key={`n-${k}`}
+                  className={s.tocItem}
                   style={{
-                    transform: `translate(${x}px, ${y}px) rotate(${rot}deg) scale(${scale})`,
-                    opacity,
-                    zIndex: 50 - Math.round(m * 6),
+                    opacity: rowOut,
+                    ["--toc-k" as string]: L.tocK,
+                    transform: `translate(-50%, -100%) translate(${lx}px, ${ly - (CARD_H * ls) / 2 - 14}px)`,
                   }}
-                  aria-hidden={i !== active}
                 >
-                  <HeroArtifact kind={k} variant="b" />
+                  <span className={s.tocNum}>{String(i + 1).padStart(2, "0")}</span>
+                  <span className={s.tocLabel}>{tk(`atl.art.${k}`)}</span>
+                  <span className={s.tocDesc}>{tk(`atl.desc.${k}`)}</span>
                 </div>
               );
             })}
 
-            {/* Selection dot, on the trailing edge of the front card. */}
-            <span
-              className={s.dot}
-              style={{
-                transform: narrow
-                  ? `translate(-50%, -50%) translate(0, 150px) scale(${lerp(0.2, 1, dotIn)})`
-                  : `translate(-50%, -50%) translate(${118 * dir}px, 0) scale(${lerp(0.2, 1, dotIn)})`,
-                opacity: dotIn,
-              }}
-            />
-          </div>
+          {/* Selection dot, on the trailing edge of the front card. */}
+          <span
+            className={s.dot}
+            style={{
+              transform: narrow
+                ? `translate(-50%, -50%) translate(${deckX}px, ${deckY + 150 * deckScale}px) scale(${lerp(0.2, 1, dotIn)})`
+                : `translate(-50%, -50%) translate(${deckX + 118 * dir}px, ${deckY}px) scale(${lerp(0.2, 1, dotIn)})`,
+              opacity: dotIn,
+            }}
+          />
+        </div>
 
-          {/* connector */}
+        {/* Connector + detail. The first grid column is a spacer holding the
+            deck's footprint; the cards themselves are in the layer above. */}
+        <div className={s.stage}>
+          <div aria-hidden="true" />
           <div className={s.wire}>
             {narrow ? (
               <svg viewBox="0 0 20 54" width="20" height="54" aria-hidden="true">
@@ -187,14 +283,11 @@ export default function ToolWalkthrough({ onEnter }: { onEnter?: () => void }) {
               </svg>
             ) : (
               <svg viewBox="0 0 132 200" aria-hidden="true" style={{ transform: isRTL ? "scaleX(-1)" : undefined }}>
-                {/* Steps up from the dot to sit level with the detail title. */}
                 <path className={s.wirePath} d="M0 100 H44 C68 100 68 74 92 74 H132" pathLength={1}
                   strokeDasharray={1} strokeDashoffset={1 - lineIn} />
               </svg>
             )}
           </div>
-
-          {/* detail */}
           <div
             className={s.detail}
             style={{
@@ -204,12 +297,11 @@ export default function ToolWalkthrough({ onEnter }: { onEnter?: () => void }) {
                 : `translate(${lerp(22, 0, textIn) * dir}px, 0)`,
             }}
           >
-            <Detail k={kind} i={active} tk={tk} />
+            <Detail k={KINDS[active]} i={active} tk={tk} />
           </div>
         </div>
 
-        {/* progress rail */}
-        <div className={s.rail} aria-hidden="true">
+        <div className={s.rail} style={{ opacity: deckIn }} aria-hidden="true">
           {KINDS.map((k, i) => (
             <span key={k} className={s.tick}>
               <span
