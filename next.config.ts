@@ -10,11 +10,16 @@ import type { NextConfig } from "next";
 // Note this is the SERVER-side proxy target. The browser always calls
 // same-origin /api/*, so no CORS preflight and no VITE_API_URL equivalent
 // is needed on the client.
+// NOT process.env.PORT. Next sets PORT to the port IT is listening on, so
+// deriving the API target from it made the rewrite point back at the Next
+// server itself — every /api/* call became a proxy loop returning 500 while
+// the API answered correctly on its own port. Use the dedicated variable,
+// and default to the Express port from .env.example.
 const API_TARGET =
   process.env.API_PROXY_TARGET ||
   (process.env.NODE_ENV === "production"
     ? "https://teachingassistant-twbz.onrender.com"
-    : `http://localhost:${process.env.PORT || 3001}`);
+    : `http://localhost:${process.env.API_PORT || 3001}`);
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
