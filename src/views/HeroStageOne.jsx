@@ -508,6 +508,7 @@ export default function HeroStageOne({ onEnter, signedIn, variant }) {
               bays={C.centre.bays}
               size={{ w: C.centre.w, h: C.centre.h }}
               points={C.centre.points}
+              order={C.pulseAt ? HERO_CARDS.map((_, i) => C.pulseAt(i)) : null}
               isRTL={isRTL}
               t={t}
             />

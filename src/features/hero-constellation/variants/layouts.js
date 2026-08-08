@@ -137,6 +137,23 @@ function tabletRow(b, vw, vh, dir, { wave = null, rot = null, centre = null, pul
   };
 }
 
+/**
+ * Is there room below the masthead for a two-band composition at all?
+ *
+ * A 1280x720 laptop leaves about 160px under a full-size masthead, and
+ * the desktop compositions all want two rows of tile-plus-caption plus
+ * something drawn between them. Forced in, the overflow guard lifted the
+ * whole thing into the CTA buttons — which is the failure it exists to
+ * prevent, arriving by a different route.
+ *
+ * So a short desktop takes the tablet's single captioned row instead. It
+ * is a real fallback, chosen deliberately, rather than a composition
+ * squeezed until something collides.
+ */
+function hasBand(b, vh) {
+  return vh / 2 - 40 - (b.lockBottom + 26) >= 230;
+}
+
 /** Start a phone frame: the shared two-by-four, with a per-variant shape. */
 function phoneBase(b, vw, vh, dir, opts) {
   const s = tileScale(vh, "phone");
@@ -155,7 +172,7 @@ function phoneBase(b, vw, vh, dir, opts) {
 // the morph interpolates to indexLayout's positions, not to their own.
 export function atelier(n, vw, vh, dir, wordK) {
   const b = base(vw, vh, wordK);
-  if (b.tier === "tablet")
+  if (b.tier === "tablet" || !hasBand(b, vh))
     return done(b, vw, vh, tabletRow(b, vw, vh, dir, {
     centre: (g, size) => ({ x: 0, y: g.tile(0).y - size / 2 - 24, w: g.labelW * 8, h: 2, k: 1, kind: "source" }),
     pulseDur: 6.4,
@@ -210,7 +227,7 @@ const BUREAU_ROT = [-6, 4, -3, 7, 5, -7, 3, -4];
 const BUREAU_DY = [-14, 10, -8, 12, 8, -12, 14, -6];
 export function bureau(n, vw, vh, dir, wordK) {
   const b = base(vw, vh, wordK);
-  if (b.tier === "tablet")
+  if (b.tier === "tablet" || !hasBand(b, vh))
     return done(b, vw, vh, tabletRow(b, vw, vh, dir, {
     rot: BUREAU_ROT,
     wave: (i) => (i % 2 === 0 ? -7 : 7),
@@ -276,7 +293,7 @@ export function bureau(n, vw, vh, dir, wordK) {
 // than near it.
 export function ribbon(n, vw, vh, dir, wordK) {
   const b = base(vw, vh, wordK, { shift: -0.06 });
-  if (b.tier === "tablet")
+  if (b.tier === "tablet" || !hasBand(b, vh))
     return done(b, vw, vh, tabletRow(b, vw, vh, dir, {
     wave: (i) => -Math.round(Math.sin((i / 7) * Math.PI * 2) * 30),
     centre: (g, size, pts) => ({ x: 0, y: 0, w: vw, h: vh, k: 1, kind: "ribbonThread", points: pts }),
@@ -357,7 +374,7 @@ export function ribbon(n, vw, vh, dir, wordK) {
 // the whole composition.
 export function signal(n, vw, vh, dir, wordK) {
   const b = base(vw, vh, wordK);
-  if (b.tier === "tablet")
+  if (b.tier === "tablet" || !hasBand(b, vh))
     return done(b, vw, vh, tabletRow(b, vw, vh, dir, {
     wave: (i) => (i % 2 === 0 ? -20 : 20),
     centre: (g, size) => ({ x: 0, y: g.tile(0).y, w: Math.min(vw * 0.9, 1160), h: 2, k: 1, kind: "signal" }),
@@ -416,7 +433,7 @@ export function signal(n, vw, vh, dir, wordK) {
 // outward for the same reason: the interior belongs to the masthead.
 export function mihrab(n, vw, vh, dir, wordK) {
   const b = base(vw, vh, wordK, { shift: -0.045 });
-  if (b.tier === "tablet")
+  if (b.tier === "tablet" || !hasBand(b, vh))
     return done(b, vw, vh, tabletRow(b, vw, vh, dir, {
     centre: (g, size) => ({ x: 0, y: g.tile(0).y - 12, w: Math.min(vw * 0.6, 620), h: size + 190, k: 1, kind: "mihrab" }),
     pulseDur: 7.2,
@@ -487,7 +504,7 @@ export function mihrab(n, vw, vh, dir, wordK) {
 // the arrangement is the content's own number made into a shape.
 export function khatim(n, vw, vh, dir, wordK) {
   const b = base(vw, vh, wordK, { shift: -0.05 });
-  if (b.tier === "tablet")
+  if (b.tier === "tablet" || !hasBand(b, vh))
     return done(b, vw, vh, tabletRow(b, vw, vh, dir, {
     wave: (i) => -Math.round((1 - Math.abs((i - 3.5) / 3.5)) * 18),
     centre: (g, size) => ({ x: 0, y: g.tile(0).y - 6, w: Math.min(vw * 0.72, 780), h: size + 150, k: 1, kind: "khatim" }),

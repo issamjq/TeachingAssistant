@@ -545,6 +545,11 @@
   margin-block-start: 12px;
 }
 .lockCompact :global(.atl-tagline) {
+  /* 50px on a wide window at "/" (landing.css sets 38 and a later rule
+     raises it). Trimmed a little here, with the wordmark — it is still
+     the second largest thing on the screen and still the line carrying
+     the value, so this comes off the leading, not off the message. */
+  font-size: 44px;
   margin-block-start: 18px;
 }
 
@@ -559,6 +564,8 @@
     font-size: 126px;
   }
   .lockCompact :global(.atl-tagline) {
+    /* 38px at this width, so the same gentle trim. */
+    font-size: 34px;
     margin-block-start: 14px;
   }
 }
@@ -582,6 +589,7 @@
     margin-block-start: 8px;
   }
   .lockCompact :global(.atl-tagline) {
+    font-size: 26px;
     margin-block-start: 10px;
   }
   /* The CTA is the one thing that does not shrink. */

@@ -27,10 +27,15 @@
     oklch(0.28 0.055 208 / 0.92),
     oklch(0.2 0.04 210 / 0.94)
   );
-  border: 1px solid oklch(0.94 0.06 191 / 0.22);
+  /* Lifted off the drench rather than sunk into it: a stronger edge, a
+     deeper cast shadow and a brighter top inner highlight. At 0.22 and
+     one shadow it read as a dark patch in the middle of the composition
+     instead of as the thing the composition is about. */
+  border: 1px solid oklch(0.95 0.06 191 / 0.34);
   box-shadow:
-    0 60px 90px -50px oklch(0.1 0.04 205 / 0.9),
-    inset 0 1px 0 oklch(0.98 0.02 200 / 0.14);
+    0 70px 110px -55px oklch(0.08 0.035 205 / 0.95),
+    0 10px 30px -18px oklch(0.08 0.035 205 / 0.7),
+    inset 0 1px 0 oklch(0.98 0.02 200 / 0.22);
 }
 
 /* ── window bar ───────────────────────────────────────────────────── */
@@ -110,6 +115,33 @@
 .railActive {
   background: oklch(0.98 0.02 200 / 0.1);
   color: oklch(0.97 0.02 200 / 0.95);
+}
+
+/* The highlight rides the hero's travelling light: --d is this module's
+   position along one pass, so the rail lights it at the same instant the
+   module's own tile does. Both read --lit-run, so they cannot drift.
+   One eighth of the cycle each, with a short crossfade. */
+.railCycle {
+  animation: stRailOn var(--lit-run, 7s) linear infinite;
+  animation-delay: calc(var(--d) * var(--lit-run, 7s) + 1.4s);
+}
+.railCycle .railTag {
+  animation: stTagOn var(--lit-run, 7s) linear infinite;
+  animation-delay: calc(var(--d) * var(--lit-run, 7s) + 1.4s);
+}
+@keyframes stRailOn {
+  0% { background: oklch(0.98 0.02 200 / 0); color: oklch(0.95 0.02 200 / 0.5); }
+  3%, 11% { background: oklch(0.98 0.02 200 / 0.12); color: oklch(0.97 0.02 200 / 0.95); }
+  14%, 100% { background: oklch(0.98 0.02 200 / 0); color: oklch(0.95 0.02 200 / 0.5); }
+}
+@keyframes stTagOn {
+  0% { background: currentColor; opacity: 0.45; box-shadow: none; }
+  3%, 11% {
+    background: oklch(0.82 0.13 180);
+    opacity: 1;
+    box-shadow: 0 0 6px oklch(0.82 0.13 180 / 0.8);
+  }
+  14%, 100% { background: currentColor; opacity: 0.45; box-shadow: none; }
 }
 .railTag {
   width: 4px;
@@ -300,7 +332,9 @@
 @media (prefers-reduced-motion: reduce) {
   .barLive::before,
   .caret,
-  .glow {
+  .glow,
+  .railCycle,
+  .railCycle .railTag {
     animation: none;
   }
 }

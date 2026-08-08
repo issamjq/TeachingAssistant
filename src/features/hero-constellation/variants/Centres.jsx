@@ -231,7 +231,7 @@ function SignalV() {
  * (including undefined) falls back to the studio window, which is the
  * centre most variants want.
  */
-export default function Centre({ kind, compact, isRTL, t, size, points }) {
+export default function Centre({ kind, compact, isRTL, t, size, points, order }) {
   switch (kind) {
     case "ribbon":
       return <Ribbon isRTL={isRTL} w={size?.w} h={size?.h} />;
@@ -255,12 +255,12 @@ export default function Centre({ kind, compact, isRTL, t, size, points }) {
       // with no opinion about how it is presented.
       return (
         <div className={cx.bureau}>
-          <StudioStage compact={compact} />
+          <StudioStage compact={compact} order={order} />
           {/* A lamp crossing the desk, in step with the objects' glows. */}
           <span className={cx.bureauSweep} />
         </div>
       );
     default:
-      return <StudioStage compact={compact} />;
+      return <StudioStage compact={compact} order={order} />;
   }
 }

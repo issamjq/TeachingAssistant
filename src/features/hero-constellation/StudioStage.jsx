@@ -51,13 +51,18 @@ const OUTPUTS = [
 ];
 
 /**
+ * @param order per-module position along the hero's travelling light,
+ *   0-1, in the SAME order as RAIL. The rail's highlight follows it, so
+ *   the module the light is on is the module the studio is showing —
+ *   which is the whole claim of this variant: one workspace, eight things
+ *   in it. Absent, the first item simply stays active.
  * @param compact Portrait crop. A phone renders this block at ~0.7 scale,
  *   where the rail's 10px labels and the outputs' 7.5px meta land under
  *   5px — texture pretending to be text. The crop drops both and sizes up
  *   what remains, so every element left on screen is one a reader can
  *   actually make out.
  */
-export default function StudioStage({ compact = false }) {
+export default function StudioStage({ compact = false, order = null }) {
   return (
     <div className={`${st.frame} ${compact ? st.compact : ""}`} aria-hidden="true">
       <div className={st.bar}>
@@ -71,7 +76,11 @@ export default function StudioStage({ compact = false }) {
       <div className={st.body}>
         <aside className={st.rail}>
           {RAIL.map((r, i) => (
-            <div key={r} className={`${st.railItem} ${i === 0 ? st.railActive : ""}`}>
+            <div
+              key={r}
+              className={`${st.railItem} ${order ? st.railCycle : i === 0 ? st.railActive : ""}`}
+              style={order ? { "--d": order[i] } : undefined}
+            >
               <span className={st.railTag} />
               {r}
             </div>
