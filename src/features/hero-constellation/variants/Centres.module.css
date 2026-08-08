@@ -229,6 +229,86 @@
   vector-effect: non-scaling-stroke;
 }
 
+/* Ribbon, phone: the same draw-on and bead, at a weight that passes
+   BEHIND two columns of captions instead of through them. */
+.rbThreadGlow,
+.rbThreadLine {
+  fill: none;
+  stroke-linecap: round;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: rbDraw 1.6s var(--easeOutE, cubic-bezier(0.16, 1, 0.3, 1)) 0.2s forwards;
+}
+.rbThreadGlow {
+  stroke: oklch(0.88 0.1 188 / 0.16);
+  stroke-width: 3.5;
+}
+.rbThreadLine {
+  stroke: oklch(0.95 0.08 187 / 0.55);
+  stroke-width: 1.1;
+}
+
+/* ── phone-only centres ───────────────────────────────────────────── */
+.source,
+.signalV {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+/* Atelier, phone: the light the modules come out of. */
+.srcPool {
+  position: absolute;
+  inset: -220% -30% -60%;
+  background: radial-gradient(
+    ellipse 46% 42% at 50% 88%,
+    oklch(0.88 0.09 190 / 0.2),
+    transparent 72%
+  );
+}
+.srcRule {
+  position: absolute;
+  inset-inline: 6%;
+  inset-block-start: 0;
+  height: 1px;
+  background: linear-gradient(to right, transparent, oklch(0.93 0.07 190 / 0.5), transparent);
+  box-shadow: 0 0 16px oklch(0.88 0.09 189 / 0.4);
+}
+
+/* Signal, phone: the rule stood upright. */
+.sigLineV {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 50%;
+  width: 1.5px;
+  transform: translateX(-50%);
+  border-radius: 1px;
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    oklch(0.9 0.08 189 / 0.55) 18%,
+    oklch(0.94 0.09 187 / 0.8) 50%,
+    oklch(0.9 0.08 189 / 0.55) 82%,
+    transparent
+  );
+  box-shadow: 0 0 18px oklch(0.86 0.1 188 / 0.4);
+}
+.sigPulseV {
+  position: absolute;
+  inset-inline-start: 50%;
+  inset-block-start: 0;
+  width: 3px;
+  height: 20%;
+  transform: translateX(-50%);
+  border-radius: 2px;
+  background: linear-gradient(to bottom, transparent, oklch(0.96 0.09 186 / 0.55), transparent);
+  animation: cxTravelV var(--lit-run, 7s) ease-in-out 1.4s infinite;
+}
+@keyframes cxTravelV {
+  0%, 100% { transform: translate(-50%, 0); }
+  50% { transform: translate(-50%, 400%); }
+}
+
 /* ── per-variant light ────────────────────────────────────────────── */
 /* Each variant carries a light that passes its eight modules in turn, and
    each module glows as it arrives — see .tileLit, whose delay is that
@@ -313,8 +393,11 @@
 @media (prefers-reduced-motion: reduce) {
   .sigPulse,
   .rbBead,
+  .rbThreadGlow,
+  .rbThreadLine,
   .apSweep,
   .bureauSweep,
+  .sigPulseV,
   .archFall,
   .khBead {
     animation: none;
@@ -327,7 +410,9 @@
      killing the animation — `animation: none` here would strand it at
      dashoffset 1, i.e. invisible. */
   .rbGlow,
-  .rbLine {
+  .rbLine,
+  .rbThreadGlow,
+  .rbThreadLine {
     animation: none;
     stroke-dashoffset: 0;
   }

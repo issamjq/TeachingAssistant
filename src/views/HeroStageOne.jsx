@@ -507,6 +507,7 @@ export default function HeroStageOne({ onEnter, signedIn, variant }) {
               compact={C.centre.compact}
               bays={C.centre.bays}
               size={{ w: C.centre.w, h: C.centre.h }}
+              points={C.centre.points}
               isRTL={isRTL}
               t={t}
             />

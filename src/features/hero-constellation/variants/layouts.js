@@ -19,7 +19,7 @@
 // Every coordinate is relative to the CENTRE of the 100vh pin.
 // =====================================================================
 
-import { base, cardStart, cue, fit, portraitGrid, rowOf8, TILE, tileScale } from "./shared";
+import { base, cardStart, cue, fit, phoneGrid, rowOf8, TILE, tileScale } from "./shared";
 import { NICHES } from "./arch";
 
 /**
@@ -100,20 +100,17 @@ function done(b, vw, vh, opts) {
 }
 
 /**
- * What every variant falls back to below desktop.
+ * The tablet arrangement, shared by all seven.
  *
- * With the masthead at full size a tablet has one row of band to work
- * with and a phone has two columns of four — neither can hold a
- * composition authored for 1440x900, and shrinking one to fit produces
- * captions nobody can read rather than a smaller version of the design.
- * The variant's identity is a desktop composition; below that, what
- * matters is that all eight modules are legible.
+ * A tablet has one row of band under a full-size masthead and no more, so
+ * there is nothing left to compose WITH — the row is the whole layout.
+ * Phones are different: two columns of four leave room for a shape behind
+ * them, which is why each variant builds its own (see the `phone` branch
+ * in each layout below) rather than sharing this.
  */
-function small(b, vw, vh, dir) {
-  const s = tileScale(vh, b.tier);
-  const g = b.tier === "tablet"
-    ? rowOf8(vw, vh, dir, b.lockBottom + 26, s)
-    : portraitGrid(vw, vh, dir, b.lockBottom + 26, s);
+function tabletRow(b, vw, vh, dir) {
+  const s = tileScale(vh, "tablet");
+  const g = rowOf8(vw, vh, dir, b.lockBottom + 26, s);
   return {
     tile: g.tile,
     tileSize: TILE * s,
@@ -123,6 +120,13 @@ function small(b, vw, vh, dir) {
     pulseAt: (i) => i / 8,
     pulseDur: 7.2,
   };
+}
+
+/** Start a phone frame: the shared two-by-four, with a per-variant shape. */
+function phoneBase(b, vw, vh, dir, opts) {
+  const s = tileScale(vh, "phone");
+  const g = phoneGrid(vw, vh, dir, b.lockBottom + 26, s, opts);
+  return { g, s, size: TILE * s };
 }
 
 // ── 1 · ATELIER ──────────────────────────────────────────────────────
@@ -136,7 +140,20 @@ function small(b, vw, vh, dir) {
 // the morph interpolates to indexLayout's positions, not to their own.
 export function atelier(n, vw, vh, dir, wordK) {
   const b = base(vw, vh, wordK);
-  if (b.tier !== "desktop") return done(b, vw, vh, small(b, vw, vh, dir));
+  if (b.tier === "tablet") return done(b, vw, vh, tabletRow(b, vw, vh, dir));
+  if (b.isPortrait) {
+    // The studio window will not fit above two columns of four on a phone
+    // — 150px of window plus 366px of grid against 350px of band — so the
+    // studio is present as what it DOES instead: filaments radiating from
+    // a point just above the eight, and a pool of light there.
+    const { g, s, size } = phoneBase(b, vw, vh, dir);
+    return done(b, vw, vh, {
+      tile: g.tile, tileSize: size, labelW: g.labelW, lastY: g.lastY,
+      pulseAt: (i) => [0.34, 0.34, 0.12, 0.12, 0.58, 0.58, 0.8, 0.8][i],
+      pulseDur: 6.4,
+      centre: { x: 0, y: g.top - 26, w: g.colPitch * 2, h: 2, k: 1, kind: "source" },
+    });
+  }
 
   const s = tileScale(vh, b.tier);
   const size = TILE * s;
@@ -170,7 +187,19 @@ export function atelier(n, vw, vh, dir, wordK) {
 // circle, and the tiles read as placed on a horizon.
 export function aperture(n, vw, vh, dir, wordK) {
   const b = base(vw, vh, wordK);
-  if (b.tier !== "desktop") return done(b, vw, vh, small(b, vw, vh, dir));
+  if (b.tier === "tablet") return done(b, vw, vh, tabletRow(b, vw, vh, dir));
+  if (b.isPortrait) {
+    // The arc, stood on end: the two columns bow OUT at the middle rows,
+    // so the eight sit on a curve rather than in a rectangle, with the
+    // aperture's rings drawn around them.
+    const { g, s, size } = phoneBase(b, vw, vh, dir, { bow: [-14, 10, 10, -14] });
+    return done(b, vw, vh, {
+      tile: g.tile, tileSize: size, labelW: g.labelW, lastY: g.lastY,
+      pulseAt: (i) => Math.floor(i / 2) / 4 + (i % 2) * 0.06,
+      pulseDur: 7.6,
+      centre: { x: 0, y: g.midY, w: g.colPitch * 2 + size, h: g.height + 60, k: 1, kind: "aperture" },
+    });
+  }
 
   const s = tileScale(vh, b.tier);
   const size = TILE * s;
@@ -210,7 +239,20 @@ const BUREAU_ROT = [-6, 4, -3, 7, 5, -7, 3, -4];
 const BUREAU_DY = [-14, 10, -8, 12, 8, -12, 14, -6];
 export function bureau(n, vw, vh, dir, wordK) {
   const b = base(vw, vh, wordK);
-  if (b.tier !== "desktop") return done(b, vw, vh, small(b, vw, vh, dir));
+  if (b.tier === "tablet") return done(b, vw, vh, tabletRow(b, vw, vh, dir));
+  if (b.isPortrait) {
+    // The desk, from above: the same eight, each set down at its own
+    // angle. Rotation is the whole character of this variant and it costs
+    // nothing on a phone, where a tilted studio window would not fit.
+    const { g, s, size } = phoneBase(b, vw, vh, dir, {
+      bow: [6, -8, 8, -6], rot: BUREAU_ROT,
+    });
+    return done(b, vw, vh, {
+      tile: g.tile, tileSize: size, labelW: g.labelW, lastY: g.lastY,
+      pulseAt: (i) => 0.06 + Math.floor(i / 2) * 0.24 + (i % 2) * 0.08,
+      pulseDur: 8,
+    });
+  }
 
   const s = tileScale(vh, b.tier) * 0.94;
   const size = TILE * s;
@@ -257,7 +299,25 @@ export function bureau(n, vw, vh, dir, wordK) {
 // than near it.
 export function ribbon(n, vw, vh, dir, wordK) {
   const b = base(vw, vh, wordK, { shift: -0.06 });
-  if (b.tier !== "desktop") return done(b, vw, vh, small(b, vw, vh, dir));
+  if (b.tier === "tablet") return done(b, vw, vh, tabletRow(b, vw, vh, dir));
+  if (b.isPortrait) {
+    // The wave, threaded down the screen: the ribbon is drawn THROUGH the
+    // eight in reading order, left to right and back, so it still ties
+    // them into one continuous thing. The path is handed to the centre as
+    // points rather than re-derived there — the same reason the desktop
+    // wave is sampled once.
+    const { g, s, size } = phoneBase(b, vw, vh, dir, { bow: [-10, 6, 6, -10] });
+    const pts = Array.from({ length: 8 }, (_, i) => {
+      const t = g.tile(i);
+      return [t.x, t.y];
+    });
+    return done(b, vw, vh, {
+      tile: g.tile, tileSize: size, labelW: g.labelW, lastY: g.lastY,
+      pulseAt: (i) => i / 7,
+      pulseDur: 7,
+      centre: { x: 0, y: 0, w: vw, h: vh, k: 1, kind: "ribbonThread", points: pts },
+    });
+  }
 
   const s = tileScale(vh, b.tier) * 0.92;
   const size = TILE * s;
@@ -315,7 +375,19 @@ export function ribbon(n, vw, vh, dir, wordK) {
 // the whole composition.
 export function signal(n, vw, vh, dir, wordK) {
   const b = base(vw, vh, wordK);
-  if (b.tier !== "desktop") return done(b, vw, vh, small(b, vw, vh, dir));
+  if (b.tier === "tablet") return done(b, vw, vh, tabletRow(b, vw, vh, dir));
+  if (b.isPortrait) {
+    // The line, run vertically down the gutter between the two columns,
+    // with the eight stepping either side of it exactly as they step
+    // either side of it on a desktop.
+    const { g, s, size } = phoneBase(b, vw, vh, dir, { bow: [-6, -6, -6, -6] });
+    return done(b, vw, vh, {
+      tile: g.tile, tileSize: size, labelW: g.labelW, lastY: g.lastY,
+      pulseAt: (i) => i / 7,
+      pulseDur: 7,
+      centre: { x: 0, y: g.midY, w: 2, h: g.height + 56, k: 1, kind: "signalV" },
+    });
+  }
 
   const s = tileScale(vh, b.tier) * 0.92;
   const size = TILE * s;
@@ -357,7 +429,20 @@ export function signal(n, vw, vh, dir, wordK) {
 // outward for the same reason: the interior belongs to the masthead.
 export function mihrab(n, vw, vh, dir, wordK) {
   const b = base(vw, vh, wordK, { shift: -0.045 });
-  if (b.tier !== "desktop") return done(b, vw, vh, small(b, vw, vh, dir));
+  if (b.tier === "tablet") return done(b, vw, vh, tabletRow(b, vw, vh, dir));
+  if (b.isPortrait) {
+    // The arch behind, with the two columns hugging its jambs — the same
+    // relationship the desktop composition has, at the only width a phone
+    // can give it.
+    const { g, s, size } = phoneBase(b, vw, vh, dir);
+    const w = g.colPitch * 2 - size - 8;
+    return done(b, vw, vh, {
+      tile: g.tile, tileSize: size, labelW: g.labelW, lastY: g.lastY,
+      pulseAt: (i) => 0.08 + Math.floor(i / 2) * 0.26,
+      pulseDur: 7.2,
+      centre: { x: 0, y: g.midY - 10, w, h: g.height + 96, k: 1, kind: "mihrab" },
+    });
+  }
 
   const s = tileScale(vh, b.tier) * 0.92;
   const size = TILE * s;
@@ -411,7 +496,20 @@ export function mihrab(n, vw, vh, dir, wordK) {
 // the arrangement is the content's own number made into a shape.
 export function khatim(n, vw, vh, dir, wordK) {
   const b = base(vw, vh, wordK, { shift: -0.05 });
-  if (b.tier !== "desktop") return done(b, vw, vh, small(b, vw, vh, dir));
+  if (b.tier === "tablet") return done(b, vw, vh, tabletRow(b, vw, vh, dir));
+  if (b.isPortrait) {
+    // The rosette behind, with the rows bowed to its silhouette — widest
+    // where the star is widest. Eight points on a 390px screen cannot
+    // each carry a caption, so the star holds the eight rather than
+    // standing them on its points.
+    const { g, s, size } = phoneBase(b, vw, vh, dir, { bow: [-16, 12, 12, -16] });
+    return done(b, vw, vh, {
+      tile: g.tile, tileSize: size, labelW: g.labelW, lastY: g.lastY,
+      pulseAt: (i) => [0, 0.875, 0.125, 0.75, 0.25, 0.625, 0.375, 0.5][i],
+      pulseDur: 8.4,
+      centre: { x: 0, y: g.midY, w: g.colPitch * 2 + size, h: g.height + 40, k: 1, kind: "khatim" },
+    });
+  }
 
   const s = tileScale(vh, b.tier) * 0.88;
   const size = TILE * s;

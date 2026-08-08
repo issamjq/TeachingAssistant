@@ -172,15 +172,79 @@ function Khatim() {
   );
 }
 
+// ── source (Atelier, phone) ──────────────────────────────────────────
+// The studio itself will not fit above two columns of four on a phone, so
+// what stands in for it is what it does: a pool of light with filaments
+// running down into the eight. Same reading as the desktop composition —
+// the modules are emitted, not listed — at a size a phone can hold.
+function Source() {
+  return (
+    <div className={cx.source} aria-hidden="true">
+      <span className={cx.srcPool} />
+      <span className={cx.srcRule} />
+    </div>
+  );
+}
+
+// ── ribbonThread (Ribbon, phone) ─────────────────────────────────────
+// The wave threaded through the eight in reading order — left, right,
+// down, back — so it still ties them into one continuous thing. Points
+// come from the layout so the line passes through the tiles rather than
+// near them, the same contract the desktop wave uses.
+function RibbonThread({ points = [], w = 390, h = 800 }) {
+  if (points.length < 2) return null;
+  // Points arrive in pin-centre coordinates; the box is the whole pin, so
+  // its own centre is the origin.
+  const d = points
+    .map(([x, y], i) => {
+      const px = (w / 2 + x).toFixed(1);
+      const py = (h / 2 + y).toFixed(1);
+      if (i === 0) return `M${px} ${py}`;
+      const [px0, py0] = points[i - 1];
+      const my = (h / 2 + (py0 + y) / 2).toFixed(1);
+      return `C${(w / 2 + px0).toFixed(1)} ${my} ${px} ${my} ${px} ${py}`;
+    })
+    .join(" ");
+  return (
+    <svg className={cx.rbSvg} viewBox={`0 0 ${w} ${h}`} aria-hidden="true">
+      {/* Thinner than the desktop wave. There, the ribbon runs through
+          open drench; here it threads between two columns of captions,
+          and at the desktop's 7px bloom it read as a rule struck through
+          the text rather than as a line passing behind it. */}
+      <path className={cx.rbThreadGlow} d={d} pathLength={1} fill="none" />
+      <path className={cx.rbThreadLine} d={d} pathLength={1} fill="none" />
+      <path className={cx.rbBead} d={d} pathLength={1} fill="none" />
+    </svg>
+  );
+}
+
+// ── signalV (Signal, phone) ──────────────────────────────────────────
+// The same luminous rule, stood upright and run down the gutter between
+// the two columns.
+function SignalV() {
+  return (
+    <div className={cx.signalV} aria-hidden="true">
+      <span className={cx.sigLineV} />
+      <span className={cx.sigPulseV} />
+    </div>
+  );
+}
+
 /**
  * Dispatch. `kind` comes from the variant's layout; anything unknown
  * (including undefined) falls back to the studio window, which is the
  * centre most variants want.
  */
-export default function Centre({ kind, compact, isRTL, t, size }) {
+export default function Centre({ kind, compact, isRTL, t, size, points }) {
   switch (kind) {
     case "ribbon":
       return <Ribbon isRTL={isRTL} w={size?.w} h={size?.h} />;
+    case "ribbonThread":
+      return <RibbonThread points={points} w={size?.w} h={size?.h} />;
+    case "source":
+      return <Source />;
+    case "signalV":
+      return <SignalV />;
     case "aperture":
       return <Aperture />;
     case "signal":

@@ -135,43 +135,56 @@ export function cardStart(sourceW) {
 }
 
 /**
- * The phone arrangement every variant falls back to: two columns of
- * four, each module captioned with its name AND what it does.
+ * The phone frame every variant composes inside.
  *
- * The previous version was four across, two down, with no captions at
- * all — the argument being that portrait names them again in the
- * contents list a beat later. That was wrong. The opening screen is
- * where a visitor decides whether to keep scrolling, and eight unlabelled
- * glyphs give them nothing to decide on; deferring the names to a beat
- * they may never reach is not a trade, it is a loss.
+ * Two columns of four, and that is not a design choice — it is the only
+ * arrangement a 390px screen has room for once each module carries its
+ * name and what it does. A caption needs about 150px to set two lines
+ * without hyphenating, so three columns is out; and eight rows of one
+ * column is 560px of band on a screen that has about 350.
  *
- * So the captions stay and the CENTRE goes instead. On a phone the centre
- * piece was a 150px-tall crop that could carry one line of legible type;
- * eight named modules are worth more than that.
+ * What varies between variants is everything else: how far each row is
+ * pushed out (`bow`), whether the tiles carry a rotation, and what is
+ * drawn behind them. That is enough for a phone to read as the same
+ * design as its desktop — an arch behind two columns hugging its jambs
+ * is recognisably Mihrab, and a wave threaded through the eight is
+ * recognisably Ribbon.
+ *
+ * @param bow per-row outward offset, indexed 0-3, in px
  */
-export function portraitGrid(vw, vh, dir, topY, s) {
+export function phoneGrid(vw, vh, dir, topY, s, { bow = null, rot = null } = {}) {
   const size = TILE * s;
   const cols = 2;
-  const colPitch = Math.min(vw / cols - 12, 190);
-  // Room for the tile plus a name that may wrap to two lines plus a
-  // description — measured against "Subjects & Students", which is the
-  // longest of the eight and the one that wraps first.
+  const colPitch = Math.min(vw / cols - 10, 192);
   const rowPitch = size + 46;
   const rows = 4;
-  // 78px of bottom margin, not 26: the accessibility widget floats in the
-  // bottom corner of every page, and the last row's caption was running
-  // underneath it.
+  // 70px of bottom margin: the accessibility widget floats in that corner
+  // on every page, and the last row's caption was running underneath it.
   const top = Math.min(
     topY + size / 2,
     vh / 2 - 70 - (rows - 1) * rowPitch - size / 2 - 34
   );
-  return {
-    tile: (i) => ({
-      x: ((i % cols) - (cols - 1) / 2) * colPitch * dir,
-      y: top + Math.floor(i / cols) * rowPitch,
+  const tile = (i) => {
+    const col = i % cols;
+    const row = Math.floor(i / cols);
+    const side = col === 0 ? -1 : 1;
+    return {
+      x: (colPitch / 2 + (bow ? bow[row] : 0)) * side * dir,
+      y: top + row * rowPitch,
       s,
-    }),
-    labelW: colPitch - 14,
+      rot: rot ? rot[i] * dir : 0,
+    };
+  };
+  return {
+    tile,
+    size,
+    colPitch,
+    rowPitch,
+    top,
+    /** Centre of the eight-tile block, for anything drawn behind it. */
+    midY: top + (rowPitch * (rows - 1)) / 2,
+    height: rowPitch * (rows - 1) + size,
+    labelW: colPitch - 16,
     lastY: top + (rows - 1) * rowPitch + size / 2 + 34,
   };
 }
