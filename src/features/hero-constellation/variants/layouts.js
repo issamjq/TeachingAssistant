@@ -108,17 +108,32 @@ function done(b, vw, vh, opts) {
  * them, which is why each variant builds its own (see the `phone` branch
  * in each layout below) rather than sharing this.
  */
-function tabletRow(b, vw, vh, dir) {
+function tabletRow(b, vw, vh, dir, { wave = null, rot = null, centre = null, pulseDur = 7.2 } = {}) {
   const s = tileScale(vh, "tablet");
   const g = rowOf8(vw, vh, dir, b.lockBottom + 26, s);
+  const size = TILE * s;
+  // A wave that rises above the base row would push its highest tile into
+  // the trust line above it, so the whole row drops by the wave's deepest
+  // upward excursion first.
+  const lift = wave ? Math.min(0, ...Array.from({ length: 8 }, (_, i) => wave(i))) : 0;
+  const tile = (i) => {
+    const t = g.tile(i);
+    return { ...t, y: t.y + (wave ? wave(i) : 0) - lift, rot: rot ? rot[i] * dir : 0 };
+  };
+  const pts = Array.from({ length: 8 }, (_, i) => { const t = tile(i); return [t.x, t.y]; });
   return {
-    tile: g.tile,
-    tileSize: TILE * s,
+    tile,
+    tileSize: size,
     labelW: g.labelW,
-    lastY: g.lastY,
-    centre: null,
+    lastY: g.lastY - lift + (wave ? 12 : 0),
+    // A tablet used to get no centre at all, which meant no travelling
+    // light — the modules glowed in sequence with nothing visibly
+    // carrying the beat, so it read as eight things blinking rather than
+    // as one light passing through them. Each variant hands its own shape
+    // down to this size now.
+    centre: centre ? centre(g, size, pts) : null,
     pulseAt: (i) => i / 8,
-    pulseDur: 7.2,
+    pulseDur,
   };
 }
 
@@ -140,7 +155,11 @@ function phoneBase(b, vw, vh, dir, opts) {
 // the morph interpolates to indexLayout's positions, not to their own.
 export function atelier(n, vw, vh, dir, wordK) {
   const b = base(vw, vh, wordK);
-  if (b.tier === "tablet") return done(b, vw, vh, tabletRow(b, vw, vh, dir));
+  if (b.tier === "tablet")
+    return done(b, vw, vh, tabletRow(b, vw, vh, dir, {
+    centre: (g, size) => ({ x: 0, y: g.tile(0).y - size / 2 - 24, w: g.labelW * 8, h: 2, k: 1, kind: "source" }),
+    pulseDur: 6.4,
+    }));
   if (b.isPortrait) {
     // The studio window will not fit above two columns of four on a phone
     // — 150px of window plus 366px of grid against 350px of band — so the
@@ -148,7 +167,7 @@ export function atelier(n, vw, vh, dir, wordK) {
     // a point just above the eight, and a pool of light there.
     const { g, s, size } = phoneBase(b, vw, vh, dir);
     return done(b, vw, vh, {
-      tile: g.tile, tileSize: size, labelW: g.labelW, lastY: g.lastY,
+      tile: g.tile, tileSize: size, labelW: g.labelW, lastY: g.lastY, showDesc: g.showDesc,
       pulseAt: (i) => [0.34, 0.34, 0.12, 0.12, 0.58, 0.58, 0.8, 0.8][i],
       pulseDur: 6.4,
       centre: { x: 0, y: g.top - 26, w: g.colPitch * 2, h: 2, k: 1, kind: "source" },
@@ -187,14 +206,19 @@ export function atelier(n, vw, vh, dir, wordK) {
 // circle, and the tiles read as placed on a horizon.
 export function aperture(n, vw, vh, dir, wordK) {
   const b = base(vw, vh, wordK);
-  if (b.tier === "tablet") return done(b, vw, vh, tabletRow(b, vw, vh, dir));
+  if (b.tier === "tablet")
+    return done(b, vw, vh, tabletRow(b, vw, vh, dir, {
+    wave: (i) => -Math.round((1 - Math.abs((i - 3.5) / 3.5) ** 2) * 22),
+    centre: (g, size) => ({ x: 0, y: g.tile(0).y - 8, w: Math.min(vw * 0.92, 1180), h: size + 130, k: 1, kind: "aperture" }),
+    pulseDur: 7.6,
+    }));
   if (b.isPortrait) {
     // The arc, stood on end: the two columns bow OUT at the middle rows,
     // so the eight sit on a curve rather than in a rectangle, with the
     // aperture's rings drawn around them.
     const { g, s, size } = phoneBase(b, vw, vh, dir, { bow: [-14, 10, 10, -14] });
     return done(b, vw, vh, {
-      tile: g.tile, tileSize: size, labelW: g.labelW, lastY: g.lastY,
+      tile: g.tile, tileSize: size, labelW: g.labelW, lastY: g.lastY, showDesc: g.showDesc,
       pulseAt: (i) => Math.floor(i / 2) / 4 + (i % 2) * 0.06,
       pulseDur: 7.6,
       centre: { x: 0, y: g.midY, w: g.colPitch * 2 + size, h: g.height + 60, k: 1, kind: "aperture" },
@@ -239,7 +263,13 @@ const BUREAU_ROT = [-6, 4, -3, 7, 5, -7, 3, -4];
 const BUREAU_DY = [-14, 10, -8, 12, 8, -12, 14, -6];
 export function bureau(n, vw, vh, dir, wordK) {
   const b = base(vw, vh, wordK);
-  if (b.tier === "tablet") return done(b, vw, vh, tabletRow(b, vw, vh, dir));
+  if (b.tier === "tablet")
+    return done(b, vw, vh, tabletRow(b, vw, vh, dir, {
+    rot: BUREAU_ROT,
+    wave: (i) => (i % 2 === 0 ? -7 : 7),
+    centre: (g, size) => ({ x: 0, y: g.tile(0).y, w: Math.min(vw * 0.94, 1200), h: size + 90, k: 1, kind: "sweep" }),
+    pulseDur: 8,
+    }));
   if (b.isPortrait) {
     // The desk, from above: the same eight, each set down at its own
     // angle. Rotation is the whole character of this variant and it costs
@@ -248,7 +278,7 @@ export function bureau(n, vw, vh, dir, wordK) {
       bow: [6, -8, 8, -6], rot: BUREAU_ROT,
     });
     return done(b, vw, vh, {
-      tile: g.tile, tileSize: size, labelW: g.labelW, lastY: g.lastY,
+      tile: g.tile, tileSize: size, labelW: g.labelW, lastY: g.lastY, showDesc: g.showDesc,
       pulseAt: (i) => 0.06 + Math.floor(i / 2) * 0.24 + (i % 2) * 0.08,
       pulseDur: 8,
     });
@@ -299,7 +329,12 @@ export function bureau(n, vw, vh, dir, wordK) {
 // than near it.
 export function ribbon(n, vw, vh, dir, wordK) {
   const b = base(vw, vh, wordK, { shift: -0.06 });
-  if (b.tier === "tablet") return done(b, vw, vh, tabletRow(b, vw, vh, dir));
+  if (b.tier === "tablet")
+    return done(b, vw, vh, tabletRow(b, vw, vh, dir, {
+    wave: (i) => -Math.round(Math.sin((i / 7) * Math.PI * 2) * 30),
+    centre: (g, size, pts) => ({ x: 0, y: 0, w: vw, h: vh, k: 1, kind: "ribbonThread", points: pts }),
+    pulseDur: 7,
+    }));
   if (b.isPortrait) {
     // The wave, threaded down the screen: the ribbon is drawn THROUGH the
     // eight in reading order, left to right and back, so it still ties
@@ -312,7 +347,7 @@ export function ribbon(n, vw, vh, dir, wordK) {
       return [t.x, t.y];
     });
     return done(b, vw, vh, {
-      tile: g.tile, tileSize: size, labelW: g.labelW, lastY: g.lastY,
+      tile: g.tile, tileSize: size, labelW: g.labelW, lastY: g.lastY, showDesc: g.showDesc,
       pulseAt: (i) => i / 7,
       pulseDur: 7,
       centre: { x: 0, y: 0, w: vw, h: vh, k: 1, kind: "ribbonThread", points: pts },
@@ -375,14 +410,19 @@ export function ribbon(n, vw, vh, dir, wordK) {
 // the whole composition.
 export function signal(n, vw, vh, dir, wordK) {
   const b = base(vw, vh, wordK);
-  if (b.tier === "tablet") return done(b, vw, vh, tabletRow(b, vw, vh, dir));
+  if (b.tier === "tablet")
+    return done(b, vw, vh, tabletRow(b, vw, vh, dir, {
+    wave: (i) => (i % 2 === 0 ? -20 : 20),
+    centre: (g, size) => ({ x: 0, y: g.tile(0).y, w: Math.min(vw * 0.9, 1160), h: 2, k: 1, kind: "signal" }),
+    pulseDur: 7,
+    }));
   if (b.isPortrait) {
     // The line, run vertically down the gutter between the two columns,
     // with the eight stepping either side of it exactly as they step
     // either side of it on a desktop.
     const { g, s, size } = phoneBase(b, vw, vh, dir, { bow: [-6, -6, -6, -6] });
     return done(b, vw, vh, {
-      tile: g.tile, tileSize: size, labelW: g.labelW, lastY: g.lastY,
+      tile: g.tile, tileSize: size, labelW: g.labelW, lastY: g.lastY, showDesc: g.showDesc,
       pulseAt: (i) => i / 7,
       pulseDur: 7,
       centre: { x: 0, y: g.midY, w: 2, h: g.height + 56, k: 1, kind: "signalV" },
@@ -429,7 +469,11 @@ export function signal(n, vw, vh, dir, wordK) {
 // outward for the same reason: the interior belongs to the masthead.
 export function mihrab(n, vw, vh, dir, wordK) {
   const b = base(vw, vh, wordK, { shift: -0.045 });
-  if (b.tier === "tablet") return done(b, vw, vh, tabletRow(b, vw, vh, dir));
+  if (b.tier === "tablet")
+    return done(b, vw, vh, tabletRow(b, vw, vh, dir, {
+    centre: (g, size) => ({ x: 0, y: g.tile(0).y - 12, w: Math.min(vw * 0.6, 620), h: size + 190, k: 1, kind: "mihrab" }),
+    pulseDur: 7.2,
+    }));
   if (b.isPortrait) {
     // The arch behind, with the two columns hugging its jambs — the same
     // relationship the desktop composition has, at the only width a phone
@@ -437,7 +481,7 @@ export function mihrab(n, vw, vh, dir, wordK) {
     const { g, s, size } = phoneBase(b, vw, vh, dir);
     const w = g.colPitch * 2 - size - 8;
     return done(b, vw, vh, {
-      tile: g.tile, tileSize: size, labelW: g.labelW, lastY: g.lastY,
+      tile: g.tile, tileSize: size, labelW: g.labelW, lastY: g.lastY, showDesc: g.showDesc,
       pulseAt: (i) => 0.08 + Math.floor(i / 2) * 0.26,
       pulseDur: 7.2,
       centre: { x: 0, y: g.midY - 10, w, h: g.height + 96, k: 1, kind: "mihrab" },
@@ -496,7 +540,12 @@ export function mihrab(n, vw, vh, dir, wordK) {
 // the arrangement is the content's own number made into a shape.
 export function khatim(n, vw, vh, dir, wordK) {
   const b = base(vw, vh, wordK, { shift: -0.05 });
-  if (b.tier === "tablet") return done(b, vw, vh, tabletRow(b, vw, vh, dir));
+  if (b.tier === "tablet")
+    return done(b, vw, vh, tabletRow(b, vw, vh, dir, {
+    wave: (i) => -Math.round((1 - Math.abs((i - 3.5) / 3.5)) * 18),
+    centre: (g, size) => ({ x: 0, y: g.tile(0).y - 6, w: Math.min(vw * 0.72, 780), h: size + 150, k: 1, kind: "khatim" }),
+    pulseDur: 8.4,
+    }));
   if (b.isPortrait) {
     // The rosette behind, with the rows bowed to its silhouette — widest
     // where the star is widest. Eight points on a 390px screen cannot
@@ -504,7 +553,7 @@ export function khatim(n, vw, vh, dir, wordK) {
     // standing them on its points.
     const { g, s, size } = phoneBase(b, vw, vh, dir, { bow: [-16, 12, 12, -16] });
     return done(b, vw, vh, {
-      tile: g.tile, tileSize: size, labelW: g.labelW, lastY: g.lastY,
+      tile: g.tile, tileSize: size, labelW: g.labelW, lastY: g.lastY, showDesc: g.showDesc,
       pulseAt: (i) => [0, 0.875, 0.125, 0.75, 0.25, 0.625, 0.375, 0.5][i],
       pulseDur: 8.4,
       centre: { x: 0, y: g.midY, w: g.colPitch * 2 + size, h: g.height + 40, k: 1, kind: "khatim" },

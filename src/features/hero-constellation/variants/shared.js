@@ -50,6 +50,12 @@ export const TILE = 78;
 // reserving 40px of empty band under a masthead that had already ended.
 const LOCK_H = 415;
 const LOCK_H_PHONE = 380;
+// A short phone — 740px and under, which is most of them once the browser
+// chrome is counted — trims the wordmark again (see the paired media
+// query in HeroConstellation.module.css). Without it the eight modules do
+// not fit at ANY tile size: the band is 232px and needs 294.
+const LOCK_H_PHONE_SHORT = 330;
+const SHORT_PHONE_VH = 800;
 
 /**
  * Lockup geometry and the viewport class every variant starts from.
@@ -97,7 +103,9 @@ export function base(vw, vh, wordK, opts = {}) {
   const barBottom = Math.min(124, Math.max(80, vh * 0.11)) + 46;
   const rawTop = -vh / 2 + vh * 0.15 + shiftY;
   const top = vw < 1200 ? Math.max(-vh / 2 + barBottom, rawTop) : rawTop;
-  const H = isPortrait ? LOCK_H_PHONE : LOCK_H;
+  const H = isPortrait
+    ? (vh < SHORT_PHONE_VH ? LOCK_H_PHONE_SHORT : LOCK_H_PHONE)
+    : LOCK_H;
   return {
     tier,
     isPortrait,
@@ -118,7 +126,9 @@ export function tileScale(vh, tier) {
   // Smaller than before at both small tiers: a full-size masthead leaves
   // a tablet under 200px of band and a phone about 350px, and the tile
   // has to share that with a two-line caption.
-  if (tier === "phone") return 0.56;
+  // Short phones give up tile size as well as masthead: both together are
+  // what makes eight captioned modules fit under a full-size CTA.
+  if (tier === "phone") return vh < SHORT_PHONE_VH ? 0.48 : 0.56;
   // A flat value, not a fraction of byHeight: multiplied out at 768 that
   // gave 0.40, i.e. a 31px tile, which is a bullet rather than an icon.
   if (tier === "tablet") return 0.6;
@@ -156,14 +166,28 @@ export function phoneGrid(vw, vh, dir, topY, s, { bow = null, rot = null } = {})
   const size = TILE * s;
   const cols = 2;
   const colPitch = Math.min(vw / cols - 10, 192);
-  const rowPitch = size + 46;
   const rows = 4;
-  // 70px of bottom margin: the accessibility widget floats in that corner
-  // on every page, and the last row's caption was running underneath it.
-  const top = Math.min(
-    topY + size / 2,
-    vh / 2 - 70 - (rows - 1) * rowPitch - size / 2 - 34
-  );
+  const bottom = vh / 2 - 70; // clear of the floating accessibility widget
+
+  // Does a two-line caption fit? Four rows of tile-plus-name-plus-
+  // description need about 366px, and a 740px-tall phone has 258 once a
+  // full-size masthead has had its share. Forced in anyway, the grid was
+  // lifted by the overflow guard straight into the CTA buttons — captions
+  // sitting on "Try the studio" is worse than captions without their
+  // second line, so on a short phone the description goes.
+  const withDesc = 3 * (size + 46) + size + 52 <= bottom - topY;
+  const capH = withDesc ? 52 : 28;
+  const rowPitch = size + (withDesc ? 46 : 30);
+
+  const top = Math.min(topY + size / 2, bottom - (rows - 1) * rowPitch - size / 2 - capH);
+
+  // The caption box is bounded by how close the two columns ever come,
+  // not by the column pitch. A row pulled inward by `bow` brings its two
+  // captions together, and at a fixed width they overlapped in the middle
+  // — on three of the seven, at every phone size.
+  const minHalf = Math.min(...Array.from({ length: rows }, (_, r) => colPitch / 2 + (bow ? bow[r] : 0)));
+  const labelW = Math.max(96, Math.min(colPitch - 16, minHalf * 2 - 14));
+
   const tile = (i) => {
     const col = i % cols;
     const row = Math.floor(i / cols);
@@ -181,11 +205,12 @@ export function phoneGrid(vw, vh, dir, topY, s, { bow = null, rot = null } = {})
     colPitch,
     rowPitch,
     top,
+    showDesc: withDesc,
     /** Centre of the eight-tile block, for anything drawn behind it. */
     midY: top + (rowPitch * (rows - 1)) / 2,
     height: rowPitch * (rows - 1) + size,
-    labelW: colPitch - 16,
-    lastY: top + (rows - 1) * rowPitch + size / 2 + 34,
+    labelW,
+    lastY: top + (rows - 1) * rowPitch + size / 2 + capH - 18,
   };
 }
 

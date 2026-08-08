@@ -562,3 +562,30 @@
     margin-block-start: 14px;
   }
 }
+
+/* A short phone — 740px and under, which is most of them once browser
+   chrome is counted. Paired with LOCK_H_PHONE_SHORT in shared.js; change
+   one and the layouts stop agreeing with what is on screen. Trimming here
+   is what makes eight captioned modules fit at all: the band is 232px and
+   needs 294, and no tile size closes a gap that size. */
+@media (max-width: 620px) and (max-height: 800px) {
+  .lockCompact :global(.atl-word) {
+    font-size: 104px;
+  }
+  .lockCompact :global(.atl-word--ar) {
+    font-size: 100px;
+  }
+  .lockCompact :global(.atl-watermark) {
+    font-size: 260px;
+  }
+  .lockCompact :global(.atl-meaning) {
+    margin-block-start: 8px;
+  }
+  .lockCompact :global(.atl-tagline) {
+    margin-block-start: 10px;
+  }
+  /* The CTA is the one thing that does not shrink. */
+  .ctaRow {
+    margin-block-start: 16px;
+  }
+}

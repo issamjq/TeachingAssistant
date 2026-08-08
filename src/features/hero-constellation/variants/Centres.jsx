@@ -182,6 +182,20 @@ function Source() {
     <div className={cx.source} aria-hidden="true">
       <span className={cx.srcPool} />
       <span className={cx.srcRule} />
+      {/* A bead running the rule, so the light is visibly travelling
+          rather than the modules merely taking turns to glow. */}
+      <span className={cx.srcBead} />
+    </div>
+  );
+}
+
+// ── sweep (Bureau, tablet) ───────────────────────────────────────────
+// A lamp crossing the row. Bureau's desk cannot be laid back in
+// perspective at tablet height, but the light moving across it can.
+function Sweep() {
+  return (
+    <div className={cx.sweepBox} aria-hidden="true">
+      <span className={cx.bureauSweep} />
     </div>
   );
 }
@@ -245,6 +259,8 @@ export default function Centre({ kind, compact, isRTL, t, size, points }) {
       return <Source />;
     case "signalV":
       return <SignalV />;
+    case "sweep":
+      return <Sweep />;
     case "aperture":
       return <Aperture />;
     case "signal":
