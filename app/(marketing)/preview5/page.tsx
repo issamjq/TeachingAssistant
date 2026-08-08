@@ -1,16 +1,16 @@
 import type { Metadata } from "next";
 import PreviewLandingRoute from "@/features/landing/components/PreviewLandingRoute";
 
-// Stage-one variant 5 of 12 — "Spread". Listed at /preview.
+// Stage-one variant 5 of 7 — "Signal". Listed at /preview.
 //
 // noindex: every preview route carries the same marketing copy as "/",
-// and thirteen indexed pages of identical content is duplication, not
-// thirteen landing pages.
+// and eight indexed pages of identical content is duplication, not eight
+// landing pages.
 export const metadata: Metadata = {
-  title: "Murchid — Spread (variant 5)",
+  title: "Murchid — Signal (variant 5)",
   robots: { index: false, follow: false },
 };
 
 export default function Preview5Page() {
-  return <PreviewLandingRoute variant="spread" />;
+  return <PreviewLandingRoute variant="signal" />;
 }

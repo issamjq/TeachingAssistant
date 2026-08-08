@@ -20,20 +20,25 @@
 // =====================================================================
 
 import { base, cardStart, cue, fit, portraitGrid, TILE, tileScale } from "./shared";
-import { NICHES, SPRING } from "./arch";
+import { NICHES } from "./arch";
 
 /** Design size of the studio window (StudioStage). */
 const STAGE_W = 520;
 const STAGE_H = 300;
-/** …and of its portrait crop. */
-const STAGE_H_C = 150;
 
 /** Assemble the common tail of a layout result. */
 function done(b, vw, vh, opts) {
   const {
     tile, tileSize, sourceW = tileSize, centre = null,
-    lastY, cueFloor = -Infinity, showLabels = !b.isPortrait,
+    lastY, cueFloor = -Infinity,
+    // Captioned everywhere, phones included. Portrait used to opt out on
+    // the grounds that the contents list names the modules a beat later,
+    // which was a loss dressed up as a trade: the opening screen is where
+    // a visitor decides whether to keep scrolling, and eight unlabelled
+    // glyphs give them nothing to decide on.
+    showLabels = true,
     lockX = 0, filaments = true, labelAbove = null, pulseAt = null,
+    pulseDur = 7, labelW = null,
   } = opts;
   return {
     tile,
@@ -48,6 +53,13 @@ function done(b, vw, vh, opts) {
     // null if the variant has none. Drives the per-source glow so a module
     // lights at the moment the light reaches it.
     pulseAt,
+    // Seconds for one full pass of the variant's light. Each composition
+    // gets its own: a wave read left to right wants a different tempo
+    // from light falling down an arch.
+    pulseDur,
+    // A tablet's bands sit closer together than a desktop's, so the
+    // default caption box overlaps its neighbour there.
+    labelW: labelW ?? (b.tier === "tablet" ? 134 : null),
     // Filaments are struck from the centre to each source. Variants whose
     // centre IS the connector — the ring, the rule, the arch — switch
     // them off; drawing both gave two competing sets of lines.
@@ -60,9 +72,8 @@ function done(b, vw, vh, opts) {
     labelPlace: opts.labelPlace ?? "below",
     // Whether a caption also carries what the module DOES. On by default:
     // naming eight features without saying what any of them are is the
-    // failure the whole opening frame exists to avoid. Off only where the
-    // composition genuinely has no room for a second line.
-    showDesc: opts.showDesc ?? !b.isPortrait,
+    // failure the whole opening frame exists to avoid.
+    showDesc: opts.showDesc ?? true,
     centre,
     ...cue(vh, lastY, cueFloor),
     cardStartScale: cardStart(sourceW),
@@ -76,17 +87,19 @@ function done(b, vw, vh, opts) {
  * no room for ten different compositions and would not benefit from
  * them — what varies between variants is a desktop composition.
  */
-function phone(b, vw, vh, dir, { centreH = STAGE_H_C, hasCentre = true } = {}) {
-  const s = tileScale(vh, true);
-  const k = hasCentre ? Math.min(0.82, (vw - 36) / STAGE_W) : 0;
-  const h = centreH * k;
-  const y = b.lockBottom + 26 + h / 2;
-  const g = portraitGrid(vw, vh, dir, hasCentre ? y + h / 2 + 34 : b.lockBottom + 40, s);
+function phone(b, vw, vh, dir) {
+  const s = tileScale(vh, "phone");
+  const g = portraitGrid(vw, vh, dir, b.lockBottom + 34, s);
   return {
     tile: g.tile,
     tileSize: TILE * s,
+    labelW: g.labelW,
     lastY: g.lastY,
-    centre: hasCentre ? { x: 0, y, w: STAGE_W * k, h, k, compact: true } : null,
+    // No centre on a phone — see portraitGrid. Eight named modules beat a
+    // 150px crop of a studio window.
+    centre: null,
+    pulseAt: (i) => i / 8,
+    pulseDur: 7.4,
   };
 }
 
@@ -103,10 +116,10 @@ export function atelier(n, vw, vh, dir, wordK) {
   const b = base(vw, vh, wordK);
   if (b.isPortrait) return done(b, vw, vh, phone(b, vw, vh, dir));
 
-  const s = tileScale(vh, false);
+  const s = tileScale(vh, b.tier);
   const size = TILE * s;
   const U = [-1, -0.62, 0.62, 1];
-  const spread = Math.min(vw * 0.4, 500);
+  const spread = Math.min(vw * (b.tier === "tablet" ? 0.36 : 0.4), 500);
   const inner = Math.abs(U[1]) * spread;
 
   const c = fit(b.lockBottom + 34, vh, STAGE_W, STAGE_H, (inner - size / 2 - 34) * 2);
@@ -116,56 +129,29 @@ export function atelier(n, vw, vh, dir, wordK) {
   return done(b, vw, vh, {
     tile: (i) => ({ x: U[i % 4] * spread * dir, y: i < 4 ? bandA : bandB, s }),
     tileSize: size,
+    // Light leaves the studio window and reaches the modules outward-in
+    // reverse: the pair nearest the window first, the far pair last, so
+    // it reads as being EMITTED rather than as a list ticking through.
+    pulseAt: (i) => [0.62, 0.3, 0.3, 0.62][i % 4] + (i < 4 ? 0 : 0.06),
+    pulseDur: 6.4,
     centre: { x: 0, ...c, compact: false },
     lastY: bandB + size / 2 + 30,
     cueFloor: c.y + c.h / 2 + 14,
   });
 }
 
-// ── 2 · MARQUEE ──────────────────────────────────────────────────────
-// A lit band across the frame with all eight modules standing on it in a
-// single row, each named and described under its own glyph.
-//
-// This replaced a magazine cover — one specimen plate beside a contents
-// column — which was handsome and said almost nothing: a visitor got a
-// list of eight names and no idea what any of them did. A marquee is the
-// oldest way there is of announcing what is on, and one row of eight
-// reads left to right in a single pass with nothing hidden.
-export function marquee(n, vw, vh, dir, wordK) {
-  const b = base(vw, vh, wordK, { scale: 0.72, shift: -0.06 });
-  if (b.isPortrait) return done(b, vw, vh, phone(b, vw, vh, dir, { hasCentre: false }));
-
-  const pitch = Math.min((vw * 0.9) / n, 168);
-  const s = Math.min(tileScale(vh, false), (pitch * 0.46) / TILE);
-  const size = TILE * s;
-  const top = b.lockBottom + 30;
-  const bandH = Math.min(178, vh / 2 - 40 - top);
-  const y = top + bandH * 0.34;
-
-  return done(b, vw, vh, {
-    tile: (i) => ({ x: (i - (n - 1) / 2) * pitch * dir, y, s }),
-    tileSize: size,
-    filaments: false,
-    centre: { x: 0, y: top + bandH / 2, w: pitch * n, h: bandH, k: 1, kind: "marquee" },
-    // Below the band's lower rule, not below the tiles: measured from the
-    // tiles the cue line landed exactly on the rule.
-    lastY: y + size / 2,
-    cueFloor: top + bandH + 16,
-  });
-}
-
-// ── 3 · APERTURE ─────────────────────────────────────────────────────
+// ── 2 · APERTURE ─────────────────────────────────────────────────────
 // A wide arc of light — a stage aperture — with the eight modules
 // standing on it. The arc is struck from a centre far above the pin, so
 // what you see is a shallow, almost architectural curve rather than a
 // circle, and the tiles read as placed on a horizon.
 export function aperture(n, vw, vh, dir, wordK) {
   const b = base(vw, vh, wordK, { scale: 0.76 });
-  if (b.isPortrait) return done(b, vw, vh, phone(b, vw, vh, dir, { hasCentre: false }));
+  if (b.isPortrait) return done(b, vw, vh, phone(b, vw, vh, dir));
 
-  const s = tileScale(vh, false);
+  const s = tileScale(vh, b.tier);
   const size = TILE * s;
-  const spread = Math.min(vw * 0.42, 560);
+  const spread = Math.min(vw * (b.tier === "tablet" ? 0.37 : 0.42), 560);
   const topY = b.lockBottom + 40;
   const depth = Math.min(126, vh / 2 - 46 - topY - size / 2);
 
@@ -181,13 +167,16 @@ export function aperture(n, vw, vh, dir, wordK) {
   return done(b, vw, vh, {
     tile: arc,
     tileSize: size,
+    // Across the arc, near row first — the way a stage light sweeps.
+    pulseAt: (i) => (i % 4) / 4 * 0.44 + (i < 4 ? 0.04 : 0.5),
+    pulseDur: 7.6,
     filaments: false,
     centre: { x: 0, y: topY + depth * 0.6, w: spread * 2.1, h: depth * 2.4, k: 1, kind: "aperture" },
     lastY: topY + size / 2 + depth + size / 2 + 30,
   });
 }
 
-// ── 4 · BUREAU ───────────────────────────────────────────────────────
+// ── 3 · BUREAU ───────────────────────────────────────────────────────
 // The desk, seen from slightly above. The studio window lies back in
 // perspective and the eight modules sit around it as objects that have
 // been put down rather than arranged — each one carries a small, fixed
@@ -200,10 +189,10 @@ export function bureau(n, vw, vh, dir, wordK) {
   const b = base(vw, vh, wordK, { scale: 0.74 });
   if (b.isPortrait) return done(b, vw, vh, phone(b, vw, vh, dir));
 
-  const s = tileScale(vh, false) * 0.94;
+  const s = tileScale(vh, b.tier) * 0.94;
   const size = TILE * s;
   const U = [-1, -0.63, 0.63, 1];
-  const spread = Math.min(vw * 0.41, 520);
+  const spread = Math.min(vw * (b.tier === "tablet" ? 0.37 : 0.41), 520);
   const inner = Math.abs(U[1]) * spread;
 
   const c = fit(b.lockBottom + 40, vh, STAGE_W, STAGE_H, (inner - size / 2 - 30) * 2);
@@ -218,54 +207,18 @@ export function bureau(n, vw, vh, dir, wordK) {
       rot: BUREAU_ROT[i] * dir,
     }),
     tileSize: size,
+    // A lamp swept across a desk: strictly left to right by position, so
+    // the two rows light together where they line up rather than in
+    // reading order, which is what makes it read as a sweep.
+    pulseAt: (i) => 0.06 + ((i % 4) / 3) * 0.82,
+    pulseDur: 8,
     centre: { x: 0, ...c, compact: false, kind: "bureau" },
     lastY: bandB + 14 + size / 2 + 30,
     cueFloor: c.y + c.h / 2 + 18,
   });
 }
 
-// ── 5 · SPREAD ───────────────────────────────────────────────────────
-// A magazine spread: masthead hard to the inline start, the studio
-// window on the far side, and the eight modules in a 2×4 rail down the
-// gutter between them. The only variant that breaks the centred lockup,
-// and the one that most resembles a real editorial page.
-export function spread(n, vw, vh, dir, wordK) {
-  const b = base(vw, vh, wordK, { scale: 0.62, shift: 0.015 });
-  if (b.isPortrait) return done(b, vw, vh, phone(b, vw, vh, dir));
-
-  const s = tileScale(vh, false) * 0.86;
-  const size = TILE * s;
-  // Three columns of content across the page: masthead, module rail,
-  // studio. Each is placed from the viewport rather than from its
-  // neighbour, so none of them can drift into another as the window
-  // changes — which is exactly how the first attempt put the rail on top
-  // of the wordmark.
-  const lockX = -vw * 0.26 * dir;
-  const railX = vw * 0.02 * dir;
-  const stageX = vw * 0.3 * dir;
-
-  const colPitch = size + 62;
-  // Rows need room for a caption UNDER each tile, not merely for the
-  // tile: at size+26 the caption of one row sat on the tile of the next.
-  const rowPitch = size + 46;
-  const top = -((n / 2 - 1) * rowPitch) / 2;
-
-  const c = fit(-vh / 2 + vh * 0.26, vh, STAGE_W, STAGE_H, Math.min(vw * 0.32, 440));
-  return done(b, vw, vh, {
-    tile: (i) => ({
-      x: railX + ((i % 2) - 0.5) * colPitch * dir,
-      y: top + Math.floor(i / 2) * rowPitch,
-      s,
-    }),
-    tileSize: size,
-    lockX,
-    filaments: false,
-    centre: { x: stageX, y: -14, w: c.w, h: c.h, k: c.k, compact: false },
-    lastY: top + 3 * rowPitch + size / 2 + 30,
-  });
-}
-
-// ── 6 · RIBBON ───────────────────────────────────────────────────────
+// ── 4 · RIBBON ───────────────────────────────────────────────────────
 // One flowing ribbon of light across the frame with the eight modules
 // riding it, rising and falling with the wave.
 //
@@ -280,11 +233,11 @@ export function spread(n, vw, vh, dir, wordK) {
 // than near it.
 export function ribbon(n, vw, vh, dir, wordK) {
   const b = base(vw, vh, wordK, { scale: 0.7, shift: -0.06 });
-  if (b.isPortrait) return done(b, vw, vh, phone(b, vw, vh, dir, { hasCentre: false }));
+  if (b.isPortrait) return done(b, vw, vh, phone(b, vw, vh, dir));
 
-  const s = tileScale(vh, false) * 0.92;
+  const s = tileScale(vh, b.tier) * 0.92;
   const size = TILE * s;
-  const W = Math.min(vw * 0.88, 1240);
+  const W = Math.min(vw * (b.tier === "tablet" ? 0.84 : 0.88), 1240);
   const top = b.lockBottom + 34;
   // Amplitude is bounded by what is left of the pin once a two-line
   // caption is allowed for under the LOWEST point of the wave.
@@ -331,88 +284,18 @@ export function ribbon(n, vw, vh, dir, wordK) {
   });
 }
 
-// ── 7 · ORBIT ────────────────────────────────────────────────────────
-// The wordmark as the thing everything else turns around: two faint
-// rings, and the eight modules standing on the outer one.
-//
-// The ellipse is deliberately shallow and pushed BELOW the lockup rather
-// than centred on it — a true ring around the masthead put tiles on top
-// of the wordmark at the twelve o'clock positions, and no amount of
-// tuning fixes a ring whose centre is occupied.
-export function orbit(n, vw, vh, dir, wordK) {
-  const b = base(vw, vh, wordK, { scale: 0.72 });
-  if (b.isPortrait) return done(b, vw, vh, phone(b, vw, vh, dir, { hasCentre: false }));
-
-  const s = tileScale(vh, false);
-  const size = TILE * s;
-  const rx = Math.min(vw * 0.4, 520);
-  const topY = b.lockBottom + 30;
-  const ry = Math.min(132, (vh / 2 - 40 - topY - size) / 2);
-  const cy = topY + size / 2 + ry;
-
-  // Angles start at the inline start and run round the lower half, so
-  // reading order and travel order agree.
-  const ang = (i) => Math.PI + (i / (n - 1)) * Math.PI;
-  return done(b, vw, vh, {
-    tile: (i) => ({
-      x: Math.cos(ang(i)) * rx * dir,
-      y: cy + Math.sin(ang(i)) * ry,
-      s,
-    }),
-    tileSize: size,
-    filaments: false,
-    centre: { x: 0, y: cy, w: rx * 2, h: ry * 2, k: 1, kind: "orbit" },
-    lastY: cy + ry + size / 2 + 30,
-  });
-}
-
-// ── 8 · SHINGLE ──────────────────────────────────────────────────────
-// The eight sources are the CARDS themselves, overlapped like shingles
-// so each shows its own title strip and the one at the front shows its
-// whole face.
-//
-// This is what the original fan wanted to be. The fan failed because it
-// stacked eight cards at a scale where none of them could be read; a
-// shingle at a steep enough offset gives every card a legible strip, and
-// no cross-fade is needed at all — the morph is pure position and scale.
-export function shingle(n, vw, vh, dir, wordK) {
-  const b = base(vw, vh, wordK, { scale: 0.66, shift: -0.075 });
-  const CARD_H_D = 345;
-  const topY0 = b.lockBottom + (b.isPortrait ? 26 : 30);
-  // Sized to the band it actually has rather than to a fixed cap, so the
-  // cards are as large as the window allows instead of leaving a third of
-  // the screen empty under them.
-  const s = b.isPortrait ? 0.34 : Math.max(0.4, Math.min(0.8, (vh / 2 - 26 - topY0) / CARD_H_D));
-  const size = CARD_H_D * s;
-  // Overlap is the point — a shingle, not a row. Half a card's width of
-  // step leaves each one a title strip and nothing more.
-  const step = b.isPortrait
-    ? Math.min(38, (vw - 80) / (n - 1))
-    : Math.min(230 * s * 0.62, (vw * 0.8) / (n - 1));
-  const y = Math.min(topY0 + size / 2, vh / 2 - 26 - size / 2);
-
-  return done(b, vw, vh, {
-    tile: (i) => ({ x: (i - (n - 1) / 2) * step * dir, y, s }),
-    tileSize: size,
-    sourceW: 230 * s,
-    showLabels: false, // each card carries its own title
-    centre: null,
-    lastY: y + size / 2,
-  });
-}
-
-// ── 9 · SIGNAL ───────────────────────────────────────────────────────
+// ── 5 · SIGNAL ───────────────────────────────────────────────────────
 // One luminous line across the frame with the eight modules standing on
 // it, alternating above and below like stops on a route. The line is the
 // through-thread the rest of the landing already uses; here it carries
 // the whole composition.
 export function signal(n, vw, vh, dir, wordK) {
   const b = base(vw, vh, wordK, { scale: 0.78 });
-  if (b.isPortrait) return done(b, vw, vh, phone(b, vw, vh, dir, { hasCentre: false }));
+  if (b.isPortrait) return done(b, vw, vh, phone(b, vw, vh, dir));
 
-  const s = tileScale(vh, false) * 0.92;
+  const s = tileScale(vh, b.tier) * 0.92;
   const size = TILE * s;
-  const spread = Math.min(vw * 0.43, 580);
+  const spread = Math.min(vw * (b.tier === "tablet" ? 0.38 : 0.43), 580);
   const topY = b.lockBottom + 44;
   const lift = Math.min(58, (vh / 2 - 40 - topY - size) / 2);
   const lineY = topY + size / 2 + lift;
@@ -424,6 +307,10 @@ export function signal(n, vw, vh, dir, wordK) {
       s,
     }),
     tileSize: size,
+    // Stepping along the line in order, matching the highlight that
+    // travels it — see .sigPulse, which shares this duration.
+    pulseAt: (i) => i / (n - 1),
+    pulseDur: 7,
     // Above-the-line sources caption ABOVE themselves; hung below, the
     // caption lands on the luminous rule and cannot be read at all.
     labelAbove: (i) => i % 2 === 0,
@@ -461,7 +348,7 @@ function archFrame(b, vw, vh, { widthRatio = 0.78, lockFill = 0.74, topGap = 0.3
   };
 }
 
-// ── 10 · MIHRAB ──────────────────────────────────────────────────────
+// ── 6 · MIHRAB ──────────────────────────────────────────────────────
 // A monumental pointed arch with the whole masthead standing inside it —
 // wordmark, tagline, buttons, trust line, all centred — and the eight
 // modules set into its outline, four to a side.
@@ -473,9 +360,9 @@ function archFrame(b, vw, vh, { widthRatio = 0.78, lockFill = 0.74, topGap = 0.3
 // containing them. Their captions hang outward for the same reason.
 export function mihrab(n, vw, vh, dir, wordK) {
   const b = base(vw, vh, wordK, { scale: 0.68, shift: -0.075 });
-  if (b.isPortrait) return done(b, vw, vh, phone(b, vw, vh, dir, { centreH: 210 }));
+  if (b.isPortrait) return done(b, vw, vh, phone(b, vw, vh, dir));
 
-  const s = tileScale(vh, false) * 0.86;
+  const s = tileScale(vh, b.tier) * 0.86;
   const size = TILE * s;
   const A = archFrame(b, vw, vh, { widthRatio: 0.8, lockFill: 0.76, topGap: 0.28 });
 
@@ -490,6 +377,11 @@ export function mihrab(n, vw, vh, dir, wordK) {
       };
     },
     tileSize: size,
+    // Light falls from the apex down both jambs at once, so the two
+    // niches of a rank light together. Architecture is symmetrical; a
+    // light running down one side and then the other would fight it.
+    pulseAt: (i) => 0.08 + Math.floor(i / 2) * 0.26,
+    pulseDur: 7.2,
     labelPlace: "outside",
     filaments: false,
     lockScale: A.lockScale,
@@ -499,46 +391,7 @@ export function mihrab(n, vw, vh, dir, wordK) {
   });
 }
 
-// ── 11 · TERMINAL ────────────────────────────────────────────────────
-// One prompt at the centre and eight things coming back from it.
-//
-// This replaced an arcade of eight arches, which was a handsome facade
-// that argued nothing: eight arches say "there are eight of these" and
-// stop. The terminal states the product's actual claim — one sentence
-// from a teacher, eight finished things back — and it is the only
-// variant where the eight modules read as an OUTCOME rather than as a
-// menu, which is the difference between a feature list and a promise.
-export function terminal(n, vw, vh, dir, wordK) {
-  const b = base(vw, vh, wordK, { scale: 0.66, shift: -0.085 });
-  if (b.isPortrait) return done(b, vw, vh, phone(b, vw, vh, dir, { centreH: 120 }));
-
-  const promptW = Math.min(vw * 0.52, 660);
-  const promptH = 72;
-  const top = b.lockBottom + 18;
-  const promptY = top + promptH / 2;
-
-  const s = tileScale(vh, false) * 0.9;
-  const size = TILE * s;
-  const cols = 4;
-  const colPitch = Math.min((vw * 0.8) / cols, 250);
-  // Two rows, each needing room for its own two-line caption underneath.
-  const rowPitch = Math.min(size + 74, (vh / 2 - 40 - (promptY + promptH)) / 2);
-  const row0 = promptY + promptH / 2 + 46 + size / 2;
-
-  return done(b, vw, vh, {
-    tile: (i) => ({
-      x: ((i % cols) - (cols - 1) / 2) * colPitch * dir,
-      y: row0 + Math.floor(i / cols) * rowPitch,
-      s,
-    }),
-    tileSize: size,
-    filaments: false,
-    centre: { x: 0, y: promptY, w: promptW, h: promptH, k: 1, kind: "terminal" },
-    lastY: row0 + rowPitch + size / 2 + 44,
-  });
-}
-
-// ── 12 · KHATIM ──────────────────────────────────────────────────────
+// ── 7 · KHATIM ──────────────────────────────────────────────────────
 // The arch again, and inside it an eight-pointed star — the khatim — with
 // one module standing at each of its eight points.
 //
@@ -549,12 +402,12 @@ export function terminal(n, vw, vh, dir, wordK) {
 // neither on top of the masthead nor exiled to the margins.
 export function khatim(n, vw, vh, dir, wordK) {
   const b = base(vw, vh, wordK, { scale: 0.68, shift: -0.06 });
-  if (b.isPortrait) return done(b, vw, vh, phone(b, vw, vh, dir, { hasCentre: false }));
+  if (b.isPortrait) return done(b, vw, vh, phone(b, vw, vh, dir));
 
   // Both were too small to read at a glance: the masthead filled 60% of
   // the arch and the tiles were at 0.84, which on a faint star over a
   // mid-tone drench left the whole frame looking like a watermark.
-  const s = tileScale(vh, false);
+  const s = tileScale(vh, b.tier);
   const size = TILE * s;
   const A = archFrame(b, vw, vh, { widthRatio: 0.96, lockFill: 0.74, topGap: 0.3 });
 
@@ -591,6 +444,11 @@ export function khatim(n, vw, vh, dir, wordK) {
       return { x: Math.cos(a) * rx * dir, y: cy + Math.sin(a) * ry, s };
     },
     tileSize: size,
+    // Round the star, clockwise from its top-left point — the order the
+    // rosette's own construction implies, and the order its rotating
+    // trace passes them in.
+    pulseAt: (i) => [0, 0.875, 0.125, 0.75, 0.25, 0.625, 0.375, 0.5][i],
+    pulseDur: 8.4,
     labelPlace: "outside",
     filaments: false,
     lockScale: A.lockScale,

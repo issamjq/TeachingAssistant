@@ -11,46 +11,6 @@
    they have no internal type to hold in proportion.
    ===================================================================== */
 
-/* ── marquee ──────────────────────────────────────────────────────── */
-.marquee,
-.ribbon,
-.terminal {
-  position: relative;
-  width: 100%;
-  height: 100%;
-  pointer-events: none;
-}
-.mqWash {
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(
-    to bottom,
-    oklch(0.98 0.02 200 / 0.09),
-    oklch(0.98 0.02 200 / 0.02) 62%,
-    transparent
-  );
-}
-.mqRuleTop,
-.mqRuleBot {
-  position: absolute;
-  inset-inline: 0;
-  height: 1px;
-  background: linear-gradient(
-    to right,
-    transparent,
-    oklch(0.93 0.06 191 / 0.5),
-    transparent
-  );
-}
-.mqRuleTop {
-  inset-block-start: 0;
-  box-shadow: 0 0 20px oklch(0.88 0.09 189 / 0.35);
-}
-.mqRuleBot {
-  inset-block-end: 0;
-  opacity: 0.5;
-}
-
 /* ── ribbon ───────────────────────────────────────────────────────── */
 /* No preserveAspectRatio override: the viewBox is the box's real pixel
    size, so the mapping is 1:1 and stroke widths below are plain pixels.
@@ -94,7 +54,7 @@
 }
 
 /* The bead: a short segment of very bright stroke travelling the path
-   forever. `--rb-run` is shared with the tiles' glow so the two cannot
+   forever. `--lit-run` is shared with the tiles' glow so the two cannot
    drift — a module lighting a beat after the light passes it is worse
    than no animation at all. */
 .rbBead {
@@ -102,7 +62,7 @@
   stroke-width: 3.4;
   stroke-dasharray: 0.035 0.965;
   filter: drop-shadow(0 0 6px oklch(0.92 0.11 187 / 0.9));
-  animation: rbRun var(--rb-run, 7s) linear 1.6s infinite;
+  animation: rbRun var(--lit-run, 7s) linear 1.6s infinite;
 }
 
 @keyframes rbDraw {
@@ -120,66 +80,8 @@
   }
 }
 
-/* ── terminal ─────────────────────────────────────────────────────── */
-/* Design pixels: the layout gives this a fixed 72px-tall box, so the
-   type inside is set once and never scaled. */
-.terminal {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-}
-.tmEyebrow {
-  font-family: "JetBrains Mono", monospace;
-  font-size: 10px;
-  letter-spacing: 0.24em;
-  text-transform: uppercase;
-  color: oklch(0.9 0.08 190 / 0.85);
-  margin-block-end: 9px;
-}
-.tmBar {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 13px 13px 13px 18px;
-  border-radius: 12px;
-  background: linear-gradient(160deg, oklch(0.28 0.055 208 / 0.9), oklch(0.2 0.04 210 / 0.92));
-  border: 1px solid oklch(0.94 0.06 191 / 0.36);
-  box-shadow: 0 34px 60px -34px oklch(0.1 0.04 205 / 0.9);
-}
-.tmText {
-  flex: 1;
-  min-width: 0;
-  font-family: "Inter Tight", system-ui, sans-serif;
-  font-size: 16px;
-  line-height: 1.3;
-  color: oklch(0.97 0.02 200 / 0.92);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.tmCaret {
-  display: inline-block;
-  width: 2px;
-  height: 15px;
-  margin-inline-start: 4px;
-  vertical-align: -2px;
-  background: oklch(0.9 0.11 186);
-  animation: cxCaret 1.15s steps(1) infinite;
-}
-.tmGo {
-  flex: none;
-  padding: 8px 18px;
-  border-radius: 999px;
-  background: oklch(0.96 0.02 200);
-  color: oklch(0.2 0.04 210);
-  font-family: "Inter Tight", system-ui, sans-serif;
-  font-size: 14px;
-  font-weight: 500;
-}
-
 /* ── aperture ─────────────────────────────────────────────────────── */
 .aperture,
-.orbit,
 .signal,
 .mihrab {
   position: relative;
@@ -223,32 +125,6 @@
     transparent,
     oklch(0.92 0.06 191 / 0.34),
     transparent
-  );
-}
-
-/* ── orbit ────────────────────────────────────────────────────────── */
-.orbRing,
-.orbRingInner {
-  position: absolute;
-  inset: 0;
-  border-radius: 50%;
-  border: 1px solid oklch(0.92 0.06 191 / 0.26);
-}
-/* The outer ring is the track the modules stand on, so it reads stronger
-   than the inner one — otherwise the tiles look like they happen to be
-   near a decoration rather than placed on a path. */
-.orbRingInner {
-  inset: 16% 22%;
-  border-color: oklch(0.92 0.06 191 / 0.12);
-}
-.orbCore {
-  position: absolute;
-  inset: 28% 34%;
-  border-radius: 50%;
-  background: radial-gradient(
-    ellipse at 50% 45%,
-    oklch(0.86 0.08 190 / 0.15),
-    transparent 70%
   );
 }
 
@@ -353,11 +229,73 @@
   vector-effect: non-scaling-stroke;
 }
 
+/* ── per-variant light ────────────────────────────────────────────── */
+/* Each variant carries a light that passes its eight modules in turn, and
+   each module glows as it arrives — see .tileLit, whose delay is that
+   module's position along this same run. --lit-run is set once by the
+   hero from the layout's pulseDur, so a centre and its modules cannot
+   drift apart. The 1.4s offset lets the page settle before anything
+   starts moving. */
+
+/* Aperture — a beam sweeping across the arc. */
+.apSweep {
+  position: absolute;
+  inset-block: -10%;
+  inset-inline-start: -20%;
+  width: 26%;
+  pointer-events: none;
+  background: linear-gradient(100deg, transparent, oklch(0.93 0.08 189 / 0.18), transparent);
+  animation: cxSweepX var(--lit-run, 7s) ease-in-out 1.4s infinite;
+}
+
+/* Bureau — a lamp crossing the desk, left to right. */
+.bureauSweep {
+  position: absolute;
+  inset-block: -16%;
+  inset-inline-start: -24%;
+  width: 30%;
+  pointer-events: none;
+  background: linear-gradient(102deg, transparent, oklch(0.95 0.07 189 / 0.15), transparent);
+  animation: cxSweepX var(--lit-run, 7s) ease-in-out 1.4s infinite;
+}
+
+/* Mihrab — one dash descending the arch, down both jambs at once. */
+.archFall {
+  stroke: oklch(0.99 0.06 186);
+  stroke-width: 2.6;
+  fill: none;
+  stroke-linecap: round;
+  stroke-dasharray: 0.05 0.95;
+  filter: drop-shadow(0 0 6px oklch(0.92 0.11 187 / 0.85));
+  animation: cxRun var(--lit-run, 7s) linear 1.4s infinite;
+}
+
+/* Khatim — a bead running the rosette, passing all eight points. */
+.khBead {
+  fill: none;
+  stroke: oklch(0.99 0.06 186);
+  stroke-width: 3;
+  stroke-dasharray: 0.03 0.97;
+  vector-effect: non-scaling-stroke;
+  filter: drop-shadow(0 0 6px oklch(0.92 0.11 187 / 0.85));
+  animation: cxRun var(--lit-run, 7s) linear 1.4s infinite;
+}
+
+@keyframes cxSweepX {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(440%); }
+}
+@keyframes cxRun {
+  from { stroke-dashoffset: 1; }
+  to { stroke-dashoffset: 0; }
+}
+
 /* ── bureau ───────────────────────────────────────────────────────── */
 /* The studio window laid back, as if on a desk seen from slightly above.
    Perspective lives on the wrapper so StudioStage stays a flat surface
    with no opinion about how it is presented. */
 .bureau {
+  position: relative;
   transform: perspective(1400px) rotateX(13deg) rotateZ(-1.4deg);
   transform-origin: 50% 40%;
   filter: drop-shadow(0 44px 44px oklch(0.1 0.04 205 / 0.5));
@@ -367,20 +305,23 @@
   0%, 49% { opacity: 1; }
   50%, 100% { opacity: 0; }
 }
-@keyframes cxSweep {
-  0%, 100% { transform: translateX(0); }
-  50% { transform: translateX(190px); }
-}
 @keyframes cxTravel {
   0%, 100% { transform: translate(0, -50%); }
   50% { transform: translate(355%, -50%); }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .tmCaret,
   .sigPulse,
-  .rbBead {
+  .rbBead,
+  .apSweep,
+  .bureauSweep,
+  .archFall,
+  .khBead {
     animation: none;
+  }
+  .archFall,
+  .khBead {
+    opacity: 0;
   }
   /* The draw-on is disabled by leaving the line already drawn, not by
      killing the animation — `animation: none` here would strand it at

@@ -23,20 +23,6 @@ import StudioStage from "../StudioStage";
 import { archPath } from "./arch";
 import cx from "./Centres.module.css";
 
-// ── marquee ──────────────────────────────────────────────────────────
-// A lit band for the modules to stand on. Two rules and a wash — the
-// plaques ARE the modules, so the band must stay a stage and never
-// become the thing you look at.
-function Marquee() {
-  return (
-    <div className={cx.marquee} aria-hidden="true">
-      <span className={cx.mqWash} />
-      <span className={cx.mqRuleTop} />
-      <span className={cx.mqRuleBot} />
-    </div>
-  );
-}
-
 // ── ribbon ───────────────────────────────────────────────────────────
 // One sine across the box. The SAME sine the layout samples to place the
 // modules, written in a stretched viewBox so both agree at any width —
@@ -92,25 +78,6 @@ function Ribbon({ isRTL, w = 1240, h = 170 }) {
   );
 }
 
-// ── terminal ─────────────────────────────────────────────────────────
-// The teacher's half of the exchange, at full size: one sentence, typed,
-// with the button that turns it into the eight things standing below.
-// Real UI in live type, like every other centre that is not geometry.
-function Terminal({ t }) {
-  return (
-    <div className={cx.terminal} aria-hidden="true">
-      <span className={cx.tmEyebrow}>{t("atl.art.studio")}</span>
-      <div className={cx.tmBar}>
-        <span className={cx.tmText}>
-          A Grade 9 physics lesson on the second law
-          <span className={cx.tmCaret} />
-        </span>
-        <span className={cx.tmGo}>Draft</span>
-      </div>
-    </div>
-  );
-}
-
 // ── aperture ─────────────────────────────────────────────────────────
 // A shallow arc of light with the horizon it stands on. Geometry only:
 // two ellipses and a rule, so it scales to any size without any of the
@@ -122,20 +89,9 @@ function Aperture() {
       <span className={cx.apRingInner} />
       <span className={cx.apPool} />
       <span className={cx.apHorizon} />
-    </div>
-  );
-}
-
-// ── orbit ────────────────────────────────────────────────────────────
-// Two concentric ellipses. The outer is the one the modules stand on, so
-// it is drawn a shade stronger than the inner — the ring should read as
-// a track, not as a decoration the tiles happen to sit near.
-function Orbit() {
-  return (
-    <div className={cx.orbit} aria-hidden="true">
-      <span className={cx.orbRing} />
-      <span className={cx.orbRingInner} />
-      <span className={cx.orbCore} />
+      {/* The sweep: a soft beam crossing the arc, on the same run the
+          modules' glows are, so each lights as the beam reaches it. */}
+      <span className={cx.apSweep} />
     </div>
   );
 }
@@ -167,6 +123,12 @@ function Mihrab() {
       <svg className={cx.archSvg} viewBox="0 0 100 160" preserveAspectRatio="none">
         <path className={cx.archLine} d={archPath(0)} vectorEffect="non-scaling-stroke" />
         <path className={cx.archLineIn} d={archPath(9)} vectorEffect="non-scaling-stroke" />
+        {/* Light falling from the apex down both jambs. The path runs
+            foot → apex → foot, so ONE travelling dash descends both
+            sides at once, mirrored — which is what the architecture
+            asks for; a light running down one side and then the other
+            would fight its symmetry. */}
+        <path className={cx.archFall} d={archPath(0)} pathLength={1} vectorEffect="non-scaling-stroke" />
       </svg>
       <span className={cx.archPool} />
     </div>
@@ -213,6 +175,11 @@ function Khatim({ arch }) {
         <polygon className={cx.khLine} points={pts(67.5)} />
         <circle className={cx.khLineSoft} cx="50" cy="50" r="50" />
         <circle className={cx.khLineSoft} cx="50" cy="50" r="33" />
+        {/* A bead running the rosette's outer circle, passing each of the
+            eight points in turn. Rotating the whole star instead would
+            have been cheaper and wrong: a khatim's orientation IS the
+            shape. */}
+        <circle className={cx.khBead} cx="50" cy="50" r="50" pathLength={1} />
       </svg>
       <span className={cx.archPool} />
     </div>
@@ -226,16 +193,10 @@ function Khatim({ arch }) {
  */
 export default function Centre({ kind, compact, isRTL, t, arch, size }) {
   switch (kind) {
-    case "marquee":
-      return <Marquee />;
     case "ribbon":
       return <Ribbon isRTL={isRTL} w={size?.w} h={size?.h} />;
-    case "terminal":
-      return <Terminal t={t} />;
     case "aperture":
       return <Aperture />;
-    case "orbit":
-      return <Orbit />;
     case "signal":
       return <Signal />;
     case "mihrab":
@@ -249,6 +210,8 @@ export default function Centre({ kind, compact, isRTL, t, arch, size }) {
       return (
         <div className={cx.bureau}>
           <StudioStage compact={compact} />
+          {/* A lamp crossing the desk, in step with the objects' glows. */}
+          <span className={cx.bureauSweep} />
         </div>
       );
     default:

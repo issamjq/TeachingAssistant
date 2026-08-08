@@ -22,8 +22,21 @@
 
 import { CARD_W } from "../../hero-artifacts/indexLayout";
 
-/** Below this width the pin is laid out as a phone, not a scaled desktop. */
-export const PORTRAIT_MAX = 560;
+// Three tiers, not two. The first cut had one break at 560 and treated
+// everything above it as a desktop scaled down, which put tablet-width
+// windows through compositions authored for 1440 — captions overlapping
+// their neighbours, centre pieces crowding the masthead. A tablet needs
+// the variant's identity at a size it can actually hold, and a phone
+// needs a different arrangement entirely.
+export const PORTRAIT_MAX = 620;
+const TABLET_MAX = 1080;
+
+/** "phone" | "tablet" | "desktop" for a viewport width. */
+export function tierOf(vw) {
+  if (vw < PORTRAIT_MAX) return "phone";
+  if (vw < TABLET_MAX) return "tablet";
+  return "desktop";
+}
 
 /** Design size of a glyph tile at rest, in px. */
 export const TILE = 78;
@@ -44,14 +57,30 @@ const LOCK_H = 450;
  * the lockup and everything below it.
  */
 export function base(vw, vh, wordK, opts = {}) {
-  const isPortrait = vw < PORTRAIT_MAX;
+  const tier = tierOf(vw);
+  const isPortrait = tier === "phone";
+  const desk = opts.scale ?? 0.8;
   const scale = isPortrait
-    ? opts.portraitScale ?? 0.92
-    : opts.scale ?? 0.8;
-  const shiftY = Math.round(vh * (isPortrait ? opts.portraitShift ?? -0.045 : opts.shift ?? -0.045));
+    ? opts.portraitScale ?? 0.86
+    // A tablet runs the desktop composition, but the masthead gives up a
+    // good deal more of it. At 1024x768 the vertical budget below the
+    // masthead is about 300px for two bands of modules and their
+    // captions, and at 0.92 the second band's captions ran off the
+    // bottom of the pin.
+    : tier === "tablet"
+    ? desk * 0.82
+    : desk;
+  const shiftY = Math.round(
+    vh * (isPortrait
+      ? opts.portraitShift ?? -0.05
+      : tier === "tablet"
+      ? (opts.shift ?? -0.045) - 0.03
+      : opts.shift ?? -0.045)
+  );
   const lockS = scale * wordK;
   const top = -vh / 2 + vh * 0.15 + shiftY;
   return {
+    tier,
     isPortrait,
     // Carried through so a variant that sizes the masthead against
     // something of its own (the arch variants) can divide it back out —
@@ -64,9 +93,12 @@ export function base(vw, vh, wordK, opts = {}) {
   };
 }
 
-/** Tiles give up a little size on a short window so everything still fits. */
-export function tileScale(vh, isPortrait) {
-  return isPortrait ? 0.7 : Math.min(1, Math.max(0.78, (vh - 520) / 380));
+/** Tiles give up size on a short window, and again on a narrow one. */
+export function tileScale(vh, tier) {
+  const byHeight = Math.min(1, Math.max(0.74, (vh - 520) / 380));
+  if (tier === "phone") return 0.72;
+  if (tier === "tablet") return byHeight * 0.8;
+  return byHeight;
 }
 
 /**
@@ -79,30 +111,44 @@ export function cardStart(sourceW) {
 }
 
 /**
- * The phone arrangement every variant falls back to: four across, two
- * down, below whatever the centre is, and no captions.
+ * The phone arrangement every variant falls back to: two columns of
+ * four, each module captioned with its name AND what it does.
  *
- * Two columns of four with a caption under each was the obvious answer
- * and it did not survive contact with a phone — eight rows of
- * tile-plus-caption need about 390px of the 844 available, which forced
- * the lockup down to a third of its size, and even then each caption ran
- * into the tile below it. Nothing is lost by dropping the captions:
- * portrait already names all eight, in full, in the contents LIST a beat
- * later (.atl-mlist).
+ * The previous version was four across, two down, with no captions at
+ * all — the argument being that portrait names them again in the
+ * contents list a beat later. That was wrong. The opening screen is
+ * where a visitor decides whether to keep scrolling, and eight unlabelled
+ * glyphs give them nothing to decide on; deferring the names to a beat
+ * they may never reach is not a trade, it is a loss.
+ *
+ * So the captions stay and the CENTRE goes instead. On a phone the centre
+ * piece was a 150px-tall crop that could carry one line of legible type;
+ * eight named modules are worth more than that.
  */
 export function portraitGrid(vw, vh, dir, topY, s) {
   const size = TILE * s;
-  const cols = 4;
-  const colPitch = Math.min((vw - 40) / cols, 96);
-  const rowPitch = size + 21;
-  const top = Math.min(topY + size / 2, vh / 2 - 34 - size / 2 - rowPitch);
+  const cols = 2;
+  const colPitch = Math.min(vw / cols - 12, 190);
+  // Room for the tile plus a name that may wrap to two lines plus a
+  // description — measured against "Subjects & Students", which is the
+  // longest of the eight and the one that wraps first.
+  const rowPitch = size + 54;
+  const rows = 4;
+  // 78px of bottom margin, not 26: the accessibility widget floats in the
+  // bottom corner of every page, and the last row's caption was running
+  // underneath it.
+  const top = Math.min(
+    topY + size / 2,
+    vh / 2 - 78 - (rows - 1) * rowPitch - size / 2 - 34
+  );
   return {
     tile: (i) => ({
       x: ((i % cols) - (cols - 1) / 2) * colPitch * dir,
       y: top + Math.floor(i / cols) * rowPitch,
       s,
     }),
-    lastY: top + rowPitch + size / 2,
+    labelW: colPitch - 14,
+    lastY: top + (rows - 1) * rowPitch + size / 2 + 34,
   };
 }
 

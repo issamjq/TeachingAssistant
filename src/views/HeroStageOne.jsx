@@ -353,16 +353,21 @@ export default function HeroStageOne({ onEnter, signedIn, variant }) {
     // "outside" hangs the caption away from the centre line instead of
     // under the tile. The arch variants need it: their interior is the
     // masthead, and a caption dropped under a niche lands on the wordmark.
+    // A phone's two columns are narrower than the desktop caption box, so
+    // the layout hands back the width it can actually spare.
+    const w = C.labelW ? { width: C.labelW } : null;
     if (C.labelPlace === "outside") {
       const outward = C.tile(i).x >= 0 ? 1 : -1;
       const push = (C.tileSize / 2 + 10) * outward;
       return {
+        ...w,
         transform: `translate(${outward > 0 ? "0" : "-100%"}, -50%) translate(${pt.x + push}px, ${pt.y}px)`,
         textAlign: outward > 0 ? "start" : "end",
         opacity: fade,
       };
     }
     return {
+      ...w,
       transform: above
         ? `translate(-50%, -100%) translate(${pt.x}px, ${pt.y - off}px)`
         : `translate(-50%, 0) translate(${pt.x}px, ${pt.y + off}px)`,
@@ -377,7 +382,10 @@ export default function HeroStageOne({ onEnter, signedIn, variant }) {
   if (reduced) {
     return (
       <section className="atl atl--static">
-        <div className="atl-pin">
+        {/* --lit-run is the variant's own tempo for one pass of its light.
+          Set on the pin so the centre piece and the eight module glows
+          read the same value and cannot drift. */}
+      <div className="atl-pin" style={{ "--lit-run": `${C.pulseDur ?? 7}s` }}>
           <div className="atl-drench" aria-hidden="true">
             <span className="cinema-grain" />
           </div>
@@ -416,7 +424,10 @@ export default function HeroStageOne({ onEnter, signedIn, variant }) {
         style={{ position: "absolute", top: "50%", left: 0, width: 1, height: 1, scrollMarginTop: "64px" }}
       />
 
-      <div className="atl-pin">
+      {/* --lit-run is the variant's own tempo for one pass of its light.
+          Set on the pin so the centre piece and the eight module glows
+          read the same value and cannot drift. */}
+      <div className="atl-pin" style={{ "--lit-run": `${C.pulseDur ?? 7}s` }}>
         {/* Warm drench that the whole act plays on */}
         <div className="atl-drench" aria-hidden="true">
           <span className="cinema-grain" />

@@ -1,18 +1,15 @@
 // =====================================================================
 // Stage-one variants — the registry
 //
-// Twelve treatments of the landing's opening frame. Everything after the
+// Seven treatments of the landing's opening frame. Everything after the
 // opening — the contents index, the walkthrough deck, and the whole rest
-// of the page — is identical across all twelve, so what is being compared
+// of the page — is identical across all seven, so what is being compared
 // here really is just the first screen.
 //
-// `sourceKind` decides what the eight things look like at rest:
+// All seven rest their eight sources as captioned glass tiles; the type
+// and card treatments were cut with the variants that used them.
 //
-//   tile   a glass square with a line glyph, captioned
-//   card   the real card face, already itself; no cross-fade needed,
-//          the morph is pure position and scale
-//
-// Every tile variant captions its sources with the module's NAME and
+// Every variant captions its sources with the module's NAME and
 // what it DOES. Naming eight features without saying what any of them
 // are is the failure the opening frame exists to avoid.
 //
@@ -20,9 +17,11 @@
 // /preview lists them. Reordering this array renumbers the routes, so
 // add to the end rather than inserting.
 //
-// 10 and 12 are one family: an arch with the masthead standing inside
-// it, then the same arch given an eight-pointed star to hold the
-// modules.
+// 6 and 7 are one family: an arch with the masthead standing inside it,
+// then the same arch given an eight-pointed star to hold the modules.
+//
+// Each variant also carries its own light — see pulseAt/pulseDur in its
+// layout, and the matching motion on its centre piece.
 // =====================================================================
 
 import * as L from "./layouts";
@@ -32,16 +31,8 @@ export const VARIANTS = [
     id: "atelier",
     name: "Atelier",
     line: "The studio window, flanked by its eight modules.",
-    why: "Shows the actual product in the first frame. The safest of the ten and the hardest to get wrong.",
+    why: "Shows the actual product in the first frame. The safest of the seven and the hardest to get wrong.",
     layout: L.atelier,
-    sourceKind: "tile",
-  },
-  {
-    id: "marquee",
-    name: "Marquee",
-    line: "A lit band with all eight standing on it in one row, each named and described.",
-    why: "Reads left to right in a single pass with nothing hidden. The clearest of the twelve.",
-    layout: L.marquee,
     sourceKind: "tile",
   },
   {
@@ -56,16 +47,8 @@ export const VARIANTS = [
     id: "bureau",
     name: "Bureau",
     line: "The desk from above — the studio laid back, objects set around it.",
-    why: "The warmest of the ten. Perspective and irregular rotations make it feel handled rather than designed.",
+    why: "The warmest of the seven. Perspective and irregular rotations make it feel handled rather than designed.",
     layout: L.bureau,
-    sourceKind: "tile",
-  },
-  {
-    id: "spread",
-    name: "Spread",
-    line: "A magazine spread: masthead left, studio right, modules down the gutter.",
-    why: "The only asymmetric one. Closest to a real editorial page, and the most confident.",
-    layout: L.spread,
     sourceKind: "tile",
   },
   {
@@ -75,22 +58,6 @@ export const VARIANTS = [
     why: "Carries the motif the rest of the landing runs on, and says the eight are one thing, not eight products.",
     layout: L.ribbon,
     sourceKind: "tile",
-  },
-  {
-    id: "orbit",
-    name: "Orbit",
-    line: "Two faint rings with the modules standing on the outer one.",
-    why: "Says 'one studio, everything in it' geometrically, without a word of explanation.",
-    layout: L.orbit,
-    sourceKind: "tile",
-  },
-  {
-    id: "shingle",
-    name: "Shingle",
-    line: "The eight cards themselves, overlapped so every title strip reads.",
-    why: "What the original fan was reaching for. No cross-fade at all — the morph is pure position and scale.",
-    layout: L.shingle,
-    sourceKind: "card",
   },
   {
     id: "signal",
@@ -106,14 +73,6 @@ export const VARIANTS = [
     line: "A monumental arch with the whole masthead inside it, modules set into its outline.",
     why: "Draws on where this product actually is. Struck as geometry, so it stays architecture rather than becoming ornament.",
     layout: L.mihrab,
-    sourceKind: "tile",
-  },
-  {
-    id: "terminal",
-    name: "Terminal",
-    line: "One prompt at the centre, and the eight things it hands back below it.",
-    why: "The only one where the modules read as an outcome, not a menu — a promise rather than a feature list.",
-    layout: L.terminal,
     sourceKind: "tile",
   },
   {

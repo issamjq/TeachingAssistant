@@ -1,6 +1,6 @@
 "use client";
 
-// The chooser for the twelve stage-one variants.
+// The chooser for the seven stage-one variants.
 //
 // Deliberately NOT a page of screenshots. Stage one is a scroll
 // sequence — a still frame of one tells you almost nothing about how it
@@ -23,20 +23,19 @@ export default function PreviewGallery() {
       <header className={g.head}>
         <span className={g.eyebrow}>Landing · stage one</span>
         <h1 className={g.title}>
-          Twelve openings, <em>one page.</em>
+          Seven openings, <em>one page.</em>
         </h1>
         <p className={g.lead}>
           Every variant below changes only the first screen. The contents
           index, the walkthrough deck and everything under them are
-          identical across all twelve — so what differs on screen is the
-          design, not a second implementation of the page. The last three
-          are one family: an arch, the arch made literal as an arcade,
-          then the arch given a star to hold the modules.
+          identical across all seven — so what differs on screen is the
+          design, not a second implementation of the page.
         </p>
         <p className={g.note}>
-          Each one is a scroll sequence. Open it and scroll: the eight
-          modules leave their opening arrangement and become the contents
-          grid, then the deck.
+          Each one is a scroll sequence, and each carries its own light —
+          watch the opening frame for a moment before you scroll. Then
+          scroll: the eight modules leave their arrangement and become the
+          contents grid, and then the deck.
         </p>
       </header>
 

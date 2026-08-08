@@ -100,9 +100,10 @@
 
 /* The lit state, driven by the centre's travelling light.
    ---------------------------------------------------------------------
-   --pulse is where this module sits along that light's path, 0-1, by ARC
-   LENGTH — so the delay below is simply that fraction of one full run and
-   the module lights at the instant the light arrives.
+   --pulse is where this module sits along that light's path, 0-1 — by
+   arc length where the path curves — so the delay below is simply that
+   fraction of one full run, and the module lights at the instant the
+   light arrives. --lit-run comes from the variant's own pulseDur.
 
    The keyframe peaks at 0% precisely because the delay already carries
    all the timing; a ramp-up here would land every glow late by however
@@ -123,15 +124,20 @@
   box-shadow:
     0 0 24px oklch(0.9 0.1 188 / 0.55),
     inset 0 0 0 1px oklch(0.98 0.05 188 / 0.75);
-  animation: hxLit var(--rb-run, 7s) ease-out infinite;
-  animation-delay: calc(var(--pulse) * var(--rb-run, 7s) + 1.6s);
+  animation: hxLit var(--lit-run, 7s) ease-out infinite;
+  /* 1.4s matches the settle delay every centre piece uses, so a module
+     lights exactly as its centre's light arrives rather than 200ms after. */
+  animation-delay: calc(var(--pulse) * var(--lit-run, 7s) + 1.4s);
 }
 
 @keyframes hxLit {
   0% {
     opacity: 1;
   }
-  16% {
+  /* Short. At 16% of an eight-second run the decay outlasted the gap to
+     the next module and three sat lit at once, which reads as a glow
+     effect rather than as something passing through. */
+  10% {
     opacity: 0;
   }
   100% {
