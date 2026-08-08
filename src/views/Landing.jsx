@@ -2506,12 +2506,12 @@ function MarketingPage({ page, onSignUp, onProfileDone, onChoosePlan, onPage, on
 // =====================================================================
 // LANDING (exported)
 // =====================================================================
-// heroVariant selects which cut of the opening act renders. "atelier" is
-// what ships at "/"; "constellation" is the redesign under review at
-// "/preview". It is threaded rather than branched on the URL so both cuts
-// stay reachable side by side while the design is being decided — see
-// app/preview/page.tsx.
-export default function Landing({ onOpenStudio, heroVariant = "atelier" }) {
+// heroVariant selects which cut of the opening act renders. null is what
+// ships at "/" — the original card fan. Any other value is a stage-one
+// variant id served at /preview1../preview10 and listed at /preview. It
+// is threaded rather than branched on the URL so every cut stays
+// reachable side by side while the design is being decided.
+export default function Landing({ onOpenStudio, heroVariant = null }) {
   const [page, setPage] = useState("home");
   // Mock auth: an account exists only once a provider was picked AND a
   // plan chosen. Signed-in visitors skip the funnel entirely.

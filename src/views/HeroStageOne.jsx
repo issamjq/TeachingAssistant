@@ -1,9 +1,9 @@
 "use client";
 
 // =====================================================================
-// Murchid — Hero Atelier, constellation cut (preview)
+// Murchid — Hero, stage-one variants (preview)
 //
-// Same pinned act as HeroAtelier, with its opening rewritten.
+// Same pinned act as HeroAtelier, with its OPENING made swappable.
 //
 // The old opening dealt the eight modules out as a fan of cards. Cards
 // are the wrong object for a first frame: eight of them at fan scale are
@@ -16,10 +16,18 @@
 // The act structure is unchanged, which is the point: this is a new
 // opening bolted onto a sequence that already worked.
 //
-//   ACT 1  scene      the studio plate, eight tiles, the lockup
-//   ACT 2  morph      each tile flies to its slot and BECOMES its card
+//   ACT 1  scene      the centre, eight sources, the lockup   ← varies
+//   ACT 2  morph      each source flies to its slot and BECOMES its card
 //   ACT 3  index      the numbered contents page (unchanged)
 //   ACT 4  walkthrough the deck, one module at a time (unchanged)
+//
+// Only ACT 1 varies. A variant supplies a layout — where the eight
+// sources rest and what sits behind them — and a `sourceKind` saying
+// what they look like there. Acts 2-4 are drawn by one code path for all
+// ten, which is what makes them genuinely comparable: whatever differs
+// on screen is the design, not a second implementation.
+//
+// See features/hero-constellation/variants/ for the ten.
 //
 // The morph is a per-tile cross-fade in flight rather than one global
 // swap: tile i and card i occupy the same transform at the same instant,
@@ -36,9 +44,9 @@ import React, { useEffect, useRef, useState } from "react";
 import { useT, useI18n } from "../lib/i18n";
 import { HERO_CARDS, HeroCardFace } from "./HeroJourney";
 import { CARD_H, deckCenterX, deckPos, indexLayout } from "../features/hero-artifacts/indexLayout";
-import { constellationLayout } from "../features/hero-constellation/constellationLayout";
 import { Glyph } from "../features/hero-constellation/glyphs";
-import StudioStage from "../features/hero-constellation/StudioStage";
+import Centre from "../features/hero-constellation/variants/Centres";
+import { variantById } from "../features/hero-constellation/variants";
 import hx from "../features/hero-constellation/HeroConstellation.module.css";
 
 import WalkthroughLayer, { WalkthroughStacked } from "../features/tool-walkthrough/WalkthroughLayer";
@@ -96,7 +104,8 @@ function useTaglineWords(t) {
 const SSR_VIEWPORT_W = 1280;
 const SSR_VIEWPORT_H = 800;
 
-export default function HeroAtelierConstellation({ onEnter, signedIn }) {
+export default function HeroStageOne({ onEnter, signedIn, variant }) {
+  const V = variantById(variant);
   const t = useT();
   const { isRTL } = useI18n();
   const dir = isRTL ? -1 : 1;
@@ -188,7 +197,15 @@ export default function HeroAtelierConstellation({ onEnter, signedIn }) {
   // ── layout ───────────────────────────────────────────────────────
   const L = indexLayout(N, vw, vh, dir, isRTL);
   const wordK = L.wordK;
-  const C = constellationLayout(N, vw, vh, dir, wordK);
+  const C = V.layout(N, vw, vh, dir, wordK);
+  // Cards are their own source in the `card` variants, so there is no
+  // cross-fade to run: they are simply visible from the first frame and
+  // the morph is pure position and scale.
+  const cardsAreSource = V.sourceKind === "card";
+  // Centres built from live type scale as one block; centres built from
+  // geometry fill the box they were given. See the centre block below.
+  const centreFixed =
+    !C.centre?.kind || C.centre.kind === "bureau" || C.centre.kind === "specimen";
   const tocK = L.tocK;
   const isPortrait = L.isPortrait;
 
@@ -266,10 +283,14 @@ export default function HeroAtelierConstellation({ onEnter, signedIn }) {
     const rs = lerp(sa, b.s, m);
     const x = lerp(pt.x, deckX + dp.x, gather);
     const y = lerp(pt.y, deckY + dp.y, gather);
-    const rot = lerp(0, dp.rot, gather);
+    // Variants that set a resting rotation (Bureau's desk objects) unwind
+    // it as the card travels, so every card still lands square in the
+    // index grid however askew it started.
+    const rot = lerp(lerp(a.rot || 0, 0, m), dp.rot, gather);
     const sc = lerp(rs, dp.s * deckScale, gather);
-    // The card takes over from the tile across the middle of the flight.
-    const cardIn = ramp(m, 0.42, 0.8);
+    // The card takes over from the source across the middle of the
+    // flight — unless it IS the source, in which case it never fades.
+    const cardIn = cardsAreSource ? 1 : ramp(m, 0.42, 0.8);
     let opacity = lerp(cardIn, dp.opacity, gather);
     if (mTiny) opacity *= 1 - 0.86 * (tocIn * indexOut);
     return {
@@ -304,14 +325,34 @@ export default function HeroAtelierConstellation({ onEnter, signedIn }) {
     };
   };
 
+  // A type row travels the same path as a tile but keeps its own
+  // proportions: it is a line of text, so it fades rather than growing
+  // into the card's footprint — a row stretched to card width on the way
+  // would read as the type breaking, not as it handing over.
+  const typeStyle = (i) => {
+    const m = mAt(i);
+    const pt = pathAt(i, m);
+    return {
+      transform: `translate(-50%, -50%) translate(${pt.x}px, ${pt.y}px) scale(${lerp(1, 1.06, m)})`,
+      width: C.sourceW,
+      opacity: 1 - ramp(m, 0.14, 0.5),
+      "--row-h": `${C.tileSize}px`,
+      zIndex: 20 + i,
+    };
+  };
+
   // Caption sits under its tile and leaves EARLY — well before the tile
   // itself does. A caption still legible while its tile is halfway to the
   // grid reads as a label that has come unstuck from its object.
   const tileLabelStyle = (i) => {
     const m = mAt(i);
     const pt = pathAt(i, m);
+    const above = C.labelAbove?.(i);
+    const off = C.tileSize * 0.72;
     return {
-      transform: `translate(-50%, 0) translate(${pt.x}px, ${pt.y + C.tileSize * 0.72}px)`,
+      transform: above
+        ? `translate(-50%, -100%) translate(${pt.x}px, ${pt.y - off}px)`
+        : `translate(-50%, 0) translate(${pt.x}px, ${pt.y + off}px)`,
       opacity: 1 - ramp(m, 0.1, 0.34),
     };
   };
@@ -370,24 +411,41 @@ export default function HeroAtelierConstellation({ onEnter, signedIn }) {
           <span className="cinema-orb cinema-orb-b" />
         </div>
 
-        {/* ── ACT 1 — the studio stage ───────────────────────────── */}
-        {/* Rendered at its fixed design size and scaled as one block, so
-            the type inside keeps its proportions at every viewport
-            instead of reflowing into a different composition. */}
-        <div
-          className={hx.stage}
-          aria-hidden="true"
-          style={{
-            transform: `translate(-50%, -50%) translate(${C.stage.x}px, ${C.stage.y}px) scale(${C.stage.k * lerp(1, 0.94, 1 - plateOpacity)})`,
-            opacity: plateOpacity,
-          }}
-        >
-          <StudioStage compact={C.stage.compact} />
-        </div>
+        {/* ── ACT 1 — the centre ─────────────────────────────────── */}
+        {/* Two families of centre, and they are scaled differently on
+            purpose. Ones built from live type (the studio window, the
+            cover plate) are drawn at a FIXED design size and scaled as
+            one block, so their type keeps its proportions instead of
+            reflowing into a different composition at every width. Ones
+            built from geometry (arc, ring, rule, arch) have no internal
+            type to hold, so they simply fill the box the layout gave
+            them. */}
+        {C.centre && (
+          <div
+            className={hx.stage}
+            aria-hidden="true"
+            style={
+              centreFixed
+                ? {
+                    transform: `translate(-50%, -50%) translate(${C.centre.x}px, ${C.centre.y}px) scale(${C.centre.k * lerp(1, 0.94, 1 - plateOpacity)})`,
+                    opacity: plateOpacity,
+                  }
+                : {
+                    width: C.centre.w,
+                    height: C.centre.h,
+                    transform: `translate(-50%, -50%) translate(${C.centre.x}px, ${C.centre.y}px) scale(${lerp(1, 0.96, 1 - plateOpacity)})`,
+                    opacity: plateOpacity,
+                  }
+            }
+          >
+            <Centre kind={C.centre.kind} compact={C.centre.compact} isRTL={isRTL} t={t} />
+          </div>
+        )}
 
         {/* Filaments — the eight modules shown as things the studio
             emits. They release before the tiles move, so the tiles read
             as leaving rather than as dragging the lines with them. */}
+        {C.centre && C.filaments && V.sourceKind === "tile" && (
         <svg
           className={hx.filaments}
           viewBox={`${-vw / 2} ${-vh / 2} ${vw} ${vh}`}
@@ -401,12 +459,13 @@ export default function HeroAtelierConstellation({ onEnter, signedIn }) {
               <path
                 key={kind}
                 className={hx.filament}
-                d={`M ${C.stage.x} ${C.stage.y} Q ${(C.stage.x + a.x) / 2} ${a.y} ${a.x} ${a.y}`}
+                d={`M ${C.centre.x} ${C.centre.y} Q ${(C.centre.x + a.x) / 2} ${a.y} ${a.x} ${a.y}`}
                 strokeOpacity={0.26 - Math.abs(a.x) / (vw * 5)}
               />
             );
           })}
         </svg>
+        )}
 
         {/* Editorial gutter caption — a magazine spine */}
         <span className="atl-spine" aria-hidden="true" style={{ opacity: 1 - lockOut }}>
@@ -432,7 +491,9 @@ export default function HeroAtelierConstellation({ onEnter, signedIn }) {
           className="atl-lockup"
           style={{
             opacity: 1 - lockOut,
-            transform: `translate(-50%, 0) translateY(${C.lockShiftY + lockOut * -64}px) scale(${(1 - lockOut * 0.05) * wordK * C.lockScale})`,
+            // lockX moves the whole masthead off centre — only Spread
+            // uses it, to clear the module rail beside it.
+            transform: `translate(-50%, 0) translate(${C.lockX || 0}px, ${C.lockShiftY + lockOut * -64}px) scale(${(1 - lockOut * 0.05) * wordK * C.lockScale})`,
           }}
         >
           {/* The watermark mirrors the foreground in the *other* script:
@@ -481,33 +542,54 @@ export default function HeroAtelierConstellation({ onEnter, signedIn }) {
             turn and shows it in place, so a second route into the same
             content would be redundant. The list is exposed to assistive
             tech once, as a list, rather than as eight loose graphics. */}
-        <div className={hx.tiles}>
-          <ul style={{ position: "absolute", left: 0, top: 0, margin: 0, padding: 0, listStyle: "none" }}>
-            {HERO_CARDS.map((kind, i) => (
-              <li key={kind}>
-                <div className={hx.tile} style={tileStyle(i)}>
-                  {/* The drift lives on the inner element: a CSS animation's
-                      transform beats an inline one, so an animated outer
-                      tile would discard its scroll position entirely. */}
-                  <div
-                    className={`${hx.tileInner} ${morph > 0 ? hx.tileSettled : hx.tileFloat}`}
-                    style={{ "--i": i }}
-                  >
-                    <span className={hx.tileNum} aria-hidden="true">
-                      {String(i + 1).padStart(2, "0")}
-                    </span>
-                    <Glyph kind={kind} size={Math.round(C.tileSize * 0.4)} />
-                  </div>
-                </div>
-                {C.showLabels && (
-                  <div className={hx.tileLabel} style={tileLabelStyle(i)}>
-                    {t(`atl.art.${kind}`)}
-                  </div>
-                )}
-              </li>
-            ))}
-          </ul>
-        </div>
+        {/* ── the eight sources ──────────────────────────────────── */}
+        {/* Presentational: the walkthrough below takes each module in
+            turn and shows it in place, so a second route into the same
+            content would be redundant. Exposed to assistive tech once,
+            as a list, rather than as eight loose graphics.
+
+            `card` variants render nothing here — their cards ARE the
+            sources and are drawn by the card layer below. */}
+        {!cardsAreSource && (
+          <div className={hx.tiles}>
+            <ul style={{ position: "absolute", left: 0, top: 0, margin: 0, padding: 0, listStyle: "none" }}>
+              {HERO_CARDS.map((kind, i) => (
+                <li key={kind}>
+                  {V.sourceKind === "type" ? (
+                    // A numbered row set in Fraunces. The row is its own
+                    // label, so these variants carry no separate caption.
+                    <div className={hx.typeRow} style={typeStyle(i)}>
+                      <span className={hx.typeNum}>{String(i + 1).padStart(2, "0")}</span>
+                      <span className={hx.typeName}>{t(`atl.art.${kind}`)}</span>
+                      <span className={hx.typeDesc}>{t(`atl.desc.${kind}`)}</span>
+                    </div>
+                  ) : (
+                    <div className={hx.tile} style={tileStyle(i)}>
+                      {/* The drift lives on the inner element: a CSS
+                          animation's transform beats an inline one, so an
+                          animated outer tile would discard its scroll
+                          position entirely. */}
+                      <div
+                        className={`${hx.tileInner} ${morph > 0 ? hx.tileSettled : hx.tileFloat}`}
+                        style={{ "--i": i }}
+                      >
+                        <span className={hx.tileNum} aria-hidden="true">
+                          {String(i + 1).padStart(2, "0")}
+                        </span>
+                        <Glyph kind={kind} size={Math.round(C.tileSize * 0.4)} />
+                      </div>
+                    </div>
+                  )}
+                  {C.showLabels && V.sourceKind === "tile" && (
+                    <div className={hx.tileLabel} style={tileLabelStyle(i)}>
+                      {t(`atl.art.${kind}`)}
+                    </div>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
 
         {/* The line that tells a reader the scene is a map. Sits under
             the lower band, clears as soon as the morph is imminent. */}

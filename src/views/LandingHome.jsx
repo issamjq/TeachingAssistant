@@ -17,7 +17,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { useT, useI18n } from "../lib/i18n";
 import { PLANS } from "../lib/plans";
 import HeroAtelier from "./HeroAtelier";
-import HeroAtelierConstellation from "./HeroAtelierConstellation";
+import HeroStageOne from "./HeroStageOne";
 import Showreel from "./Showreel";
 import PointerFx from "../features/landing-motion/PointerFx";
 import StatsBand from "../features/landing-stats/StatsBand";
@@ -689,10 +689,15 @@ function FinalCTA({ onEnter, signedIn }) {
 // index. The older HeroJourney is parked (snapshot v1.2) and its card
 // faces are reused by HeroAtelier. Manifest / Stage / Lineup stay
 // parked above (unrendered) in case any are wanted back later.
-export default function LandingHome({ onEnter, signedIn, heroVariant = "atelier" }) {
-  // Both cuts open the same pinned act and hand off to the same Showreel,
-  // so swapping them is a component swap and nothing below has to know.
-  const Hero = heroVariant === "constellation" ? HeroAtelierConstellation : HeroAtelier;
+export default function LandingHome({ onEnter, signedIn, heroVariant = null }) {
+  // Every cut opens the same pinned act and hands off to the same
+  // Showreel, so swapping them is a component swap and nothing below has
+  // to know. `null` is the cut that ships at "/" — the original card fan.
+  // Anything else is a stage-one variant id; see
+  // features/hero-constellation/variants.
+  const Hero = heroVariant
+    ? (props) => <HeroStageOne {...props} variant={heroVariant} />
+    : HeroAtelier;
   return (
     <>
       {/* Renders nothing — installs the cursor listeners that drive the

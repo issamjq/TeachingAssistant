@@ -186,3 +186,42 @@
     animation: none;
   }
 }
+
+/* ── type sources ─────────────────────────────────────────────────── */
+/* The Cover and Index variants set the eight modules as numbered rows
+   rather than boxing them in tiles. The row is its own label, so these
+   carry no separate caption — and their size comes from the layout via
+   --row-h, because a contents column and a contents poster want very
+   different type at the same job. */
+.typeRow {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  pointer-events: none;
+  will-change: transform, opacity;
+  height: var(--row-h);
+}
+.typeNum {
+  flex: none;
+  font-family: "JetBrains Mono", monospace;
+  font-size: calc(var(--row-h) * 0.26);
+  letter-spacing: 0.12em;
+  color: oklch(0.9 0.05 191 / 0.55);
+}
+.typeName {
+  font-family: "Fraunces", Georgia, serif;
+  font-weight: 400;
+  font-size: calc(var(--row-h) * 0.54);
+  line-height: 1;
+  white-space: nowrap;
+  color: oklch(0.97 0.02 200 / 0.96);
+}
+.typeDesc {
+  font-family: "Inter Tight", system-ui, sans-serif;
+  font-size: calc(var(--row-h) * 0.22);
+  white-space: nowrap;
+  color: oklch(0.94 0.03 196 / 0.5);
+}

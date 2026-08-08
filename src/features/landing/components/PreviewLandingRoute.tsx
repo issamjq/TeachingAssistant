@@ -3,13 +3,13 @@
 import Landing from "@/views/Landing";
 import { navigate } from "@/lib/route";
 
-// The landing page with the constellation cut of the opening act.
+// The landing page with one stage-one variant swapped into the hero.
 //
-// Same page, same funnel, same everything below the fold — only the hero
-// differs, so what is under review here is exactly the redesign and not
-// a parallel copy of the marketing site that will drift out of step with
-// the real one. When the cut is signed off, "/" switches its heroVariant
-// and this route and its page.tsx go away.
-export default function PreviewLandingRoute() {
-  return <Landing onOpenStudio={() => navigate(["planner"])} heroVariant="constellation" />;
+// Same page, same funnel, same everything below the opening screen — only
+// stage one differs, so what is under review is exactly the design and
+// not a parallel copy of the marketing site that will drift out of step
+// with the real one. When a variant is chosen, "/" takes its id and every
+// preview route goes away.
+export default function PreviewLandingRoute({ variant }: { variant: string }) {
+  return <Landing onOpenStudio={() => navigate(["planner"])} heroVariant={variant} />;
 }
