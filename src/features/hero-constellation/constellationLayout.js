@@ -12,15 +12,23 @@
 // to the pixel. Two of the three drawing it themselves is how you get a
 // filament pointing at nothing.
 //
-// The arrangement is two bowed bands of four, not a ring. The bands ARE
-// the two rows of the 4×2 contents grid, bowed apart and pushed under
-// the lockup — so the morph reads as the constellation straightening
-// into the index, and tile i never has to cross tile j to get home. A
-// ring looked better standing still and turned into a knot the moment
-// it moved.
+// The arrangement is two bands of four, not a ring. The bands ARE the
+// two rows of the 4×2 contents grid, pushed under the lockup — so the
+// morph reads as the constellation straightening into the index, and
+// tile i never has to cross tile j to get home. A ring looked better
+// standing still and turned into a knot the moment it moved.
+//
+// Within a band the four tiles are pushed OUTWARD (-1, -0.62, +0.62, +1
+// of the spread) rather than spaced evenly. Evenly spaced, the two inner
+// tiles of each band sat in the middle of the frame — which is where the
+// studio stage lives. Biased out, the eight tiles frame the stage
+// instead of covering it, and they still arrive at an evenly-spaced grid
+// because the morph interpolates to indexLayout's positions, not to
+// their own.
 // =====================================================================
 
 import { CARD_H, CARD_W } from "../hero-artifacts/indexLayout";
+import { STAGE_H, STAGE_W } from "./StudioStage";
 
 /** Design size of a glyph tile at rest, in px. */
 export const TILE = 78;
@@ -40,7 +48,7 @@ const PORTRAIT_MAX = 560;
  *   tileSize:number,
  *   lockScale:number,
  *   lockShiftY:number,
- *   plate:{x:number,y:number,w:number,h:number},
+ *   stage:{x:number,y:number,w:number,h:number,k:number,compact:boolean},
  *   cardStartScale:number,
  *   isPortrait:boolean,
  * }}
@@ -74,107 +82,100 @@ export function constellationLayout(n, vw, vh, dir, wordK = 1) {
   const lockTop = -vh / 2 + vh * 0.15 + lockShiftY;
   const lockBottom = lockTop + (LOCK_H * (1 + lockS)) / 2;
 
-  const half = TILE / 2;
-  // Bands are bounded by the pin, never by a fixed offset: on a short
-  // window a fixed step put the lower band's tiles through the bottom
-  // edge, where the pin clips them.
-  const bandA = Math.min(lockBottom + 40, vh / 2 - half - 176);
-  const bandB = Math.min(bandA + 164, vh / 2 - half - 22);
+  // Tiles give up a little size on a short window so the stage, the two
+  // bands and their captions all still fit inside the pin.
+  const tileS = isPortrait ? 0.7 : Math.min(1, Math.max(0.78, (vh - 520) / 380));
+  const tileSize = TILE * tileS;
+  const half = tileSize / 2;
 
+  // Four per band, biased outward so the middle of the frame stays clear
+  // for the stage. See the note at the top of this file.
+  const U = [-1, -0.62, 0.62, 1];
+  const cols = U.length;
   const spread = Math.min(vw * 0.4, 500);
-  // The upper band DIPS in the middle rather than bowing up. Bowed up, its
-  // two centre tiles rose into the CTA row — the one part of the frame
-  // that must never be crowded — while its outer tiles wasted the clear
-  // margin either side of the wordmark. Dipped, the band cradles the
-  // lockup: outer tiles sit up beside the tagline, centre tiles hang below
-  // the buttons. The lower band keeps a gentle dip so the two together
-  // still read as a curve around the scene rather than as a table.
-  const bowA = 54;
-  const bowB = 20;
+  const innerX = Math.abs(U[1]) * spread;
 
-  const cols = 4;
-  const band = (i) => {
-    const row = Math.floor(i / cols); // 0 = upper band, 1 = lower band
-    const u = ((i % cols) - (cols - 1) / 2) / ((cols - 1) / 2); // -1 → 1
-    const bow = (row === 0 ? bowA : bowB) * (1 - u * u);
-    return { x: u * spread * dir, y: (row === 0 ? bandA : bandB) + bow, s: 1 };
-  };
+  // ── the studio stage ─────────────────────────────────────────────
+  // Sized by BOTH constraints and never by one: wide enough to be a
+  // legible depiction, but narrow enough to clear the inner tiles, and
+  // short enough to sit between the lockup and the bottom of the pin.
+  const stageTopY = lockBottom + 34;
+  const kByW = ((innerX - half - 34) * 2) / STAGE_W;
+  const kByH = (vh / 2 - 34 - stageTopY) / STAGE_H;
+  const stageK = Math.max(0.42, Math.min(1, kByW, kByH));
+  const stageW = STAGE_W * stageK;
+  const stageH = STAGE_H * stageK;
 
-  // Portrait: four across, two down, and NO captions.
+  // Bands sit either side of the stage's upper and lower thirds, so the
+  // eight tiles read as a frame around it rather than as a list beneath.
+  const stageY = stageTopY + stageH / 2;
+  const bandA = stageY - stageH * 0.26;
+  const bandB = stageY + stageH * 0.26;
+
+  const band = (i) => ({
+    x: U[i % cols] * spread * dir,
+    y: (Math.floor(i / cols) === 0 ? bandA : bandB),
+    s: tileS,
+  });
+
+  // ── portrait ─────────────────────────────────────────────────────
+  // Four across, two down, below the stage, and NO captions.
   //
   // Two columns of four with a caption under each was the obvious
-  // arrangement and it did not survive contact with a phone. Eight rows
+  // arrangement and it did not survive contact with a phone: eight rows
   // of tile-plus-caption need about 390px of the 844 available, which
-  // forced the lockup down to a third of its size — a hero whose brand
-  // mark is smaller than its icons — and even then each caption ran into
-  // the tile below it.
-  //
-  // A phone gets the tiles as a compact plate of eight instead. Nothing
-  // is lost by dropping the captions here: portrait already names all
-  // eight, in full, in the contents LIST a beat later (.atl-mlist), so
-  // the caption was the one element paying for itself twice.
+  // forced the lockup down to a third of its size, and even then each
+  // caption ran into the tile below it. Nothing is lost by dropping the
+  // captions — portrait already names all eight, in full, in the
+  // contents LIST a beat later (.atl-mlist).
+  const pStageK = Math.min(0.82, (vw - 36) / STAGE_W);
+  const pStageW = STAGE_W * pStageK;
+  // Portrait renders the compact crop of the stage — see StudioStage.
+  const pStageH = 150 * pStageK;
+  const pStageY = lockBottom + 26 + pStageH / 2;
   const pCols = 4;
-  const pTileS = 0.78;
-  const pTileH = TILE * pTileS;
   const pColPitch = Math.min((vw - 40) / pCols, 96);
-  // The two rows are CENTRED in the band between the lockup and the cue
-  // rather than stacked from the top of it. Top-stacked, they left a
-  // third of a phone screen empty below the composition, which reads as
-  // the page having ended early.
-  const pBandTop = lockBottom + 34;
-  const pBandBottom = vh / 2 - 78;
-  const pRowPitch = Math.max(pTileH + 24, Math.min(122, pBandBottom - pBandTop - pTileH));
-  const pTop = pBandTop + Math.max(0, (pBandBottom - pBandTop - (pRowPitch + pTileH)) / 2) + pTileH / 2;
+  const pRowPitch = tileSize + 21;
+  const pTop = Math.min(
+    pStageY + pStageH / 2 + 34 + half,
+    vh / 2 - 34 - half - pRowPitch
+  );
   const portraitBand = (i) => ({
     x: ((i % pCols) - (pCols - 1) / 2) * pColPitch * dir,
     y: pTop + Math.floor(i / pCols) * pRowPitch,
-    s: pTileS,
+    s: tileS,
   });
 
   const tile = isPortrait ? portraitBand : band;
+  const stage = isPortrait
+    ? { x: 0, y: pStageY, w: pStageW, h: pStageH, k: pStageK, compact: true }
+    : { x: 0, y: stageY, w: stageW, h: stageH, k: stageK, compact: false };
 
-  // The plate sits behind the bands and is sized to them, so the scene
-  // and the tiles stay one composition at any window size. Height is a
-  // constraint as much as width: sized on width alone, the scene ran off
-  // the bottom of a short window, where the pin clips it.
-  const PLATE_AR = 340 / 900;
-  const plateW = Math.min(vw * 0.86, 940, (vh * 0.46) / PLATE_AR);
-  const plateH = plateW * PLATE_AR;
-
-  // Centred between the bands, the plate put its tallest element — the
-  // teacher's head — directly under the upper band, so four tiles sat on
-  // her face. The scene is dropped so that its top edge clears the upper
-  // band and the teacher reads in the open drench BETWEEN the two bands;
-  // the lower band then floats over the desk and floor, which is where
-  // overlap is wanted. Clamped so the plate can never leave the pin.
-  const plateY = isPortrait
-    ? pTop + pRowPitch / 2
-    : Math.min(bandB - plateH * 0.06, vh / 2 - plateH / 2 - 6);
-
-  // The cue line sits under the whole composition, and is CLAMPED into
-  // the pin rather than hung off the plate: derived from the plate alone
-  // it fell either off the bottom of a short window or, on a phone,
-  // straight through the middle of the tile grid.
-  const lastTileY = isPortrait ? pTop + pRowPitch + (pTileH - TILE) / 2 : bandB + bowB;
-  const cueY = Math.min(
-    Math.max(lastTileY + half + (isPortrait ? 34 : 52), plateY + plateH / 2 + 6),
-    vh / 2 - 26
-  );
+  // The cue line goes under the whole composition, clamped into the pin.
+  // Where there is genuinely no room for it — a short laptop window, a
+  // small phone — it is DROPPED rather than squeezed onto the tiles: the
+  // line is a nicety, the tiles are the content.
+  const lastTileY = (isPortrait ? pTop + pRowPitch : bandB) + half;
+  const captionDrop = isPortrait ? 0 : 30;
+  const cueFloor = Math.max(lastTileY + captionDrop + 34, stage.y + stage.h / 2 + 14);
+  const cueY = Math.min(cueFloor, vh / 2 - 24);
+  const showCue = cueFloor <= vh / 2 - 24;
 
   // A card starts life the size of the tile it is replacing, so the
   // cross-fade lands on matching silhouettes instead of a card popping
   // out of a much smaller square.
-  const cardStartScale = (TILE * (isPortrait ? pTileS : 1) * 1.06) / CARD_W;
+  const cardStartScale = (tileSize * 1.06) / CARD_W;
 
   return {
     tile,
-    tileSize: TILE * (isPortrait ? pTileS : 1),
+    tileSize,
     /** Portrait names the modules in the contents list instead. */
     showLabels: !isPortrait,
     lockScale,
     lockShiftY,
-    plate: { x: 0, y: plateY, w: plateW, h: plateH },
+    stage,
     cueY,
+    showCue,
     cardStartScale,
     isPortrait,
   };

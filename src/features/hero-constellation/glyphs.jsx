@@ -1,14 +1,18 @@
 "use client";
 
 // =====================================================================
-// Hero constellation — glyph set + studio plate
+// Hero constellation — glyph set
 //
-// The opening frame of the landing is a single scene rather than a pile
-// of cards: a teal studio stage drawn as line art, with the eight
-// modules floating over it as gold glyph tiles. Those tiles are the
-// SAME eight things the contents index and the walkthrough show, so the
-// keys here are HERO_CARDS keys verbatim — a glyph missing from this map
-// is a module that would vanish mid-morph.
+// One line glyph per module, for the tiles that orbit the studio stage
+// in the opening frame. These are the SAME eight things the contents
+// index and the walkthrough show, so the keys here are HERO_CARDS keys
+// verbatim — a glyph missing from this map is a module that would
+// vanish mid-morph.
+//
+// (This file also held a drawn studio scene. It was replaced by
+// StudioStage, which builds the centre out of real product UI: an
+// illustrated figure among live product surfaces read as clip art next
+// to them, and illustration appears nowhere else in Murchid.)
 //
 // Everything is stroke-on-transparent at 24×24 so a tile can size the
 // glyph purely with width/height, and colour it with `currentColor`.
@@ -103,108 +107,6 @@ export function Glyph({ kind, size = 30 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
       {g}
-    </svg>
-  );
-}
-
-// ── The studio plate ─────────────────────────────────────────────────
-// The "one image" the opening frame is built around: a teacher at a lit
-// studio surface, an AI screen behind her, a perspective floor running
-// off into the drench. Drawn rather than photographed so it inherits the
-// Murchid palette exactly (gold line on teal) and costs no image bytes,
-// and so the glyph tiles can float over it at any size without a
-// resolution mismatch.
-//
-// Purely decorative — aria-hidden, no text, no interaction.
-export function StudioPlate({ className }) {
-  return (
-    <svg
-      className={className}
-      viewBox="0 0 900 340"
-      fill="none"
-      aria-hidden="true"
-      preserveAspectRatio="xMidYMid meet"
-    >
-      <defs>
-        <linearGradient id="hxFloor" x1="450" y1="150" x2="450" y2="340" gradientUnits="userSpaceOnUse">
-          <stop offset="0%" stopColor="oklch(0.88 0.075 192)" stopOpacity="0.34" />
-          <stop offset="100%" stopColor="oklch(0.88 0.075 192)" stopOpacity="0" />
-        </linearGradient>
-        <linearGradient id="hxScreen" x1="450" y1="40" x2="450" y2="190" gradientUnits="userSpaceOnUse">
-          <stop offset="0%" stopColor="oklch(0.72 0.10 195)" stopOpacity="0.20" />
-          <stop offset="100%" stopColor="oklch(0.30 0.07 205)" stopOpacity="0.30" />
-        </linearGradient>
-        <radialGradient id="hxHalo" cx="450" cy="150" r="300" gradientUnits="userSpaceOnUse">
-          <stop offset="0%" stopColor="oklch(0.88 0.075 192)" stopOpacity="0.22" />
-          <stop offset="100%" stopColor="oklch(0.88 0.075 192)" stopOpacity="0" />
-        </radialGradient>
-      </defs>
-
-      {/* Stage halo — the light the whole scene sits in */}
-      <ellipse cx="450" cy="176" rx="330" ry="150" fill="url(#hxHalo)" />
-
-      {/* Perspective floor. Lines converge behind the figure, which is
-          what gives the plate its depth without any 3D. */}
-      <g stroke="oklch(0.88 0.075 192)" strokeOpacity="0.26" strokeWidth="1">
-        <path d="M450 196 L60 340 M450 196 L215 340 M450 196 L370 340 M450 196 L530 340 M450 196 L685 340 M450 196 L840 340" />
-        <path d="M250 250 H650" strokeOpacity="0.18" />
-        <path d="M170 300 H730" strokeOpacity="0.12" />
-      </g>
-      <path d="M120 340 L450 196 L780 340 Z" fill="url(#hxFloor)" />
-
-      {/* The AI screen behind the desk — a node graph, the machine half */}
-      <g>
-        <rect x="546" y="52" width="252" height="150" rx="10" fill="url(#hxScreen)" stroke="oklch(0.88 0.075 192)" strokeOpacity="0.5" />
-        <g stroke="oklch(0.88 0.075 192)" strokeOpacity="0.55" strokeWidth="1" fill="none">
-          <path d="M596 152 L640 108 L700 130 L748 88" />
-          <path d="M640 108 L648 168 M700 130 L744 158" />
-        </g>
-        <g fill="oklch(0.88 0.075 192)" fillOpacity="0.85">
-          <circle cx="596" cy="152" r="3.5" />
-          <circle cx="640" cy="108" r="3.5" />
-          <circle cx="700" cy="130" r="3.5" />
-          <circle cx="748" cy="88" r="3.5" />
-          <circle cx="648" cy="168" r="3" />
-          <circle cx="744" cy="158" r="3" />
-        </g>
-        <path d="M660 202 v18 M614 226 h92" stroke="oklch(0.88 0.075 192)" strokeOpacity="0.4" strokeWidth="1.5" strokeLinecap="round" />
-      </g>
-
-      {/* The teacher — the human half, and deliberately the tallest
-          element on the plate. Line art, no face: she reads as any
-          teacher rather than one stock person. */}
-      <g stroke="oklch(0.92 0.08 190)" strokeOpacity="0.9" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" fill="none">
-        <circle cx="392" cy="76" r="21" />
-        <path d="M371 72 a21 21 0 0 1 42 0 a30 30 0 0 0-42 0 Z" fill="oklch(0.92 0.08 190)" fillOpacity="0.28" stroke="none" />
-        <path d="M392 97 v18" />
-        <path d="M356 196 c0-46 12-78 36-81 c24 3 36 35 36 81" fill="oklch(0.92 0.08 190)" fillOpacity="0.1" />
-        {/* the raised, pointing arm — she is directing the studio */}
-        <path d="M424 126 L468 104 L498 92" />
-        <path d="M498 92 l9-4" />
-        <path d="M360 128 L344 168 L352 186" />
-        <path d="M366 196 v34 M418 196 v34" />
-      </g>
-
-      {/* Desk + the lesson surface she is working on */}
-      <g>
-        <rect x="196" y="196" width="300" height="9" rx="4.5" fill="oklch(0.88 0.075 192)" fillOpacity="0.4" />
-        <path d="M216 205 v46 M476 205 v46" stroke="oklch(0.88 0.075 192)" strokeOpacity="0.35" strokeWidth="1.5" strokeLinecap="round" />
-        <rect x="232" y="160" width="112" height="36" rx="5" fill="oklch(0.96 0.02 200)" fillOpacity="0.14" stroke="oklch(0.88 0.075 192)" strokeOpacity="0.45" transform="rotate(-6 288 178)" />
-        <g stroke="oklch(0.88 0.075 192)" strokeOpacity="0.5" strokeWidth="1.5" strokeLinecap="round" transform="rotate(-6 288 178)">
-          <path d="M246 172 h58 M246 182 h78" />
-        </g>
-      </g>
-
-      {/* Light ribbon — the thread that runs through the whole landing,
-          here tying the desk to the screen. */}
-      <path
-        d="M150 268 C 300 232, 340 300, 470 252 C 590 208, 640 262, 800 214"
-        stroke="oklch(0.94 0.07 190)"
-        strokeOpacity="0.34"
-        strokeWidth="1.5"
-        fill="none"
-        strokeLinecap="round"
-      />
     </svg>
   );
 }

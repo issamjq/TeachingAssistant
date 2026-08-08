@@ -11,38 +11,20 @@
    restated, so the frame stays in step with the rest of the drench.
    ===================================================================== */
 
-/* ── the studio plate ─────────────────────────────────────────────── */
-/* NOTE — the split between .plate and .plateBreathe is load-bearing, not
-   tidiness. Scroll position is applied as an inline transform, and a CSS
-   animation's transform beats an inline one; putting both on one element
-   left the plate pinned at the origin with the scroll offset silently
-   discarded. The outer element positions, the inner one animates, and
-   neither touches the other's property. Same reason for
-   .tile / .tileInner below. */
-.plate {
+/* ── the studio stage ─────────────────────────────────────────────── */
+/* Positioning only. Scroll position is applied as an inline transform,
+   and a CSS animation's transform beats an inline one — so an element
+   that both positions and animates loses its scroll offset silently.
+   The stage's own ambient motion lives inside StudioStage.module.css on
+   elements that never carry a transform. Same split for .tile /
+   .tileInner below. */
+.stage {
   position: absolute;
   z-index: 2;
   left: 50%;
   top: 50%;
   pointer-events: none;
   will-change: transform, opacity;
-}
-.plateBreathe {
-  width: 100%;
-  height: 100%;
-}
-.plateSvg {
-  display: block;
-  width: 100%;
-  height: 100%;
-  overflow: visible;
-}
-
-/* Slow breathing on the whole scene so the frame is alive while the
-   reader is still deciding whether to scroll. 18s: below the threshold
-   where it reads as an animation rather than as light moving. */
-.plateBreathe {
-  animation: hxBreathe 18s ease-in-out infinite;
 }
 
 /* ── connector filaments ──────────────────────────────────────────── */

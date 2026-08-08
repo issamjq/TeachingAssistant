@@ -37,7 +37,8 @@ import { useT, useI18n } from "../lib/i18n";
 import { HERO_CARDS, HeroCardFace } from "./HeroJourney";
 import { CARD_H, deckCenterX, deckPos, indexLayout } from "../features/hero-artifacts/indexLayout";
 import { constellationLayout } from "../features/hero-constellation/constellationLayout";
-import { Glyph, StudioPlate } from "../features/hero-constellation/glyphs";
+import { Glyph } from "../features/hero-constellation/glyphs";
+import StudioStage from "../features/hero-constellation/StudioStage";
 import hx from "../features/hero-constellation/HeroConstellation.module.css";
 
 import WalkthroughLayer, { WalkthroughStacked } from "../features/tool-walkthrough/WalkthroughLayer";
@@ -369,22 +370,19 @@ export default function HeroAtelierConstellation({ onEnter, signedIn }) {
           <span className="cinema-orb cinema-orb-b" />
         </div>
 
-        {/* ── ACT 1 — the studio plate ───────────────────────────── */}
+        {/* ── ACT 1 — the studio stage ───────────────────────────── */}
+        {/* Rendered at its fixed design size and scaled as one block, so
+            the type inside keeps its proportions at every viewport
+            instead of reflowing into a different composition. */}
         <div
-          className={hx.plate}
+          className={hx.stage}
           aria-hidden="true"
           style={{
-            width: C.plate.w,
-            height: C.plate.h,
-            transform: `translate(-50%, -50%) translate(${C.plate.x}px, ${C.plate.y}px) scale(${lerp(1.04, 0.9, 1 - plateOpacity)})`,
+            transform: `translate(-50%, -50%) translate(${C.stage.x}px, ${C.stage.y}px) scale(${C.stage.k * lerp(1, 0.94, 1 - plateOpacity)})`,
             opacity: plateOpacity,
           }}
         >
-          {/* Inner element owns the ambient breathing — a CSS animation's
-              transform would otherwise beat the scroll transform above. */}
-          <div className={hx.plateBreathe}>
-            <StudioPlate className={hx.plateSvg} />
-          </div>
+          <StudioStage compact={C.stage.compact} />
         </div>
 
         {/* Filaments — the eight modules shown as things the studio
@@ -403,7 +401,7 @@ export default function HeroAtelierConstellation({ onEnter, signedIn }) {
               <path
                 key={kind}
                 className={hx.filament}
-                d={`M ${C.plate.x} ${C.plate.y + C.plate.h * 0.06} Q ${(C.plate.x + a.x) / 2} ${a.y} ${a.x} ${a.y}`}
+                d={`M ${C.stage.x} ${C.stage.y} Q ${(C.stage.x + a.x) / 2} ${a.y} ${a.x} ${a.y}`}
                 strokeOpacity={0.26 - Math.abs(a.x) / (vw * 5)}
               />
             );
@@ -516,7 +514,7 @@ export default function HeroAtelierConstellation({ onEnter, signedIn }) {
         <div
           className={hx.sceneCue}
           style={{
-            opacity: cueOut * 0.9,
+            opacity: C.showCue ? cueOut * 0.9 : 0,
             transform: `translate(-50%, -50%) translateY(${C.cueY}px)`,
           }}
         >
