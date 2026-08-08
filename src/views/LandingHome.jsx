@@ -695,9 +695,13 @@ export default function LandingHome({ onEnter, signedIn, heroVariant = null }) {
   // to know. `null` is the cut that ships at "/" — the original card fan.
   // Anything else is a stage-one variant id; see
   // features/hero-constellation/variants.
-  const Hero = heroVariant
-    ? (props) => <HeroStageOne {...props} variant={heroVariant} />
-    : HeroAtelier;
+  // "legacy" is the original card fan — a different component, not a
+  // stage-one variant, kept reachable at /preview2 so the design it
+  // replaced stays one click from every alternative. null means the same
+  // thing, for any caller that has not been updated.
+  const Hero = !heroVariant || heroVariant === "legacy"
+    ? HeroAtelier
+    : (props) => <HeroStageOne {...props} variant={heroVariant} />;
   return (
     <>
       {/* Renders nothing — installs the cursor listeners that drive the

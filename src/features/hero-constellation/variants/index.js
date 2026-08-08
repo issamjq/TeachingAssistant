@@ -1,7 +1,9 @@
 // =====================================================================
 // Stage-one variants — the registry
 //
-// Seven treatments of the landing's opening frame. Everything after the
+// Six treatments of the landing's opening frame, plus the one it
+// replaced — the original card fan, kept at slot 2 so the incumbent is
+// always one click from every alternative. Everything after the
 // opening — the contents index, the walkthrough deck, and the whole rest
 // of the page — is identical across all seven, so what is being compared
 // here really is just the first screen.
@@ -36,12 +38,15 @@ export const VARIANTS = [
     sourceKind: "tile",
   },
   {
-    id: "aperture",
-    name: "Aperture",
-    line: "A shallow arc of stage light with the modules standing on it.",
-    why: "Cinematic and calm. Geometry only, so nothing in it can date or render badly.",
-    layout: L.aperture,
-    sourceKind: "tile",
+    id: "legacy",
+    name: "Card fan",
+    line: "What the landing looked like before any of this — eight cards dealt out of a fan.",
+    why: "Here to be compared against, not chosen. Kept at a route of its own so the incumbent is one click away from every alternative.",
+    // No layout: this one is not a stage-one variant at all. It renders
+    // the original HeroAtelier, which LandingHome branches to directly —
+    // see the `legacy` check there.
+    layout: null,
+    sourceKind: null,
   },
   {
     id: "bureau",
@@ -88,6 +93,12 @@ export const VARIANTS = [
 /** Route path for variant index i (0-based). */
 export const pathFor = (i) => `/preview${i + 1}`;
 
+/**
+ * Only entries that ARE stage-one variants. The card fan has no layout —
+ * it is a different component entirely — so it must never be returned
+ * here, including as the fallback for an unknown id.
+ */
 export function variantById(id) {
-  return VARIANTS.find((v) => v.id === id) || VARIANTS[0];
+  const hit = VARIANTS.find((v) => v.id === id && v.layout);
+  return hit || VARIANTS.find((v) => v.layout);
 }

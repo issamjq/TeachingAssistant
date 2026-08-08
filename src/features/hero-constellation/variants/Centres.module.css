@@ -80,54 +80,6 @@
   }
 }
 
-/* ── aperture ─────────────────────────────────────────────────────── */
-.aperture,
-.signal,
-.mihrab {
-  position: relative;
-  width: 100%;
-  height: 100%;
-  pointer-events: none;
-}
-.apRing,
-.apRingInner {
-  position: absolute;
-  inset-inline: 8%;
-  inset-block-start: 4%;
-  height: 92%;
-  border-radius: 50%;
-  border: 1px solid oklch(0.92 0.06 191 / 0.16);
-}
-.apRingInner {
-  inset-inline: 22%;
-  inset-block-start: 16%;
-  height: 68%;
-  border-color: oklch(0.92 0.06 191 / 0.1);
-}
-/* The light the arc stands in. Kept broad and low-contrast: a tight,
-   bright pool read as a spotlight effect rather than as stage light. */
-.apPool {
-  position: absolute;
-  inset: -20% -10%;
-  background: radial-gradient(
-    ellipse 52% 46% at 50% 52%,
-    oklch(0.86 0.08 190 / 0.16),
-    transparent 72%
-  );
-}
-.apHorizon {
-  position: absolute;
-  inset-inline: 0;
-  inset-block-start: 50%;
-  height: 1px;
-  background: linear-gradient(
-    to right,
-    transparent,
-    oklch(0.92 0.06 191 / 0.34),
-    transparent
-  );
-}
-
 /* ── signal ───────────────────────────────────────────────────────── */
 .sigLine {
   position: absolute;
@@ -329,16 +281,6 @@
    drift apart. The 1.4s offset lets the page settle before anything
    starts moving. */
 
-/* Aperture — a beam sweeping across the arc. */
-.apSweep {
-  position: absolute;
-  inset-block: -10%;
-  inset-inline-start: -20%;
-  width: 26%;
-  pointer-events: none;
-  background: linear-gradient(100deg, transparent, oklch(0.93 0.08 189 / 0.18), transparent);
-  animation: cxSweepX var(--lit-run, 7s) ease-in-out 1.4s infinite;
-}
 
 /* Bureau — a lamp crossing the desk, left to right. */
 .bureauSweep {
@@ -415,7 +357,6 @@
   .rbBead,
   .rbThreadGlow,
   .rbThreadLine,
-  .apSweep,
   .bureauSweep,
   .sigPulseV,
   .srcBead,

@@ -199,59 +199,6 @@ export function atelier(n, vw, vh, dir, wordK) {
   });
 }
 
-// ── 2 · APERTURE ─────────────────────────────────────────────────────
-// A wide arc of light — a stage aperture — with the eight modules
-// standing on it. The arc is struck from a centre far above the pin, so
-// what you see is a shallow, almost architectural curve rather than a
-// circle, and the tiles read as placed on a horizon.
-export function aperture(n, vw, vh, dir, wordK) {
-  const b = base(vw, vh, wordK);
-  if (b.tier === "tablet")
-    return done(b, vw, vh, tabletRow(b, vw, vh, dir, {
-    wave: (i) => -Math.round((1 - Math.abs((i - 3.5) / 3.5) ** 2) * 22),
-    centre: (g, size) => ({ x: 0, y: g.tile(0).y - 8, w: Math.min(vw * 0.92, 1180), h: size + 130, k: 1, kind: "aperture" }),
-    pulseDur: 7.6,
-    }));
-  if (b.isPortrait) {
-    // The arc, stood on end: the two columns bow OUT at the middle rows,
-    // so the eight sit on a curve rather than in a rectangle, with the
-    // aperture's rings drawn around them.
-    const { g, s, size } = phoneBase(b, vw, vh, dir, { bow: [-14, 10, 10, -14] });
-    return done(b, vw, vh, {
-      tile: g.tile, tileSize: size, labelW: g.labelW, lastY: g.lastY, showDesc: g.showDesc,
-      pulseAt: (i) => Math.floor(i / 2) / 4 + (i % 2) * 0.06,
-      pulseDur: 7.6,
-      centre: { x: 0, y: g.midY, w: g.colPitch * 2 + size, h: g.height + 60, k: 1, kind: "aperture" },
-    });
-  }
-
-  const s = tileScale(vh, b.tier);
-  const size = TILE * s;
-  const spread = Math.min(vw * (b.tier === "tablet" ? 0.37 : 0.42), 560);
-  const topY = b.lockBottom + 40;
-  const depth = Math.max(bandGap(size), Math.min(126, vh / 2 - 46 - topY - size / 2));
-
-  // Two arcs, four on each, the lower one wider — a shallow amphitheatre.
-  const arc = (i) => {
-    const row = Math.floor(i / 4);
-    const u = ((i % 4) - 1.5) / 1.5;
-    const w = spread * (row === 0 ? 0.72 : 1);
-    const rise = (1 - u * u) * (row === 0 ? 26 : 40);
-    return { x: u * w * dir, y: topY + size / 2 + row * depth - rise, s };
-  };
-
-  return done(b, vw, vh, {
-    tile: arc,
-    tileSize: size,
-    // Across the arc, near row first — the way a stage light sweeps.
-    pulseAt: (i) => (i % 4) / 4 * 0.44 + (i < 4 ? 0.04 : 0.5),
-    pulseDur: 7.6,
-    filaments: false,
-    centre: { x: 0, y: topY + depth * 0.6, w: spread * 2.1, h: depth * 2.4, k: 1, kind: "aperture" },
-    lastY: topY + size / 2 + depth + size / 2 + 30,
-  });
-}
-
 // ── 3 · BUREAU ───────────────────────────────────────────────────────
 // The desk, seen from slightly above. The studio window lies back in
 // perspective and the eight modules sit around it as objects that have

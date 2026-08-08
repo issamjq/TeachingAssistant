@@ -78,24 +78,6 @@ function Ribbon({ isRTL, w = 1240, h = 170 }) {
   );
 }
 
-// ── aperture ─────────────────────────────────────────────────────────
-// A shallow arc of light with the horizon it stands on. Geometry only:
-// two ellipses and a rule, so it scales to any size without any of the
-// resolution or taste problems a drawn scene brings.
-function Aperture() {
-  return (
-    <div className={cx.aperture} aria-hidden="true">
-      <span className={cx.apRing} />
-      <span className={cx.apRingInner} />
-      <span className={cx.apPool} />
-      <span className={cx.apHorizon} />
-      {/* The sweep: a soft beam crossing the arc, on the same run the
-          modules' glows are, so each lights as the beam reaches it. */}
-      <span className={cx.apSweep} />
-    </div>
-  );
-}
-
 // ── signal ───────────────────────────────────────────────────────────
 // One luminous rule across the frame, brightest in the middle and
 // falling off to nothing at both ends so it never collides with the edge
@@ -261,8 +243,6 @@ export default function Centre({ kind, compact, isRTL, t, size, points }) {
       return <SignalV />;
     case "sweep":
       return <Sweep />;
-    case "aperture":
-      return <Aperture />;
     case "signal":
       return <Signal />;
     case "mihrab":
