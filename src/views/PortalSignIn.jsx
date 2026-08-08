@@ -195,11 +195,15 @@ export default function PortalSignIn({ portal }) {
               onClick={() => handleProvider("google")}
               disabled={signingIn}
             />
+            {/* Microsoft is not live yet — the Supabase project reports
+                azure: false and it needs an Azure app registration of its
+                own. Marked rather than removed, and wired to nothing so
+                it cannot fail. See the .tsx portal screen for the same. */}
             <ProviderButton
               icon={<OutlookMark />}
-              label={signingIn ? t("portal.opening") : t("portal.continueMicrosoft")}
-              onClick={() => handleProvider("microsoft")}
-              disabled={signingIn}
+              label={`${t("portal.continueMicrosoft")} · ${t("portal.comingSoon")}`}
+              onClick={() => {}}
+              disabled
             />
           </div>
 

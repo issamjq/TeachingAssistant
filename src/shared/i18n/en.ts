@@ -1050,4 +1050,5 @@ export const EN = {
   "faq.a6": "Yes. Plans cover individual teachers and full departments, with school-level dashboards for heads of department and administrators. Talk to us and we will size it with you.",
   "faq.q7": "What does the free trial include?",
   "faq.a7": "Seven days of the whole studio — every module, no card required. If you stop there, nothing is charged.",
+  "portal.comingSoon": "Soon",
 };

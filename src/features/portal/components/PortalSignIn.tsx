@@ -258,13 +258,19 @@ export default function PortalSignIn({ portal }: { portal: Portal }) {
               onClick={() => handleProvider("google")}
               disabled={signingIn}
             />
+            {/* Microsoft is not live yet: the Supabase project reports
+                azure: false, and it needs an Azure app registration of its
+                own — the Firebase config did not carry over. Left visible
+                and clearly marked rather than removed, because portal
+                users who signed in with Outlook before need to see that
+                it is coming back rather than silently vanishing. Wired to
+                nothing, so it cannot fail. */}
             <ProviderButton
               icon={<OutlookMark />}
-              label={
-                signingIn ? t("portal.opening") : t("portal.continueMicrosoft")
-              }
-              onClick={() => handleProvider("microsoft")}
-              disabled={signingIn}
+              label={t("portal.continueMicrosoft")}
+              badge={t("portal.comingSoon")}
+              onClick={() => {}}
+              disabled
             />
           </div>
 
@@ -303,25 +309,38 @@ function ProviderButton({
   label,
   onClick,
   disabled,
+  badge,
 }: {
   icon: React.ReactNode;
   label: string;
   onClick: () => void;
   disabled?: boolean;
+  /** Marks a provider that is present but not yet live. */
+  badge?: string;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={disabled}
+      // A disabled control still has to be readable: 0.5 alpha on body
+      // text is under 4.5:1, so a badged button dims less and says why
+      // instead of leaving the reader to guess.
       className={`w-full flex items-center justify-center gap-3 px-5 py-3.5 rounded-xl text-sm font-medium transition border bg-paper text-ink ${
         disabled
-          ? "cursor-not-allowed opacity-50"
+          ? badge
+            ? "cursor-default border-line opacity-75"
+            : "cursor-not-allowed opacity-50"
           : "border-line hover:border-ink hover:-translate-y-px"
       }`}
     >
       <span className="flex-shrink-0 inline-flex">{icon}</span>
       <span>{label}</span>
+      {badge && (
+        <span className="ms-1 rounded-full border border-line px-2 py-0.5 font-mono text-[9px] uppercase tracking-[0.14em] text-muted">
+          {badge}
+        </span>
+      )}
     </button>
   );
 }
