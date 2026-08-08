@@ -17,6 +17,7 @@ import notificationsRouter from "./routes/notifications.js";
 import libraryRouter from "./routes/library.js";
 import dashboardRouter from "./routes/dashboard.js";
 import studioRouter from "./routes/studio.js";
+import onboardingRouter from "./routes/onboarding.js";
 import imagesRouter from "./routes/images.js";
 import schoolsRouter from "./routes/schools.js";
 import authRouter from "./routes/auth.js";
@@ -101,6 +102,27 @@ export function buildApp() {
   // the teacher row exists. The /mine endpoints inside still bail with
   // 404 when there's no teacher.
   app.use("/api/schools", requireAuth({ optional: true }), schoolsRouter);
+
+  // 10b. Onboarding document parsing. Mounted before the global
+  // requireAuth for the same reason /api/auth is: it runs DURING sign-up,
+  // when the Supabase session exists but the teacher row does not, and
+  // full enforcement would 404 every call with "Teacher not provisioned".
+  //
+  // A valid token is still mandatory — this route calls a paid model, so
+  // it must never be reachable unauthenticated. optional:false with
+  // skipSessionCheck gives exactly that: prove who you are, no row
+  // required. The tighter auth limiter applies too; parsing is expensive
+  // and a teacher does it once.
+  app.use(
+    "/api/onboarding",
+    buildAuthRateLimit(),
+    requireAuth({ optional: true, skipSessionCheck: true }),
+    (req, res, next) =>
+      req.authUser
+        ? next()
+        : res.status(401).json({ error: "Sign in before uploading documents." }),
+    onboardingRouter
+  );
 
   // 11. From here down: requireAuth() = full enforcement (valid token
   // + teacher row + non-expired subscription).
