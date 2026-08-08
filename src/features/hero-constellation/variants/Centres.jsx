@@ -142,7 +142,7 @@ function Mihrab() {
 //
 // Struck geometrically rather than drawn as ornament: the star has to
 // hold a masthead in its middle without competing with it.
-function Khatim({ arch }) {
+function Khatim() {
   const R = 50;
   // Two squares at 45° to each other, both offset by 22.5° so the eight
   // resulting points fall exactly where the layout stands the modules —
@@ -156,20 +156,6 @@ function Khatim({ arch }) {
       .join(" ");
   return (
     <div className={cx.khatim} aria-hidden="true">
-      {arch && (
-        <svg
-          className={cx.khArch}
-          viewBox="0 0 100 160"
-          preserveAspectRatio="none"
-          style={{
-            width: arch.w,
-            height: arch.h,
-            insetBlockStart: arch.top,
-          }}
-        >
-          <path className={cx.archLine} d={archPath(0)} vectorEffect="non-scaling-stroke" />
-        </svg>
-      )}
       <svg className={cx.khStar} viewBox="0 0 100 100" preserveAspectRatio="none">
         <polygon className={cx.khLine} points={pts(22.5)} />
         <polygon className={cx.khLine} points={pts(67.5)} />
@@ -191,7 +177,7 @@ function Khatim({ arch }) {
  * (including undefined) falls back to the studio window, which is the
  * centre most variants want.
  */
-export default function Centre({ kind, compact, isRTL, t, arch, size }) {
+export default function Centre({ kind, compact, isRTL, t, size }) {
   switch (kind) {
     case "ribbon":
       return <Ribbon isRTL={isRTL} w={size?.w} h={size?.h} />;
@@ -202,7 +188,7 @@ export default function Centre({ kind, compact, isRTL, t, arch, size }) {
     case "mihrab":
       return <Mihrab />;
     case "khatim":
-      return <Khatim arch={arch} />;
+      return <Khatim />;
     case "bureau":
       // The same studio window, laid back in perspective. The tilt is a
       // wrapper rather than a prop so StudioStage stays a flat surface

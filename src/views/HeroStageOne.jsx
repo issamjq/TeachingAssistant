@@ -198,6 +198,9 @@ export default function HeroStageOne({ onEnter, signedIn, variant }) {
   const L = indexLayout(N, vw, vh, dir, isRTL);
   const wordK = L.wordK;
   const C = V.layout(N, vw, vh, dir, wordK);
+  // What the masthead block is scaled by. Named because the CTA row
+  // divides it back out — see the note there.
+  const lockTotal = wordK * C.lockScale;
   // Cards are their own source in the `card` variants, so there is no
   // cross-fade to run: they are simply visible from the first frame and
   // the morph is pure position and scale.
@@ -401,10 +404,29 @@ export default function HeroStageOne({ onEnter, signedIn, variant }) {
                 <span key={i}>{tok.brand ? <em>{tok.w}</em> : tok.w} </span>
               ))}
             </h2>
-            <div className="atl-cta-row">
-              <button type="button" className="atl-pill" onClick={onEnter}>{ctaLabel}</button>
-            </div>
-            <div className="atl-trust">{t("atl.trust")}</div>
+            {/* No counter-scale. The masthead now renders at exactly the
+              size it does at "/", so these are already the same buttons
+              at the same size — only better lit. This used to divide out
+              a shrunken masthead's scale; that shrinking is gone. */}
+          <div className={hx.ctaRow}>
+            <button type="button" className={`${hx.ctaPrimary} lp-magnetic`} onClick={onEnter}>
+              {ctaLabel}
+              <svg className={hx.ctaArrow} width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                <path d="M3 8h9M8.5 4l4 4-4 4" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              className={`${hx.ctaGhost} lp-magnetic`}
+              onClick={() => {
+                const el = document.getElementById("sec-how");
+                if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+              }}
+            >
+              {t("landing.hero.ctaGhost")}
+            </button>
+          </div>
+          <div className="atl-trust">{t("atl.trust")}</div>
           </div>
           <WalkthroughStacked />
         </div>
@@ -466,11 +488,6 @@ export default function HeroStageOne({ onEnter, signedIn, variant }) {
               kind={C.centre.kind}
               compact={C.centre.compact}
               bays={C.centre.bays}
-              arch={
-                C.centre.archH
-                  ? { w: C.centre.archW, h: C.centre.archH, top: C.centre.archTop - C.centre.y + C.centre.h / 2 }
-                  : null
-              }
               size={{ w: C.centre.w, h: C.centre.h }}
               isRTL={isRTL}
               t={t}
@@ -529,7 +546,7 @@ export default function HeroStageOne({ onEnter, signedIn, variant }) {
             opacity: 1 - lockOut,
             // lockX moves the whole masthead off centre — only Spread
             // uses it, to clear the module rail beside it.
-            transform: `translate(-50%, 0) translate(${C.lockX || 0}px, ${C.lockShiftY + lockOut * -64}px) scale(${(1 - lockOut * 0.05) * wordK * C.lockScale})`,
+            transform: `translate(-50%, 0) translate(${C.lockX || 0}px, ${C.lockShiftY + lockOut * -64}px) scale(${lockTotal * (1 - lockOut * 0.05)})`,
           }}
         >
           {/* The watermark mirrors the foreground in the *other* script:
@@ -555,13 +572,22 @@ export default function HeroStageOne({ onEnter, signedIn, variant }) {
               </span>
             ))}
           </h2>
-          <div className="atl-cta-row">
-            <button type="button" className="atl-pill lp-magnetic" onClick={onEnter}>
+          {/* Same buttons, same size as "/" — the masthead is no longer
+              scaled down by the variant, so these render identically. What
+              changed is how visible they are: the ghost's boundary was a
+              hairline at 0.3 alpha over a mid-tone drench, which is under
+              3:1 and does not read as a control at all, and neither had
+              anything drawing the eye back to it. */}
+          <div className={hx.ctaRow}>
+            <button type="button" className={`${hx.ctaPrimary} lp-magnetic`} onClick={onEnter}>
               {ctaLabel}
+              <svg className={hx.ctaArrow} width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                <path d="M3 8h9M8.5 4l4 4-4 4" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
             </button>
             <button
               type="button"
-              className="cinema-ghost lp-magnetic"
+              className={`${hx.ctaGhost} lp-magnetic`}
               onClick={() => {
                 const el = document.getElementById("sec-how");
                 if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -606,8 +632,8 @@ export default function HeroStageOne({ onEnter, signedIn, variant }) {
                           animated outer tile would discard its scroll
                           position entirely. */}
                       <div
-                        className={`${hx.tileInner} ${morph > 0 ? hx.tileSettled : hx.tileFloat}`}
-                        style={{ "--i": i }}
+                        className={`${hx.tileInner} ${morph > 0 ? hx.tileSettled : hx.tileFloat} ${morph < 0.02 ? hx.tileIn : ""}`}
+                        style={{ "--i": i, "--pulse": C.pulseAt?.(i) ?? i / N }}
                       >
                         {/* Lit as the centre's travelling light reaches
                             this module. Its own element rather than a
@@ -618,11 +644,13 @@ export default function HeroStageOne({ onEnter, signedIn, variant }) {
                             sources are in flight by then and a glow
                             following them reads as a rendering fault. */}
                         {C.pulseAt && morph < 0.02 && (
-                          <span
-                            className={hx.tileLit}
-                            style={{ "--pulse": C.pulseAt(i) }}
-                            aria-hidden="true"
-                          />
+                          <>
+                            <span className={hx.tileLit} aria-hidden="true" />
+                            {/* The ping: a ring pushed outward on the beat
+                                the light arrives, so it reads as reaching
+                                this module rather than passing behind it. */}
+                            <span className={hx.tileRing} aria-hidden="true" />
+                          </>
                         )}
                         <span className={hx.tileNum} aria-hidden="true">
                           {String(i + 1).padStart(2, "0")}
@@ -632,7 +660,10 @@ export default function HeroStageOne({ onEnter, signedIn, variant }) {
                     </div>
                   )}
                   {C.showLabels && V.sourceKind === "tile" && (
-                    <div className={hx.tileLabel} style={tileLabelStyle(i)}>
+                    <div
+                      className={`${hx.tileLabel} ${morph < 0.02 ? hx.tileLabelIn : ""}`}
+                      style={{ ...tileLabelStyle(i), "--pulse": C.pulseAt?.(i) ?? i / N }}
+                    >
                       <span className={hx.tileLabelName}>{t(`atl.art.${kind}`)}</span>
                       {C.showDesc && (
                         <span className={hx.tileLabelDesc}>{t(`atl.desc.${kind}`)}</span>

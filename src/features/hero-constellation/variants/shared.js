@@ -59,32 +59,39 @@ const LOCK_H = 450;
 export function base(vw, vh, wordK, opts = {}) {
   const tier = tierOf(vw);
   const isPortrait = tier === "phone";
-  const desk = opts.scale ?? 0.8;
-  const scale = isPortrait
-    ? opts.portraitScale ?? 0.86
-    // A tablet runs the desktop composition, but the masthead gives up a
-    // good deal more of it. At 1024x768 the vertical budget below the
-    // masthead is about 300px for two bands of modules and their
-    // captions, and at 0.92 the second band's captions ran off the
-    // bottom of the pin.
-    : tier === "tablet"
-    ? desk * 0.82
-    : desk;
+
+  // The masthead is NEVER scaled down by a variant. It renders at exactly
+  // the size it does at "/" — wordK and nothing else.
+  //
+  // Every variant used to shrink it to buy room for its composition, from
+  // 0.8 down to 0.58, and on the arch variants it was scaled to fit inside
+  // the arch. That made the wordmark, the value line, both buttons and the
+  // trust line smaller on the preview than on the real page — and the
+  // buttons are the point of the screen. The composition gives way to the
+  // masthead now, not the other way round: variants lay out in the band
+  // BELOW it, which is why the tiers below exist.
+  const scale = 1;
   const shiftY = Math.round(
     vh * (isPortrait
       ? opts.portraitShift ?? -0.05
       : tier === "tablet"
-      ? (opts.shift ?? -0.045) - 0.03
+      ? (opts.shift ?? -0.045) - 0.02
       : opts.shift ?? -0.045)
   );
   const lockS = scale * wordK;
-  const top = -vh / 2 + vh * 0.15 + shiftY;
+  // Lifting the masthead buys band for the composition below it, but it
+  // must never rise into the editorial masthead bar. That bar sits at
+  // clamp(80px, 11vh, 124px) and runs about 20px tall; at 1024x768 an
+  // unclamped lift put the wordmark straight through "FOR TEACHERS,
+  // KG-G12".
+  // +46, not +22. Fraunces at 168px with line-height 1 paints its
+  // ascenders ABOVE the line box, so clearing the bar by the box alone
+  // still put the "M" through it.
+  const barBottom = Math.min(124, Math.max(80, vh * 0.11)) + 46;
+  const top = Math.max(-vh / 2 + barBottom, -vh / 2 + vh * 0.15 + shiftY);
   return {
     tier,
     isPortrait,
-    // Carried through so a variant that sizes the masthead against
-    // something of its own (the arch variants) can divide it back out —
-    // the hero multiplies lockScale and wordK together.
     wordK,
     lockScale: scale,
     lockShiftY: shiftY,
@@ -96,8 +103,13 @@ export function base(vw, vh, wordK, opts = {}) {
 /** Tiles give up size on a short window, and again on a narrow one. */
 export function tileScale(vh, tier) {
   const byHeight = Math.min(1, Math.max(0.74, (vh - 520) / 380));
-  if (tier === "phone") return 0.72;
-  if (tier === "tablet") return byHeight * 0.8;
+  // Smaller than before at both small tiers: a full-size masthead leaves
+  // a tablet under 200px of band and a phone about 350px, and the tile
+  // has to share that with a two-line caption.
+  if (tier === "phone") return 0.56;
+  // A flat value, not a fraction of byHeight: multiplied out at 768 that
+  // gave 0.40, i.e. a 31px tile, which is a bullet rather than an icon.
+  if (tier === "tablet") return 0.6;
   return byHeight;
 }
 
@@ -132,14 +144,14 @@ export function portraitGrid(vw, vh, dir, topY, s) {
   // Room for the tile plus a name that may wrap to two lines plus a
   // description — measured against "Subjects & Students", which is the
   // longest of the eight and the one that wraps first.
-  const rowPitch = size + 54;
+  const rowPitch = size + 46;
   const rows = 4;
   // 78px of bottom margin, not 26: the accessibility widget floats in the
   // bottom corner of every page, and the last row's caption was running
   // underneath it.
   const top = Math.min(
     topY + size / 2,
-    vh / 2 - 78 - (rows - 1) * rowPitch - size / 2 - 34
+    vh / 2 - 70 - (rows - 1) * rowPitch - size / 2 - 34
   );
   return {
     tile: (i) => ({
@@ -170,4 +182,30 @@ export function fit(topY, vh, designW, designH, maxW, minK = 0.42) {
   const kByH = (vh / 2 - 34 - topY) / designH;
   const k = Math.max(minK, Math.min(1, kByW, kByH));
   return { k, w: designW * k, h: designH * k, y: topY + (designH * k) / 2 };
+}
+
+/**
+ * The tablet arrangement: one row of eight, captioned, under the
+ * masthead.
+ *
+ * A tablet at 1024x768 has about 190px between a full-size masthead and
+ * the bottom of the pin. That is one row of tile-plus-caption and no
+ * more — two rows do not fit at any tile size worth reading, and the
+ * desktop compositions all assume two. One row of eight at 1024 gives
+ * each module a 120px column, which a 48px tile and a wrapped caption
+ * sit inside comfortably.
+ */
+export function rowOf8(vw, vh, dir, topY, s) {
+  const size = TILE * s;
+  const pitch = Math.min((vw - 32) / 8, 150);
+  // A caption in a 120px column wraps its name to two lines and adds a
+  // description under that — about 54px, not the 34 a one-line caption
+  // needs. Budgeted at 34, the cue line landed on top of them.
+  const capH = 54;
+  const y = Math.min(topY + size / 2, vh / 2 - 54 - size / 2 - capH);
+  return {
+    tile: (i) => ({ x: (i - 3.5) * pitch * dir, y, s }),
+    labelW: pitch - 8,
+    lastY: y + size / 2 + capH,
+  };
 }

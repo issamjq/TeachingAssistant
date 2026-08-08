@@ -296,3 +296,216 @@
   white-space: nowrap;
   color: oklch(0.94 0.03 196 / 0.5);
 }
+
+/* ── the call to action ───────────────────────────────────────────────
+   The single most important thing on the screen, and until now the one
+   element that shrank hardest.
+
+   Every variant scales the whole masthead block to fit its composition —
+   inside an arch, beside a rail, under a band — and the buttons were
+   riding that scale down with the wordmark. On Khatim the primary CTA
+   was rendering at 0.45 of its design size; on a phone, smaller still.
+   A wordmark can be small and still be a wordmark. A button that small
+   is not a button, it is a caption that happens to have a border.
+
+   So the row counter-scales: the hero divides out the masthead's scale
+   (capped, see ctaRow's inline transform) and these are sized here in
+   real pixels. Everything below is about being seen and being obviously
+   clickable — the two jobs it was failing.
+   ────────────────────────────────────────────────────────────────────── */
+.ctaRow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  margin-block-start: clamp(20px, 3.4vh, 34px);
+  /* Counter-scaling grows the row's footprint; without this the buttons
+     land on the trust line under them. */
+  transform-origin: 50% 0;
+}
+
+.ctaPrimary,
+.ctaGhost {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  /* 52px tall — above the 44px touch-target minimum with room to spare,
+     since this is the primary action on a marketing page. */
+  /* Sized against the buttons at "/" — 14px/30px padding, clamp(14,
+     1.05vw, 16) type — and never under them. Slightly taller so the
+     touch target clears 44px comfortably at every width. */
+  min-height: 54px;
+  padding-inline: 32px;
+  border-radius: 999px;
+  font-family: "Inter Tight", system-ui, sans-serif;
+  font-size: clamp(15px, 1.1vw, 17px);
+  font-weight: 500;
+  letter-spacing: 0.005em;
+  white-space: nowrap;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  transition:
+    background-color 200ms ease,
+    border-color 200ms ease,
+    color 200ms ease,
+    box-shadow 200ms ease;
+}
+
+.ctaPrimary {
+  border: 0;
+  background: oklch(0.97 0.015 200);
+  color: oklch(0.19 0.035 210);
+  box-shadow:
+    0 12px 30px -12px oklch(0.1 0.04 205 / 0.7),
+    0 0 0 0 oklch(0.95 0.06 189 / 0.55);
+  /* A slow halo, so the eye is drawn back to it without anything moving.
+     Box-shadow only — a scale or a translate here would shove the trust
+     line below it on every beat. */
+  animation: hxCtaBreathe 3.4s ease-in-out 1.2s infinite;
+}
+.ctaPrimary:hover {
+  background: oklch(1 0.01 200);
+  box-shadow:
+    0 16px 34px -12px oklch(0.1 0.04 205 / 0.8),
+    0 0 0 6px oklch(0.95 0.06 189 / 0.22);
+}
+.ctaPrimary:active {
+  background: oklch(0.93 0.02 200);
+}
+/* A sheen crossing the face every few seconds. Inside the button's own
+   overflow, so it can never leak onto the composition behind it. */
+.ctaPrimary::after {
+  content: "";
+  position: absolute;
+  inset-block: -60%;
+  inset-inline-start: -40%;
+  width: 34%;
+  background: linear-gradient(
+    100deg,
+    transparent,
+    oklch(0.62 0.09 205 / 0.16),
+    transparent
+  );
+  animation: hxCtaSheen 3.4s ease-in-out 1.2s infinite;
+  pointer-events: none;
+}
+
+.ctaGhost {
+  /* Was a hairline outline at 0.3 alpha over a mid-tone drench, which is
+     under 3:1 — the boundary of a control has to be visible for it to
+     read as a control at all. */
+  border: 1px solid oklch(0.96 0.03 196 / 0.62);
+  background: oklch(0.98 0.02 200 / 0.1);
+  color: oklch(0.98 0.015 200);
+  backdrop-filter: blur(6px);
+}
+.ctaGhost:hover {
+  background: oklch(0.98 0.02 200 / 0.19);
+  border-color: oklch(0.98 0.03 196 / 0.9);
+}
+
+.ctaPrimary:focus-visible,
+.ctaGhost:focus-visible {
+  outline: 2px solid oklch(0.92 0.1 187);
+  outline-offset: 3px;
+}
+
+.ctaArrow {
+  flex: none;
+  transition: transform 200ms ease;
+}
+.ctaPrimary:hover .ctaArrow {
+  transform: translateX(3px);
+}
+
+@keyframes hxCtaBreathe {
+  0%,
+  100% {
+    box-shadow:
+      0 12px 30px -12px oklch(0.1 0.04 205 / 0.7),
+      0 0 0 0 oklch(0.95 0.06 189 / 0.5);
+  }
+  55% {
+    box-shadow:
+      0 12px 30px -12px oklch(0.1 0.04 205 / 0.7),
+      0 0 0 11px oklch(0.95 0.06 189 / 0);
+  }
+}
+@keyframes hxCtaSheen {
+  0%,
+  62% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(460%);
+  }
+}
+
+/* ── module entrance + the lit beat ─────────────────────────────────── */
+/* The eight arrive rather than simply being present, in the order their
+   variant's light will later travel — so the first pass reads as the
+   same light that delivered them.
+
+   Opacity and blur only. hxFloat owns `transform` on this element, and a
+   second animation touching transform would silently win over it. */
+.tileIn {
+  animation: hxTileIn 800ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
+  animation-delay: calc(var(--pulse, 0) * 620ms + 260ms);
+}
+.tileLabelIn {
+  animation: hxTileIn 800ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
+  animation-delay: calc(var(--pulse, 0) * 620ms + 420ms);
+}
+
+/* A ring pushed outward on the beat the module lights — the "ping" that
+   makes the light read as arriving AT something rather than passing
+   behind it. Absolutely positioned, so its scale moves nothing. */
+.tileRing {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  border: 1px solid oklch(0.96 0.07 187 / 0.9);
+  opacity: 0;
+  pointer-events: none;
+  animation: hxRing var(--lit-run, 7s) ease-out infinite;
+  animation-delay: calc(var(--pulse) * var(--lit-run, 7s) + 1.4s);
+}
+
+@keyframes hxTileIn {
+  from {
+    opacity: 0;
+    filter: blur(7px);
+  }
+  to {
+    opacity: 1;
+    filter: blur(0);
+  }
+}
+@keyframes hxRing {
+  0% {
+    opacity: 0.85;
+    transform: scale(1);
+  }
+  9% {
+    opacity: 0;
+    transform: scale(1.55);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.55);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tileIn,
+  .tileLabelIn,
+  .tileRing,
+  .ctaPrimary,
+  .ctaPrimary::after {
+    animation: none;
+  }
+  .tileRing {
+    opacity: 0;
+  }
+}
