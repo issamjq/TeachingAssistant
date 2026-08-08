@@ -41,10 +41,15 @@ export function tierOf(vw) {
 /** Design size of a glyph tile at rest, in px. */
 export const TILE = 78;
 
-// Unscaled design height of the lockup block — wordmark, meaning,
-// tagline, CTA row, trust line. Measured from the rendered page rather
-// than guessed, and deliberately a touch generous.
-const LOCK_H = 450;
+// Unscaled height of the masthead block — wordmark, meaning, tagline,
+// CTA row, trust line — measured off the rendered page, not guessed.
+//
+// Two values because the wordmark is trimmed for stage one (see
+// .lockCompact) and trimmed again under 620px, so the block is genuinely
+// shorter on a phone. One number for both had the phone layouts
+// reserving 40px of empty band under a masthead that had already ended.
+const LOCK_H = 415;
+const LOCK_H_PHONE = 380;
 
 /**
  * Lockup geometry and the viewport class every variant starts from.
@@ -79,24 +84,31 @@ export function base(vw, vh, wordK, opts = {}) {
       : opts.shift ?? -0.045)
   );
   const lockS = scale * wordK;
-  // Lifting the masthead buys band for the composition below it, but it
-  // must never rise into the editorial masthead bar. That bar sits at
-  // clamp(80px, 11vh, 124px) and runs about 20px tall; at 1024x768 an
-  // unclamped lift put the wordmark straight through "FOR TEACHERS,
-  // KG-G12".
-  // +46, not +22. Fraunces at 168px with line-height 1 paints its
-  // ascenders ABOVE the line box, so clearing the bar by the box alone
-  // still put the "M" through it.
+
+  // Lifting the masthead buys band for the composition below it, but on a
+  // narrow window it must not rise into the editorial masthead bar. The
+  // bar sits at clamp(80px, 11vh, 124px); the +46 is because Fraunces
+  // with line-height 1 paints its ascenders ABOVE the line box, so
+  // clearing the bar by the box alone still put the "M" through it.
+  //
+  // Only under 1200px. Wider than that the wordmark is centred well clear
+  // of the bar's text, which sits at the inline start — clamping there
+  // cost 40px of band to avoid a collision that cannot happen.
   const barBottom = Math.min(124, Math.max(80, vh * 0.11)) + 46;
-  const top = Math.max(-vh / 2 + barBottom, -vh / 2 + vh * 0.15 + shiftY);
+  const rawTop = -vh / 2 + vh * 0.15 + shiftY;
+  const top = vw < 1200 ? Math.max(-vh / 2 + barBottom, rawTop) : rawTop;
+  const H = isPortrait ? LOCK_H_PHONE : LOCK_H;
   return {
     tier,
     isPortrait,
     wordK,
     lockScale: scale,
-    lockShiftY: shiftY,
+    // The EFFECTIVE shift, derived back out of the clamped top. Returning
+    // the raw shift meant the clamp moved the layout's idea of where the
+    // masthead was without moving the masthead itself.
+    lockShiftY: top - (-vh / 2 + vh * 0.15),
     lockTop: top,
-    lockBottom: top + (LOCK_H * (1 + lockS)) / 2,
+    lockBottom: top + (H * (1 + lockS)) / 2,
   };
 }
 

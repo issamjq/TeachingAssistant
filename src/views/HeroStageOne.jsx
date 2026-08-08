@@ -388,11 +388,20 @@ export default function HeroStageOne({ onEnter, signedIn, variant }) {
         {/* --lit-run is the variant's own tempo for one pass of its light.
           Set on the pin so the centre piece and the eight module glows
           read the same value and cannot drift. */}
-      <div className="atl-pin" style={{ "--lit-run": `${C.pulseDur ?? 7}s` }}>
+      {/* height: 100dvh, not the stylesheet's 100vh. On a phone 100vh is
+          the viewport WITHOUT browser chrome, so the pin ran taller than
+          what you can actually see and its centre — which every position
+          in these layouts is measured from — sat below the fold. The
+          layout maths already use window.innerHeight, which is the dynamic
+          height, so this makes the CSS agree with the JS. */}
+      <div
+        className="atl-pin"
+        style={{ height: "100dvh", "--lit-run": `${C.pulseDur ?? 7}s` }}
+      >
           <div className="atl-drench" aria-hidden="true">
             <span className="cinema-grain" />
           </div>
-          <div className="atl-lockup atl-lockup--static">
+          <div className={`atl-lockup atl-lockup--static ${hx.lockCompact}`}>
             {isRTL ? (
               <h1 className="atl-word atl-word--ar">مرشد</h1>
             ) : (
@@ -449,7 +458,16 @@ export default function HeroStageOne({ onEnter, signedIn, variant }) {
       {/* --lit-run is the variant's own tempo for one pass of its light.
           Set on the pin so the centre piece and the eight module glows
           read the same value and cannot drift. */}
-      <div className="atl-pin" style={{ "--lit-run": `${C.pulseDur ?? 7}s` }}>
+      {/* height: 100dvh, not the stylesheet's 100vh. On a phone 100vh is
+          the viewport WITHOUT browser chrome, so the pin ran taller than
+          what you can actually see and its centre — which every position
+          in these layouts is measured from — sat below the fold. The
+          layout maths already use window.innerHeight, which is the dynamic
+          height, so this makes the CSS agree with the JS. */}
+      <div
+        className="atl-pin"
+        style={{ height: "100dvh", "--lit-run": `${C.pulseDur ?? 7}s` }}
+      >
         {/* Warm drench that the whole act plays on */}
         <div className="atl-drench" aria-hidden="true">
           <span className="cinema-grain" />
@@ -541,7 +559,7 @@ export default function HeroStageOne({ onEnter, signedIn, variant }) {
             than in the fan cut: this is the one frame where the scene is
             the message and the wordmark is the caption. */}
         <div
-          className="atl-lockup"
+          className={`atl-lockup ${hx.lockCompact}`}
           style={{
             opacity: 1 - lockOut,
             // lockX moves the whole masthead off centre — only Spread

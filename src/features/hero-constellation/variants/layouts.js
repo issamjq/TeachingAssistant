@@ -22,11 +22,34 @@
 import { base, cardStart, cue, fit, portraitGrid, rowOf8, TILE, tileScale } from "./shared";
 import { NICHES } from "./arch";
 
+/**
+ * The least two stacked bands may be apart: a tile, its two-line caption,
+ * and a gap. Derived from the centre piece's height, the separation shrank
+ * with it — on a 720px-tall window the upper band's captions landed on the
+ * lower band's tiles.
+ */
+const bandGap = (size) => size + 66;
+
 /** Design size of the studio window (StudioStage). */
 const STAGE_W = 520;
 const STAGE_H = 300;
 
-/** Assemble the common tail of a layout result. */
+/**
+ * Assemble the common tail of a layout result — and guarantee the whole
+ * composition fits the pin.
+ *
+ * Everything in stage one has to be visible inside one 100dvh screen: a
+ * variant whose last row of captions falls past the bottom edge is not a
+ * slightly cropped design, it is eight modules of which a visitor can
+ * read six. Each layout sizes itself against the viewport it was given,
+ * but the arithmetic is per-variant and the failure mode is silent —
+ * 1280x720, a very ordinary laptop, overflowed on four of the seven.
+ *
+ * So the fit is enforced here rather than trusted there: measure where
+ * the composition actually ends, captions included, and if it runs past
+ * the pin lift the whole thing — tiles and centre together — by the
+ * overflow. One check, in one place, that no future variant can forget.
+ */
 function done(b, vw, vh, opts) {
   const {
     tile, tileSize, sourceW = tileSize, centre = null,
@@ -40,42 +63,37 @@ function done(b, vw, vh, opts) {
     lockX = 0, filaments = true, labelAbove = null, pulseAt = null,
     pulseDur = 7, labelW = null,
   } = opts;
+  const showDesc = opts.showDesc ?? true;
+  const labelPlace = opts.labelPlace ?? "below";
+
+  // How far below a tile its caption reaches. Captions hung "outside" sit
+  // beside the tile and add nothing below it.
+  const capH = labelPlace === "below" && showLabels ? (showDesc ? 52 : 28) : 0;
+  let bottom = -Infinity;
+  for (let i = 0; i < 8; i++) bottom = Math.max(bottom, tile(i).y + tileSize / 2 + capH);
+  if (centre) bottom = Math.max(bottom, centre.y + centre.h / 2);
+
+  const lift = Math.max(0, bottom - (vh / 2 - 16));
+  const fitTile = lift ? (i) => { const t = tile(i); return { ...t, y: t.y - lift }; } : tile;
+  const fitCentre = lift && centre ? { ...centre, y: centre.y - lift } : centre;
+
   return {
-    tile,
+    tile: fitTile,
     tileSize,
     sourceW,
     showLabels,
-    // Where a caption sits relative to its source. Only Signal needs the
-    // choice: its sources straddle a luminous rule, and a caption hung
-    // below an above-the-line tile lands ON the rule and is unreadable.
     labelAbove,
-    // Where source i sits along the centre's travelling light, 0-1, or
-    // null if the variant has none. Drives the per-source glow so a module
-    // lights at the moment the light reaches it.
     pulseAt,
-    // Seconds for one full pass of the variant's light. Each composition
-    // gets its own: a wave read left to right wants a different tempo
-    // from light falling down an arch.
     pulseDur,
-    // A tablet's bands sit closer together than a desktop's, so the
-    // default caption box overlaps its neighbour there.
     labelW: labelW ?? (b.tier === "tablet" ? 134 : null),
-    // Filaments are struck from the centre to each source. Variants whose
-    // centre IS the connector — the ring, the rule, the arch — switch
-    // them off; drawing both gave two competing sets of lines.
     filaments,
-    // The architectural variants place the masthead INSIDE their arch, so
-    // they set these absolutely rather than as a nudge off the default.
     lockScale: opts.lockScale ?? b.lockScale,
     lockShiftY: opts.lockShiftY ?? b.lockShiftY,
     lockX: b.isPortrait ? 0 : lockX,
-    labelPlace: opts.labelPlace ?? "below",
-    // Whether a caption also carries what the module DOES. On by default:
-    // naming eight features without saying what any of them are is the
-    // failure the whole opening frame exists to avoid.
-    showDesc: opts.showDesc ?? true,
-    centre,
-    ...cue(vh, lastY, cueFloor),
+    labelPlace,
+    showDesc,
+    centre: fitCentre,
+    ...cue(vh, lastY - lift, cueFloor - lift),
     cardStartScale: cardStart(sourceW),
     isPortrait: b.isPortrait,
   };
@@ -127,8 +145,9 @@ export function atelier(n, vw, vh, dir, wordK) {
   const inner = Math.abs(U[1]) * spread;
 
   const c = fit(b.lockBottom + 34, vh, STAGE_W, STAGE_H, (inner - size / 2 - 34) * 2);
-  const bandA = c.y - c.h * 0.26;
-  const bandB = c.y + c.h * 0.26;
+  const sep = Math.max(c.h * 0.52, bandGap(size));
+  const bandA = c.y - sep / 2;
+  const bandB = c.y + sep / 2;
 
   return done(b, vw, vh, {
     tile: (i) => ({ x: U[i % 4] * spread * dir, y: i < 4 ? bandA : bandB, s }),
@@ -157,7 +176,7 @@ export function aperture(n, vw, vh, dir, wordK) {
   const size = TILE * s;
   const spread = Math.min(vw * (b.tier === "tablet" ? 0.37 : 0.42), 560);
   const topY = b.lockBottom + 40;
-  const depth = Math.min(126, vh / 2 - 46 - topY - size / 2);
+  const depth = Math.max(bandGap(size), Math.min(126, vh / 2 - 46 - topY - size / 2));
 
   // Two arcs, four on each, the lower one wider — a shallow amphitheatre.
   const arc = (i) => {
@@ -200,8 +219,9 @@ export function bureau(n, vw, vh, dir, wordK) {
   const inner = Math.abs(U[1]) * spread;
 
   const c = fit(b.lockBottom + 40, vh, STAGE_W, STAGE_H, (inner - size / 2 - 30) * 2);
-  const bandA = c.y - c.h * 0.28;
-  const bandB = c.y + c.h * 0.28;
+  const sep = Math.max(c.h * 0.56, bandGap(size));
+  const bandA = c.y - sep / 2;
+  const bandB = c.y + sep / 2;
 
   return done(b, vw, vh, {
     tile: (i) => ({

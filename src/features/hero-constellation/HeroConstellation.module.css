@@ -509,3 +509,56 @@
     opacity: 0;
   }
 }
+
+/* ── the masthead, trimmed to fit one screen ──────────────────────────
+   Everything in stage one has to live inside a single 100dvh pin: the
+   masthead, all eight modules with their captions, and the cue line. At
+   the landing's own wordmark size it does not — the modules were being
+   pushed against the bottom of the pin, and on a phone under the browser
+   chrome entirely.
+
+   So the WORDMARK gives back what is needed, and only the wordmark. The
+   value line, both buttons and the trust line stay at exactly the size
+   they are at "/" — those carry the message and the action, and shrinking
+   them to buy layout room is how this went wrong the first time. A
+   display face at 150px instead of 200px is still a display face.
+
+   Scoped with :global under a module class so "/" is untouched: these are
+   the landing's own global classes, and the override reaches them only
+   inside a lockup this feature rendered.
+   ────────────────────────────────────────────────────────────────────── */
+.lockCompact :global(.atl-word) {
+  font-size: 150px;
+}
+.lockCompact :global(.atl-word--ar) {
+  font-size: 142px;
+}
+.lockCompact :global(.atl-watermark) {
+  font-size: 360px;
+}
+.lockCompact :global(.atl-watermark--latin) {
+  font-size: 190px;
+}
+/* The gaps close with it — leading tuned to a 200px word reads as a
+   gap when the word is 150. */
+.lockCompact :global(.atl-meaning) {
+  margin-block-start: 12px;
+}
+.lockCompact :global(.atl-tagline) {
+  margin-block-start: 18px;
+}
+
+/* Small screens give up a little more, because they have proportionally
+   the least room: a phone carries the same eight captions as a desktop
+   in under half the height. */
+@media (max-width: 620px) {
+  .lockCompact :global(.atl-word) {
+    font-size: 132px;
+  }
+  .lockCompact :global(.atl-word--ar) {
+    font-size: 126px;
+  }
+  .lockCompact :global(.atl-tagline) {
+    margin-block-start: 14px;
+  }
+}
