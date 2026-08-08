@@ -2516,6 +2516,12 @@ function MarketingPage({ page, onSignUp, onProfileDone, onChoosePlan, onPage, on
 // variant id served at /preview1../preview10 and listed at /preview. It
 // is threaded rather than branched on the URL so every cut stays
 // reachable side by side while the design is being decided.
+// onOpenStudio takes WHERE to land, because sign-up and sign-in want
+// different rooms. A teacher who has just created an account has nothing
+// to look at on a dashboard — no lessons, no scores, no history — so they
+// go to the AI Studio, which is the one screen that is useful when empty.
+// A returning teacher goes to the dashboard, which is a summary of work
+// they have actually done.
 export default function Landing({ onOpenStudio, heroVariant = null }) {
   const [page, setPage] = useState("home");
   // Mock auth: an account exists only once a provider was picked AND a
@@ -2754,7 +2760,9 @@ export default function Landing({ onOpenStudio, heroVariant = null }) {
             subscriptionEndsAt: existingAccount.subscription_ends_at,
           });
           if (existingAccount.role) setLocalRole(existingAccount.role);
-          onOpenStudio();
+          // A row already existed, so this is a returning teacher however
+          // they got here — even if they came through the sign-up page.
+          onOpenStudio("dashboard");
           return;
         }
       } catch (e) {
@@ -2906,7 +2914,8 @@ export default function Landing({ onOpenStudio, heroVariant = null }) {
     // unmounted by the route change, not by a timer, so it never clears
     // before the studio is actually on screen.
     setSetupStage("studio");
-    onOpenStudio();
+    // First run: straight into the AI Studio. The dashboard would be empty.
+    onOpenStudio("studio");
   };
   // Signs the teacher out of Supabase, drops the local account record,
   // and returns them to the landing home. Both halves matter — leaving

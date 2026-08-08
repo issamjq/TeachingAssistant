@@ -11,5 +11,10 @@ import { navigate } from "@/lib/route";
 // with the real one. When a variant is chosen, "/" takes its id and every
 // preview route goes away.
 export default function PreviewLandingRoute({ variant }: { variant: string }) {
-  return <Landing onOpenStudio={() => navigate(["planner"])} heroVariant={variant} />;
+  return (
+    <Landing
+      onOpenStudio={(where?: string) => navigate([where ?? "planner"])}
+      heroVariant={variant}
+    />
+  );
 }
