@@ -70,12 +70,15 @@
   color: oklch(0.94 0.07 190);
   /* Glass over the drench: high enough opacity that the glyph keeps its
      4.5:1 against the teal even where the plate's halo brightens it. */
+  /* Raised from 0.16/0.05 with a 0.34 border. Over the lighter part of
+     the drench the old values left the tile barely distinguishable from
+     the background — an icon floating in space rather than an object. */
   background: linear-gradient(
     150deg,
-    oklch(0.98 0.02 200 / 0.16),
-    oklch(0.98 0.02 200 / 0.05)
+    oklch(0.98 0.02 200 / 0.26),
+    oklch(0.98 0.02 200 / 0.11)
   );
-  border: 1px solid oklch(0.94 0.06 191 / 0.34);
+  border: 1px solid oklch(0.95 0.06 191 / 0.5);
   box-shadow:
     0 18px 34px -20px oklch(0.14 0.05 205 / 0.85),
     inset 0 1px 0 oklch(0.98 0.02 200 / 0.22);
@@ -104,26 +107,46 @@
   font-family: "JetBrains Mono", monospace;
   font-size: 9px;
   letter-spacing: 0.14em;
-  color: oklch(0.95 0.05 191 / 0.8);
+  color: oklch(0.97 0.04 191 / 0.9);
 }
 
-/* Caption under each tile. Present from the opening frame — the whole
-   point of the new hero is that a visitor can name all eight modules
-   before scrolling, which a wordless icon cannot do. */
+/* Caption for each source.
+   ---------------------------------------------------------------------
+   Carries the module's NAME and what it DOES, not just its name. A
+   visitor reading "PROCTORED PAPERS" off a hero has learned a label;
+   reading "Sat under observation" under it has learned a feature, and
+   the entire argument for opening on the modules rather than on a deck
+   of cards is that all eight are understood before any scrolling.
+
+   Sized and weighted to be read, not to be tasteful: the first cut set
+   this at 9.5px and 0.82 alpha over a mid-tone drench, which is under
+   4.5:1 and too small to scan at arm's length. */
 .tileLabel {
   position: absolute;
   left: 0;
   top: 0;
-  width: 132px;
+  width: 152px;
   text-align: center;
-  font-family: "JetBrains Mono", monospace;
-  font-size: 9.5px;
-  line-height: 1.35;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: oklch(0.95 0.03 196 / 0.82);
   pointer-events: none;
   will-change: transform, opacity;
+}
+.tileLabelName {
+  display: block;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 10.5px;
+  line-height: 1.35;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: oklch(0.98 0.015 200);
+}
+.tileLabelDesc {
+  display: block;
+  margin-block-start: 3px;
+  font-family: "Inter Tight", system-ui, sans-serif;
+  font-size: 11.5px;
+  line-height: 1.35;
+  letter-spacing: 0.005em;
+  color: oklch(0.95 0.025 196 / 0.78);
 }
 
 /* ── opening caption ──────────────────────────────────────────────── */

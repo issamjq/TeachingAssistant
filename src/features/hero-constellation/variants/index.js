@@ -9,16 +9,20 @@
 // `sourceKind` decides what the eight things look like at rest:
 //
 //   tile   a glass square with a line glyph, captioned
-//   type   a numbered row set in Fraunces — the row IS the label
 //   card   the real card face, already itself; no cross-fade needed,
 //          the morph is pure position and scale
+//
+// Every tile variant captions its sources with the module's NAME and
+// what it DOES. Naming eight features without saying what any of them
+// are is the failure the opening frame exists to avoid.
 //
 // Route numbering is stable: variants[i] is served at /preview{i+1}, and
 // /preview lists them. Reordering this array renumbers the routes, so
 // add to the end rather than inserting.
 //
-// 10-12 are one family: an arch, then the arch made literal as an
-// arcade, then the arch given a star to hold the modules.
+// 10 and 12 are one family: an arch with the masthead standing inside
+// it, then the same arch given an eight-pointed star to hold the
+// modules.
 // =====================================================================
 
 import * as L from "./layouts";
@@ -33,12 +37,12 @@ export const VARIANTS = [
     sourceKind: "tile",
   },
   {
-    id: "cover",
-    name: "Cover",
-    line: "A magazine cover: one specimen plate, a numbered contents column.",
-    why: "Reads as a considered publication before a word is read. Strongest editorial signal of the set.",
-    layout: L.cover,
-    sourceKind: "type",
+    id: "marquee",
+    name: "Marquee",
+    line: "A lit band with all eight standing on it in one row, each named and described.",
+    why: "Reads left to right in a single pass with nothing hidden. The clearest of the twelve.",
+    layout: L.marquee,
+    sourceKind: "tile",
   },
   {
     id: "aperture",
@@ -65,12 +69,12 @@ export const VARIANTS = [
     sourceKind: "tile",
   },
   {
-    id: "index",
-    name: "Index",
-    line: "No imagery at all — the eight modules set large as a contents poster.",
-    why: "Pure typography on a page whose identity is typography. Reads across a room; nothing to date.",
-    layout: L.index,
-    sourceKind: "type",
+    id: "ribbon",
+    name: "Ribbon",
+    line: "One flowing line of light with the eight modules riding its wave.",
+    why: "Carries the motif the rest of the landing runs on, and says the eight are one thing, not eight products.",
+    layout: L.ribbon,
+    sourceKind: "tile",
   },
   {
     id: "orbit",
@@ -105,11 +109,11 @@ export const VARIANTS = [
     sourceKind: "tile",
   },
   {
-    id: "colonnade",
-    name: "Colonnade",
-    line: "An arcade of eight arches — one per module — with the masthead above.",
-    why: "Mihrab taken literally: eight modules, eight arches. A facade says 'institution' faster than any copy can.",
-    layout: L.colonnade,
+    id: "terminal",
+    name: "Terminal",
+    line: "One prompt at the centre, and the eight things it hands back below it.",
+    why: "The only one where the modules read as an outcome, not a menu — a promise rather than a feature list.",
+    layout: L.terminal,
     sourceKind: "tile",
   },
   {

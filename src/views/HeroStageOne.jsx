@@ -606,7 +606,10 @@ export default function HeroStageOne({ onEnter, signedIn, variant }) {
                   )}
                   {C.showLabels && V.sourceKind === "tile" && (
                     <div className={hx.tileLabel} style={tileLabelStyle(i)}>
-                      {t(`atl.art.${kind}`)}
+                      <span className={hx.tileLabelName}>{t(`atl.art.${kind}`)}</span>
+                      {C.showDesc && (
+                        <span className={hx.tileLabelDesc}>{t(`atl.desc.${kind}`)}</span>
+                      )}
                     </div>
                   )}
                 </li>

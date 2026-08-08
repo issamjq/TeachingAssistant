@@ -23,37 +23,55 @@ import StudioStage from "../StudioStage";
 import { archPath } from "./arch";
 import cx from "./Centres.module.css";
 
-/** Design size of the specimen plate used by the cover variant. */
-const SPEC_W = 300;
-const SPEC_H = 400;
-
-// ── specimen ─────────────────────────────────────────────────────────
-// A single tall plate, set like the cover of an issue. Same dark glass
-// as the card faces, but portrait and given over almost entirely to
-// type — a cover sells the publication, not the contents.
-function Specimen({ t }) {
+// ── marquee ──────────────────────────────────────────────────────────
+// A lit band for the modules to stand on. Two rules and a wash — the
+// plaques ARE the modules, so the band must stay a stage and never
+// become the thing you look at.
+function Marquee() {
   return (
-    <div className={cx.spec} aria-hidden="true">
-      <div className={cx.specTop}>
-        <span className={cx.specIssue}>No. 01</span>
-        <span className={cx.specRule} />
-        <span className={cx.specIssue}>KG–G12</span>
-      </div>
-      <div className={cx.specBody}>
-        <div className={cx.specEyebrow}>{t("atl.art.studio")}</div>
-        <div className={cx.specTitle}>
-          Make the <em>material</em>
-        </div>
-        <div className={cx.specPrompt}>
+    <div className={cx.marquee} aria-hidden="true">
+      <span className={cx.mqWash} />
+      <span className={cx.mqRuleTop} />
+      <span className={cx.mqRuleBot} />
+    </div>
+  );
+}
+
+// ── ribbon ───────────────────────────────────────────────────────────
+// One sine across the box. The SAME sine the layout samples to place the
+// modules, written in a stretched viewBox so both agree at any width —
+// a ribbon whose modules sit near it rather than on it is just a stray
+// line through the composition.
+function Ribbon() {
+  const pts = Array.from({ length: 97 }, (_, i) => {
+    const u = i / 96;
+    return `${(u * 100).toFixed(2)},${(50 - Math.sin(u * Math.PI * 2) * 44.6).toFixed(2)}`;
+  }).join(" ");
+  return (
+    <div className={cx.ribbon} aria-hidden="true">
+      <svg className={cx.rbSvg} viewBox="0 0 100 100" preserveAspectRatio="none">
+        <polyline className={cx.rbGlow} points={pts} vectorEffect="non-scaling-stroke" />
+        <polyline className={cx.rbLine} points={pts} vectorEffect="non-scaling-stroke" />
+      </svg>
+    </div>
+  );
+}
+
+// ── terminal ─────────────────────────────────────────────────────────
+// The teacher's half of the exchange, at full size: one sentence, typed,
+// with the button that turns it into the eight things standing below.
+// Real UI in live type, like every other centre that is not geometry.
+function Terminal({ t }) {
+  return (
+    <div className={cx.terminal} aria-hidden="true">
+      <span className={cx.tmEyebrow}>{t("atl.art.studio")}</span>
+      <div className={cx.tmBar}>
+        <span className={cx.tmText}>
           A Grade 9 physics lesson on the second law
-          <span className={cx.specCaret} />
-        </div>
-        <div className={cx.specLines}>
-          <span /><span /><span /><span /><span />
-        </div>
+          <span className={cx.tmCaret} />
+        </span>
+        <span className={cx.tmGo}>Draft</span>
       </div>
-      <div className={cx.specFoot}>Lesson · Quiz · Deck · Homework</div>
-      <span className={cx.specGlow} />
     </div>
   );
 }
@@ -120,33 +138,6 @@ function Mihrab() {
   );
 }
 
-// ── colonnade ────────────────────────────────────────────────────────
-// An arcade of `bays` slender arches, one per module. Drawn as one SVG
-// with a repeated path rather than as N elements, so the bays share a
-// single stroke width and cannot end up a hair apart from each other.
-function Colonnade({ bays = 8 }) {
-  const W = 100 * bays;
-  return (
-    <div className={cx.colonnade} aria-hidden="true">
-      <svg className={cx.archSvg} viewBox={`0 0 ${W} 168`} preserveAspectRatio="none">
-        {Array.from({ length: bays }, (_, i) => (
-          <g key={i} transform={`translate(${i * 100} 0)`}>
-            <path className={cx.archLine} d={archPath(6)} vectorEffect="non-scaling-stroke" />
-          </g>
-        ))}
-        {/* The base the arcade stands on — without it the bays read as
-            eight loose shapes rather than as one building. */}
-        <line
-          className={cx.archLine}
-          x1="0" y1="161" x2={W} y2="161"
-          vectorEffect="non-scaling-stroke"
-        />
-      </svg>
-      <span className={cx.archPool} />
-    </div>
-  );
-}
-
 // ── khatim ───────────────────────────────────────────────────────────
 // The eight-pointed star, inside its arch. Two squares at 45° to each
 // other — which is how the khatim is actually constructed — plus the
@@ -198,10 +189,14 @@ function Khatim({ arch }) {
  * (including undefined) falls back to the studio window, which is the
  * centre most variants want.
  */
-export default function Centre({ kind, compact, isRTL, t, bays, arch }) {
+export default function Centre({ kind, compact, isRTL, t, arch }) {
   switch (kind) {
-    case "specimen":
-      return <Specimen t={t} />;
+    case "marquee":
+      return <Marquee />;
+    case "ribbon":
+      return <Ribbon />;
+    case "terminal":
+      return <Terminal t={t} />;
     case "aperture":
       return <Aperture />;
     case "orbit":
@@ -210,8 +205,6 @@ export default function Centre({ kind, compact, isRTL, t, bays, arch }) {
       return <Signal />;
     case "mihrab":
       return <Mihrab />;
-    case "colonnade":
-      return <Colonnade bays={bays} />;
     case "khatim":
       return <Khatim arch={arch} />;
     case "bureau":
@@ -227,5 +220,3 @@ export default function Centre({ kind, compact, isRTL, t, bays, arch }) {
       return <StudioStage compact={compact} />;
   }
 }
-
-export { SPEC_H, SPEC_W };
