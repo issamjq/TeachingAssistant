@@ -20,6 +20,7 @@
 // =====================================================================
 
 import { base, cardStart, cue, fit, portraitGrid, TILE, tileScale } from "./shared";
+import { NICHES, SPRING } from "./arch";
 
 /** Design size of the studio window (StudioStage). */
 const STAGE_W = 520;
@@ -47,9 +48,12 @@ function done(b, vw, vh, opts) {
     // centre IS the connector — the ring, the rule, the arch — switch
     // them off; drawing both gave two competing sets of lines.
     filaments,
-    lockScale: b.lockScale,
-    lockShiftY: b.lockShiftY,
+    // The architectural variants place the masthead INSIDE their arch, so
+    // they set these absolutely rather than as a nudge off the default.
+    lockScale: opts.lockScale ?? b.lockScale,
+    lockShiftY: opts.lockShiftY ?? b.lockShiftY,
     lockX: b.isPortrait ? 0 : lockX,
+    labelPlace: opts.labelPlace ?? "below",
     centre,
     ...cue(vh, lastY, cueFloor),
     cardStartScale: cardStart(sourceW),
@@ -381,58 +385,168 @@ export function signal(n, vw, vh, dir, wordK) {
   });
 }
 
+// ── shared: an arch the masthead stands inside ───────────────────────
+// Mihrab, Colonnade and Khatim all frame the lockup with architecture,
+// so they size it the same way: the arch takes the height it can get,
+// and the masthead is scaled to sit INSIDE it rather than the arch being
+// grown to fit whatever size the masthead happened to be.
+function archFrame(b, vw, vh, { widthRatio = 0.78, lockFill = 0.74, topGap = 0.3 } = {}) {
+  // Below the masthead bar, not merely below the nav: at 0.13 the apex
+  // came up through "FOR TEACHERS, KG–G12".
+  const top = -vh / 2 + Math.max(132, vh * 0.16);
+  const h = Math.min(vh * 0.74, vh / 2 - 26 - top);
+  const w = Math.min(h * widthRatio, vw * 0.46);
+  // Scaled to a fraction of the arch's width, so the masthead is always
+  // comfortably inside the jambs whatever the window does. The 720 is the
+  // Latin wordmark's design width; wordK is divided out because the hero
+  // multiplies the two back together.
+  const lockScale = Math.max(0.28, Math.min(0.92, (w * lockFill) / 720 / b.wordK));
+  return {
+    top,
+    h,
+    w,
+    cy: top + h / 2,
+    lockScale,
+    // Absolute, not a nudge: the masthead's own CSS top is subtracted out
+    // so the block lands at a chosen height INSIDE the arch.
+    lockShiftY: top + h * topGap - (-vh / 2 + vh * 0.15),
+  };
+}
+
 // ── 10 · MIHRAB ──────────────────────────────────────────────────────
-// A tall pointed arch with مرشد set inside it, and the eight modules
-// standing in niches down its two sides.
+// A monumental pointed arch with the whole masthead standing inside it —
+// wordmark, tagline, buttons, trust line, all centred — and the eight
+// modules set into its outline, four to a side.
 //
-// The one variant that draws on where this product actually is. The arch
-// is struck geometrically rather than illustrated — two arcs meeting at
-// a point — so it stays architecture and never becomes decoration.
+// The modules sit just OUTSIDE the line rather than on it. Inside, they
+// collided with the wordmark at every width that made the wordmark large
+// enough to be the wordmark; outside, the interior belongs entirely to
+// the masthead and the arch reads as carrying the modules rather than
+// containing them. Their captions hang outward for the same reason.
 export function mihrab(n, vw, vh, dir, wordK) {
-  const b = base(vw, vh, wordK, { scale: 0.6, shift: -0.09 });
+  const b = base(vw, vh, wordK, { scale: 0.68, shift: -0.075 });
   if (b.isPortrait) return done(b, vw, vh, phone(b, vw, vh, dir, { centreH: 210 }));
 
-  const s = tileScale(vh, false) * 0.82;
+  const s = tileScale(vh, false) * 0.86;
   const size = TILE * s;
-  const topY = b.lockBottom + 20;
-  const availH = vh / 2 - 34 - topY;
-  const archH = Math.min(340, availH);
-  const archW = Math.min(archH * 0.62, vw * 0.22);
-  const cy = topY + archH / 2;
-
-  // Four niches a side, running down the arch's flanks in reading order:
-  // 01 top-left, 02 top-right, then down. Their distance from the centre
-  // follows the arch's own half-width at that height — narrow at the
-  // point, wide at the foot — so the two columns bow with the arch
-  // instead of standing square beside it. The first attempt derived both
-  // the row and the side from one expression and produced neither.
-  // A row must clear its own caption AND the tile below it. Derived from
-  // the arch's height alone it came out at 83px against a 73px tile, so
-  // every caption sat on the next niche down; the caption is the reason
-  // this variant is legible at all, so it sets the floor and the arch
-  // gives way. Then the whole column is clamped into the pin, because a
-  // block sized from the arch can still start too low to finish inside
-  // it.
-  const rowPitch = size + 46;
-  const row0 = Math.min(
-    cy - (rowPitch * 3) / 2,
-    vh / 2 - 30 - rowPitch * 3 - size / 2 - 16
-  );
+  const A = archFrame(b, vw, vh, { widthRatio: 0.8, lockFill: 0.76, topGap: 0.28 });
 
   return done(b, vw, vh, {
     tile: (i) => {
       const side = i % 2 === 0 ? -1 : 1;
-      const rank = Math.floor(i / 2); // 0..3, top to bottom
-      const halfW = (archW / 2) * (0.42 + 0.58 * (rank / 3));
+      const nq = NICHES[Math.floor(i / 2)];
       return {
-        x: (halfW + size / 2 + 30) * side * dir,
-        y: row0 + rank * rowPitch,
+        x: ((nq.hf * A.w) / 2 + size / 2 + 16) * side * dir,
+        y: A.top + nq.f * A.h,
         s,
       };
     },
     tileSize: size,
+    labelPlace: "outside",
     filaments: false,
-    centre: { x: 0, y: cy, w: archW, h: archH, k: archH / 340, kind: "mihrab" },
-    lastY: row0 + 3 * rowPitch + size / 2 + 30,
+    lockScale: A.lockScale,
+    lockShiftY: A.lockShiftY,
+    centre: { x: 0, y: A.cy, w: A.w, h: A.h, k: 1, kind: "mihrab" },
+    lastY: A.top + NICHES[3].f * A.h + size / 2,
+  });
+}
+
+// ── 11 · COLONNADE ───────────────────────────────────────────────────
+// An arcade: eight slender arches in a row, one per module, with the
+// masthead standing above them.
+//
+// The idea Mihrab is reaching for, taken literally — if there are eight
+// modules, build eight arches. Each module gets its own architecture
+// instead of being an icon stuck to the side of someone else's, and the
+// row reads as a facade, which is a shape that says "institution"
+// faster than any amount of copy.
+export function colonnade(n, vw, vh, dir, wordK) {
+  const b = base(vw, vh, wordK, { scale: 0.7, shift: -0.055 });
+  if (b.isPortrait) return done(b, vw, vh, phone(b, vw, vh, dir, { hasCentre: false }));
+
+  const bayW = Math.min((vw * 0.82) / n, 150);
+  const top = Math.max(b.lockBottom + 30, -vh / 2 + vh * 0.44);
+  // Slender: an arcade of squat bays reads as a row of tombstones. Two to
+  // one, and taking whatever height is left rather than a fixed cap,
+  // which was leaving a fifth of the screen empty underneath.
+  const bayH = Math.min(bayW * 2, vh / 2 - 40 - top);
+  const cy = top + bayH / 2;
+  // The glyph sits under the springing, where the bay is full width —
+  // higher up it is inside the curve and clips. Its CAPTION then has to
+  // clear the base line too, which is what sets the fraction here.
+  const glyphY = top + bayH * (SPRING + (1 - SPRING) * 0.3);
+
+  return done(b, vw, vh, {
+    tile: (i) => ({
+      x: (i - (n - 1) / 2) * bayW * dir,
+      y: glyphY,
+      s: Math.min(1, (bayW * 0.52) / TILE),
+    }),
+    tileSize: Math.min(TILE, bayW * 0.52),
+    filaments: false,
+    centre: { x: 0, y: cy, w: bayW * n, h: bayH, k: 1, kind: "colonnade", bays: n },
+    lastY: top + bayH,
+  });
+}
+
+// ── 12 · KHATIM ──────────────────────────────────────────────────────
+// The arch again, and inside it an eight-pointed star — the khatim — with
+// one module standing at each of its eight points.
+//
+// The count is the whole argument: there are eight modules and the star
+// has eight points, so the arrangement is not a layout imposed on the
+// content but the content's own number made into a shape. It also solves
+// what Mihrab works around — the modules have somewhere to be that is
+// neither on top of the masthead nor exiled to the margins.
+export function khatim(n, vw, vh, dir, wordK) {
+  const b = base(vw, vh, wordK, { scale: 0.68, shift: -0.06 });
+  if (b.isPortrait) return done(b, vw, vh, phone(b, vw, vh, dir, { hasCentre: false }));
+
+  const s = tileScale(vh, false) * 0.84;
+  const size = TILE * s;
+  const A = archFrame(b, vw, vh, { widthRatio: 0.92, lockFill: 0.6, topGap: 0.3 });
+
+  // A khatim is two squares at 45°, so its eight points fall every 45°.
+  // Rotated by 22.5° none of them lands on the vertical axis — which is
+  // where the masthead is. Unrotated, two points sat directly on the
+  // wordmark and on the buttons.
+  //
+  // The radii are then sized so even the nearest points clear the
+  // masthead: the vertical pair must clear its top and bottom, the
+  // horizontal pair its width. Both are derived rather than picked,
+  // because the masthead is itself sized from the arch.
+  const OFF = Math.SQRT1_2 * 0.5412; // sin(22.5°) / sin(45°) → 0.383
+  const lockHalfH = A.h * 0.3;
+  const lockHalfW = (A.w * 0.6) / 2;
+  const ry = Math.min(
+    A.h * 0.47,
+    Math.max((lockHalfH + size / 2 + 22) / Math.cos((22.5 * Math.PI) / 180), A.h * 0.34)
+  );
+  const rx = Math.min(
+    vw * 0.34,
+    Math.max((lockHalfW + size / 2 + 24) / Math.cos((22.5 * Math.PI) / 180), A.w * 0.62)
+  );
+  const cy = A.top + A.h * 0.5;
+
+  // Reading order runs down the star by rows — top pair, upper pair,
+  // lower pair, bottom pair — so the eight travel paths to the contents
+  // grid stay parallel instead of crossing.
+  const ANG = [-112.5, -67.5, -157.5, -22.5, 157.5, 22.5, 112.5, 67.5];
+
+  return done(b, vw, vh, {
+    tile: (i) => {
+      const a = (ANG[i] * Math.PI) / 180;
+      return { x: Math.cos(a) * rx * dir, y: cy + Math.sin(a) * ry, s };
+    },
+    tileSize: size,
+    labelPlace: "outside",
+    filaments: false,
+    lockScale: A.lockScale,
+    lockShiftY: A.lockShiftY,
+    centre: {
+      x: 0, y: cy, w: rx * 2, h: ry * 2, k: 1, kind: "khatim",
+      archH: A.h, archW: A.w, archTop: A.top,
+    },
+    lastY: cy + ry + size / 2,
   });
 }

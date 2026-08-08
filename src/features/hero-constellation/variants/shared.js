@@ -53,6 +53,10 @@ export function base(vw, vh, wordK, opts = {}) {
   const top = -vh / 2 + vh * 0.15 + shiftY;
   return {
     isPortrait,
+    // Carried through so a variant that sizes the masthead against
+    // something of its own (the arch variants) can divide it back out —
+    // the hero multiplies lockScale and wordK together.
+    wordK,
     lockScale: scale,
     lockShiftY: shiftY,
     lockTop: top,

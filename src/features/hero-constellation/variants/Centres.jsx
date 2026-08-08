@@ -20,6 +20,7 @@
 // =====================================================================
 
 import StudioStage from "../StudioStage";
+import { archPath } from "./arch";
 import cx from "./Centres.module.css";
 
 /** Design size of the specimen plate used by the cover variant. */
@@ -100,32 +101,94 @@ function Signal() {
 }
 
 // ── mihrab ───────────────────────────────────────────────────────────
-// A pointed arch, struck as geometry rather than drawn: a rectangle
-// whose top two corners are rounded to meet at a point, inset by a
-// second, and مرشد set inside it. The one centre that draws on where
-// this product is — and it stays architecture precisely because nothing
-// about it is illustrated.
-function Mihrab({ isRTL }) {
+// A monumental pointed arch. The masthead stands inside it — that is the
+// point of the variant — so nothing is set within the arch here; it is
+// the frame, and the frame stays empty.
+//
+// Two arches, one inside the other, and a pool of light at the foot so it
+// stands on something. The path comes from arch.js, which also places the
+// niches, so the drawn line and the modules on it cannot drift apart.
+function Mihrab() {
   return (
     <div className={cx.mihrab} aria-hidden="true">
-      {/* Drawn as a path, not with border-radius. Rounded corners give a
-          DOME — the two curves meet tangentially at the top — and the
-          whole point of this shape is that they meet at a point. Two
-          quadratics sharing an apex are the only way to get it. */}
-      <svg className={cx.mihSvg} viewBox="0 0 100 160" preserveAspectRatio="none">
-        <path
-          className={cx.mihLine}
-          d="M2 160 L2 86 Q2 20 50 2 Q98 20 98 86 L98 160"
-          vectorEffect="non-scaling-stroke"
-        />
-        <path
-          className={cx.mihLineIn}
-          d="M11 160 L11 88 Q11 32 50 15 Q89 32 89 88 L89 160"
+      <svg className={cx.archSvg} viewBox="0 0 100 160" preserveAspectRatio="none">
+        <path className={cx.archLine} d={archPath(0)} vectorEffect="non-scaling-stroke" />
+        <path className={cx.archLineIn} d={archPath(9)} vectorEffect="non-scaling-stroke" />
+      </svg>
+      <span className={cx.archPool} />
+    </div>
+  );
+}
+
+// ── colonnade ────────────────────────────────────────────────────────
+// An arcade of `bays` slender arches, one per module. Drawn as one SVG
+// with a repeated path rather than as N elements, so the bays share a
+// single stroke width and cannot end up a hair apart from each other.
+function Colonnade({ bays = 8 }) {
+  const W = 100 * bays;
+  return (
+    <div className={cx.colonnade} aria-hidden="true">
+      <svg className={cx.archSvg} viewBox={`0 0 ${W} 168`} preserveAspectRatio="none">
+        {Array.from({ length: bays }, (_, i) => (
+          <g key={i} transform={`translate(${i * 100} 0)`}>
+            <path className={cx.archLine} d={archPath(6)} vectorEffect="non-scaling-stroke" />
+          </g>
+        ))}
+        {/* The base the arcade stands on — without it the bays read as
+            eight loose shapes rather than as one building. */}
+        <line
+          className={cx.archLine}
+          x1="0" y1="161" x2={W} y2="161"
           vectorEffect="non-scaling-stroke"
         />
       </svg>
-      <span className={cx.mihWord}>{isRTL ? "Murchid" : "مرشد"}</span>
-      <span className={cx.mihPool} />
+      <span className={cx.archPool} />
+    </div>
+  );
+}
+
+// ── khatim ───────────────────────────────────────────────────────────
+// The eight-pointed star, inside its arch. Two squares at 45° to each
+// other — which is how the khatim is actually constructed — plus the
+// rosette's radii running out to the eight points the modules stand on.
+//
+// Struck geometrically rather than drawn as ornament: the star has to
+// hold a masthead in its middle without competing with it.
+function Khatim({ arch }) {
+  const R = 50;
+  // Two squares at 45° to each other, both offset by 22.5° so the eight
+  // resulting points fall exactly where the layout stands the modules —
+  // and none of them on the vertical axis, where the masthead is.
+  const pts = (rot) =>
+    [0, 1, 2, 3]
+      .map((i) => {
+        const a = ((i * 90 + rot) * Math.PI) / 180;
+        return `${(50 + Math.cos(a) * R).toFixed(2)},${(50 + Math.sin(a) * R).toFixed(2)}`;
+      })
+      .join(" ");
+  return (
+    <div className={cx.khatim} aria-hidden="true">
+      {arch && (
+        <svg
+          className={cx.khArch}
+          viewBox="0 0 100 160"
+          preserveAspectRatio="none"
+          style={{
+            width: arch.w,
+            height: arch.h,
+            insetBlockStart: arch.top,
+          }}
+        >
+          <path className={cx.archLine} d={archPath(0)} vectorEffect="non-scaling-stroke" />
+        </svg>
+      )}
+      <svg className={cx.khStar} viewBox="0 0 100 100" preserveAspectRatio="none">
+        <polygon className={cx.khLine} points={pts(22.5)} />
+        <polygon className={cx.khLine} points={pts(67.5)} />
+        <circle className={cx.khLineSoft} cx="50" cy="50" r="50" />
+        <circle className={cx.khLineSoft} cx="50" cy="50" r="33" />
+      </svg>
+      <span className={cx.archPool} />
     </div>
   );
 }
@@ -135,7 +198,7 @@ function Mihrab({ isRTL }) {
  * (including undefined) falls back to the studio window, which is the
  * centre most variants want.
  */
-export default function Centre({ kind, compact, isRTL, t }) {
+export default function Centre({ kind, compact, isRTL, t, bays, arch }) {
   switch (kind) {
     case "specimen":
       return <Specimen t={t} />;
@@ -146,7 +209,11 @@ export default function Centre({ kind, compact, isRTL, t }) {
     case "signal":
       return <Signal />;
     case "mihrab":
-      return <Mihrab isRTL={isRTL} />;
+      return <Mihrab />;
+    case "colonnade":
+      return <Colonnade bays={bays} />;
+    case "khatim":
+      return <Khatim arch={arch} />;
     case "bureau":
       // The same studio window, laid back in perspective. The tilt is a
       // wrapper rather than a prop so StudioStage stays a flat surface

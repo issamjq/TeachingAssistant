@@ -228,47 +228,75 @@
   animation: cxTravel 7s ease-in-out infinite;
 }
 
-/* ── mihrab ───────────────────────────────────────────────────────── */
-/* Two quadratics meeting at an apex — a pointed arch, not a dome. The
-   viewBox is stretched to the box (preserveAspectRatio: none) so the arch
-   takes whatever proportion the layout gives it, and non-scaling-stroke
-   keeps the line one pixel however far it stretches. */
-.mihSvg {
+/* ── arches: mihrab, colonnade, khatim ────────────────────────────── */
+/* All three stretch their viewBox to the box the layout gave them
+   (preserveAspectRatio: none) so the arch takes whatever proportion the
+   composition needs, and non-scaling-stroke keeps the line one pixel
+   however far it is stretched. */
+.mihrab,
+.colonnade,
+.khatim {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+.archSvg {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
   fill: none;
 }
-.mihLine {
-  stroke: oklch(0.92 0.06 191 / 0.34);
+.archLine {
+  stroke: oklch(0.92 0.06 191 / 0.4);
+  stroke-width: 1.15;
+  fill: none;
+}
+.archLineIn {
+  stroke: oklch(0.92 0.06 191 / 0.17);
   stroke-width: 1;
+  fill: none;
 }
-.mihLineIn {
-  stroke: oklch(0.92 0.06 191 / 0.16);
-  stroke-width: 1;
-}
-.mihWord {
+/* The light the architecture stands in. Broad and weak on purpose: a
+   tight pool reads as a spotlight effect rather than as a lit interior. */
+.archPool {
   position: absolute;
-  inset-block-start: 58%;
-  inset-inline: 0;
-  transform: translateY(-50%);
-  text-align: center;
-  font-family: "Amiri", "Fraunces", serif;
-  font-size: 78px;
-  line-height: 1;
-  color: oklch(0.96 0.03 196);
-  opacity: 0.16;
-  user-select: none;
-}
-.mihPool {
-  position: absolute;
-  inset: 20% -30% -30%;
+  inset: 16% -26% -30%;
   background: radial-gradient(
-    ellipse 46% 50% at 50% 60%,
-    oklch(0.86 0.08 190 / 0.14),
-    transparent 72%
+    ellipse 48% 52% at 50% 62%,
+    oklch(0.86 0.08 190 / 0.15),
+    transparent 74%
   );
+}
+
+/* ── khatim ───────────────────────────────────────────────────────── */
+/* The arch is positioned by the layout (it is taller than the star's
+   box), so it is placed absolutely rather than filling the parent. */
+.khArch {
+  position: absolute;
+  inset-inline-start: 50%;
+  transform: translateX(-50%);
+  fill: none;
+}
+.khStar {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  fill: none;
+}
+.khLine {
+  stroke: oklch(0.92 0.06 191 / 0.3);
+  stroke-width: 1;
+  fill: none;
+  vector-effect: non-scaling-stroke;
+}
+.khLineSoft {
+  stroke: oklch(0.92 0.06 191 / 0.14);
+  stroke-width: 1;
+  fill: none;
+  vector-effect: non-scaling-stroke;
 }
 
 /* ── bureau ───────────────────────────────────────────────────────── */

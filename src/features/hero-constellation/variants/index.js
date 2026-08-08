@@ -1,9 +1,9 @@
 // =====================================================================
 // Stage-one variants — the registry
 //
-// Ten treatments of the landing's opening frame. Everything after the
+// Twelve treatments of the landing's opening frame. Everything after the
 // opening — the contents index, the walkthrough deck, and the whole rest
-// of the page — is identical across all ten, so what is being compared
+// of the page — is identical across all twelve, so what is being compared
 // here really is just the first screen.
 //
 // `sourceKind` decides what the eight things look like at rest:
@@ -16,6 +16,9 @@
 // Route numbering is stable: variants[i] is served at /preview{i+1}, and
 // /preview lists them. Reordering this array renumbers the routes, so
 // add to the end rather than inserting.
+//
+// 10-12 are one family: an arch, then the arch made literal as an
+// arcade, then the arch given a star to hold the modules.
 // =====================================================================
 
 import * as L from "./layouts";
@@ -96,9 +99,25 @@ export const VARIANTS = [
   {
     id: "mihrab",
     name: "Mihrab",
-    line: "A pointed arch with مرشد inside it, modules in niches down each side.",
-    why: "The only one that draws on where this product is. Struck as geometry, so it stays architecture.",
+    line: "A monumental arch with the whole masthead inside it, modules set into its outline.",
+    why: "Draws on where this product actually is. Struck as geometry, so it stays architecture rather than becoming ornament.",
     layout: L.mihrab,
+    sourceKind: "tile",
+  },
+  {
+    id: "colonnade",
+    name: "Colonnade",
+    line: "An arcade of eight arches — one per module — with the masthead above.",
+    why: "Mihrab taken literally: eight modules, eight arches. A facade says 'institution' faster than any copy can.",
+    layout: L.colonnade,
+    sourceKind: "tile",
+  },
+  {
+    id: "khatim",
+    name: "Khatim",
+    line: "An eight-pointed star inside the arch, a module standing at each point.",
+    why: "The count is the argument — eight modules, eight points. The arrangement is the content's own number made into a shape.",
+    layout: L.khatim,
     sourceKind: "tile",
   },
 ];

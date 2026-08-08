@@ -349,11 +349,24 @@ export default function HeroStageOne({ onEnter, signedIn, variant }) {
     const pt = pathAt(i, m);
     const above = C.labelAbove?.(i);
     const off = C.tileSize * 0.72;
+    const fade = 1 - ramp(m, 0.1, 0.34);
+    // "outside" hangs the caption away from the centre line instead of
+    // under the tile. The arch variants need it: their interior is the
+    // masthead, and a caption dropped under a niche lands on the wordmark.
+    if (C.labelPlace === "outside") {
+      const outward = C.tile(i).x >= 0 ? 1 : -1;
+      const push = (C.tileSize / 2 + 10) * outward;
+      return {
+        transform: `translate(${outward > 0 ? "0" : "-100%"}, -50%) translate(${pt.x + push}px, ${pt.y}px)`,
+        textAlign: outward > 0 ? "start" : "end",
+        opacity: fade,
+      };
+    }
     return {
       transform: above
         ? `translate(-50%, -100%) translate(${pt.x}px, ${pt.y - off}px)`
         : `translate(-50%, 0) translate(${pt.x}px, ${pt.y + off}px)`,
-      opacity: 1 - ramp(m, 0.1, 0.34),
+      opacity: fade,
     };
   };
 
@@ -438,7 +451,18 @@ export default function HeroStageOne({ onEnter, signedIn, variant }) {
                   }
             }
           >
-            <Centre kind={C.centre.kind} compact={C.centre.compact} isRTL={isRTL} t={t} />
+            <Centre
+              kind={C.centre.kind}
+              compact={C.centre.compact}
+              bays={C.centre.bays}
+              arch={
+                C.centre.archH
+                  ? { w: C.centre.archW, h: C.centre.archH, top: C.centre.archTop - C.centre.y + C.centre.h / 2 }
+                  : null
+              }
+              isRTL={isRTL}
+              t={t}
+            />
           </div>
         )}
 
