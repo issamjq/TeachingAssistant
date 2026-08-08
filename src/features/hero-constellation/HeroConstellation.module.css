@@ -177,6 +177,13 @@
   pointer-events: none;
   will-change: transform, opacity;
 }
+/* "Subjects & Students" is the only one of the eight whose name wraps,
+   and it pushed its own description a line lower than everything beside
+   it — one caption visibly out of step with the rest.
+   The fix is to reserve two lines for every name (.reserveName), but it
+   costs 14px per row, which a phone does not have: four rows of it is
+   56px on a screen with none to spare. So it is opt-in, and portrait
+   opts out. */
 .tileLabelName {
   display: block;
   font-family: "JetBrains Mono", monospace;
@@ -185,6 +192,9 @@
   letter-spacing: 0.15em;
   text-transform: uppercase;
   color: oklch(0.98 0.015 200);
+}
+.reserveName .tileLabelName {
+  min-height: 2.7em;
 }
 .tileLabelDesc {
   display: block;
@@ -556,6 +566,21 @@
 /* Small screens give up a little more, because they have proportionally
    the least room: a phone carries the same eight captions as a desktop
    in under half the height. */
+/* On a phone the name must fit ONE line. Four rows of tile plus a
+   two-line name plus a description is about 400px and a phone has 350 —
+   the arithmetic does not close at any tile size. Tightening the tracking
+   is what makes "Subjects & Students", the only one of the eight that
+   wraps, sit on a single line like the other seven. */
+@media (max-width: 620px) {
+  .tileLabelName {
+    font-size: 10px;
+    letter-spacing: 0.075em;
+  }
+  .tileLabelDesc {
+    font-size: 11px;
+  }
+}
+
 @media (max-width: 620px) {
   .lockCompact :global(.atl-word) {
     font-size: 132px;

@@ -257,9 +257,12 @@ const Nav = ({ onEnter, signedIn, onJump, onPage, onSignOut, darkHero = false })
         setOverDark(false);
         return;
       }
-      // Cream/light sections the nav must go ink over (everything else is the
-      // warm drench): the Showreel and the membership/Plans block.
-      const lightSections = document.querySelectorAll(".film-stage, .plans-stage");
+      // Cream/light sections the nav must go ink over (everything else is
+      // the warm drench): the Showreel, the membership/Plans block, and
+      // the FAQ. The FAQ carries a plain global class ALONGSIDE its CSS
+      // module class purely so it can be named here — a module class is
+      // hashed at build time and cannot be written into a selector string.
+      const lightSections = document.querySelectorAll(".film-stage, .plans-stage, .faq-stage");
       let overLight = false;
       lightSections.forEach((el) => {
         const r = el.getBoundingClientRect();
@@ -301,6 +304,7 @@ const Nav = ({ onEnter, signedIn, onJump, onPage, onSignOut, darkHero = false })
     { key: "lp.nav.how", to: "sec-how" },
     { key: "lp.nav.voices", to: "sec-voices" },
     { key: "lp.nav.pricing", to: "sec-pricing" },
+    { key: "lp.nav.faq", to: "sec-faq" },
   ];
   const ctaArrow = isRTL
     ? "M11.5 7 H3 M6.5 3.5 L3 7 L6.5 10.5"
@@ -883,6 +887,7 @@ const Footer = ({ onEnter, signedIn, onJump, onPage }) => {
               <li><FLink onClick={() => onJump("sec-features")}>{t("lp.nav.features")}</FLink></li>
               <li><FLink onClick={() => onJump("sec-how")}>{t("lp.nav.how")}</FLink></li>
               <li><FLink onClick={() => onJump("sec-voices")}>{t("lp.nav.voices")}</FLink></li>
+              <li><FLink onClick={() => onJump("sec-faq")}>{t("lp.nav.faq")}</FLink></li>
               <li><FLink onClick={() => onPage("pricing")}>{t("lp.foot.pricing")}</FLink></li>
             </ul>
           </div>

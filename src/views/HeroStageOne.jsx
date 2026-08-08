@@ -47,6 +47,7 @@ import { CARD_H, deckCenterX, deckPos, indexLayout } from "../features/hero-arti
 import { Glyph } from "../features/hero-constellation/glyphs";
 import Centre from "../features/hero-constellation/variants/Centres";
 import { variantById } from "../features/hero-constellation/variants";
+import { TILE } from "../features/hero-constellation/variants/shared";
 import hx from "../features/hero-constellation/HeroConstellation.module.css";
 
 import WalkthroughLayer, { WalkthroughStacked } from "../features/tool-walkthrough/WalkthroughLayer";
@@ -191,7 +192,12 @@ export default function HeroStageOne({ onEnter, signedIn, variant }) {
   const textIn = ramp(local, 0.12, 0.3) * outT;
   const advance = isLast ? 0 : ramp(local, 0.9, 1);
 
-  const ctaLabel = signedIn ? t("landing.nav.openPlanner") : t("ch.hero.cta");
+  // The dictionary's CTA already ends in an arrow — "Try the studio →",
+  // "جرّب الاستوديو ←" — because at "/" that glyph IS the arrow. Here the
+  // button draws its own, which animates on hover, so the one in the
+  // string has to come off or you get two.
+  const ctaLabel = (signedIn ? t("landing.nav.openPlanner") : t("ch.hero.cta"))
+    .replace(/[\s\u2190\u2192\u2794\u27a1]+$/u, "");
   const tagline = useTaglineWords(t);
 
   // ── layout ───────────────────────────────────────────────────────
@@ -274,8 +280,11 @@ export default function HeroStageOne({ onEnter, signedIn, variant }) {
     const a = C.tile(i);
     const b = bPos(i);
     // The card starts at exactly the tile's footprint so the two
-    // silhouettes coincide at the moment they trade places.
-    const sa = C.cardStartScale * a.s;
+    // silhouettes coincide at the moment they trade places. cardStartScale
+    // is derived from the RENDERED tile size, so it must not be multiplied
+    // by the tile's scale again — that was the same double-scale the tile
+    // box itself had.
+    const sa = C.cardStartScale;
     const pt = pathAt(i, m);
     // C — the deck. Distance from its front; before the gather starts,
     // `active` and `advance` are both 0, so this is simply i.
@@ -317,11 +326,18 @@ export default function HeroStageOne({ onEnter, signedIn, variant }) {
     const pt = pathAt(i, m);
     // The tile grows toward the card's footprint as it travels, so it is
     // never a small square sitting inside a large card at the hand-off.
-    const grow = lerp(a.s, (b.s * CARD_H) / (C.tileSize * 1.9), m);
+    const grow = lerp(a.s, (b.s * CARD_H) / (TILE * 1.9), m);
     return {
+      // The box is the DESIGN size and the transform does the scaling.
+      // It used to be C.tileSize — which is already TILE x s — so the
+      // scale applied s a second time and every tile rendered at TILE x s
+      // SQUARED. Invisible on desktop where s is about 1, and the reason
+      // a tablet's 47px tile was really 28px of ink in a row 152px wide.
+      // All the layout arithmetic is written against TILE x s, so this
+      // makes what is drawn match what was measured.
       transform: `translate(-50%, -50%) translate(${pt.x}px, ${pt.y}px) scale(${grow})`,
-      width: C.tileSize,
-      height: C.tileSize,
+      width: TILE,
+      height: TILE,
       opacity: 1 - ramp(m, 0.32, 0.66),
       zIndex: 20 + i,
       "--i": i,
@@ -675,13 +691,13 @@ export default function HeroStageOne({ onEnter, signedIn, variant }) {
                         <span className={hx.tileNum} aria-hidden="true">
                           {String(i + 1).padStart(2, "0")}
                         </span>
-                        <Glyph kind={kind} size={Math.round(C.tileSize * 0.4)} />
+                        <Glyph kind={kind} size={Math.round(TILE * 0.4)} />
                       </div>
                     </div>
                   )}
                   {C.showLabels && V.sourceKind === "tile" && (
                     <div
-                      className={`${hx.tileLabel} ${morph < 0.02 ? hx.tileLabelIn : ""}`}
+                      className={`${hx.tileLabel} ${C.reserveName ? hx.reserveName : ""} ${morph < 0.02 ? hx.tileLabelIn : ""}`}
                       style={{ ...tileLabelStyle(i), "--pulse": C.pulseAt?.(i) ?? i / N }}
                     >
                       <span className={hx.tileLabelName}>{t(`atl.art.${kind}`)}</span>

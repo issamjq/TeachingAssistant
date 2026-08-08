@@ -21,6 +21,7 @@ import HeroStageOne from "./HeroStageOne";
 import Showreel from "./Showreel";
 import PointerFx from "../features/landing-motion/PointerFx";
 import StatsBand from "../features/landing-stats/StatsBand";
+import FaqSection from "../features/landing-faq/FaqSection";
 
 // ── reveal hook ────────────────────────────────────────────────────
 // Adds `.in` to the element when it crosses the viewport. Used by
@@ -721,6 +722,13 @@ export default function LandingHome({ onEnter, signedIn, heroVariant = null }) {
       <Voices />
       <span id="sec-pricing" aria-hidden="true" style={{ display: "block", scrollMarginTop: "64px" }} />
       <Plans onEnter={onEnter} />
+      {/* After the price, before the last ask — which is where the
+          questions actually arrive: somebody has just read a number and
+          wants to know about their students' data before they click.
+          Cream ground continuing Plans, so the feather into the final
+          drench below stays exactly where it was. */}
+      <span id="sec-faq" aria-hidden="true" style={{ display: "block", scrollMarginTop: "64px" }} />
+      <FaqSection />
       <FinalCTA onEnter={onEnter} signedIn={signedIn} />
     </>
   );

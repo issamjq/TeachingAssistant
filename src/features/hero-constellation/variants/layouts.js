@@ -61,14 +61,18 @@ function done(b, vw, vh, opts) {
     // glyphs give them nothing to decide on.
     showLabels = true,
     lockX = 0, filaments = true, labelAbove = null, pulseAt = null,
-    pulseDur = 7, labelW = null,
+    pulseDur = 7, labelW = null, capH: capHOpt = null,
   } = opts;
   const showDesc = opts.showDesc ?? true;
   const labelPlace = opts.labelPlace ?? "below";
 
   // How far below a tile its caption reaches. Captions hung "outside" sit
   // beside the tile and add nothing below it.
-  const capH = labelPlace === "below" && showLabels ? (showDesc ? 52 : 28) : 0;
+  // A name can wrap to two lines and a description under it to two more.
+  // 52 under-counted both, so the overflow guard lifted by slightly less
+  // than the composition actually needed.
+  const capH =
+    labelPlace === "below" && showLabels ? capHOpt ?? (showDesc ? 58 : 30) : 0;
   let bottom = -Infinity;
   for (let i = 0; i < 8; i++) bottom = Math.max(bottom, tile(i).y + tileSize / 2 + capH);
   if (centre) bottom = Math.max(bottom, centre.y + centre.h / 2);
@@ -92,6 +96,7 @@ function done(b, vw, vh, opts) {
     lockX: b.isPortrait ? 0 : lockX,
     labelPlace,
     showDesc,
+    reserveName: !b.isPortrait,
     centre: fitCentre,
     ...cue(vh, lastY - lift, cueFloor - lift),
     cardStartScale: cardStart(sourceW),
@@ -109,9 +114,8 @@ function done(b, vw, vh, opts) {
  * in each layout below) rather than sharing this.
  */
 function tabletRow(b, vw, vh, dir, { wave = null, rot = null, centre = null, pulseDur = 7.2 } = {}) {
-  const s = tileScale(vh, "tablet");
-  const g = rowOf8(vw, vh, dir, b.lockBottom + 26, s);
-  const size = TILE * s;
+  const g = rowOf8(vw, vh, dir, b.lockBottom + 10, tileScale(vh, "tablet") * 1.5);
+  const size = g.size;
   // A wave that rises above the base row would push its highest tile into
   // the trust line above it, so the whole row drops by the wave's deepest
   // upward excursion first.
@@ -125,6 +129,7 @@ function tabletRow(b, vw, vh, dir, { wave = null, rot = null, centre = null, pul
     tile,
     tileSize: size,
     labelW: g.labelW,
+    capH: g.capH,
     lastY: g.lastY - lift + (wave ? 12 : 0),
     // A tablet used to get no centre at all, which meant no travelling
     // light — the modules glowed in sequence with nothing visibly
@@ -396,8 +401,15 @@ export function signal(n, vw, vh, dir, wordK) {
   const s = tileScale(vh, b.tier) * 0.92;
   const size = TILE * s;
   const spread = Math.min(vw * (b.tier === "tablet" ? 0.38 : 0.43), 580);
-  const topY = b.lockBottom + 44;
-  const lift = Math.min(58, (vh / 2 - 40 - topY - size) / 2);
+  // Half this variant's modules caption ABOVE themselves, so the band has
+  // to start a caption's height below the masthead, not flush against it
+  // — "Proctored Papers" was landing on the trust line.
+  const CAP = 58;
+  const topY = b.lockBottom + 26 + CAP;
+  // Half the vertical gap between an above-line module and a below-line
+  // one. It has to clear a whole caption, not just the tile: at a flat 58
+  // the caption hanging under an upper module reached the tile below it.
+  const lift = Math.max(size / 2 + 26, Math.min(72, (vh / 2 - 36 - topY - size) / 2));
   const lineY = topY + size / 2 + lift;
 
   return done(b, vw, vh, {
@@ -416,7 +428,9 @@ export function signal(n, vw, vh, dir, wordK) {
     labelAbove: (i) => i % 2 === 0,
     filaments: false,
     centre: { x: 0, y: lineY, w: spread * 2.2, h: 2, k: 1, kind: "signal" },
-    lastY: lineY + lift + size / 2 + 30,
+    // …and end one below it, for the same reason at the other edge: the
+    // lower row's captions were reaching the cue line.
+    lastY: lineY + lift + size / 2 + CAP,
   });
 }
 

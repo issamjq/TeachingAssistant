@@ -128,7 +128,11 @@ export function tileScale(vh, tier) {
   // has to share that with a two-line caption.
   // Short phones give up tile size as well as masthead: both together are
   // what makes eight captioned modules fit under a full-size CTA.
-  if (tier === "phone") return vh < SHORT_PHONE_VH ? 0.48 : 0.56;
+  // Lowered when the double-scale bug in the tile box was fixed: a tile
+  // used to RENDER at TILE x s squared, so 0.56 drew 24px while the
+  // layout reserved 44. Now that the two agree, the reservation is real
+  // and the scale has to fit the band it actually has.
+  if (tier === "phone") return vh < SHORT_PHONE_VH ? 0.34 : 0.4;
   // A flat value, not a fraction of byHeight: multiplied out at 768 that
   // gave 0.40, i.e. a 31px tile, which is a bullet rather than an icon.
   if (tier === "tablet") return 0.6;
@@ -175,9 +179,11 @@ export function phoneGrid(vw, vh, dir, topY, s, { bow = null, rot = null } = {})
   // lifted by the overflow guard straight into the CTA buttons — captions
   // sitting on "Try the studio" is worse than captions without their
   // second line, so on a short phone the description goes.
-  const withDesc = 3 * (size + 46) + size + 52 <= bottom - topY;
-  const capH = withDesc ? 52 : 28;
-  const rowPitch = size + (withDesc ? 46 : 30);
+  // A phone's caption is one line of name (it must not wrap — see the
+  // narrower tracking under 620px) plus up to two of description.
+  const withDesc = 3 * (size + 54) + size + 48 <= bottom - topY;
+  const capH = withDesc ? 48 : 26;
+  const rowPitch = size + capH + 6;
 
   const top = Math.min(topY + size / 2, bottom - (rows - 1) * rowPitch - size / 2 - capH);
 
@@ -245,16 +251,34 @@ export function fit(topY, vh, designW, designH, maxW, minK = 0.42) {
  * each module a 120px column, which a 48px tile and a wrapped caption
  * sit inside comfortably.
  */
-export function rowOf8(vw, vh, dir, topY, s) {
+export function rowOf8(vw, vh, dir, topY, sMax) {
+  const pitch = Math.min((vw - 32) / 8, 152);
+  // Sized from the COLUMN it sits in, not from viewport height alone. A
+  // flat tablet scale gave a 47px tile, which is right at 1024 and far
+  // too small at 1512 — the row looked like a footnote under a masthead
+  // three times its size.
+  const s = Math.min(sMax, (pitch * 0.42) / TILE);
   const size = TILE * s;
-  const pitch = Math.min((vw - 32) / 8, 150);
-  // A caption in a 120px column wraps its name to two lines and adds a
-  // description under that — about 54px, not the 34 a one-line caption
-  // needs. Budgeted at 34, the cue line landed on top of them.
-  const capH = 54;
-  const y = Math.min(topY + size / 2, vh / 2 - 54 - size / 2 - capH);
+  // Two lines of name plus up to two of description. Budgeted at 54 the
+  // cue line sat on the captions of whichever module wrapped.
+  const capH = 68;
+
+  // CENTRED in the band, not hung from the top of it. Top-aligned, a
+  // 774px window put the row directly under the trust line with 150px of
+  // empty screen beneath it — the composition read as having slid up
+  // rather than as sitting in the frame.
+  const bandTop = topY;
+  const bandBottom = vh / 2 - 44;
+  const y = Math.max(
+    bandTop + size / 2,
+    bandTop + (bandBottom - bandTop - (size + capH)) / 2 + size / 2
+  );
+
   return {
     tile: (i) => ({ x: (i - 3.5) * pitch * dir, y, s }),
+    s,
+    size,
+    capH,
     labelW: pitch - 8,
     lastY: y + size / 2 + capH,
   };
