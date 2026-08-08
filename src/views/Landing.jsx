@@ -2506,7 +2506,12 @@ function MarketingPage({ page, onSignUp, onProfileDone, onChoosePlan, onPage, on
 // =====================================================================
 // LANDING (exported)
 // =====================================================================
-export default function Landing({ onOpenStudio }) {
+// heroVariant selects which cut of the opening act renders. "atelier" is
+// what ships at "/"; "constellation" is the redesign under review at
+// "/preview". It is threaded rather than branched on the URL so both cuts
+// stay reachable side by side while the design is being decided — see
+// app/preview/page.tsx.
+export default function Landing({ onOpenStudio, heroVariant = "atelier" }) {
   const [page, setPage] = useState("home");
   // Mock auth: an account exists only once a provider was picked AND a
   // plan chosen. Signed-in visitors skip the funnel entirely.
@@ -2944,7 +2949,7 @@ export default function Landing({ onOpenStudio }) {
         <Nav onEnter={enter} signedIn={signedIn} onJump={jump} onPage={goPage} onSignOut={handleSignOut} darkHero={page === "home"} />
       )}
       {page === "home" ? (
-        <LandingHome onEnter={enter} signedIn={signedIn} />
+        <LandingHome onEnter={enter} signedIn={signedIn} heroVariant={heroVariant} />
       ) : (
         <MarketingPage
           page={page}

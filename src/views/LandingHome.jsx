@@ -17,6 +17,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { useT, useI18n } from "../lib/i18n";
 import { PLANS } from "../lib/plans";
 import HeroAtelier from "./HeroAtelier";
+import HeroAtelierConstellation from "./HeroAtelierConstellation";
 import Showreel from "./Showreel";
 import PointerFx from "../features/landing-motion/PointerFx";
 import StatsBand from "../features/landing-stats/StatsBand";
@@ -688,14 +689,17 @@ function FinalCTA({ onEnter, signedIn }) {
 // index. The older HeroJourney is parked (snapshot v1.2) and its card
 // faces are reused by HeroAtelier. Manifest / Stage / Lineup stay
 // parked above (unrendered) in case any are wanted back later.
-export default function LandingHome({ onEnter, signedIn }) {
+export default function LandingHome({ onEnter, signedIn, heroVariant = "atelier" }) {
+  // Both cuts open the same pinned act and hand off to the same Showreel,
+  // so swapping them is a component swap and nothing below has to know.
+  const Hero = heroVariant === "constellation" ? HeroAtelierConstellation : HeroAtelier;
   return (
     <>
       {/* Renders nothing — installs the cursor listeners that drive the
           magnetic CTAs, the plan-card sheen, and the hero orb parallax.
           Inert on touch and under reduced motion. */}
       <PointerFx />
-      <HeroAtelier onEnter={onEnter} signedIn={signedIn} />
+      <Hero onEnter={onEnter} signedIn={signedIn} />
       {/* Nav scroll anchors — sit in normal flow just before each section so
           the nav links land at the section's start (sec-features lives in
           HeroAtelier). scrollMarginTop clears the fixed nav bar. */}

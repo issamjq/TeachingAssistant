@@ -1,0 +1,206 @@
+/* =====================================================================
+   Hero constellation — the opening frame's own layer
+   ---------------------------------------------------------------------
+   Scoped to this feature. Positioning and opacity for these elements is
+   scroll-driven and therefore inline in HeroAtelierConstellation; what
+   lives here is everything that is NOT a function of scroll: the tile's
+   material, the plate's placement, the ambient float, and the reduced
+   motion opt-out.
+
+   The palette is read from the landing's --cm-* tokens rather than
+   restated, so the frame stays in step with the rest of the drench.
+   ===================================================================== */
+
+/* ── the studio plate ─────────────────────────────────────────────── */
+/* NOTE — the split between .plate and .plateBreathe is load-bearing, not
+   tidiness. Scroll position is applied as an inline transform, and a CSS
+   animation's transform beats an inline one; putting both on one element
+   left the plate pinned at the origin with the scroll offset silently
+   discarded. The outer element positions, the inner one animates, and
+   neither touches the other's property. Same reason for
+   .tile / .tileInner below. */
+.plate {
+  position: absolute;
+  z-index: 2;
+  left: 50%;
+  top: 50%;
+  pointer-events: none;
+  will-change: transform, opacity;
+}
+.plateBreathe {
+  width: 100%;
+  height: 100%;
+}
+.plateSvg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+/* Slow breathing on the whole scene so the frame is alive while the
+   reader is still deciding whether to scroll. 18s: below the threshold
+   where it reads as an animation rather than as light moving. */
+.plateBreathe {
+  animation: hxBreathe 18s ease-in-out infinite;
+}
+
+/* ── connector filaments ──────────────────────────────────────────── */
+/* Thin lines from the scene to each tile — the eight modules shown as
+   things the studio emits, not as a menu that happens to sit near it.
+   Under the tiles, over the plate. */
+.filaments {
+  position: absolute;
+  z-index: 3;
+  inset: 0;
+  pointer-events: none;
+  overflow: visible;
+}
+.filament {
+  stroke: oklch(0.9 0.07 191);
+  stroke-width: 0.9;
+  fill: none;
+  stroke-linecap: round;
+}
+
+/* ── glyph tiles ──────────────────────────────────────────────────── */
+.tiles {
+  position: absolute;
+  z-index: 12;
+  left: 50%;
+  top: 50%;
+  pointer-events: none;
+}
+/* Positioning only — see the note on .plate. */
+.tile {
+  position: absolute;
+  left: 0;
+  top: 0;
+  will-change: transform, opacity;
+}
+/* Material and ambient drift. */
+.tileInner {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  border-radius: 18px;
+  color: oklch(0.94 0.07 190);
+  /* Glass over the drench: high enough opacity that the glyph keeps its
+     4.5:1 against the teal even where the plate's halo brightens it. */
+  background: linear-gradient(
+    150deg,
+    oklch(0.98 0.02 200 / 0.16),
+    oklch(0.98 0.02 200 / 0.05)
+  );
+  border: 1px solid oklch(0.94 0.06 191 / 0.34);
+  box-shadow:
+    0 18px 34px -20px oklch(0.14 0.05 205 / 0.85),
+    inset 0 1px 0 oklch(0.98 0.02 200 / 0.22);
+  backdrop-filter: blur(6px);
+  position: relative;
+}
+
+/* Each tile drifts on its own phase (--i) so the constellation shimmers
+   instead of pulsing as one block. Suspended once the morph starts —
+   see .tileSettled — because a tile that is still bobbing while it
+   travels to its grid slot lands off its mark. */
+.tileFloat {
+  animation: hxFloat 7.5s ease-in-out infinite;
+  animation-delay: calc(var(--i) * -0.9s);
+}
+.tileSettled {
+  animation: none;
+}
+
+/* The index number, carried on the tile from the very first frame so
+   the ordering the contents page uses is already established here. */
+.tileNum {
+  position: absolute;
+  inset-block-start: 6px;
+  inset-inline-start: 9px;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  color: oklch(0.95 0.05 191 / 0.8);
+}
+
+/* Caption under each tile. Present from the opening frame — the whole
+   point of the new hero is that a visitor can name all eight modules
+   before scrolling, which a wordless icon cannot do. */
+.tileLabel {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 132px;
+  text-align: center;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 9.5px;
+  line-height: 1.35;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: oklch(0.95 0.03 196 / 0.82);
+  pointer-events: none;
+  will-change: transform, opacity;
+}
+
+/* ── opening caption ──────────────────────────────────────────────── */
+/* The one line that tells the reader the scene is a map, and that
+   scrolling opens it. */
+.sceneCue {
+  position: absolute;
+  z-index: 13;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 10.5px;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: oklch(0.96 0.03 196 / 0.66);
+  pointer-events: none;
+}
+.sceneCue::before,
+.sceneCue::after {
+  content: "";
+  width: clamp(18px, 4vw, 46px);
+  height: 1px;
+  background: oklch(0.94 0.06 191 / 0.4);
+}
+
+@keyframes hxFloat {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+  50% {
+    transform: translate3d(0, -9px, 0);
+  }
+}
+
+@keyframes hxBreathe {
+  0%,
+  100% {
+    opacity: 0.88;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.015);
+  }
+}
+
+/* Ambient motion is decoration; the scroll scrub is the content. Only
+   the former is dropped here — HeroAtelierConstellation renders a
+   static composed frame under reduced motion, so there is nothing to
+   scrub in that branch anyway. */
+@media (prefers-reduced-motion: reduce) {
+  .tileFloat,
+  .plateBreathe {
+    animation: none;
+  }
+}

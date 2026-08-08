@@ -1,0 +1,665 @@
+"use client";
+
+// =====================================================================
+// Murchid — Hero Atelier, constellation cut (preview)
+//
+// Same pinned act as HeroAtelier, with its opening rewritten.
+//
+// The old opening dealt the eight modules out as a fan of cards. Cards
+// are the wrong object for a first frame: eight of them at fan scale are
+// eight unreadable rectangles, they say nothing about what the product
+// IS, and they spend the most valuable screen in the funnel showing the
+// reader a shuffling deck. So the frame now opens on ONE scene — a
+// drawn studio — with the eight modules floating over it as named glyph
+// tiles. A visitor can name all eight before scrolling a pixel.
+//
+// The act structure is unchanged, which is the point: this is a new
+// opening bolted onto a sequence that already worked.
+//
+//   ACT 1  scene      the studio plate, eight tiles, the lockup
+//   ACT 2  morph      each tile flies to its slot and BECOMES its card
+//   ACT 3  index      the numbered contents page (unchanged)
+//   ACT 4  walkthrough the deck, one module at a time (unchanged)
+//
+// The morph is a per-tile cross-fade in flight rather than one global
+// swap: tile i and card i occupy the same transform at the same instant,
+// and tile fades out across the middle of its own travel while the card
+// fades in. Staggered by index, so it cascades left-to-right instead of
+// eight things changing state on one frame.
+//
+// Motion is a pure function of scroll (rAF → `p`) — no animation
+// library, same technique as the rest of the landing. Bilingual via
+// useT(), mirrored for RTL through `dir`. Honors prefers-reduced-motion
+// with a composed static frame.
+// =====================================================================
+import React, { useEffect, useRef, useState } from "react";
+import { useT, useI18n } from "../lib/i18n";
+import { HERO_CARDS, HeroCardFace } from "./HeroJourney";
+import { CARD_H, deckCenterX, deckPos, indexLayout } from "../features/hero-artifacts/indexLayout";
+import { constellationLayout } from "../features/hero-constellation/constellationLayout";
+import { Glyph, StudioPlate } from "../features/hero-constellation/glyphs";
+import hx from "../features/hero-constellation/HeroConstellation.module.css";
+
+import WalkthroughLayer, { WalkthroughStacked } from "../features/tool-walkthrough/WalkthroughLayer";
+
+const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
+const seg = (p, a, b) => clamp01((p - a) / (b - a));
+const lerp = (a, b, t) => a + (b - a) * t;
+const easeInOut = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+const smooth = (t) => t * t * (3 - 2 * t);
+/** Eased 0→1 ramp across [a,b] of some progress value. */
+const ramp = (v, a, b) => smooth(clamp01((v - a) / (b - a)));
+
+const N = HERO_CARDS.length; // 8
+
+// ── Track budget ─────────────────────────────────────────────────────
+// Authored in viewport-heights, because what matters is how much
+// scrolling a reader spends on each beat, not an abstract fraction.
+//
+// INTRO covers scene → morph → numbered index → gather. SLOT is what one
+// module gets in the walkthrough. The section's height is derived from
+// these, so CSS and choreography cannot drift apart.
+//
+// INTRO is longer than the fan cut's 112vh: the scene is something to
+// READ, not a transition to sit through, so it holds before anything
+// moves, and the morph itself is staggered across eight tiles and needs
+// room to land rather than snap.
+const INTRO_VH = 152;
+const SLOT_VH = 44;
+const TRAVEL_VH = INTRO_VH + SLOT_VH * N;
+export const HERO_TRACK_VH = TRAVEL_VH + 100; // + the pinned viewport
+/** viewport-heights → progress fraction of the track's travel */
+const at = (v) => v / TRAVEL_VH;
+
+/** Fraction of the morph window each successive tile is delayed by. */
+const STAGGER = 0.055;
+const MORPH_SPAN = 1 - (N - 1) * STAGGER;
+
+// Build the value line "The teacher directs. Murchid drafts." as a word
+// list so each token can stagger in on load. The brand word is flagged
+// so it renders in clay italic.
+function useTaglineWords(t) {
+  const out = [];
+  for (const w of t("lp.hero.h1a").split(/\s+/)) if (w) out.push({ w, brand: false });
+  out.push({ w: t("lp.hero.brand"), brand: true });
+  for (const w of t("lp.hero.h1b").split(/\s+/)) if (w) out.push({ w, brand: false });
+  return out;
+}
+
+// Placeholder viewport for the server render, where there is no window.
+// Both renders MUST seed the same value: seeding the client from
+// window.innerWidth makes the mount effect a no-op, React bails out of
+// the same-value update, and hydration does not repair inline styles —
+// so the DOM keeps the server's 1280px geometry on a 390px phone. See
+// the long note in HeroAtelier.jsx.
+const SSR_VIEWPORT_W = 1280;
+const SSR_VIEWPORT_H = 800;
+
+export default function HeroAtelierConstellation({ onEnter, signedIn }) {
+  const t = useT();
+  const { isRTL } = useI18n();
+  const dir = isRTL ? -1 : 1;
+  const trackRef = useRef(null);
+  const [p, setP] = useState(0);
+  const [vw, setVw] = useState(SSR_VIEWPORT_W);
+  const [vh, setVh] = useState(SSR_VIEWPORT_H);
+  const [reduced, setReduced] = useState(false);
+
+  useEffect(() => {
+    setReduced(window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+    let raf = 0;
+    const onScroll = () => {
+      if (raf) return;
+      raf = requestAnimationFrame(() => {
+        raf = 0;
+        // Width first and unconditionally — it must not be skipped by the
+        // ref guard below, or the hydration placeholder never clears.
+        setVw(window.innerWidth);
+        setVh(window.innerHeight);
+        const el = trackRef.current;
+        if (!el) return;
+        const r = el.getBoundingClientRect();
+        const span = r.height - window.innerHeight;
+        setP(span > 0 ? clamp01(-r.top / span) : 0);
+      });
+    };
+    setVw(window.innerWidth);
+    setVh(window.innerHeight);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll);
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onScroll);
+      if (raf) cancelAnimationFrame(raf);
+    };
+  }, []);
+
+  // ── Choreography — all pure functions of scroll `p` ──────────────
+  //   0–10vh    HOLD — the scene, untouched. The frame the page opens on.
+  //   10–26vh   the cue and the filaments release
+  //   18–50vh   the lockup recedes
+  //   22–54vh   the studio plate dissolves
+  //   26–94vh   the tiles fly out and become cards (staggered per tile)
+  //   64–92vh   the index heading arrives
+  //   84–114vh  01–08 labels
+  //   114–126vh HOLD — the finished contents page
+  //   126–152vh the row gathers to the side and stacks into a deck
+  //   152vh+    44vh per module
+  const cueOut = 1 - seg(p, at(9), at(22));
+  const lockOut = easeInOut(seg(p, at(18), at(50)));
+  const plateOut = 1 - easeInOut(seg(p, at(22), at(54)));
+  const morph = seg(p, at(26), at(94));
+  const swap = easeInOut(seg(p, at(60), at(84)));
+  const headIn = seg(p, at(64), at(92));
+  const tocIn = seg(p, at(84), at(114)); // suppressed on portrait — see the list
+
+  /** Per-tile morph progress. Tile i starts a beat after tile i-1. */
+  const mAt = (i) => smooth(clamp01((morph - i * STAGGER) / MORPH_SPAN));
+
+  // ── gather: index row → deck ─────────────────────────────────────
+  const GATHER_A = at(126);
+  const GATHER_B = at(INTRO_VH);
+  const gRaw = clamp01((p - GATHER_A) / (GATHER_B - GATHER_A));
+  const gather = smooth(gRaw); // geometry
+  // The two headings share a slot. Cross-fading them symmetrically
+  // superimposed two long serif lines and made both illegible, so the
+  // outgoing one clears before the incoming one starts.
+  const indexOut = 1 - smooth(clamp01(gRaw / 0.42));
+  const twHeadIn = smooth(clamp01((gRaw - 0.62) / 0.38));
+
+  // ── walkthrough slots ────────────────────────────────────────────
+  const cProg = clamp01((p - GATHER_B) / (1 - GATHER_B)) * N;
+  const active = Math.min(Math.floor(cProg), N - 1);
+  const local = clamp01(cProg - active);
+  // The LAST module must not clear: there is no next card to make room
+  // for, so it holds rather than ending the track on an empty screen.
+  const isLast = active === N - 1;
+  const outT = isLast ? 1 : 1 - ramp(local, 0.9, 1);
+  const dotIn = ramp(local, 0.03, 0.13) * outT;
+  const lineIn = ramp(local, 0.07, 0.24) * outT;
+  const textIn = ramp(local, 0.12, 0.3) * outT;
+  const advance = isLast ? 0 : ramp(local, 0.9, 1);
+
+  const ctaLabel = signedIn ? t("landing.nav.openPlanner") : t("ch.hero.cta");
+  const tagline = useTaglineWords(t);
+
+  // ── layout ───────────────────────────────────────────────────────
+  const L = indexLayout(N, vw, vh, dir, isRTL);
+  const wordK = L.wordK;
+  const C = constellationLayout(N, vw, vh, dir, wordK);
+  const tocK = L.tocK;
+  const isPortrait = L.isPortrait;
+
+  // ── deck geometry (the walkthrough half) ─────────────────────────
+  const narrow = vw <= 900;
+  const deckX = deckCenterX(vw, dir, narrow);
+  // Phones stack deck over copy, so the deck gets the band between the
+  // heading and the split and scales to whatever that band measures.
+  // Both constants mirror ToolWalkthrough.module.css exactly.
+  const SPLIT = 0.56;
+  const padTop = Math.min(110, Math.max(72, vh * 0.12));
+  const bandTop = padTop + 84;
+  const bandH = SPLIT * vh - bandTop;
+  const deckScale = narrow ? Math.max(0.5, Math.min(0.86, (bandH - 20) / CARD_H)) : 1;
+  const deckY = narrow ? (bandTop + SPLIT * vh) / 2 - vh / 2 : 46;
+
+  // Portrait keeps the index beat as a typographic contents LIST with the
+  // cards riding above it as a tidy stack — eight legible cards will not
+  // fit a phone as a grid, and skipping the beat cost phones the overview
+  // that gives the section its point.
+  const mShort = vh < 700;
+  const M_STEP = 9;
+  const mIndexScale = deckScale * (mShort ? 0.52 : 0.66);
+  const mIndexY = -vh / 2 + padTop + 96 + (CARD_H * mIndexScale) / 2;
+
+  const headBottomY = isPortrait
+    ? Math.max(-vh / 2 + 64 + 112, mIndexY - (CARD_H * mIndexScale) / 2 - 30)
+    : L.headBottomY;
+  const mRowH = mShort ? 37 : 41;
+  const mTiny = vh < 620;
+  /** Per-row entrance for the phone list — each row lands on its own beat. */
+  const mRowIn = (i) => ramp(tocIn, 0.04 + i * 0.05, 0.34 + i * 0.05);
+  const mListH = N * mRowH;
+  const mListTop = mTiny
+    ? -vh / 2 + 196
+    : Math.min(
+        mIndexY + M_STEP * (N - 1) + (CARD_H * mIndexScale) / 2 + 40,
+        vh / 2 - 20 - mListH
+      );
+
+  /** Settled position of card i — the 4×2 index grid, or the phone stack. */
+  const bPos = isPortrait
+    ? (i) => ({ x: 0, y: mIndexY + i * M_STEP, s: mIndexScale * (1 - i * 0.02) })
+    : L.pos;
+
+  // ── the morph ────────────────────────────────────────────────────
+  // Tile and card share one path. Both are placed by lerping the tile's
+  // constellation position to the card's settled position by that tile's
+  // own morph progress — identical transforms, so the cross-fade between
+  // them is a change of material and not a jump.
+  const pathAt = (i, m) => {
+    const a = C.tile(i);
+    const b = bPos(i);
+    return {
+      x: lerp(a.x, b.x, m),
+      y: lerp(a.y, b.y, m),
+      s: { a: a.s, b: b.s },
+    };
+  };
+
+  const cardStyle = (i) => {
+    const m = mAt(i);
+    const a = C.tile(i);
+    const b = bPos(i);
+    // The card starts at exactly the tile's footprint so the two
+    // silhouettes coincide at the moment they trade places.
+    const sa = C.cardStartScale * a.s;
+    const pt = pathAt(i, m);
+    // C — the deck. Distance from its front; before the gather starts,
+    // `active` and `advance` are both 0, so this is simply i.
+    const dp = deckPos(i - active - advance, dir);
+    // Two lerps in sequence, not a blend: the tile resolves into the
+    // index first, and only then does the row gather into the deck. The
+    // windows do not overlap, so composing them this way is exact.
+    const rs = lerp(sa, b.s, m);
+    const x = lerp(pt.x, deckX + dp.x, gather);
+    const y = lerp(pt.y, deckY + dp.y, gather);
+    const rot = lerp(0, dp.rot, gather);
+    const sc = lerp(rs, dp.s * deckScale, gather);
+    // The card takes over from the tile across the middle of the flight.
+    const cardIn = ramp(m, 0.42, 0.8);
+    let opacity = lerp(cardIn, dp.opacity, gather);
+    if (mTiny) opacity *= 1 - 0.86 * (tocIn * indexOut);
+    return {
+      transform: `translate(-50%, -50%) translate(${x}px, ${y}px) rotate(${rot}deg) scale(${sc})`,
+      opacity,
+      // In the phone stack the FIRST card sits on top, so the order is
+      // reversed against the constellation's reading order.
+      zIndex:
+        gather >= 0.5
+          ? 50 - Math.round(Math.abs(i - active - advance) * 6)
+          : isPortrait && m > 0.6
+          ? 50 - i
+          : 20 + i,
+    };
+  };
+
+  const tileStyle = (i) => {
+    const m = mAt(i);
+    const a = C.tile(i);
+    const b = bPos(i);
+    const pt = pathAt(i, m);
+    // The tile grows toward the card's footprint as it travels, so it is
+    // never a small square sitting inside a large card at the hand-off.
+    const grow = lerp(a.s, (b.s * CARD_H) / (C.tileSize * 1.9), m);
+    return {
+      transform: `translate(-50%, -50%) translate(${pt.x}px, ${pt.y}px) scale(${grow})`,
+      width: C.tileSize,
+      height: C.tileSize,
+      opacity: 1 - ramp(m, 0.32, 0.66),
+      zIndex: 20 + i,
+      "--i": i,
+    };
+  };
+
+  // Caption sits under its tile and leaves EARLY — well before the tile
+  // itself does. A caption still legible while its tile is halfway to the
+  // grid reads as a label that has come unstuck from its object.
+  const tileLabelStyle = (i) => {
+    const m = mAt(i);
+    const pt = pathAt(i, m);
+    return {
+      transform: `translate(-50%, 0) translate(${pt.x}px, ${pt.y + C.tileSize * 0.72}px)`,
+      opacity: 1 - ramp(m, 0.1, 0.34),
+    };
+  };
+
+  // Reduced motion cannot scrub a deck, and the modules must not simply
+  // vanish for those users. The pin is dropped (see the media query in
+  // landing.css) and the sequence renders as a composed static frame:
+  // the lockup, the scene, then the eight modules as a stacked list.
+  if (reduced) {
+    return (
+      <section className="atl atl--static">
+        <div className="atl-pin">
+          <div className="atl-drench" aria-hidden="true">
+            <span className="cinema-grain" />
+          </div>
+          <div className="atl-lockup atl-lockup--static">
+            {isRTL ? (
+              <h1 className="atl-word atl-word--ar">مرشد</h1>
+            ) : (
+              <h1 className="atl-word">Mu<em>r</em>chid</h1>
+            )}
+            <div className="atl-meaning">{t("atl.meaning")}</div>
+            <h2 className="atl-tagline" dir={isRTL ? "rtl" : "ltr"}>
+              {tagline.map((tok, i) => (
+                <span key={i}>{tok.brand ? <em>{tok.w}</em> : tok.w} </span>
+              ))}
+            </h2>
+            <div className="atl-cta-row">
+              <button type="button" className="atl-pill" onClick={onEnter}>{ctaLabel}</button>
+            </div>
+            <div className="atl-trust">{t("atl.trust")}</div>
+          </div>
+          <WalkthroughStacked />
+        </div>
+      </section>
+    );
+  }
+
+  const plateOpacity = plateOut;
+
+  return (
+    <section ref={trackRef} className="atl" style={{ height: `${HERO_TRACK_VH}vh` }}>
+      {/* Scroll target for the nav "Features" link — the depth at which
+          the contents index is fully revealed. */}
+      <span
+        id="sec-features"
+        aria-hidden="true"
+        style={{ position: "absolute", top: "50%", left: 0, width: 1, height: 1, scrollMarginTop: "64px" }}
+      />
+
+      <div className="atl-pin">
+        {/* Warm drench that the whole act plays on */}
+        <div className="atl-drench" aria-hidden="true">
+          <span className="cinema-grain" />
+          <span className="cinema-orb cinema-orb-a" />
+          <span className="cinema-orb cinema-orb-b" />
+        </div>
+
+        {/* ── ACT 1 — the studio plate ───────────────────────────── */}
+        <div
+          className={hx.plate}
+          aria-hidden="true"
+          style={{
+            width: C.plate.w,
+            height: C.plate.h,
+            transform: `translate(-50%, -50%) translate(${C.plate.x}px, ${C.plate.y}px) scale(${lerp(1.04, 0.9, 1 - plateOpacity)})`,
+            opacity: plateOpacity,
+          }}
+        >
+          {/* Inner element owns the ambient breathing — a CSS animation's
+              transform would otherwise beat the scroll transform above. */}
+          <div className={hx.plateBreathe}>
+            <StudioPlate className={hx.plateSvg} />
+          </div>
+        </div>
+
+        {/* Filaments — the eight modules shown as things the studio
+            emits. They release before the tiles move, so the tiles read
+            as leaving rather than as dragging the lines with them. */}
+        <svg
+          className={hx.filaments}
+          viewBox={`${-vw / 2} ${-vh / 2} ${vw} ${vh}`}
+          preserveAspectRatio="none"
+          aria-hidden="true"
+          style={{ opacity: plateOpacity * cueOut * 0.55 }}
+        >
+          {HERO_CARDS.map((kind, i) => {
+            const a = C.tile(i);
+            return (
+              <path
+                key={kind}
+                className={hx.filament}
+                d={`M ${C.plate.x} ${C.plate.y + C.plate.h * 0.06} Q ${(C.plate.x + a.x) / 2} ${a.y} ${a.x} ${a.y}`}
+                strokeOpacity={0.26 - Math.abs(a.x) / (vw * 5)}
+              />
+            );
+          })}
+        </svg>
+
+        {/* Editorial gutter caption — a magazine spine */}
+        <span className="atl-spine" aria-hidden="true" style={{ opacity: 1 - lockOut }}>
+          MURCHID — EST. 2026
+        </span>
+
+        {/* Masthead bar */}
+        <div
+          className="atl-masthead"
+          style={{ opacity: 1 - lockOut, transform: `translateY(${lockOut * -28}px)` }}
+        >
+          <span className="atl-rule" />
+          <span className="atl-eyebrow">{t("landing.hero.eyebrow")}</span>
+          <span className="atl-meta" dir="ltr">
+            مرشد · NO. 01
+          </span>
+        </div>
+
+        {/* The bilingual lockup — the signature. Smaller and lifted here
+            than in the fan cut: this is the one frame where the scene is
+            the message and the wordmark is the caption. */}
+        <div
+          className="atl-lockup"
+          style={{
+            opacity: 1 - lockOut,
+            transform: `translate(-50%, 0) translateY(${C.lockShiftY + lockOut * -64}px) scale(${(1 - lockOut * 0.05) * wordK * C.lockScale})`,
+          }}
+        >
+          {/* The watermark mirrors the foreground in the *other* script:
+              Latin page → Arabic مرشد behind; Arabic page → Latin Murchid. */}
+          <span
+            className={`atl-watermark${isRTL ? " atl-watermark--latin" : ""}`}
+            aria-hidden="true"
+          >
+            {isRTL ? "Murchid" : "مرشد"}
+          </span>
+          {isRTL ? (
+            <h1 className="atl-word atl-word--ar">مرشد</h1>
+          ) : (
+            <h1 className="atl-word">
+              Mu<em>r</em>chid
+            </h1>
+          )}
+          <div className="atl-meaning">{t("atl.meaning")}</div>
+          <h2 className="atl-tagline" dir={isRTL ? "rtl" : "ltr"}>
+            {tagline.map((tok, i) => (
+              <span className="atl-tw" style={{ "--i": i }} key={i}>
+                {tok.brand ? <em>{tok.w}</em> : tok.w}{" "}
+              </span>
+            ))}
+          </h2>
+          <div className="atl-cta-row">
+            <button type="button" className="atl-pill lp-magnetic" onClick={onEnter}>
+              {ctaLabel}
+            </button>
+            <button
+              type="button"
+              className="cinema-ghost lp-magnetic"
+              onClick={() => {
+                const el = document.getElementById("sec-how");
+                if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+              }}
+            >
+              {t("landing.hero.ctaGhost")}
+            </button>
+          </div>
+          <div className="atl-trust">{t("atl.trust")}</div>
+        </div>
+
+        {/* ── the eight glyph tiles ──────────────────────────────── */}
+        {/* Presentational: the walkthrough below takes each module in
+            turn and shows it in place, so a second route into the same
+            content would be redundant. The list is exposed to assistive
+            tech once, as a list, rather than as eight loose graphics. */}
+        <div className={hx.tiles}>
+          <ul style={{ position: "absolute", left: 0, top: 0, margin: 0, padding: 0, listStyle: "none" }}>
+            {HERO_CARDS.map((kind, i) => (
+              <li key={kind}>
+                <div className={hx.tile} style={tileStyle(i)}>
+                  {/* The drift lives on the inner element: a CSS animation's
+                      transform beats an inline one, so an animated outer
+                      tile would discard its scroll position entirely. */}
+                  <div
+                    className={`${hx.tileInner} ${morph > 0 ? hx.tileSettled : hx.tileFloat}`}
+                    style={{ "--i": i }}
+                  >
+                    <span className={hx.tileNum} aria-hidden="true">
+                      {String(i + 1).padStart(2, "0")}
+                    </span>
+                    <Glyph kind={kind} size={Math.round(C.tileSize * 0.4)} />
+                  </div>
+                </div>
+                {C.showLabels && (
+                  <div className={hx.tileLabel} style={tileLabelStyle(i)}>
+                    {t(`atl.art.${kind}`)}
+                  </div>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        {/* The line that tells a reader the scene is a map. Sits under
+            the lower band, clears as soon as the morph is imminent. */}
+        <div
+          className={hx.sceneCue}
+          style={{
+            opacity: cueOut * 0.9,
+            transform: `translate(-50%, -50%) translateY(${C.cueY}px)`,
+          }}
+        >
+          {t("atl.index.over")}
+        </div>
+
+        {/* ── ACT 3 — editorial index header ─────────────────────── */}
+        <div
+          className={`atl-index-head${isPortrait ? " atl-index-head--m" : ""}`}
+          style={{
+            opacity: headIn * indexOut,
+            // Portrait anchors from the TOP of the pin: bottom-anchoring
+            // depends on the heading's own rendered height, which varies
+            // with how the title wraps on a phone, so a clamp meant to
+            // hold it below the nav still let it drift underneath.
+            transform: isPortrait
+              ? `translate(-50%, 0) translateY(${(1 - headIn) * 24}px)`
+              : `translate(-50%, -100%) translateY(${headBottomY}px) translateY(${(1 - headIn) * 24}px) scale(${wordK})`,
+          }}
+        >
+          <span className="atl-index-over">{t("atl.index.over")}</span>
+          {/* The contents title blooms rather than fades: the curtain
+              draws it down while Fraunces' weight and optical-size axes
+              travel with it, so the type gains presence as it settles. */}
+          <h2
+            className="atl-index-title lm-mask vf-bloom"
+            style={{
+              "--lm": `${lerp(0, 118, easeInOut(headIn))}%`,
+              "--vf-wght": lerp(280, 420, easeInOut(headIn)),
+              "--vf-opsz": lerp(18, 144, easeInOut(headIn)),
+            }}
+          >
+            {t("atl.index.title")}
+          </h2>
+        </div>
+
+        {/* ── ACT 2/3 — the cards the tiles become ───────────────── */}
+        {/* Each slot holds two faces: set A (Science) and set B (Math).
+            They cross-fade with a blur as you scroll between them, so
+            the eight "images" swap mid-journey. */}
+        <div className="atl-cards">
+          {HERO_CARDS.map((kind, i) => (
+            <div key={kind} className="atl-card" style={cardStyle(i)}>
+              <div className="atl-card-in" style={{ "--i": i }}>
+                <div className="atl-stack">
+                  <div className="atl-face" style={{ opacity: 1 - swap, filter: `blur(${swap * 9}px)` }}>
+                    <HeroCardFace kind={kind} />
+                  </div>
+                  <div
+                    className="atl-face atl-face--b"
+                    style={{ opacity: swap, filter: `blur(${(1 - swap) * 9}px)` }}
+                  >
+                    <HeroCardFace kind={kind} variant="b" />
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Labels ride WITH their card into the deck rather than staying
+            put: pinned to the row while the cards swept away, they read
+            for a moment as eight stranded captions. */}
+        <div
+          className="atl-toc atl-toc--compact"
+          style={{ opacity: isPortrait ? 0 : tocIn * indexOut, "--toc-k": tocK }}
+          aria-hidden={isPortrait || tocIn * indexOut < 0.5}
+        >
+          {HERO_CARDS.map((kind, i) => {
+            const b = bPos(i);
+            const dp = deckPos(i, dir);
+            const lx = lerp(b.x, deckX + dp.x, gather);
+            const ly = lerp(b.y, deckY + dp.y, gather);
+            const ls = lerp(b.s, dp.s * deckScale, gather);
+            const labelY = ly - (CARD_H * ls) / 2 - 14; // sit above the card top
+            return (
+              <div
+                key={kind}
+                className="atl-toc-item"
+                style={{ transform: `translate(-50%, -100%) translate(${lx}px, ${labelY}px)` }}
+              >
+                <span className="atl-toc-num">{String(i + 1).padStart(2, "0")}</span>
+                <span className="atl-toc-label">{t(`atl.art.${kind}`)}</span>
+                <span className="atl-toc-desc">{t(`atl.desc.${kind}`)}</span>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Phone contents list — the portrait form of the index stage. */}
+        {isPortrait && (
+          <ol
+            className="atl-mlist"
+            // `top`, not insetBlockStart: React does not map the logical
+            // property, so it was dropped and the list pinned to 0.
+            style={{ opacity: tocIn * indexOut, top: `calc(50% + ${Math.round(mListTop)}px)` }}
+            aria-hidden={tocIn * indexOut < 0.5}
+          >
+            {HERO_CARDS.map((kind, i) => {
+              const r = mRowIn(i);
+              return (
+                <li
+                  key={kind}
+                  className="atl-mrow"
+                  style={{
+                    opacity: r,
+                    transform: `translateY(${lerp(14, 0, r)}px)`,
+                    ["--row"]: r,
+                  }}
+                >
+                  <span className="atl-mnum">{String(i + 1).padStart(2, "0")}</span>
+                  <span className="atl-mname">{t(`atl.art.${kind}`)}</span>
+                  <span className="atl-mdesc">{t(`atl.desc.${kind}`)}</span>
+                </li>
+              );
+            })}
+          </ol>
+        )}
+
+        {/* Selection dot on the trailing edge of the front card. */}
+        <span
+          className="atl-dot"
+          style={{
+            transform: narrow
+              ? `translate(-50%, -50%) translate(${deckX}px, ${deckY + 150 * deckScale}px) scale(${lerp(0.2, 1, dotIn)})`
+              : `translate(-50%, -50%) translate(${deckX + 118 * dir}px, ${deckY}px) scale(${lerp(0.2, 1, dotIn)})`,
+            opacity: dotIn,
+          }}
+          aria-hidden="true"
+        />
+
+        <WalkthroughLayer
+          active={active}
+          local={local}
+          gather={gather}
+          headIn={twHeadIn}
+          dotIn={dotIn}
+          lineIn={lineIn}
+          textIn={textIn}
+          narrow={narrow}
+          isRTL={isRTL}
+        />
+      </div>
+    </section>
+  );
+}
