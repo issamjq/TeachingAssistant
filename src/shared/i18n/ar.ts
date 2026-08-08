@@ -631,7 +631,7 @@ export const AR: Partial<Record<TranslationKey, string>> = {
   "lp.pg.contact.sentBody": "نقرأ كل رسالة. توقّع ردًّا خلال يومين.",
   // landing — conditional CTA
   "lp.cta.subscribe": "اشترك",
-  // landing — sign up (Google / Outlook only; mock until Firebase)
+  // landing — sign up (Google / Outlook only)
   "lp.auth.eyebrow": "أنشئ حسابك",
   "lp.auth.title": "ابدأ مع",
   "lp.auth.titleEm": "Murchid.",

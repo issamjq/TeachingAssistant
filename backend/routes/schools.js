@@ -44,7 +44,7 @@ router.get("/", async (req, res) => {
 // Catalog insert — used by the "school not listed?" fallback in
 // onboarding + the My-schools tab. Returns the existing row if (name,
 // emirate) already matches, so the client doesn't need to special-case
-// duplicates. No auth gate yet; tighten when Firebase lands.
+// duplicates. No auth gate yet; tighten when scoping lands.
 router.post("/", validateBody(CreateSchoolSchema), async (req, res) => {
   try {
     const { name, name_ar, emirate, city, type, curriculum, website } = req.body || {};

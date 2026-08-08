@@ -780,9 +780,9 @@ export default function Studio({ initialKind = null }) {
         : { kind, prompt: prompt.trim(), params: withDefaultLang(paramsForKind), attachments, enforceChips };
       // Raw fetch (not the api() helper) because we need a streaming
       // response body — the helper resolves the whole JSON before
-      // returning. Attach the Firebase Bearer token manually so the
+      // returning. Attach the Supabase Bearer token manually so the
       // backend's requireAuth() middleware lets the request through.
-      const { getIdToken } = await import("../lib/firebaseAuth");
+      const { getIdToken } = await import("../lib/supabaseAuth");
       const token = await getIdToken().catch(() => null);
       const res = await fetch(API_BASE + (isQuiz ? "/api/studio/quiz" : "/api/studio/generate"), {
         method: "POST",
@@ -1135,7 +1135,7 @@ export default function Studio({ initialKind = null }) {
       const fullDocument = sections.map((s) => s.markdown).join("\n\n");
       // Streaming endpoint — raw fetch instead of api(). Same Bearer-
       // token attach pattern as the main generate call above.
-      const { getIdToken } = await import("../lib/firebaseAuth");
+      const { getIdToken } = await import("../lib/supabaseAuth");
       const token = await getIdToken().catch(() => null);
       const res = await fetch(API_BASE + "/api/studio/regenerate", {
         method: "POST",
@@ -1759,7 +1759,7 @@ export default function Studio({ initialKind = null }) {
 
     try {
       // Same auth attach pattern as the other streaming endpoints.
-      const { getIdToken } = await import("../lib/firebaseAuth");
+      const { getIdToken } = await import("../lib/supabaseAuth");
       const token = await getIdToken().catch(() => null);
       const res = await fetch(API_BASE + "/api/studio/quiz-tweak", {
         method: "POST",

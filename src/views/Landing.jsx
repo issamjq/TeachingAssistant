@@ -28,6 +28,16 @@ import Avatar from "../components/Avatar";
 import BrandLoader from "../components/BrandLoader";
 import SetupOverlay from "../features/onboarding/components/SetupOverlay";
 
+// Where the sign-up funnel parks its state across an OAuth redirect.
+//
+// Firebase's popup kept the whole flow inside one page load, so the click
+// handler could sign in and continue straight into the funnel. Supabase
+// redirects the top-level page to the provider, which tears down all
+// component state — so the intent has to survive in storage and be picked
+// up again when the browser returns. See handleProvider (parks it) and the
+// resume effect in Landing (reads it).
+const PENDING_SIGNUP_KEY = "murchid.signup.pending";
+
 // Animations removed by request. These are no-op stand-ins for the
 // framer-motion API so the page renders fully static — no fades, no
 // scroll reveals, no entrance motion. Everything is visible at once.
@@ -1174,7 +1184,7 @@ function AuthPage({ onSignUp, onPage, mode = "signup", onEnterStudio }) {
   const t = useT();
   const isSignin = mode === "signin";
 
-  // Silent session restore on AuthPage mount. If Firebase still has a
+  // Silent session restore on AuthPage mount. If Supabase still has a
   // valid token (auto-persisted ~1 year), the user is already authed
   // — no need to ask for an email link or click any provider button.
   // Restore the account locally and bounce straight to the studio.
@@ -1187,7 +1197,7 @@ function AuthPage({ onSignUp, onPage, mode = "signup", onEnterStudio }) {
     let cancelled = false;
     (async () => {
       try {
-        const { getIdToken } = await import("../lib/firebaseAuth");
+        const { getIdToken } = await import("../lib/supabaseAuth");
         const token = await getIdToken();
         if (!token || cancelled) { if (!cancelled) setRestoring(false); return; }
         const me = await apiFetch("/api/auth/me");
@@ -1260,7 +1270,7 @@ function AuthPage({ onSignUp, onPage, mode = "signup", onEnterStudio }) {
   // password, you should be able to verify it matches the confirm
   // field without re-toggling.
   const [showPassword, setShowPassword] = useState(false);
-  // Verification state. After a fresh signup we hold the Firebase user
+  // Verification state. After a fresh signup we hold the Supabase user
   // + the pending onSignUp payload here, then advance once the user has
   // clicked the link in their inbox (polled every 3s via reload).
   const [pendingVerification, setPendingVerification] = useState(null); // { user, payload }
@@ -1323,76 +1333,58 @@ function AuthPage({ onSignUp, onPage, mode = "signup", onEnterStudio }) {
     setAuthError(null);
     setSigningIn(true);
     try {
-      // Both providers resolve to the same Firebase User shape, so the
-      // downstream funnel (profile prefill, plan picker, bootstrap)
-      // doesn't care which one was tapped.
-      const lib = await import("../lib/firebaseAuth");
-      const user = provider === "google"
-        ? await lib.signInWithGoogle()
-        : await lib.signInWithMicrosoft();
-      onSignUp(provider, {
-        acceptedAt: new Date().toISOString(),
-        legalVersion: LEGAL_VERSION,
-        firebaseUser: {
-          uid: user.uid,
-          email: user.email || "",
-          displayName: user.displayName || "",
-          photoURL: user.photoURL || "",
-        },
-      });
+      // Supabase OAuth is a full-page redirect, not Firebase's popup: the
+      // browser leaves for the provider and comes back to "/" afterwards.
+      // So we cannot read a user here — there is no "after" in this
+      // function. Instead we park the funnel state the return trip needs
+      // (which provider, and the legal acceptance the user just gave)
+      // and let the resume effect in Landing pick it up on the way back.
+      //
+      // sessionStorage, not localStorage: this intent is meaningful only
+      // for the tab that started the sign-in, and should not survive a
+      // browser restart as a stale half-finished signup.
+      try {
+        sessionStorage.setItem(
+          PENDING_SIGNUP_KEY,
+          JSON.stringify({
+            provider,
+            acceptedAt: new Date().toISOString(),
+            legalVersion: LEGAL_VERSION,
+          })
+        );
+      } catch { /* private mode — the funnel still works, just no prefill */ }
+
+      const lib = await import("../lib/supabaseAuth");
+      if (provider === "google") await lib.signInWithGoogle();
+      else await lib.signInWithMicrosoft();
+      // Unreachable in practice — navigation is already in flight.
     } catch (e) {
       // Always log so the browser console has the full error object —
       // makes diagnosing provider-config issues possible without re-
       // running the flow in dev tools.
       console.error(`[auth/${provider}]`, e);
+      try { sessionStorage.removeItem(PENDING_SIGNUP_KEY); } catch { /* ignore */ }
 
-      // Normalise the provider name. The AuthPage button labelled
-      // "Continue with Outlook" passes "outlook"; downstream copy and
-      // branching is easier when we treat outlook + microsoft as the
-      // same Microsoft path.
-      const isMicrosoft = provider === "outlook" || provider === "microsoft";
       const providerLabel = provider === "google" ? "Google" : "Microsoft";
-
+      // Failures here happen BEFORE the redirect, so the Firebase popup
+      // codes (popup-blocked, popup-closed-by-user, cancelled-popup-
+      // request) no longer exist — there is no popup. What's left is
+      // project misconfiguration, which Supabase reports by name.
       const code = e?.code || "";
-      if (code === "auth/cancelled-popup-request") {
-        // Two clicks too fast — Firebase noise, keep silent.
-      } else if (code === "auth/popup-blocked") {
-        setAuthError("Your browser blocked the sign-in popup. Allow popups for this site and try again.");
-      } else if (code === "auth/popup-closed-by-user") {
-        // For Microsoft this usually means the Azure-side flow rejected
-        // the sign-in: most often "Supported account types" is set to
-        // a tenant that doesn't include this user's account, OR the
-        // user denied consent. For Google it's almost always a real
-        // user cancel.
-        if (isMicrosoft) {
-          setAuthError(
-            "The Microsoft sign-in popup closed before completing. " +
-            "If you didn't cancel, this usually means your Microsoft account " +
-            "isn't allowed by the app's tenant settings. Try Google for now, " +
-            "or contact support."
-          );
-        }
-      } else {
-        const friendly = {
-          "auth/operation-not-allowed":
-            `${providerLabel} sign-in isn't enabled on this project yet.`,
-          "auth/unauthorized-domain":
-            "This domain isn't authorised for sign-in. Add it under Authentication → Settings → Authorised domains.",
-          "auth/account-exists-with-different-credential":
-            `An account with this email already exists, signed up with the other provider. Try the other button.`,
-          "auth/network-request-failed":
-            "Network error during sign-in. Check your connection and try again.",
-          "auth/invalid-credential":
-            `${providerLabel} rejected the credential. Try again, and if it persists check the provider settings on the server.`,
-        }[code];
-        setAuthError(friendly || (e?.message || String(e)));
-      }
+      const friendly = {
+        validation_failed:
+          `${providerLabel} sign-in isn't enabled for this Supabase project yet. ` +
+          `Enable it under Authentication → Providers.`,
+        provider_disabled:
+          `${providerLabel} sign-in is disabled for this Supabase project.`,
+      }[code];
+      setAuthError(friendly || e?.message || String(e));
       setSigningIn(false);
     }
   };
 
   // Email + password — the primary email path. Set once at sign-up,
-  // used instantly forever after with no inbox round-trip. Firebase
+  // used instantly forever after with no inbox round-trip. The Supabase
   // session persists ~1 year so the password rarely gets retyped after
   // the first sign-in on a device.
   const handleEmailPassword = async () => {
@@ -1410,14 +1402,14 @@ function AuthPage({ onSignUp, onPage, mode = "signup", onEnterStudio }) {
     setAuthError(null);
     setEmailSending(true);
     try {
-      const lib = await import("../lib/firebaseAuth");
+      const lib = await import("../lib/supabaseAuth");
       const user = isSignin
         ? await lib.signInWithEmail(email, password)
         : await lib.signUpWithEmail(email, password);
       const payload = {
         acceptedAt: new Date().toISOString(),
         legalVersion: LEGAL_VERSION,
-        firebaseUser: {
+        authUser: {
           uid: user.uid,
           email: user.email || "",
           displayName: user.displayName || "",
@@ -1431,8 +1423,27 @@ function AuthPage({ onSignUp, onPage, mode = "signup", onEnterStudio }) {
       if (isSignin) {
         onSignUp("email", payload);
       } else {
-        // Sign-up — kick off the 6-digit code flow. The endpoint
-        // reads the email off the Firebase token, so no body needed.
+        // Sign-up — kick off our own 6-digit code flow. The endpoint reads
+        // the email off the access token, so no body needed.
+        //
+        // That requires a live session immediately after signUp, which
+        // only happens when "Confirm email" is OFF in the Supabase
+        // dashboard. It has to be off: this product deliberately replaced
+        // link-based verification with the 6-digit code (teachers got lost
+        // on Firebase's "verified ✓" page and never returned to the tab).
+        // Leaving Supabase's own confirmation on would both duplicate that
+        // step and withhold the token this next call needs.
+        //
+        // Rather than let it fail as an opaque 401, detect it and say so.
+        const { getIdToken } = await import("../lib/supabaseAuth");
+        if (!(await getIdToken())) {
+          setAuthError(
+            "Your account was created, but this project still has email " +
+            "confirmation switched on, so we can't verify you in-app. " +
+            "Check your inbox for a confirmation link, then sign in."
+          );
+          return;
+        }
         await apiFetch("/api/auth/email-verify/send", { method: "POST" });
         setPendingVerification({ user, payload });
         setVerifyCode("");
@@ -1443,17 +1454,24 @@ function AuthPage({ onSignUp, onPage, mode = "signup", onEnterStudio }) {
     } catch (e) {
       console.error(`[auth/email-${isSignin ? "signin" : "signup"}]`, e);
       const code = e?.code || "";
+      // Supabase error codes, not Firebase's "auth/…" ones. GoTrue reports
+      // a single `invalid_credentials` for both a wrong password and an
+      // unknown email — deliberately, so the form can't be used to
+      // enumerate which addresses have accounts — so the copy has to cover
+      // both cases in one message rather than the old separate
+      // user-not-found / wrong-password pair.
       const friendly = {
-        "auth/invalid-email":            "That email address doesn't look valid.",
-        "auth/weak-password":            "Pick a stronger password (8+ characters).",
-        "auth/email-already-in-use":     "An account with this email already exists. Try signing in instead.",
-        "auth/invalid-credential":       "Wrong email or password.",
-        "auth/user-not-found":           "No account with this email. Try subscribing instead.",
-        "auth/wrong-password":           "Wrong password. Use 'Forgot password' if you don't remember it.",
-        "auth/too-many-requests":        "Too many attempts. Wait a minute and try again, or reset your password.",
-        "auth/operation-not-allowed":
-          "Email/password sign-in isn't enabled yet. Enable it in Firebase Console → Authentication → Sign-in method → Email/Password.",
-        "auth/network-request-failed":   "Network error. Check your connection and try again.",
+        email_address_invalid:      "That email address doesn't look valid.",
+        weak_password:              "Pick a stronger password (8+ characters).",
+        user_already_exists:        "An account with this email already exists. Try signing in instead.",
+        email_exists:               "An account with this email already exists. Try signing in instead.",
+        invalid_credentials:        "Wrong email or password.",
+        email_not_confirmed:        "Confirm your email address first — check your inbox for the link.",
+        over_request_rate_limit:    "Too many attempts. Wait a minute and try again, or reset your password.",
+        over_email_send_rate_limit: "Too many emails sent. Wait a minute before trying again.",
+        signup_disabled:            "New sign-ups are disabled on this project right now.",
+        validation_failed:
+          "Email/password sign-in isn't enabled yet. Enable it in the Supabase dashboard → Authentication → Providers → Email.",
       }[code];
       setAuthError(friendly || (e?.message || String(e)));
     } finally {
@@ -1473,7 +1491,7 @@ function AuthPage({ onSignUp, onPage, mode = "signup", onEnterStudio }) {
     setAuthError(null);
     setEmailSending(true);
     try {
-      const lib = await import("../lib/firebaseAuth");
+      const lib = await import("../lib/supabaseAuth");
       await lib.sendPasswordReset(email);
       setEmailMode("reset-sent");
     } catch (e) {
@@ -1551,7 +1569,7 @@ function AuthPage({ onSignUp, onPage, mode = "signup", onEnterStudio }) {
     setAuthError(null);
     setEmailSending(true);
     try {
-      const lib = await import("../lib/firebaseAuth");
+      const lib = await import("../lib/supabaseAuth");
       await lib.sendEmailLink(email);
       setEmailMode("sent");
     } catch (e) {
@@ -2495,33 +2513,38 @@ export default function Landing({ onOpenStudio }) {
   const account = useAccount();
   const signedIn = !!account;
   const [pendingProvider, setPendingProvider] = useState(null);
-  // Firebase user object captured by AuthPage on Google sign-in. Used
-  // to pre-fill the onboarding form AND to call /api/auth/firebase
+  // Supabase user captured by AuthPage on provider sign-in. Used
+  // to pre-fill the onboarding form AND to call /api/auth/supabase
   // once the plan is picked (so the teacher row gets created in our
   // DB before the studio loads).
-  const [pendingFirebaseUser, setPendingFirebaseUser] = useState(null);
+  const [pendingAuthUser, setPendingAuthUser] = useState(null);
 
   const goPage = (p) => {
     setPage(p);
     window.scrollTo(0, 0);
   };
 
-  // Email link sign-in completion. If the user lands on the site from
-  // a magic link in their inbox (URL has Firebase's ?apiKey=…&oobCode=…
-  // &mode=signIn params or our marker), complete the auth and feed the
-  // resulting Firebase user into the same funnel a Google sign-up takes.
-  // Cleans the URL so refreshes don't re-trigger.
+  // Email link sign-in completion. If the user lands on the site from a
+  // magic link in their inbox, complete the auth and feed the resulting
+  // user into the same funnel a Google sign-up takes. Cleans the URL so
+  // refreshes don't re-trigger.
+  //
+  // Detection is by OUR marker only. Supabase magic links come back as
+  // "/?completeEmailSignIn=1&code=…" (the marker rides along on the
+  // emailRedirectTo we set in sendEmailLink). We deliberately don't key
+  // off ?code= alone, because an OAuth return carries that same param and
+  // must be handled by the resume effect below instead — matching on code
+  // would make the two flows fight over the same page load.
   const [emailLinkCompleting, setEmailLinkCompleting] = useState(() => {
     if (typeof window === "undefined") return false;
-    const url = window.location.href;
-    return url.includes("mode=signIn") || url.includes("completeEmailSignIn=1");
+    return window.location.href.includes("completeEmailSignIn=1");
   });
   useEffect(() => {
     if (!emailLinkCompleting) return;
     let cancelled = false;
     (async () => {
       try {
-        const lib = await import("../lib/firebaseAuth");
+        const lib = await import("../lib/supabaseAuth");
         if (!lib.isEmailSignInLink(window.location.href)) {
           // Not actually an email link (just our query marker stale) — bail.
           window.history.replaceState(null, "", window.location.pathname);
@@ -2531,12 +2554,12 @@ export default function Landing({ onOpenStudio }) {
         const user = await lib.completeEmailLinkSignIn(window.location.href);
         if (cancelled) return;
         // Drop into the existing sign-up funnel exactly like a Google
-        // sign-up — handleSignUp reads firebaseUser and stages the
+        // sign-up — handleSignUp reads authUser and stages the
         // profile prefill, then routes to /profile.
         handleSignUp("email", {
           acceptedAt: new Date().toISOString(),
           legalVersion: LEGAL_VERSION,
-          firebaseUser: {
+          authUser: {
             uid: user.uid,
             email: user.email || "",
             displayName: user.displayName || "",
@@ -2563,18 +2586,86 @@ export default function Landing({ onOpenStudio }) {
     return () => { cancelled = true; };
   }, [emailLinkCompleting]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Silent session-restore on mount. If Firebase still has a valid
-  // session (its tokens persist in IndexedDB for a year by default) but
+  // OAuth redirect return. Picks the sign-up funnel back up after the
+  // browser has been to Google / Microsoft and come home.
+  //
+  // Runs only when handleProvider parked an intent, so a normal visit
+  // costs one sessionStorage read. By the time this fires, supabase-js
+  // has already exchanged the ?code= in the URL for a session (that's
+  // detectSessionInUrl in supabaseClient.ts), so getCurrentUser() is
+  // enough — there's no code to redeem here.
+  //
+  // handleSignUp then routes correctly on its own: it calls
+  // /api/auth/claim-session, which 200s for a returning teacher (→
+  // straight into the studio) and 404s for a first-time one (→ profile +
+  // plan funnel). So both cases land here and neither needs special
+  // handling.
+  const [oauthResuming, setOauthResuming] = useState(() => {
+    if (typeof window === "undefined") return false;
+    try { return Boolean(sessionStorage.getItem(PENDING_SIGNUP_KEY)); }
+    catch { return false; }
+  });
+  useEffect(() => {
+    if (!oauthResuming) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        let intent = null;
+        try {
+          intent = JSON.parse(sessionStorage.getItem(PENDING_SIGNUP_KEY) || "null");
+        } catch { /* corrupt entry — treated as absent */ }
+        if (!intent) return;
+
+        const { getCurrentUser } = await import("../lib/supabaseAuth");
+        const user = await getCurrentUser();
+        if (cancelled) return;
+
+        // No session means the user bounced off the provider without
+        // completing (denied consent, hit back). Drop the intent so a
+        // later visit doesn't resume a sign-in that never happened.
+        if (!user) {
+          try { sessionStorage.removeItem(PENDING_SIGNUP_KEY); } catch { /* ignore */ }
+          return;
+        }
+
+        // Clear BEFORE running the funnel: handleSignUp can navigate, and
+        // a leftover intent would re-trigger this on the next mount.
+        try { sessionStorage.removeItem(PENDING_SIGNUP_KEY); } catch { /* ignore */ }
+
+        await handleSignUp(intent.provider, {
+          acceptedAt: intent.acceptedAt,
+          legalVersion: intent.legalVersion,
+          authUser: {
+            uid: user.uid,
+            email: user.email || "",
+            displayName: user.displayName || "",
+            photoURL: user.photoURL || "",
+          },
+        });
+      } catch (e) {
+        console.error("[auth/oauth-return]", e);
+        try { sessionStorage.removeItem(PENDING_SIGNUP_KEY); } catch { /* ignore */ }
+      } finally {
+        if (!cancelled) setOauthResuming(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [oauthResuming]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Silent session-restore on mount. If Supabase still has a valid
+  // session (persisted in localStorage and auto-refreshed) but
   // localStorage.murchid.account was cleared — incognito switch, manual
   // clear, new browser profile — call /api/auth/me to bring the account
   // back. After this, signedIn = true and the CTAs route to the studio
   // without making the user click any provider button again.
   useEffect(() => {
-    if (signedIn || emailLinkCompleting) return;
+    // Also wait out an in-flight OAuth resume: that path provisions the
+    // account itself, and both running at once would race on setAccount.
+    if (signedIn || emailLinkCompleting || oauthResuming) return;
     let cancelled = false;
     (async () => {
       try {
-        const { getIdToken } = await import("../lib/firebaseAuth");
+        const { getIdToken } = await import("../lib/supabaseAuth");
         const token = await getIdToken();
         if (!token || cancelled) return;
         const me = await apiFetch("/api/auth/me");
@@ -2609,25 +2700,25 @@ export default function Landing({ onOpenStudio }) {
   const enter = () => (signedIn ? onOpenStudio() : goPage("signup"));
   const handleSignUp = async (provider, payload) => {
     setPendingProvider(provider);
-    if (payload?.firebaseUser) {
-      setPendingFirebaseUser(payload.firebaseUser);
+    if (payload?.authUser) {
+      setPendingAuthUser(payload.authUser);
       // Pre-fill the onboarding profile with the Google account's
       // name/email/avatar so the teacher doesn't retype what we already
       // know. ProfileForm reads getPendingProfile() on mount.
-      const [firstName, ...rest] = (payload.firebaseUser.displayName || "").split(/\s+/).filter(Boolean);
+      const [firstName, ...rest] = (payload.authUser.displayName || "").split(/\s+/).filter(Boolean);
       const existing = getPendingProfile() || {};
       const merged = {
         ...existing,
         firstName: existing.firstName || firstName || "",
         lastName:  existing.lastName  || rest.join(" "),
-        email:     existing.email     || payload.firebaseUser.email,
-        avatarUrl: existing.avatarUrl || payload.firebaseUser.photoURL,
+        email:     existing.email     || payload.authUser.email,
+        avatarUrl: existing.avatarUrl || payload.authUser.photoURL,
       };
       try {
         localStorage.setItem("murchid.profile.pending", JSON.stringify(merged));
       } catch { /* ignore */ }
 
-      // Returning-user fast path. If this Firebase user already has an
+      // Returning-user fast path. If this Supabase user already has an
       // account row on the server, skip the profile + plan funnel and
       // drop them straight into the studio. /api/auth/me returns 200
       // only when a teacher row already exists for the verified token.
@@ -2676,8 +2767,8 @@ export default function Landing({ onOpenStudio }) {
     const profile = getPendingProfile() || undefined;
     const pendingSchools = getPendingSchools() || [];
 
-    // Bootstrap the teacher row in Neon FIRST. /api/auth/firebase
-    // upserts by firebase_uid, logs IP/UA, sets subscription_ends_at
+    // Bootstrap the teacher row in Postgres FIRST. /api/auth/supabase
+    // upserts by auth_uid, logs IP/UA, sets subscription_ends_at
     // based on the picked plan (trial=7d, monthly=30d, quarterly=90d,
     // annual=365d), and returns the canonical row. We only persist the
     // mock account locally AFTER this succeeds — that way a failed
@@ -2685,7 +2776,7 @@ export default function Landing({ onOpenStudio }) {
     // backing data.
     let teacherRow;
     try {
-      teacherRow = await apiFetch("/api/auth/firebase", { method: "POST", body: { plan } });
+      teacherRow = await apiFetch("/api/auth/supabase", { method: "POST", body: { plan } });
       // Single-device sign-in: the server just claimed a session for this
       // device — persist it so subsequent requests carry X-Session-Id.
       if (teacherRow?.active_session_id) setSessionId(teacherRow.active_session_id);
@@ -2799,7 +2890,7 @@ export default function Landing({ onOpenStudio }) {
       console.warn("Failed to attach schools during sign-up:", e);
     }
     clearPendingSchools();
-    setPendingFirebaseUser(null);
+    setPendingAuthUser(null);
 
     // Final stage. The overlay stays mounted through the handoff — it is
     // unmounted by the route change, not by a timer, so it never clears
@@ -2807,16 +2898,16 @@ export default function Landing({ onOpenStudio }) {
     setSetupStage("studio");
     onOpenStudio();
   };
-  // Signs the teacher out of Firebase, drops the local account record,
+  // Signs the teacher out of Supabase, drops the local account record,
   // and returns them to the landing home. Both halves matter — leaving
-  // the Firebase session intact would let the next /api/* call slip
+  // the Supabase session intact would let the next /api/* call slip
   // through with a valid token but no UI state to back it up.
   const handleSignOut = async () => {
     try {
-      const { signOut } = await import("../lib/firebaseAuth");
+      const { signOut } = await import("../lib/supabaseAuth");
       await signOut();
     } catch (e) {
-      console.warn("Firebase signOut failed:", e);
+      console.warn("Supabase signOut failed:", e);
     }
     clearSessionId();
     clearAccount();

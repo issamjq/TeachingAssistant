@@ -21,7 +21,7 @@ const safeEmail      = z.string().trim().email().max(254);
 const isoDate        = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "YYYY-MM-DD expected");
 
 // ── Auth ───────────────────────────────────────────────────────────────
-export const FirebaseBootstrapSchema = z.object({
+export const SupabaseBootstrapSchema = z.object({
   plan: z.enum(["trial", "monthly", "quarterly", "annual"]).optional(),
 }).strip();
 

@@ -3,8 +3,8 @@
 // Client-side account cache.
 //
 // Mirrors the signed-in account in localStorage: which provider was used,
-// which plan was chosen, and the teacher's onboarding profile. Firebase is
-// the real authority (see lib/firebaseAuth.js) — this is the local mirror
+// which plan was chosen, and the teacher's onboarding profile. Supabase is
+// the real authority (see lib/supabaseAuth.js) — this is the local mirror
 // the sidebar, landing nav, and onboarding read synchronously.
 //
 // The `getPending*` helpers hold data captured during onboarding BEFORE the
@@ -94,7 +94,7 @@ export const clearPendingProfile = (): void => {
 
 // Pending student roster from onboarding's CSV-upload step. Survives
 // the plan-picker step and gets POSTed to /api/students the first time
-// the teacher opens My students (once Firebase auth is wired). For
+// the teacher opens My students (server-side). For
 // now, lives in localStorage so the planner's My-students view can
 // surface what was imported during onboarding.
 const STUDENTS_KEY = "murchid.students.pending";

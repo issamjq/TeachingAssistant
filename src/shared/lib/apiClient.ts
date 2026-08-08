@@ -34,7 +34,7 @@ export class ApiError extends Error {
 }
 
 // Fired once when the server reports this device was superseded. Signs out
-// of Firebase, drops local state, and returns to landing with a one-time
+// of Supabase, drops local state, and returns to landing with a one-time
 // notice. Guarded so a burst of in-flight requests all 401-ing only triggers
 // a single logout.
 let _supersedeHandled = false;
@@ -48,7 +48,7 @@ async function handleSessionSuperseded(): Promise<void> {
         import("@/lib/session"),
         import("@/lib/account"),
         import("@/lib/route"),
-        import("@/lib/firebaseAuth"),
+        import("@/lib/supabaseAuth"),
       ]);
     clearSessionId();
     try {
@@ -82,8 +82,8 @@ export async function api<TResponse = unknown, TBody = unknown>(
   { method = "GET", body, signal }: ApiOptions<TBody> = {}
 ): Promise<TResponse> {
   // Lazy-loaded so modules importing `api` from a non-React context (init
-  // scripts, tests) don't pull Firebase into their bundle.
-  const { getIdToken } = await import("@/lib/firebaseAuth");
+  // scripts, tests) don't pull Supabase into their bundle.
+  const { getIdToken } = await import("@/lib/supabaseAuth");
   const { getSessionId } = await import("@/lib/session");
   const token = await getIdToken().catch(() => null);
   const sessionId = getSessionId();

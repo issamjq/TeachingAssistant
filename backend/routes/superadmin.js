@@ -197,7 +197,7 @@ router.get("/account/:id", async (req, res) => {
     const [acc, content, schools] = await Promise.all([
       pool.query(`
         SELECT id, first_name, last_name, email, phone, staff_id, role, sub_role, status,
-               firebase_uid, avatar_url, nationality, hire_date, bio,
+               auth_uid, avatar_url, nationality, hire_date, bio,
                majors, grade_levels, languages, sections, class_map, grade_sections,
                subscription_status, subscription_ends_at, subscription_plan,
                last_login_at, last_login_ip, permissions,

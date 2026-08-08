@@ -27,7 +27,7 @@
 //   MOE_EMAILS=inspector@moe.gov.ae
 //   OWNER_EMAILS=founder@example.com
 //
-// Env precedence on login (POST /api/auth/firebase): if an email matches
+// Env precedence on login (POST /api/auth/supabase): if an email matches
 // a privileged list, that role is written to the DB even on the UPDATE
 // path. Env IS the source of truth for the FIVE non-teacher root roles.
 //

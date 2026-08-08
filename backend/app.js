@@ -51,7 +51,7 @@ import {
 //                        + tighter rate-limit (10 attempts / 15 min)
 //   - /api/schools     — optional auth (the catalog is reachable during
 //                        onboarding before the teacher row exists)
-//   - everything else  — requireAuth() = valid Firebase token + existing
+//   - everything else  — requireAuth() = valid Supabase token + existing
 //                        teacher row + non-expired subscription
 //   - /api/admin/*     — requireAuth() + requireRole("admin")
 //   - /api/dev/*       — requireAuth() + requireRole("dev")

@@ -10,7 +10,7 @@
 // Tradeoffs explicitly chosen:
 //   - CSP allows Google Fonts (project requirement: Fraunces, Inter Tight,
 //     JetBrains Mono, Amiri are loaded from fonts.googleapis.com)
-//   - CSP allows Firebase Auth's iframe + popup redirect URL
+//   - CSP allows Supabase Auth (GoTrue) XHR + the OAuth redirect
 //   - 'unsafe-inline' for style-src is needed by React inline styles +
 //     Tailwind; we keep script-src strict and rely on framework-level
 //     XSS defences (React auto-escapes, runsToHtml uses escapeHtml)
@@ -48,30 +48,25 @@ export function buildHelmet() {
           "data:",
           "blob:",
           "https://*.googleusercontent.com",  // Google profile photos
-          "https://*.firebaseapp.com",
+          "https://*.supabase.co",            // Supabase Storage avatars
           "https://images.pexels.com",
         ],
         connectSrc: [
           "'self'",
-          "https://*.googleapis.com",
-          "https://*.firebaseapp.com",
-          "https://identitytoolkit.googleapis.com",
-          "https://securetoken.googleapis.com",
-          "https://www.googleapis.com",
+          // Supabase Auth (GoTrue) is called directly from the browser:
+          // token exchange, refresh, sign-out, and the JWKS fetch all go
+          // to https://<ref>.supabase.co. Without this, sign-in fails at
+          // the network layer with an opaque CSP violation.
+          "https://*.supabase.co",
+          "wss://*.supabase.co",              // realtime, if it lands later
           // Allow same-origin API calls during dev when the frontend
           // runs on a different port from the API
           ...(isProd() ? [] : ["http://localhost:*", "ws://localhost:*"]),
         ],
-        // Firebase Auth signInWithPopup loads accounts.google.com /
-        // login.microsoftonline.com inside an iframe — frame-src must
-        // allow them or the popup falls back to a redirect we don't
-        // expect.
-        frameSrc: [
-          "'self'",
-          "https://*.firebaseapp.com",
-          "https://accounts.google.com",
-          "https://login.microsoftonline.com",
-        ],
+        // Supabase OAuth is a full top-level redirect, not a popup in an
+        // iframe the way Firebase's signInWithPopup was — so the provider
+        // domains no longer need to be frame-src'd. Kept to 'self'.
+        frameSrc: ["'self'"],
         objectSrc: ["'none'"],
         baseUri: ["'self'"],
         formAction: ["'self'"],
@@ -81,7 +76,7 @@ export function buildHelmet() {
         ...(isProd() ? { upgradeInsecureRequests: [] } : {}),
       },
     },
-    crossOriginEmbedderPolicy: false, // would block Firebase popups
+    crossOriginEmbedderPolicy: false, // would block cross-origin auth assets
     // HSTS: enforce HTTPS for the apex + subdomains, 1 year. Only set
     // in production — devs run http://localhost.
     strictTransportSecurity: isProd()

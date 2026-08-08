@@ -36,3 +36,6 @@ graphify-out/
 firebase-admin.json
 *-service-account*.json
 **/serviceAccountKey*.json
+
+# Local .env backups (may contain secrets)
+.env.bak-*

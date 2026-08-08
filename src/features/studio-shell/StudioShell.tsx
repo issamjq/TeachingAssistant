@@ -8,7 +8,7 @@
 // section renders, and this component only supplies the frame. Sections
 // arrive as `children` from app/(studio)/<section>/page.tsx.
 //
-// It stays a client component: it owns drawer/collapse state, the Firebase
+// It stays a client component: it owns drawer/collapse state, the Supabase
 // auth gate, the single-device heartbeat, and role-based bouncing.
 //
 // Note: App.jsx also computed a `crumbs` array in 17 places. Nothing ever
@@ -87,18 +87,18 @@ export default function StudioShell({ children }: { children: React.ReactNode })
     });
   };
 
-  // Wait for Firebase to resolve the auth state, then either hydrate /api/me
+  // Wait for Supabase to resolve the auth state, then either hydrate /api/me
   // into the local account.profile (signed in) or clear the local account and
   // bounce to landing (signed out elsewhere, token revoked, etc).
   useEffect(() => {
     let cancelled = false;
     let off = () => {};
     (async () => {
-      const { onAuthChange } = await import("@/lib/firebaseAuth");
+      const { onAuthChange } = await import("@/lib/supabaseAuth");
       off = onAuthChange(async (user: unknown) => {
         if (cancelled) return;
         if (!user) {
-          // Firebase says nobody is signed in — e.g. a signed-out visitor
+          // Supabase says nobody is signed in — e.g. a signed-out visitor
           // swipes back and the browser restores /planner. Routing is purely
           // URL-driven, so clearing the account isn't enough; reset the route
           // to "/" so landing renders. Never show the studio shell unauthed.
@@ -117,7 +117,7 @@ export default function StudioShell({ children }: { children: React.ReactNode })
           if (me.email && cur.email !== me.email) patch.email = me.email;
           if (Object.keys(patch).length > 0) updateProfile(patch);
         } catch (err) {
-          // A Firebase-authed user with no DB row (closed the tab during
+          // An authenticated user with no DB row (closed the tab during
           // onboarding) or an elapsed subscription must go back to landing to
           // finish plan-pick / renew. Other errors stay silent.
           const code = err instanceof ApiError ? err.code : undefined;
@@ -360,13 +360,13 @@ export default function StudioShell({ children }: { children: React.ReactNode })
           onOpenHelp={() => setHelpOpen(true)}
           onUpgrade={() => navigate(["signup"])}
           onLogout={async () => {
-            // Sign out of Firebase first so the next /api/* call has no token
+            // Sign out of Supabase first so the next /api/* call has no token
             // to send, then clear local state and return to landing.
             try {
-              const { signOut } = await import("@/lib/firebaseAuth");
+              const { signOut } = await import("@/lib/supabaseAuth");
               await signOut();
             } catch (e) {
-              console.warn("Firebase signOut failed:", e);
+              console.warn("Supabase signOut failed:", e);
             }
             const { clearSessionId } = await import("@/lib/session");
             clearSessionId();

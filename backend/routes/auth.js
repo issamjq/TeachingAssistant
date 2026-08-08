@@ -5,14 +5,14 @@ import { pool } from "../lib/db.js";
 import { handleErr } from "../lib/helpers.js";
 import { requireAuth, clientIp, userAgent, ACCOUNT_COLS_SQL, findAccountByUid } from "../lib/auth.js";
 import { PLANS, TRIAL_DAYS, TRIAL_PLAN_ID, PLAN_IDS } from "../../src/lib/plans.js";
-import { FirebaseBootstrapSchema, RenewSchema, validateBody } from "../lib/validate.js";
+import { SupabaseBootstrapSchema, RenewSchema, validateBody } from "../lib/validate.js";
 import { recordAudit } from "../lib/audit.js";
 import { resolveReservedRole, isPrivilegedRole, DEFAULT_ROLE } from "../lib/roles.js";
 import { sendVerificationCode } from "../lib/email.js";
 
-// POST /api/auth/firebase
+// POST /api/auth/supabase
 //
-// Called by the client right after Firebase signInWithPopup() resolves
+// Called by the client right after Supabase sign-in resolves
 // AND a plan has been picked in the onboarding wizard. Required body:
 //   { plan: "trial" | "monthly" | "quarterly" | "annual" }
 //
@@ -48,30 +48,30 @@ async function claimSession(accountId) {
   return sessionId;
 }
 
-router.post("/firebase", validateBody(FirebaseBootstrapSchema), requireAuth({ optional: true, skipSessionCheck: true }), async (req, res) => {
+router.post("/supabase", validateBody(SupabaseBootstrapSchema), requireAuth({ optional: true, skipSessionCheck: true }), async (req, res) => {
   try {
-    if (!req.firebaseUser) {
+    if (!req.authUser) {
       return res.status(401).json({ error: "Missing Authorization: Bearer <id_token>" });
     }
-    const fb = req.firebaseUser;
+    const au = req.authUser;
     const ip = clientIp(req);
     const ua = userAgent(req);
     const { plan } = req.body || {};
 
-    // Split Firebase's `name` into first/last for our schema.
+    // Split the provider's display name into first/last for our schema.
     // Falls back to email-local-part if name is missing entirely.
-    const fullName = fb.name || "";
+    const fullName = au.name || "";
     const parts = fullName.split(/\s+/).filter(Boolean);
-    const firstName = parts[0] || (fb.email || "Teacher").split("@")[0];
+    const firstName = parts[0] || (au.email || "Teacher").split("@")[0];
     const lastName  = parts.length > 1 ? parts.slice(1).join(" ") : "";
 
-    let account = await findAccountByUid(fb.uid);
+    let account = await findAccountByUid(au.uid);
 
     // Privileged-role resolution from env (DEV_EMAILS / ADMIN_EMAILS /
     // MOE_EMAILS / OWNER_EMAILS). Privileged users don't pay — they skip
     // the plan-required gate and we stamp a far-future subscription_ends_at
     // so the auth middleware's subscription check never trips them up.
-    const reservedRole = resolveReservedRole(fb.email);
+    const reservedRole = resolveReservedRole(au.email);
     const isPrivileged = isPrivilegedRole(reservedRole);
 
     if (!account) {
@@ -107,13 +107,13 @@ router.post("/firebase", validateBody(FirebaseBootstrapSchema), requireAuth({ op
 
       const ins = await pool.query(
         `INSERT INTO accounts (
-            firebase_uid, email, first_name, last_name, avatar_url, role,
+            auth_uid, email, first_name, last_name, avatar_url, role,
             subscription_status, subscription_ends_at, subscription_plan,
             last_login_at, last_login_ip, last_user_agent
           )
           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW(), $10, $11)
           ON CONFLICT (email) DO UPDATE SET
-            firebase_uid          = EXCLUDED.firebase_uid,
+            auth_uid          = EXCLUDED.auth_uid,
             avatar_url            = COALESCE(accounts.avatar_url, EXCLUDED.avatar_url),
             -- Env-resolved role wins on every login (env is source of
             -- truth for privileged access). For non-privileged emails
@@ -125,7 +125,7 @@ router.post("/firebase", validateBody(FirebaseBootstrapSchema), requireAuth({ op
             last_login_ip         = EXCLUDED.last_login_ip,
             last_user_agent       = EXCLUDED.last_user_agent
           RETURNING ${ACCOUNT_COLS_SQL}`,
-        [fb.uid, fb.email || null, firstName, lastName, fb.picture || null, role,
+        [au.uid, au.email || null, firstName, lastName, au.picture || null, role,
          status, endsAt, planForRow, ip, ua, reservedRole]
       );
       account = ins.rows[0];
@@ -135,7 +135,7 @@ router.post("/firebase", validateBody(FirebaseBootstrapSchema), requireAuth({ op
         targetTable: "accounts",
         targetId: account.id,
         ip, userAgent: ua,
-        detail: { plan: planForRow, role, provider: fb.firebase?.sign_in_provider || null },
+        detail: { plan: planForRow, role, provider: au.provider || null },
       });
     } else {
       // Returning user — stamp the audit fields + bump the avatar/email
@@ -157,7 +157,7 @@ router.post("/firebase", validateBody(FirebaseBootstrapSchema), requireAuth({ op
             role            = COALESCE($6, role)
           WHERE id = $1
           RETURNING ${ACCOUNT_COLS_SQL}`,
-        [account.id, ip, ua, fb.email || "", fb.picture || "", reservedRole]
+        [account.id, ip, ua, au.email || "", au.picture || "", reservedRole]
       );
       account = upd.rows[0];
       await recordAudit({
@@ -166,7 +166,7 @@ router.post("/firebase", validateBody(FirebaseBootstrapSchema), requireAuth({ op
         targetTable: "accounts",
         targetId: account.id,
         ip, userAgent: ua,
-        detail: { role: account.role, provider: fb.firebase?.sign_in_provider || null },
+        detail: { role: account.role, provider: au.provider || null },
       });
     }
 
@@ -174,7 +174,7 @@ router.post("/firebase", validateBody(FirebaseBootstrapSchema), requireAuth({ op
     const sessionId = await claimSession(account.id);
     res.json({ ...account, active_session_id: sessionId });
   } catch (err) {
-    handleErr(res, "POST /api/auth/firebase", err);
+    handleErr(res, "POST /api/auth/supabase", err);
   }
 });
 
@@ -265,12 +265,12 @@ const VERIFY_MAX_ATTEMPTS = 5;
 
 router.post("/email-verify/send", requireAuth({ optional: true }), async (req, res) => {
   try {
-    if (!req.firebaseUser) {
+    if (!req.authUser) {
       return res.status(401).json({ error: "Missing Authorization: Bearer <id_token>" });
     }
-    const email = (req.firebaseUser.email || "").toLowerCase();
+    const email = (req.authUser.email || "").toLowerCase();
     if (!email) {
-      return res.status(400).json({ error: "Firebase token has no email." });
+      return res.status(400).json({ error: "Access token has no email." });
     }
 
     // Throttle: refuse if a code was issued in the last 30 seconds.
@@ -330,10 +330,10 @@ router.post("/email-verify/send", requireAuth({ optional: true }), async (req, r
 
 router.post("/email-verify/check", requireAuth({ optional: true }), async (req, res) => {
   try {
-    if (!req.firebaseUser) {
+    if (!req.authUser) {
       return res.status(401).json({ error: "Missing Authorization: Bearer <id_token>" });
     }
-    const email = (req.firebaseUser.email || "").toLowerCase();
+    const email = (req.authUser.email || "").toLowerCase();
     const code = String(req.body?.code || "").trim();
     if (!/^\d{6}$/.test(code)) {
       return res.status(400).json({ error: "Code must be 6 digits." });

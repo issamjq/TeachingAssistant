@@ -89,31 +89,39 @@ BEGIN
     EXECUTE format('ALTER TABLE %I RENAME COLUMN teacher_id TO account_id', rec.table_name);
   END LOOP;
 
-  -- 3. Rename teachers_* constraints to accounts_* (cosmetic).
-  FOR rec IN
-    SELECT conname FROM pg_constraint
-    WHERE conrelid = 'public.accounts'::regclass
-      AND conname LIKE 'teachers\\_%' ESCAPE '\\'
-  LOOP
-    EXECUTE format(
-      'ALTER TABLE accounts RENAME CONSTRAINT %I TO %I',
-      rec.conname,
-      'accounts_' || substring(rec.conname FROM 10)
-    );
-  END LOOP;
+  -- 3 + 4. Cosmetic constraint/index renames, teachers_* → accounts_*.
+  --
+  -- Both are skipped entirely when accounts doesn't exist yet — i.e. on
+  -- a genuinely fresh database, where SCHEMA_BASE hasn't run and there is
+  -- nothing named either way. Without this guard the 'public.accounts'
+  -- ::regclass cast below raises 42P01 and aborts the whole init, which
+  -- is what happened the first time this ran against an empty Supabase
+  -- project. to_regclass() returns NULL instead of throwing.
+  IF to_regclass('public.accounts') IS NOT NULL THEN
+    FOR rec IN
+      SELECT conname FROM pg_constraint
+      WHERE conrelid = 'public.accounts'::regclass
+        AND conname LIKE 'teachers\\_%' ESCAPE '\\'
+    LOOP
+      EXECUTE format(
+        'ALTER TABLE accounts RENAME CONSTRAINT %I TO %I',
+        rec.conname,
+        'accounts_' || substring(rec.conname FROM 10)
+      );
+    END LOOP;
 
-  -- 4. Rename teachers_* indexes to accounts_* (also cosmetic).
-  FOR rec IN
-    SELECT indexname FROM pg_indexes
-    WHERE schemaname = 'public' AND tablename = 'accounts'
-      AND indexname LIKE 'teachers\\_%' ESCAPE '\\'
-  LOOP
-    EXECUTE format(
-      'ALTER INDEX %I RENAME TO %I',
-      rec.indexname,
-      'accounts_' || substring(rec.indexname FROM 10)
-    );
-  END LOOP;
+    FOR rec IN
+      SELECT indexname FROM pg_indexes
+      WHERE schemaname = 'public' AND tablename = 'accounts'
+        AND indexname LIKE 'teachers\\_%' ESCAPE '\\'
+    LOOP
+      EXECUTE format(
+        'ALTER INDEX %I RENAME TO %I',
+        rec.indexname,
+        'accounts_' || substring(rec.indexname FROM 10)
+      );
+    END LOOP;
+  END IF;
 
   -- 5. Rename teacher_schools link table to account_schools — same
   -- reasoning as the accounts rename: the FK column is now account_id
@@ -141,8 +149,15 @@ BEGIN
   -- 7. Migrate historic audit_log.target_table values from 'teachers'
   -- to 'accounts' so audit queries can filter consistently after the
   -- table rename. New rows already write 'accounts'.
-  UPDATE audit_log SET target_table = 'accounts' WHERE target_table = 'teachers';
-  UPDATE audit_log SET target_table = 'account_schools' WHERE target_table = 'teacher_schools';
+  --
+  -- Guarded for the same reason as steps 3/4: audit_log is created later
+  -- (SCHEMA_NEW), so on a fresh database it doesn't exist yet and these
+  -- UPDATEs abort init with 42P01. There is also nothing to migrate in
+  -- that case, which is why skipping is correct rather than merely safe.
+  IF to_regclass('public.audit_log') IS NOT NULL THEN
+    UPDATE audit_log SET target_table = 'accounts' WHERE target_table = 'teachers';
+    UPDATE audit_log SET target_table = 'account_schools' WHERE target_table = 'teacher_schools';
+  END IF;
 END $$;
 `;
 
@@ -250,7 +265,14 @@ ALTER TABLE accounts  ADD COLUMN IF NOT EXISTS sections  TEXT[] DEFAULT '{}';
 -- every authed request must echo it back via the X-Session-Id header, so
 -- the previously-signed-in device is locked out on its next call.
 ALTER TABLE accounts  ADD COLUMN IF NOT EXISTS active_session_id TEXT;
+`;
 
+// Quiz metadata columns. Split out of SCHEMA_MULTITENANT because quizzes
+// is created by SCHEMA_NEW, which runs *after* it — on an existing
+// database the table happened to be there already, but on a fresh one
+// these ALTERs hit a table that doesn't exist yet and abort init.
+// Runs immediately after SCHEMA_NEW instead.
+const SCHEMA_QUIZ_META = `
 ALTER TABLE quizzes   ADD COLUMN IF NOT EXISTS language   TEXT;
 ALTER TABLE quizzes   ADD COLUMN IF NOT EXISTS difficulty TEXT;
 `;
@@ -404,9 +426,9 @@ CREATE INDEX IF NOT EXISTS email_verifications_expires_idx
 `;
 
 // Auth-related indexes that improve middleware lookups under load.
-// firebase_uid lookups are the hot path (every authed request goes
+// auth_uid lookups are the hot path (every authed request goes
 // through one); email lookups feed the ON CONFLICT upsert in
-// /api/auth/firebase.
+// /api/auth/supabase.
 const SCHEMA_AUTH_INDEXES = `
 CREATE INDEX IF NOT EXISTS accounts_email_idx ON accounts (email);
 CREATE INDEX IF NOT EXISTS accounts_subscription_idx
@@ -415,15 +437,34 @@ CREATE INDEX IF NOT EXISTS accounts_last_login_idx
   ON accounts (last_login_at DESC NULLS LAST);
 `;
 
-// Firebase Auth wiring: teachers get a stable firebase_uid (the Google/
-// Firebase user id), three light-weight login-audit fields used to spot
-// suspicious activity ("who logged in from where, when") and two
-// subscription fields so we can gate access without standing up Stripe
-// just yet. Idempotent.
+// Supabase Auth wiring: teachers get a stable auth_uid (the Supabase
+// user id — a UUID, matching the `sub` claim on the access token),
+// three light-weight login-audit fields used to spot suspicious
+// activity ("who logged in from where, when") and two subscription
+// fields so we can gate access without standing up Stripe just yet.
+// Idempotent.
+//
+// auth_uid replaced firebase_uid in the Supabase migration. The rename
+// below is a no-op on a fresh database and converts an existing one
+// in place; the type changes TEXT → UUID because Supabase user ids are
+// always UUIDs, unlike Firebase's opaque 28-char strings.
 const SCHEMA_AUTH = `
-ALTER TABLE accounts ADD COLUMN IF NOT EXISTS firebase_uid TEXT;
-CREATE UNIQUE INDEX IF NOT EXISTS accounts_firebase_uid_uniq
-  ON accounts (firebase_uid) WHERE firebase_uid IS NOT NULL;
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.columns
+              WHERE table_name = 'accounts' AND column_name = 'firebase_uid')
+     AND NOT EXISTS (SELECT 1 FROM information_schema.columns
+              WHERE table_name = 'accounts' AND column_name = 'auth_uid')
+  THEN
+    ALTER TABLE accounts RENAME COLUMN firebase_uid TO auth_uid;
+    ALTER TABLE accounts ALTER COLUMN auth_uid TYPE UUID USING auth_uid::uuid;
+  END IF;
+END $$;
+
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS auth_uid UUID;
+DROP INDEX IF EXISTS accounts_firebase_uid_uniq;
+CREATE UNIQUE INDEX IF NOT EXISTS accounts_auth_uid_uniq
+  ON accounts (auth_uid) WHERE auth_uid IS NOT NULL;
 
 ALTER TABLE accounts ADD COLUMN IF NOT EXISTS avatar_url TEXT;
 ALTER TABLE accounts ADD COLUMN IF NOT EXISTS last_login_at  TIMESTAMPTZ;
@@ -876,6 +917,9 @@ export async function runInit() {
   console.log("Creating new feature tables...");
   await pool.query(SCHEMA_NEW);
 
+  console.log("Adding quiz metadata columns...");
+  await pool.query(SCHEMA_QUIZ_META);
+
   console.log("Relaxing schedule_entries time NOT NULLs...");
   await pool.query(SCHEMA_SCHEDULE_TIMES_NULLABLE);
 
@@ -891,7 +935,7 @@ export async function runInit() {
   console.log("Creating uploaded_images table...");
   await pool.query(SCHEMA_IMAGES);
 
-  console.log("Adding Firebase Auth + subscription columns...");
+  console.log("Adding Supabase Auth + subscription columns...");
   await pool.query(SCHEMA_AUTH);
 
   console.log("Creating audit_log table + indexes...");
@@ -917,12 +961,12 @@ export async function runInit() {
   // kept re-appearing after deletion because the seed loop re-inserted
   // them on every boot. Real privileged users come from BUILTIN_*_EMAILS
   // (issa.mjq, karaaliissa) and the super admin console going forward.
-  // Only deletes rows whose firebase_uid is still NULL — if someone
+  // Only deletes rows whose auth_uid is still NULL — if someone
   // had somehow claimed the email by signing in, we don't touch them.
   await pool.query(
     `DELETE FROM accounts
       WHERE staff_id IN ('ADM-001', 'DEV-001')
-        AND firebase_uid IS NULL`
+        AND auth_uid IS NULL`
   );
 
   // --- Teachers seed ------------------------------------------------------

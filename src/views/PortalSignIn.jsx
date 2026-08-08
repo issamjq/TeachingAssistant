@@ -11,7 +11,7 @@
 //   1. Mount → if a Firebase session already exists, hit /api/auth/me
 //      and short-circuit if the role matches the portal.
 //   2. Otherwise show Google / Microsoft buttons.
-//   3. After provider popup resolves → POST /api/auth/firebase (no plan).
+//   3. After provider popup resolves → POST /api/auth/supabase (no plan).
 //      Privileged emails are seeded server-side OR resolved via env, so
 //      this returns the teacher row with the correct role.
 //   4. If the returned role is NOT one of the portal's allowedRoles,
@@ -85,7 +85,7 @@ export default function PortalSignIn({ portal }) {
     setError(null);
     setSigningIn(true);
     try {
-      const lib = await import("../lib/firebaseAuth");
+      const lib = await import("../lib/supabaseAuth");
       const fbAuth = provider === "google"
         ? await lib.signInWithGoogle()
         : await lib.signInWithMicrosoft();
@@ -96,7 +96,7 @@ export default function PortalSignIn({ portal }) {
       // for this portal".
       let teacher;
       try {
-        teacher = await api("/api/auth/firebase", { method: "POST", body: {} });
+        teacher = await api("/api/auth/supabase", { method: "POST", body: {} });
       } catch (e) {
         if (e.code === "plan_required") {
           await lib.signOut().catch(() => {});

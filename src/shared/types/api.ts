@@ -17,8 +17,8 @@ import type { z } from "zod";
 import type * as Schemas from "@backend/lib/validate";
 
 // ── Auth ─────────────────────────────────────────────────────────────
-export type FirebaseBootstrapInput = z.infer<
-  typeof Schemas.FirebaseBootstrapSchema
+export type SupabaseBootstrapInput = z.infer<
+  typeof Schemas.SupabaseBootstrapSchema
 >;
 export type RenewInput = z.infer<typeof Schemas.RenewSchema>;
 

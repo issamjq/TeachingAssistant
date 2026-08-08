@@ -8,15 +8,20 @@
 // the two providers.
 //
 // Auth flow:
-//   1. Mount → if a Firebase session already exists, hit /api/auth/me and
+//   1. Mount → if a Supabase session already exists, hit /api/auth/me and
 //      short-circuit if the role matches the portal.
 //   2. Otherwise show Google / Microsoft buttons.
-//   3. After the provider popup resolves → POST /api/auth/firebase (no plan).
+//   3. Clicking one redirects the whole page to the provider. On return,
+//      the mount effect runs again and POSTs /api/auth/supabase (no plan).
 //      Privileged emails are seeded server-side OR resolved via env, so this
 //      returns the account row with the correct role.
 //   4. If the returned role is NOT one of the portal's allowedRoles, sign out
-//      of Firebase and surface a clear rejection so the user can try the
+//      of Supabase and surface a clear rejection so the user can try the
 //      right portal.
+//
+// Note the shape of step 3: Supabase OAuth is a top-level redirect, not
+// Firebase's popup, so sign-in spans two page loads and provisioning has
+// to happen on mount rather than after the click.
 //
 // Migrated from views/PortalSignIn.jsx. The one behavioural change: the
 // portal is now passed in by its route segment rather than sniffed from
@@ -37,7 +42,7 @@ import MurchidLogo from "@/components/MurchidLogo";
 import BrandLoader from "@/components/BrandLoader";
 import { GoogleMark, OutlookMark } from "./ProviderMarks";
 
-// Shape of the account row returned by /api/auth/me and /api/auth/firebase.
+// Shape of the account row returned by /api/auth/me and /api/auth/supabase.
 interface AccountRow {
   role: Role;
   sub_role?: string | null;
@@ -101,25 +106,87 @@ export default function PortalSignIn({ portal }: { portal: Portal }) {
     replace(["dashboard"]);
   }
 
-  // On mount, see if Firebase already has a session for this browser. If so,
-  // hit /api/auth/me — if the canonical role matches this portal, skip
-  // straight to the studio (saves a click for returning admins).
+  // Provision the account row for a browser that already holds a Supabase
+  // session, then enter the studio. Split out of the click handler because
+  // with Supabase's redirect flow the click and the provisioning happen on
+  // opposite sides of a full page navigation — see handleProvider below.
+  async function completeSignIn() {
+    const lib = await import("@/lib/supabaseAuth");
+    // No `plan` is sent — privileged emails skip the plan gate on the
+    // backend; for non-privileged emails the server returns
+    // `plan_required`, surfaced here as "not authorized".
+    let row: AccountRow;
+    try {
+      row = await api<AccountRow>("/api/auth/supabase", {
+        method: "POST",
+        body: {},
+      });
+    } catch (e) {
+      if (e instanceof ApiError && e.code === "plan_required") {
+        await lib.signOut().catch(() => {});
+        setError({ kind: "not_authorized" });
+        return;
+      }
+      throw e;
+    }
+
+    if (!portal.allowedRoles.includes(row.role)) {
+      await lib.signOut().catch(() => {});
+      setError({ kind: "wrong_role", role: row.role });
+      return;
+    }
+
+    hydrateAccountFromRow(row);
+    exitToStudio();
+  }
+
+  // On mount, work out whether this browser is already signed in — which
+  // now covers two cases, not one:
+  //
+  //   a) a returning admin whose session was restored from storage, and
+  //   b) a user landing back here from the OAuth provider, because
+  //      Supabase redirects the whole page instead of using a popup.
+  //
+  // Both look identical by the time this runs: supabase-js has exchanged
+  // the ?code= and there's a live session. The difference only shows up
+  // at /api/auth/me — a returning admin has an account row, whereas a
+  // first-time sign-in 404s with no_teacher_row and needs provisioning.
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const me = await api<AccountRow>("/api/auth/me");
+        const { getCurrentUser } = await import("@/lib/supabaseAuth");
+        const user = await getCurrentUser();
         if (cancelled) return;
-        if (portal.allowedRoles.includes(me.role)) {
-          hydrateAccountFromRow(me);
-          exitToStudio();
-          return;
+        if (!user) return; // not signed in — show the buttons
+
+        try {
+          const me = await api<AccountRow>("/api/auth/me");
+          if (cancelled) return;
+          if (portal.allowedRoles.includes(me.role)) {
+            hydrateAccountFromRow(me);
+            exitToStudio();
+            return;
+          }
+          // Signed in but with the wrong role for this portal. Don't
+          // auto-sign-out — they might want to switch accounts manually.
+          setError({ kind: "wrong_role", role: me.role });
+        } catch (e) {
+          // Valid token, no account row yet: this is the first sign-in
+          // completing after the provider redirect. Provision now.
+          if (e instanceof ApiError && e.code === "no_teacher_row") {
+            if (!cancelled) await completeSignIn();
+            return;
+          }
+          // 401 / no session — leave the buttons visible.
         }
-        // Signed in but with the wrong role for this portal. Don't
-        // auto-sign-out — they might want to switch accounts manually.
-        setError({ kind: "wrong_role", role: me.role });
-      } catch {
-        // 401 / no session / no row — leave the buttons visible.
+      } catch (e) {
+        if (!cancelled) {
+          setError({
+            kind: "unknown",
+            message: e instanceof Error ? e.message : String(e),
+          });
+        }
       } finally {
         if (!cancelled) setChecking(false);
       }
@@ -130,55 +197,24 @@ export default function PortalSignIn({ portal }: { portal: Portal }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [portal.id]);
 
+  // Kick off the provider redirect. Unlike Firebase's signInWithPopup,
+  // this never resolves with a user — the browser navigates away to the
+  // provider and comes back to this same route, where the mount effect
+  // above picks the flow back up. So there is deliberately no code after
+  // the call: anything here would not run.
   const handleProvider = async (provider: "google" | "microsoft") => {
     setError(null);
     setSigningIn(true);
     try {
-      const lib = await import("@/lib/firebaseAuth");
+      const lib = await import("@/lib/supabaseAuth");
       await (provider === "google"
         ? lib.signInWithGoogle()
         : lib.signInWithMicrosoft());
-
-      // Bootstrap on the server. No `plan` is sent — privileged emails skip
-      // the plan gate on the backend; for non-privileged emails the server
-      // returns `plan_required`, surfaced here as "not authorized".
-      let row: AccountRow;
-      try {
-        row = await api<AccountRow>("/api/auth/firebase", {
-          method: "POST",
-          body: {},
-        });
-      } catch (e) {
-        if (e instanceof ApiError && e.code === "plan_required") {
-          await lib.signOut().catch(() => {});
-          setError({ kind: "not_authorized" });
-          setSigningIn(false);
-          return;
-        }
-        throw e;
-      }
-
-      if (!portal.allowedRoles.includes(row.role)) {
-        await lib.signOut().catch(() => {});
-        setError({ kind: "wrong_role", role: row.role });
-        setSigningIn(false);
-        return;
-      }
-
-      hydrateAccountFromRow(row);
-      exitToStudio();
     } catch (e) {
-      const code = (e as { code?: string })?.code;
-      // Closing the popup isn't an error worth showing.
-      if (
-        code !== "auth/popup-closed-by-user" &&
-        code !== "auth/cancelled-popup-request"
-      ) {
-        setError({
-          kind: "unknown",
-          message: e instanceof Error ? e.message : String(e),
-        });
-      }
+      setError({
+        kind: "unknown",
+        message: e instanceof Error ? e.message : String(e),
+      });
       setSigningIn(false);
     }
   };

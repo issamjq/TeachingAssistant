@@ -207,7 +207,7 @@ router.get("/account/:id", async (req, res) => {
     }
     const r = await pool.query(`
       SELECT id, first_name, last_name, email, role, sub_role, status,
-             firebase_uid, avatar_url, permissions,
+             auth_uid, avatar_url, permissions,
              subscription_status, subscription_ends_at, subscription_plan,
              last_login_at, last_login_ip, created_at, updated_at
         FROM accounts WHERE id = $1

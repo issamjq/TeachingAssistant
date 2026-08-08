@@ -23,7 +23,7 @@ What this means in practice:
 - **New work goes in `src/features/<feature>/`** with a matching route segment under `app/`. Feature modules own their components, `api.ts`, and `types.ts`.
 - **Peeling a route is additive** — create the real segment (e.g. `app/(studio)/quizzes/page.tsx`) and it automatically stops reaching the catch-all. Nothing needs removing.
 - `src/legacy/` and `app/[[...slug]]/` are **scaffolding** and get deleted in Phase 4.
-- **Backend is out of scope.** `backend/` and Firebase auth are untouched by this migration.
+- **Backend is out of scope** *for the Next.js migration* — but it has since moved to Supabase. `backend/` now runs on Supabase Postgres, and Firebase auth has been replaced by Supabase Auth (see below).
 
 ## Frontend conventions (post-migration)
 
@@ -39,7 +39,7 @@ Full documentation lives in [`docs/`](docs/README.md). Read it before making non
 
 - [01 — Overview](docs/01-overview.md) — what Murchid is, who it's for
 - [02 — Getting started](docs/02-getting-started.md) — env, scripts, prereqs
-- [03 — Tech stack](docs/03-tech-stack.md) — React 18, Tailwind v4, Neon Postgres *(pre-migration: says Vite)*
+- [03 — Tech stack](docs/03-tech-stack.md) — React 18, Tailwind v4 *(stale: says Vite + Neon; it's Next.js + Supabase now)*
 - [04 — Architecture](docs/04-architecture.md) — file layout, boot flow, view router *(pre-migration)*
 - [05 — Design system](docs/05-design-system.md) — brand tokens, fonts, patterns
 - [06 — Database](docs/06-database.md) — schema, status / subject values, seeds
@@ -64,7 +64,7 @@ Full documentation lives in [`docs/`](docs/README.md). Read it before making non
 
 ```bash
 npm install
-cp .env.example .env   # fill in DATABASE_URL + NEXT_PUBLIC_FIREBASE_*
+cp .env.example .env   # fill in DATABASE_URL + SUPABASE_URL + NEXT_PUBLIC_SUPABASE_*
 npm run db:init        # one-time
 npm run dev            # web http://localhost:3000 · api :3001
 ```
@@ -78,10 +78,10 @@ Checks: `npm run typecheck` · `npm run build` · `npm run test:e2e`
 When a unit of work is finished, ship it. Do **not** ask for confirmation first. The deploy story is:
 
 - **`git push origin main`** → Vercel auto-deploys the frontend **and** Render auto-deploys the backend (`npm run start:backend`). One push covers both.
-- ⚠️ **Before the first deploy of the Next branch**, rename the Vercel env vars `VITE_FIREBASE_*` → `NEXT_PUBLIC_FIREBASE_*`. Without this, sign-in fails with `auth/invalid-api-key`.
-- **`npm run db:init`** → applies schema / seed / `CHECK` constraints to Neon Postgres. Run this whenever `backend/db/init.js` or `src/lib/enums.js` changes. The script is idempotent — re-running it against an already-seeded DB is safe and will not duplicate rows.
+- ⚠️ **Before the first deploy after the Supabase migration**, replace the Firebase env vars in Vercel with `NEXT_PUBLIC_SUPABASE_URL` + `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, and add `SUPABASE_URL` + the pooler `DATABASE_URL` on Render. The `VITE_FIREBASE_*` / `NEXT_PUBLIC_FIREBASE_*` vars are dead and can be deleted.
+- **`npm run db:init`** → applies schema / seed / `CHECK` constraints to Supabase Postgres. Run this whenever `backend/db/init.js` or `src/lib/enums.js` changes. The script is idempotent — re-running it against an already-seeded DB is safe and will not duplicate rows.
 
-Carve-out: actions that **delete or rewrite live data** on Neon (`TRUNCATE`, dropping columns, destructive migrations) still need explicit confirmation. Idempotent re-init does not.
+Carve-out: actions that **delete or rewrite live data** on Supabase (`TRUNCATE`, dropping columns, destructive migrations) still need explicit confirmation. Idempotent re-init does not.
 
 <!-- BEGIN:nextjs-agent-rules -->
 

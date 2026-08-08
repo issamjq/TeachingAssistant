@@ -657,7 +657,7 @@ export const EN = {
   "lp.pg.contact.sentBody": "We read every message. Expect a reply within a couple of days.",
   // landing — conditional CTA
   "lp.cta.subscribe": "Subscribe",
-  // landing — sign up (Google / Outlook only; mock until Firebase)
+  // landing — sign up (Google / Outlook only)
   "lp.auth.eyebrow": "Create your account",
   "lp.auth.title": "Start with",
   "lp.auth.titleEm": "Murchid.",

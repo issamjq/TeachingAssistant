@@ -5,7 +5,7 @@
 //
 // 3-step wizard, one screen each — keeps every step readable without
 // scroll on phone/iPad. The full shape mirrors the My-Students →
-// Teaching profile fields, so once Firebase lands we can POST the
+// Teaching profile fields, so we can POST the
 // pending profile to /api/me (PATCH) and skip asking again.
 //
 //   step 1  Who are you?      firstName / lastName / staffId

@@ -9,16 +9,15 @@
 //
 // All-env checks (dev + prod):
 //   - DATABASE_URL exists and looks like a postgres URL
-//   - FIREBASE_ADMIN_KEY_B64 exists and decodes to a valid service account
+//   - SUPABASE_URL exists and looks like a Supabase project URL
 //
 // Print a single-line summary at boot so it's visible in `render logs`
 // what shape the app expects to be in.
 
-import { Buffer } from "node:buffer";
-import fs from "node:fs";
+import { isSupabaseHost } from "./supabaseCa.js";
 
-// FIREBASE_ADMIN_KEY_B64 is checked separately (we also accept
-// GOOGLE_APPLICATION_CREDENTIALS as the file-on-disk alternative).
+// SUPABASE_URL is checked separately (NEXT_PUBLIC_SUPABASE_URL is
+// accepted as a fallback so a single .env serves both processes).
 const REQUIRED_ALWAYS = ["DATABASE_URL"];
 
 const errors = [];
@@ -37,56 +36,40 @@ export function validateEnv() {
     if (!/^postgres(ql)?:\/\//.test(process.env.DATABASE_URL)) {
       errors.push("DATABASE_URL is not a postgres:// URL");
     }
-    if (isProd && !/sslmode=/.test(process.env.DATABASE_URL)) {
+    // TLS. Supabase hosts are handled in lib/db.js by pinning the
+    // Supabase root CA (sslmode= in the URL would be wrong there — this
+    // pg version reads require as verify-full, which the Supabase chain
+    // fails against the system trust store). Any OTHER provider still
+    // relies on the connection string to turn TLS on, and omitting it
+    // means plaintext, so keep warning in that case.
+    if (
+      isProd &&
+      !isSupabaseHost(process.env.DATABASE_URL) &&
+      !/sslmode=/.test(process.env.DATABASE_URL)
+    ) {
       warnings.push(
-        "DATABASE_URL has no sslmode= parameter — Neon connections should use sslmode=require"
+        "DATABASE_URL has no sslmode= parameter — non-Supabase Postgres connections should use sslmode=require"
       );
     }
   }
 
-  // Firebase Admin credentials: one of two paths must be configured.
-  const filePath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
-  const b64      = process.env.FIREBASE_ADMIN_KEY_B64;
-  if (!filePath && !b64) {
+  // Supabase Auth. The API only ever VERIFIES tokens, against the
+  // project's public JWKS — so the one thing it must know is which
+  // project to trust. No service-account file, no base64 blob, and
+  // deliberately no JWT secret (a shared secret would let this process
+  // mint tokens, not just check them).
+  const supabaseUrl =
+    process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+  if (!supabaseUrl || supabaseUrl.trim() === "") {
     errors.push(
-      "Firebase Admin credentials missing. Set either " +
-        "GOOGLE_APPLICATION_CREDENTIALS=/path/to/key.json (Render: upload via Secret Files) " +
-        "or FIREBASE_ADMIN_KEY_B64=<base64-encoded JSON>."
+      "SUPABASE_URL is missing. Set SUPABASE_URL=https://<project-ref>.supabase.co " +
+        "so the API can fetch the JWKS it verifies access tokens against."
     );
-  } else if (filePath) {
-    // Don't read the file twice — firebaseAdmin.js handles the runtime
-    // load. We only verify the file is present + parseable here so a
-    // typo or malformed JSON crashes the boot loudly instead of
-    // failing on the first /api/auth/firebase call.
-    if (!fs.existsSync(filePath)) {
-      errors.push(
-        `GOOGLE_APPLICATION_CREDENTIALS=${filePath} but no file exists at that path.`
-      );
-    } else {
-      try {
-        const decoded = JSON.parse(fs.readFileSync(filePath, "utf8"));
-        if (!decoded.project_id || !decoded.private_key || !decoded.client_email) {
-          errors.push("Firebase service-account JSON is missing required fields.");
-        }
-      } catch (e) {
-        errors.push(`Firebase service-account JSON is malformed: ${e.message}`);
-      }
-    }
-  } else if (b64) {
-    try {
-      const decoded = JSON.parse(
-        Buffer.from(b64, "base64").toString("utf8")
-      );
-      if (!decoded.project_id || !decoded.private_key || !decoded.client_email) {
-        errors.push(
-          "FIREBASE_ADMIN_KEY_B64 decoded but is missing required fields. " +
-            "The value was probably truncated in transit — try " +
-            "GOOGLE_APPLICATION_CREDENTIALS + Secret Files instead."
-        );
-      }
-    } catch (e) {
-      errors.push(`FIREBASE_ADMIN_KEY_B64 is not valid base64-JSON: ${e.message}`);
-    }
+  } else if (!/^https:\/\/[a-z0-9-]+\.supabase\.(co|com)\/?$/.test(supabaseUrl.trim())) {
+    errors.push(
+      `SUPABASE_URL=${supabaseUrl} doesn't look like a Supabase project URL ` +
+        "(expected https://<project-ref>.supabase.co)."
+    );
   }
 
   if (isProd) {
@@ -120,7 +103,7 @@ export function validateEnv() {
   for (const w of warnings) console.warn(`[env] warn: ${w}`);
   console.log(
     `[env] OK — mode=${isProd ? "production" : "development"}, ` +
-      `db=neon, firebase=admin-ok, ` +
+      `db=${isSupabaseHost(process.env.DATABASE_URL) ? "supabase" : "postgres"}, auth=supabase-jwks, ` +
       `cors=${process.env.ALLOWED_ORIGINS ? "allowlist" : "dev-localhost"}`
   );
 }

@@ -1,8 +1,8 @@
 // Resolves the current teacher for a request.
 //
-// Before Firebase: this read a hardcoded STF-001 lookup.
-// After Firebase: requireAuth() middleware verifies the Bearer token,
-// loads the account by firebase_uid, and attaches it to req.account.
+// Before real auth: this read a hardcoded STF-001 lookup.
+// Now: requireAuth() middleware verifies the Bearer token,
+// loads the account by auth_uid, and attaches it to req.account.
 // This helper just normalises the shape the rest of the backend expects
 // ({ id, grade_levels }) so call sites don't need to know whether it
 // came from the middleware or anywhere else.

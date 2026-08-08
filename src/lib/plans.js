@@ -38,7 +38,7 @@ export const PLANS = /** @type {Plan[]} */ ([
 ]);
 
 // All plan IDs the backend will accept — paid cards PLUS the trial.
-// Anything else is rejected at /api/auth/firebase as an invalid plan.
+// Anything else is rejected at /api/auth/supabase as an invalid plan.
 export const PLAN_IDS = /** @type {PlanId[]} */ ([...PLANS.map((p) => p.id), TRIAL_PLAN_ID]);
 /** @param {string} id @returns {Plan | {id: PlanId, durationDays: number} | null} */
 export const getPlan = (id) => {

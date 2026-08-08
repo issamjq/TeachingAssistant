@@ -1,17 +1,17 @@
-// Auth middleware — verifies the Firebase ID token on the Authorization
-// header, looks the account up by firebase_uid, and stashes both on
-// req.firebaseUser / req.account for downstream handlers.
+// Auth middleware — verifies the Supabase access token on the
+// Authorization header, looks the account up by auth_uid, and stashes
+// both on req.authUser / req.account for downstream handlers.
 //
 // Routes that legitimately run unauthenticated (the marketing /healthz,
-// the school catalog, and POST /api/auth/firebase itself) opt out by
+// the school catalog, and POST /api/auth/supabase itself) opt out by
 // being mounted BEFORE this middleware in app.js, or by skipping the
 // check via the `optional` flag.
 //
-// On a verified-but-unknown user (firebase_uid not yet in DB), req.account
+// On a verified-but-unknown user (auth_uid not yet in DB), req.account
 // is null and downstream routes get to decide whether to upsert. The
-// /api/auth/firebase route uses this to create the row on first login.
+// /api/auth/supabase route uses this to create the row on first login.
 import { pool } from "./db.js";
-import { verifyIdToken } from "./firebaseAdmin.js";
+import { verifyAccessToken } from "./supabaseAuth.js";
 import { isPrivilegedRole } from "./roles.js";
 
 // Extract the client IP, honoring the X-Forwarded-For chain Render +
@@ -27,17 +27,24 @@ export const userAgent = (req) => req.headers["user-agent"] || null;
 const ACCOUNT_COLS = `id, first_name, last_name, email, phone, staff_id, majors, grade_levels,
                        languages, sections, class_map, grade_sections,
                        nationality, hire_date, bio,
-                       role, sub_role, status, firebase_uid, avatar_url,
+                       role, sub_role, status, auth_uid, avatar_url,
                        subscription_status, subscription_ends_at, subscription_plan,
                        last_login_at, last_login_ip, active_session_id,
                        created_at, updated_at`;
 
 export const ACCOUNT_COLS_SQL = ACCOUNT_COLS;
 
-// Find the account row attached to a Firebase uid (or null).
+// Find the account row attached to a Supabase user id (or null).
+// auth_uid is a UUID column; the parameter arrives as the `sub` claim
+// string and Postgres casts it, but a malformed value would raise 22P02
+// rather than returning no rows — so we guard the shape first and treat
+// anything non-UUID as simply "no such account".
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export async function findAccountByUid(uid) {
+  if (!uid || !UUID_RE.test(uid)) return null;
   const r = await pool.query(
-    `SELECT ${ACCOUNT_COLS} FROM accounts WHERE firebase_uid = $1`,
+    `SELECT ${ACCOUNT_COLS} FROM accounts WHERE auth_uid = $1`,
     [uid]
   );
   return r.rows[0] || null;
@@ -82,7 +89,7 @@ const isSubscriptionExpired = (t) => {
 
 // Express middleware. Options:
 //   optional      — allow the request through without an account row
-//                   (used by /api/auth/firebase since on first login
+//                   (used by /api/auth/supabase since on first login
 //                   the row hasn't been created yet)
 //   allowExpired  — let an expired-subscription account through anyway
 //                   (used by /api/auth/renew so they can pay to come
@@ -100,12 +107,12 @@ export function requireAuth({ optional = false, allowExpired = false, skipSessio
         if (optional) return next();
         return res.status(401).json({ error: "Missing Authorization: Bearer <id_token>" });
       }
-      const decoded = await verifyIdToken(m[1]);
-      req.firebaseUser = decoded;
+      const decoded = await verifyAccessToken(m[1]);
+      req.authUser = decoded;
       req.account = await findAccountByUid(decoded.uid);
       if (!req.account && !optional) {
         // The token is valid but no DB row exists yet. The client should
-        // call POST /api/auth/firebase first to bootstrap. We return a
+        // call POST /api/auth/supabase first to bootstrap. We return a
         // structured 404 so the client knows to retry the bootstrap.
         return res.status(404).json({ error: "Teacher not provisioned", code: "no_teacher_row" });
       }

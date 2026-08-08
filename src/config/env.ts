@@ -20,28 +20,29 @@ function required(name: string, value: string | undefined): string {
   return value ?? "";
 }
 
-export const firebaseConfig = {
-  apiKey: required(
-    "NEXT_PUBLIC_FIREBASE_API_KEY",
-    process.env.NEXT_PUBLIC_FIREBASE_API_KEY
-  ),
-  authDomain: required(
-    "NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN",
-    process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
-  ),
-  projectId: required(
-    "NEXT_PUBLIC_FIREBASE_PROJECT_ID",
-    process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID
-  ),
-  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET ?? "",
-  messagingSenderId:
-    process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID ?? "",
-  appId: required(
-    "NEXT_PUBLIC_FIREBASE_APP_ID",
-    process.env.NEXT_PUBLIC_FIREBASE_APP_ID
-  ),
-  measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID ?? "",
-};
+// ── Supabase ──────────────────────────────────────────────────────────
+//
+// Both values are public by design. The publishable key identifies the
+// project and nothing more — it carries no privileges of its own, and
+// access is decided by Row Level Security plus the backend's own token
+// verification. (The SECRET key is the privileged one; it must never
+// appear here, or anywhere else behind a NEXT_PUBLIC_ prefix, because
+// that prefix inlines the value into the browser bundle.)
+export const supabaseUrl = required(
+  "NEXT_PUBLIC_SUPABASE_URL",
+  process.env.NEXT_PUBLIC_SUPABASE_URL
+);
+
+export const supabasePublishableKey = required(
+  "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY",
+  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+);
+
+// True when Supabase has enough configuration to attempt initialisation.
+// Lets callers degrade gracefully instead of throwing at module scope.
+export const isSupabaseConfigured = Boolean(
+  supabaseUrl && supabasePublishableKey
+);
 
 // Prefix for /api calls.
 //
@@ -52,10 +53,4 @@ export const firebaseConfig = {
 export const API_BASE = (process.env.NEXT_PUBLIC_API_URL ?? "").replace(
   /\/$/,
   ""
-);
-
-// True when Firebase has enough configuration to attempt initialisation.
-// Lets callers degrade gracefully instead of throwing at module scope.
-export const isFirebaseConfigured = Boolean(
-  firebaseConfig.apiKey && firebaseConfig.projectId
 );
