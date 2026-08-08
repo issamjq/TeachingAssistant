@@ -98,6 +98,47 @@
   animation: none;
 }
 
+/* The lit state, driven by the centre's travelling light.
+   ---------------------------------------------------------------------
+   --pulse is where this module sits along that light's path, 0-1, by ARC
+   LENGTH — so the delay below is simply that fraction of one full run and
+   the module lights at the instant the light arrives.
+
+   The keyframe peaks at 0% precisely because the delay already carries
+   all the timing; a ramp-up here would land every glow late by however
+   long the ramp took. Opacity and shadow only — a scale would shove the
+   caption underneath it. */
+.tileLit {
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  background: radial-gradient(
+    ellipse at 50% 40%,
+    oklch(0.96 0.07 187 / 0.5),
+    oklch(0.9 0.09 188 / 0.12) 65%,
+    transparent 78%
+  );
+  box-shadow:
+    0 0 24px oklch(0.9 0.1 188 / 0.55),
+    inset 0 0 0 1px oklch(0.98 0.05 188 / 0.75);
+  animation: hxLit var(--rb-run, 7s) ease-out infinite;
+  animation-delay: calc(var(--pulse) * var(--rb-run, 7s) + 1.6s);
+}
+
+@keyframes hxLit {
+  0% {
+    opacity: 1;
+  }
+  16% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
 /* The index number, carried on the tile from the very first frame so
    the ordering the contents page uses is already established here. */
 .tileNum {
@@ -204,6 +245,7 @@
    static composed frame under reduced motion, so there is nothing to
    scrub in that branch anyway. */
 @media (prefers-reduced-motion: reduce) {
+  .tileLit,
   .tileFloat,
   .plateBreathe {
     animation: none;

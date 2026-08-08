@@ -42,16 +42,51 @@ function Marquee() {
 // modules, written in a stretched viewBox so both agree at any width —
 // a ribbon whose modules sit near it rather than on it is just a stray
 // line through the composition.
-function Ribbon() {
-  const pts = Array.from({ length: 97 }, (_, i) => {
-    const u = i / 96;
-    return `${(u * 100).toFixed(2)},${(50 - Math.sin(u * Math.PI * 2) * 44.6).toFixed(2)}`;
+//
+// The line is not decoration, it is a conveyor: it draws itself in on
+// load, then a bead of light runs it end to end forever, and each module
+// lights as the bead reaches it (the glow's delay comes from the same
+// arc-length position the layout computes — see pulseAt).
+//
+// pathLength="1" is what makes that affordable. It renormalises the
+// path's length to 1, so the dash pattern and the offset can be written
+// as plain fractions instead of being measured with getTotalLength() on
+// every resize.
+function Ribbon({ isRTL, w = 1240, h = 170 }) {
+  // The viewBox is the box's REAL pixel size, and the sine is plotted in
+  // those same pixels. That is load-bearing, not tidiness.
+  //
+  // The first version drew into a square 0 0 100 100 and let
+  // preserveAspectRatio="none" stretch it — x by about twelve, y by
+  // under two. Dash lengths and pathLength are measured in USER space, so
+  // a dash pattern that looked even in the square came out wildly uneven
+  // once stretched: the draw-on arrived in disconnected patches and never
+  // closed up, and the bead's position along the path had no fixed
+  // relation to where it appeared on screen — which would have silently
+  // desynced it from the module glows, whose delays the layout computes
+  // in screen pixels.
+  //
+  // At 1:1 there is no distortion, so user space, screen space and the
+  // layout's arithmetic are all the same space.
+  const amp = h / 2.24;
+  const pts = Array.from({ length: 241 }, (_, i) => {
+    const u = i / 240;
+    return `${(u * w).toFixed(2)},${(h / 2 - Math.sin(u * Math.PI * 2) * amp).toFixed(2)}`;
   }).join(" ");
+  const line = { points: pts, pathLength: 1 };
   return (
     <div className={cx.ribbon} aria-hidden="true">
-      <svg className={cx.rbSvg} viewBox="0 0 100 100" preserveAspectRatio="none">
-        <polyline className={cx.rbGlow} points={pts} vectorEffect="non-scaling-stroke" />
-        <polyline className={cx.rbLine} points={pts} vectorEffect="non-scaling-stroke" />
+      {/* RTL mirrors the modules' x, so the drawn wave has to mirror with
+          them or its crests land under the wrong ones — and the bead then
+          runs right-to-left, which is also the reading direction. */}
+      <svg
+        className={cx.rbSvg}
+        viewBox={`0 0 ${w} ${h}`}
+        style={isRTL ? { transform: "scaleX(-1)" } : undefined}
+      >
+        <polyline className={cx.rbGlow} {...line} />
+        <polyline className={cx.rbLine} {...line} />
+        <polyline className={cx.rbBead} {...line} />
       </svg>
     </div>
   );
@@ -189,12 +224,12 @@ function Khatim({ arch }) {
  * (including undefined) falls back to the studio window, which is the
  * centre most variants want.
  */
-export default function Centre({ kind, compact, isRTL, t, arch }) {
+export default function Centre({ kind, compact, isRTL, t, arch, size }) {
   switch (kind) {
     case "marquee":
       return <Marquee />;
     case "ribbon":
-      return <Ribbon />;
+      return <Ribbon isRTL={isRTL} w={size?.w} h={size?.h} />;
     case "terminal":
       return <Terminal t={t} />;
     case "aperture":

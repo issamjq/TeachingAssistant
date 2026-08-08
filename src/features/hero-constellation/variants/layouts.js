@@ -33,7 +33,7 @@ function done(b, vw, vh, opts) {
   const {
     tile, tileSize, sourceW = tileSize, centre = null,
     lastY, cueFloor = -Infinity, showLabels = !b.isPortrait,
-    lockX = 0, filaments = true, labelAbove = null,
+    lockX = 0, filaments = true, labelAbove = null, pulseAt = null,
   } = opts;
   return {
     tile,
@@ -44,6 +44,10 @@ function done(b, vw, vh, opts) {
     // choice: its sources straddle a luminous rule, and a caption hung
     // below an above-the-line tile lands ON the rule and is unreadable.
     labelAbove,
+    // Where source i sits along the centre's travelling light, 0-1, or
+    // null if the variant has none. Drives the per-source glow so a module
+    // lights at the moment the light reaches it.
+    pulseAt,
     // Filaments are struck from the centre to each source. Variants whose
     // centre IS the connector — the ring, the rule, the arch — switch
     // them off; drawing both gave two competing sets of lines.
@@ -287,15 +291,38 @@ export function ribbon(n, vw, vh, dir, wordK) {
   const amp = Math.min(76, (vh / 2 - 46 - top - size - 44) / 2);
   const cy = top + size / 2 + amp;
 
-  const wave = (i) => Math.sin((i / (n - 1)) * Math.PI * 2);
+  const wave = (u) => Math.sin(u * Math.PI * 2);
+
+  // Where each module sits along the ribbon BY ARC LENGTH, not by x.
+  //
+  // The travelling light moves at constant speed along the line, and the
+  // line is longer than the box is wide — steeply on the rising and
+  // falling flanks, barely at the crests. Timing the glows off x instead
+  // would run them a few percent early at the crests and late on the
+  // flanks, which on a 7s cycle is exactly the kind of near-miss that
+  // reads as "the animation is slightly broken" rather than as an
+  // animation at all.
+  const SAMPLES = 400;
+  const cum = [0];
+  for (let k = 1; k <= SAMPLES; k++) {
+    const u0 = (k - 1) / SAMPLES;
+    const u1 = k / SAMPLES;
+    const dx = (W * (u1 - u0)) ** 2;
+    const dy = (amp * (wave(u1) - wave(u0))) ** 2;
+    cum.push(cum[k - 1] + Math.sqrt(dx + dy));
+  }
+  const total = cum[SAMPLES];
+  const arcAt = (u) => cum[Math.round(u * SAMPLES)] / total;
+
   return done(b, vw, vh, {
     tile: (i) => ({
-      x: ((i / (n - 1)) - 0.5) * W * dir,
-      y: cy - wave(i) * amp,
+      x: (i / (n - 1) - 0.5) * W * dir,
+      y: cy - wave(i / (n - 1)) * amp,
       s,
     }),
     tileSize: size,
     filaments: false,
+    pulseAt: (i) => arcAt(i / (n - 1)),
     centre: { x: 0, y: cy, w: W, h: amp * 2.24, k: 1, kind: "ribbon" },
     // The lowest point of the wave PLUS its two-line caption. Measured to
     // the tile alone, the cue line ran straight through the caption of

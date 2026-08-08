@@ -460,6 +460,7 @@ export default function HeroStageOne({ onEnter, signedIn, variant }) {
                   ? { w: C.centre.archW, h: C.centre.archH, top: C.centre.archTop - C.centre.y + C.centre.h / 2 }
                   : null
               }
+              size={{ w: C.centre.w, h: C.centre.h }}
               isRTL={isRTL}
               t={t}
             />
@@ -597,6 +598,21 @@ export default function HeroStageOne({ onEnter, signedIn, variant }) {
                         className={`${hx.tileInner} ${morph > 0 ? hx.tileSettled : hx.tileFloat}`}
                         style={{ "--i": i }}
                       >
+                        {/* Lit as the centre's travelling light reaches
+                            this module. Its own element rather than a
+                            second animation on the tile, because the tile
+                            is already running the ambient drift and one
+                            element can only hold one animation-delay per
+                            property. Dropped once the morph starts — the
+                            sources are in flight by then and a glow
+                            following them reads as a rendering fault. */}
+                        {C.pulseAt && morph < 0.02 && (
+                          <span
+                            className={hx.tileLit}
+                            style={{ "--pulse": C.pulseAt(i) }}
+                            aria-hidden="true"
+                          />
+                        )}
                         <span className={hx.tileNum} aria-hidden="true">
                           {String(i + 1).padStart(2, "0")}
                         </span>
