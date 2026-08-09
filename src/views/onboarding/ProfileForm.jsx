@@ -27,6 +27,7 @@ import { useT, useI18n } from "../../lib/i18n";
 import { SkeletonList } from "../../components/ui/skeleton";
 import Avatar from "../../components/Avatar";
 import { avatarsFor } from "../../lib/avatars";
+import { extractPdfText } from "@/features/onboarding/extractText";
 import { api } from "../_shared";
 
 // 4-step wizard. Grades + sections used to live in their own "scope"
@@ -44,6 +45,10 @@ import { api } from "../_shared";
 // server reads it (POST /api/onboarding/parse) and hands back only the
 // fields it can actually find; everything lands in the form below, where
 // the teacher checks it before anything is saved.
+//
+// A PDF with a real text layer — which is most CVs — is read HERE and
+// only its text is sent. A scanned CV or a photographed staff card has no
+// text layer, so those still go up as bytes for the model to look at.
 //
 // Nothing is auto-submitted. OCR of a CV is a good first draft and a bad
 // source of truth, so the parse fills the form and stops — the existing
@@ -74,13 +79,16 @@ function FillFromCv({ onFilled, t }) {
     setState("reading");
     setMessage(null);
     try {
+      // Text if the file has any, bytes if it hasn't. extractPdfText
+      // returns null rather than throwing precisely so this stays a
+      // choice of route and never becomes an error the teacher sees.
+      const text = await extractPdfText(file);
+      const doc = text
+        ? { name: file.name, text }
+        : { name: file.name, mediaType: file.type, dataBase64: await read(file) };
       const out = await api("/api/onboarding/parse", {
         method: "POST",
-        body: {
-          documents: [
-            { name: file.name, mediaType: file.type, dataBase64: await read(file) },
-          ],
-        },
+        body: { documents: [doc] },
       });
       const filled = onFilled(out.fields || {});
       setState("done");
