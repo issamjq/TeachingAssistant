@@ -161,7 +161,12 @@ const EMPTY = {
   lastName: "",
   staffId: "",
   gender: "man", // sensible default — teacher can switch to Woman
-  avatar: "",
+  // Pre-picked, like gender above. This was required and blank, so every
+  // teacher had to choose a cartoon before the form would let them past
+  // step one — a decision with no wrong answer, standing between them
+  // and the product. A default they can change is the same choice
+  // without the gate.
+  avatar: avatarsFor("man")[0].id,
   bio: "",
   majors: [],
   languages: [],
@@ -294,7 +299,9 @@ export default function ProfileForm({ onDone, onBack }) {
       if (!data.lastName.trim()) out.push("lastName");
       if (!data.staffId.trim()) out.push("staffId");
       if (!data.gender) out.push("gender");
-      if (!data.avatar) out.push("avatar");
+      // avatar is no longer gated: it always holds a value, and a profile
+      // saved from an older build with a blank one is not worth stopping
+      // a teacher over.
       return out;
     }
     if (step === "subjects") {
@@ -435,7 +442,12 @@ export default function ProfileForm({ onDone, onBack }) {
     setData((d) => ({
       ...d,
       gender: g,
-      avatar: avatarsFor(g).some((a) => a.id === d.avatar) ? d.avatar : "",
+      // Keep the current face if it belongs to the new set, otherwise take
+      // that set's first. Blanking it here is what made the field feel
+      // required again the moment somebody switched gender.
+      avatar: avatarsFor(g).some((a) => a.id === d.avatar)
+        ? d.avatar
+        : (avatarsFor(g)[0]?.id ?? ""),
     }));
   const toggleIn = (key, value) =>
     setData((d) => {
@@ -577,7 +589,7 @@ export default function ProfileForm({ onDone, onBack }) {
               })}
             </div>
           </Field>
-          <Field label={t("onb.fld.avatar")} required ref={setFieldRef("avatar")} invalid={isMissing("avatar")} errorText={t("onb.fld.required")}>
+          <Field label={t("onb.fld.avatar")} hint={t("onb.fld.optional")} ref={setFieldRef("avatar")}>
             <div className="flex flex-wrap gap-3">
               {avatarsFor(data.gender).map((a) => {
                 const on = data.avatar === a.id;
@@ -585,7 +597,10 @@ export default function ProfileForm({ onDone, onBack }) {
                   <button
                     key={a.id}
                     type="button"
-                    onClick={() => set({ avatar: on ? "" : a.id })}
+                    // Selecting is not a toggle: clearing would put the
+                    // form back into the invalid state this change exists
+                    // to remove.
+                    onClick={() => set({ avatar: a.id })}
                     aria-pressed={on}
                     aria-label="Choose avatar"
                     style={{
