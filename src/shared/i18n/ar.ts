@@ -1020,4 +1020,6 @@ export const AR: Partial<Record<TranslationKey, string>> = {
   "faq.q7": "ماذا تشمل التجربة المجانية؟",
   "faq.a7": "سبعة أيام من الاستوديو كاملاً — كل الوحدات، دون بطاقة. وإن توقفت عندها، فلا يُخصم شيء.",
   "portal.comingSoon": "قريباً",
+  "lp.auth.continue": "متابعة",
+  "lp.auth.working": "لحظة واحدة…",
 };

@@ -146,6 +146,22 @@ export function buildGlobalRateLimit() {
 
 // Tight limit on the auth bootstrap + renew endpoints. 10 per 15 min
 // is plenty for a real user, brick-wall for credential-stuffing.
+// The brake is meant to stop credential stuffing, so it counts only the
+// endpoints where a guess can be made. It used to cover the whole
+// /api/auth surface at 10 per 15 minutes, but ONE successful sign-in
+// spends several of those on calls that verify an already-valid token —
+// claim-session, me, supabase — so three or four honest attempts
+// exhausted the budget and the fourth got a 429. Which the client then
+// read as "no account" and answered with the onboarding form.
+//
+// Guessable endpoints stay at 10; the rest are left to the global
+// limiter (300 / 5 min), which is plenty for a token that has already
+// been verified cryptographically.
+const GUESSABLE = new Set([
+  "/email-verify/check",
+  "/email-verify/send",
+]);
+
 export function buildAuthRateLimit() {
   return rateLimit({
     windowMs: 15 * 60 * 1000,
@@ -153,6 +169,8 @@ export function buildAuthRateLimit() {
     standardHeaders: "draft-7",
     legacyHeaders: false,
     message: { error: "Too many sign-in attempts. Try again later." },
+    // req.path here is relative to the mount point (/api/auth).
+    skip: (req) => !GUESSABLE.has(req.path),
   });
 }
 

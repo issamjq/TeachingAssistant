@@ -1185,6 +1185,11 @@ function validatePassword(password, { isSignin = false } = {}) {
   return null;
 }
 
+// One page for both. A visitor types an email and a password; which of
+// the two this turns out to be is decided by the ANSWER, not by which
+// button they pressed on the way in — see signInOrSignUp in
+// lib/supabaseAuth.js. `mode` survives only so /signin and /signup both
+// still resolve to something; it no longer changes what is rendered.
 function AuthPage({ onSignUp, onPage, mode = "signup", onEnterStudio }) {
   const t = useT();
   const isSignin = mode === "signin";
@@ -1399,18 +1404,18 @@ function AuthPage({ onSignUp, onPage, mode = "signup", onEnterStudio }) {
     // tabs out of the input doesn't see the inline hint.
     setEmailTouched(true);
     setPasswordTouched(true);
-    if (!isSignin) setConfirmTouched(true);
     if (emailError || passwordError) return;
-    if (!isSignin && confirmError) return;
     const email = emailTrim;
     const password = passwordValue;
     setAuthError(null);
     setEmailSending(true);
     try {
       const lib = await import("../lib/supabaseAuth");
-      const user = isSignin
-        ? await lib.signInWithEmail(email, password)
-        : await lib.signUpWithEmail(email, password);
+      // One page, one call. signInOrSignUp resolves the three cases the
+      // form cannot tell apart on its own: returning teacher with the
+      // right password, returning teacher with the wrong one, and someone
+      // brand new. See the note on it in lib/supabaseAuth.js.
+      const { user, isNew } = await lib.signInOrSignUp(email, password);
       const payload = {
         acceptedAt: new Date().toISOString(),
         legalVersion: LEGAL_VERSION,
@@ -1421,23 +1426,21 @@ function AuthPage({ onSignUp, onPage, mode = "signup", onEnterStudio }) {
           photoURL: user.photoURL || "",
         },
       };
-      // Sign-in: continue straight to the studio bootstrap. The account
-      // either pre-dates verification or already verified previously.
-      // Sign-up: pause the funnel and ask the user to click the link in
-      // their inbox first. Polling below flips us back into onSignUp.
-      if (isSignin) {
+
+      if (!isNew) {
+        // Existing account: straight through. onSignUp finds the teacher
+        // row and routes to the dashboard — no profile questions, which
+        // is the whole point of recognising them here.
         onSignUp("email", payload);
       } else {
-        // Sign-up — kick off our own 6-digit code flow. The endpoint reads
-        // the email off the access token, so no body needed.
+        // Brand new — kick off our own 6-digit code flow. The endpoint
+        // reads the email off the access token, so no body is needed.
         //
         // That requires a live session immediately after signUp, which
         // only happens when "Confirm email" is OFF in the Supabase
         // dashboard. It has to be off: this product deliberately replaced
         // link-based verification with the 6-digit code (teachers got lost
-        // on Firebase's "verified ✓" page and never returned to the tab).
-        // Leaving Supabase's own confirmation on would both duplicate that
-        // step and withhold the token this next call needs.
+        // on the "verified ✓" page and never returned to the tab).
         //
         // Rather than let it fail as an opaque 401, detect it and say so.
         const { getIdToken } = await import("../lib/supabaseAuth");
@@ -1457,7 +1460,7 @@ function AuthPage({ onSignUp, onPage, mode = "signup", onEnterStudio }) {
         setVerifyResendCooldown(30);
       }
     } catch (e) {
-      console.error(`[auth/email-${isSignin ? "signin" : "signup"}]`, e);
+      console.error("[auth/email]", e);
       const code = e?.code || "";
       // Supabase error codes, not Firebase's "auth/…" ones. GoTrue reports
       // a single `invalid_credentials` for both a wrong password and an
@@ -1471,6 +1474,11 @@ function AuthPage({ onSignUp, onPage, mode = "signup", onEnterStudio }) {
         user_already_exists:        "An account with this email already exists. Try signing in instead.",
         email_exists:               "An account with this email already exists. Try signing in instead.",
         invalid_credentials:        "Wrong email or password.",
+        // Raised by signInOrSignUp when sign-up reports the address is
+        // taken — which can only mean the password was wrong, since the
+        // sign-in attempt with it had already failed.
+        wrong_password:
+          "You already have an account with this email. Check your password, or reset it below.",
         email_not_confirmed:        "Confirm your email address first — check your inbox for the link.",
         over_request_rate_limit:    "Too many attempts. Wait a minute and try again, or reset your password.",
         over_email_send_rate_limit: "Too many emails sent. Wait a minute before trying again.",
@@ -1692,12 +1700,15 @@ function AuthPage({ onSignUp, onPage, mode = "signup", onEnterStudio }) {
               <div className="relative">
                 <input
                   type={showPassword ? "text" : "password"}
-                  autoComplete={isSignin ? "current-password" : "new-password"}
+                  // "current-password": the page leads with sign-in, and a
+                  // manager offering to FILL beats one offering to generate
+                  // for the majority who already have an account.
+                  autoComplete="current-password"
                   value={passwordValue}
                   onChange={(e) => setPasswordValue(e.target.value)}
                   onBlur={() => setPasswordTouched(true)}
                   onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleEmailPassword(); } }}
-                  placeholder={isSignin ? "Your password" : "Create a password"}
+                  placeholder="Your password"
                   className="w-full ps-5 pe-12 py-3.5 rounded-xl text-sm text-ink"
                   style={{
                     background: "var(--paper)",
@@ -1787,84 +1798,18 @@ function AuthPage({ onSignUp, onPage, mode = "signup", onEnterStudio }) {
                 </div>
               )}
             </div>
-            {/* Confirm password — sign-up only. Catches typos before the
-                user is locked into a password they can't remember. */}
-            {!isSignin && (
-              <div>
-                <div className="relative">
-                  <input
-                    type={showPassword ? "text" : "password"}
-                    autoComplete="new-password"
-                    value={confirmValue}
-                    onChange={(e) => setConfirmValue(e.target.value)}
-                    onBlur={() => setConfirmTouched(true)}
-                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleEmailPassword(); } }}
-                    placeholder="Confirm password"
-                    className="w-full ps-5 pe-12 py-3.5 rounded-xl text-sm text-ink"
-                    style={{
-                      background: "var(--paper)",
-                      border: `0.5px solid ${
-                        confirmMatches
-                          ? "#5a7a4a"
-                          : confirmTouched && confirmError
-                            ? "var(--clay, #b3442b)"
-                            : "var(--line-strong)"
-                      }`,
-                    }}
-                    disabled={emailSending}
-                    aria-invalid={confirmTouched && confirmError ? "true" : "false"}
-                    aria-describedby={confirmTouched && confirmError ? "auth-confirm-error" : undefined}
-                    dir="ltr"
-                    minLength={8}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword((s) => !s)}
-                    aria-label={showPassword ? "Hide password" : "Show password"}
-                    aria-pressed={showPassword}
-                    className="absolute end-3 top-1/2 -translate-y-1/2 inline-flex items-center justify-center w-8 h-8 rounded-md transition-colors hover:bg-paper-warm/70"
-                    style={{ color: "var(--ink-soft, #8a7e63)" }}
-                    tabIndex={-1}
-                  >
-                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                  </button>
-                </div>
-                {confirmTouched && confirmError && (
-                  <p
-                    id="auth-confirm-error"
-                    role="alert"
-                    className="text-xs mt-1.5 ps-1"
-                    style={{ color: "var(--clay, #b3442b)" }}
-                  >
-                    {confirmError}
-                  </p>
-                )}
-                {confirmMatches && (
-                  <p
-                    className="text-xs mt-1.5 ps-1 inline-flex items-center gap-1.5"
-                    style={{ color: "#3f5c34" }}
-                  >
-                    <span
-                      aria-hidden="true"
-                      className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full text-[9px]"
-                      style={{ background: "#dfe8d6", color: "#3f5c34" }}
-                    >
-                      ✓
-                    </span>
-                    Passwords match
-                  </p>
-                )}
-              </div>
-            )}
+            {/* No confirm-password field. This page cannot know whether it
+                is creating an account until the call comes back, so a
+                second box would be put in front of returning teachers
+                too. The show/hide toggle above catches the typo it used
+                to catch, without the extra field. */}
             <ProviderButton
               icon={<EmailMark />}
-              label={emailSending
-                ? (isSignin ? "Signing in…" : "Creating account…")
-                : (isSignin ? "Sign in" : "Create account")}
+              label={emailSending ? t("lp.auth.working") : t("lp.auth.continue")}
               onClick={handleEmailPassword}
-              disabled={!accepted || emailSending || !!emailError || !!passwordError || (!isSignin && !!confirmError)}
+              disabled={!accepted || emailSending || !!emailError || !!passwordError}
             />
-            {isSignin && (
+            {(
               <div className="flex flex-col items-center gap-2 pt-1">
                 <button
                   type="button"
@@ -2102,18 +2047,8 @@ function AuthPage({ onSignUp, onPage, mode = "signup", onEnterStudio }) {
         </div>
       )}
 
-      {/* Cross-link to the other auth flow. On Sign in → invite to Sign up;
-          on Sign up → point existing users to Sign in. */}
-      <p className="text-sm mt-7 text-center" style={{ color: "var(--ink-2)" }}>
-        {isSignin ? t("lp.auth.noAccount") : t("lp.auth.haveAccount")}{" "}
-        <button
-          type="button"
-          onClick={() => onPage(isSignin ? "signup" : "signin")}
-          className="auth-switch-link"
-        >
-          {isSignin ? t("lp.auth.signupCta") : t("lp.auth.signinCta")}
-        </button>
-      </p>
+      {/* No sign-in / sign-up cross-link: there is nowhere else to go.
+          One page works out which it is from the credentials given. */}
 
       <p className="text-xs mt-4 text-center" style={{ color: "var(--ink-3)" }}>
         {t("lp.auth.only")}
@@ -2766,12 +2701,27 @@ export default function Landing({ onOpenStudio, heroVariant = null }) {
           return;
         }
       } catch (e) {
-        // 404 (no teacher row) is expected for first-time sign-up —
-        // fall through to the profile funnel below. Other errors
-        // also fall through; the funnel's bootstrap step will surface
-        // them properly.
+        // ONLY a 404 means "no teacher row yet", and only a 404 may send
+        // someone into onboarding.
+        //
+        // This used to fall through on every error, which quietly turned
+        // any transient failure into "you must be new": a 429 from the
+        // auth rate limiter, a 500, a dropped API — all of them dumped a
+        // returning teacher back onto "Tell us who you are." and asked
+        // for details they had already given. Worse, the funnel then ends
+        // at the plan picker, so a rate-limited sign-in could talk
+        // somebody into re-picking a plan they already pay for.
+        //
+        // Anything that is not a 404 is a problem to report, not a
+        // reason to doubt the account exists.
         if (e?.status && e.status !== 404) {
-          console.warn("[auth/me] returning-user check failed:", e);
+          console.warn("[auth] returning-user check failed:", e);
+          setAuthError(
+            e.status === 429
+              ? "Too many attempts just now. Wait a minute and try again — your account is fine."
+              : `We couldn't reach your account (${e.message}). Try again in a moment.`
+          );
+          return;
         }
       }
     }

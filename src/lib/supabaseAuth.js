@@ -195,6 +195,57 @@ export async function signInWithEmail(email, password) {
   return normalizeUser(data.user);
 }
 
+/**
+ * One entry point for "here is my email and password" — the single-page
+ * auth the landing now uses.
+ *
+ * The problem it solves: GoTrue answers `invalid_credentials` for BOTH a
+ * wrong password and an unknown email, deliberately, so a login form
+ * can't be used to discover which addresses have accounts. That is the
+ * right default, and it makes "you already have an account, check your
+ * password" impossible to say from the sign-in call alone.
+ *
+ * So: try to sign in. If that fails on credentials, try to sign up. The
+ * sign-up answer disambiguates what the sign-in could not —
+ * `user_already_exists` means the address is taken, which means the
+ * password was simply wrong. Anything else is a genuine new account.
+ *
+ * Sign-in is attempted FIRST on purpose. The other order would create an
+ * account as a side effect of a typo'd password.
+ *
+ * @returns {{ user: object, isNew: boolean }}
+ */
+export async function signInOrSignUp(email, password) {
+  try {
+    const data = unwrap(await supabase.auth.signInWithPassword({ email, password }));
+    return { user: normalizeUser(data.user), isNew: false };
+  } catch (signInError) {
+    // Only ambiguous credential failures are worth a second attempt.
+    // A rate limit or a network fault must surface as itself.
+    if (signInError?.code !== "invalid_credentials") throw signInError;
+
+    try {
+      const data = unwrap(
+        await supabase.auth.signUp({
+          email,
+          password,
+          options: { emailRedirectTo: redirectTo("/") },
+        })
+      );
+      return { user: normalizeUser(data.user), isNew: true };
+    } catch (signUpError) {
+      const taken =
+        signUpError?.code === "user_already_exists" ||
+        signUpError?.code === "email_exists";
+      if (!taken) throw signUpError;
+      // The address exists, so the password they gave is the wrong one.
+      throw Object.assign(new Error("Wrong password for this account."), {
+        code: "wrong_password",
+      });
+    }
+  }
+}
+
 // Send a password reset email. Supabase emails a recovery link; clicking
 // it returns the user to the app with a live session in "recovery" mode,
 // at which point updatePassword() below sets the new one. (Firebase

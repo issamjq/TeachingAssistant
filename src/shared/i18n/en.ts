@@ -1051,4 +1051,6 @@ export const EN = {
   "faq.q7": "What does the free trial include?",
   "faq.a7": "Seven days of the whole studio — every module, no card required. If you stop there, nothing is charged.",
   "portal.comingSoon": "Soon",
+  "lp.auth.continue": "Continue",
+  "lp.auth.working": "Just a moment…",
 };
