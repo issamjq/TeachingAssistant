@@ -164,6 +164,53 @@ END $$;
 // =============================================================================
 // SCHEMA — base tables (kept compatible with the original schema)
 // =============================================================================
+// Reconcile a pre-2026 `students` table before SCHEMA_BASE runs.
+//
+// CREATE TABLE IF NOT EXISTS does nothing when the table already exists,
+// so a students table created under the old shape (full_name, division)
+// never gained the new columns (first_name/last_name, section, guardian
+// fields, account_id). The very next statement — an index on
+// students(grade, section) — then failed with 42703, and because init
+// aborts on the first error, EVERY migration after that point had
+// silently never run. That is how students ended up as the one table in
+// the database with no account_id at all, and why /api/dashboard 500s.
+//
+// This drops and lets SCHEMA_BASE rebuild it, but ONLY when the table is
+// empty — and it checks its dependents too. With rows present it raises
+// instead, because reshaping real student records is a migration someone
+// has to write deliberately, not a side effect of running init.
+const SCHEMA_FIX_STALE_STUDENTS = `
+DO $$
+DECLARE
+  is_stale boolean;
+  n_students bigint := 0;
+  n_enrollments bigint := 0;
+BEGIN
+  SELECT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'students'
+      AND column_name = 'division'
+  ) INTO is_stale;
+
+  IF NOT is_stale THEN RETURN; END IF;
+
+  EXECUTE 'SELECT COUNT(*) FROM students' INTO n_students;
+  IF to_regclass('public.enrollments') IS NOT NULL THEN
+    EXECUTE 'SELECT COUNT(*) FROM enrollments' INTO n_enrollments;
+  END IF;
+
+  IF n_students > 0 OR n_enrollments > 0 THEN
+    RAISE EXCEPTION
+      'students is on the pre-2026 shape and holds % student / % enrollment rows. Migrate it by hand — init will not rewrite real records.',
+      n_students, n_enrollments;
+  END IF;
+
+  RAISE NOTICE 'students: dropping empty pre-2026 table so it can be rebuilt';
+  DROP TABLE IF EXISTS enrollments CASCADE;
+  DROP TABLE IF EXISTS students CASCADE;
+END $$;
+`;
+
 const SCHEMA_BASE = `
 CREATE TABLE IF NOT EXISTS accounts (
   id SERIAL PRIMARY KEY,
@@ -906,6 +953,9 @@ export async function runInit() {
   await pool.query(SCHEMA_RENAME_TEACHERS_TO_ACCOUNTS);
 
   console.log("Creating base schema...");
+  // Must run BEFORE SCHEMA_BASE: it clears the way for the students
+  // CREATE TABLE that SCHEMA_BASE would otherwise skip.
+  await pool.query(SCHEMA_FIX_STALE_STUDENTS);
   await pool.query(SCHEMA_BASE);
 
   console.log("Adding multi-tenancy columns...");

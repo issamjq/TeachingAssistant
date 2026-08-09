@@ -95,9 +95,21 @@ export function buildCors() {
 
   // Dev fallback: allow common localhost ports. Production refuses to
   // start without ALLOWED_ORIGINS (see env.js validateEnv()).
+  //
+  // These were Vite's ports (5173-5178) and had been since before the
+  // Next migration, so with no ALLOWED_ORIGINS set every browser call in
+  // local dev came back 403 "Origin not allowed" — sign-in included.
+  // Next's rewrite forwards the browser's Origin header to this API, so
+  // the proxy does not hide it.
+  //
+  // 3000-3010 covers `next dev` and the ports it falls forward to when
+  // 3000 is busy. 127.0.0.1 is listed alongside localhost because they
+  // are different origins to a browser, and which one you get depends on
+  // what you typed in the address bar.
   if (!isProd() && list.length === 0) {
-    for (const p of [5173, 5174, 5175, 5176, 5177, 5178]) {
-      list.push(`http://localhost:${p}`);
+    for (let port = 3000; port <= 3010; port++) {
+      list.push(`http://localhost:${port}`);
+      list.push(`http://127.0.0.1:${port}`);
     }
   }
 
