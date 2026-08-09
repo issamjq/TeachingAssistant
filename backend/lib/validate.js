@@ -18,6 +18,13 @@ const safeLongText   = z.string().trim().max(2000);
 const safeBio        = z.string().trim().max(1000);
 const safePhone      = z.string().trim().max(40).regex(/^[+0-9 \-().]*$/, "Invalid phone format");
 const safeEmail      = z.string().trim().email().max(254);
+// A provider's profile photo. https only and length-capped: an avatar URL
+// is rendered straight into a background-image, so a javascript: or data:
+// value here would be a stored-XSS foothold rather than a broken picture.
+const safePhotoUrl   = z.string().trim().max(1000).refine(
+  (v) => /^https:\/\//i.test(v),
+  "Avatar URL must be https"
+);
 const isoDate        = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "YYYY-MM-DD expected");
 
 // ── Auth ───────────────────────────────────────────────────────────────
@@ -111,6 +118,7 @@ export const ProfilePatchSchema = z.object({
   email:         safeEmail.optional(),
   phone:         safePhone.optional().nullable(),
   staff_id:      safeShortText.optional(),
+  avatar_url:    safePhotoUrl.optional().nullable(),
   majors:        z.array(safeShortText).max(40).optional(),
   grade_levels:  z.array(safeShortText).max(40).optional(),
   languages:     z.array(safeShortText).max(40).optional(),

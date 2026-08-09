@@ -1602,6 +1602,7 @@ function AuthPage({ onSignUp, onPage, mode = "signup", onEnterStudio, notice }) 
           firstName: user.firstName || "",
           lastName: user.lastName || "",
           photoURL: user.photoURL || "",
+          locale: user.locale || null,
         },
       };
 
@@ -2967,11 +2968,29 @@ export default function Landing({ onOpenStudio, heroVariant = null }) {
         // somebody watch a spinner for, and if it fails they are already
         // inside the product with an account — the fields are editable in
         // Settings, and the next save overwrites whatever missed.
+        // Everything the provider actually gave us, not just the name.
+        // LinkedIn OIDC returns name, email, picture and locale — that is
+        // the whole of it, so this is the complete import rather than a
+        // first instalment.
+        //
+        // locale → a teaching language is a guess, but a safe one: it is
+        // the language their LinkedIn account is in, it is editable in
+        // Settings, and an empty list makes the studio ask on the first
+        // lesson instead.
+        const langFromLocale = (loc) => {
+          const code = String(loc || "").slice(0, 2).toLowerCase();
+          return { en: "English", ar: "Arabic", fr: "French", es: "Spanish",
+                   tr: "Turkish", ur: "Urdu", hi: "Hindi", ru: "Russian",
+                   pt: "Portuguese", de: "German", it: "Italian" }[code] || null;
+        };
+        const lang = langFromLocale(payload?.authUser?.locale);
         apiFetch("/api/me", {
           method: "PATCH",
           body: {
             first_name: known.firstName || undefined,
             last_name: known.lastName || undefined,
+            avatar_url: known.avatarUrl || undefined,
+            languages: lang ? [lang] : undefined,
           },
         }).catch((err) => console.warn("[auth] background profile save failed:", err));
 

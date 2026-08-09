@@ -149,7 +149,12 @@ function PersonalDetails() {
                 aria-label="Change avatar"
                 className="relative group rounded-full flex-shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-paper-cool"
               >
-                <Avatar avatarId={avatarId} initial={initials(me.first_name, me.last_name)} size={64} />
+                <Avatar
+                  avatarId={avatarId}
+                  photoUrl={me.avatar_url || account?.profile?.avatarUrl}
+                  initial={initials(me.first_name, me.last_name)}
+                  size={64}
+                />
                 <span className="absolute inset-0 rounded-full bg-ink/45 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                   <Pencil size={15} className="text-paper-cool" />
                 </span>

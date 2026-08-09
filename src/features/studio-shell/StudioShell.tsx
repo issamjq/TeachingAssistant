@@ -330,6 +330,8 @@ export default function StudioShell({ children }: { children: React.ReactNode })
         >
           <Avatar
             avatarId={account?.profile?.avatarId}
+            // Signed in with LinkedIn or Google? Show their actual face.
+            photoUrl={account?.profile?.avatarUrl}
             initial={displayInitial}
             size={34}
             className="murchid-sidebar-account-avatar"
