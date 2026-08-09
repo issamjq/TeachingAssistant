@@ -1344,7 +1344,7 @@ function AuthShell({ title, em, lead, onPage, children }) {
   );
 }
 
-function AuthPage({ onSignUp, onPage, mode = "signup", onEnterStudio }) {
+function AuthPage({ onSignUp, onPage, mode = "signup", onEnterStudio, notice }) {
   const t = useT();
   const isSignin = mode === "signin";
 
@@ -2133,9 +2133,14 @@ function AuthPage({ onSignUp, onPage, mode = "signup", onEnterStudio }) {
           </div>
         )}
 
-        {authError && emailMode !== "sent" && emailMode !== "reset-sent" && (
+        {/* `notice` comes from Landing's sign-in handler, which runs after
+            this component has handed control away and has no access to
+            the state below. Either can be showing; both use one slot so
+            two errors can never stack up and push the page into a
+            scroll. */}
+        {(authError || notice) && emailMode !== "sent" && emailMode !== "reset-sent" && (
           <p role="alert" className="text-xs text-center" style={{ color: "var(--clay, #b3442b)" }}>
-            {authError}
+            {authError || notice}
           </p>
         )}
       </div>
@@ -2465,10 +2470,10 @@ function LegalPage({ doc, onPage }) {
   );
 }
 
-function MarketingPage({ page, onSignUp, onProfileDone, onChoosePlan, onPage, onEnterStudio }) {
+function MarketingPage({ page, onSignUp, onProfileDone, onChoosePlan, onPage, onEnterStudio, notice }) {
   const t = useT();
   if (page === "signin" || page === "signup")
-    return <AuthPage onSignUp={onSignUp} onPage={onPage} mode={page} onEnterStudio={onEnterStudio} />;
+    return <AuthPage onSignUp={onSignUp} onPage={onPage} mode={page} onEnterStudio={onEnterStudio} notice={notice} />;
   if (page === "profile")
     return (
       <ProfileForm
@@ -2615,6 +2620,12 @@ export default function Landing({ onOpenStudio, heroVariant = null }) {
   const account = useAccount();
   const signedIn = !!account;
   const [pendingProvider, setPendingProvider] = useState(null);
+  // A message from the sign-in handler back to the auth page. handleSignUp
+  // lives HERE, but the field that shows errors lives inside AuthPage, so
+  // the text has to travel down as a prop — an earlier version called
+  // AuthPage's own setAuthError from this scope and threw ReferenceError
+  // the first time a returning-user check failed.
+  const [signInNotice, setSignInNotice] = useState(null);
   // Supabase user captured by AuthPage on provider sign-in. Used
   // to pre-fill the onboarding form AND to call /api/auth/supabase
   // once the plan is picked (so the teacher row gets created in our
@@ -2801,6 +2812,9 @@ export default function Landing({ onOpenStudio, heroVariant = null }) {
   // if subscribed, otherwise into the sign-up funnel.
   const enter = () => (signedIn ? onOpenStudio() : goPage("signup"));
   const handleSignUp = async (provider, payload) => {
+    // Clear last attempt's message so a stale "try again" cannot sit over
+    // a run that is now succeeding.
+    setSignInNotice(null);
     setPendingProvider(provider);
     if (payload?.authUser) {
       setPendingAuthUser(payload.authUser);
@@ -2867,10 +2881,10 @@ export default function Landing({ onOpenStudio, heroVariant = null }) {
         // reason to doubt the account exists.
         if (e?.status && e.status !== 404) {
           console.warn("[auth] returning-user check failed:", e);
-          setAuthError(
+          setSignInNotice(
             e.status === 429
               ? "Too many attempts just now. Wait a minute and try again — your account is fine."
-              : `We couldn't reach your account (${e.message}). Try again in a moment.`
+              : "We couldn't reach your account just now. Check your connection and try again."
           );
           return;
         }
@@ -3073,6 +3087,7 @@ export default function Landing({ onOpenStudio, heroVariant = null }) {
           onChoosePlan={handleChoosePlan}
           onPage={goPage}
           onEnterStudio={onOpenStudio}
+          notice={signInNotice}
         />
       )}
       {!isFunnel && (
