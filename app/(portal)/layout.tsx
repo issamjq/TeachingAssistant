@@ -1,6 +1,6 @@
 import { LanguageProvider } from "@/shared/i18n";
 import { RouterBridge } from "@/lib/route";
-import AccessibilityWidget from "@/views/AccessibilityWidget";
+import AssistantMount from "@/features/assistant/AssistantMount";
 
 // Route group for the privileged-role sign-in surfaces:
 //   /dev · /superadmin · /admin · /owner · /moe
@@ -26,11 +26,11 @@ export default function PortalLayout({
           call replace(["dashboard"]) on a successful sign-in. */}
       <RouterBridge />
       {children}
-      {/* Was mounted globally by legacy/LegacyRoot. Peeled routes render
-          outside that tree, so each route group mounts it itself — otherwise
-          the accessibility toolbar silently disappears from the peeled
-          surface, which is what happened on the first pass here. */}
-      <AccessibilityWidget />
+      {/* The floating assistant, which now also holds the accessibility
+          controls. Mounted per route group: peeled routes render outside
+          the legacy tree that used to provide it globally, and on the
+          first pass here that made the toolbar silently disappear. */}
+      <AssistantMount scope="landing" />
     </LanguageProvider>
   );
 }

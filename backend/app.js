@@ -18,6 +18,7 @@ import libraryRouter from "./routes/library.js";
 import dashboardRouter from "./routes/dashboard.js";
 import studioRouter from "./routes/studio.js";
 import onboardingRouter from "./routes/onboarding.js";
+import chatRouter from "./routes/chat.js";
 import imagesRouter from "./routes/images.js";
 import schoolsRouter from "./routes/schools.js";
 import authRouter from "./routes/auth.js";
@@ -30,6 +31,7 @@ import { requireAuth, requireRole } from "./lib/auth.js";
 import {
   buildHelmet, buildCors,
   buildGlobalRateLimit, buildAuthRateLimit,
+  buildChatRateLimit,
   buildTimeout,
 } from "./lib/security.js";
 
@@ -123,6 +125,16 @@ export function buildApp() {
         : res.status(401).json({ error: "Sign in before uploading documents." }),
     onboardingRouter
   );
+
+  // 10c. The assistant. Mounted before the global requireAuth because
+  // the landing-page bot has to answer a visitor who has no account —
+  // that is most of its job. Auth is OPTIONAL and the route derives its
+  // own scope from whether a teacher was resolved, so a visitor gets the
+  // marketing personality with no tools and cannot ask for the studio
+  // one by sending a scope in the body.
+  //
+  // Rate limited: it calls a paid model and is reachable by anyone.
+  app.use("/api/chat", buildChatRateLimit(), requireAuth({ optional: true }), chatRouter);
 
   // 11. From here down: requireAuth() = full enforcement (valid token
   // + teacher row + non-expired subscription).

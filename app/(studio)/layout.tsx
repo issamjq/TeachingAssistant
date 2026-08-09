@@ -1,6 +1,6 @@
 import { LanguageProvider } from "@/shared/i18n";
 import { RouterBridge } from "@/lib/route";
-import AccessibilityWidget from "@/views/AccessibilityWidget";
+import AssistantMount from "@/features/assistant/AssistantMount";
 import StudioShell from "@/features/studio-shell/StudioShell";
 
 // Route group for the authenticated teacher workspace. `(studio)` adds no
@@ -22,9 +22,9 @@ export default function StudioLayout({
     <LanguageProvider>
       <RouterBridge />
       <StudioShell>{children}</StudioShell>
-      {/* Mounted per route group — peeled routes render outside the legacy
-          tree that used to provide it globally. */}
-      <AccessibilityWidget />
+      {/* The floating assistant. It carries the accessibility controls as
+          one of its tabs, so this single mount covers both. */}
+      <AssistantMount scope="studio" />
     </LanguageProvider>
   );
 }

@@ -172,6 +172,25 @@ export function buildAuthRateLimit() {
   });
 }
 
+// The assistant is reachable without an account and every message costs
+// a model call, so it gets its own brake — looser than the sign-in one,
+// because a real conversation is many messages, and far tighter than the
+// global limit, because a script pointed at it spends our money.
+//
+// Keyed by IP like the others. That is imperfect behind a school's
+// shared NAT, but 40 messages in 5 minutes is a lot of conversation even
+// for a staffroom, and the alternative — no brake on an unauthenticated
+// paid endpoint — is worse.
+export function buildChatRateLimit() {
+  return rateLimit({
+    windowMs: 5 * 60 * 1000,
+    limit: 40,
+    standardHeaders: "draft-7",
+    legacyHeaders: false,
+    message: { error: "You're sending messages faster than I can answer. Give it a moment." },
+  });
+}
+
 // ── Request timeout ────────────────────────────────────────────────────
 // Express has no built-in handler-level timeout. This sets a hard wall
 // — if a handler hasn't responded in N ms, we close the socket so the

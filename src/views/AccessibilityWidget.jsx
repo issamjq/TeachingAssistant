@@ -83,7 +83,7 @@ function applyToRoot(s) {
 const isDefault = (s) =>
   Object.keys(DEFAULTS).every((k) => s[k] === DEFAULTS[k]);
 
-export default function AccessibilityWidget() {
+export default function AccessibilityWidget({ embedded = false } = {}) {
   const { t, dir, lang } = useI18n();
   const [open, setOpen] = useState(false);
   const [s, setS] = useState(loadSettings);
@@ -115,6 +115,19 @@ export default function AccessibilityWidget() {
   }, []);
 
   // Persist + apply on every change.
+  // The assistant can change these too ("make the text bigger"), and it
+  // writes the same key rather than reaching into this component. Both a
+  // real cross-tab storage event and the synthetic one it dispatches
+  // land here, so the panel and the page update together.
+  useEffect(() => {
+    const onStorage = (e) => {
+      if (e.key && e.key !== STORAGE_KEY) return;
+      setS(loadSettings());
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, []);
+
   useEffect(() => {
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(s)); } catch { /* ignore */ }
     applyToRoot(s);
@@ -242,6 +255,198 @@ export default function AccessibilityWidget() {
     </button>
   );
 
+  // The settings themselves, lifted out of the panel so the assistant
+  // can render them as one of its tabs. The launcher, the scrim and the
+  // dialog chrome stay below — an embedded copy has no business drawing
+  // a floating button of its own.
+  const settingsBody = (
+    <>
+      <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2">
+        {/* Quick profiles */}
+        <div>
+          <p className="px-1 mb-1.5 text-[10.5px] font-semibold uppercase tracking-wider text-[#6b6354]">
+            {t("a11y.profilesTitle")}
+          </p>
+          <div className="grid grid-cols-3 gap-1.5">
+            <ProfileBtn
+              label={t("a11y.visionProfile")}
+              onClick={() =>
+                set({ textStep: 3, contrast: true, bigCursor: true })
+              }
+            />
+            <ProfileBtn
+              label={t("a11y.dyslexiaProfile")}
+              onClick={() =>
+                set({
+                  readableFont: true,
+                  letterStep: 1,
+                  wordStep: 1,
+                  lineStep: 2,
+                })
+              }
+            />
+            <ProfileBtn
+              label={t("a11y.motorProfile")}
+              onClick={() =>
+                set({
+                  bigCursor: true,
+                  highlightLinks: true,
+                  stopAnim: true,
+                })
+              }
+            />
+          </div>
+        </div>
+
+        <Stepper
+          icon={<Type size={17} />}
+          label={t("a11y.textSize")}
+          hint={t("a11y.textSizeHint")}
+          value={s.textStep}
+          max={4}
+          onChange={(v) => set({ textStep: v })}
+        />
+
+        <Toggle
+          icon={<Type size={17} />}
+          label={t("a11y.readableFont")}
+          hint={t("a11y.readableFontHint")}
+          on={s.readableFont}
+          onToggle={() => set({ readableFont: !s.readableFont })}
+          tOn={t("a11y.on")}
+          tOff={t("a11y.off")}
+        />
+
+        <Stepper
+          icon={<span className="text-[15px] font-bold tracking-[0.2em]">A</span>}
+          label={t("a11y.letterSpacing")}
+          value={s.letterStep}
+          max={3}
+          onChange={(v) => set({ letterStep: v })}
+        />
+        <Stepper
+          icon={<span className="text-[13px] font-bold">A·A</span>}
+          label={t("a11y.wordSpacing")}
+          value={s.wordStep}
+          max={3}
+          onChange={(v) => set({ wordStep: v })}
+        />
+        <Stepper
+          icon={<span className="text-[13px] font-bold leading-none">≡</span>}
+          label={t("a11y.lineHeight")}
+          value={s.lineStep}
+          max={3}
+          onChange={(v) => set({ lineStep: v })}
+        />
+
+        <Toggle
+          icon={<Contrast size={17} />}
+          label={t("a11y.contrast")}
+          hint={t("a11y.contrastHint")}
+          on={s.contrast}
+          onToggle={() => set({ contrast: !s.contrast })}
+          tOn={t("a11y.on")}
+          tOff={t("a11y.off")}
+        />
+        <Toggle
+          icon={<Eye size={17} />}
+          label={t("a11y.grayscale")}
+          hint={t("a11y.grayscaleHint")}
+          on={s.grayscale}
+          onToggle={() => set({ grayscale: !s.grayscale })}
+          tOn={t("a11y.on")}
+          tOff={t("a11y.off")}
+        />
+        <Toggle
+          icon={<Droplet size={17} />}
+          label={t("a11y.lowSaturation")}
+          hint={t("a11y.lowSaturationHint")}
+          on={s.lowSat}
+          onToggle={() => set({ lowSat: !s.lowSat })}
+          tOn={t("a11y.on")}
+          tOff={t("a11y.off")}
+        />
+        <Choice
+          icon={<Eye size={17} />}
+          label={t("a11y.colorBlind")}
+          hint={t("a11y.colorBlindHint")}
+          value={s.colorBlind}
+          options={[
+            { v: "off", label: t("a11y.cb.off") },
+            { v: "prot", label: t("a11y.cb.prot") },
+            { v: "deut", label: t("a11y.cb.deut") },
+            { v: "trit", label: t("a11y.cb.trit") },
+          ]}
+          onChange={(v) => set({ colorBlind: v })}
+        />
+
+        <Toggle
+          icon={<MousePointer2 size={17} />}
+          label={t("a11y.bigCursor")}
+          on={s.bigCursor}
+          onToggle={() => set({ bigCursor: !s.bigCursor })}
+          tOn={t("a11y.on")}
+          tOff={t("a11y.off")}
+        />
+        <Toggle
+          icon={<Link2 size={17} />}
+          label={t("a11y.highlightLinks")}
+          hint={t("a11y.highlightLinksHint")}
+          on={s.highlightLinks}
+          onToggle={() => set({ highlightLinks: !s.highlightLinks })}
+          tOn={t("a11y.on")}
+          tOff={t("a11y.off")}
+        />
+        <Toggle
+          icon={<Pause size={17} />}
+          label={t("a11y.stopAnimations")}
+          hint={t("a11y.stopAnimationsHint")}
+          on={s.stopAnim}
+          onToggle={() => set({ stopAnim: !s.stopAnim })}
+          tOn={t("a11y.on")}
+          tOff={t("a11y.off")}
+        />
+        <Toggle
+          icon={<Volume2 size={17} />}
+          label={t("a11y.readAloud")}
+          hint={s.readAloud ? t("a11y.readAloudOn") : t("a11y.readAloudHint")}
+          on={s.readAloud}
+          onToggle={() => set({ readAloud: !s.readAloud })}
+          tOn={t("a11y.on")}
+          tOff={t("a11y.off")}
+        />
+        {s.readAloud && (
+          <button
+            type="button"
+            onClick={stopReading}
+            className="w-full text-[12px] font-medium py-1.5 rounded-lg border border-[#d4c9b3] text-[#6b6354] hover:bg-[#ede4d3] transition"
+          >
+            {t("a11y.stopReading")}
+          </button>
+        )}
+      </div>
+
+      <footer className="px-4 py-3 border-t border-[#d4c9b3] bg-[#f4ede0] flex items-center gap-2">
+        <button
+          type="button"
+          onClick={reset}
+          disabled={!dirty}
+          className="flex-1 inline-flex items-center justify-center gap-1.5 text-[12.5px] font-medium py-2 rounded-lg border border-[#d4c9b3] text-[#2d2a24] hover:bg-[#ede4d3] transition disabled:opacity-40 disabled:cursor-default"
+        >
+          <RotateCcw size={14} />
+          {t("a11y.reset")}
+        </button>
+        <button
+          type="button"
+          onClick={() => setOpen(false)}
+          className="flex-1 text-[12.5px] font-semibold py-2 rounded-lg bg-[#1a1814] text-[#faf6ec] hover:bg-[#2d2a24] transition"
+        >
+          {t("a11y.done")}
+        </button>
+      </footer>
+    </>
+  );
+
   const panel = open && (
     <>
       <div
@@ -293,194 +498,23 @@ export default function AccessibilityWidget() {
           </button>
         </header>
 
-        <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2">
-          {/* Quick profiles */}
-          <div>
-            <p className="px-1 mb-1.5 text-[10.5px] font-semibold uppercase tracking-wider text-[#6b6354]">
-              {t("a11y.profilesTitle")}
-            </p>
-            <div className="grid grid-cols-3 gap-1.5">
-              <ProfileBtn
-                label={t("a11y.visionProfile")}
-                onClick={() =>
-                  set({ textStep: 3, contrast: true, bigCursor: true })
-                }
-              />
-              <ProfileBtn
-                label={t("a11y.dyslexiaProfile")}
-                onClick={() =>
-                  set({
-                    readableFont: true,
-                    letterStep: 1,
-                    wordStep: 1,
-                    lineStep: 2,
-                  })
-                }
-              />
-              <ProfileBtn
-                label={t("a11y.motorProfile")}
-                onClick={() =>
-                  set({
-                    bigCursor: true,
-                    highlightLinks: true,
-                    stopAnim: true,
-                  })
-                }
-              />
-            </div>
-          </div>
-
-          <Stepper
-            icon={<Type size={17} />}
-            label={t("a11y.textSize")}
-            hint={t("a11y.textSizeHint")}
-            value={s.textStep}
-            max={4}
-            onChange={(v) => set({ textStep: v })}
-          />
-
-          <Toggle
-            icon={<Type size={17} />}
-            label={t("a11y.readableFont")}
-            hint={t("a11y.readableFontHint")}
-            on={s.readableFont}
-            onToggle={() => set({ readableFont: !s.readableFont })}
-            tOn={t("a11y.on")}
-            tOff={t("a11y.off")}
-          />
-
-          <Stepper
-            icon={<span className="text-[15px] font-bold tracking-[0.2em]">A</span>}
-            label={t("a11y.letterSpacing")}
-            value={s.letterStep}
-            max={3}
-            onChange={(v) => set({ letterStep: v })}
-          />
-          <Stepper
-            icon={<span className="text-[13px] font-bold">A·A</span>}
-            label={t("a11y.wordSpacing")}
-            value={s.wordStep}
-            max={3}
-            onChange={(v) => set({ wordStep: v })}
-          />
-          <Stepper
-            icon={<span className="text-[13px] font-bold leading-none">≡</span>}
-            label={t("a11y.lineHeight")}
-            value={s.lineStep}
-            max={3}
-            onChange={(v) => set({ lineStep: v })}
-          />
-
-          <Toggle
-            icon={<Contrast size={17} />}
-            label={t("a11y.contrast")}
-            hint={t("a11y.contrastHint")}
-            on={s.contrast}
-            onToggle={() => set({ contrast: !s.contrast })}
-            tOn={t("a11y.on")}
-            tOff={t("a11y.off")}
-          />
-          <Toggle
-            icon={<Eye size={17} />}
-            label={t("a11y.grayscale")}
-            hint={t("a11y.grayscaleHint")}
-            on={s.grayscale}
-            onToggle={() => set({ grayscale: !s.grayscale })}
-            tOn={t("a11y.on")}
-            tOff={t("a11y.off")}
-          />
-          <Toggle
-            icon={<Droplet size={17} />}
-            label={t("a11y.lowSaturation")}
-            hint={t("a11y.lowSaturationHint")}
-            on={s.lowSat}
-            onToggle={() => set({ lowSat: !s.lowSat })}
-            tOn={t("a11y.on")}
-            tOff={t("a11y.off")}
-          />
-          <Choice
-            icon={<Eye size={17} />}
-            label={t("a11y.colorBlind")}
-            hint={t("a11y.colorBlindHint")}
-            value={s.colorBlind}
-            options={[
-              { v: "off", label: t("a11y.cb.off") },
-              { v: "prot", label: t("a11y.cb.prot") },
-              { v: "deut", label: t("a11y.cb.deut") },
-              { v: "trit", label: t("a11y.cb.trit") },
-            ]}
-            onChange={(v) => set({ colorBlind: v })}
-          />
-
-          <Toggle
-            icon={<MousePointer2 size={17} />}
-            label={t("a11y.bigCursor")}
-            on={s.bigCursor}
-            onToggle={() => set({ bigCursor: !s.bigCursor })}
-            tOn={t("a11y.on")}
-            tOff={t("a11y.off")}
-          />
-          <Toggle
-            icon={<Link2 size={17} />}
-            label={t("a11y.highlightLinks")}
-            hint={t("a11y.highlightLinksHint")}
-            on={s.highlightLinks}
-            onToggle={() => set({ highlightLinks: !s.highlightLinks })}
-            tOn={t("a11y.on")}
-            tOff={t("a11y.off")}
-          />
-          <Toggle
-            icon={<Pause size={17} />}
-            label={t("a11y.stopAnimations")}
-            hint={t("a11y.stopAnimationsHint")}
-            on={s.stopAnim}
-            onToggle={() => set({ stopAnim: !s.stopAnim })}
-            tOn={t("a11y.on")}
-            tOff={t("a11y.off")}
-          />
-          <Toggle
-            icon={<Volume2 size={17} />}
-            label={t("a11y.readAloud")}
-            hint={s.readAloud ? t("a11y.readAloudOn") : t("a11y.readAloudHint")}
-            on={s.readAloud}
-            onToggle={() => set({ readAloud: !s.readAloud })}
-            tOn={t("a11y.on")}
-            tOff={t("a11y.off")}
-          />
-          {s.readAloud && (
-            <button
-              type="button"
-              onClick={stopReading}
-              className="w-full text-[12px] font-medium py-1.5 rounded-lg border border-[#d4c9b3] text-[#6b6354] hover:bg-[#ede4d3] transition"
-            >
-              {t("a11y.stopReading")}
-            </button>
-          )}
-        </div>
-
-        <footer className="px-4 py-3 border-t border-[#d4c9b3] bg-[#f4ede0] flex items-center gap-2">
-          <button
-            type="button"
-            onClick={reset}
-            disabled={!dirty}
-            className="flex-1 inline-flex items-center justify-center gap-1.5 text-[12.5px] font-medium py-2 rounded-lg border border-[#d4c9b3] text-[#2d2a24] hover:bg-[#ede4d3] transition disabled:opacity-40 disabled:cursor-default"
-          >
-            <RotateCcw size={14} />
-            {t("a11y.reset")}
-          </button>
-          <button
-            type="button"
-            onClick={() => setOpen(false)}
-            className="flex-1 text-[12.5px] font-semibold py-2 rounded-lg bg-[#1a1814] text-[#faf6ec] hover:bg-[#2d2a24] transition"
-          >
-            {t("a11y.done")}
-          </button>
-        </footer>
+      {settingsBody}
       </div>
     </>
   );
 
-  if (!portalRoot) return null;
+  // Embedded: the assistant panel owns the chrome, so hand back only the
+  // controls. No portal either — this one belongs inside the caller's
+  // layout, not pinned to the body.
+  if (embedded) {
+    return (
+      <div className="flex flex-col min-h-0 flex-1">
+        <ColorBlindDefs />
+        {settingsBody}
+      </div>
+    );
+  }
+
   // Nothing to render until the effect above has attached the container
   // (i.e. during SSR and the first client render).
   if (!portalRoot) return null;

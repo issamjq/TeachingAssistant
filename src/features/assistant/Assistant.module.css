@@ -1,0 +1,364 @@
+/* =====================================================================
+   The assistant panel
+
+   Murchid's own palette, not a chat-widget palette: cream paper, the
+   terracotta accent, Fraunces for the title and Inter Tight for
+   everything a teacher actually reads. The panel is meant to look like
+   part of the page it opens over, which is why it carries the same
+   border and paper tones as the landing cards rather than the drop
+   shadow and rounded blue of a support widget.
+   ===================================================================== */
+
+.launcher {
+  position: fixed;
+  bottom: 20px;
+  z-index: 2147483000;
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 999px;
+  background: var(--paper, #faf6ec);
+  color: var(--brand, #c8472b);
+  box-shadow: 0 8px 24px rgba(26, 24, 20, 0.32);
+  border: 2px solid rgba(200, 71, 43, 0.25);
+  transition: transform 0.18s ease, background 0.18s ease;
+}
+.launcher:hover { transform: scale(1.05); }
+.launcher:active { transform: scale(0.95); }
+.launcher:focus-visible {
+  outline: 3px solid var(--brand, #c8472b);
+  outline-offset: 3px;
+}
+
+/* A slow breath, so the launcher reads as awake without nagging. Stops
+   entirely for anyone who has asked motion to stop — both the OS setting
+   and the widget's own. */
+.pulse {
+  position: absolute;
+  inset: -2px;
+  border-radius: 999px;
+  border: 2px solid rgba(200, 71, 43, 0.4);
+  animation: breathe 3.4s ease-out infinite;
+  pointer-events: none;
+}
+@keyframes breathe {
+  0%   { transform: scale(1);    opacity: 0.55; }
+  70%  { transform: scale(1.28); opacity: 0; }
+  100% { transform: scale(1.28); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pulse { animation: none; opacity: 0; }
+}
+:global(.a11y-stop-anim) .pulse { animation: none; opacity: 0; }
+
+.scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483000;
+  background: rgba(26, 24, 20, 0.18);
+  backdrop-filter: blur(1.5px);
+}
+
+.panel {
+  position: fixed;
+  bottom: 88px;
+  z-index: 2147483001;
+  display: flex;
+  flex-direction: column;
+  width: 380px;
+  max-width: calc(100vw - 32px);
+  height: min(76vh, 620px);
+  border-radius: 20px;
+  background: var(--paper, #faf6ec);
+  color: #1a1814;
+  border: 1px solid #d4c9b3;
+  box-shadow: 0 24px 60px rgba(26, 24, 20, 0.34);
+  overflow: hidden;
+  font-family: "Inter Tight", system-ui, sans-serif;
+}
+
+/* On a phone the panel is the screen. A 380px card floating above a
+   375px viewport is a card with no room to breathe. */
+@media (max-width: 560px) {
+  .panel {
+    inset: 0;
+    width: 100%;
+    max-width: none;
+    height: 100dvh;
+    border-radius: 0;
+    border: 0;
+  }
+}
+
+.head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px 10px;
+  border-bottom: 1px solid #d4c9b3;
+  background: #f4ede0;
+}
+.mark {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  background: var(--brand, #c8472b);
+  color: #fff;
+  flex-shrink: 0;
+}
+.title {
+  font-family: "Fraunces", Georgia, serif;
+  font-size: 17px;
+  line-height: 1.15;
+  font-weight: 600;
+  margin: 0;
+}
+.title em { font-style: italic; color: var(--brand, #c8472b); }
+.sub {
+  margin: 2px 0 0;
+  font-size: 11.5px;
+  line-height: 1.35;
+  color: #6b6354;
+}
+.iconBtn {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  color: #6b6354;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.iconBtn:hover { background: #ede4d3; color: #1a1814; }
+.iconBtn[data-on="true"] { background: var(--brand, #c8472b); color: #fff; }
+
+/* ── tabs ───────────────────────────────────────────────────────────── */
+.tabs {
+  display: flex;
+  gap: 2px;
+  padding: 8px 12px 0;
+  background: #f4ede0;
+  border-bottom: 1px solid #d4c9b3;
+}
+.tab {
+  position: relative;
+  padding: 7px 12px 9px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
+  color: #6b6354;
+  transition: color 0.15s ease;
+}
+.tab:hover { color: #1a1814; }
+.tab[aria-selected="true"] { color: var(--brand, #c8472b); }
+.tab[aria-selected="true"]::after {
+  content: "";
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: -1px;
+  height: 2px;
+  background: var(--brand, #c8472b);
+  border-radius: 2px 2px 0 0;
+}
+
+/* ── conversation ───────────────────────────────────────────────────── */
+.log {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  scrollbar-width: thin;
+}
+
+.row { display: flex; }
+.row[data-role="user"] { justify-content: flex-end; }
+
+.bubble {
+  max-width: 86%;
+  padding: 9px 13px;
+  border-radius: 14px;
+  font-size: 13.5px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.row[data-role="user"] .bubble {
+  background: #1a1814;
+  color: #faf6ec;
+  border-bottom-right-radius: 5px;
+}
+.row[data-role="assistant"] .bubble {
+  background: #f4ede0;
+  border: 1px solid #e3d9c6;
+  border-bottom-left-radius: 5px;
+}
+.bubble strong { font-weight: 650; }
+.bubble em { font-style: italic; }
+.bubble code {
+  font-family: ui-monospace, Menlo, monospace;
+  font-size: 12px;
+  background: #ede4d3;
+  padding: 1px 4px;
+  border-radius: 4px;
+}
+.bubble ul { margin: 6px 0 2px; padding-inline-start: 18px; }
+.bubble li { margin: 2px 0; }
+
+/* What the assistant is doing, while it does it. */
+.doing {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11px;
+  font-family: ui-monospace, Menlo, monospace;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #6b6354;
+  padding: 4px 2px;
+}
+.dot {
+  width: 6px; height: 6px;
+  border-radius: 999px;
+  background: var(--brand, #c8472b);
+  animation: blink 1.1s ease-in-out infinite;
+}
+@keyframes blink { 0%,100% { opacity: 0.25 } 50% { opacity: 1 } }
+@media (prefers-reduced-motion: reduce) { .dot { animation: none } }
+
+.error {
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: #8a3520;
+  background: #f7e6e0;
+  border: 1px solid #e6c6bb;
+  border-radius: 10px;
+  padding: 8px 11px;
+}
+
+/* Opening suggestions — the fastest way to show what it is for. */
+.starters { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px; }
+.starter {
+  font-size: 12px;
+  line-height: 1.3;
+  padding: 7px 11px;
+  border-radius: 999px;
+  border: 1px solid #d4c9b3;
+  background: #fffdf7;
+  color: #3a352c;
+  text-align: start;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.starter:hover { border-color: var(--brand, #c8472b); background: #f4ede0; }
+
+/* ── composer ───────────────────────────────────────────────────────── */
+.composer {
+  border-top: 1px solid #d4c9b3;
+  background: #f4ede0;
+  padding: 10px 12px calc(10px + env(safe-area-inset-bottom, 0px));
+}
+.inputRow {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  background: #fffdf7;
+  border: 1px solid #d4c9b3;
+  border-radius: 14px;
+  padding: 6px 6px 6px 12px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.inputRow:focus-within {
+  border-color: var(--brand, #c8472b);
+  box-shadow: 0 0 0 3px rgba(200, 71, 43, 0.12);
+}
+.input {
+  flex: 1;
+  min-height: 22px;
+  max-height: 116px;
+  resize: none;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  font: inherit;
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: #1a1814;
+  padding: 4px 0;
+}
+.input::placeholder { color: #9b917f; }
+
+.send {
+  display: grid;
+  place-items: center;
+  width: 34px; height: 34px;
+  border-radius: 11px;
+  background: var(--brand, #c8472b);
+  color: #fff;
+  flex-shrink: 0;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+.send:disabled { opacity: 0.35; }
+.send:not(:disabled):hover { transform: translateY(-1px); }
+
+.mic {
+  display: grid;
+  place-items: center;
+  width: 34px; height: 34px;
+  border-radius: 11px;
+  color: #6b6354;
+  flex-shrink: 0;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.mic:hover { background: #ede4d3; color: #1a1814; }
+.mic[data-on="true"] {
+  background: var(--brand, #c8472b);
+  color: #fff;
+}
+/* A live ring while listening — the one place a pulse is information
+   rather than decoration, so it survives reduced-motion as a static
+   ring. */
+.mic[data-on="true"]::after {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  border-radius: 13px;
+  border: 2px solid rgba(200, 71, 43, 0.45);
+  animation: breathe 1.6s ease-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .mic[data-on="true"]::after { animation: none; opacity: 0.6; }
+}
+
+.hint {
+  margin: 6px 2px 0;
+  font-size: 10.5px;
+  line-height: 1.4;
+  color: #8a8172;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  justify-content: space-between;
+}
+
+.settings { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+
+/* Dark mode: the studio can be used at night and a cream slab at
+   2am is its own accessibility problem. */
+@media (prefers-color-scheme: dark) {
+  .panel { background: #1f1c17; color: #f2ece0; border-color: #3a3429; }
+  .head, .tabs, .composer { background: #262219; border-color: #3a3429; }
+  .row[data-role="assistant"] .bubble { background: #2b261d; border-color: #3a3429; }
+  .row[data-role="user"] .bubble { background: #f2ece0; color: #1a1814; }
+  .inputRow { background: #2b261d; border-color: #3a3429; }
+  .input { color: #f2ece0; }
+  .starter { background: #2b261d; border-color: #3a3429; color: #e5dccb; }
+  .sub, .tab, .hint, .doing { color: #a89d88; }
+}
