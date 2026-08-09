@@ -26,6 +26,18 @@ export interface NavSection {
 }
 
 const TEACHER_NAV: NavSection[] = [
+  // "dashboard" was already in SECTIONS_BY_ROLE.teacher and had a route,
+  // but nothing in the sidebar pointed at it — so a teacher who moved off
+  // it could only get back by editing the URL. Admin and super-admin navs
+  // both carry a Dashboard item; teachers were the exception.
+  //
+  // Its own section rather than tucked under "Planning": a dashboard is
+  // not a planning tool, it is the view of everything else. A one-item
+  // section is already the pattern here — see Data.
+  {
+    section: "Overview",
+    items: [{ key: "dashboard", label: "Dashboard", icon: "◫" }],
+  },
   {
     section: "Planning",
     items: [
