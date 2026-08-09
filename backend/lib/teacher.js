@@ -60,6 +60,8 @@ const TEACHER_SELECT = `
   f.organization,
   f.school_id,
   f.approved_at,
+  cr.balance                 AS credits_balance,
+  cr.monthly_allowance       AS credits_allowance,
   s.plan                     AS subscription_plan,
   s.status                   AS subscription_status,
   COALESCE(s.current_period_end, s.trial_ends_at) AS subscription_ends_at,
@@ -71,7 +73,11 @@ const FROM_TEACHER = `
   FROM faculty f
   JOIN users u ON u.id = f.user_id
   LEFT JOIN subscriptions s ON s.faculty_id = f.id
+  LEFT JOIN credits cr ON cr.faculty_id = f.id
 `;
+
+/** What a new teacher starts with. Generous: the trial has to be usable. */
+const TRIAL_CREDITS = 200;
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -150,6 +156,17 @@ export async function ensureTeacher(authUser, { trialDays = 14 } = {}) {
       [uid]
     );
     const facultyId = fac.rows[0].id;
+
+    // A credit balance, created with the faculty row. Without it the
+    // meter has nothing to decrement and the balance is permanently
+    // null rather than zero — which reads on screen as "unknown", not
+    // "none left".
+    await client.query(
+      `INSERT INTO credits (faculty_id, balance, monthly_allowance)
+       SELECT $1, $2, $2
+       WHERE NOT EXISTS (SELECT 1 FROM credits WHERE faculty_id = $1)`,
+      [facultyId, TRIAL_CREDITS]
+    );
 
     await client.query(
       `INSERT INTO subscriptions (faculty_id, plan, status, trial_ends_at)

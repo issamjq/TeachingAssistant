@@ -18,6 +18,7 @@
 // =====================================================================
 import { Router } from "express";
 import Anthropic from "@anthropic-ai/sdk";
+import { pool } from "../lib/db.js";
 import { handleErr } from "../lib/helpers.js";
 
 const router = Router();
@@ -283,6 +284,25 @@ router.post("/parse", async (req, res) => {
         ? await parseWithGemini(documents)
         : await parseWithAnthropic(documents);
     const fields = clean(raw);
+
+    // Record what was read, against the account, if the browser managed
+    // to archive the original first. Fire-and-forget for the same reason
+    // the upload itself is optional: the teacher is waiting on the
+    // extraction, not on the filing.
+    //
+    // The extracted fields are stored, NOT the document text. This row
+    // is a record that a CV was read and what came out of it — enough to
+    // show "imported from cv.pdf on 9 Aug" and to re-apply it later
+    // without asking for the file again.
+    for (const d of documents) {
+      if (!d.filePath || !req.authUser?.uid) continue;
+      pool.query(
+        `INSERT INTO onboarding_documents (user_id, doc_type, file_path, extracted_data, status)
+         VALUES ($1, $2, $3, $4::jsonb, 'parsed')`,
+        [req.authUser.uid, d.kind || "resume", d.filePath, JSON.stringify(fields)]
+      ).catch((e) => console.error("[onboarding] document not recorded:", e.message));
+    }
+
     res.json({
       fields,
       found: Object.keys(fields),

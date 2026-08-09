@@ -153,6 +153,16 @@ router.post("/supabase", validateBody(SupabaseBootstrapSchema), requireAuth({ op
       // in any privileged list, role is left as-is (no silent demotion
       // of an admin/dev row that was assigned via env earlier — fix
       // demotion explicitly by re-running db:init or via admin route).
+      // Self-heal the rows a teacher needs. ensureTeacher only runs on
+      // first sign-in, so an account provisioned before credits existed
+      // would never gain one — and a null balance reads as "unknown"
+      // rather than "none".
+      await pool.query(
+        `INSERT INTO credits (faculty_id, balance, monthly_allowance)
+         SELECT $1, 200, 200
+          WHERE NOT EXISTS (SELECT 1 FROM credits WHERE faculty_id = $1)`,
+        [account.id]
+      );
       await pool.query(
         `UPDATE users SET
             last_login_at = now(),

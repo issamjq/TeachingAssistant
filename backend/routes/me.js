@@ -39,6 +39,8 @@ const publicShape = (t) => ({
   school_id: t.school_id,
   role: t.role,
   onboarding_status: t.onboarding_status,
+  credits_balance: t.credits_balance,
+  credits_allowance: t.credits_allowance,
   subscription_plan: t.subscription_plan,
   subscription_status: t.subscription_status,
   subscription_ends_at: t.subscription_ends_at,

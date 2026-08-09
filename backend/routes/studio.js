@@ -2,6 +2,7 @@ import { Router } from "express";
 import Anthropic from "@anthropic-ai/sdk";
 import { pool } from "../lib/db.js";
 import { handleErr } from "../lib/helpers.js";
+import { recordUsage } from "../lib/usage.js";
 import { loadCurrentTeacher } from "../lib/currentTeacher.js";
 
 const router = Router();
@@ -370,6 +371,18 @@ router.post("/generate", async (req, res) => {
           cache_creation_input_tokens: message.usage.cache_creation_input_tokens ?? 0,
         },
       });
+      // The same numbers that just went to the browser, kept. See
+      // lib/usage.js — fire-and-forget, so the meter can never cost a
+      // teacher their generation.
+      recordUsage({
+        userId: req.account?.user_id,
+        facultyId: req.account?.id,
+        model: message.model,
+        operation: `generate.${k}`,
+        tokensIn: message.usage.input_tokens,
+        tokensOut: message.usage.output_tokens,
+        credits: 1,
+      });
     } catch (e) {
       send({ type: "error", message: e.message });
     }
@@ -691,6 +704,18 @@ router.post("/quiz", async (req, res) => {
             (restructure.usage.cache_creation_input_tokens ?? 0),
         },
       });
+      recordUsage({
+        userId: req.account?.user_id,
+        facultyId: req.account?.id,
+        model: message.model,
+        operation: "generate.quiz",
+        // Two model calls make one quiz — the draft and the pass that
+        // turns it into structured questions. Billing one of them would
+        // under-report by about half.
+        tokensIn: (message.usage.input_tokens || 0) + (restructure.usage.input_tokens || 0),
+        tokensOut: (message.usage.output_tokens || 0) + (restructure.usage.output_tokens || 0),
+        credits: 1,
+      });
     } catch (e) {
       clearInterval(heartbeat);
       send({ type: "error", message: e.message });
@@ -858,6 +883,15 @@ router.post("/quiz-tweak", async (req, res) => {
           cache_creation_input_tokens: message.usage.cache_creation_input_tokens ?? 0,
         },
       });
+      recordUsage({
+        userId: req.account?.user_id,
+        facultyId: req.account?.id,
+        model: message.model,
+        operation: "quiz.tweak",
+        tokensIn: message.usage.input_tokens,
+        tokensOut: message.usage.output_tokens,
+        credits: 1,
+      });
     } catch (e) {
       send({ type: "error", message: e.message });
     }
@@ -944,6 +978,18 @@ router.post("/regenerate", async (req, res) => {
           cache_read_input_tokens: message.usage.cache_read_input_tokens ?? 0,
           cache_creation_input_tokens: message.usage.cache_creation_input_tokens ?? 0,
         },
+      });
+      // The same numbers that just went to the browser, kept. See
+      // lib/usage.js — fire-and-forget, so the meter can never cost a
+      // teacher their generation.
+      recordUsage({
+        userId: req.account?.user_id,
+        facultyId: req.account?.id,
+        model: message.model,
+        operation: "regenerate",
+        tokensIn: message.usage.input_tokens,
+        tokensOut: message.usage.output_tokens,
+        credits: 1,
       });
     } catch (e) {
       send({ type: "error", message: e.message });

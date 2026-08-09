@@ -28,6 +28,7 @@ import { SkeletonList } from "../../components/ui/skeleton";
 import Avatar from "../../components/Avatar";
 import { avatarsFor } from "../../lib/avatars";
 import { extractPdfText } from "@/features/onboarding/extractText";
+import { uploadDocument } from "@/features/onboarding/uploadDocument";
 import { api } from "../_shared";
 
 // 4-step wizard. Grades + sections used to live in their own "scope"
@@ -82,10 +83,20 @@ function FillFromCv({ onFilled, t }) {
       // Text if the file has any, bytes if it hasn't. extractPdfText
       // returns null rather than throwing precisely so this stays a
       // choice of route and never becomes an error the teacher sees.
-      const text = await extractPdfText(file);
+      // Archive and extract at the same time. The upload is the slower
+      // of the two and the parse does not depend on it, so waiting for
+      // them in series would add its latency to a screen the teacher is
+      // watching.
+      const [text, stored] = await Promise.all([
+        extractPdfText(file),
+        uploadDocument(file, "resume"),
+      ]);
       const doc = text
         ? { name: file.name, text }
         : { name: file.name, mediaType: file.type, dataBase64: await read(file) };
+      // Null when storage was unreachable — the parse proceeds either
+      // way and the server simply records nothing.
+      if (stored) { doc.filePath = stored.path; doc.kind = "resume"; }
       const out = await api("/api/onboarding/parse", {
         method: "POST",
         body: { documents: [doc] },

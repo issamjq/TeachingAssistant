@@ -822,3 +822,23 @@ CREATE INDEX IF NOT EXISTS email_verifications_lookup_idx
 -- issued and redeemed by the API over the pooler connection, and there
 -- is no version of this table a browser should ever read.
 ALTER TABLE public.email_verifications ENABLE ROW LEVEL SECURITY;
+
+
+-- ── 23. Credits for teachers who already existed ──────────────────────
+--
+-- The balance is created alongside the faculty row now, but that path
+-- only runs on FIRST sign-in — every teacher provisioned before it
+-- landed has no credits row at all. A missing row is not zero: the join
+-- yields null, which the studio reads as "unknown" and shows as blank.
+--
+-- Subscriptions have the same shape of hole for the same reason, so both
+-- are filled here.
+INSERT INTO public.credits (faculty_id, balance, monthly_allowance)
+SELECT f.id, 200, 200
+  FROM faculty f
+ WHERE NOT EXISTS (SELECT 1 FROM credits c WHERE c.faculty_id = f.id);
+
+INSERT INTO public.subscriptions (faculty_id, plan, status, trial_ends_at)
+SELECT f.id, 'trial', 'trialing', now() + INTERVAL '14 days'
+  FROM faculty f
+ WHERE NOT EXISTS (SELECT 1 FROM subscriptions s WHERE s.faculty_id = f.id);
