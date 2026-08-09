@@ -148,7 +148,13 @@ CREATE TABLE IF NOT EXISTS public.audit_log (
 DO $$
 DECLARE t text;
 BEGIN
-  FOREACH t IN ARRAY ARRAY['schools', 'notifications'] LOOP
+  FOREACH t IN ARRAY ARRAY['schools', 'notifications', 'feature_flags', 'audit_log'] LOOP
+    -- audit_log is append-only and has no updated_at; a trigger there
+    -- would assign to a field that does not exist, and only fail later,
+    -- on the first UPDATE.
+    CONTINUE WHEN NOT EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = t AND column_name = 'updated_at');
     IF NOT EXISTS (
       SELECT 1 FROM pg_trigger tg
       JOIN pg_class c ON c.oid = tg.tgrelid
@@ -174,35 +180,53 @@ END $$;
 -- Where a composite index leads with the FK column it serves as that
 -- key's index too, so the pairs below are deliberate rather than a
 -- separate single-column index plus a composite.
-CREATE INDEX IF NOT EXISTS classes_faculty_idx          ON public.classes (faculty_id) WHERE NOT is_archived;
-CREATE INDEX IF NOT EXISTS classes_faculty_all_idx      ON public.classes (faculty_id);
-CREATE INDEX IF NOT EXISTS class_members_student_idx    ON public.class_members (student_id);
-CREATE INDEX IF NOT EXISTS invitations_class_idx        ON public.invitations (class_id);
-CREATE INDEX IF NOT EXISTS materials_faculty_idx        ON public.materials (faculty_id, status);
-CREATE INDEX IF NOT EXISTS teaching_skills_faculty_idx  ON public.teaching_skills (faculty_id);
-CREATE INDEX IF NOT EXISTS workflows_faculty_idx        ON public.workflows (faculty_id, created_at DESC);
-CREATE INDEX IF NOT EXISTS workflows_skill_idx          ON public.workflows (skill_id);
-CREATE INDEX IF NOT EXISTS generations_faculty_idx      ON public.generations (faculty_id, created_at DESC);
-CREATE INDEX IF NOT EXISTS generations_workflow_idx     ON public.generations (workflow_id);
-CREATE INDEX IF NOT EXISTS assignments_class_idx        ON public.assignments (class_id, starts_at DESC);
-CREATE INDEX IF NOT EXISTS assignments_generation_idx   ON public.assignments (generation_id);
-CREATE INDEX IF NOT EXISTS quiz_attempts_assignment_idx ON public.quiz_attempts (assignment_id);
-CREATE INDEX IF NOT EXISTS quiz_attempts_student_idx    ON public.quiz_attempts (student_id);
-CREATE INDEX IF NOT EXISTS goals_faculty_idx            ON public.goals (faculty_id);
-CREATE INDEX IF NOT EXISTS subscriptions_faculty_idx    ON public.subscriptions (faculty_id);
-CREATE INDEX IF NOT EXISTS chatbot_sessions_user_idx    ON public.chatbot_sessions (user_id);
-CREATE INDEX IF NOT EXISTS chatbot_messages_session_idx ON public.chatbot_messages (session_id, created_at);
-CREATE INDEX IF NOT EXISTS onboarding_docs_user_idx     ON public.onboarding_documents (user_id);
-CREATE INDEX IF NOT EXISTS usage_logs_user_idx          ON public.usage_logs (user_id, created_at DESC);
-CREATE INDEX IF NOT EXISTS faculty_school_idx           ON public.faculty (school_id);
-CREATE INDEX IF NOT EXISTS notifications_user_idx       ON public.notifications (user_id, created_at DESC);
-CREATE INDEX IF NOT EXISTS audit_log_actor_idx          ON public.audit_log (actor_id, created_at DESC);
-
--- The unread badge is a count over a tiny slice of a table that only
--- grows, so it gets its own partial index rather than reading all of it.
-CREATE INDEX IF NOT EXISTS notifications_unread_idx
-  ON public.notifications (user_id) WHERE read_at IS NULL;
-
+-- Driven off a table rather than written as literal statements: the
+-- schema is being edited in Supabase directly, and this file has already
+-- been run once against a database that has since dropped two of the
+-- tables it named. A literal CREATE INDEX on a table that no longer
+-- exists aborts the whole transaction and takes every other fix with it.
+-- Skipping what is gone keeps this runnable against a moving target.
+DO $$
+DECLARE
+  r record;
+BEGIN
+  FOR r IN
+    SELECT * FROM (VALUES
+      ('classes', 'classes_faculty_idx', $i$(faculty_id) WHERE NOT is_archived$i$),
+      ('classes', 'classes_faculty_all_idx', $i$(faculty_id)$i$),
+      ('class_members', 'class_members_student_idx', $i$(student_id)$i$),
+      ('invitations', 'invitations_class_idx', $i$(class_id)$i$),
+      ('materials', 'materials_faculty_idx', $i$(faculty_id, status)$i$),
+      ('teaching_skills', 'teaching_skills_faculty_idx', $i$(faculty_id)$i$),
+      ('workflows', 'workflows_faculty_idx', $i$(faculty_id, created_at DESC)$i$),
+      ('workflows', 'workflows_skill_idx', $i$(skill_id)$i$),
+      ('generations', 'generations_faculty_idx', $i$(faculty_id, created_at DESC)$i$),
+      ('generations', 'generations_workflow_idx', $i$(workflow_id)$i$),
+      ('assignments', 'assignments_class_idx', $i$(class_id, starts_at DESC)$i$),
+      ('assignments', 'assignments_generation_idx', $i$(generation_id)$i$),
+      ('quiz_attempts', 'quiz_attempts_assignment_idx', $i$(assignment_id)$i$),
+      ('quiz_attempts', 'quiz_attempts_student_idx', $i$(student_id)$i$),
+      ('goals', 'goals_faculty_idx', $i$(faculty_id)$i$),
+      ('subscriptions', 'subscriptions_faculty_idx', $i$(faculty_id)$i$),
+      ('chatbot_sessions', 'chatbot_sessions_user_idx', $i$(user_id)$i$),
+      ('chatbot_messages', 'chatbot_messages_session_idx', $i$(session_id, created_at)$i$),
+      ('onboarding_documents', 'onboarding_docs_user_idx', $i$(user_id)$i$),
+      ('usage_logs', 'usage_logs_user_idx', $i$(user_id, created_at DESC)$i$),
+      ('faculty', 'faculty_school_idx', $i$(school_id)$i$),
+      ('ai_studio', 'ai_studio_skill_idx', $i$(skill_id)$i$),
+      ('ai_studio', 'ai_studio_faculty_created_idx', $i$(faculty_id, created_at DESC)$i$),
+      ('notifications', 'notifications_user_idx', $i$(user_id, created_at DESC)$i$),
+      ('audit_log', 'audit_log_actor_idx', $i$(actor_id, created_at DESC)$i$),
+      ('notifications', 'notifications_unread_idx', $i$(user_id) WHERE read_at IS NULL$i$)
+    ) AS v(tbl, idx, cols)
+  LOOP
+    IF to_regclass('public.' || r.tbl) IS NULL THEN
+      RAISE NOTICE 'skipping %: table not in this schema', r.idx;
+      CONTINUE;
+    END IF;
+    EXECUTE format('CREATE INDEX IF NOT EXISTS %I ON public.%I %s', r.idx, r.tbl, r.cols);
+  END LOOP;
+END $$;
 
 -- ── 8. Constrain the status vocabularies ──────────────────────────────
 --
@@ -229,6 +253,7 @@ BEGIN
       ('subscriptions',        'status',            $q$status IN ('trialing','active','past_due','canceled','expired')$q$),
       ('workflows',            'status',            $q$status IN ('running','complete','failed','canceled')$q$),
       ('generations',          'status',            $q$status IN ('generating','complete','failed')$q$),
+      ('ai_studio',            'status',            $q$status IN ('queued','generating','complete','failed','canceled')$q$),
       ('materials',            'status',            $q$status IN ('uploaded','processing','ready','failed')$q$),
       ('teaching_skills',      'status',            $q$status IN ('processing','ready','failed')$q$),
       ('goals',                'status',            $q$status IN ('processing','active','achieved','abandoned','failed')$q$),
@@ -238,6 +263,10 @@ BEGIN
       ('chatbot_messages',     'role',              $q$role IN ('user','assistant','system')$q$)
     ) AS v(tbl, col, expr)
   LOOP
+    CONTINUE WHEN to_regclass('public.' || c.tbl) IS NULL
+                  OR NOT EXISTS (SELECT 1 FROM information_schema.columns
+                                 WHERE table_schema = 'public'
+                                   AND table_name = c.tbl AND column_name = c.col);
     IF NOT EXISTS (
       SELECT 1 FROM pg_constraint
       WHERE conname = c.tbl || '_' || c.col || '_check'
@@ -248,6 +277,43 @@ BEGIN
     END IF;
   END LOOP;
 END $$;
+
+
+-- ── 8b. RLS on the tables this file adds ──────────────────────────────
+--
+-- Every table in the Supabase-authored schema has RLS enabled. The four
+-- added above did not, which meant that on those four the `authenticated`
+-- role could read and write every row through PostgREST — including other
+-- teachers' notifications and the whole audit trail.
+--
+-- The four need different rules, not one rule:
+--   schools, feature_flags  reference data — everyone reads, nobody writes
+--   notifications           your own rows only
+--   audit_log               no client access at all; the API writes it
+--                           with the service connection, and a subject
+--                           who can edit the audit trail makes it useless
+ALTER TABLE public.schools       ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.feature_flags ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.audit_log     ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS schools_read ON public.schools;
+CREATE POLICY schools_read ON public.schools
+  FOR SELECT TO authenticated USING (true);
+
+DROP POLICY IF EXISTS feature_flags_read ON public.feature_flags;
+CREATE POLICY feature_flags_read ON public.feature_flags
+  FOR SELECT TO authenticated USING (true);
+
+DROP POLICY IF EXISTS notifications_own ON public.notifications;
+CREATE POLICY notifications_own ON public.notifications
+  FOR ALL TO authenticated
+  USING      (user_id = (SELECT auth.uid()))
+  WITH CHECK (user_id = (SELECT auth.uid()));
+
+-- audit_log deliberately gets NO policy. RLS with no policy denies every
+-- client; the API reaches it over the pooler connection, which is not
+-- subject to RLS.
 
 
 -- ── 9. Let the browser actually use the storage buckets ───────────────
