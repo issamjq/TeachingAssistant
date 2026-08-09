@@ -1,5 +1,5 @@
 // Quiz scores — per-student score on a given quiz. The table already
-// exists in db/init.js (quiz_scores), but had no REST surface until now.
+// was its own table once; scores are quiz_attempts rows now.
 // Used by My Students → Scores to record what each student actually got
 // on each quiz the teacher gave.
 //

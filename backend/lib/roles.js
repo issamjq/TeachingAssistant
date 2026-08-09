@@ -57,7 +57,7 @@ export const isPrivilegedRole = (role) => PRIVILEGED_ROLES.has(role);
 
 // Sub-role taxonomy. Per-role allowed values. An empty array means the
 // role has no sub-roles (sub_role must be NULL). The DB CHECK constraint
-// is generated from this map (see backend/db/init.js).
+// is generated from this map (see backend/db/tune.sql).
 export const SUB_ROLES = {
   dev:         [],
   super_admin: [],

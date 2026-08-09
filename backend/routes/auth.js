@@ -152,7 +152,7 @@ router.post("/supabase", validateBody(SupabaseBootstrapSchema), requireAuth({ op
       // Env-resolved role wins on every login. If the email is no longer
       // in any privileged list, role is left as-is (no silent demotion
       // of an admin/dev row that was assigned via env earlier — fix
-      // demotion explicitly by re-running db:init or via admin route).
+      // demotion explicitly via the admin route).
       // Self-heal the rows a teacher needs. ensureTeacher only runs on
       // first sign-in, so an account provisioned before credits existed
       // would never gain one — and a null balance reads as "unknown"

@@ -1,33 +1,27 @@
 import "dotenv/config";
 import { buildApp } from "./app.js";
-import { runInit } from "./db/init.js";
 import { validateEnv } from "./lib/env.js";
 
-// Boot sequence:
-//   1. Apply schema + seeds (idempotent — safe to run every restart)
-//   2. Start the HTTP server
+// Boot: check the environment, then serve.
 //
-// Running init on every boot means schema changes ship with code
-// changes: push to GitHub → Render deploys → init runs → server starts.
-// Set SKIP_DB_INIT=1 as an emergency escape hatch (e.g. if a future
-// migration accidentally lands in a bad state and you need to get the
-// server back online before fixing the script).
+// This used to build the entire database schema on every start. That
+// made sense when the schema lived in db/init.js and shipped with the
+// code — push, deploy, migrate, serve. It does not now: the schema is
+// authored in Supabase, and running a schema builder against it on every
+// restart is a large, slow, and occasionally destructive thing to do
+// before answering a single request.
+//
+// Schema changes are applied deliberately, by hand, from a machine that
+// can read the output:
+//
+//   npm run db:tune   backend/db/tune.sql — structure, indexes, policies
+//   npm run db:seed   reference data (the schools catalog, feature flags)
+//
+// Both are idempotent. Neither runs here.
 async function boot() {
-  // Fail-fast on a misconfigured environment — better to crash at boot
+  // Fail fast on a misconfigured environment — better to crash at boot
   // than to serve traffic with missing secrets or wildcard CORS in prod.
   validateEnv();
-
-  if (process.env.SKIP_DB_INIT === "1") {
-    console.log("[murchid-api] SKIP_DB_INIT=1 — skipping schema init");
-  } else {
-    try {
-      console.log("[murchid-api] running schema init …");
-      await runInit();
-    } catch (err) {
-      console.error("[murchid-api] schema init failed:", err);
-      console.error("[murchid-api] starting server anyway — set SKIP_DB_INIT=1 to silence");
-    }
-  }
 
   const app = buildApp();
   const port = Number(process.env.PORT) || 3001;

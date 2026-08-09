@@ -1,7 +1,7 @@
 // UAE schools catalog (seed data).
 //
 // Imported by:
-//   - backend/db/init.js — seeded into the `schools` table on first run
+//   - backend/db/seed.js — seeded into the `schools` table by `npm run db:seed`
 //   - frontend            — only via /api/schools (not imported directly)
 //
 // Coverage is broad-but-not-exhaustive: a curated sample of public and

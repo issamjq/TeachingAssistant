@@ -1,9 +1,9 @@
 // Single source of truth for reference data.
 // Imported by:
-//   - backend/db/init.js — to build CHECK constraints + validate seed data
+//   - backend/db/tune.sql — to build the CHECK constraints
 //   - vite.config.js — when mutation endpoints validate request bodies (TODO)
 //   - studio views    — to populate dropdowns
-// If you need a new value, add it here and re-run `npm run db:init` so the
+// If you need a new value, add it here and re-run `npm run db:tune` so the
 // CHECK constraint stays in sync.
 
 // Teacher specializations. Superset of lesson SUBJECTS — a Biology specialist

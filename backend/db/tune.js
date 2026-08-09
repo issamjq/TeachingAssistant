@@ -1,10 +1,10 @@
 // =====================================================================
 // npm run db:tune — apply backend/db/tune.sql to the live database
 //
-// Separate from db:init because they now mean opposite things. init
-// builds the pre-Supabase schema from scratch; tune adjusts the schema
-// that was authored in Supabase directly. See the guard at the top of
-// init.js for why the two must not be run against the same database.
+// The schema is authored in Supabase directly; this file adjusts it —
+// indexes, policies, constraints and the columns the application needs
+// that the console did not create. It replaced db/init.js, which built
+// an entire schema of its own and could not be run against this one.
 //
 // The whole file runs in ONE transaction: it either all applies or none
 // of it does, so a failure halfway through cannot leave the database

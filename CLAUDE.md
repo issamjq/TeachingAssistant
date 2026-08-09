@@ -65,7 +65,8 @@ Full documentation lives in [`docs/`](docs/README.md). Read it before making non
 ```bash
 npm install
 cp .env.example .env   # fill in DATABASE_URL + SUPABASE_URL + NEXT_PUBLIC_SUPABASE_*
-npm run db:init        # one-time
+npm run db:tune        # schema, indexes, policies
+npm run db:seed        # schools catalog + feature flags
 npm run dev            # web http://localhost:3000 · api :3001
 ```
 
@@ -79,7 +80,13 @@ When a unit of work is finished, ship it. Do **not** ask for confirmation first.
 
 - **`git push origin main`** → Vercel auto-deploys the frontend **and** Render auto-deploys the backend (`npm run start:backend`). One push covers both.
 - ⚠️ **Before the first deploy after the Supabase migration**, replace the Firebase env vars in Vercel with `NEXT_PUBLIC_SUPABASE_URL` + `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, and add `SUPABASE_URL` + the pooler `DATABASE_URL` on Render. The `VITE_FIREBASE_*` / `NEXT_PUBLIC_FIREBASE_*` vars are dead and can be deleted.
-- **`npm run db:init`** → applies schema / seed / `CHECK` constraints to Supabase Postgres. Run this whenever `backend/db/init.js` or `src/lib/enums.js` changes. The script is idempotent — re-running it against an already-seeded DB is safe and will not duplicate rows.
+- **`npm run db:tune`** → applies `backend/db/tune.sql` to Supabase: structure, indexes, RLS policies, CHECK constraints, storage policies. One transaction, idempotent, skips anything the schema no longer has.
+- **`npm run db:seed`** → reference data only (the UAE schools catalog from `src/lib/schools.js`, and the feature flags). Idempotent.
+
+Neither runs automatically. The API used to build the whole schema on
+every boot from `backend/db/init.js`; that file is gone, the schema is
+authored in Supabase, and migrations are applied deliberately from a
+machine that can read the output.
 
 Carve-out: actions that **delete or rewrite live data** on Supabase (`TRUNCATE`, dropping columns, destructive migrations) still need explicit confirmation. Idempotent re-init does not.
 

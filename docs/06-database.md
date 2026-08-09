@@ -1,3 +1,9 @@
+> **Out of date.** This describes the pre-Supabase schema built by
+> `backend/db/init.js`, which has been deleted. The schema is now authored
+> in Supabase directly; `backend/db/tune.sql` (`npm run db:tune`) adjusts
+> it and `backend/db/seed.js` (`npm run db:seed`) loads reference data.
+> Trust the database and those two files over anything below.
+
 # 06 — Database
 
 Four tables in Neon Postgres, created and seeded by `backend/db/init.js`. Idempotent — safe to re-run.

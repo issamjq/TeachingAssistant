@@ -7,7 +7,8 @@ An AI lesson director for teachers (KG–G12). React-only, standalone studio app
 ```bash
 cp .env.example .env       # then paste your Neon DATABASE_URL into .env
 npm install
-npm run db:init            # one-time: creates schema + seeds Neon Postgres
+npm run db:tune            # schema, indexes and policies on Supabase
+npm run db:seed            # UAE schools catalog + feature flags
 npm run dev                # Vite on http://localhost:5173
 ```
 
