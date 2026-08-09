@@ -46,7 +46,7 @@ router.put("/feature-flags/:key", validateBody(FlagSchema), async (req, res) => 
       [key, enabled ?? null, description ?? null]
     );
     await recordAudit({
-      accountId: req.account.id,
+      accountId: req.account.user_id,
       action: "dev.flag.toggle",
       targetTable: "feature_flags",
       ip: clientIp(req), userAgent: userAgent(req),

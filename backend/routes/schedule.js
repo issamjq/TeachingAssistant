@@ -1,10 +1,10 @@
 import { crudRouter } from "../lib/crud.js";
 
 const FIELDS = [
-  "draft_id", "title", "subject", "grade", "section",
+  "draft_id", "class_id", "title", "subject", "grade", "section",
   "date", "start_time", "end_time", "location", "notes", "status",
 ];
-const SELECT = `id, draft_id, title, subject, grade, section,
+const SELECT = `id, draft_id, class_id, title, subject, grade, section,
                 date, start_time, end_time, location, notes, status,
                 created_at, updated_at`;
 

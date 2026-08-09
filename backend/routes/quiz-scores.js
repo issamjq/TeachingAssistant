@@ -21,22 +21,23 @@ router.get("/", async (req, res) => {
   try {
     const cur = await loadCurrentTeacher(req);
     const params = [cur.id];
-    let where = "q.account_id = $1";
+    let where = "q.faculty_id = $1";
     if (req.query.quiz_id) {
       params.push(req.query.quiz_id);
-      where += ` AND qs.quiz_id = $${params.length}`;
+      where += ` AND q.id = $${params.length}`;
     }
     if (req.query.student_id) {
       params.push(req.query.student_id);
       where += ` AND qs.student_id = $${params.length}`;
     }
     const r = await pool.query(
-      `SELECT qs.id, qs.quiz_id, qs.student_id, qs.score, qs.max_score,
-              qs.feedback, qs.recorded_at
-         FROM quiz_scores qs
-         JOIN quizzes q ON q.id = qs.quiz_id
+      `SELECT qs.id, q.id AS quiz_id, qs.student_id, qs.score, qs.max_score,
+              qs.feedback, qs.submitted_at AS recorded_at
+         FROM quiz_attempts qs
+         JOIN assignments asg ON asg.id = qs.assignment_id
+         JOIN ai_studio q ON q.id = asg.generation_id AND q.type = 'quiz'
         WHERE ${where}
-        ORDER BY qs.recorded_at DESC`,
+        ORDER BY qs.submitted_at DESC NULLS LAST`,
       params
     );
     res.json(r.rows);
@@ -59,26 +60,51 @@ router.post("/", async (req, res) => {
     // Without the student check, the score row would attach a foreign
     // student to one of our quizzes. The quiz check alone isn't
     // enough — defence-in-depth requires both endpoints of the join.
+    // Both endpoints of the join, as before — but the student check is
+    // now "is this student visible to me", because a student is no
+    // longer owned by one teacher.
     const own = await pool.query(
       `SELECT
-         (SELECT 1 FROM quizzes  WHERE id = $1 AND account_id = $3) AS q,
-         (SELECT 1 FROM students WHERE id = $2 AND account_id = $3) AS s`,
+         (SELECT 1 FROM ai_studio
+           WHERE id = $1::uuid AND faculty_id = $3 AND type = 'quiz' AND deleted_at IS NULL) AS q,
+         (SELECT 1 FROM students s
+           WHERE s.id = $2::uuid
+             AND (s.created_by = $3
+                  OR EXISTS (SELECT 1 FROM class_members cm JOIN classes c ON c.id = cm.class_id
+                              WHERE cm.student_id = s.id AND c.faculty_id = $3))) AS s`,
       [quiz_id, student_id, cur.id]
     );
     if (!own.rows[0].q) return res.status(404).json({ error: "Quiz not found" });
     if (!own.rows[0].s) return res.status(404).json({ error: "Student not found" });
+
+    // A score belongs to the ASSIGNMENT, not to the quiz directly — a
+    // quiz given to two classes is two assignments, and a mark has to
+    // say which sitting it was.
+    const asg = await pool.query(
+      `SELECT asg.id FROM assignments asg
+         JOIN class_members cm ON cm.class_id = asg.class_id
+        WHERE asg.generation_id = $1::uuid AND cm.student_id = $2::uuid
+        ORDER BY asg.starts_at DESC LIMIT 1`,
+      [quiz_id, student_id]
+    );
+    if (asg.rowCount === 0) {
+      return res.status(404).json({ error: "That student isn't assigned this quiz." });
+    }
+
     const r = await pool.query(
-      `INSERT INTO quiz_scores (quiz_id, student_id, score, max_score, feedback)
-       VALUES ($1, $2, $3, $4, $5)
-       ON CONFLICT (quiz_id, student_id) DO UPDATE
+      `INSERT INTO quiz_attempts (assignment_id, student_id, score, max_score, feedback, status, submitted_at)
+       VALUES ($1, $2, $3, $4, $5, 'graded', now())
+       ON CONFLICT (assignment_id, student_id) DO UPDATE
          SET score = EXCLUDED.score,
              max_score = EXCLUDED.max_score,
              feedback = EXCLUDED.feedback,
-             recorded_at = NOW()
-       RETURNING id, quiz_id, student_id, score, max_score, feedback, recorded_at`,
-      [quiz_id, student_id, score, max_score ?? null, feedback ?? null]
+             status = 'graded',
+             submitted_at = COALESCE(quiz_attempts.submitted_at, now()),
+             updated_at = now()
+       RETURNING id, student_id, score, max_score, feedback, submitted_at AS recorded_at`,
+      [asg.rows[0].id, student_id, score, max_score ?? null, feedback ?? null]
     );
-    res.status(201).json(r.rows[0]);
+    res.status(201).json({ ...r.rows[0], quiz_id });
   } catch (err) {
     handleErr(res, "POST /api/quiz-scores", err);
   }
@@ -89,11 +115,12 @@ router.delete("/:id", async (req, res) => {
   try {
     const cur = await loadCurrentTeacher(req);
     const r = await pool.query(
-      `DELETE FROM quiz_scores qs
-        USING quizzes q
-        WHERE qs.id = $1
-          AND qs.quiz_id = q.id
-          AND q.account_id = $2
+      `DELETE FROM quiz_attempts qs
+        USING assignments asg, ai_studio q
+        WHERE qs.id = $1::uuid
+          AND asg.id = qs.assignment_id
+          AND q.id = asg.generation_id
+          AND q.faculty_id = $2
         RETURNING qs.id`,
       [req.params.id, cur.id]
     );

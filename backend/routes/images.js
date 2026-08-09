@@ -76,7 +76,7 @@ router.post("/upload", async (req, res) => {
     }
 
     const ins = await pool.query(
-      `INSERT INTO uploaded_images (account_id, mime, data)
+      `INSERT INTO uploaded_images (faculty_id, mime, data)
        VALUES ($1, $2, $3) RETURNING id`,
       [cur.id, mime, base64]
     );
@@ -90,12 +90,14 @@ router.post("/upload", async (req, res) => {
 // declared above so they win the match; this only sees other paths.
 router.get("/:id", async (req, res) => {
   try {
-    const id = Number(req.params.id);
-    if (!Number.isInteger(id) || id <= 0) {
+    // uuid now, not a serial. Number() on a uuid gives NaN, so the old
+    // guard would have rejected every real id.
+    const id = String(req.params.id);
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
       return res.status(404).json({ error: "Not found" });
     }
     const r = await pool.query(
-      "SELECT mime, data FROM uploaded_images WHERE id = $1",
+      "SELECT mime, data, file_path FROM uploaded_images WHERE id = $1::uuid",
       [id]
     );
     if (r.rows.length === 0) return res.status(404).json({ error: "Not found" });

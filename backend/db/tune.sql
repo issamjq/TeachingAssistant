@@ -519,3 +519,306 @@ END $$;
 -- not a trail.
 ALTER TABLE public.audit_log ADD COLUMN IF NOT EXISTS ip         text;
 ALTER TABLE public.audit_log ADD COLUMN IF NOT EXISTS user_agent text;
+
+
+-- ── 14. Soft delete for generated work ────────────────────────────────
+--
+-- The studio has a trash with restore and a 30-day window. Lesson plans
+-- and quizzes were four tables with a deleted_at each; they are one
+-- table now, and it has none — so a delete would have been permanent
+-- and the trash screen permanently empty.
+ALTER TABLE public.ai_studio ADD COLUMN IF NOT EXISTS deleted_at timestamptz;
+ALTER TABLE public.materials ADD COLUMN IF NOT EXISTS deleted_at timestamptz;
+
+-- The list query is "mine, of this type, not deleted, newest first", so
+-- the index carries the predicate rather than filtering after the read.
+CREATE INDEX IF NOT EXISTS ai_studio_live_idx
+  ON public.ai_studio (faculty_id, type, updated_at DESC) WHERE deleted_at IS NULL;
+
+
+-- ── 15. quiz_attempts is really "an attempt at an assignment" ─────────
+--
+-- Homework submissions and activity completions were their own tables.
+-- Both are the same shape as a quiz attempt — a student, a piece of
+-- assigned work, when it came in and what it scored — and assignments
+-- already generalises over every type in ai_studio. So they share this
+-- table rather than adding two more that differ only in name.
+--
+-- What it was missing to serve all three: a workflow state, a
+-- denominator, and somewhere for the teacher to write back.
+ALTER TABLE public.quiz_attempts ADD COLUMN IF NOT EXISTS status    text NOT NULL DEFAULT 'pending';
+ALTER TABLE public.quiz_attempts ADD COLUMN IF NOT EXISTS max_score numeric;
+ALTER TABLE public.quiz_attempts ADD COLUMN IF NOT EXISTS feedback  text;
+
+-- One attempt per student per assignment: that is what makes the grid
+-- editable in place, and PUT idempotent rather than additive.
+CREATE UNIQUE INDEX IF NOT EXISTS quiz_attempts_one_per_student
+  ON public.quiz_attempts (assignment_id, student_id);
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint
+                 WHERE conname = 'quiz_attempts_status_check'
+                   AND connamespace = 'public'::regnamespace) THEN
+    ALTER TABLE public.quiz_attempts ADD CONSTRAINT quiz_attempts_status_check
+      CHECK (status IN ('pending','submitted','graded','returned','late','completed'));
+  END IF;
+END $$;
+
+-- A student is a person, so their name is on users. Every roster query
+-- joins the two, and the FK from students to users carries no index of
+-- its own beyond the unique one — which is enough, but the roster also
+-- filters by class.
+CREATE INDEX IF NOT EXISTS class_members_class_idx ON public.class_members (class_id);
+
+
+-- ── 16. A timetable entry can come from a lesson plan ─────────────────
+-- The planner drops a plan onto a day, and the calendar links back to it.
+ALTER TABLE public.schedule_entries
+  ADD COLUMN IF NOT EXISTS draft_id uuid REFERENCES public.ai_studio(id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS schedule_draft_idx ON public.schedule_entries (draft_id);
+
+
+-- ── 17. A student a teacher typed in is not yet a user ────────────────
+--
+-- students.user_id was NOT NULL and references users, which references
+-- auth.users. Read together, that says every student must already have
+-- signed in — but a teacher building a register types in thirty names
+-- for children who have no account and may never have one.
+--
+-- The schema already shows the intended path: `invitations` sends a
+-- student an email to join a class. So a student starts as a row with no
+-- user, and gains one when they accept. That makes user_id nullable and
+-- moves the identity fields onto students for the un-invited case.
+--
+-- Guardians live here rather than on users for the same reason. They are
+-- contact details for a child's school record, not an account.
+ALTER TABLE public.students ALTER COLUMN user_id DROP NOT NULL;
+
+ALTER TABLE public.students ADD COLUMN IF NOT EXISTS created_by uuid
+  REFERENCES public.faculty(id) ON DELETE SET NULL;
+ALTER TABLE public.students ADD COLUMN IF NOT EXISTS school_id uuid
+  REFERENCES public.schools(id) ON DELETE SET NULL;
+ALTER TABLE public.students ADD COLUMN IF NOT EXISTS first_name    text;
+ALTER TABLE public.students ADD COLUMN IF NOT EXISTS last_name     text;
+ALTER TABLE public.students ADD COLUMN IF NOT EXISTS student_id    text;
+ALTER TABLE public.students ADD COLUMN IF NOT EXISTS date_of_birth date;
+ALTER TABLE public.students ADD COLUMN IF NOT EXISTS gender        text;
+ALTER TABLE public.students ADD COLUMN IF NOT EXISTS email         text;
+ALTER TABLE public.students ADD COLUMN IF NOT EXISTS phone         text;
+ALTER TABLE public.students ADD COLUMN IF NOT EXISTS nationality   text;
+ALTER TABLE public.students ADD COLUMN IF NOT EXISTS address       text;
+ALTER TABLE public.students ADD COLUMN IF NOT EXISTS notes         text;
+ALTER TABLE public.students ADD COLUMN IF NOT EXISTS enrollment_date date;
+ALTER TABLE public.students ADD COLUMN IF NOT EXISTS primary_guardian_name         text;
+ALTER TABLE public.students ADD COLUMN IF NOT EXISTS primary_guardian_relationship text;
+ALTER TABLE public.students ADD COLUMN IF NOT EXISTS primary_guardian_email        text;
+ALTER TABLE public.students ADD COLUMN IF NOT EXISTS primary_guardian_phone        text;
+ALTER TABLE public.students ADD COLUMN IF NOT EXISTS secondary_guardian_name         text;
+ALTER TABLE public.students ADD COLUMN IF NOT EXISTS secondary_guardian_relationship text;
+ALTER TABLE public.students ADD COLUMN IF NOT EXISTS secondary_guardian_email        text;
+ALTER TABLE public.students ADD COLUMN IF NOT EXISTS secondary_guardian_phone        text;
+
+CREATE INDEX IF NOT EXISTS students_created_by_idx ON public.students (created_by);
+CREATE INDEX IF NOT EXISTS students_school_idx     ON public.students (school_id);
+
+-- students_own scoped on user_id, so a teacher-entered student with no
+-- user was invisible to everyone including the teacher who typed it in.
+DROP POLICY IF EXISTS students_own ON public.students;
+CREATE POLICY students_own ON public.students
+  FOR ALL TO authenticated
+  USING (
+    user_id = (SELECT auth.uid())
+    OR created_by = current_faculty_id()
+    OR EXISTS (SELECT 1 FROM class_members cm
+                 JOIN classes c ON c.id = cm.class_id
+                WHERE cm.student_id = students.id AND c.faculty_id = current_faculty_id())
+  )
+  WITH CHECK (user_id = (SELECT auth.uid()) OR created_by = current_faculty_id());
+
+-- Which schools a teacher works at. faculty.school_id is their primary
+-- one; a supply teacher covering three schools needs a list, and the
+-- student form validates against exactly this.
+CREATE TABLE IF NOT EXISTS public.faculty_schools (
+  faculty_id uuid NOT NULL REFERENCES public.faculty(id) ON DELETE CASCADE,
+  school_id  uuid NOT NULL REFERENCES public.schools(id) ON DELETE CASCADE,
+  role       text,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (faculty_id, school_id)
+);
+CREATE INDEX IF NOT EXISTS faculty_schools_school_idx ON public.faculty_schools (school_id);
+ALTER TABLE public.faculty_schools ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS faculty_schools_own ON public.faculty_schools;
+CREATE POLICY faculty_schools_own ON public.faculty_schools
+  FOR ALL TO authenticated
+  USING (faculty_id = current_faculty_id()) WITH CHECK (faculty_id = current_faculty_id());
+
+
+-- ── 18. The catalog fields the school picker already renders ──────────
+-- The picker shows the Arabic name and groups by city; the "not listed?"
+-- fallback captures a website. Added rather than dropped from the UI —
+-- an Arabic school name is not optional decoration in this market.
+ALTER TABLE public.schools ADD COLUMN IF NOT EXISTS name_ar text;
+ALTER TABLE public.schools ADD COLUMN IF NOT EXISTS city    text;
+ALTER TABLE public.schools ADD COLUMN IF NOT EXISTS website text;
+
+-- A teacher has one primary school and may teach different grades and
+-- sections at each of them.
+ALTER TABLE public.faculty_schools ADD COLUMN IF NOT EXISTS is_primary     boolean NOT NULL DEFAULT false;
+ALTER TABLE public.faculty_schools ADD COLUMN IF NOT EXISTS grade_sections jsonb;
+
+-- At most one primary, enforced rather than left to the application to
+-- remember on every write.
+CREATE UNIQUE INDEX IF NOT EXISTS faculty_schools_one_primary
+  ON public.faculty_schools (faculty_id) WHERE is_primary;
+
+
+-- ── 19. Images pasted into a lesson plan ──────────────────────────────
+--
+-- These were base64 blobs in a table, served back through the API. That
+-- makes every image render a database read and a Node round-trip, and
+-- puts megabytes of binary in the same rows the planner queries.
+--
+-- The project already has object storage — five buckets — so this table
+-- holds only the reference. The bytes belong in the `imports` bucket,
+-- uploaded from the browser under the teacher's own session, the same
+-- way CVs are.
+CREATE TABLE IF NOT EXISTS public.uploaded_images (
+  id         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  faculty_id uuid NOT NULL REFERENCES public.faculty(id) ON DELETE CASCADE,
+  file_path  text,
+  mime       text,
+  -- Retained for images pasted before storage upload existed. New rows
+  -- leave it null; it is not the intended home.
+  data       text,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS uploaded_images_faculty_idx ON public.uploaded_images (faculty_id);
+ALTER TABLE public.uploaded_images ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS uploaded_images_owner ON public.uploaded_images;
+CREATE POLICY uploaded_images_owner ON public.uploaded_images
+  FOR ALL TO authenticated
+  USING (faculty_id = current_faculty_id()) WITH CHECK (faculty_id = current_faculty_id());
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgrelid='public.uploaded_images'::regclass AND NOT tgisinternal) THEN
+    CREATE TRIGGER set_updated_at BEFORE UPDATE ON public.uploaded_images
+      FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+  END IF;
+END $$;
+
+
+-- ── 20. Reporting projections for the admin consoles ──────────────────
+--
+-- admin, dev, moe, owner and superadmin are 1,243 lines of read-only
+-- reporting: counts by role, sign-ups per week, who is suspended. Their
+-- SQL is the clearest thing about them, and rewriting every
+-- `COUNT(*) FROM drafts` into a jsonb type filter would make it worse
+-- while changing none of its meaning.
+--
+-- So the old names survive as VIEWS over the new tables. This is not a
+-- compatibility hack kept out of laziness: a view IS the aligned answer
+-- for a read-only projection, and it is the same data with no second
+-- copy to drift.
+--
+-- Writes are NOT covered. A view across three tables is not
+-- auto-updatable, so an UPDATE through `accounts` fails loudly rather
+-- than silently doing nothing — and the two routes that write have been
+-- pointed at the real tables instead.
+
+CREATE OR REPLACE VIEW public.accounts AS
+SELECT
+  f.id, u.id AS user_id, u.id AS auth_uid,
+  u.first_name, u.last_name, u.email, u.phone, u.avatar_url,
+  u.role, u.sub_role, u.account_status AS status,
+  u.onboarding_status, u.signup_provider, u.locale,
+  u.last_login_at, u.last_login_ip, u.active_session_id,
+  f.faculty_code, f.staff_id,
+  f.expertise AS majors, f.eligible_grades AS grade_levels,
+  f.languages, f.qualification, f.nationality, f.bio,
+  f.years_experience, f.hire_date, f.organization, f.school_id,
+  -- Gone from the schema; classes replaced them. Kept as typed NULLs so
+  -- a console that still selects one gets a null column instead of 42703.
+  NULL::text[] AS sections,
+  NULL::jsonb  AS class_map,
+  NULL::jsonb  AS grade_sections,
+  s.plan AS subscription_plan,
+  s.status AS subscription_status,
+  COALESCE(s.current_period_end, s.trial_ends_at) AS subscription_ends_at,
+  f.created_at, f.updated_at,
+  -- Appended, not inserted: CREATE OR REPLACE VIEW may only add columns
+  -- at the end, and renaming one in place fails with a confusing error.
+  u.permissions
+FROM faculty f
+JOIN users u ON u.id = f.user_id
+LEFT JOIN subscriptions s ON s.faculty_id = f.id;
+
+-- The five content types, as the five tables they used to be. account_id
+-- is exposed alongside faculty_id because that is the column every
+-- console query names.
+DO $$
+DECLARE
+  v record;
+BEGIN
+  FOR v IN SELECT * FROM (VALUES
+      ('drafts', 'lesson_plan'), ('quizzes', 'quiz'), ('homework', 'homework'),
+      ('presentations', 'presentation'), ('activities', 'activity'),
+      ('templates', 'template')
+    ) AS t(name, kind)
+  LOOP
+    EXECUTE format($v$
+      CREATE OR REPLACE VIEW public.%I AS
+      SELECT a.id,
+             a.faculty_id, a.faculty_id AS account_id,
+             a.status, a.created_at, a.updated_at, a.updated_at AS last_edited,
+             a.deleted_at, a.content,
+             a.content->>'title'   AS title,
+             a.content->>'name'    AS name,
+             a.content->>'subject' AS subject,
+             a.content->>'grade'   AS grade,
+             a.content->>'section' AS section
+        FROM ai_studio a
+       WHERE a.type = %L AND a.deleted_at IS NULL
+    $v$, v.name, v.kind);
+  END LOOP;
+END $$;
+
+CREATE OR REPLACE VIEW public.account_schools AS
+SELECT faculty_id AS account_id, faculty_id, school_id, is_primary, grade_sections, created_at
+  FROM faculty_schools;
+
+
+-- ── 21. Per-account permission overrides ──────────────────────────────
+-- The superadmin console grants capabilities beyond a role. On the user,
+-- not the faculty row: it is the person who is trusted, and the grant
+-- should survive them ceasing to teach.
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS permissions jsonb;
+
+
+-- ── 22. Pre-signup email verification ─────────────────────────────────
+--
+-- Kept, not dropped as obsolete. GoTrue has its own OTP, but this one
+-- runs BEFORE an account exists — the sign-up form proves the address
+-- before provisioning anything, and the frontend still calls
+-- /api/auth/email-verify/send and /check.
+--
+-- Codes are bcrypt hashes, never the digits, so a read of this table
+-- does not let anyone complete someone else's sign-up.
+CREATE TABLE IF NOT EXISTS public.email_verifications (
+  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  email       text NOT NULL,
+  code_hash   text NOT NULL,
+  expires_at  timestamptz NOT NULL,
+  attempts    integer NOT NULL DEFAULT 0,
+  consumed_at timestamptz,
+  created_at  timestamptz NOT NULL DEFAULT now()
+);
+-- The lookup is "newest code for this address".
+CREATE INDEX IF NOT EXISTS email_verifications_lookup_idx
+  ON public.email_verifications (email, created_at DESC);
+
+-- No policy: RLS on with none denies every client outright. Codes are
+-- issued and redeemed by the API over the pooler connection, and there
+-- is no version of this table a browser should ever read.
+ALTER TABLE public.email_verifications ENABLE ROW LEVEL SECURITY;

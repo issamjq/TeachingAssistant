@@ -86,16 +86,44 @@ router.post("/teachers", validateBody(AdminCreateTeacherSchema), async (req, res
       });
     }
 
-    const r = await pool.query(
-      `INSERT INTO accounts (first_name, last_name, email, staff_id, role, sub_role)
-       VALUES ($1, $2, $3, $4, $5, $6)
-       RETURNING id, first_name, last_name, email, staff_id, role, sub_role, status, created_at`,
-      [first_name, last_name, email ?? null, staff_id ?? null, targetRole, sub_role || null]
+    // A teacher is a users row, and users.id is FK'd to auth.users — so
+    // this endpoint cannot conjure one. It attaches a role and a profile
+    // to an account that has already signed up, which is what admins
+    // actually do: the teacher registers, the admin approves them.
+    //
+    // Creating the auth user outright would need a service-role key, and
+    // this process deliberately holds none — a leaked service key mints
+    // tokens rather than merely reading rows.
+    const target = await pool.query(`SELECT id FROM users WHERE lower(email) = lower($1)`, [email]);
+    if (target.rowCount === 0) {
+      return res.status(404).json({
+        error: "No account with that email has signed up yet. Ask them to register first, then set their role here.",
+        code: "no_such_user",
+      });
+    }
+    const uid = target.rows[0].id;
+    await pool.query(
+      `UPDATE users SET first_name = COALESCE($2, first_name),
+                        last_name  = COALESCE($3, last_name),
+                        role = $4, sub_role = $5, updated_at = now()
+        WHERE id = $1`,
+      [uid, first_name ?? null, last_name ?? null, targetRole, sub_role || null]
     );
+    const r = await pool.query(
+      `INSERT INTO faculty (user_id, staff_id) VALUES ($1, $2)
+       ON CONFLICT (user_id) DO UPDATE SET staff_id = COALESCE(EXCLUDED.staff_id, faculty.staff_id)
+       RETURNING id`,
+      [uid, staff_id ?? null]
+    );
+    const created = await pool.query(
+      `SELECT id, first_name, last_name, email, staff_id, role, sub_role, status, created_at
+         FROM accounts WHERE id = $1`, [r.rows[0].id]
+    );
+    r.rows = created.rows;
     await recordAudit({
-      accountId: req.account.id,
+      accountId: req.account.user_id,
       action: "admin.teacher.create",
-      targetTable: "accounts",
+      targetTable: "faculty",
       targetId: r.rows[0].id,
       ip: clientIp(req), userAgent: userAgent(req),
       detail: { role: targetRole, sub_role: sub_role || null },
@@ -120,15 +148,17 @@ router.patch("/teachers/:id/status", validateBody(AdminStatusSchema), async (req
       return res.status(400).json({ error: "Admins can't change their own account status." });
     }
     const r = await pool.query(
-      `UPDATE accounts SET status = $1, updated_at = NOW()
-        WHERE id = $2 RETURNING id, status`,
+      `UPDATE users u SET account_status = $1, updated_at = now()
+         FROM faculty f
+        WHERE f.id = $2::uuid AND u.id = f.user_id
+        RETURNING f.id, u.account_status AS status`,
       [status, targetId]
     );
     if (r.rows.length === 0) return res.status(404).json({ error: "Not found" });
     await recordAudit({
-      accountId: req.account.id,
+      accountId: req.account.user_id,
       action: `admin.teacher.${status}`,
-      targetTable: "accounts",
+      targetTable: "faculty",
       targetId,
       ip: clientIp(req), userAgent: userAgent(req),
     });
@@ -170,14 +200,16 @@ router.patch("/teachers/:id/role", validateBody(AdminRoleUpdateSchema), async (r
       return res.status(403).json({ error: "Forbidden", code: "role_grant_denied" });
     }
     const r = await pool.query(
-      `UPDATE accounts SET role = $1, sub_role = $2, updated_at = NOW()
-        WHERE id = $3 RETURNING id, role, sub_role`,
+      `UPDATE users u SET role = $1, sub_role = $2, updated_at = now()
+         FROM faculty f
+        WHERE f.id = $3::uuid AND u.id = f.user_id
+        RETURNING f.id, u.role, u.sub_role`,
       [role, sub_role || null, targetId]
     );
     await recordAudit({
-      accountId: req.account.id,
+      accountId: req.account.user_id,
       action: "admin.teacher.role_update",
-      targetTable: "accounts",
+      targetTable: "faculty",
       targetId,
       ip: clientIp(req), userAgent: userAgent(req),
       detail: { from: cur.rows[0].role, to: role, sub_role: sub_role || null },
@@ -197,12 +229,15 @@ router.delete("/teachers/:id", async (req, res) => {
     if (targetId === req.account.id) {
       return res.status(400).json({ error: "Admins can't delete their own account." });
     }
-    const r = await pool.query("DELETE FROM accounts WHERE id = $1", [targetId]);
+    // Deletes the teaching profile, not the sign-in. Removing the auth
+    // account needs a service-role key this process does not hold, and
+    // orphaning a users row would leave them able to sign in to nothing.
+    const r = await pool.query("DELETE FROM faculty WHERE id = $1::uuid", [targetId]);
     if (r.rowCount === 0) return res.status(404).json({ error: "Not found" });
     await recordAudit({
-      accountId: req.account.id,
+      accountId: req.account.user_id,
       action: "admin.teacher.delete",
-      targetTable: "accounts",
+      targetTable: "faculty",
       targetId,
       ip: clientIp(req), userAgent: userAgent(req),
     });

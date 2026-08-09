@@ -12,7 +12,7 @@ import { validateBody } from "./validate.js";
 //   listOrderBy    : ORDER BY clause for the list endpoint (no leading "ORDER BY")
 //   timestampOnPatch : column to set to NOW() on PATCH; pass null to skip.
 //   teacherScoped  : if true, every endpoint scopes by current teacher's id
-//                    (forbids cross-teacher reads, stamps account_id on inserts).
+//                    (forbids cross-teacher reads, stamps the scope column on inserts).
 //   listExtra(req, ctx) : optional, returns { where, params, skip } extending the scope.
 //   afterMutation(row)  : optional callback after each successful POST / PATCH.
 //   softDelete     : if true, DELETE flips a deleted_at timestamp instead
@@ -33,6 +33,10 @@ export function crudRouter({
   timestampOnPatch = "updated_at",
   routeName,
   teacherScoped = false,
+  // Which column carries the owner. Was hardcoded to account_id; the
+  // teacher-owned tables key on faculty_id now, and a few key on the
+  // user instead — so it is a parameter rather than a rename.
+  scopeColumn = "faculty_id",
   listExtra = null,
   afterMutation = null,
   softDelete = false,
@@ -70,7 +74,7 @@ export function crudRouter({
     if (!teacherScoped) return { where: "", params: [], teacherId: null };
     const cur = await loadCurrentTeacher(req);
     if (!cur) throw new Error("Current teacher not resolved (no STF-001 in DB?)");
-    return { where: "account_id = $1", params: [cur.id], teacherId: cur.id };
+    return { where: `${scopeColumn} = $1`, params: [cur.id], teacherId: cur.id };
   };
 
   router.get("/", async (req, res) => {
@@ -142,7 +146,7 @@ export function crudRouter({
         const conds = [`id = $1`, `deleted_at IS NOT NULL`];
         if (scope.where) {
           params.push(...scope.params);
-          conds.push(`account_id = $${params.length}`);
+          conds.push(`${scopeColumn} = $${params.length}`);
         }
         const r = await pool.query(
           `UPDATE ${table} SET deleted_at = NULL ${timestampOnPatch ? `, ${timestampOnPatch} = NOW()` : ""}
@@ -164,7 +168,7 @@ export function crudRouter({
         let where = `WHERE id = $1`;
         if (scope.where) {
           params.push(...scope.params);
-          where += ` AND account_id = $${params.length}`;
+          where += ` AND ${scopeColumn} = $${params.length}`;
         }
         const r = await pool.query(`DELETE FROM ${table} ${where}`, params);
         if (r.rowCount === 0) return res.status(404).json({ error: "Not found" });
@@ -182,9 +186,9 @@ export function crudRouter({
     try {
       const scope = await scopeFor(req);
       const body = coerceJson({ ...(req.body || {}) });
-      if (teacherScoped) body.account_id = scope.teacherId;
+      if (teacherScoped) body[scopeColumn] = scope.teacherId;
 
-      const allowed = teacherScoped ? [...fields, "account_id"] : fields;
+      const allowed = teacherScoped ? [...fields, scopeColumn] : fields;
       const { sets, params } = buildPatch(body, allowed);
       if (sets.length === 0) return res.status(400).json({ error: "No fields" });
 
@@ -209,7 +213,7 @@ export function crudRouter({
       let where = `WHERE id = $1`;
       if (scope.where) {
         params.push(...scope.params);
-        where += ` AND account_id = $${params.length}`;
+        where += ` AND ${scopeColumn} = $${params.length}`;
       }
       if (softDelete) where += ` AND deleted_at IS NULL`;
       const r = await pool.query(`SELECT ${selectCols} FROM ${table} ${where}`, params);
@@ -233,7 +237,7 @@ export function crudRouter({
       let where = `WHERE id = $${idIdx}`;
       if (scope.where) {
         params.push(...scope.params);
-        where += ` AND account_id = $${params.length}`;
+        where += ` AND ${scopeColumn} = $${params.length}`;
       }
       const r = await pool.query(
         `UPDATE ${table} SET ${sets.join(", ")}${ts} ${where} RETURNING ${selectCols}`,
@@ -254,7 +258,7 @@ export function crudRouter({
       let where = `WHERE id = $1`;
       if (scope.where) {
         params.push(...scope.params);
-        where += ` AND account_id = $${params.length}`;
+        where += ` AND ${scopeColumn} = $${params.length}`;
       }
       if (softDelete) {
         // Soft delete: flip deleted_at and leave the row in place so

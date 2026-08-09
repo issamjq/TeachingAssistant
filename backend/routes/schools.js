@@ -76,9 +76,9 @@ router.get("/mine", async (req, res) => {
     if (!cur) return res.status(404).json({ error: "Current teacher not found" });
     const r = await pool.query(
       `SELECT ${SCHOOL_COLS_S}, ts.is_primary, ts.grade_sections
-         FROM account_schools ts
+         FROM faculty_schools ts
          JOIN schools s ON s.id = ts.school_id
-        WHERE ts.account_id = $1
+        WHERE ts.faculty_id = $1
         ORDER BY ts.is_primary DESC, s.name`,
       [cur.id]
     );
@@ -105,23 +105,23 @@ router.post("/mine", validateBody(AttachSchoolSchema), async (req, res) => {
 
     if (is_primary) {
       await pool.query(
-        `UPDATE account_schools SET is_primary = FALSE WHERE account_id = $1`,
+        `UPDATE faculty_schools SET is_primary = FALSE WHERE faculty_id = $1`,
         [cur.id]
       );
     }
     const gsJson = grade_sections ? JSON.stringify(grade_sections) : "{}";
     await pool.query(
-      `INSERT INTO account_schools (account_id, school_id, is_primary, grade_sections)
+      `INSERT INTO faculty_schools (faculty_id, school_id, is_primary, grade_sections)
        VALUES ($1, $2, $3, $4::jsonb)
-       ON CONFLICT (account_id, school_id) DO UPDATE SET
+       ON CONFLICT (faculty_id, school_id) DO UPDATE SET
          is_primary     = EXCLUDED.is_primary,
          grade_sections = EXCLUDED.grade_sections`,
       [cur.id, school_id, !!is_primary, gsJson]
     );
     const r = await pool.query(
       `SELECT ${SCHOOL_COLS_S}, ts.is_primary, ts.grade_sections
-         FROM account_schools ts JOIN schools s ON s.id = ts.school_id
-        WHERE ts.account_id = $1 AND ts.school_id = $2`,
+         FROM faculty_schools ts JOIN schools s ON s.id = ts.school_id
+        WHERE ts.faculty_id = $1 AND ts.school_id = $2`,
       [cur.id, school_id]
     );
     res.status(201).json(r.rows[0]);
@@ -134,7 +134,7 @@ router.post("/mine", validateBody(AttachSchoolSchema), async (req, res) => {
 // one of the teacher's schools. Both fields are optional; at least
 // one must be present (enforced by SchoolMinePatchSchema).
 //
-// SECURITY: the WHERE clause is hard-scoped by account_id so a teacher
+// SECURITY: the WHERE clause is hard-scoped by faculty_id so a teacher
 // can only edit their own row. No cross-tenant write is possible
 // even if school_id is forged. The grade_sections payload was already
 // passed through a strict zod schema (record<string, string[]>,
@@ -160,7 +160,7 @@ router.patch("/mine/:id", validateBody(SchoolMinePatchSchema), async (req, res) 
       await client.query("BEGIN");
       if (is_primary === true) {
         await client.query(
-          `UPDATE account_schools SET is_primary = FALSE WHERE account_id = $1`,
+          `UPDATE faculty_schools SET is_primary = FALSE WHERE faculty_id = $1`,
           [cur.id]
         );
       }
@@ -175,8 +175,8 @@ router.patch("/mine/:id", validateBody(SchoolMinePatchSchema), async (req, res) 
         sets.push(`grade_sections = $${params.length}::jsonb`);
       }
       const r = await client.query(
-        `UPDATE account_schools SET ${sets.join(", ")}
-           WHERE account_id = $1 AND school_id = $2
+        `UPDATE faculty_schools SET ${sets.join(", ")}
+           WHERE faculty_id = $1 AND school_id = $2
            RETURNING is_primary, grade_sections, school_id`,
         params
       );
@@ -199,21 +199,21 @@ router.patch("/mine/:id", validateBody(SchoolMinePatchSchema), async (req, res) 
 
 // Remove a school from the teacher. Students that pointed at it keep
 // pointing (FK is ON DELETE SET NULL at the catalog level, but here we
-// only remove the account_schools row — the student.school_id stays
+// only remove the faculty_schools row — the student.school_id stays
 // intact since the catalog row still exists).
 router.delete("/mine/:id", async (req, res) => {
   try {
     const cur = await loadCurrentTeacher(req);
     if (!cur) return res.status(404).json({ error: "Current teacher not found" });
     const r = await pool.query(
-      `DELETE FROM account_schools WHERE account_id = $1 AND school_id = $2`,
+      `DELETE FROM faculty_schools WHERE faculty_id = $1 AND school_id = $2`,
       [cur.id, req.params.id]
     );
     if (r.rowCount === 0) return res.status(404).json({ error: "Not found" });
     await recordAudit({
-      accountId: cur.id,
+      accountId: req.account.user_id,
       action: "school.remove",
-      targetTable: "account_schools",
+      targetTable: "faculty_schools",
       targetId: Number(req.params.id),
       ip: clientIp(req), userAgent: userAgent(req),
     });

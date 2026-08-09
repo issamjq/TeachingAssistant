@@ -255,15 +255,17 @@ router.patch("/account/:id/permissions", validateBody(PermissionsSchema), async 
       if (PERMISSION_KEYS.includes(k)) filtered[k] = !!v;
     }
     const r = await pool.query(
-      `UPDATE accounts SET permissions = $1::jsonb, updated_at = NOW()
-        WHERE id = $2 RETURNING id, permissions`,
+      `UPDATE users u SET permissions = $1::jsonb, updated_at = now()
+         FROM faculty f
+        WHERE f.id = $2::uuid AND u.id = f.user_id
+        RETURNING f.id, u.permissions`,
       [JSON.stringify(filtered), id]
     );
     if (r.rows.length === 0) return res.status(404).json({ error: "Not found" });
     await recordAudit({
-      accountId: req.account.id,
+      accountId: req.account.user_id,
       action: "superadmin.permissions.update",
-      targetTable: "accounts",
+      targetTable: "faculty",
       targetId: id,
       ip: clientIp(req), userAgent: userAgent(req),
       detail: { keys: Object.keys(filtered) },
