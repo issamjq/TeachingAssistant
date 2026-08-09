@@ -1101,7 +1101,20 @@ function EmailMark() {
   );
 }
 
-function ProviderButton({ icon, label, onClick, disabled }) {
+// Microsoft's four squares. Drawn rather than imported so the mark is
+// the official colours at any size and costs no request.
+function OutlookMark() {
+  return (
+    <svg width="17" height="17" viewBox="0 0 23 23" aria-hidden="true">
+      <rect x="1" y="1" width="10" height="10" fill="#F25022" />
+      <rect x="12" y="1" width="10" height="10" fill="#7FBA00" />
+      <rect x="1" y="12" width="10" height="10" fill="#00A4EF" />
+      <rect x="12" y="12" width="10" height="10" fill="#FFB900" />
+    </svg>
+  );
+}
+
+function ProviderButton({ icon, label, onClick, disabled, badge }) {
   return (
     <button
       type="button"
@@ -1109,12 +1122,23 @@ function ProviderButton({ icon, label, onClick, disabled }) {
       disabled={disabled}
       aria-disabled={disabled || undefined}
       className={`w-full flex items-center justify-center gap-3 px-5 py-3.5 rounded-xl text-sm font-medium transition ${
-        disabled ? "cursor-wait opacity-70" : "lift"
+        // A badged button is inert but not pending, so it takes a plain
+        // cursor and dims less — 0.7 alpha on a label that has something
+        // to say is already close to the 4.5:1 floor.
+        disabled ? (badge ? "cursor-default opacity-85" : "cursor-wait opacity-70") : "lift"
       }`}
       style={{ background: "var(--paper)", border: "0.5px solid var(--line-strong)", color: "var(--ink)" }}
     >
       <span className="flex-shrink-0 inline-flex">{icon}</span>
       <span>{label}</span>
+      {badge && (
+        <span
+          className="ms-1 rounded-full px-2 py-0.5 font-mono text-[9px] uppercase tracking-[0.14em]"
+          style={{ border: "0.5px solid var(--line-strong)", color: "var(--ink-2)" }}
+        >
+          {badge}
+        </span>
+      )}
     </button>
   );
 }
@@ -1265,7 +1289,11 @@ function AuthPage({ onSignUp, onPage, mode = "signup", onEnterStudio }) {
   //                       advance the funnel to the plan picker
   //   "sent"           = magic sign-in link emailed (new device / forgot-pwd fallback)
   //   "reset-sent"     = password reset link emailed
-  const [emailMode, setEmailMode] = useState("idle");
+  // Opens ON the form. It used to open on a menu of provider buttons,
+  // so email — the path most teachers take — cost an extra click before
+  // they could type anything. The providers move below the form as
+  // alternatives; nobody has to press a button to reach the default.
+  const [emailMode, setEmailMode] = useState("entering");
   const [emailValue, setEmailValue] = useState("");
   const [passwordValue, setPasswordValue] = useState("");
   const [confirmValue, setConfirmValue] = useState("");
@@ -1637,27 +1665,6 @@ function AuthPage({ onSignUp, onPage, mode = "signup", onEnterStudio }) {
       centered
     >
       <div className={`space-y-3 max-w-sm mx-auto transition-opacity ${accepted ? "opacity-100" : "opacity-90"}`}>
-        {emailMode === "idle" && (
-          <>
-            {/* Buttons stay visually active even before the terms box is
-                ticked — greying them out reads as "broken". Instead the
-                click is gated: an unchecked box flags `tried`, which
-                surfaces the error + pulses the checkbox (see below). */}
-            <ProviderButton
-              icon={<GoogleMark />}
-              label={signingIn ? "Opening sign-in…" : t("lp.auth.google")}
-              onClick={() => handleProvider("google")}
-              disabled={signingIn}
-            />
-            <ProviderButton
-              icon={<EmailMark />}
-              label={t("lp.auth.email") || "Continue with Email"}
-              onClick={() => { if (!accepted) { setTried(true); return; } setAuthError(null); setEmailMode("entering"); }}
-              disabled={signingIn}
-            />
-          </>
-        )}
-
         {emailMode === "entering" && (
           <div className="space-y-3">
             <p className="text-xs text-center text-muted">
@@ -1666,7 +1673,15 @@ function AuthPage({ onSignUp, onPage, mode = "signup", onEnterStudio }) {
                 : "Pick a strong password — 8+ chars with upper, lower, number, and a symbol."}
             </p>
             <div>
+              {/* A real <label>, not a placeholder doing its job: a
+                  placeholder disappears the moment you type, so anyone
+                  who looks away loses what the field was for, and screen
+                  readers may never announce it at all. */}
+              <label htmlFor="auth-email" className="block text-start text-xs mb-1.5 ps-1 text-muted">
+                {t("lp.auth.emailLabel")}
+              </label>
               <input
+                id="auth-email"
                 type="email"
                 autoFocus
                 autoComplete="email"
@@ -1697,8 +1712,12 @@ function AuthPage({ onSignUp, onPage, mode = "signup", onEnterStudio }) {
               )}
             </div>
             <div>
+              <label htmlFor="auth-password" className="block text-start text-xs mb-1.5 ps-1 text-muted">
+                {t("lp.auth.passwordLabel")}
+              </label>
               <div className="relative">
                 <input
+                  id="auth-password"
                   type={showPassword ? "text" : "password"}
                   // "current-password": the page leads with sign-in, and a
                   // manager offering to FILL beats one offering to generate
@@ -1809,6 +1828,31 @@ function AuthPage({ onSignUp, onPage, mode = "signup", onEnterStudio }) {
               onClick={handleEmailPassword}
               disabled={!accepted || emailSending || !!emailError || !!passwordError}
             />
+
+            {/* Alternatives, plainly secondary. The rule is "one primary
+                action per screen": email is it, and a divider says the
+                rest are other ways to do the same thing rather than
+                competing choices. */}
+            <div className="flex items-center gap-3 pt-2" aria-hidden="true">
+              <span className="h-px flex-1" style={{ background: "var(--line-strong)", opacity: 0.5 }} />
+              <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted">
+                {t("lp.auth.or")}
+              </span>
+              <span className="h-px flex-1" style={{ background: "var(--line-strong)", opacity: 0.5 }} />
+            </div>
+            <ProviderButton
+              icon={<GoogleMark />}
+              label={signingIn ? t("portal.opening") : t("lp.auth.google")}
+              onClick={() => handleProvider("google")}
+              disabled={signingIn || emailSending}
+            />
+            <ProviderButton
+              icon={<OutlookMark />}
+              label={t("portal.continueMicrosoft")}
+              badge={t("portal.comingSoon")}
+              onClick={() => {}}
+              disabled
+            />
             {(
               <div className="flex flex-col items-center gap-2 pt-1">
                 <button
@@ -1829,13 +1873,6 @@ function AuthPage({ onSignUp, onPage, mode = "signup", onEnterStudio }) {
                 </button>
               </div>
             )}
-            <button
-              type="button"
-              onClick={() => { setEmailMode("idle"); setAuthError(null); }}
-              className="w-full text-xs text-muted hover:text-ink transition pt-1"
-            >
-              ← back to all options
-            </button>
           </div>
         )}
 
