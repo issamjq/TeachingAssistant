@@ -948,11 +948,51 @@ const FEATURE_FLAGS = [
 // =============================================================================
 // MAIN
 // =============================================================================
+// ── STOP ──────────────────────────────────────────────────────────────
+// This file builds the PRE-SUPABASE schema — accounts, schools, quizzes,
+// homework, drafts and twenty more. That schema no longer exists: it was
+// replaced in Supabase by a different design (users mirrored off
+// auth.users, faculty/students, workflows -> generations -> assignments).
+//
+// Running init against the new schema does not merely add junk. Its
+// stale-students repair looks for a `students` table with a `division`
+// column and no rows, and the NEW students table is exactly that — so
+// init would DROP it, cascading through class_members and quiz_attempts,
+// and rebuild the old one in its place. It would then create 25 dead
+// tables alongside the live ones.
+//
+// So it refuses. The check is for a table that exists only in the new
+// design and never in the old, which is a fact about the database rather
+// than a flag someone has to remember to set.
+//
+// Schema changes now go in backend/db/tune.sql — `npm run db:tune`.
+async function refuseIfSupabaseSchema() {
+  const { rows } = await pool.query(
+    `SELECT to_regclass('public.generations') IS NOT NULL AS live`
+  );
+  if (!rows[0].live) return;
+  console.error(
+    "\n⛔ Refusing to run.\n\n" +
+      "   This database is on the Supabase-authored schema. init.js builds the\n" +
+      "   old pre-Supabase one, and running it here would DROP the live\n" +
+      "   `students` table (cascading to class_members and quiz_attempts) and\n" +
+      "   create 25 obsolete tables beside the real ones.\n\n" +
+      "   Use `npm run db:tune` instead — backend/db/tune.sql.\n"
+  );
+  await pool.end();
+  process.exit(1);
+}
+
 export async function runInit() {
+  // FIRST. Before any statement runs, including the teachers→accounts
+  // rename — a guard that fires after the first write is not a guard.
+  await refuseIfSupabaseSchema();
+
   console.log("Renaming legacy teachers→accounts (no-op if already migrated)...");
   await pool.query(SCHEMA_RENAME_TEACHERS_TO_ACCOUNTS);
 
   console.log("Creating base schema...");
+
   // Must run BEFORE SCHEMA_BASE: it clears the way for the students
   // CREATE TABLE that SCHEMA_BASE would otherwise skip.
   await pool.query(SCHEMA_FIX_STALE_STUDENTS);

@@ -19,7 +19,8 @@
     "lint": "eslint .",
     "test:visual": "playwright test visual --project=desktop",
     "test:visual:update": "playwright test visual --project=desktop --update-snapshots",
-    "verify:auth": "node scripts/verify-auth.mjs"
+    "verify:auth": "node scripts/verify-auth.mjs",
+    "db:tune": "node backend/db/tune.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.94.0",
