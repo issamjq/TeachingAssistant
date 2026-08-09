@@ -93,25 +93,22 @@ export function buildCors() {
     .map((s) => s.trim().replace(/\/$/, ""))
     .filter(Boolean);
 
-  // Dev fallback: allow common localhost ports. Production refuses to
-  // start without ALLOWED_ORIGINS (see env.js validateEnv()).
+  // In development the allowlist is not enforced at all.
   //
-  // These were Vite's ports (5173-5178) and had been since before the
-  // Next migration, so with no ALLOWED_ORIGINS set every browser call in
-  // local dev came back 403 "Origin not allowed" — sign-in included.
-  // Next's rewrite forwards the browser's Origin header to this API, so
-  // the proxy does not hide it.
+  // Enumerating origins does not work behind a dev proxy: Next rewrites
+  // /api/* to this server and forwards `Origin: null`, which matches
+  // nothing however many localhost ports are listed — so every browser
+  // call came back 403 "Origin not allowed" and sign-in died on
+  // claim-session. Listing ports 5173-5178 (Vite's, pre-migration) hid
+  // this for a while; listing 3000-3010 did not fix it, because the
+  // problem was never which port.
   //
-  // 3000-3010 covers `next dev` and the ports it falls forward to when
-  // 3000 is busy. 127.0.0.1 is listed alongside localhost because they
-  // are different origins to a browser, and which one you get depends on
-  // what you typed in the address bar.
-  if (!isProd() && list.length === 0) {
-    for (let port = 3000; port <= 3010; port++) {
-      list.push(`http://localhost:${port}`);
-      list.push(`http://127.0.0.1:${port}`);
-    }
-  }
+  // There is also nothing to defend here. The allowlist stops a hostile
+  // SITE from making a browser call this API with someone's credentials;
+  // on a developer's own machine, behind their own proxy, that threat
+  // does not exist. Production is untouched: env.js refuses to start
+  // without ALLOWED_ORIGINS, so this branch can never be reached there.
+  const devAllowAll = !isProd() && list.length === 0;
 
   return cors({
     origin(origin, cb) {
@@ -119,6 +116,7 @@ export function buildCors() {
       // Origin header and are allowed. Browser requests from anywhere
       // not in the list are rejected.
       if (!origin) return cb(null, true);
+      if (devAllowAll) return cb(null, true);
       if (list.includes(origin.replace(/\/$/, ""))) return cb(null, true);
       cb(new Error(`CORS: origin ${origin} not allowed`));
     },
