@@ -1056,4 +1056,13 @@ export const EN = {
   "lp.auth.emailLabel": "Email",
   "lp.auth.passwordLabel": "Password",
   "lp.auth.or": "or",
+  "onb.cv.title": "Fill this in from your CV",
+  "onb.cv.lead": "Upload a PDF or a photo and we'll read your name, staff ID, subjects and languages off it. You check everything before it saves.",
+  "onb.cv.cta": "Upload CV",
+  "onb.cv.reading": "Reading…",
+  "onb.cv.filled": "Filled {n} field(s) from your CV — check them below.",
+  "onb.cv.nothing": "We couldn't find anything we could use in that file. Fill it in below.",
+  "onb.cv.failed": "We couldn't read that file. Try another, or fill it in below.",
+  "onb.cv.unavailable": "Reading documents isn't switched on yet. Fill it in below.",
+  "onb.cv.tooBig": "That file is over 5 MB. Try a smaller one.",
 };

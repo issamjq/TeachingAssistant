@@ -38,6 +38,122 @@ import { api } from "../_shared";
 // sections per chosen school. Keeping them apart matches how teachers
 // think about it (place first, then classes) and stops the school card
 // from ballooning on the picking step.
+
+// ── Fill from a CV ────────────────────────────────────────────────────
+// Two clicks to a filled form: press the button, pick the file. The
+// server reads it (POST /api/onboarding/parse) and hands back only the
+// fields it can actually find; everything lands in the form below, where
+// the teacher checks it before anything is saved.
+//
+// Nothing is auto-submitted. OCR of a CV is a good first draft and a bad
+// source of truth, so the parse fills the form and stops — the existing
+// required-field validation still has to pass.
+function FillFromCv({ onFilled, t }) {
+  const inputRef = useRef(null);
+  const [state, setState] = useState("idle"); // idle | reading | done | error
+  const [message, setMessage] = useState(null);
+
+  const read = (file) =>
+    new Promise((resolve, reject) => {
+      const r = new FileReader();
+      r.onerror = () => reject(new Error("Could not read that file."));
+      // result is "data:<mime>;base64,<payload>" — the API wants the tail.
+      r.onload = () => resolve(String(r.result).split(",")[1] || "");
+      r.readAsDataURL(file);
+    });
+
+  const onPick = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // let the same file be re-picked after an error
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      setState("error");
+      setMessage(t("onb.cv.tooBig"));
+      return;
+    }
+    setState("reading");
+    setMessage(null);
+    try {
+      const out = await api("/api/onboarding/parse", {
+        method: "POST",
+        body: {
+          documents: [
+            { name: file.name, mediaType: file.type, dataBase64: await read(file) },
+          ],
+        },
+      });
+      const filled = onFilled(out.fields || {});
+      setState("done");
+      setMessage(
+        filled > 0
+          ? t("onb.cv.filled", { n: filled })
+          : t("onb.cv.nothing")
+      );
+    } catch (err) {
+      setState("error");
+      // 503 is the server saying document reading isn't configured — a
+      // different problem from a file it could not read, and the teacher
+      // should not be told to try another file.
+      setMessage(
+        err?.code === "NO_AI_KEY" ? t("onb.cv.unavailable") : t("onb.cv.failed")
+      );
+    }
+  };
+
+  const busy = state === "reading";
+  return (
+    <div
+      className="rounded-2xl p-4 sm:p-5 mb-6"
+      style={{ background: "var(--paper)", border: "1px dashed var(--line-strong)" }}
+    >
+      <div className="flex items-start gap-4 flex-wrap">
+        <div className="flex-1 min-w-[210px]">
+          <p className="text-sm font-medium" style={{ color: "var(--ink)" }}>
+            {t("onb.cv.title")}
+          </p>
+          <p className="text-xs mt-1" style={{ color: "var(--ink-3)" }}>
+            {t("onb.cv.lead")}
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => inputRef.current?.click()}
+          disabled={busy}
+          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition"
+          style={{
+            background: "var(--ink)",
+            color: "var(--paper)",
+            opacity: busy ? 0.7 : 1,
+            cursor: busy ? "wait" : "pointer",
+            minHeight: 44,
+          }}
+        >
+          {busy ? <Loader2 size={15} className="animate-spin" /> : <Upload size={15} />}
+          {busy ? t("onb.cv.reading") : t("onb.cv.cta")}
+        </button>
+        <input
+          ref={inputRef}
+          type="file"
+          accept="application/pdf,image/png,image/jpeg,image/webp"
+          onChange={onPick}
+          className="sr-only"
+          tabIndex={-1}
+          aria-hidden="true"
+        />
+      </div>
+      {message && (
+        <p
+          role="status"
+          className="text-xs mt-3"
+          style={{ color: state === "error" ? "var(--clay, #b3442b)" : "#3f5c34" }}
+        >
+          {message}
+        </p>
+      )}
+    </div>
+  );
+}
+
 const STEPS = ["identity", "subjects", "schools", "scope", "students"];
 
 const EMPTY = {
@@ -282,6 +398,36 @@ export default function ProfileForm({ onDone, onBack }) {
   };
 
   const set = (patch) => setData((d) => ({ ...d, ...patch }));
+
+  // Map the parser's snake_case onto the form's shape, and only fill what
+  // is still EMPTY — a teacher who has already typed their name should not
+  // have it overwritten by a worse guess from a scan. Returns how many
+  // fields were actually filled, so the card can say something true.
+  const applyParsed = (fields) => {
+    let filled = 0;
+    const patch = {};
+    const text = (key, to) => {
+      const v = (fields[key] || "").trim();
+      if (v && !String(data[to] || "").trim()) { patch[to] = v; filled += 1; }
+    };
+    const list = (key, to, allowed) => {
+      const raw = Array.isArray(fields[key]) ? fields[key] : [];
+      if (!raw.length || (data[to] || []).length) return;
+      // Keep only values the rest of the app understands — a free-text
+      // subject that is not in MAJORS would fail validation later and be
+      // impossible to clear from a chip list.
+      const keep = allowed ? raw.filter((v) => allowed.includes(v)) : raw;
+      if (keep.length) { patch[to] = keep; filled += 1; }
+    };
+    text("first_name", "firstName");
+    text("last_name", "lastName");
+    text("staff_id", "staffId");
+    text("bio", "bio");
+    list("majors", "majors", MAJORS);
+    list("languages", "languages", QUIZ_LANGUAGES);
+    if (filled) set(patch);
+    return filled;
+  };
   // Switching gender swaps the avatar set, so drop any avatar that
   // belonged to the previous set — otherwise the picker would show a
   // selected ring with no matching tile.
@@ -378,6 +524,7 @@ export default function ProfileForm({ onDone, onBack }) {
 
         {step === "identity" && (
           <div className="space-y-6">
+          <FillFromCv t={t} onFilled={applyParsed} />
           <div className="grid sm:grid-cols-2 gap-4">
             <Field label={t("onb.fld.firstName")} required ref={setFieldRef("firstName")} invalid={isMissing("firstName")} errorText={t("onb.fld.required")}>
               <input
