@@ -36,6 +36,26 @@ const MAX_TOTAL = 18_000_000;
 // asks for four things, and everything beyond them is a bonus that saves
 // the teacher a trip to Settings later. Asking the model for more than
 // this measurably increases how often it invents things.
+// Gemini wants the same shape as an OpenAPI Schema, with the type names
+// as proto enum constants (STRING, ARRAY, OBJECT) rather than JSON
+// Schema's lowercase ones. Derived from EXTRACT_TOOL below so the two
+// providers can never drift into asking for different fields.
+const geminiSchema = (jsonSchema) => {
+  const conv = (n) => {
+    if (n.type === "object") {
+      return {
+        type: "OBJECT",
+        properties: Object.fromEntries(
+          Object.entries(n.properties || {}).map(([k, v]) => [k, conv(v)])
+        ),
+      };
+    }
+    if (n.type === "array") return { type: "ARRAY", items: conv(n.items) };
+    return { type: "STRING", description: n.description };
+  };
+  return conv(jsonSchema);
+};
+
 const EXTRACT_TOOL = {
   name: "teacher_details",
   description:
@@ -121,6 +141,75 @@ const clean = (obj) => {
 /** What the sign-up form cannot proceed without. */
 const REQUIRED = ["first_name", "last_name", "majors", "grade_levels"];
 
+/**
+ * Gemini, over plain REST — no SDK, because one call does not justify a
+ * dependency. responseSchema + responseMimeType make the model answer
+ * with the object or fail, which is the same guarantee forced tool use
+ * gives on Anthropic.
+ *
+ * The model name is overridable: model ids move faster than this file
+ * will be edited, and a 404 from a retired name should be fixable with
+ * an env var rather than a deploy.
+ */
+async function parseWithGemini(documents) {
+  const model = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+  const url =
+    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+
+  const parts = documents.map((d) => ({
+    inline_data: { mime_type: d.mediaType, data: d.dataBase64 },
+  }));
+  parts.push({ text: PROMPT });
+
+  const r = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-goog-api-key": process.env.GEMINI_API_KEY,
+    },
+    body: JSON.stringify({
+      contents: [{ parts }],
+      generationConfig: {
+        responseMimeType: "application/json",
+        responseSchema: geminiSchema(EXTRACT_TOOL.input_schema),
+        temperature: 0,
+      },
+    }),
+  });
+
+  if (!r.ok) {
+    const detail = await r.text().catch(() => "");
+    throw Object.assign(
+      new Error(`Gemini returned ${r.status}. ${detail.slice(0, 300)}`),
+      { code: "GEMINI_HTTP" }
+    );
+  }
+  const out = await r.json();
+  const text = out?.candidates?.[0]?.content?.parts?.map((p) => p.text).join("") || "";
+  try {
+    return JSON.parse(text);
+  } catch {
+    // responseSchema makes this very unlikely, but a truncated response
+    // (MAX_TOKENS) would land here and must not read as "found nothing".
+    throw Object.assign(new Error("Gemini did not return usable JSON."), {
+      code: "GEMINI_SHAPE",
+    });
+  }
+}
+
+/** Anthropic, via forced tool use. */
+async function parseWithAnthropic(documents) {
+  const client = new Anthropic();
+  const out = await client.messages.create({
+    model: process.env.ANTHROPIC_MODEL || "claude-haiku-4-5",
+    max_tokens: 1024,
+    tools: [EXTRACT_TOOL],
+    tool_choice: { type: "tool", name: EXTRACT_TOOL.name },
+    messages: [{ role: "user", content: buildContent(documents) }],
+  });
+  return out.content.find((c) => c.type === "tool_use")?.input;
+}
+
 router.post("/parse", async (req, res) => {
   try {
     const documents = Array.isArray(req.body?.documents) ? req.body.documents : [];
@@ -128,30 +217,33 @@ router.post("/parse", async (req, res) => {
       return res.status(400).json({ error: "Send between one and four documents." });
     }
 
-    // Fail with an explanation rather than a 500 from the SDK. Without a
-    // key this is the one route in the app whose absence is invisible
+    // Either provider will do; Gemini first only because its free tier
+    // makes it the likelier one to be configured. Both are asked for the
+    // same schema, so the rest of this route does not care which answered.
+    //
+    // Fail with an explanation rather than a 500 from inside an SDK.
+    // Without a key this is the one route whose absence is invisible
     // until a teacher uploads a file and waits.
-    if (!process.env.ANTHROPIC_API_KEY) {
+    const provider = process.env.GEMINI_API_KEY
+      ? "gemini"
+      : process.env.ANTHROPIC_API_KEY
+      ? "anthropic"
+      : null;
+    if (!provider) {
       return res.status(503).json({
         error: "Document reading isn't configured on this server.",
         code: "NO_AI_KEY",
       });
     }
 
-    const client = new Anthropic();
-    const out = await client.messages.create({
-      model: "claude-haiku-4-5",
-      max_tokens: 1024,
-      tools: [EXTRACT_TOOL],
-      // Forced tool use: the reply is the structured object or nothing.
-      // Parsing prose for these fields is how you end up with a staff ID
-      // of "Staff ID: 4417".
-      tool_choice: { type: "tool", name: EXTRACT_TOOL.name },
-      messages: [{ role: "user", content: buildContent(documents) }],
-    });
-
-    const block = out.content.find((c) => c.type === "tool_use");
-    const fields = clean(block?.input);
+    // buildContent validates type and size, and Gemini does not use it —
+    // so call it either way to keep the gate in one place.
+    buildContent(documents);
+    const raw =
+      provider === "gemini"
+        ? await parseWithGemini(documents)
+        : await parseWithAnthropic(documents);
+    const fields = clean(raw);
     res.json({
       fields,
       found: Object.keys(fields),
