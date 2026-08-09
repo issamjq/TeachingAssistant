@@ -35,8 +35,19 @@ function normalizeUser(user) {
   return {
     uid: user.id,
     email: user.email || meta.email || "",
-    displayName: meta.full_name || meta.name || "",
+    displayName:
+      meta.full_name ||
+      meta.name ||
+      // LinkedIn OIDC sends the parts, not a joined name.
+      [meta.given_name, meta.family_name].filter(Boolean).join(" ") ||
+      "",
+    // Kept separate as well as joined: splitting a display name on
+    // whitespace guesses wrong for anyone with two given names or a
+    // compound family name, and LinkedIn already tells us the answer.
+    firstName: meta.given_name || "",
+    lastName: meta.family_name || "",
     photoURL: meta.avatar_url || meta.picture || "",
+    locale: meta.locale || null,
     emailVerified: Boolean(user.email_confirmed_at),
     provider: user.app_metadata?.provider || null,
     // The untouched Supabase user, for anything not mapped above.
@@ -92,6 +103,29 @@ export async function signInWithGoogle() {
     })
   );
   return null; // navigation is in flight; nothing to return
+}
+
+// LinkedIn. Supabase calls this provider "linkedin_oidc" — the older
+// "linkedin" provider is the deprecated v1 API and is disabled on this
+// project.
+//
+// Worth knowing what this can and cannot give us: the OIDC scopes below
+// return the member's name, email and picture. Positions, employer,
+// education and skills are NOT part of OpenID Connect — reading those
+// needs LinkedIn Partner Program approval, which is an application, not
+// a scope. So this fills the identity fields and nothing more; subjects
+// and grades still have to come from the teacher or from a CV.
+export async function signInWithLinkedIn() {
+  unwrap(
+    await supabase.auth.signInWithOAuth({
+      provider: "linkedin_oidc",
+      options: {
+        redirectTo: redirectTo("/"),
+        scopes: "openid profile email",
+      },
+    })
+  );
+  return null; // navigation is in flight
 }
 
 // Microsoft / Outlook. Supabase calls this provider "azure" (it fronts

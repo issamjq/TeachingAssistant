@@ -1065,4 +1065,5 @@ export const EN = {
   "onb.cv.failed": "We couldn't read that file. Try another, or fill it in below.",
   "onb.cv.unavailable": "Reading documents isn't switched on yet. Fill it in below.",
   "onb.cv.tooBig": "That file is over 5 MB. Try a smaller one.",
+  "lp.auth.linkedin": "Continue with LinkedIn",
 };

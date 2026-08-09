@@ -1114,6 +1114,20 @@ function OutlookMark() {
   );
 }
 
+// LinkedIn's mark, drawn rather than fetched so it is the official blue
+// at any size and costs no request.
+function LinkedInMark() {
+  return (
+    <svg width="17" height="17" viewBox="0 0 24 24" aria-hidden="true">
+      <rect width="24" height="24" rx="3" fill="#0A66C2" />
+      <path
+        fill="#fff"
+        d="M8.2 18.5H5.4V9.7h2.8v8.8ZM6.8 8.5a1.6 1.6 0 1 1 0-3.3 1.6 1.6 0 0 1 0 3.3Zm11.8 10h-2.8v-4.3c0-1 0-2.4-1.5-2.4s-1.7 1.1-1.7 2.3v4.4H9.8V9.7h2.7v1.2h.04a3 3 0 0 1 2.7-1.5c2.9 0 3.4 1.9 3.4 4.3v4.8Z"
+      />
+    </svg>
+  );
+}
+
 function ProviderButton({ icon, label, onClick, disabled, badge }) {
   return (
     <button
@@ -1524,6 +1538,7 @@ function AuthPage({ onSignUp, onPage, mode = "signup", onEnterStudio, notice }) 
 
       const lib = await import("../lib/supabaseAuth");
       if (provider === "google") await lib.signInWithGoogle();
+      else if (provider === "linkedin") await lib.signInWithLinkedIn();
       else await lib.signInWithMicrosoft();
       // Unreachable in practice — navigation is already in flight.
     } catch (e) {
@@ -1533,7 +1548,8 @@ function AuthPage({ onSignUp, onPage, mode = "signup", onEnterStudio, notice }) 
       console.error(`[auth/${provider}]`, e);
       try { sessionStorage.removeItem(PENDING_SIGNUP_KEY); } catch { /* ignore */ }
 
-      const providerLabel = provider === "google" ? "Google" : "Microsoft";
+      const providerLabel =
+        provider === "google" ? "Google" : provider === "linkedin" ? "LinkedIn" : "Microsoft";
       // Failures here happen BEFORE the redirect, so the Firebase popup
       // codes (popup-blocked, popup-closed-by-user, cancelled-popup-
       // request) no longer exist — there is no popup. What's left is
@@ -1581,6 +1597,10 @@ function AuthPage({ onSignUp, onPage, mode = "signup", onEnterStudio, notice }) 
           uid: user.uid,
           email: user.email || "",
           displayName: user.displayName || "",
+          // Carried separately so the prefill does not have to split a
+          // display name — see the note where `merged` is built.
+          firstName: user.firstName || "",
+          lastName: user.lastName || "",
           photoURL: user.photoURL || "",
         },
       };
@@ -1967,6 +1987,12 @@ function AuthPage({ onSignUp, onPage, mode = "signup", onEnterStudio, notice }) 
               icon={<GoogleMark />}
               label={signingIn ? t("portal.opening") : t("lp.auth.google")}
               onClick={() => handleProvider("google")}
+              disabled={signingIn || emailSending}
+            />
+            <ProviderButton
+              icon={<LinkedInMark />}
+              label={signingIn ? t("portal.opening") : t("lp.auth.linkedin")}
+              onClick={() => handleProvider("linkedin")}
               disabled={signingIn || emailSending}
             />
             <ProviderButton
@@ -2676,6 +2702,8 @@ export default function Landing({ onOpenStudio, heroVariant = null }) {
             uid: user.uid,
             email: user.email || "",
             displayName: user.displayName || "",
+            firstName: user.firstName || "",
+            lastName: user.lastName || "",
             photoURL: user.photoURL || "",
           },
         });
@@ -2752,6 +2780,8 @@ export default function Landing({ onOpenStudio, heroVariant = null }) {
             uid: user.uid,
             email: user.email || "",
             displayName: user.displayName || "",
+            firstName: user.firstName || "",
+            lastName: user.lastName || "",
             photoURL: user.photoURL || "",
           },
         });
@@ -2821,12 +2851,18 @@ export default function Landing({ onOpenStudio, heroVariant = null }) {
       // Pre-fill the onboarding profile with the Google account's
       // name/email/avatar so the teacher doesn't retype what we already
       // know. ProfileForm reads getPendingProfile() on mount.
-      const [firstName, ...rest] = (payload.authUser.displayName || "").split(/\s+/).filter(Boolean);
+      // Prefer the parts the provider gave us. Splitting a display name on
+      // whitespace guesses wrong for two given names or a compound family
+      // name; LinkedIn and Google both send given_name/family_name, so use
+      // them and keep the split only as a fallback.
+      const [splitFirst, ...splitRest] = (payload.authUser.displayName || "")
+        .split(/\s+/)
+        .filter(Boolean);
       const existing = getPendingProfile() || {};
       const merged = {
         ...existing,
-        firstName: existing.firstName || firstName || "",
-        lastName:  existing.lastName  || rest.join(" "),
+        firstName: existing.firstName || payload.authUser.firstName || splitFirst || "",
+        lastName:  existing.lastName  || payload.authUser.lastName  || splitRest.join(" "),
         email:     existing.email     || payload.authUser.email,
         avatarUrl: existing.avatarUrl || payload.authUser.photoURL,
       };
@@ -2890,7 +2926,66 @@ export default function Landing({ onOpenStudio, heroVariant = null }) {
         }
       }
     }
-    // New user (or check failed): collect profile then plan picker.
+    // ── New user ────────────────────────────────────────────────────
+    // A social sign-in already told us who they are, so there is nothing
+    // to ask before letting them in: create the account on the trial,
+    // save what we know in the BACKGROUND, and open the studio. The
+    // wizard's remaining questions — subjects, grades, schools — are
+    // things the studio prompts for when they first matter, and Settings
+    // holds the rest.
+    //
+    // Email sign-ups still go through the wizard. There we know an
+    // address and nothing else, so there is genuinely something to ask.
+    const known = getPendingProfile() || {};
+    const fastTrack =
+      provider !== "email" && !!known.email && !!(known.firstName || known.lastName);
+
+    if (fastTrack) {
+      try {
+        const row = await apiFetch("/api/auth/supabase", {
+          method: "POST",
+          body: { plan: "trial" },
+        });
+        if (row?.active_session_id) setSessionId(row.active_session_id);
+        setAccount({
+          provider,
+          plan: "trial",
+          profile: {
+            firstName: known.firstName || "",
+            lastName: known.lastName || "",
+            email: known.email || "",
+            avatarUrl: known.avatarUrl || "",
+          },
+          role: row?.role || "teacher",
+          sub_role: row?.sub_role || null,
+          subscriptionStatus: row?.subscription_status,
+          subscriptionEndsAt: row?.subscription_ends_at,
+        });
+        if (row?.role) setLocalRole(row.role);
+
+        // Deliberately NOT awaited. Writing the name is not worth making
+        // somebody watch a spinner for, and if it fails they are already
+        // inside the product with an account — the fields are editable in
+        // Settings, and the next save overwrites whatever missed.
+        apiFetch("/api/me", {
+          method: "PATCH",
+          body: {
+            first_name: known.firstName || undefined,
+            last_name: known.lastName || undefined,
+          },
+        }).catch((err) => console.warn("[auth] background profile save failed:", err));
+
+        clearPendingProfile();
+        onOpenStudio("studio");
+        return;
+      } catch (err) {
+        // Falling through to the wizard is the right failure: it collects
+        // the same details by hand and ends at the same bootstrap call.
+        console.warn("[auth] fast track failed, falling back to onboarding:", err);
+      }
+    }
+
+    // Otherwise: collect profile, then plan picker.
     goPage("profile");
   };
   const handleProfileDone = () => {

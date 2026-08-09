@@ -1034,4 +1034,5 @@ export const AR: Partial<Record<TranslationKey, string>> = {
   "onb.cv.failed": "تعذّرت قراءة الملف. جرّب ملفاً آخر أو أدخل البيانات بالأسفل.",
   "onb.cv.unavailable": "قراءة المستندات غير مفعّلة بعد. أدخل البيانات بالأسفل.",
   "onb.cv.tooBig": "حجم الملف يتجاوز 5 ميجابايت. جرّب ملفاً أصغر.",
+  "lp.auth.linkedin": "المتابعة بحساب LinkedIn",
 };
