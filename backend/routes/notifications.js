@@ -1,21 +1,34 @@
+// =====================================================================
+// /api/notifications — the bell
+//
+// Notices hang off the USER, not the faculty row: they are addressed to
+// a person, and a person may later be something other than a teacher.
+// The reminders they are generated from hang off faculty, which is why
+// both ids appear below.
+//
+// The wire shape keeps `is_read` and `message`, which is what the studio
+// renders. The column is `read_at` because when something was read is
+// worth more than whether it was, and a boolean cannot be recovered from
+// nothing later.
+// =====================================================================
 import { Router } from "express";
 import { pool } from "../lib/db.js";
 import { handleErr } from "../lib/helpers.js";
-import { loadCurrentTeacher } from "../lib/currentTeacher.js";
 
 const router = Router();
 
+const SHAPE = `id, kind, title, body AS message, link, ref_table, ref_id,
+               (read_at IS NOT NULL) AS is_read, read_at, created_at`;
+
 router.get("/", async (req, res) => {
   try {
-    const cur = await loadCurrentTeacher(req);
     const onlyUnread = req.query.unread === "true";
     const r = await pool.query(
-      `SELECT id, kind, message, link, is_read, created_at
-         FROM notifications
-        WHERE account_id = $1 ${onlyUnread ? "AND is_read = FALSE" : ""}
+      `SELECT ${SHAPE} FROM notifications
+        WHERE user_id = $1 ${onlyUnread ? "AND read_at IS NULL" : ""}
         ORDER BY created_at DESC
         LIMIT 50`,
-      [cur.id]
+      [req.account.user_id]
     );
     res.json(r.rows);
   } catch (err) {
@@ -23,87 +36,67 @@ router.get("/", async (req, res) => {
   }
 });
 
-// POST /api/notifications/refresh — auto-emit reminders for upcoming work.
-//   - lessons starting today and within the next 60 minutes
-//   - homework with due_date in the next 24h that's still Open
-//   - quizzes scheduled for tomorrow (or today, if not yet emitted)
-// Each (teacher, kind, ref) is unique, so calling this on every page load
-// or every minute is safe and cheap.
+/**
+ * POST /refresh — raise reminders for work that is about to matter.
+ *
+ * Safe to call on every page load: each notice carries a reference to
+ * what caused it and a partial unique index on (user, kind, ref) makes
+ * the insert idempotent. That is now the database's job rather than a
+ * SELECT-then-INSERT, which two concurrent tabs could both pass.
+ */
+const JOBS = [
+  {
+    kind: "lesson_upcoming",
+    link: "/schedule",
+    ref_table: "schedule_entries",
+    sql: `
+      SELECT id AS ref_id,
+             'Lesson "' || title || '" starts at ' ||
+               to_char(start_time, 'HH24:MI') || '.' AS message
+        FROM schedule_entries
+       WHERE faculty_id = $1
+         AND date = CURRENT_DATE
+         AND start_time IS NOT NULL
+         AND start_time BETWEEN CURRENT_TIME AND CURRENT_TIME + INTERVAL '60 minutes'
+         AND status = 'planned'`,
+  },
+  {
+    // One job for every kind of assigned work, because they are one
+    // table now. The type is in the message rather than in the kind, so
+    // a teacher reads "Quiz … closes tomorrow" and not "assignment_due".
+    kind: "assignment_due",
+    link: "/planner",
+    ref_table: "assignments",
+    sql: `
+      SELECT asg.id AS ref_id,
+             initcap(replace(a.type, '_', ' ')) || ' "' ||
+               COALESCE(a.content->>'title', a.content->>'name', 'Untitled') ||
+               '" closes ' ||
+               CASE WHEN asg.ends_at::date = CURRENT_DATE THEN 'today.' ELSE 'tomorrow.' END AS message
+        FROM assignments asg
+        JOIN ai_studio a ON a.id = asg.generation_id
+       WHERE a.faculty_id = $1
+         AND asg.ends_at IS NOT NULL
+         AND asg.ends_at >= now()
+         AND asg.ends_at <= now() + INTERVAL '1 day'`,
+  },
+];
+
 router.post("/refresh", async (req, res) => {
   try {
-    const cur = await loadCurrentTeacher(req);
-
-    const inserts = [
-      // Lessons starting in the next 60 min today.
-      {
-        kind: "lesson_upcoming",
-        link: "/schedule",
-        sql: `
-          SELECT id AS ref_id,
-                 'Lesson "' || title || '" starts at ' || start_time::text || '.' AS message
-            FROM schedule_entries
-           WHERE account_id = $1
-             AND date = CURRENT_DATE
-             AND start_time BETWEEN CURRENT_TIME AND CURRENT_TIME + INTERVAL '60 minutes'
-             AND status = 'planned'
-        `,
-        ref_table: "schedule_entries",
-      },
-      // Homework due in next 24h.
-      {
-        kind: "homework_due",
-        link: "/homework",
-        sql: `
-          SELECT id AS ref_id,
-                 'Homework "' || title || '" is due ' ||
-                   CASE WHEN due_date = CURRENT_DATE THEN 'today.' ELSE 'tomorrow.' END AS message
-            FROM homework
-           WHERE account_id = $1
-             AND status = 'Open'
-             AND due_date IS NOT NULL
-             AND due_date >= CURRENT_DATE
-             AND due_date <= CURRENT_DATE + INTERVAL '1 day'
-        `,
-        ref_table: "homework",
-      },
-      // Quizzes scheduled for today or tomorrow.
-      {
-        kind: "quiz_scheduled",
-        link: "/quizzes",
-        sql: `
-          SELECT id AS ref_id,
-                 'Quiz "' || title || '" is scheduled for ' ||
-                   CASE WHEN scheduled_for = CURRENT_DATE THEN 'today.' ELSE 'tomorrow.' END AS message
-            FROM quizzes
-           WHERE account_id = $1
-             AND scheduled_for IS NOT NULL
-             AND scheduled_for >= CURRENT_DATE
-             AND scheduled_for <= CURRENT_DATE + INTERVAL '1 day'
-        `,
-        ref_table: "quizzes",
-      },
-    ];
-
     let created = 0;
-    for (const job of inserts) {
-      const candidates = await pool.query(job.sql, [cur.id]);
-      for (const row of candidates.rows) {
-        // Manual dedup — partial-unique-index ON CONFLICT clauses need the
-        // exact predicate, which is brittle. A pre-check is fast enough and
-        // makes intent obvious.
-        const existing = await pool.query(
-          `SELECT id FROM notifications
-            WHERE account_id = $1 AND kind = $2 AND ref_table = $3 AND ref_id = $4
-            LIMIT 1`,
-          [cur.id, job.kind, job.ref_table, row.ref_id]
-        );
-        if (existing.rowCount > 0) continue;
+    for (const job of JOBS) {
+      const rows = await pool.query(job.sql, [req.account.id]);
+      for (const row of rows.rows) {
         const ins = await pool.query(
-          `INSERT INTO notifications (account_id, kind, message, link, ref_table, ref_id)
-           VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
-          [cur.id, job.kind, row.message, job.link, job.ref_table, row.ref_id]
+          `INSERT INTO notifications (user_id, kind, body, link, ref_table, ref_id)
+           VALUES ($1, $2, $3, $4, $5, $6)
+           ON CONFLICT (user_id, kind, ref_table, ref_id) WHERE ref_id IS NOT NULL
+           DO NOTHING
+           RETURNING id`,
+          [req.account.user_id, job.kind, row.message, job.link, job.ref_table, row.ref_id]
         );
-        if (ins.rowCount > 0) created++;
+        created += ins.rowCount;
       }
     }
     res.json({ ok: true, created });
@@ -114,19 +107,15 @@ router.post("/refresh", async (req, res) => {
 
 router.post("/mark-read", async (req, res) => {
   try {
-    const cur = await loadCurrentTeacher(req);
     const ids = Array.isArray(req.body?.ids) ? req.body.ids : null;
-    if (ids) {
-      await pool.query(
-        "UPDATE notifications SET is_read = TRUE WHERE account_id = $1 AND id = ANY($2::int[])",
-        [cur.id, ids]
-      );
-    } else {
-      await pool.query(
-        "UPDATE notifications SET is_read = TRUE WHERE account_id = $1",
-        [cur.id]
-      );
-    }
+    // uuid[], not int[] — ids are uuids in this schema, and the old cast
+    // would have thrown 22P02 on every call.
+    await pool.query(
+      `UPDATE notifications SET read_at = now(), updated_at = now()
+        WHERE user_id = $1 AND read_at IS NULL
+          ${ids ? "AND id = ANY($2::uuid[])" : ""}`,
+      ids ? [req.account.user_id, ids] : [req.account.user_id]
+    );
     res.json({ ok: true });
   } catch (err) {
     handleErr(res, "POST /api/notifications/mark-read", err);
@@ -135,10 +124,9 @@ router.post("/mark-read", async (req, res) => {
 
 router.delete("/:id", async (req, res) => {
   try {
-    const cur = await loadCurrentTeacher(req);
     const r = await pool.query(
-      "DELETE FROM notifications WHERE id = $1 AND account_id = $2",
-      [req.params.id, cur.id]
+      `DELETE FROM notifications WHERE id = $1::uuid AND user_id = $2`,
+      [req.params.id, req.account.user_id]
     );
     if (r.rowCount === 0) return res.status(404).json({ error: "Not found" });
     res.json({ ok: true });

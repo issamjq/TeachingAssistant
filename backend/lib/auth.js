@@ -13,6 +13,7 @@
 import { pool } from "./db.js";
 import { verifyAccessToken } from "./supabaseAuth.js";
 import { isPrivilegedRole } from "./roles.js";
+import { findTeacherByUid } from "./teacher.js";
 
 // Extract the client IP, honoring the X-Forwarded-For chain Render +
 // Vercel add when proxying. Fall back to socket address otherwise.
@@ -24,31 +25,14 @@ export const clientIp = (req) => {
 
 export const userAgent = (req) => req.headers["user-agent"] || null;
 
-const ACCOUNT_COLS = `id, first_name, last_name, email, phone, staff_id, majors, grade_levels,
-                       languages, sections, class_map, grade_sections,
-                       nationality, hire_date, bio,
-                       role, sub_role, status, auth_uid, avatar_url,
-                       subscription_status, subscription_ends_at, subscription_plan,
-                       last_login_at, last_login_ip, active_session_id,
-                       created_at, updated_at`;
-
-export const ACCOUNT_COLS_SQL = ACCOUNT_COLS;
-
-// Find the account row attached to a Supabase user id (or null).
-// auth_uid is a UUID column; the parameter arrives as the `sub` claim
-// string and Postgres casts it, but a malformed value would raise 22P02
-// rather than returning no rows — so we guard the shape first and treat
-// anything non-UUID as simply "no such account".
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-export async function findAccountByUid(uid) {
-  if (!uid || !UUID_RE.test(uid)) return null;
-  const r = await pool.query(
-    `SELECT ${ACCOUNT_COLS} FROM accounts WHERE auth_uid = $1`,
-    [uid]
-  );
-  return r.rows[0] || null;
-}
+// The flat teacher row is assembled by lib/teacher.js from users +
+// faculty + subscriptions. It is still exposed as `req.account` because
+// that is what 26 route files call it; the name is the only thing left
+// of the old single-table shape.
+//
+// Kept as a re-export so callers that only wanted "find the account for
+// this uid" do not each have to know about the three-table join.
+export const findAccountByUid = findTeacherByUid;
 
 // Role enforcement — separate gate from the auth check itself. Routes
 // that admins or devs should be able to call get `requireRole("admin")`
@@ -79,7 +63,10 @@ const isSubscriptionExpired = (t) => {
   if (!t) return false;
   if (isPrivilegedRole(t.role)) return false;
   if (t.status === "suspended" || t.status === "deleted") return true;
-  if (t.subscription_status === "expired" || t.subscription_status === "suspended") return true;
+  // 'canceled' and 'past_due' come from the new subscriptions
+  // vocabulary; 'expired' and 'suspended' are kept so a row written
+  // under the old one is still read correctly.
+  if (["expired", "suspended", "canceled", "past_due"].includes(t.subscription_status)) return true;
   // trial + active both rely on subscription_ends_at. A null end date
   // is treated as "open-ended" (admin extension, future Stripe annual
   // auto-renew, etc.) — let it through.
@@ -122,7 +109,7 @@ export function requireAuth({ optional = false, allowExpired = false, skipSessio
         if (req.account.subscription_status !== "expired") {
           try {
             await pool.query(
-              `UPDATE accounts SET subscription_status = 'expired', updated_at = NOW() WHERE id = $1`,
+              `UPDATE subscriptions SET status = 'expired', updated_at = now() WHERE faculty_id = $1`,
               [req.account.id]
             );
           } catch { /* non-fatal — middleware still rejects */ }

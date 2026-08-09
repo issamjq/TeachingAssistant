@@ -249,7 +249,10 @@ BEGIN
       ('users',                'role',              $q$role IN ('teacher','student','school_admin','superadmin')$q$),
       ('users',                'account_status',    $q$account_status IN ('active','suspended','deleted')$q$),
       ('users',                'onboarding_status', $q$onboarding_status IN ('pending','in_progress','complete')$q$),
-      ('subscriptions',        'plan',              $q$plan IN ('trial','starter','pro','school')$q$),
+      -- The real plan ids, read off src/lib/plans.js rather than guessed.
+      -- The first pass invented ('starter','pro','school') and would have
+      -- rejected every actual sign-up.
+      ('subscriptions',        'plan',              $q$plan IN ('trial','monthly','quarterly','annual')$q$),
       ('subscriptions',        'status',            $q$status IN ('trialing','active','past_due','canceled','expired')$q$),
       ('workflows',            'status',            $q$status IN ('running','complete','failed','canceled')$q$),
       ('generations',          'status',            $q$status IN ('generating','complete','failed')$q$),
@@ -358,3 +361,161 @@ BEGIN
     EXECUTE format('ANALYZE public.%I', t);
   END LOOP;
 END $$;
+
+
+-- ── 11. The three screens with nowhere to store anything ──────────────
+--
+-- The new schema models generated work (ai_studio), who it was given to
+-- (assignments) and what came back (quiz_attempts). It does not model
+-- the timetable, the register, or a gradebook — and the studio has a
+-- screen for each. They are not generated content, so they do not belong
+-- in ai_studio: a lesson at 09:00 on Tuesday is a fact about the week,
+-- not an artifact with a jsonb body.
+--
+-- Everything hangs off faculty, matching the rest of the schema.
+
+CREATE TABLE IF NOT EXISTS public.schedule_entries (
+  id         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  faculty_id uuid NOT NULL REFERENCES public.faculty(id) ON DELETE CASCADE,
+  class_id   uuid REFERENCES public.classes(id) ON DELETE SET NULL,
+  title      text NOT NULL,
+  subject    text,
+  grade      text,
+  section    text,
+  date       date NOT NULL,
+  start_time time,
+  end_time   time,
+  location   text,
+  notes      text,
+  status     text NOT NULL DEFAULT 'planned',
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+-- One row per student per session. The unique key is what makes marking
+-- a register idempotent — taking it twice corrects it rather than
+-- doubling it.
+CREATE TABLE IF NOT EXISTS public.attendance (
+  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  faculty_id  uuid NOT NULL REFERENCES public.faculty(id) ON DELETE CASCADE,
+  student_id  uuid NOT NULL REFERENCES public.students(id) ON DELETE CASCADE,
+  class_id    uuid REFERENCES public.classes(id) ON DELETE SET NULL,
+  schedule_id uuid REFERENCES public.schedule_entries(id) ON DELETE SET NULL,
+  date        date NOT NULL,
+  status      text NOT NULL DEFAULT 'present',
+  note        text,
+  created_at  timestamptz NOT NULL DEFAULT now(),
+  updated_at  timestamptz NOT NULL DEFAULT now()
+);
+
+-- Idempotence, as two partial unique indexes rather than one table
+-- constraint: a UNIQUE constraint cannot contain an expression, and
+-- NULL never equals NULL, so a plain UNIQUE over a nullable schedule_id
+-- would let the same student be marked any number of times on a day
+-- with no session attached — exactly the case that needs it most.
+CREATE UNIQUE INDEX IF NOT EXISTS attendance_student_session_key
+  ON public.attendance (student_id, date, schedule_id) WHERE schedule_id IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS attendance_student_day_key
+  ON public.attendance (student_id, date) WHERE schedule_id IS NULL;
+
+CREATE TABLE IF NOT EXISTS public.student_grades (
+  id         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  faculty_id uuid NOT NULL REFERENCES public.faculty(id) ON DELETE CASCADE,
+  student_id uuid NOT NULL REFERENCES public.students(id) ON DELETE CASCADE,
+  class_id   uuid REFERENCES public.classes(id) ON DELETE SET NULL,
+  -- Where the mark came from, when it came from generated work. Null for
+  -- a mark a teacher simply typed in.
+  source_id  uuid REFERENCES public.ai_studio(id) ON DELETE SET NULL,
+  subject    text,
+  term       text,
+  label      text,
+  score      numeric,
+  max_score  numeric,
+  recorded_on date NOT NULL DEFAULT CURRENT_DATE,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+-- Sign-in bookkeeping. The single-device rule needs somewhere to keep
+-- the session it considers current; without it every request skips the
+-- check, which is how a "signed out on another device" feature quietly
+-- stops enforcing anything.
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS last_login_at     timestamptz;
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS last_login_ip     text;
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS active_session_id text;
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS sub_role          text;
+ALTER TABLE public.faculty ADD COLUMN IF NOT EXISTS hire_date date;
+
+CREATE INDEX IF NOT EXISTS schedule_faculty_date_idx ON public.schedule_entries (faculty_id, date);
+CREATE INDEX IF NOT EXISTS schedule_class_idx        ON public.schedule_entries (class_id);
+CREATE INDEX IF NOT EXISTS attendance_faculty_idx    ON public.attendance (faculty_id, date);
+CREATE INDEX IF NOT EXISTS attendance_student_idx    ON public.attendance (student_id, date);
+CREATE INDEX IF NOT EXISTS attendance_class_idx      ON public.attendance (class_id);
+CREATE INDEX IF NOT EXISTS attendance_schedule_idx   ON public.attendance (schedule_id);
+CREATE INDEX IF NOT EXISTS grades_faculty_idx        ON public.student_grades (faculty_id, recorded_on DESC);
+CREATE INDEX IF NOT EXISTS grades_student_idx        ON public.student_grades (student_id);
+CREATE INDEX IF NOT EXISTS grades_class_idx          ON public.student_grades (class_id);
+CREATE INDEX IF NOT EXISTS grades_source_idx         ON public.student_grades (source_id);
+CREATE INDEX IF NOT EXISTS ai_studio_type_idx        ON public.ai_studio (faculty_id, type, created_at DESC);
+
+-- Same owner rule the rest of the schema uses.
+DO $$
+DECLARE t text;
+BEGIN
+  FOREACH t IN ARRAY ARRAY['schedule_entries', 'attendance', 'student_grades'] LOOP
+    EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', t);
+    EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', t || '_owner', t);
+    EXECUTE format(
+      'CREATE POLICY %I ON public.%I FOR ALL TO authenticated
+         USING (faculty_id = current_faculty_id()) WITH CHECK (faculty_id = current_faculty_id())',
+      t || '_owner', t);
+    IF NOT EXISTS (SELECT 1 FROM pg_trigger tg JOIN pg_class c ON c.oid = tg.tgrelid
+                   WHERE c.relname = t AND tg.tgname = 'set_updated_at' AND NOT tg.tgisinternal) THEN
+      EXECUTE format('CREATE TRIGGER set_updated_at BEFORE UPDATE ON public.%I
+                        FOR EACH ROW EXECUTE FUNCTION public.set_updated_at()', t);
+    END IF;
+  END LOOP;
+END $$;
+
+
+-- ── 12. What a notification points at ─────────────────────────────────
+--
+-- The reminder sweep runs on every page load, so it needs to recognise a
+-- notice it has already sent. Without a reference back to the thing that
+-- caused it, "homework due tomorrow" is re-inserted on each visit and
+-- the bell fills with copies of one reminder.
+ALTER TABLE public.notifications ADD COLUMN IF NOT EXISTS ref_table text;
+ALTER TABLE public.notifications ADD COLUMN IF NOT EXISTS ref_id    uuid;
+
+-- The dedup key. Partial, because a notice with no referent (a broadcast,
+-- a system message) is not a duplicate of the next one like it.
+CREATE UNIQUE INDEX IF NOT EXISTS notifications_ref_key
+  ON public.notifications (user_id, kind, ref_table, ref_id)
+  WHERE ref_id IS NOT NULL;
+
+
+-- ── 13. Corrections to this file's own earlier guesses ────────────────
+--
+-- The plan vocabulary above was invented before src/lib/plans.js was
+-- read. A CHECK written from a guess is worse than none: it passes
+-- review, then rejects the first real row. Drop the old one so the
+-- corrected version can take its place.
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'subscriptions_plan_check'
+      AND connamespace = 'public'::regnamespace
+      AND pg_get_constraintdef(oid) LIKE '%starter%'
+  ) THEN
+    ALTER TABLE public.subscriptions DROP CONSTRAINT subscriptions_plan_check;
+    ALTER TABLE public.subscriptions ADD CONSTRAINT subscriptions_plan_check
+      CHECK (plan IN ('trial', 'monthly', 'quarterly', 'annual'));
+  END IF;
+END $$;
+
+-- What an audit entry needs to be evidence. `meta` alone cannot answer
+-- "from where", and an audit trail that cannot place an action is a log,
+-- not a trail.
+ALTER TABLE public.audit_log ADD COLUMN IF NOT EXISTS ip         text;
+ALTER TABLE public.audit_log ADD COLUMN IF NOT EXISTS user_agent text;

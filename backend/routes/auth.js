@@ -3,7 +3,8 @@ import { randomUUID } from "node:crypto";
 import bcrypt from "bcryptjs";
 import { pool } from "../lib/db.js";
 import { handleErr } from "../lib/helpers.js";
-import { requireAuth, clientIp, userAgent, ACCOUNT_COLS_SQL, findAccountByUid } from "../lib/auth.js";
+import { requireAuth, clientIp, userAgent, findAccountByUid } from "../lib/auth.js";
+import { ensureTeacher, findTeacherById } from "../lib/teacher.js";
 import { PLANS, TRIAL_DAYS, TRIAL_PLAN_ID, PLAN_IDS } from "../../src/lib/plans.js";
 import { SupabaseBootstrapSchema, RenewSchema, validateBody } from "../lib/validate.js";
 import { recordAudit } from "../lib/audit.js";
@@ -33,17 +34,22 @@ const PLAN_DURATION = {
   ...Object.fromEntries(PLANS.map((p) => [p.id, p.durationDays])),
 };
 
-const planStatus = (planId) => (planId === TRIAL_PLAN_ID ? "trial" : "active");
+// 'trialing', not 'trial' — the subscriptions table uses Stripe's
+// vocabulary, which is also what its own default says. The plan is named
+// 'trial'; the STATUS of being on it is 'trialing'.
+const planStatus = (planId) => (planId === TRIAL_PLAN_ID ? "trialing" : "active");
 
 // Rotate the account's single active session to a fresh id (single-device
 // sign-in). Returns the new id so the caller can hand it to the client,
 // which echoes it on every request via X-Session-Id. Any other device's
 // stored id is now stale and its next request is rejected.
-async function claimSession(accountId) {
+async function claimSession(teacher) {
   const sessionId = randomUUID();
+  // The session belongs to the person, so it lives on users — a teacher
+  // signing in is the same human whether or not they have a faculty row.
   await pool.query(
-    `UPDATE accounts SET active_session_id = $2, updated_at = NOW() WHERE id = $1`,
-    [accountId, sessionId]
+    `UPDATE users SET active_session_id = $2, updated_at = now() WHERE id = $1`,
+    [teacher.user_id, sessionId]
   );
   return sessionId;
 }
@@ -105,34 +111,34 @@ router.post("/supabase", validateBody(SupabaseBootstrapSchema), requireAuth({ op
         planForRow = plan;
       }
 
-      const ins = await pool.query(
-        `INSERT INTO accounts (
-            auth_uid, email, first_name, last_name, avatar_url, role,
-            subscription_status, subscription_ends_at, subscription_plan,
-            last_login_at, last_login_ip, last_user_agent
-          )
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW(), $10, $11)
-          ON CONFLICT (email) DO UPDATE SET
-            auth_uid          = EXCLUDED.auth_uid,
-            avatar_url            = COALESCE(accounts.avatar_url, EXCLUDED.avatar_url),
-            -- Env-resolved role wins on every login (env is source of
-            -- truth for privileged access). For non-privileged emails
-            -- (reservedRole = null) we keep the existing role.
-            role                  = COALESCE($12, accounts.role),
-            -- A returning user (re-using an email) keeps their old plan;
-            -- the trial offer is one-per-account, not one-per-login.
-            last_login_at         = NOW(),
-            last_login_ip         = EXCLUDED.last_login_ip,
-            last_user_agent       = EXCLUDED.last_user_agent
-          RETURNING ${ACCOUNT_COLS_SQL}`,
-        [au.uid, au.email || null, firstName, lastName, au.picture || null, role,
-         status, endsAt, planForRow, ip, ua, reservedRole]
+      // The three rows a teacher needs, created together. What used to
+      // be one INSERT ... ON CONFLICT (email) is now users + faculty +
+      // subscriptions — and note the conflict key moved: identity is the
+      // auth uid, never the email. Two providers can hand over the same
+      // address, and merging on it would have joined two people.
+      account = await ensureTeacher(
+        { ...au, firstName, lastName },
+        { trialDays: isPrivileged ? 36500 : (PLAN_DURATION[plan] ?? TRIAL_DAYS) }
       );
-      account = ins.rows[0];
+      if (!account) return res.status(400).json({ error: "Could not provision account." });
+
+      await pool.query(
+        `UPDATE subscriptions
+            SET plan = $2, status = $3, current_period_end = $4, updated_at = now()
+          WHERE faculty_id = $1`,
+        [account.id, planForRow ?? "trial", status, endsAt]
+      );
+      await pool.query(
+        `UPDATE users
+            SET role = COALESCE($2, role), last_login_at = now(), last_login_ip = $3
+          WHERE id = $1`,
+        [account.user_id, reservedRole, ip]
+      );
+      account = await findTeacherById(account.id);
       await recordAudit({
-        accountId: account.id,
+        accountId: account.user_id,
         action: "auth.signup",
-        targetTable: "accounts",
+        targetTable: "faculty",
         targetId: account.id,
         ip, userAgent: ua,
         detail: { plan: planForRow, role, provider: au.provider || null },
@@ -147,23 +153,22 @@ router.post("/supabase", validateBody(SupabaseBootstrapSchema), requireAuth({ op
       // in any privileged list, role is left as-is (no silent demotion
       // of an admin/dev row that was assigned via env earlier — fix
       // demotion explicitly by re-running db:init or via admin route).
-      const upd = await pool.query(
-        `UPDATE accounts SET
-            last_login_at   = NOW(),
-            last_login_ip   = $2,
-            last_user_agent = $3,
-            email           = COALESCE(NULLIF($4, ''), email),
-            avatar_url      = COALESCE(NULLIF($5, ''), avatar_url),
-            role            = COALESCE($6, role)
-          WHERE id = $1
-          RETURNING ${ACCOUNT_COLS_SQL}`,
-        [account.id, ip, ua, au.email || "", au.picture || "", reservedRole]
+      await pool.query(
+        `UPDATE users SET
+            last_login_at = now(),
+            last_login_ip = $2,
+            email         = COALESCE(NULLIF($3, ''), email),
+            avatar_url    = COALESCE(NULLIF($4, ''), avatar_url),
+            role          = COALESCE($5, role),
+            updated_at    = now()
+          WHERE id = $1`,
+        [account.user_id, ip, au.email || "", au.picture || "", reservedRole]
       );
-      account = upd.rows[0];
+      account = await findTeacherById(account.id);
       await recordAudit({
-        accountId: account.id,
+        accountId: account.user_id,
         action: "auth.login",
-        targetTable: "accounts",
+        targetTable: "faculty",
         targetId: account.id,
         ip, userAgent: ua,
         detail: { role: account.role, provider: au.provider || null },
@@ -171,7 +176,7 @@ router.post("/supabase", validateBody(SupabaseBootstrapSchema), requireAuth({ op
     }
 
     // Claim the single active session for the device that just signed in.
-    const sessionId = await claimSession(account.id);
+    const sessionId = await claimSession(account);
     res.json({ ...account, active_session_id: sessionId });
   } catch (err) {
     handleErr(res, "POST /api/auth/supabase", err);
@@ -189,7 +194,7 @@ router.post("/supabase", validateBody(SupabaseBootstrapSchema), requireAuth({ op
 // user who should go through the profile + plan funnel instead.
 router.post("/claim-session", requireAuth({ skipSessionCheck: true }), async (req, res) => {
   try {
-    const sessionId = await claimSession(req.account.id);
+    const sessionId = await claimSession(req.account);
     res.json({ ...req.account, active_session_id: sessionId });
   } catch (err) {
     handleErr(res, "POST /api/auth/claim-session", err);
@@ -212,20 +217,20 @@ router.post("/renew", validateBody(RenewSchema), requireAuth({ allowExpired: tru
     const days = PLAN_DURATION[plan];
     const endsAt = new Date(Date.now() + days * 86400000);
     const status = planStatus(plan);
-    const r = await pool.query(
-      `UPDATE accounts SET
-          subscription_status   = $2,
-          subscription_plan     = $3,
-          subscription_ends_at  = $4,
-          updated_at            = NOW()
-        WHERE id = $1
-        RETURNING ${ACCOUNT_COLS_SQL}`,
+    await pool.query(
+      `UPDATE subscriptions SET
+          status             = $2,
+          plan               = $3,
+          current_period_end = $4,
+          updated_at         = now()
+        WHERE faculty_id = $1`,
       [req.account.id, status, plan, endsAt]
     );
+    const r = { rows: [await findTeacherById(req.account.id)] };
     await recordAudit({
-      accountId: req.account.id,
+      accountId: req.account.user_id,
       action: "auth.renew",
-      targetTable: "accounts",
+      targetTable: "faculty",
       targetId: req.account.id,
       ip: clientIp(req), userAgent: userAgent(req),
       detail: { plan, prevStatus: req.account.subscription_status },
