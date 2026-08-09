@@ -1214,6 +1214,136 @@ function validatePassword(password, { isSignin = false } = {}) {
 // button they pressed on the way in — see signInOrSignUp in
 // lib/supabaseAuth.js. `mode` survives only so /signin and /signup both
 // still resolve to something; it no longer changes what is rendered.
+
+// ── Auth shell ────────────────────────────────────────────────────────
+// The auth page is the one screen that must never scroll: a teacher is
+// three fields from being inside the product, and a scrollbar there says
+// "this is going to take a while". PageShell could not deliver that — it
+// centres a single column and lets anything taller than the viewport
+// overflow, and this page has two fields, a primary action, two
+// providers, a consent line and a tail of secondary links.
+//
+// So the height is spent sideways instead of downwards. On a wide screen
+// the brand takes a fixed panel on one side and the form takes the other,
+// which halves the vertical stack. Below `lg` the panel collapses to a
+// slim header and the form runs full width.
+//
+// h-[100dvh], not 100vh: on a phone 100vh is the viewport WITHOUT browser
+// chrome, so the last provider button would sit under the address bar.
+function AuthShell({ title, em, lead, onPage, children }) {
+  const t = useT();
+  const { isRTL } = useI18n();
+  return (
+    <main className="h-[100dvh] overflow-hidden grid lg:grid-cols-[0.85fr_1.15fr]">
+      {/* Brand panel — decorative, so it is hidden from assistive tech
+          rather than read out as a second copy of the page title. */}
+      <aside
+        aria-hidden="true"
+        className="relative hidden lg:flex flex-col justify-between p-12 overflow-hidden"
+        style={{
+          background:
+            "radial-gradient(ellipse 92% 64% at 50% 8%, oklch(0.64 0.13 197), transparent 72%)," +
+            "radial-gradient(circle at 88% 96%, oklch(0.36 0.1 197), transparent 60%)," +
+            "var(--cm-clay, oklch(0.46 0.085 208))",
+        }}
+      >
+        <span
+          className="font-mono text-[10px] uppercase tracking-[0.28em]"
+          style={{ color: "oklch(0.96 0.02 200 / 0.62)" }}
+        >
+          {t("landing.hero.eyebrow")}
+        </span>
+
+        <div className="relative">
+          {/* The bilingual mark, the landing's signature, at a size that
+              belongs to a side panel rather than a masthead. */}
+          <span
+            className="absolute -top-6 select-none pointer-events-none"
+            style={{
+              insetInlineStart: "-0.06em",
+              fontFamily: "'Amiri', 'Fraunces', serif",
+              fontSize: "clamp(150px, 17vw, 250px)",
+              lineHeight: 1,
+              color: "oklch(0.98 0.02 210)",
+              opacity: 0.09,
+            }}
+          >
+            {isRTL ? "Murchid" : "مرشد"}
+          </span>
+          <h1
+            className="relative"
+            style={{
+              fontFamily: "'Fraunces', Georgia, serif",
+              fontWeight: 300,
+              fontSize: "clamp(46px, 5.2vw, 78px)",
+              lineHeight: 0.94,
+              letterSpacing: "-0.035em",
+              color: "var(--cm-cream, oklch(0.96 0.008 200))",
+            }}
+          >
+            Mu<em style={{ fontStyle: "italic", fontWeight: 200, color: "oklch(0.86 0.035 200)" }}>r</em>chid
+          </h1>
+          <p
+            className="relative mt-5 max-w-[30ch]"
+            style={{
+              fontFamily: "'Fraunces', Georgia, serif",
+              fontWeight: 300,
+              fontSize: "clamp(19px, 1.6vw, 25px)",
+              lineHeight: 1.28,
+              color: "oklch(0.97 0.025 210)",
+            }}
+          >
+            {t("lp.hero.h1a")} <em style={{ fontStyle: "italic", color: "oklch(0.86 0.035 200)" }}>{t("lp.hero.brand")}</em> {t("lp.hero.h1b")}
+          </p>
+        </div>
+
+        <span className="font-mono text-[10px] tracking-[0.16em]" style={{ color: "oklch(0.96 0.02 200 / 0.5)" }}>
+          {t("atl.trust")}
+        </span>
+      </aside>
+
+      {/* Form column. min-h-0 lets it shrink inside the locked grid row
+          instead of pushing the page taller than the viewport. */}
+      <section className="relative min-h-0 flex flex-col px-6 sm:px-10 py-5 sm:py-8 overflow-hidden">
+        <div className="flex-none">
+          <button
+            type="button"
+            onClick={() => onPage("home")}
+            className="link-quiet text-sm inline-flex items-center gap-1.5"
+            style={{ color: "var(--ink-2)" }}
+          >
+            {t("lp.pg.back")}
+          </button>
+        </div>
+
+        <div className="flex-1 min-h-0 flex flex-col justify-center">
+          <div className="w-full max-w-sm mx-auto">
+            <h2
+              className="text-center"
+              style={{
+                fontFamily: "'Fraunces', Georgia, serif",
+                fontWeight: 400,
+                // Deliberately modest. The brand panel already carries the
+                // wordmark, so a second display-size title here is spent
+                // vertical budget that the form needs.
+                fontSize: "clamp(26px, 3.4vw, 34px)",
+                lineHeight: 1.1,
+                color: "var(--ink)",
+              }}
+            >
+              {title} <em style={{ fontStyle: "italic", color: "var(--accent, #2f6b6b)" }}>{em}</em>
+            </h2>
+            <p className="mt-2 mb-5 text-center text-sm" style={{ color: "var(--ink-2)" }}>
+              {lead}
+            </p>
+            {children}
+          </div>
+        </div>
+      </section>
+    </main>
+  );
+}
+
 function AuthPage({ onSignUp, onPage, mode = "signup", onEnterStudio }) {
   const t = useT();
   const isSignin = mode === "signin";
@@ -1636,42 +1766,35 @@ function AuthPage({ onSignUp, onPage, mode = "signup", onEnterStudio }) {
   // Capped at ~1.5s by the session-restore effect's typical roundtrip.
   if (restoring) {
     return (
-      <PageShell
-        eyebrow={isSignin ? t("lp.auth.signin.eyebrow") : t("lp.auth.eyebrow")}
+      <AuthShell
         title={isSignin ? t("lp.auth.signin.title") : t("lp.auth.title")}
         em={isSignin ? t("lp.auth.signin.titleEm") : t("lp.auth.titleEm")}
         lead={isSignin ? t("lp.auth.signin.lead") : t("lp.auth.lead")}
         onPage={onPage}
-        narrow
-        centered
       >
-        <div className="max-w-sm mx-auto flex justify-center py-8">
+        <div className="flex justify-center py-6">
           <div className="relative w-32 h-px bg-line/60 overflow-hidden">
             <span className="absolute top-0 left-0 h-px w-12 bg-accent brand-loader-sweep" />
           </div>
         </div>
-      </PageShell>
+      </AuthShell>
     );
   }
 
   return (
-    <PageShell
-      eyebrow={isSignin ? t("lp.auth.signin.eyebrow") : t("lp.auth.eyebrow")}
+    <AuthShell
       title={isSignin ? t("lp.auth.signin.title") : t("lp.auth.title")}
       em={isSignin ? t("lp.auth.signin.titleEm") : t("lp.auth.titleEm")}
       lead={isSignin ? t("lp.auth.signin.lead") : t("lp.auth.lead")}
       onPage={onPage}
-      narrow
-      centered
     >
       <div className={`space-y-3 max-w-sm mx-auto transition-opacity ${accepted ? "opacity-100" : "opacity-90"}`}>
         {emailMode === "entering" && (
           <div className="space-y-3">
-            <p className="text-xs text-center text-muted">
-              {isSignin
-                ? "Sign in with the email + password you set when you subscribed."
-                : "Pick a strong password — 8+ chars with upper, lower, number, and a symbol."}
-            </p>
+            {/* No hint line here. It repeated the lead directly above it,
+                and the password rules already appear inline the moment a
+                weak one is typed — telling somebody the rules before they
+                have typed anything spends a line to say nothing. */}
             <div>
               {/* A real <label>, not a placeholder doing its job: a
                   placeholder disappears the moment you type, so anyone
@@ -1862,14 +1985,6 @@ function AuthPage({ onSignUp, onPage, mode = "signup", onEnterStudio }) {
                   disabled={emailSending}
                 >
                   Forgot password?
-                </button>
-                <button
-                  type="button"
-                  onClick={handleSendEmailLink}
-                  className="text-xs text-muted hover:text-ink transition"
-                  disabled={emailSending}
-                >
-                  Or sign in with a one-time link instead
                 </button>
               </div>
             )}
@@ -2087,10 +2202,9 @@ function AuthPage({ onSignUp, onPage, mode = "signup", onEnterStudio }) {
       {/* No sign-in / sign-up cross-link: there is nowhere else to go.
           One page works out which it is from the credentials given. */}
 
-      <p className="text-xs mt-4 text-center" style={{ color: "var(--ink-3)" }}>
-        {t("lp.auth.only")}
-      </p>
-    </PageShell>
+      {/* The bilingual note moved to the brand panel, where there is room
+          for it, rather than costing the form a line it cannot spare. */}
+    </AuthShell>
   );
 }
 
