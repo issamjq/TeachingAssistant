@@ -517,3 +517,50 @@
   box-shadow: 0 4px 12px -6px color-mix(in oklab, var(--p-accent) 40%, transparent);
 }
 .trayChip:focus-visible { outline: 2px solid var(--p-accent); outline-offset: 2px; }
+
+/* ── drag to reorder ──────────────────────────────────────────────────
+   The grip on a tile's leading corner. Pointer-dragging it carries the
+   tile; arrow keys on it move the tile one slot — dragging must never
+   be the only way to reorder, or a keyboard user cannot. */
+.dragBtn {
+  display: grid;
+  place-items: center;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 6px;
+  background: transparent;
+  border: 0;
+  cursor: grab;
+  /* Without this, a touch drag scrolls the page instead of moving the
+     tile — the single line that makes mobile reordering work. */
+  touch-action: none;
+}
+.dragBtn:active { cursor: grabbing; }
+.dragBtn > span {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  background: var(--p-accent);
+  color: var(--p-on-accent);
+  box-shadow: 0 4px 12px -2px color-mix(in oklab, var(--p-accent) 50%, transparent);
+  transition: transform 0.15s ease;
+}
+.dragBtn:hover > span { transform: scale(1.06); }
+.dragBtn:focus-visible > span { outline: 2px solid var(--p-ink); outline-offset: 2px; }
+
+/* The tile being carried: lifted above its neighbours, solid outline in
+   place of the dashed one, slightly shrunk so the page reads as "held". */
+.editFrame[data-drag="true"] {
+  z-index: 20;
+}
+.editFrame[data-drag="true"] > :first-child {
+  opacity: 0.95;
+  transform: scale(0.985);
+}
+.editFrame[data-drag="true"]::after {
+  border-style: solid;
+  border-color: var(--p-accent);
+  box-shadow: 0 18px 44px -14px color-mix(in oklab, var(--p-accent) 50%, transparent);
+}

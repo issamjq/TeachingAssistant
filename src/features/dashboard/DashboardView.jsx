@@ -16,10 +16,10 @@
 //
 // Every number on this page is real.
 // =====================================================================
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowRight, Sparkles, CalendarDays, FileText, HelpCircle, Users,
-  SlidersHorizontal, Plus, RotateCcw, X,
+  SlidersHorizontal, Plus, RotateCcw, X, GripVertical,
 } from "lucide-react";
 import { api } from "@/views/_shared";
 import {
@@ -89,7 +89,7 @@ const Bar = ({ w = "w-24", h = "h-4" }) => (
  * edge. The tile's own content goes inert underneath, so hiding a stat
  * card cannot also navigate to My students.
  */
-function EditFrame({ widget, prefs, onChange, children }) {
+function EditFrame({ widget, prefs, onChange, drag, children }) {
   const meta = WIDGETS.find((w) => w.key === widget);
   const hide = () =>
     onChange({ ...prefs, visible: prefs.visible.filter((k) => k !== widget) });
@@ -99,8 +99,32 @@ function EditFrame({ widget, prefs, onChange, children }) {
     onChange({ ...prefs, charts: { ...prefs.charts, [widget]: id } });
 
   return (
-    <div className={s.editFrame}>
+    <div className={s.editFrame} data-drag={drag?.active === widget}>
       {children}
+      {drag && (
+        <div className={s.tileControls} style={{ insetInlineEnd: "auto", insetInlineStart: -6 }}>
+          <button
+            type="button"
+            className={s.dragBtn}
+            aria-label={`Move ${meta.label}. Drag, or press the arrow keys.`}
+            title="Drag to move — or use the arrow keys"
+            onPointerDown={drag.start(widget)}
+            onKeyDown={(e) => {
+              // Arrows move one slot. Left/Up go earlier, Right/Down
+              // later; RTL flips the horizontal pair so "towards the
+              // start" is always towards the start.
+              const rtl = document.documentElement.dir === "rtl";
+              const back = e.key === "ArrowUp" || e.key === (rtl ? "ArrowRight" : "ArrowLeft");
+              const fwd = e.key === "ArrowDown" || e.key === (rtl ? "ArrowLeft" : "ArrowRight");
+              if (!back && !fwd) return;
+              e.preventDefault();
+              drag.nudge(widget, back ? -1 : 1);
+            }}
+          >
+            <span><GripVertical size={15} strokeWidth={2.2} /></span>
+          </button>
+        </div>
+      )}
       <div className={s.tileControls}>
         {!meta.locked && (
           <button type="button" className={s.tileBtn} onClick={hide} aria-label={`Hide ${meta.label}`}>
@@ -161,6 +185,130 @@ export default function DashboardView({ onJump }) {
   const changePrefs = (next) => { setPrefs(next); savePrefs(next); };
   const show = (key) => prefs.visible.includes(key);
   const hidden = WIDGETS.filter((w) => !w.locked && !show(w.key));
+
+  // ── reordering ──────────────────────────────────────────────────────
+  // The order is edited as the VISIBLE sequence; hidden widgets trail at
+  // the end. Editing the full list instead would make an arrow press
+  // sometimes swap with an invisible neighbour — a move that looks like
+  // nothing happened.
+  const visibleOrder = prefs.order.filter((k) => show(k));
+  const commitOrder = (vis) =>
+    changePrefs({ ...prefs, order: [...vis, ...prefs.order.filter((k) => !vis.includes(k))] });
+
+  const nudge = (key, dir) => {
+    const v = [...visibleOrder];
+    const i = v.indexOf(key);
+    const j = i + dir;
+    if (i < 0 || j < 0 || j >= v.length) return;
+    [v[i], v[j]] = [v[j], v[i]];
+    commitOrder(v);
+  };
+
+  /**
+   * Take the slot the pointer is over — on the far side of it.
+   *
+   * Direction matters. Inserting before the target regardless made
+   * every downward drag bounce: moving calendar toward the end crossed
+   * rhythm first, was inserted BEFORE rhythm, and ended up one slot
+   * earlier instead of later. Dragging down puts you after what you
+   * cross; dragging up puts you before it — which is how physical
+   * reordering feels everywhere else.
+   */
+  const placeAt = (key, targetKey) => {
+    if (key === targetKey) return;
+    const iFrom = visibleOrder.indexOf(key);
+    const iTo = visibleOrder.indexOf(targetKey);
+    if (iFrom < 0 || iTo < 0) return;
+    const v = visibleOrder.filter((k) => k !== key);
+    const j = v.indexOf(targetKey);
+    v.splice(iFrom < iTo ? j + 1 : j, 0, key);
+    commitOrder(v);
+  };
+
+  const [dragKey, setDragKey] = useState(null);
+  // Refs, because the drag listeners live on WINDOW for the whole edit
+  // session. Pointer capture on the grip button was the first attempt
+  // and it silently failed: after the first reorder React re-renders,
+  // and the captured events kept flowing into a handler holding stale
+  // state. A window listener reading refs cannot go stale and cannot
+  // lose the pointer.
+  const dragKeyRef = useRef(null);
+  const placeAtRef = useRef(placeAt);
+  placeAtRef.current = placeAt;
+
+  const lastPointRef = useRef({ x: 0, y: 0 });
+
+  useEffect(() => {
+    if (!editing) return undefined;
+
+    const hitTest = (x, y) => {
+      const key = dragKeyRef.current;
+      if (!key) return;
+      // Hit-test the tile under the pointer. After a reorder the tile
+      // under the pointer becomes the dragged one itself, which no-ops —
+      // that is what keeps the live reflow from oscillating.
+      const el = document.elementFromPoint(x, y);
+      const target = el?.closest?.("[data-widget-key]")?.getAttribute("data-widget-key");
+      if (target && target !== key) placeAtRef.current(key, target);
+    };
+
+    const move = (e) => {
+      lastPointRef.current = { x: e.clientX, y: e.clientY };
+      hitTest(e.clientX, e.clientY);
+    };
+    const up = () => {
+      if (!dragKeyRef.current) return;
+      dragKeyRef.current = null;
+      setDragKey(null);
+    };
+
+    // Edge auto-scroll. The dashboard is taller than the window, and a
+    // drag towards a tile below the fold otherwise just sails off the
+    // viewport — instrumenting the pointer showed it crossing into
+    // nothing at the bottom edge. Holding a drag near either edge
+    // scrolls the studio pane and keeps hit-testing as tiles pass under
+    // the stationary pointer, which is exactly how a phone's edit mode
+    // carries a tile a long way.
+    const pane = document.querySelector(".murchid-content-pane");
+    let raf = 0;
+    const tick = () => {
+      const key = dragKeyRef.current;
+      if (key && pane) {
+        const r = pane.getBoundingClientRect();
+        const { x, y } = lastPointRef.current;
+        const ZONE = 96, SPEED = 16;
+        let dy = 0;
+        if (y > r.bottom - ZONE) dy = Math.min(SPEED, ((y - (r.bottom - ZONE)) / ZONE) * SPEED);
+        else if (y < r.top + ZONE) dy = -Math.min(SPEED, (((r.top + ZONE) - y) / ZONE) * SPEED);
+        if (dy) {
+          pane.scrollTop += dy;
+          hitTest(x, y);
+        }
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+    window.addEventListener("pointercancel", up);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      window.removeEventListener("pointercancel", up);
+    };
+  }, [editing]);
+
+  const drag = {
+    active: dragKey,
+    start: (key) => (e) => {
+      e.preventDefault();
+      dragKeyRef.current = key;
+      setDragKey(key);
+    },
+    nudge,
+  };
 
   useEffect(() => {
     let live = true;
@@ -288,8 +436,9 @@ export default function DashboardView({ onJump }) {
     }
   };
 
-  const flowWidgets = WIDGETS
-    .filter((w) => !["hero", "runway"].includes(w.key) && show(w.key));
+  const flowWidgets = visibleOrder
+    .map((k) => WIDGETS.find((w) => w.key === k))
+    .filter(Boolean);
 
   return (
     <div className="space-y-4">
@@ -299,7 +448,7 @@ export default function DashboardView({ onJump }) {
           <p className="font-serif text-[16px] font-semibold text-ink flex-1">
             Edit dashboard
             <span className="font-sans text-[12px] font-normal text-muted ms-3 hidden sm:inline">
-              Hide, resize, or switch a chart — it rearranges as you go.
+              Drag the grip to move a tile; hide, resize, or switch a chart — it rearranges as you go.
             </span>
           </p>
           <button
@@ -486,9 +635,9 @@ export default function DashboardView({ onJump }) {
           const span = w.sizes ? prefs.sizes[w.key] ?? w.size : 12;
           const tile = renderWidget(w.key);
           return (
-            <div key={w.key} className={SPAN[span] || "lg:col-span-12"}>
+            <div key={w.key} className={SPAN[span] || "lg:col-span-12"} data-widget-key={w.key}>
               {editing
-                ? <EditFrame widget={w.key} prefs={prefs} onChange={changePrefs}>{tile}</EditFrame>
+                ? <EditFrame widget={w.key} prefs={prefs} onChange={changePrefs} drag={drag}>{tile}</EditFrame>
                 : tile}
             </div>
           );

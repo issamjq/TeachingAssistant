@@ -50,10 +50,16 @@ export const CHART_MODELS = {
   ],
 };
 
+/** The widgets that live in the flow grid, in their default order. */
+export const FLOW_KEYS = WIDGETS
+  .filter((w) => !["hero", "runway"].includes(w.key))
+  .map((w) => w.key);
+
 const DEFAULTS = {
   visible: WIDGETS.filter((w) => w.locked || w.default).map((w) => w.key),
   sizes: Object.fromEntries(WIDGETS.filter((w) => w.sizes).map((w) => [w.key, w.size])),
   charts: { rhythm: "pills", kinds: "bars" },
+  order: [...FLOW_KEYS],
 };
 
 export function defaultPrefs() {
@@ -81,6 +87,13 @@ export function loadPrefs() {
       ].filter((k) => WIDGETS.some((w) => w.key === k)),
       sizes,
       charts: { ...DEFAULTS.charts, ...(p.charts || {}) },
+      // The saved order, cleaned: keys that no longer exist drop out,
+      // widgets added since the save append at the end — so an old
+      // layout never hides a new feature.
+      order: [
+        ...(Array.isArray(p.order) ? p.order.filter((k) => FLOW_KEYS.includes(k)) : []),
+        ...FLOW_KEYS.filter((k) => !Array.isArray(p.order) || !p.order.includes(k)),
+      ],
     };
   } catch {
     return defaultPrefs();
