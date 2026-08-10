@@ -102,6 +102,21 @@ for looking at empty states. It rewrites only those two accounts. See
 When a unit of work is finished, ship it. Do **not** ask for confirmation first. The deploy story is:
 
 - **`git push origin main`** → Vercel auto-deploys. There is no backend here to deploy.
+
+  Two settings the deploy depends on, both easy to break:
+
+  - **`vercel.json` pins `outputDirectory` to `.next`.** It looks redundant
+    next to `"framework": "nextjs"` and it is not. The Vercel project still
+    carries an **Output Directory of `dist`** in its dashboard settings,
+    left from the Vite build — and a dashboard override beats the framework
+    default, so builds failed with *"The Next.js output directory `dist` was
+    not found"* while building perfectly well locally. `vercel.json` beats
+    the dashboard, so this line is what actually decides it. Don't remove it
+    unless the dashboard field has been cleared first.
+  - **`API_PROXY_TARGET` must be set in the Vercel project environment**, or
+    every AI path 404s in production. It is deliberately not `NEXT_PUBLIC_`:
+    the rewrite is resolved on the server and the target never ships in the
+    browser bundle. See [todo/backend-integration.md](todo/backend-integration.md).
 - **`npm run db:tune`** → applies `db/tune.sql` to Supabase: structure, indexes, RLS policies, CHECK constraints, storage policies. One transaction, idempotent, skips anything the schema no longer has.
 - **`npm run db:seed`** → reference data only (the UAE schools catalog from `src/lib/schools.js`, and the feature flags). Idempotent.
 
