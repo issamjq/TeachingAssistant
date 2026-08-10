@@ -9,23 +9,28 @@
 // corner, and a teacher who has learned to look there for "make the text
 // bigger" must still find it.
 //
-// Two personalities, chosen by where it is mounted:
+// It answers from knowledge.json, in the browser. There is no API call
+// and no key: the facts about a product do not vary between visitors, so
+// answering "what does this cost" is a lookup rather than a generation.
 //
-//   landing  explains the product to a visitor with no account
-//   studio   a working assistant that can read and change the teacher's
-//            own lesson plans, register and timetable
+// That is not a reduced version of a server-backed bot — for this job it
+// is the better one. It cannot invent a feature or a price, it cannot
+// run out of quota, it answers instantly, and it works with the backend
+// down. The failure mode that actually costs a sale is a confident wrong
+// answer, and a lookup cannot produce one.
 //
-// The server decides which by whether the request is authenticated, so
-// the `scope` here only picks the greeting and the suggestions. It is
-// not a permission.
+// Replies are still revealed a word at a time. Not theatre: a wall of
+// text appearing whole is harder to start reading than one that arrives
+// at the speed you read it, and it keeps the shape of the component the
+// same for when the studio assistant is wired to the new backend.
 // =====================================================================
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { MessageCircle, X, Send, Mic, Volume2, VolumeX, Accessibility, Sparkles } from "lucide-react";
 import AccessibilityWidget from "@/views/AccessibilityWidget";
 import { useI18n } from "@/lib/i18n";
 import { useVoice } from "./useVoice";
-import { sendMessage, loadSessionId, saveSessionId } from "./chatClient";
+import { answerFor, suggestionsAfter } from "./answer";
 import s from "./Assistant.module.css";
 
 const STARTERS = {
@@ -35,11 +40,16 @@ const STARTERS = {
     "What does it cost?",
     "Is it right for my subject?",
   ],
+  // Informational, not imperative. Acting on the teacher's own work
+  // needs the API, which is moving to its own project — until it lands,
+  // suggesting "Draft a lesson plan" would promise something this
+  // cannot do, and a bot that offers then declines is worse than one
+  // that never offered.
   studio: [
-    "What's on today?",
-    "Draft a lesson plan",
-    "How many students do I have?",
-    "Show me my quizzes",
+    "How do I make a lesson plan?",
+    "How does the gradebook work?",
+    "Can I upload my own material?",
+    "How do I take attendance?",
   ],
 };
 
@@ -81,7 +91,13 @@ function inline(str) {
   return out;
 }
 
-export default function AssistantWidget({ scope = "landing", onNavigate }) {
+/**
+ * @param scope      picks the greeting and the suggestions, nothing more
+ * @param onNavigate reserved. The assistant will be able to move the
+ *   teacher around once the studio side is wired to the new backend;
+ *   answering from a JSON file cannot decide to navigate.
+ */
+export default function AssistantWidget({ scope = "landing" }) {
   const { t, dir } = useI18n?.() || { t: (k) => k, dir: "ltr" };
   const [portalRoot, setPortalRoot] = useState(null);
   const [open, setOpen] = useState(false);
@@ -90,15 +106,10 @@ export default function AssistantWidget({ scope = "landing", onNavigate }) {
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const [doing, setDoing] = useState(null);
-  const [sessionId, setSessionId] = useState(null);
+  const [followUps, setFollowUps] = useState([]);
 
   const logRef = useRef(null);
   const inputRef = useRef(null);
-  const abortRef = useRef(null);
-  // The streaming reply is appended token by token; holding it in a ref
-  // as well means the voice can read the finished text without waiting
-  // for another render.
-  const streamRef = useRef("");
 
   const lang = dir === "rtl" ? "ar" : "en";
   const voice = useVoice({
@@ -107,7 +118,6 @@ export default function AssistantWidget({ scope = "landing", onNavigate }) {
   });
 
   useEffect(() => { setPortalRoot(document.body); }, []);
-  useEffect(() => { setSessionId(loadSessionId(scope)); }, [scope]);
 
   // Follow the conversation as it grows, but only while it is growing —
   // yanking the view back down while a teacher is reading an earlier
@@ -117,7 +127,7 @@ export default function AssistantWidget({ scope = "landing", onNavigate }) {
     if (!el) return;
     const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 90;
     if (nearBottom) el.scrollTop = el.scrollHeight;
-  }, [messages, doing]);
+  }, [messages, doing, followUps]);
 
   useEffect(() => {
     if (open && tab === "chat") {
@@ -138,60 +148,60 @@ export default function AssistantWidget({ scope = "landing", onNavigate }) {
     return () => window.removeEventListener("keydown", onKey);
   }, [open, voice]);
 
-  useEffect(() => () => abortRef.current?.(), []);
+
+  // Reveal an answer a word at a time, then stop. Held in a ref so a
+  // second question can cancel the first mid-sentence.
+  const typerRef = useRef(null);
+  const stopTyping = useCallback(() => {
+    if (typerRef.current) { clearInterval(typerRef.current); typerRef.current = null; }
+  }, []);
+  useEffect(() => stopTyping, [stopTyping]);
 
   const send = useCallback((text) => {
     const message = (text ?? draft).trim();
     if (!message || busy) return;
     voice.stop();
     voice.hush();
+    stopTyping();
     setDraft("");
     setBusy(true);
     setDoing("thinking");
-    streamRef.current = "";
     setMessages((m) => [...m, { role: "user", text: message }, { role: "assistant", text: "" }]);
 
-    abortRef.current = sendMessage({
-      scope, message, sessionId,
-      onEvent: (ev) => {
-        if (ev.type === "session") {
-          setSessionId(ev.sessionId);
-          saveSessionId(scope, ev.sessionId);
-        } else if (ev.type === "delta") {
-          streamRef.current += ev.text;
-          setDoing(null);
-          setMessages((m) => {
-            const next = [...m];
-            next[next.length - 1] = { role: "assistant", text: streamRef.current };
-            return next;
-          });
-        } else if (ev.type === "tool") {
-          setDoing(ev.name.replace(/_/g, " "));
-        } else if (ev.type === "action") {
-          // Things only the browser can do. The model asked; the widget
-          // carries it out.
-          if (ev.action === "navigate") onNavigate?.(ev.where);
-          if (ev.action === "set_accessibility") applyA11y(ev.settings);
-        } else if (ev.type === "error") {
-          setMessages((m) => {
-            const next = [...m];
-            // Replace the empty placeholder rather than adding a bubble
-            // under it, or an error looks like a reply that failed twice.
-            if (next[next.length - 1]?.role === "assistant" && !next[next.length - 1].text) next.pop();
-            return [...next, { role: "error", text: ev.message }];
-          });
-        } else if (ev.type === "done") {
+    const { text: full, topicId } = answerFor(message);
+
+    // A beat before it starts. Instant is unsettling — it reads as a
+    // canned response rather than an answer, which is precisely the
+    // impression to avoid even though it IS a lookup.
+    const begin = setTimeout(() => {
+      setDoing(null);
+      const words = full.split(/(\s+)/);
+      let i = 0;
+      typerRef.current = setInterval(() => {
+        // Several tokens per tick: one word at a time is slower than
+        // reading, which is worse than showing it all at once.
+        i = Math.min(i + 3, words.length);
+        const shown = words.slice(0, i).join("");
+        setMessages((m) => {
+          const next = [...m];
+          next[next.length - 1] = { role: "assistant", text: shown };
+          return next;
+        });
+        if (i >= words.length) {
+          stopTyping();
           setBusy(false);
-          setDoing(null);
-          voice.say(streamRef.current);
+          setFollowUps(suggestionsAfter(topicId));
+          voice.say(full);
         }
-      },
-    });
-  }, [draft, busy, scope, sessionId, onNavigate, voice]);
+      }, 16);
+    }, 260);
+
+    return () => clearTimeout(begin);
+  }, [draft, busy, voice, stopTyping]);
 
   const starters = STARTERS[scope] || STARTERS.landing;
   const greeting = scope === "studio"
-    ? "Ask me anything, or tell me what to make. I can draft a lesson, look something up, or open a screen for you."
+    ? "Ask me how anything here works — planning a lesson, the register, the gradebook, uploading your own material."
     : "Ask me anything about Murchid — what it does, how it works, or whether it fits how you teach.";
 
   const side = dir === "rtl" ? { left: 20, right: "auto" } : { right: 20, left: "auto" };
@@ -310,6 +320,16 @@ export default function AssistantWidget({ scope = "landing", onNavigate }) {
                 )
               )}
 
+              {!busy && followUps.length > 0 && messages.length > 0 && (
+                <div className={s.starters}>
+                  {followUps.map((q) => (
+                    <button key={q} type="button" className={s.starter} onClick={() => send(q)}>
+                      {q}
+                    </button>
+                  ))}
+                </div>
+              )}
+
               {doing && (
                 <div className={s.doing}>
                   <span className={s.dot} />
@@ -367,11 +387,7 @@ export default function AssistantWidget({ scope = "landing", onNavigate }) {
                 </button>
               </div>
               <p className={s.hint}>
-                <span>
-                  {scope === "studio"
-                    ? "I can make things for you — check them before you use them."
-                    : "Answers come from Murchid's own documentation."}
-                </span>
+                <span>Answers come from Murchid&rsquo;s own documentation.</span>
                 <span>{voice.canListen ? "Mic works" : ""}</span>
               </p>
             </div>
