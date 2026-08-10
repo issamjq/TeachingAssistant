@@ -281,7 +281,15 @@ export function ArtifactCard({ kind, title, children, actions }) {
   );
 }
 
-/** Prose artifacts — lesson plans, homework, activities. */
+/**
+ * Prose artifacts — lesson plans, homework, activities.
+ *
+ * renderMarkdown returns React NODES, not an HTML string. Passing them
+ * to dangerouslySetInnerHTML stringified the array and printed
+ * "[object Object],[object Object]" where the lesson should have been —
+ * and it is the safer API too, since nothing is ever injected as raw
+ * HTML.
+ */
 export function MarkdownBody({ markdown }) {
-  return <div className={s.reply} dangerouslySetInnerHTML={{ __html: renderMarkdown(markdown || "") }} />;
+  return <div className={s.reply}>{renderMarkdown(markdown || "")}</div>;
 }

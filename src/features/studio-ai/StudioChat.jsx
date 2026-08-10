@@ -28,6 +28,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   Send, Paperclip, X, Sparkles, Square, RotateCcw, Save, Check,
   FileText, GraduationCap, ClipboardList, Layers, Puzzle,
+  PanelLeftOpen, PanelLeftClose, Plus, Trash2, MessageSquare,
 } from "lucide-react";
 import { api } from "@/views/_shared";
 import { supabase } from "@/lib/supabaseClient";
@@ -36,6 +37,9 @@ import { parseSections, renderMarkdown } from "@/lib/markdown";
 import {
   ArtifactCard, MarkdownBody, QuizViewer, SlideViewer, SlideFullscreen, DocViewer, KIND_META,
 } from "./artifacts";
+import {
+  listSessions, createSession, appendMessage, loadSession, deleteSession, purgeOld, KEEP_DAYS,
+} from "./history";
 import s from "./Studio.module.css";
 
 const KINDS = [
@@ -74,6 +78,73 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
   const [uploading, setUploading] = useState(false);
   const [notice, setNotice] = useState(null);
   const [presenting, setPresenting] = useState(null);
+
+  // ── conversation history ───────────────────────────────────────────
+  const [sessions, setSessions] = useState([]);
+  const [sessionId, setSessionId] = useState(null);
+  const [railOpen, setRailOpen] = useState(true);
+  const [loadingThread, setLoadingThread] = useState(false);
+  // The id the CURRENT send belongs to. State would be a render behind:
+  // a thread is created and its first two turns saved inside one call,
+  // and setSessionId has not committed by the time they are written.
+  const sessionRef = useRef(null);
+
+  const refreshSessions = useCallback(() => {
+    listSessions().then(setSessions).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    refreshSessions();
+    purgeOld();
+  }, [refreshSessions]);
+
+  // A narrow window opens with the rail closed: the studio is already
+  // tight there, and a list of last week's work is not what a teacher
+  // came for.
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.innerWidth < 1100) setRailOpen(false);
+  }, []);
+
+  const openSession = async (id) => {
+    if (id === sessionId) return;
+    setLoadingThread(true);
+    try {
+      const turns_ = await loadSession(id);
+      setSessionId(id);
+      sessionRef.current = id;
+      setTurns(turns_);
+      setNotice(null);
+      if (window.innerWidth <= 720) setRailOpen(false);
+    } catch (e) {
+      setNotice(`Couldn't open that conversation: ${e.message}`);
+    } finally {
+      setLoadingThread(false);
+    }
+  };
+
+  const newChat = () => {
+    abortRef.current?.abort();
+    setSessionId(null);
+    sessionRef.current = null;
+    setTurns([]);
+    setDraft("");
+    setAttachments([]);
+    setNotice(null);
+    if (window.innerWidth <= 720) setRailOpen(false);
+  };
+
+  const removeSession = async (id, e) => {
+    e.stopPropagation();
+    const prev = sessions;
+    setSessions((x) => x.filter((y) => y.session_id !== id));
+    if (id === sessionId) newChat();
+    try {
+      await deleteSession(id);
+    } catch (err) {
+      setSessions(prev);                       // the delete failed; put it back
+      setNotice(`Couldn't delete that: ${err.message}`);
+    }
+  };
 
   const threadRef = useRef(null);
   const inputRef = useRef(null);
@@ -152,6 +223,24 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
     const controller = new AbortController();
     abortRef.current = controller;
 
+    // Open a thread on the first message and save the teacher's words
+    // straight away — before the generator is even called, so a prompt
+    // survives a failure, a refresh or a closed tab.
+    let sid = sessionRef.current;
+    try {
+      if (!sid) {
+        const row = await createSession(prompt);
+        sid = row.session_id;
+        sessionRef.current = sid;
+        setSessionId(sid);
+        setSessions((x) => [row, ...x]);
+      }
+      appendMessage(sid, { role: "user", text: prompt });
+    } catch (e) {
+      // History is a convenience; losing it must never stop the work.
+      console.warn("[studio] history unavailable:", e.message);
+    }
+
     try {
       const { getIdToken } = await import("@/lib/supabaseAuth");
       const token = await getIdToken().catch(() => null);
@@ -226,6 +315,8 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
         n[n.length - 1] = { ...n[n.length - 1], text: acc, structured, streaming: false, done: true };
         return n;
       });
+      appendMessage(sid, { role: "assistant", text: acc, kind: k, structured });
+      refreshSessions();
     } catch (err) {
       if (err.name === "AbortError") {
         setTurns((t) => {
@@ -247,7 +338,7 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
       setBusy(false);
       abortRef.current = null;
     }
-  }, [draft, busy, kind, attachments]);
+  }, [draft, busy, kind, attachments, refreshSessions]);
 
   /** Keep an artifact. Goes browser → Supabase, so it works today. */
   const saveArtifact = async (turn, index) => {
@@ -279,8 +370,86 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
 
   const empty = turns.length === 0;
 
+  const when = (iso) => {
+    const d = new Date(iso);
+    const days = Math.floor((Date.now() - d.getTime()) / 864e5);
+    if (days === 0) return d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+    if (days === 1) return "Yesterday";
+    if (days < 7) return `${days} days ago`;
+    return d.toLocaleDateString(undefined, { day: "numeric", month: "short" });
+  };
+
   return (
-    <div className={s.shell}>
+    <div className={s.withRail}>
+      {/* ── history ─────────────────────────────────────────────── */}
+      <aside className={s.rail} data-open={railOpen} aria-label="Recent conversations" aria-hidden={!railOpen}>
+        <div className={s.railHead}>
+          <span className={s.railTitle}>Recent</span>
+          <button
+            type="button" className={s.iconBtn} onClick={() => setRailOpen(false)}
+            aria-label="Hide conversation history" title="Hide history"
+          >
+            <PanelLeftClose size={16} />
+          </button>
+        </div>
+        <button type="button" className={s.newChat} onClick={newChat}>
+          <Plus size={15} className="text-accent flex-shrink-0" /> New conversation
+        </button>
+        <div className={s.railList}>
+          {sessions.length === 0 ? (
+            <p className="text-[12px] text-muted px-3 py-2 leading-relaxed">
+              Nothing yet. Conversations you have here are kept for {KEEP_DAYS} days — anything
+              you save goes to your library and stays.
+            </p>
+          ) : (
+            sessions.map((x) => (
+              // Two sibling buttons in a plain row, not a button inside
+              // a role="button". Nesting them made the row's accessible
+              // name swallow the delete label, so a screen reader
+              // announced one control offering both actions.
+              <div
+                key={x.session_id}
+                className={s.railItem}
+                data-on={x.session_id === sessionId}
+              >
+                <button
+                  type="button"
+                  className={s.railOpen}
+                  onClick={() => openSession(x.session_id)}
+                  aria-current={x.session_id === sessionId ? "true" : undefined}
+                >
+                  <MessageSquare size={13} className="text-muted flex-shrink-0 mt-0.5 self-start" />
+                  <span className={s.railItemText}>
+                    {x.title || "Untitled"}
+                    <span className={s.railItemWhen}>{when(x.updated_at || x.created_at)}</span>
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  className={s.railDel}
+                  onClick={(e) => removeSession(x.session_id, e)}
+                  aria-label={`Delete conversation: ${x.title || "Untitled"}`}
+                >
+                  <Trash2 size={13} />
+                </button>
+              </div>
+            ))
+          )}
+        </div>
+      </aside>
+
+      {railOpen && <div className={s.railScrim} onClick={() => setRailOpen(false)} aria-hidden="true" />}
+
+      <div className={s.chatSide}>
+        {!railOpen && (
+          <button
+            type="button" className={s.railToggle} onClick={() => setRailOpen(true)}
+            aria-label="Show conversation history" title="Recent conversations"
+          >
+            <PanelLeftOpen size={17} />
+          </button>
+        )}
+        <div className={s.shell}>
       <div className={s.thread} ref={threadRef}>
         {empty ? (
           <div className={s.hero}>
@@ -358,7 +527,7 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
                         its kind deserves. */}
                     {turn.streaming && turn.text && (
                       <div className={s.reply}>
-                        <div dangerouslySetInnerHTML={{ __html: renderMarkdown(turn.text) }} />
+                        {renderMarkdown(turn.text)}
                         <span className={s.caret} aria-hidden="true" />
                       </div>
                     )}
@@ -500,6 +669,9 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
         <p className="text-[11px] text-muted text-center mt-2 max-w-[760px] mx-auto">
           Murchid drafts; you decide. Check anything before it reaches a class.
         </p>
+      </div>
+
+        </div>
       </div>
 
       {presenting && (

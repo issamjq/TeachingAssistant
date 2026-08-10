@@ -455,3 +455,187 @@
   border-radius: 10px;
   background: var(--p-paper-warm);
 }
+
+/* ── history panel ────────────────────────────────────────────────────
+   A rail of past conversations beside the thread, the way every chat
+   assistant keeps them. Collapsible, because on a laptop the studio is
+   already narrow and a teacher mid-draft does not need a list of what
+   they made last week taking a fifth of it. */
+
+.withRail { display: flex; gap: 0; height: 100%; min-height: 0; }
+
+.rail {
+  flex-shrink: 0;
+  width: 250px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-inline-end: 1px solid var(--p-line);
+  background: color-mix(in oklab, var(--p-paper-warm) 55%, transparent);
+  transition: width 0.24s cubic-bezier(0.22, 1, 0.36, 1);
+  overflow: hidden;
+}
+.rail[data-open="false"] { width: 0; border-inline-end-color: transparent; }
+@media (prefers-reduced-motion: reduce) { .rail { transition: none; } }
+
+.railHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 10px 8px 14px;
+  flex-shrink: 0;
+}
+.railTitle {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--p-muted);
+  flex: 1;
+  white-space: nowrap;
+}
+.railList {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0 8px 12px;
+  scrollbar-width: thin;
+}
+
+.railItem {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  padding: 2px 6px 2px 5px;
+  border-radius: 11px;
+  border: 1px solid transparent;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.railItem:hover { background: color-mix(in oklab, var(--p-ink) 5%, transparent); }
+
+/* The row's own button — opening the thread. Delete is its sibling. */
+.railOpen {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 4px 8px 6px;
+  border-radius: 9px;
+  cursor: pointer;
+  text-align: start;
+}
+.railOpen:focus-visible { outline: 2px solid var(--p-accent); outline-offset: -2px; border-radius: 9px; }
+.railItem[data-on="true"] {
+  background: var(--p-accent-soft);
+  border-color: color-mix(in oklab, var(--p-accent) 30%, transparent);
+}
+.railItemText {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  line-height: 1.35;
+  color: var(--p-ink);
+  /* Two lines then ellipsis: one line truncates most useful titles mid
+     word, three lets a rambling first sentence own the rail. */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.railItemWhen {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--p-muted);
+  margin-top: 3px;
+  display: block;
+}
+/* The delete control appears on hover or focus — always-visible bins
+   next to every row make a list look like a queue of mistakes. */
+.railDel {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 26px; height: 26px;
+  border-radius: 8px;
+  color: var(--p-muted);
+  opacity: 0;
+  cursor: pointer;
+  transition: opacity 0.15s ease, color 0.15s ease, background 0.15s ease;
+}
+.railItem:hover .railDel,
+.railItem:focus-within .railDel { opacity: 1; }
+.railDel:hover { color: var(--p-crit); background: color-mix(in oklab, var(--p-crit) 12%, transparent); }
+.railDel:focus-visible { opacity: 1; outline: 2px solid var(--p-accent); outline-offset: 1px; }
+
+.newChat {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  margin: 0 8px 8px;
+  width: calc(100% - 16px);
+  padding: 9px 12px;
+  border-radius: 11px;
+  border: 1px solid var(--p-line);
+  background: var(--p-surface);
+  font-size: 13px;
+  color: var(--p-ink);
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.newChat:hover { border-color: var(--p-accent); background: var(--p-paper-cool); }
+.newChat:focus-visible { outline: 2px solid var(--p-accent); outline-offset: 2px; }
+
+.railToggle {
+  position: absolute;
+  top: 10px;
+  inset-inline-start: 10px;
+  z-index: 5;
+  display: grid;
+  place-items: center;
+  width: 34px; height: 34px;
+  border-radius: 10px;
+  border: 1px solid var(--p-line);
+  background: var(--p-surface);
+  color: var(--p-ink-soft);
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+.railToggle:hover { border-color: var(--p-accent); color: var(--p-ink); }
+.railToggle:focus-visible { outline: 2px solid var(--p-accent); outline-offset: 2px; }
+
+.chatSide { flex: 1; min-width: 0; position: relative; display: flex; flex-direction: column; min-height: 0; }
+
+/* Only a drawer needs a scrim. On a desktop the rail sits beside the
+   chat and dimming the thread behind it would be nonsense — and an
+   unstyled div here would still be a flex item in the row. */
+.railScrim { display: none; }
+
+/* On a phone the rail is a drawer over the thread — 250px of a 375px
+   screen is not a sidebar, it is the screen. */
+@media (max-width: 720px) {
+  .rail {
+    position: absolute;
+    inset-block: 0;
+    inset-inline-start: 0;
+    z-index: 30;
+    width: 82vw;
+    max-width: 300px;
+    background: var(--p-surface);
+    box-shadow: 0 18px 44px -12px color-mix(in oklab, var(--p-ink) 40%, transparent);
+  }
+  .rail[data-open="false"] { width: 0; box-shadow: none; }
+  .railScrim {
+    display: block;
+    position: absolute;
+    inset: 0;
+    z-index: 20;
+    background: color-mix(in oklab, var(--p-ink) 30%, transparent);
+  }
+}

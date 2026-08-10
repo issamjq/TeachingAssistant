@@ -1205,3 +1205,30 @@ BEGIN
     ALTER TABLE public.subscriptions ADD CONSTRAINT subscriptions_faculty_unique UNIQUE (faculty_id);
   END IF;
 END $$;
+
+
+-- ── 29. Studio conversations ──────────────────────────────────────────
+--
+-- The AI Studio is a chat now, and a chat a teacher cannot return to is
+-- a chat that loses their work. Its threads live in the tables the
+-- assistant already uses, separated by page_scope = 'studio'.
+--
+-- Two columns the assistant never needed:
+--
+--   title     what the history list shows. Derived from the first
+--             message, but stored rather than recomputed — the first
+--             message can be edited away, and a list whose labels shift
+--             under the reader is worse than one that is slightly stale.
+--
+--   artifact  the structured result: a deck's slides, a quiz's
+--             questions. Reconstructing those by re-parsing markdown on
+--             every load would be lossy in exactly the cases the viewers
+--             exist for, and re-generating them would cost a model call
+--             to recover something already produced.
+ALTER TABLE public.chatbot_sessions ADD COLUMN IF NOT EXISTS title text;
+ALTER TABLE public.chatbot_messages ADD COLUMN IF NOT EXISTS kind     text;
+ALTER TABLE public.chatbot_messages ADD COLUMN IF NOT EXISTS artifact jsonb;
+
+-- The history list is "my studio threads, newest first".
+CREATE INDEX IF NOT EXISTS chatbot_sessions_scope_idx
+  ON public.chatbot_sessions (user_id, page_scope, updated_at DESC);
