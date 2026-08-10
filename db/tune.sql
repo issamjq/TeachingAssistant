@@ -945,3 +945,263 @@ CREATE POLICY quiz_attempts_teacher_write ON public.quiz_attempts
          AND a.faculty_id = current_faculty_id()
     )
   );
+
+
+-- ═══════════════════════════════════════════════════════════════════════
+-- 27. The two gates that used to live in Express middleware
+--
+-- With no API in front of Postgres, "is this the current device" and "are
+-- you paid up" have to be asked by the database or not at all. Both are
+-- now RLS predicates.
+--
+-- The shape of the answer matters as much as the answer:
+--
+--   READS are never blocked by an expired subscription. A teacher whose
+--   card failed must still be able to open, export and print a term's
+--   lesson plans. Holding someone's own work hostage over a payment is
+--   both hostile and, in several jurisdictions, unlawful.
+--
+--   WRITES are. That is the actual product boundary.
+--
+--   BOTH are blocked by a superseded device, because sharing one account
+--   across a staffroom is exactly what single-device sign-in exists to
+--   stop, and reading is most of what would be shared.
+-- ═══════════════════════════════════════════════════════════════════════
+
+-- ── the device check ──────────────────────────────────────────────────
+--
+-- Every Supabase access token carries a `session_id` claim, distinct per
+-- sign-in. So the device key is already in the JWT and needs no custom
+-- header: the browser cannot forge it, because the token is signed.
+--
+-- NULL active_session_id means "not claimed" and is allowed through —
+-- accounts that predate this, and the moment between signing in and
+-- claiming, must not be locked out of their own data.
+CREATE OR REPLACE FUNCTION public.is_current_device()
+RETURNS boolean
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+  SELECT COALESCE(
+    (
+      SELECT u.active_session_id IS NULL
+          OR u.active_session_id = (auth.jwt() ->> 'session_id')
+        FROM users u
+       WHERE u.id = (SELECT auth.uid())
+    ),
+    -- No users row yet: sign-up is mid-flight. Let it through; there is
+    -- nothing to protect and blocking it would break provisioning.
+    true
+  );
+$$;
+
+-- ── the subscription check ────────────────────────────────────────────
+--
+-- SECURITY DEFINER on purpose. Called from a policy on a table whose own
+-- policy calls current_faculty_id(), an invoker-rights function reading
+-- subscriptions would re-enter RLS and recurse. Running as owner reads
+-- the row directly and terminates.
+--
+-- Three deliberate leniencies:
+--   past_due counts as active — a failed retry is not a cancellation,
+--     and locking a paying customer out over a late webhook is a worse
+--     failure than a few days of unpaid access
+--   a NULL end date is open-ended, not expired (admin extensions)
+--   three days of grace past the end date, for the same reason
+CREATE OR REPLACE FUNCTION public.subscription_active()
+RETURNS boolean
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+  SELECT
+    -- Privileged roles do not pay, so the gate must not apply to them.
+    EXISTS (
+      SELECT 1 FROM users u
+       WHERE u.id = (SELECT auth.uid())
+         AND u.role IN ('dev', 'super_admin', 'admin', 'owner', 'moe')
+    )
+    OR EXISTS (
+      SELECT 1 FROM subscriptions s
+       WHERE s.faculty_id = current_faculty_id()
+         AND s.status IN ('trialing', 'active', 'past_due')
+         AND (
+           COALESCE(s.current_period_end, s.trial_ends_at) IS NULL
+           OR COALESCE(s.current_period_end, s.trial_ends_at) > now() - INTERVAL '3 days'
+         )
+    );
+$$;
+
+GRANT EXECUTE ON FUNCTION public.is_current_device()   TO authenticated;
+GRANT EXECUTE ON FUNCTION public.subscription_active() TO authenticated;
+
+
+-- ── applying the gates ────────────────────────────────────────────────
+--
+-- One owner expression per table, then four policies built from it:
+-- SELECT gated on device only, and INSERT/UPDATE/DELETE gated on device
+-- AND subscription. Generated rather than written out because eleven
+-- tables x four policies is forty-four chances to mistype an ownership
+-- clause, and they must all say the same thing.
+--
+-- NOT gated, and each for a reason:
+--   users, faculty        a superseded or lapsed teacher must still be
+--                         able to read their own account — it is how the
+--                         app knows what to tell them
+--   subscriptions,
+--   credits               same: the screen that says "your plan ended"
+--                         has to be able to read that it ended
+--   notifications         system-addressed, and the bell explaining the
+--                         lockout is itself a notification
+--   onboarding_documents  written during sign-up, before there is a
+--                         subscription to check
+--   chatbot_*             the assistant should still answer "why can I
+--                         not save anything"
+DO $$
+DECLARE
+  t record;
+  pol record;
+  own text;
+BEGIN
+  FOR t IN
+    SELECT * FROM (VALUES
+      ('ai_studio',         'faculty_id = current_faculty_id()'),
+      ('materials',         'faculty_id = current_faculty_id()'),
+      ('schedule_entries',  'faculty_id = current_faculty_id()'),
+      ('attendance',        'faculty_id = current_faculty_id()'),
+      ('student_grades',    'faculty_id = current_faculty_id()'),
+      ('classes',           'faculty_id = current_faculty_id()'),
+      ('goals',             'faculty_id = current_faculty_id()'),
+      ('teaching_skills',   'faculty_id = current_faculty_id()'),
+      ('uploaded_images',   'faculty_id = current_faculty_id()'),
+      ('faculty_schools',   'faculty_id = current_faculty_id()'),
+      ('students',
+       'created_by = current_faculty_id() OR EXISTS (SELECT 1 FROM class_members cm JOIN classes c ON c.id = cm.class_id WHERE cm.student_id = students.id AND c.faculty_id = current_faculty_id())'),
+      ('class_members',
+       'EXISTS (SELECT 1 FROM classes c WHERE c.id = class_members.class_id AND c.faculty_id = current_faculty_id())'),
+      ('assignments',
+       'EXISTS (SELECT 1 FROM classes c WHERE c.id = assignments.class_id AND c.faculty_id = current_faculty_id())'),
+      ('invitations',
+       'EXISTS (SELECT 1 FROM classes c WHERE c.id = invitations.class_id AND c.faculty_id = current_faculty_id())')
+    ) AS v(tbl, owner)
+  LOOP
+    CONTINUE WHEN to_regclass('public.' || t.tbl) IS NULL;
+    own := t.owner;
+
+    -- Drop EVERY policy on the table, by enumeration rather than by name.
+    --
+    -- Naming them was a real bug and a quiet one: policies are OR'd, so a
+    -- survivor from the original schema — ai_studio_owner_read,
+    -- students_own — silently granted what the new gates were written to
+    -- refuse. A superseded device still read every lesson plan, and the
+    -- policy list looked correct unless you counted it.
+    FOR pol IN SELECT policyname FROM pg_policies
+                WHERE schemaname = 'public' AND tablename = t.tbl
+    LOOP
+      EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', pol.policyname, t.tbl);
+    END LOOP;
+
+    EXECUTE format(
+      'CREATE POLICY %I ON public.%I FOR SELECT TO authenticated USING ((%s) AND is_current_device())',
+      t.tbl || '_read', t.tbl, own);
+    EXECUTE format(
+      'CREATE POLICY %I ON public.%I FOR INSERT TO authenticated WITH CHECK ((%s) AND is_current_device() AND subscription_active())',
+      t.tbl || '_ins', t.tbl, own);
+    EXECUTE format(
+      'CREATE POLICY %I ON public.%I FOR UPDATE TO authenticated USING ((%s) AND is_current_device() AND subscription_active()) WITH CHECK ((%s) AND is_current_device() AND subscription_active())',
+      t.tbl || '_upd', t.tbl, own, own);
+    EXECUTE format(
+      'CREATE POLICY %I ON public.%I FOR DELETE TO authenticated USING ((%s) AND is_current_device() AND subscription_active())',
+      t.tbl || '_del', t.tbl, own);
+  END LOOP;
+END $$;
+
+-- quiz_attempts keeps its two audiences: a student writing their own
+-- attempt, and the teacher who set the work marking it. Both are gated,
+-- and every prior policy goes first for the reason above.
+DO $$
+DECLARE pol record;
+BEGIN
+  FOR pol IN SELECT policyname FROM pg_policies
+              WHERE schemaname = 'public' AND tablename = 'quiz_attempts'
+  LOOP
+    EXECUTE format('DROP POLICY IF EXISTS %I ON public.quiz_attempts', pol.policyname);
+  END LOOP;
+END $$;
+
+-- A student reads and writes their own attempt.
+CREATE POLICY quiz_attempts_student ON public.quiz_attempts
+  FOR ALL TO authenticated
+  USING (student_id = current_student_id())
+  WITH CHECK (student_id = current_student_id());
+
+CREATE POLICY quiz_attempts_teacher_write ON public.quiz_attempts
+  FOR ALL TO authenticated
+  USING (
+    is_current_device() AND EXISTS (
+      SELECT 1 FROM assignments asg JOIN ai_studio a ON a.id = asg.generation_id
+       WHERE asg.id = quiz_attempts.assignment_id AND a.faculty_id = current_faculty_id())
+  )
+  WITH CHECK (
+    is_current_device() AND subscription_active() AND EXISTS (
+      SELECT 1 FROM assignments asg JOIN ai_studio a ON a.id = asg.generation_id
+       WHERE asg.id = quiz_attempts.assignment_id AND a.faculty_id = current_faculty_id())
+  );
+
+
+-- ── 28. Provisioning, as a trigger instead of an endpoint ─────────────
+--
+-- Signing up used to POST /api/auth/supabase, which created users,
+-- faculty, credits and subscriptions in one transaction. The browser
+-- cannot do that itself: it may write its own users and faculty rows,
+-- but credits and subscriptions are deliberately read-only — a teacher
+-- must not be able to grant themselves a balance or a plan.
+--
+-- So the database does it. Creating a faculty row is the signal, and
+-- everything a new teacher is entitled to follows from it. SECURITY
+-- DEFINER, so it writes tables the caller cannot.
+--
+-- This makes the plan non-negotiable at sign-up, which is correct:
+-- everyone starts on the same trial, and moving to a paid plan is a
+-- payment, not a field on a form.
+CREATE OR REPLACE FUNCTION public.provision_faculty()
+RETURNS trigger
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+BEGIN
+  INSERT INTO credits (faculty_id, balance, monthly_allowance)
+  VALUES (NEW.id, 200, 200)
+  ON CONFLICT (faculty_id) DO NOTHING;
+
+  INSERT INTO subscriptions (faculty_id, plan, status, trial_ends_at)
+  VALUES (NEW.id, 'trial', 'trialing', now() + INTERVAL '7 days')
+  ON CONFLICT DO NOTHING;
+
+  RETURN NEW;
+EXCEPTION WHEN OTHERS THEN
+  -- Never block a sign-up over the entitlement rows. A teacher with no
+  -- credits row is recoverable; a teacher who could not create an
+  -- account at all is not.
+  RAISE WARNING 'provision_faculty: %', SQLERRM;
+  RETURN NEW;
+END $$;
+
+DROP TRIGGER IF EXISTS provision_on_faculty ON public.faculty;
+CREATE TRIGGER provision_on_faculty
+  AFTER INSERT ON public.faculty
+  FOR EACH ROW EXECUTE FUNCTION public.provision_faculty();
+
+-- credits had no primary key on faculty_id in every deployment; the
+-- ON CONFLICT above needs one to be a no-op rather than an error.
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+     WHERE conrelid = 'public.credits'::regclass AND contype IN ('p','u')
+  ) THEN
+    ALTER TABLE public.credits ADD PRIMARY KEY (faculty_id);
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+     WHERE conname = 'subscriptions_faculty_unique' AND connamespace = 'public'::regnamespace
+  ) THEN
+    ALTER TABLE public.subscriptions ADD CONSTRAINT subscriptions_faculty_unique UNIQUE (faculty_id);
+  END IF;
+END $$;

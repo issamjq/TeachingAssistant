@@ -33,9 +33,14 @@ import { KIND_BY_PATH } from "./artifacts";
 export type Handled = { handled: true; data: unknown } | { handled: false };
 
 const SERVER_ONLY = [
-  "/api/studio", "/api/onboarding", "/api/auth", "/api/images",
+  "/api/studio", "/api/onboarding", "/api/images",
   "/api/admin", "/api/superadmin", "/api/owner", "/api/moe", "/api/dev",
   "/api/teachers",
+  // Most of /api/auth moved: provisioning is a database trigger and the
+  // device claim is a policy, so only the parts that need a mail sender
+  // and a bcrypt secret are left.
+  "/api/auth/email-verify",
+  "/api/auth/renew",
 ];
 
 /** Does this path still need the API? */
@@ -133,6 +138,14 @@ export async function resolve(
   }
 
   switch (root) {
+    case "auth":
+      // Sign-in. Provisioning is a trigger and the device claim is an
+      // RLS predicate, so neither needs a server any more.
+      if (a === "supabase" && method === "POST") return yes(await E.provisionTeacher());
+      if (a === "claim-session" && method === "POST") return yes(await E.claimSession());
+      if (a === "me" && method === "GET") return yes(await E.getProfile());
+      return { handled: false };
+
     case "me":
       if (method === "GET") return yes(await E.getProfile());
       if (method === "PATCH") return yes(await E.updateProfile(body));

@@ -20,7 +20,7 @@
 // than filling it in.
 // =====================================================================
 import { supabase } from "@/lib/supabaseClient";
-import { facultyId, ident } from "./session";
+import { clearIdent, facultyId, ident } from "./session";
 
 const iso = () => new Date().toISOString();
 const notFound = () => Object.assign(new Error("Not found"), { status: 404 });
@@ -670,4 +670,63 @@ export async function deleteQuizScore(id: string) {
   if (error) throw error;
   if (!count) throw notFound();
   return { ok: true };
+}
+
+// ── sign-in ───────────────────────────────────────────────────────────
+
+/**
+ * Make sure the signed-in user is set up as a teacher, and claim this
+ * device.
+ *
+ * All the browser creates is the `faculty` row. The credits balance and
+ * the trial subscription follow from a database trigger
+ * (`provision_faculty`), because those are entitlements — a teacher who
+ * could write them could grant themselves a plan.
+ *
+ * Replaces POST /api/auth/supabase. There is no plan argument any more:
+ * everyone starts on the same trial, and moving to a paid one is a
+ * payment rather than a field on a form.
+ */
+export async function provisionTeacher() {
+  const { userId } = await ident();
+
+  // The auth trigger normally mirrors this, but it swallows its own
+  // errors by design, so a missing row is possible and cheap to fix.
+  const { data: auth } = await supabase.auth.getUser();
+  const meta: any = auth?.user?.user_metadata || {};
+  await supabase.from("users").upsert(
+    {
+      id: userId,
+      email: auth?.user?.email ?? null,
+      full_name: meta.full_name ?? meta.name ?? null,
+      first_name: meta.given_name ?? null,
+      last_name: meta.family_name ?? null,
+      avatar_url: meta.avatar_url ?? meta.picture ?? null,
+    },
+    { onConflict: "id", ignoreDuplicates: true }
+  );
+
+  const { error } = await supabase
+    .from("faculty")
+    .upsert({ user_id: userId }, { onConflict: "user_id", ignoreDuplicates: true });
+  if (error) throw error;
+
+  clearIdent();                       // the faculty id has just changed
+  const { claimDevice } = await import("./device");
+  const active_session_id = await claimDevice();
+  return { ...(await getProfile()), active_session_id };
+}
+
+/**
+ * Take over as the active device, for a teacher who already exists.
+ *
+ * Replaces POST /api/auth/claim-session, including its role as the
+ * "does this account exist yet" probe: getProfile throws 404
+ * `no_teacher_row` when there is no faculty row, which is what sends a
+ * new user down the sign-up funnel.
+ */
+export async function claimSession() {
+  const profile = await getProfile();
+  const { claimDevice } = await import("./device");
+  return { ...profile, active_session_id: await claimDevice() };
 }

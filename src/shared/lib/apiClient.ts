@@ -91,6 +91,29 @@ async function handleSessionSuperseded(): Promise<void> {
  * semantically a 403 — without this translation a screen that branches
  * on `status === 403` would see `undefined` and show its generic error.
  */
+/**
+ * Turn a bare policy refusal into something a teacher can act on.
+ *
+ * Postgres answers every RLS refusal with one code, 42501, whatever the
+ * reason — so "you were signed out on another device" and "your plan
+ * ended" are indistinguishable at the point of failure. The cause is
+ * worked out afterwards, and only on a refusal, so the extra queries
+ * cost nothing on the normal path.
+ */
+async function explainIfRefused(err: any): Promise<ApiError> {
+  const base = asApiError(err);
+  if (base.status !== 403 && err?.code !== "42501") return base;
+  try {
+    const { explainRefusal } = await import("@/lib/data/device");
+    const { reason, message } = await explainRefusal();
+    if (reason === "superseded") return new ApiError(message, 401, "session_superseded");
+    if (reason === "subscription") return new ApiError(message, 402, "subscription_expired");
+  } catch {
+    /* diagnosis is a nicety; the refusal itself still stands */
+  }
+  return base;
+}
+
 function asApiError(err: any): ApiError {
   if (err instanceof ApiError) return err;
   const pg = err?.code;
@@ -120,7 +143,9 @@ export async function api<TResponse = unknown, TBody = unknown>(
     const hit = await resolve(path, method, body);
     if (hit.handled) return hit.data as TResponse;
   } catch (err) {
-    throw asApiError(err);
+    const apiErr = await explainIfRefused(err);
+    if (apiErr.code === "session_superseded") await handleSessionSuperseded();
+    throw apiErr;
   }
 
   // Lazy-loaded so modules importing `api` from a non-React context (init

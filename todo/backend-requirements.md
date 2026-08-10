@@ -83,35 +83,35 @@ nationality, bio`.
 - Must be authenticated but must **not** require a `faculty` row — it
   runs during sign-up, before one exists.
 
-### 1.3 Auth bootstrap — `/api/auth/*`
+### 1.3 Email verification — `/api/auth/email-verify/*`
 
-| Method | Path | Notes |
-|---|---|---|
-| POST | `/api/auth/supabase` | First sign-in. Body `{ plan }` |
-| POST | `/api/auth/claim-session` | Rotate the single-device session |
-| GET | `/api/auth/me` | The account, from the token alone |
-| POST | `/api/auth/renew` | Change plan |
-| POST | `/api/auth/email-verify/send` | 6-digit code, bcrypt hashed |
-| POST | `/api/auth/email-verify/check` | Verify it |
+| Method | Path |
+|---|---|
+| POST | `/api/auth/email-verify/send` |
+| POST | `/api/auth/email-verify/check` |
 
-`/api/auth/supabase` must create, idempotently and in one transaction:
+A 6-digit code proving an address before an account exists. Store it
+bcrypt-hashed in `email_verifications`, never the digits.
+That table has RLS enabled with **no policy**, so it is unreachable from
+any client — it is yours alone.
 
-1. `users` — normally the `handle_new_user` trigger's job, but that
-   trigger swallows its own errors by design, so do not assume it ran.
-2. `faculty` — `ON CONFLICT (user_id) DO NOTHING`.
-3. `credits` — 200 balance and allowance.
-4. `subscriptions` — plan, status, `trial_ends_at`.
+Rate-limit both hard. They are the only guessable endpoints left.
 
-**Key on the auth uid, never the email.** Two providers can hand over the
-same address; merging on it joins two different people into one account.
+> **Everything else under `/api/auth` is gone, not moved.** Sign-in
+> provisioning and single-device claiming are now the database's job:
+>
+> - `provision_faculty()` fires on INSERT to `faculty` and creates the
+>   credits balance and the trial subscription. SECURITY DEFINER, so it
+>   writes tables the browser cannot — a teacher must not be able to
+>   grant themselves a plan. The browser creates only its own `faculty`
+>   row; everything it is entitled to follows.
+> - Claiming a device is one UPDATE to `users.active_session_id`.
+>
+> Do **not** rebuild `/api/auth/supabase` or `/api/auth/claim-session`.
+> `src/lib/data/entities.ts` handles both.
 
-Plans come from `src/lib/plans.js`: `trial` (7 days), `monthly` (30),
-`quarterly` (90), `annual` (365). Subscription status uses Stripe's
-vocabulary — `trialing`, not `trial`. The CHECK constraint enforces it.
-
-`email_verifications` is RLS-denied to clients, so only you can read it.
-Codes are bcrypt hashes, never the digits. Rate-limit `send` and `check`
-hard — they are the only guessable endpoints.
+`POST /api/auth/renew` is still yours — changing plan is a payment, and a
+teacher cannot write `subscriptions`.
 
 ### 1.4 Privileged consoles
 
@@ -166,46 +166,54 @@ unless it is echoed back verbatim.
 
 ---
 
-## 2 · Two enforcement gaps — decide before you build
+## 2 · The two gates — implemented, in RLS
 
-Both lived in Express middleware. **Neither is enforced now**, and no
-amount of backend work fixes them alone, because the browser reaches
-Postgres without passing through you.
+Both used to be Express middleware. They are database predicates now, so
+they hold even though the browser talks to Postgres directly. Do not
+re-implement them; do respect them.
 
-### Single-device sign-in
+`db/tune.sql` §27–28.
 
-`users.active_session_id` held the one session allowed to act, and
-`requireAuth` compared it to an `X-Session-Id` header. Direct Supabase
-access does not carry that header, so an old device keeps working.
+### `is_current_device()`
 
-To keep it, it has to become an RLS predicate — the policies would need
-to compare a session claim in the JWT against the stored id. Otherwise
-the feature is gone; say so in the UI rather than leaving a promise the
-system no longer keeps.
+Every Supabase access token carries a `session_id` claim, unique per
+sign-in. The check compares it to `users.active_session_id`. The claim is
+inside the signed token, so it cannot be forged and needs no custom
+header.
 
-### Subscription expiry
+- Claiming is one UPDATE, plus `signOut({ scope: "others" })` to revoke
+  the other device's refresh token.
+- A NULL `active_session_id` means "not claimed" and is allowed — accounts
+  predating this, and the moment between signing in and claiming, must not
+  be locked out.
+- **Last sign-in wins.** A superseded device can sign in again and take
+  over. That is takeover, not a ban.
+- Gated on **reads as well as writes**: sharing one account across a
+  staffroom is what this exists to stop, and reading is most of what
+  would be shared.
 
-`requireAuth` rejected an expired teacher. The RLS policies only ask *is
-this yours*, never *are you paid up* — so an expired teacher can still
-read and write their own data.
+### `subscription_active()`
 
-To keep it, add a subscription check to the owner policies, e.g.
+- **Reads are never blocked.** A teacher whose card failed must still be
+  able to open, export and print a term's work. Holding someone's own
+  work hostage over a payment is hostile and, in several jurisdictions,
+  unlawful.
+- **Writes are.** That is the product boundary.
+- `past_due` counts as active, a NULL end date is open-ended, and there
+  are three days of grace past the end. A late webhook must not lock out
+  a paying customer.
+- Privileged roles are exempt — they do not pay.
 
-```sql
-USING (
-  faculty_id = current_faculty_id()
-  AND EXISTS (
-    SELECT 1 FROM subscriptions s
-     WHERE s.faculty_id = current_faculty_id()
-       AND s.status IN ('trialing','active')
-  )
-)
-```
+`users`, `faculty`, `subscriptions`, `credits`, `notifications`,
+`onboarding_documents` and the chat tables are deliberately **not** gated.
+A locked-out teacher has to be able to read their own account, or the app
+cannot tell them why the screen is empty.
 
-Weigh it: applied to every table it is also the fastest way to lock a
-paying customer out over a webhook that arrived late.
-
----
+**If you add a table**, add all four policies. A single `FOR ALL` policy
+re-opens both gates for that table. And drop existing policies by
+enumeration, not by name — policies are OR'd, and a survivor from an
+earlier schema silently grants what the new ones refuse. That exact bug
+let a superseded device keep reading every lesson plan here.
 
 ## 3 · Secrets you need
 
@@ -239,6 +247,10 @@ Each of these cost real time here.
 - **Gemini retires model names fast.** A pinned name 404'd within an
   hour of being written. Use the rolling alias (`gemini-flash-latest`)
   and make it env-overridable.
+- **Policies are OR'd, and dropping them by name is fragile.** A
+  leftover policy from an earlier schema grants what a new one refuses,
+  and the list looks right unless you count it. Enumerate `pg_policies`
+  and drop everything on the table first.
 - **`users.id` is FK'd to `auth.users`.** Nothing can create a user row
   for someone who has not signed up. `students.user_id` is nullable for
   exactly this reason — a teacher types in a register long before those
