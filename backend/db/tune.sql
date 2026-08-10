@@ -842,3 +842,106 @@ INSERT INTO public.subscriptions (faculty_id, plan, status, trial_ends_at)
 SELECT f.id, 'trial', 'trialing', now() + INTERVAL '14 days'
   FROM faculty f
  WHERE NOT EXISTS (SELECT 1 FROM subscriptions s WHERE s.faculty_id = f.id);
+
+
+-- ── 24. Write policies for going direct to Supabase ───────────────────
+--
+-- With the API removed, the browser writes to Postgres itself, so a
+-- table the teacher edits needs an owner policy for INSERT/UPDATE/DELETE
+-- and not only SELECT. ai_studio had a read policy alone — every lesson
+-- plan, quiz and piece of homework was unwritable from the client.
+--
+-- What deliberately does NOT get one, and this is the whole security
+-- argument for going direct at all:
+--
+--   credits        a teacher must not be able to top up their own balance
+--   subscriptions  nor extend their own plan
+--   usage_logs     nor edit the record of what they spent
+--   feature_flags  nor turn on a feature that is off for them
+--   audit_log      nor touch the trail (RLS on, no policy: denies all)
+--
+-- Those five stay server-written. They are the reason the separate
+-- backend still exists after this migration, and the reason it needs a
+-- service role while the browser does not.
+DROP POLICY IF EXISTS ai_studio_owner_write ON public.ai_studio;
+CREATE POLICY ai_studio_owner_write ON public.ai_studio
+  FOR ALL TO authenticated
+  USING (faculty_id = current_faculty_id())
+  WITH CHECK (faculty_id = current_faculty_id());
+
+-- The catalog grows from the "my school isn't listed" fallback during
+-- sign-up, so a teacher may ADD one. They may not edit or remove one —
+-- that would let anybody rename a school every other teacher picked.
+DROP POLICY IF EXISTS schools_insert ON public.schools;
+CREATE POLICY schools_insert ON public.schools
+  FOR INSERT TO authenticated
+  WITH CHECK (true);
+
+
+-- ── 25. Attendance idempotence PostgREST can actually use ─────────────
+--
+-- Taking the register twice must correct it, not double it. That was two
+-- partial unique indexes — one for a mark tied to a timetable slot, one
+-- for a mark tied only to a day — because NULL never equals NULL, so a
+-- plain UNIQUE over a nullable schedule_id would not have caught the
+-- day-only case at all.
+--
+-- Correct, and unusable from the client: ON CONFLICT cannot target a
+-- partial index unless the statement repeats its predicate, and
+-- PostgREST's upsert only names columns. Every register mark failed with
+-- "no unique or exclusion constraint matching the ON CONFLICT
+-- specification".
+--
+-- So the NULL is removed from the key instead. A generated column folds
+-- "no session" into a fixed uuid, and one ordinary UNIQUE constraint
+-- then covers both cases — which ON CONFLICT can name.
+ALTER TABLE public.attendance
+  ADD COLUMN IF NOT EXISTS schedule_key uuid
+  GENERATED ALWAYS AS (COALESCE(schedule_id, '00000000-0000-0000-0000-000000000000'::uuid)) STORED;
+
+DROP INDEX IF EXISTS public.attendance_student_session_key;
+DROP INDEX IF EXISTS public.attendance_student_day_key;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint
+                 WHERE conname = 'attendance_once_per_session'
+                   AND connamespace = 'public'::regnamespace) THEN
+    ALTER TABLE public.attendance
+      ADD CONSTRAINT attendance_once_per_session
+      UNIQUE (student_id, date, schedule_key);
+  END IF;
+END $$;
+
+
+-- ── 26. A teacher may mark the work they set ──────────────────────────
+--
+-- quiz_attempts allowed writes only from the student the attempt belongs
+-- to. That is right for a student sitting a quiz, and it made grading
+-- impossible: a teacher recording a homework mark got a policy violation
+-- on their own class's work.
+--
+-- The rule is ownership of the WORK, not of the attempt: you may write an
+-- attempt if it belongs to an assignment of an artifact you created.
+-- Scoped through assignments rather than by faculty_id on the row itself,
+-- because an attempt has no owner column and adding one would let the two
+-- disagree.
+DROP POLICY IF EXISTS quiz_attempts_teacher_write ON public.quiz_attempts;
+CREATE POLICY quiz_attempts_teacher_write ON public.quiz_attempts
+  FOR ALL TO authenticated
+  USING (
+    EXISTS (
+      SELECT 1 FROM assignments asg
+        JOIN ai_studio a ON a.id = asg.generation_id
+       WHERE asg.id = quiz_attempts.assignment_id
+         AND a.faculty_id = current_faculty_id()
+    )
+  )
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM assignments asg
+        JOIN ai_studio a ON a.id = asg.generation_id
+       WHERE asg.id = quiz_attempts.assignment_id
+         AND a.faculty_id = current_faculty_id()
+    )
+  );

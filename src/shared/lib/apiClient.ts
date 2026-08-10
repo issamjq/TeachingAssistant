@@ -4,9 +4,15 @@
 // legacy views keep working unchanged. Behaviour is identical — this adds
 // types, a typed error, and a single place to reason about auth headers.
 //
-// Requests always go to the SAME ORIGIN: next.config.ts rewrites /api/* to
-// the Express server, so there is no cross-origin preflight. API_BASE is
-// empty except when deliberately pointing at a remote API (config/env.ts).
+// Most paths no longer make a request at all. Data lives in Supabase and
+// the browser reads and writes it directly, with RLS doing the
+// authorisation the API used to do in middleware — see lib/data/index.ts
+// for what moved and what did not.
+//
+// What still goes over HTTP is what needs a secret or a privilege the
+// browser must never hold: AI generation, CV parsing, the auth
+// bootstrap, and the privileged consoles. Those keep the same behaviour
+// they always had, including the single-device session header.
 
 import { API_BASE } from "@/config/env";
 
@@ -77,10 +83,46 @@ async function handleSessionSuperseded(): Promise<void> {
  *   const me = await api<Account>("/api/me");
  *   await api<Student, StudentInput>("/api/students", { method: "POST", body });
  */
+/**
+ * Normalise anything thrown by the data layer into the ApiError every
+ * call site already handles.
+ *
+ * Supabase reports a policy refusal as PostgREST code 42501, which is
+ * semantically a 403 — without this translation a screen that branches
+ * on `status === 403` would see `undefined` and show its generic error.
+ */
+function asApiError(err: any): ApiError {
+  if (err instanceof ApiError) return err;
+  const pg = err?.code;
+  const status =
+    err?.status ??
+    (pg === "42501" ? 403 : pg === "PGRST116" ? 404 : pg === "23505" ? 409 : 500);
+  const message =
+    pg === "42501"
+      ? "You don't have permission to do that."
+      : err?.message || "Something went wrong.";
+  return new ApiError(message, status, err?.code);
+}
+
 export async function api<TResponse = unknown, TBody = unknown>(
   path: string,
   { method = "GET", body, signal }: ApiOptions<TBody> = {}
 ): Promise<TResponse> {
+  // Supabase first. A path it owns never reaches the network as HTTP —
+  // it becomes a PostgREST call inside the client instead.
+  //
+  // `handled: false` rather than a throw is what let this be done a
+  // surface at a time: anything unrecognised falls through to the API
+  // exactly as before, so a typo still produces a 404 from the server
+  // instead of a silent empty result.
+  const { resolve } = await import("@/lib/data");
+  try {
+    const hit = await resolve(path, method, body);
+    if (hit.handled) return hit.data as TResponse;
+  } catch (err) {
+    throw asApiError(err);
+  }
+
   // Lazy-loaded so modules importing `api` from a non-React context (init
   // scripts, tests) don't pull Supabase into their bundle.
   const { getIdToken } = await import("@/lib/supabaseAuth");
