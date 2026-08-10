@@ -1,0 +1,360 @@
+/* =====================================================================
+   The week, drawn against time
+   =====================================================================
+
+   The old screen was seven boxes with a stack of pills in each. It told
+   a teacher WHAT was on and in what order, and nothing else — no sense
+   of when the day starts, where the free period is, or that Thursday is
+   the one that runs to two o'clock. That is most of what someone opens a
+   timetable to find out.
+
+   So the grid is now positional: the vertical axis is real time, blocks
+   sit where they happen and are as tall as they last, and the gaps
+   between them are the gaps in the day. A glance answers "am I free
+   after break" without reading a single word.
+   ===================================================================== */
+
+.board {
+  position: relative;
+  display: grid;
+  grid-template-columns: 58px repeat(7, minmax(0, 1fr));
+  border-radius: 18px;
+  overflow: hidden;
+  border: 1px solid var(--p-line);
+  background: color-mix(in oklab, var(--p-surface) 88%, transparent);
+  box-shadow:
+    0 1px 2px color-mix(in oklab, var(--p-ink) 4%, transparent),
+    0 18px 40px -26px color-mix(in oklab, var(--p-ink) 30%, transparent);
+}
+
+/* ── the day headers ─────────────────────────────────────────────── */
+
+.head {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  padding: 11px 10px 10px;
+  text-align: center;
+  border-inline-start: 1px solid var(--p-line-soft);
+  background: color-mix(in oklab, var(--p-paper-cool) 94%, transparent);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+.headCorner {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  background: color-mix(in oklab, var(--p-paper-cool) 94%, transparent);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+.headDow {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--p-muted);
+}
+.headNum {
+  font-family: var(--font-serif);
+  font-size: 21px;
+  line-height: 1.1;
+  color: var(--p-ink);
+  margin-top: 1px;
+}
+.headCount {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  color: var(--p-muted);
+}
+
+/* Today, marked the way the sidebar marks the section you are in. */
+.head[data-today="true"] { background: color-mix(in oklab, var(--p-accent) 9%, var(--p-paper-cool)); }
+.head[data-today="true"] .headNum { color: var(--p-accent-hover); font-weight: 600; }
+/* A crisp rule across the full column width. The first version was
+   inset, rounded and glowing, which at this size stopped reading as a
+   marker and started reading as a smudge on the screen. */
+.head[data-today="true"]::after {
+  content: "";
+  position: absolute;
+  inset-inline: 0;
+  top: 0;
+  height: 2px;
+  background: linear-gradient(90deg, var(--p-ambient-lift), var(--p-accent));
+}
+.head[data-weekend="true"] .headDow,
+.head[data-weekend="true"] .headNum { opacity: 0.5; }
+
+/* ── the time gutter ─────────────────────────────────────────────── */
+
+.gutter {
+  position: relative;
+  border-inline-end: 1px solid var(--p-line-soft);
+  background: color-mix(in oklab, var(--p-paper-warm) 45%, transparent);
+}
+.hourLabel {
+  position: absolute;
+  inset-inline: 0;
+  /* Lifted so the label sits ON its line rather than under it. */
+  transform: translateY(-50%);
+  padding-inline-end: 8px;
+  text-align: end;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.06em;
+  color: var(--p-muted);
+  pointer-events: none;
+}
+
+/* ── a day column ────────────────────────────────────────────────── */
+
+.col {
+  position: relative;
+  border-inline-start: 1px solid var(--p-line-soft);
+  /* One stripe per hour, so the grid needs no elements of its own. */
+  background-image: linear-gradient(
+    to bottom,
+    var(--p-line-soft) 0 1px,
+    transparent 1px 100%
+  );
+  background-size: 100% var(--hour, 56px);
+}
+.col[data-today="true"] { background-color: color-mix(in oklab, var(--p-accent) 4.5%, transparent); }
+.col[data-weekend="true"] { background-color: color-mix(in oklab, var(--p-paper-warm) 40%, transparent); }
+
+/* The whole column is a target: the page has always promised "pick a
+   slot and assign a lesson", and until now clicking a slot did nothing. */
+.slots {
+  position: absolute;
+  inset: 0;
+  display: grid;
+}
+.slot {
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+.slot:hover { background: color-mix(in oklab, var(--p-accent) 7%, transparent); }
+.slot:focus-visible {
+  outline: 2px solid var(--p-accent);
+  outline-offset: -2px;
+  background: color-mix(in oklab, var(--p-accent) 7%, transparent);
+}
+
+/* ── a lesson ────────────────────────────────────────────────────── */
+
+.block {
+  position: absolute;
+  inset-inline: 4px;
+  z-index: 2;
+  display: block;
+  width: calc(100% - 8px);
+  padding: 5px 7px;
+  border-radius: 9px;
+  text-align: start;
+  overflow: hidden;
+  cursor: pointer;
+  border: 1px solid color-mix(in oklab, var(--tint) 34%, transparent);
+  background: color-mix(in oklab, var(--tint) 13%, var(--p-surface));
+  transition: transform 0.16s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.16s ease,
+              border-color 0.16s ease;
+}
+/* The lit edge that says which subject this is without a legend. */
+.block::before {
+  content: "";
+  position: absolute;
+  inset-block: 5px;
+  inset-inline-start: 0;
+  width: 2.5px;
+  border-radius: 999px;
+  background: var(--tint);
+}
+.block:hover {
+  transform: translateY(-1px);
+  border-color: color-mix(in oklab, var(--tint) 60%, transparent);
+  box-shadow: 0 8px 18px -8px color-mix(in oklab, var(--tint) 55%, transparent);
+  z-index: 5;
+}
+.block:focus-visible { outline: 2px solid var(--p-accent); outline-offset: 1px; z-index: 5; }
+
+.blockTime {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.05em;
+  color: color-mix(in oklab, var(--tint) 72%, var(--p-ink));
+}
+.blockTitle {
+  font-size: 12px;
+  line-height: 1.25;
+  color: var(--p-ink);
+  font-weight: 500;
+  margin-top: 1px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.blockMeta {
+  font-size: 10px;
+  color: var(--p-muted);
+  margin-top: 1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Three tiers, because a period can be anything from 30 to 90 minutes,
+   and content that overflows its block clips mid-word — which reads as
+   broken rather than as abbreviated.
+     under 74px   the room goes; "time · subject" and a two-line title fit
+     under 42px   the title alone, on one line */
+.block[data-short="true"] .blockMeta { display: none; }
+.block[data-tiny="true"] { padding: 3px 7px; }
+.block[data-tiny="true"] .blockTime { display: none; }
+.block[data-tiny="true"] .blockTitle { -webkit-line-clamp: 1; font-size: 11.5px; }
+
+.blockTime {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.block[data-status="done"] { opacity: 0.62; }
+.block[data-status="done"] .blockTitle { text-decoration: line-through; text-decoration-thickness: 1px; }
+.block[data-status="cancelled"] {
+  border-style: dashed;
+  background: color-mix(in oklab, var(--p-paper-warm) 60%, transparent);
+}
+.block[data-status="cancelled"] .blockTitle { text-decoration: line-through; color: var(--p-muted); }
+
+/* ── now ─────────────────────────────────────────────────────────── */
+
+.now {
+  position: absolute;
+  inset-inline: 0;
+  z-index: 4;
+  height: 0;
+  border-top: 1.5px solid var(--p-crit);
+  pointer-events: none;
+}
+.now::before {
+  content: "";
+  position: absolute;
+  inset-inline-start: -3.5px;
+  top: -4px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--p-crit);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--p-crit) 22%, transparent);
+}
+
+/* ── untimed entries ─────────────────────────────────────────────── */
+
+/* start_time is nullable, and an entry with no time cannot be placed on
+   a time axis at all. Dropping it would be the worst answer — it is
+   still a real lesson — so it sits above the grid, in its own strip. */
+.anytime {
+  display: grid;
+  grid-template-columns: 58px repeat(7, minmax(0, 1fr));
+  border: 1px solid var(--p-line);
+  border-radius: 14px;
+  overflow: hidden;
+  margin-bottom: 10px;
+  background: color-mix(in oklab, var(--p-paper-warm) 42%, transparent);
+}
+.anytimeLabel {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding-inline-end: 8px;
+  font-family: var(--font-mono);
+  font-size: 8.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--p-muted);
+  border-inline-end: 1px solid var(--p-line-soft);
+}
+.anytimeCell {
+  padding: 6px 5px;
+  min-height: 34px;
+  border-inline-start: 1px solid var(--p-line-soft);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.anytimeChip {
+  position: relative;
+  border-radius: 7px;
+  padding: 3px 7px;
+  font-size: 11px;
+  line-height: 1.25;
+  text-align: start;
+  cursor: pointer;
+  color: var(--p-ink);
+  border: 1px solid color-mix(in oklab, var(--tint) 30%, transparent);
+  background: color-mix(in oklab, var(--tint) 11%, var(--p-surface));
+}
+.anytimeChip:hover { border-color: color-mix(in oklab, var(--tint) 58%, transparent); }
+
+/* ── phones ──────────────────────────────────────────────────────── */
+
+/* Seven columns in 375px is 45px each — narrower than the word "Physics".
+   The agenda below replaces the grid outright rather than shrinking it. */
+@media (max-width: 900px) {
+  .board, .anytime { display: none; }
+}
+@media (min-width: 901px) {
+  .agenda { display: none; }
+}
+
+/* The grid is what you click slots in, and phones do not get the grid. */
+@media (max-width: 900px) {
+  .deskHint { display: none; }
+}
+
+.agendaDay {
+  border: 1px solid var(--p-line);
+  border-radius: 14px;
+  background: color-mix(in oklab, var(--p-surface) 88%, transparent);
+  padding: 12px 13px;
+  margin-bottom: 9px;
+}
+.agendaDay[data-today="true"] {
+  border-color: color-mix(in oklab, var(--p-accent) 40%, transparent);
+  background: color-mix(in oklab, var(--p-accent) 6%, var(--p-surface));
+}
+.agendaRow {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  width: 100%;
+  text-align: start;
+  padding: 7px 0;
+  cursor: pointer;
+  border-top: 1px solid var(--p-line-soft);
+}
+.agendaRow:first-of-type { border-top: 0; }
+.agendaTime {
+  flex-shrink: 0;
+  width: 46px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--p-muted);
+  padding-top: 2px;
+}
+.agendaBar {
+  flex-shrink: 0;
+  width: 2.5px;
+  align-self: stretch;
+  border-radius: 999px;
+  background: var(--tint);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .block, .slot { transition: none; }
+  .block:hover { transform: none; }
+}
