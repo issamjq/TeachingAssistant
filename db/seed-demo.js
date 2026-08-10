@@ -126,6 +126,7 @@ async function seedDemo() {
   await skills(fid);
   await notifications(user.id);
   await threads(user.id);
+  await releaseDevice(user.id);
 
   return { fid, userId: user.id, students: students.length, school };
 }
@@ -169,6 +170,23 @@ async function wipe(fid, userId) {
     total += r.rowCount;
   }
   console.log(`   ${total} row(s) cleared\n`);
+}
+
+/**
+ * Let go of the device claim.
+ *
+ * The account is active on one device at a time, and RLS enforces it by
+ * FILTERING rather than refusing — a superseded browser gets empty
+ * results, not an error. So an account left claimed by a script that has
+ * long since exited shows the teacher a working app with no students,
+ * no lessons and flat graphs, and nothing anywhere says why.
+ *
+ * NULL means "no device holds this", which is_current_device() lets
+ * through. The next real sign-in claims it properly.
+ */
+async function releaseDevice(userId) {
+  await q("UPDATE public.users SET active_session_id = NULL WHERE id = $1", [userId]);
+  console.log("   device claim released — next sign-in takes it");
 }
 
 async function profile(userId, fid, school) {
@@ -623,6 +641,7 @@ async function seedEmpty() {
       [existing.id, EMPTY_PASSWORD],
     );
     if (!fresh) await openTheDoor(existing.id);
+    await releaseDevice(existing.id);
     console.log(`\n→ empty teacher ${EMPTY_EMAIL} reset  user=${existing.id}  (${fresh ? "brand new" : "onboarded, no data"})`);
     return { email: EMPTY_EMAIL, id: existing.id, created: false, fresh };
   }
@@ -714,9 +733,9 @@ try {
   }
   console.log("─────────────────────────────────────────────");
   console.log(
-    "\nSign in on ONE device at a time: a second sign-in supersedes the\n" +
-    "first and the older session stops reading rows. That is the product\n" +
-    "working, not a seeding fault.",
+    "\nBoth accounts are unclaimed: the next sign-in on any device takes\n" +
+    "them. Signing in somewhere else supersedes that device, and the one\n" +
+    "left behind is told so rather than quietly emptied.",
   );
 } catch (e) {
   console.error("\nseed-demo failed:", e.message);

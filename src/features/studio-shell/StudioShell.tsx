@@ -51,6 +51,7 @@ import HelpPopover from "@/views/HelpPopover";
 import MurchidLogo from "@/components/MurchidLogo";
 import Avatar from "@/components/Avatar";
 import TeachingRail from "@/views/TeachingRail";
+import DeviceNotice from "./DeviceNotice";
 import {
   NAV_BY_ROLE,
   DEFAULT_ROUTE,
@@ -202,19 +203,13 @@ export default function StudioShell({ children }: { children: React.ReactNode })
   // trying to leave.
   const openLanding = () => router.push("/?home=1");
 
-  // Single-device enforcement heartbeat. Re-validate every 20s; if the
-  // account has since signed in elsewhere this returns 401
-  // `session_superseded` and apiClient tears the session down on its own, so
-  // the OLD device logs out promptly rather than failing at its next action.
-  useEffect(() => {
-    if (!account) return undefined;
-    const id = setInterval(() => {
-      api("/api/auth/me").catch(() => {
-        /* apiClient handles supersession */
-      });
-    }, 20000);
-    return () => clearInterval(id);
-  }, [account]);
+  // Single-device enforcement lives in <DeviceNotice />, rendered below.
+  //
+  // What used to be here polled /api/auth/me for a 401 `session_superseded`.
+  // That endpoint is a Supabase read now, over four tables none of which are
+  // device-gated, so it answers 200 whether or not this device still holds
+  // the account — and a superseded device sat showing empty screens with
+  // nothing to tell it why. The check has to ask about the device directly.
 
   // Role switcher (Account → role) — follow it to that role's home.
   useEffect(
@@ -408,6 +403,10 @@ export default function StudioShell({ children }: { children: React.ReactNode })
 
   return (
     <div className="murchid-studio-app murchid-studio-canvas h-[100dvh] flex text-ink font-sans overflow-hidden">
+      {/* Renders nothing until this device has been superseded, at which
+          point it says so over the top of whatever is behind it. */}
+      <DeviceNotice onSignOut={signOutFully} />
+
       {/* Desktop / iPad-landscape rail — collapsible, state persists.
           Collapsing animates width 256px ↔ 0 (overflow-hidden clips the
           fixed-width inner column so contents don't reflow mid-slide)
