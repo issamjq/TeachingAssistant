@@ -93,7 +93,7 @@ export function RouterBridge() {
 //
 // NOTE: this covers in-app navigation only. Browser Back and tab-close bypass
 // it entirely — see the popstate buffer + beforeunload handlers in
-// views/Studio.jsx, which are independent of this module and still work.
+// the studio, which are independent of this module and still work.
 //
 // LIMITATION for Phase 3: next/link and a direct useRouter().push() also
 // bypass this guard. Peeled routes reachable from a guarded flow must keep

@@ -1,0 +1,457 @@
+/* =====================================================================
+   AI Studio — a chat, with artifacts
+
+   The shape teachers already know from ChatGPT, Claude and Gemini: a
+   thread down the middle, a composer pinned at the bottom, and what the
+   model produced rendered INSIDE the conversation rather than on some
+   other screen.
+
+   The previous studio was a form — pick a kind, fill six fields, press
+   Generate, land on a result page. That is a good shape for a wizard and
+   a poor one for a conversation, and a teacher who has used any chat
+   assistant already knows this one.
+
+   Murchid's palette throughout: --p-* tokens, Fraunces for headings,
+   Inter Tight for the conversation.
+   ===================================================================== */
+
+.shell {
+  display: flex;
+  flex-direction: column;
+  /* The studio owns its own scrolling: the thread scrolls, the composer
+     does not move. A page-level scroll would slide the composer off the
+     bottom, which is the one thing a chat must never do. */
+  height: 100%;
+  min-height: 0;
+}
+
+/* ── thread ───────────────────────────────────────────────────────── */
+
+.thread {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  /* Generous tail so the last artifact clears the composer with air
+     under it rather than ending flush against the edge. */
+  padding: 8px 0 40px;
+  scrollbar-width: thin;
+}
+.threadInner {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 0 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+.turn { display: flex; gap: 12px; }
+.turn[data-role="user"] { justify-content: flex-end; }
+
+.avatar {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  flex-shrink: 0;
+  margin-top: 2px;
+  background: var(--p-accent);
+  color: var(--p-on-accent);
+}
+
+.userBubble {
+  max-width: 78%;
+  padding: 10px 15px;
+  border-radius: 16px 16px 5px 16px;
+  background: var(--p-accent);
+  color: var(--p-on-accent);
+  font-size: 14.5px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* The assistant writes on the page itself, not in a bubble — the same
+   choice every serious chat assistant makes, because a long structured
+   answer inside a rounded box reads as a quotation rather than a
+   document. */
+.reply {
+  flex: 1;
+  min-width: 0;
+  font-size: 14.5px;
+  line-height: 1.65;
+  color: var(--p-ink);
+}
+.reply :global(h1),
+.reply :global(h2),
+.reply :global(h3) {
+  font-family: var(--font-serif);
+  font-weight: 600;
+  color: var(--p-ink);
+  line-height: 1.2;
+  margin: 18px 0 8px;
+}
+.reply :global(h1) { font-size: 21px; }
+.reply :global(h2) { font-size: 18px; }
+.reply :global(h3) { font-size: 16px; }
+.reply :global(p) { margin: 8px 0; }
+.reply :global(ul), .reply :global(ol) { margin: 8px 0; padding-inline-start: 22px; }
+.reply :global(li) { margin: 3px 0; }
+.reply :global(strong) { font-weight: 650; }
+.reply :global(table) { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 13px; }
+.reply :global(th), .reply :global(td) {
+  border: 1px solid var(--p-line);
+  padding: 7px 10px;
+  text-align: start;
+}
+.reply :global(th) { background: var(--p-paper-warm); font-weight: 600; }
+
+/* Thinking. Three dots that breathe — the universal "it heard you". */
+.thinking { display: inline-flex; align-items: center; gap: 5px; padding: 6px 0; }
+.thinkDot {
+  width: 6px; height: 6px;
+  border-radius: 999px;
+  background: var(--p-muted);
+  animation: think 1.2s ease-in-out infinite;
+}
+.thinkDot:nth-child(2) { animation-delay: 0.15s; }
+.thinkDot:nth-child(3) { animation-delay: 0.3s; }
+@keyframes think {
+  0%, 60%, 100% { opacity: 0.25; transform: translateY(0); }
+  30% { opacity: 1; transform: translateY(-3px); }
+}
+@media (prefers-reduced-motion: reduce) { .thinkDot { animation: none; opacity: 0.5; } }
+
+/* The cursor that trails streaming text. */
+.caret {
+  display: inline-block;
+  width: 7px;
+  height: 15px;
+  vertical-align: -2px;
+  margin-inline-start: 2px;
+  background: var(--p-accent);
+  animation: blink 1s steps(2) infinite;
+}
+@keyframes blink { 50% { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .caret { animation: none; } }
+
+/* ── artifact card ────────────────────────────────────────────────── */
+
+.artifact {
+  margin-top: 12px;
+  border-radius: 16px;
+  border: 1px solid var(--p-line);
+  background: var(--p-paper-cool);
+  overflow: hidden;
+}
+.artifactHead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--p-line);
+  background: var(--p-paper-warm);
+}
+.artifactIcon {
+  display: grid;
+  place-items: center;
+  width: 28px; height: 28px;
+  border-radius: 9px;
+  background: var(--p-accent-soft);
+  color: var(--p-accent-hover);
+  flex-shrink: 0;
+}
+.artifactTitle {
+  font-family: var(--font-serif);
+  font-size: 14.5px;
+  font-weight: 600;
+  color: var(--p-ink);
+  line-height: 1.25;
+}
+.artifactKind {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--p-muted);
+}
+.artifactBody { padding: 14px; max-height: 460px; overflow-y: auto; }
+
+.chipBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid var(--p-line);
+  background: var(--p-surface);
+  font-size: 12.5px;
+  color: var(--p-ink-soft);
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
+}
+.chipBtn:hover { border-color: var(--p-accent); color: var(--p-ink); background: var(--p-paper-cool); }
+.chipBtn:focus-visible { outline: 2px solid var(--p-accent); outline-offset: 2px; }
+.chipBtn:disabled { opacity: 0.45; cursor: default; }
+.chipBtn[data-primary="true"] {
+  background: var(--p-accent);
+  border-color: var(--p-accent);
+  color: var(--p-on-accent);
+  font-weight: 600;
+}
+.chipBtn[data-primary="true"]:hover { background: var(--p-accent-hover); }
+
+/* ── slide viewer ─────────────────────────────────────────────────── */
+
+.slide {
+  aspect-ratio: 16 / 9;
+  border-radius: 12px;
+  border: 1px solid var(--p-line);
+  background: var(--p-surface);
+  padding: 22px 26px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.slideTitle {
+  font-family: var(--font-serif);
+  font-size: clamp(16px, 2.2vw, 22px);
+  font-weight: 600;
+  color: var(--p-ink);
+  line-height: 1.2;
+  margin-bottom: 12px;
+}
+.slideBody { flex: 1; min-height: 0; overflow-y: auto; }
+.slideBody li {
+  font-size: clamp(12px, 1.3vw, 14px);
+  line-height: 1.55;
+  color: var(--p-ink-soft);
+  margin: 5px 0;
+}
+.slideRail {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 12px;
+}
+.slidePips { display: flex; gap: 5px; flex-wrap: wrap; justify-content: center; }
+.slidePip {
+  width: 7px; height: 7px;
+  border-radius: 999px;
+  background: var(--p-line-strong);
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+.slidePip[data-on="true"] { background: var(--p-accent); transform: scale(1.25); }
+
+/* ── quiz ─────────────────────────────────────────────────────────── */
+
+.question {
+  padding: 12px 0;
+  border-bottom: 1px dashed var(--p-line);
+}
+.question:last-child { border-bottom: 0; }
+.qNum {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--p-accent);
+}
+.choice {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  font-size: 13px;
+  color: var(--p-ink-soft);
+  padding: 3px 0;
+}
+.choiceKey {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--p-muted);
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+.choice[data-correct="true"] { color: var(--p-ok); font-weight: 550; }
+.choice[data-correct="true"] .choiceKey { color: var(--p-ok); }
+
+/* ── composer ─────────────────────────────────────────────────────── */
+
+.composerWrap {
+  flex-shrink: 0;
+  padding: 10px 16px 14px;
+  /* Opaque. A gradient fading to transparent looked elegant and let the
+     last artifact bleed through the composer's top edge — the card read
+     as half-drawn rather than scrolled. A chat's composer is a floor,
+     not a veil. */
+  background: var(--p-paper-cool);
+  border-top: 1px solid color-mix(in oklab, var(--p-line) 60%, transparent);
+}
+.composer {
+  max-width: 760px;
+  margin: 0 auto;
+  border-radius: 22px;
+  border: 1px solid var(--p-line);
+  background: var(--p-surface);
+  box-shadow: 0 6px 22px -12px color-mix(in oklab, var(--p-ink) 26%, transparent);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.composer:focus-within {
+  border-color: var(--p-accent);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--p-accent) 14%, transparent);
+}
+.input {
+  width: 100%;
+  resize: none;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  font: inherit;
+  font-size: 14.5px;
+  line-height: 1.55;
+  color: var(--p-ink);
+  padding: 13px 16px 4px;
+  max-height: 200px;
+}
+.input::placeholder { color: var(--p-muted); }
+
+.composerBar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px 8px 10px;
+}
+.iconBtn {
+  display: grid;
+  place-items: center;
+  width: 34px; height: 34px;
+  border-radius: 10px;
+  color: var(--p-muted);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.iconBtn:hover { background: var(--p-paper-warm); color: var(--p-ink); }
+.iconBtn:focus-visible { outline: 2px solid var(--p-accent); outline-offset: 2px; }
+.send {
+  display: grid;
+  place-items: center;
+  width: 34px; height: 34px;
+  border-radius: 10px;
+  background: var(--p-accent);
+  color: var(--p-on-accent);
+  cursor: pointer;
+  transition: background 0.15s ease, opacity 0.15s ease;
+}
+.send:disabled { opacity: 0.35; cursor: default; }
+.send:not(:disabled):hover { background: var(--p-accent-hover); }
+
+/* What is being made. A segmented control, because the choice changes
+   the SHAPE of the answer and the teacher should see it before they
+   press send, not discover it afterwards. */
+.kindRow { display: flex; gap: 4px; flex-wrap: wrap; }
+.kindBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 11px;
+  border-radius: 999px;
+  font-size: 12.5px;
+  color: var(--p-muted);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.kindBtn:hover { color: var(--p-ink); background: var(--p-paper-warm); }
+.kindBtn[data-on="true"] {
+  background: var(--p-accent-soft);
+  color: var(--p-accent-hover);
+  font-weight: 600;
+}
+
+/* ── attachments ──────────────────────────────────────────────────── */
+
+.attachRow { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 12px 0; }
+.attach {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 30px;
+  padding: 0 8px 0 10px;
+  border-radius: 9px;
+  border: 1px solid var(--p-line);
+  background: var(--p-paper-cool);
+  font-size: 12px;
+  color: var(--p-ink-soft);
+  max-width: 240px;
+}
+.attach button { color: var(--p-muted); cursor: pointer; display: grid; place-items: center; }
+.attach button:hover { color: var(--p-crit); }
+
+/* ── empty state ──────────────────────────────────────────────────── */
+
+.hero { max-width: 760px; margin: 0 auto; padding: 8vh 16px 0; text-align: center; }
+.heroTitle {
+  font-family: var(--font-serif);
+  font-size: clamp(26px, 4vw, 36px);
+  font-weight: 500;
+  color: var(--p-ink);
+  line-height: 1.15;
+}
+.heroTitle em { font-style: italic; color: var(--p-accent); }
+.starters {
+  display: grid;
+  gap: 8px;
+  margin-top: 26px;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  text-align: start;
+}
+.starter {
+  padding: 12px 14px;
+  border-radius: 13px;
+  border: 1px solid var(--p-line);
+  background: var(--p-surface);
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+}
+.starter:hover {
+  border-color: var(--p-accent);
+  background: var(--p-paper-cool);
+  box-shadow: 0 6px 16px -10px color-mix(in oklab, var(--p-accent) 45%, transparent);
+}
+.starterKind {
+  display: block;   /* inline, the label ran straight into the sentence */
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--p-accent);
+}
+.starterText { font-size: 13.5px; color: var(--p-ink); line-height: 1.45; margin-top: 5px; }
+
+/* ── notice ───────────────────────────────────────────────────────── */
+
+.notice {
+  border-radius: 13px;
+  border: 1px solid color-mix(in oklab, var(--p-warn) 35%, transparent);
+  background: color-mix(in oklab, var(--p-warn) 9%, transparent);
+  padding: 11px 14px;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--p-ink);
+}
+
+/* ── document viewer ──────────────────────────────────────────────── */
+
+.docFrame {
+  width: 100%;
+  height: 460px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--p-paper-warm);
+}

@@ -17,7 +17,7 @@ export default function NavProbe() {
   const [guarded, setGuarded] = useState(false);
   const [held, setHeld] = useState<null | (() => void)>(null);
 
-  // Mirrors how views/Studio.jsx registers its unsaved-work guard: return
+  // Mirrors how a view registers an unsaved-work guard: return
   // false to hold the transition, stash `proceed`, and run it later once the
   // user confirms.
   useEffect(() => {
