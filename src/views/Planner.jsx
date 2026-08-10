@@ -83,11 +83,21 @@ export default function Planner() {
   const t = useT();
   const { lang } = useI18n();
   const locale = lang === "ar" ? "ar" : "en-US";
-  // First-run tour: opens once on the first Planner visit per device.
-  // DEBUG: force the tour to open on every planner mount (each refresh /
-  // sign-in) for testing. Restore `!hasSeenPlannerTour()` to make it
-  // once-per-device again.
-  const [tourOpen, setTourOpen] = useState(true);
+  // First-run tour.
+  //
+  // Starts closed and is opened, at most once, after the first load —
+  // never on mount. It used to be pinned open with a hard `true` left
+  // behind from testing, so every visit to the Scheduler reopened it,
+  // for every teacher, forever.
+  //
+  // "New" is decided from the ACCOUNT, not from this device. A localStorage
+  // flag alone says "new browser", which is a different thing: a teacher
+  // who clears their history, or opens Murchid on the classroom PC, is not
+  // meeting the product for the first time and should not be walked
+  // through the sidebar again. A calendar with anything at all in it is
+  // proof of a teacher who has already started. See openTourIfNew below.
+  const [tourOpen, setTourOpen] = useState(false);
+  const tourDecided = React.useRef(false);
   // The visible month (1st of the displayed month). Today by default.
   const [anchor, setAnchor] = useState(() => {
     const n = new Date();
@@ -221,7 +231,20 @@ export default function Planner() {
           kind: "activities",
           title: a.title,
         }));
-      setEvents([...schedule, ...quizzes, ...homework, ...presentations, ...activities]);
+      const all = [...schedule, ...quizzes, ...homework, ...presentations, ...activities];
+      setEvents(all);
+
+      // Decided once, on the first load only — a later refresh must not
+      // reopen it, and neither must switching months.
+      if (!tourDecided.current) {
+        tourDecided.current = true;
+        // If every request failed there is no evidence either way, and an
+        // empty array would be indistinguishable from a new account —
+        // which would show the tour to an established teacher whose
+        // connection happened to drop.
+        const answered = results.some((r) => r.status === "fulfilled");
+        if (answered && all.length === 0 && !hasSeenPlannerTour()) setTourOpen(true);
+      }
     });
   }, []);
   useEffect(() => { reloadEvents(); }, [reloadEvents]);
