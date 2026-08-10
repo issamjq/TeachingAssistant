@@ -577,3 +577,58 @@
   opacity: 0.96;
 }
 .dragClone > * { height: 100%; }
+
+/* ── week strip — the calendar's smallest view ─────────────────────── */
+
+.strip {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 3px;
+}
+.stripCol {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 7px 2px 6px;
+  border-radius: 12px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.stripCol:hover { background: color-mix(in oklab, var(--p-accent) 8%, transparent); }
+.stripCol:focus-visible { outline: 2px solid var(--p-accent); outline-offset: 1px; }
+.stripCol[data-has="true"]:not([data-today="true"]) {
+  border-color: color-mix(in oklab, var(--p-accent) 40%, transparent);
+  background: color-mix(in oklab, var(--p-accent) 8%, transparent);
+}
+.stripCol[data-today="true"] { background: var(--p-accent); }
+
+.stripDow {
+  font-family: var(--font-mono);
+  font-size: 8.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--p-muted);
+}
+.stripNum {
+  font-family: var(--font-serif);
+  font-size: 15px;
+  line-height: 1;
+  color: var(--p-ink);
+  font-variant-numeric: tabular-nums;
+}
+.stripCol[data-today="true"] .stripDow,
+.stripCol[data-today="true"] .stripNum { color: var(--p-on-accent); }
+.stripCol[data-today="true"] .stripDow { opacity: 0.75; }
+
+/* Always rendered, transparent when empty — a dot that appears and
+   disappears shifts every neighbouring number by its own height. */
+.stripDot {
+  width: 4px;
+  height: 4px;
+  border-radius: 999px;
+  background: transparent;
+}
+.stripDot[data-on="true"] { background: var(--p-accent); }
+.stripCol[data-today="true"] .stripDot[data-on="true"] { background: var(--p-on-accent); }

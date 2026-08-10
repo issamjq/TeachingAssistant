@@ -241,6 +241,80 @@ export function MiniCalendar({ entries = [], onPick }) {
   );
 }
 
+/* ── the week strip: the calendar at its smallest ─────────────────── */
+
+/**
+ * The current week as one row, for a quarter-width tile.
+ *
+ * Not a shrunken month. Seven columns of a month grid in ~250px give
+ * about 30px per cell across six rows — visible, unreadable, and the
+ * dates stop being scannable, which is the only thing a calendar this
+ * size is for. A single week keeps each day big enough to read and
+ * answers the question a narrow tile is actually asked: what is on,
+ * between now and the weekend.
+ *
+ * It also carries a count the month grid never shows, because at this
+ * size a summary line is cheaper than making the reader tally dots.
+ */
+export function WeekStrip({ entries = [], onPick }) {
+  const today = new Date();
+  const iso = (d) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  const todayIso = iso(today);
+
+  const byDate = useMemo(() => {
+    const map = new Map();
+    for (const e of entries) {
+      if (!e?.date) continue;
+      map.set(e.date, (map.get(e.date) || 0) + 1);
+    }
+    return map;
+  }, [entries]);
+
+  // Monday-first, like the month grid and like a teaching week.
+  const monday = new Date(today);
+  monday.setDate(today.getDate() - ((today.getDay() + 6) % 7));
+  const days = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(monday);
+    d.setDate(monday.getDate() + i);
+    return d;
+  });
+
+  const total = days.reduce((n, d) => n + (byDate.get(iso(d)) || 0), 0);
+
+  return (
+    <div>
+      <div className={s.strip} role="grid" aria-label="This week">
+        {days.map((d, i) => {
+          const key = iso(d);
+          const n = byDate.get(key) || 0;
+          return (
+            <button
+              key={key}
+              type="button"
+              role="gridcell"
+              className={s.stripCol}
+              data-today={key === todayIso}
+              data-has={n > 0}
+              onClick={() => onPick?.(key)}
+              aria-label={`${d.getDate()} ${MONTHS[d.getMonth()]}${n ? `, ${n} lesson${n > 1 ? "s" : ""}` : ", nothing scheduled"}`}
+            >
+              <span className={s.stripDow} aria-hidden="true">{DOW[i]}</span>
+              <span className={s.stripNum}>{d.getDate()}</span>
+              <span className={s.stripDot} data-on={n > 0} aria-hidden="true" />
+            </button>
+          );
+        })}
+      </div>
+      <p className="text-[11.5px] text-muted mt-3 text-center">
+        {total === 0
+          ? "Nothing scheduled this week."
+          : `${total} lesson${total === 1 ? "" : "s"} this week`}
+      </p>
+    </div>
+  );
+}
+
 /* ── library breakdown ────────────────────────────────────────────── */
 
 /** Horizontal bars, sorted descending — the ranking is the point. */

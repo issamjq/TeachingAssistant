@@ -32,7 +32,12 @@ export const WIDGETS = [
   { key: "runway",   label: "Plan & credits",         default: true },
   { key: "stats",    label: "Big numbers",            default: true,  sizes: [6, 12], size: 12 },
   { key: "rhythm",   label: "Work per week",          default: true,  sizes: [4, 6, 12], size: 6 },
-  { key: "calendar", label: "Calendar",               default: true,  sizes: [4, 6, 12], size: 6 },
+  // The calendar's own ladder, one notch below everything else. A full
+  // month grid at half the page was more room than a month needs, so the
+  // old L is gone and the rungs slid down — and the new bottom rung is a
+  // different VIEW, not a squeezed grid: seven columns crammed into a
+  // quarter-width tile is unreadable, so it becomes the week strip.
+  { key: "calendar", label: "Calendar",               default: true,  sizes: [3, 4, 6], size: 4 },
   { key: "tasks",    label: "Needs you",              default: true,  sizes: [4, 6, 12], size: 6 },
   { key: "week",     label: "This week's lessons",    default: false, sizes: [4, 6, 12], size: 6 },
   { key: "kinds",    label: "Library by kind",        default: false, sizes: [4, 6, 12], size: 6 },

@@ -24,7 +24,7 @@ import {
 } from "lucide-react";
 import { api } from "@/views/_shared";
 import {
-  MiniCalendar, PillBars, LineTrend, Ring, WeekSchedule,
+  MiniCalendar, WeekStrip, PillBars, LineTrend, Ring, WeekSchedule,
   TypeBreakdown, KindDonut, TaskList, KhatimMark,
 } from "./widgets";
 import { WIDGETS, CHART_MODELS, loadPrefs, savePrefs, defaultPrefs } from "./prefs";
@@ -42,8 +42,14 @@ const QUICK = [
 
 // Tailwind needs the class names written out — a template string span
 // would be purged from the build.
-const SPAN = { 4: "lg:col-span-4", 6: "lg:col-span-6", 12: "lg:col-span-12" };
-const SIZE_LABEL = { 4: "S", 6: "M", 12: "L" };
+const SPAN = {
+  3: "lg:col-span-3", 4: "lg:col-span-4", 6: "lg:col-span-6", 12: "lg:col-span-12",
+};
+// Labelled by POSITION in a widget's own ladder, not by column count.
+// A shared span→label map broke as soon as one widget had a different
+// ladder: the calendar's 6 is its largest while the rhythm's 6 is its
+// middle, and one map cannot call the same number both L and M.
+const SIZE_LABELS = ["S", "M", "L"];
 
 function nowLesson(lessons) {
   if (!lessons?.length) return { mode: "clear" };
@@ -151,16 +157,16 @@ function EditFrame({ widget, prefs, onChange, drag, children }) {
         ) : <span />}
         {meta.sizes && (
           <span className={s.sizeSeg} role="radiogroup" aria-label={`${meta.label} size`}>
-            {meta.sizes.map((sp) => (
+            {meta.sizes.map((sp, i) => (
               <button
                 key={sp} type="button" role="radio"
                 aria-checked={prefs.sizes[widget] === sp}
                 data-on={prefs.sizes[widget] === sp}
                 className={s.sizeBtn}
                 onClick={() => resize(sp)}
-                aria-label={`${meta.label} size ${SIZE_LABEL[sp]}`}
+                aria-label={`${meta.label} size ${SIZE_LABELS[i]}`}
               >
-                {SIZE_LABEL[sp]}
+                {SIZE_LABELS[i]}
               </button>
             ))}
           </span>
@@ -468,18 +474,28 @@ export default function DashboardView({ onJump }) {
             </div>
           </section>
         );
-      case "calendar":
+      case "calendar": {
+        // At its smallest the calendar shows the WEEK, not a shrunken
+        // month. Seven columns in a quarter-width tile give ~30px cells,
+        // which is a grid you can see but not read — and a calendar you
+        // cannot read is decoration.
+        const compact = (prefs.sizes.calendar ?? 4) <= 3;
         return (
           <section className={`${s.glass} p-5 h-full`}>
             <Head
-              eyebrow={new Date().toLocaleDateString(undefined, { month: "long", year: "numeric" })}
+              eyebrow={compact
+                ? "This week"
+                : new Date().toLocaleDateString(undefined, { month: "long", year: "numeric" })}
               title="Calendar" action="Schedule" onAction={() => onJump?.("schedule")}
             />
             {loading
-              ? <div className="grid grid-cols-7 gap-1.5">{Array.from({ length: 28 }, (_, i) => <Bar key={i} w="w-full" h="h-8" />)}</div>
-              : <MiniCalendar entries={calendar} onPick={() => onJump?.("schedule")} />}
+              ? <div className="grid grid-cols-7 gap-1.5">{Array.from({ length: compact ? 7 : 28 }, (_, i) => <Bar key={i} w="w-full" h="h-8" />)}</div>
+              : compact
+                ? <WeekStrip entries={calendar} onPick={() => onJump?.("schedule")} />
+                : <MiniCalendar entries={calendar} onPick={() => onJump?.("schedule")} />}
           </section>
         );
+      }
       case "tasks":
         return (
           <section className={`${s.glass} p-5 h-full`}>
@@ -726,10 +742,15 @@ export default function DashboardView({ onJump }) {
         {flowWidgets.map((w) => {
           const span = w.sizes ? prefs.sizes[w.key] ?? w.size : 12;
           const tile = renderWidget(w.key);
+          // A short tile should not be stretched to a tall neighbour's
+          // height. The week strip is ~120px of content; forced to match
+          // the rhythm chart beside it, the rest of the card is dead
+          // space that reads as something failing to load.
+          const selfStart = w.key === "calendar" && span <= 3 ? "self-start" : "";
           return (
             <div
               key={w.key}
-              className={SPAN[span] || "lg:col-span-12"}
+              className={`${SPAN[span] || "lg:col-span-12"} ${selfStart}`}
               data-widget-key={w.key}
               ref={(el) => { if (el) tileNodes.current.set(w.key, el); else tileNodes.current.delete(w.key); }}
             >
