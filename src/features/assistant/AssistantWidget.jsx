@@ -34,6 +34,32 @@ import { answerFor, suggestionsAfter } from "./answer";
 import { matchNavigate, accountAnswer } from "./actions";
 import s from "./Assistant.module.css";
 
+/**
+ * What the assistant is doing while it is quiet.
+ *
+ * The API service announces each record it opens before it answers. Two
+ * or three seconds of "Thinking" says nothing; "Checking your timetable"
+ * tells a teacher the number about to appear came from their own
+ * schedule rather than from a model's imagination — which is the whole
+ * difference between an answer they act on and one they go and verify.
+ *
+ * Unmapped names fall back to a neutral phrase rather than leaking an
+ * internal identifier into the conversation.
+ */
+const TOOL_LABEL = {
+  get_overview: "Reading your dashboard",
+  get_schedule: "Checking your timetable",
+  list_students: "Opening your roster",
+  get_students: "Opening your roster",
+  list_artifacts: "Searching your library",
+  get_library: "Searching your library",
+  list_quizzes: "Looking through your quizzes",
+  list_homework: "Checking homework",
+  get_attendance: "Reading the register",
+  get_grades: "Reading the gradebook",
+  get_account: "Checking your plan",
+};
+
 const STARTERS = {
   landing: [
     "What is Murchid?",
@@ -156,6 +182,11 @@ export default function AssistantWidget({ scope = "landing", onNavigate }) {
   }, []);
   useEffect(() => stopTyping, [stopTyping]);
 
+  // The server's own thread id for this conversation, so the assistant
+  // remembers the previous turn. It comes back in the first frame of the
+  // first reply; every later turn hands it back.
+  const chatSessionRef = useRef(null);
+
   const send = useCallback((text) => {
     const message = (text ?? draft).trim();
     if (!message || busy) return;
@@ -184,6 +215,47 @@ export default function AssistantWidget({ scope = "landing", onNavigate }) {
           const live = await accountAnswer();
           if (live) return { full: live, topicId: "pricing" };
         }
+
+        // Inside the studio the assistant can answer about the teacher's
+        // OWN term — how many students, what is on Thursday, which
+        // homework is outstanding — because the API service can read it
+        // and reason over it. knowledge.json cannot: it knows the
+        // product, not the person.
+        //
+        // It streams, so this returns the finished text and skips the
+        // typewriter below; re-typing prose that already arrived a word
+        // at a time would only make it slower.
+        try {
+          const { streamText } = await import("@/shared/lib/apiStream");
+          let printed = "";
+          const { text: full, sessionId } = await streamText(
+            "/api/chat",
+            { message, scope: "studio", sessionId: chatSessionRef.current || undefined },
+            {
+              onText: (all) => {
+                printed = all;
+                setDoing(null);
+                setMessages((m) => {
+                  const next = [...m];
+                  next[next.length - 1] = { role: "assistant", text: all };
+                  return next;
+                });
+              },
+              // Saying which record it opened is the difference between
+              // a number a teacher trusts and one they have to go and
+              // check for themselves.
+              onTool: (name) => setDoing(TOOL_LABEL[name] || "Looking that up"),
+            },
+          );
+          if (sessionId) chatSessionRef.current = sessionId;
+          if (full.trim()) return { full, topicId: null, alreadyShown: true };
+          if (printed.trim()) return { full: printed, topicId: null, alreadyShown: true };
+        } catch (err) {
+          // The service being down must not take the assistant with it.
+          // knowledge.json still answers everything about the product,
+          // which is most of what is asked of it.
+          console.warn("[assistant] falling back to local knowledge:", err.message);
+        }
       }
       const { text, topicId } = answerFor(message);
       return { full: text, topicId };
@@ -193,8 +265,22 @@ export default function AssistantWidget({ scope = "landing", onNavigate }) {
     // canned response rather than an answer, which is precisely the
     // impression to avoid even when it IS a lookup.
     const begin = setTimeout(async () => {
-      const { full, topicId } = await resolveAnswer();
+      const { full, topicId, alreadyShown } = await resolveAnswer();
       setDoing(null);
+
+      // A streamed answer is already on screen and already complete.
+      if (alreadyShown) {
+        setMessages((m) => {
+          const next = [...m];
+          next[next.length - 1] = { role: "assistant", text: full };
+          return next;
+        });
+        setBusy(false);
+        setFollowUps(suggestionsAfter(topicId));
+        voice.say(full);
+        return;
+      }
+
       const words = full.split(/(\s+)/);
       let i = 0;
       typerRef.current = setInterval(() => {
@@ -407,7 +493,16 @@ export default function AssistantWidget({ scope = "landing", onNavigate }) {
                 </button>
               </div>
               <p className={s.hint}>
-                <span>Answers come from Murchid&rsquo;s own documentation.</span>
+                {/* Two different assistants wearing one face. On the
+                    landing page it is a lookup over knowledge.json, and
+                    saying so is the honest claim. Signed in it can read
+                    the teacher's own term, and telling them it is quoting
+                    documentation would undersell the answer they just got. */}
+                <span>
+                  {scope === "studio"
+                    ? "Answers use your own students, timetable and library."
+                    : "Answers come from Murchid\u2019s own documentation."}
+                </span>
                 <span>{voice.canListen ? "Mic works" : ""}</span>
               </p>
             </div>

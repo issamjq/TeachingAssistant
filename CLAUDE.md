@@ -23,7 +23,7 @@ What this means in practice:
 - **New work goes in `src/features/<feature>/`** with a matching route segment under `app/`. Feature modules own their components, `api.ts`, and `types.ts`.
 - **Peeling a route is additive** — create the real segment (e.g. `app/(studio)/quizzes/page.tsx`) and it automatically stops reaching the catch-all. Nothing needs removing.
 - `src/legacy/` and `app/[[...slug]]/` are **scaffolding** and get deleted in Phase 4.
-- **There is no backend in this repo.** The browser reads and writes Supabase directly through `src/lib/data/`, with Row Level Security doing the authorisation an API used to do in middleware. The handful of endpoints that need a secret — AI generation, CV parsing, the auth bootstrap, the privileged consoles — live in a separate project; see [todo/backend-requirements.md](todo/backend-requirements.md).
+- **There is no backend in this repo.** The browser reads and writes Supabase directly through `src/lib/data/`, with Row Level Security doing the authorisation an API used to do in middleware. The handful of endpoints that need a secret — AI generation, CV parsing, the assistant, the privileged consoles — live in a separate project, deployed at `https://murchid-backend.onrender.com`. Reach it by setting `API_PROXY_TARGET` (**in Vercel too**, or production 404s every AI path); `next.config.ts` then rewrites `/api/*` there server-side. What works, what is blocked, and the exact fixes: [todo/backend-integration.md](todo/backend-integration.md).
 
 ## Frontend conventions (post-migration)
 

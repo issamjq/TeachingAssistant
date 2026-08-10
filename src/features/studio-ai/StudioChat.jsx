@@ -61,6 +61,23 @@ const safeName = (name) =>
   name.normalize("NFKD").replace(/[^\w.\-]+/g, "-").replace(/-+/g, "-").slice(-80) || "file";
 
 /** Pull a usable title out of whatever came back. */
+/**
+ * One shape for the structured half of a generation, whatever arrived.
+ *
+ * The viewers look for `.slides` and `.questions` at the top level. A
+ * deck that arrives as a bare array, or wrapped as `{quiz:{questions}}`,
+ * renders as nothing at all unless it is flattened first — which is
+ * exactly how every generated deck once fell through to plain markdown.
+ */
+function normaliseArtifact(raw) {
+  if (!raw || typeof raw !== "object") return null;
+  if (Array.isArray(raw)) return { slides: raw };
+  if (raw.quiz) return raw.quiz;
+  if (raw.content && typeof raw.content === "object") return normaliseArtifact(raw.content);
+  if (raw.slides || raw.questions) return raw;
+  return null;
+}
+
 function titleOf(kind, text, structured) {
   if (structured?.title) return structured.title;
   const heading = (text || "").split(/\r?\n/).find((l) => /^#{1,3}\s+/.test(l));
@@ -279,7 +296,7 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
 
       const reader = res.body.getReader();
       const dec = new TextDecoder();
-      let buf = "", acc = "", structured = null;
+      let buf = "", acc = "", structured = null, savedId = null;
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
@@ -297,17 +314,24 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
               n[n.length - 1] = { ...n[n.length - 1], text: acc };
               return n;
             });
+          } else if (ev.type === "artifact") {
+            // The structured form of what was just written in prose: a
+            // deck as slides, a quiz as questions. The service does not
+            // send this yet (see todo/backend-integration.md, gap 5a) and
+            // everything still works without it — the reply renders as
+            // markdown. When it does arrive the deck and quiz viewers
+            // light up with no further change here.
+            structured = normaliseArtifact(ev.content ?? ev.artifact ?? ev);
           } else if (ev.type === "done") {
             // Normalise to ONE shape. The generator sends a quiz as
             // { quiz: { questions } } but a deck as { slides: [...] } —
             // storing whichever arrived raw meant the deck was an array
             // where the renderer looked for `.slides`, and every deck
             // silently fell through to plain markdown.
-            structured = ev.quiz
-              ? ev.quiz
-              : ev.slides
-              ? { slides: ev.slides }
-              : ev.structured || null;
+            structured = structured || normaliseArtifact(
+              ev.quiz ? ev.quiz : ev.slides ? { slides: ev.slides } : ev.structured,
+            );
+            if (ev.id) savedId = ev.id;
           } else if (ev.type === "error") {
             throw Object.assign(new Error(ev.message), { soft: true });
           }
@@ -320,6 +344,8 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
         return n;
       });
       appendMessage(sid, { role: "assistant", text: acc, kind: k, structured });
+      // A row the service saved itself needs no second copy from here.
+      if (savedId) setTurns((t) => t.map((x, i) => (i === t.length - 1 ? { ...x, saved: true, artifactId: savedId } : x)));
       refreshSessions();
     } catch (err) {
       if (err.name === "AbortError") {
