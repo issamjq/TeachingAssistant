@@ -8,6 +8,24 @@ browser cannot.
 privilege, that a browser must never hold. Anything else already talks to
 Supabase directly — see `src/lib/data/`.
 
+## Implementation guides
+
+This file is the map. `todo/backend/` has one file per feature with the
+Node.js to write:
+
+| | | |
+|---|---|---|
+| [00 · Setup](backend/00-setup.md) | project skeleton, auth, db, deploy | **start here** |
+| [01 · AI Studio](backend/01-ai-studio.md) | generation, streaming, metering | the headline feature |
+| [02 · Document parsing](backend/02-document-parsing.md) | CV and staff-ID reading | |
+| [03 · Email verification](backend/03-email-verification.md) | sign-up codes | unblocks email sign-up |
+| [04 · Admin consoles](backend/04-admin-consoles.md) | the five dashboards | |
+| [05 · Images](backend/05-images.md) | uploads | mostly "do it in the browser" |
+| [06 · Assistant](backend/06-assistant.md) | studio tool-calling | optional |
+
+Suggested order: **00 → 03 → 01 → 02 → 04**. 03 is small and unblocks
+email sign-up; 01 is the feature teachers are paying for.
+
 ---
 
 ## What already works without you
