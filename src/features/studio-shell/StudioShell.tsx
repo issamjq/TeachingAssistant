@@ -411,7 +411,7 @@ export default function StudioShell({ children }: { children: React.ReactNode })
   );
 
   return (
-    <div className="murchid-studio-app h-[100dvh] bg-paper flex text-ink font-sans overflow-hidden">
+    <div className="murchid-studio-app murchid-studio-canvas h-[100dvh] flex text-ink font-sans overflow-hidden">
       {/* Desktop / iPad-landscape rail — collapsible, state persists.
           Collapsing animates width 256px ↔ 0 (overflow-hidden clips the
           fixed-width inner column so contents don't reflow mid-slide)
@@ -422,9 +422,12 @@ export default function StudioShell({ children }: { children: React.ReactNode })
         }`}
       >
         {/* The floating pane. The fixed-width inner column keeps the
-            contents from reflowing mid-slide while the aside animates. */}
-        <div className="w-64 h-full">
-          <div className="murchid-sidebar-pane w-full">{sidebarBody}</div>
+            contents from reflowing mid-slide while the aside animates;
+            the gutters live HERE, not on the aside — padding on a w-64
+            aside around a w-64 column was 268px in a 256px clip, which
+            silently cut the pane's right edge off. */}
+        <div className="w-64 h-full py-3 ps-3 pe-1.5">
+          <div className="murchid-sidebar-pane">{sidebarBody}</div>
         </div>
       </aside>
 
@@ -439,7 +442,7 @@ export default function StudioShell({ children }: { children: React.ReactNode })
           aria-hidden
         />
         <aside
-          className={`murchid-sidebar fixed inset-y-0 start-0 z-50 w-[82vw] max-w-xs flex flex-col h-[100dvh] shadow-2xl transition-transform duration-300 ease-out print:hidden ${
+          className={`murchid-sidebar murchid-sidebar-drawer fixed inset-y-0 start-0 z-50 w-[82vw] max-w-xs flex flex-col h-[100dvh] shadow-2xl transition-transform duration-300 ease-out print:hidden ${
             navOpen ? "translate-x-0" : "-translate-x-full rtl:translate-x-full"
           }`}
           aria-label="Primary"
@@ -482,7 +485,7 @@ export default function StudioShell({ children }: { children: React.ReactNode })
         </div>
 
         <div
-          className={`relative flex-1 overflow-y-auto bg-[#fbf2e6] px-4 pt-4 pb-6 sm:px-6 md:pt-3 md:pb-2 md:pe-8 transition-[padding] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none ${
+          className={`murchid-content-pane relative flex-1 overflow-y-auto px-4 pt-4 pb-6 sm:px-6 md:my-3 md:me-3 md:ms-1.5 md:pt-4 md:pb-3 md:pe-6 transition-[padding] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none ${
             sidebarCollapsed ? "md:ps-16" : "md:ps-8"
           }`}
         >

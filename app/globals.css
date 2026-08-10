@@ -1027,9 +1027,43 @@ select:focus-visible {
    surface sitting ON the page instead of a border drawn across it.
    Glass at high opacity — see the argument in Dashboard.module.css. */
 .murchid-sidebar {
-  padding: 12px 0 12px 12px;
   background: transparent;
   border-right: 0;
+}
+
+/* The canvas the panes float on. A faint firozeh wash over warm paper —
+   the same drench the landing runs — so the glass surfaces have
+   something to be lighter THAN. On bg-paper the pane and the page were
+   near-identical tones and the float read as nothing at all. */
+.murchid-studio-canvas {
+  background:
+    radial-gradient(90% 65% at 88% -12%,
+      color-mix(in oklab, var(--p-ambient-lift) 20%, transparent), transparent 62%),
+    radial-gradient(75% 55% at -12% 112%,
+      color-mix(in oklab, var(--p-ambient-mid) 13%, transparent), transparent 58%),
+    linear-gradient(180deg, var(--p-paper-warm), var(--p-paper));
+}
+
+/* The content sheet — the second floating surface. */
+.murchid-content-pane {
+  background: color-mix(in oklab, var(--p-paper-cool) 74%, transparent);
+  backdrop-filter: blur(18px) saturate(115%);
+  -webkit-backdrop-filter: blur(18px) saturate(115%);
+}
+@media (min-width: 768px) {
+  .murchid-content-pane {
+    border-radius: 22px;
+    border: 1px solid color-mix(in oklab, white 55%, var(--p-line) 30%);
+    box-shadow:
+      0 1px 2px color-mix(in oklab, var(--p-ink) 4%, transparent),
+      0 18px 40px -22px color-mix(in oklab, var(--p-ink) 22%, transparent);
+  }
+}
+
+/* The mobile drawer shares the sidebar body but must be SOLID — a
+   translucent drawer lets the page show through the nav. */
+.murchid-sidebar-drawer {
+  background: linear-gradient(180deg, var(--p-paper-cool), var(--p-paper));
 }
 .murchid-sidebar-pane {
   position: relative;
@@ -1038,18 +1072,15 @@ select:focus-visible {
   flex-direction: column;
   border-radius: 20px;
   overflow: hidden;
-  background:
-    linear-gradient(
-      180deg,
-      color-mix(in oklab, var(--color-paper-warm) 92%, transparent) 0%,
-      color-mix(in oklab, var(--color-paper) 92%, transparent) 100%
-    );
-  border: 1px solid color-mix(in oklab, var(--color-line) 90%, transparent);
+  /* LIGHTER than the canvas, not the same tone with a border. Contrast
+     between pane and backdrop is the entire floating effect. */
+  background: color-mix(in oklab, var(--p-paper-cool) 82%, transparent);
+  border: 1px solid color-mix(in oklab, white 60%, var(--p-line) 30%);
   box-shadow:
-    0 1px 2px rgb(0 0 0 / 0.04),
-    0 18px 40px -22px rgb(0 0 0 / 0.28);
-  backdrop-filter: blur(16px) saturate(120%);
-  -webkit-backdrop-filter: blur(16px) saturate(120%);
+    0 1px 2px color-mix(in oklab, var(--p-ink) 5%, transparent),
+    0 20px 44px -20px color-mix(in oklab, var(--p-ink) 30%, transparent);
+  backdrop-filter: blur(18px) saturate(120%);
+  -webkit-backdrop-filter: blur(18px) saturate(120%);
 }
 /* The light along the top edge — what turns a rounded rectangle into a
    pane of glass. */
@@ -1537,14 +1568,15 @@ select:focus-visible {
   color: var(--color-ink);
 }
 .murchid-sidebar-item-active {
-  background: var(--color-paper-cool);
-  color: var(--color-ink);
-  font-weight: 500;
-  box-shadow: 0 1px 0 0 var(--color-line),
-              0 8px 18px -10px rgba(15, 20, 16, 0.18);
+  background: color-mix(in oklab, var(--p-accent) 11%, var(--p-paper-cool));
+  color: var(--p-accent-hover);
+  font-weight: 600;
+  box-shadow:
+    inset 0 0 0 1px color-mix(in oklab, var(--p-accent) 26%, transparent),
+    0 6px 16px -8px color-mix(in oklab, var(--p-accent) 45%, transparent);
 }
 .murchid-sidebar-item-active:hover {
-  background: var(--color-paper-cool);
+  background: color-mix(in oklab, var(--p-accent) 14%, var(--p-paper-cool));
   transform: translateX(0);
 }
 
@@ -1560,7 +1592,9 @@ select:focus-visible {
   bottom: 6px;
   width: 3px;
   border-radius: 999px;
-  background: var(--color-accent);
+  /* The neon: a lit gradient bar with a soft halo, not a flat stripe. */
+  background: linear-gradient(180deg, var(--p-ambient-lift), var(--p-accent));
+  box-shadow: 0 0 8px 1px color-mix(in oklab, var(--p-ambient-lift) 55%, transparent);
   transform: scaleY(0);
   transform-origin: center;
   opacity: 0;
