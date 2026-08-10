@@ -16,7 +16,8 @@
 //
 // Every number on this page is real.
 // =====================================================================
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   ArrowRight, Sparkles, CalendarDays, FileText, HelpCircle, Users,
   SlidersHorizontal, Plus, RotateCcw, X, GripVertical,
@@ -227,16 +228,80 @@ export default function DashboardView({ onJump }) {
 
   const [dragKey, setDragKey] = useState(null);
   // Refs, because the drag listeners live on WINDOW for the whole edit
-  // session. Pointer capture on the grip button was the first attempt
-  // and it silently failed: after the first reorder React re-renders,
-  // and the captured events kept flowing into a handler holding stale
-  // state. A window listener reading refs cannot go stale and cannot
-  // lose the pointer.
+  // session — pointer capture on the grip died silently after the first
+  // re-render, and window listeners reading refs cannot go stale.
   const dragKeyRef = useRef(null);
   const placeAtRef = useRef(placeAt);
   placeAtRef.current = placeAt;
-
   const lastPointRef = useRef({ x: 0, y: 0 });
+
+  // The floating clone: what actually follows the cursor. Its position
+  // is written straight to the DOM on each move — routing 60 moves a
+  // second through setState would re-render the whole dashboard per
+  // frame, which is its own kind of shiver.
+  const cloneRef = useRef(null);
+  const dragRect = useRef(null);       // size of the grabbed tile
+  const grabOffset = useRef({ x: 0, y: 0 });
+
+  const placeClone = () => {
+    const el = cloneRef.current;
+    if (!el) return;
+    const { x, y } = lastPointRef.current;
+    el.style.transform =
+      `translate3d(${x - grabOffset.current.x}px, ${y - grabOffset.current.y}px, 0)`;
+  };
+  useLayoutEffect(placeClone, [dragKey]);
+
+  // Swap hysteresis. Reordering two tiles of different sizes can drop
+  // the pointer back onto the tile it just displaced, which swaps back,
+  // which drops it again — the oscillation that read as shivering. Two
+  // rules kill it: a short cooldown after any reorder, and a longer
+  // block on re-swapping the SAME pair.
+  const swapGuard = useRef({ t: 0, pair: "" });
+
+  // FLIP: displaced tiles slide to their new slot instead of
+  // teleporting. Measure where every tile was, and after the reorder
+  // render, play each one from its old position to its new one.
+  const tileNodes = useRef(new Map());
+  const prevRects = useRef(new Map());
+  const reduced = useRef(false);
+  useEffect(() => {
+    reduced.current = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!editing) { prevRects.current.clear(); return; }
+    const pane = document.querySelector(".murchid-content-pane");
+    const scroll = pane ? pane.scrollTop : 0;
+    const next = new Map();
+    for (const [key, el] of tileNodes.current) {
+      if (!el || !el.isConnected) continue;
+      // Clear any in-flight animation before measuring, or a reorder
+      // during a slide measures the transformed position and compounds.
+      el.style.transition = "";
+      el.style.transform = "";
+      const r = el.getBoundingClientRect();
+      // Scroll-corrected: the pane auto-scrolls during a drag, and raw
+      // viewport rects would read that as every tile having moved.
+      next.set(key, { left: r.left, top: r.top + scroll });
+      const prev = prevRects.current.get(key);
+      if (prev && !reduced.current && key !== dragKeyRef.current) {
+        const dx = prev.left - r.left;
+        const dy = prev.top - (r.top + scroll);
+        if (Math.abs(dx) > 1 || Math.abs(dy) > 1) {
+          el.style.transform = `translate(${dx}px, ${dy}px)`;
+          void el.offsetWidth;               // commit the start position
+          el.style.transition = "transform 240ms cubic-bezier(0.2, 0, 0, 1)";
+          el.style.transform = "";
+          el.addEventListener("transitionend", function done() {
+            el.style.transition = "";
+            el.removeEventListener("transitionend", done);
+          });
+        }
+      }
+    }
+    prevRects.current = next;
+  });
 
   useEffect(() => {
     if (!editing) return undefined;
@@ -244,31 +309,37 @@ export default function DashboardView({ onJump }) {
     const hitTest = (x, y) => {
       const key = dragKeyRef.current;
       if (!key) return;
-      // Hit-test the tile under the pointer. After a reorder the tile
-      // under the pointer becomes the dragged one itself, which no-ops —
-      // that is what keeps the live reflow from oscillating.
+      const now = performance.now();
+      // Swap hysteresis: a short cooldown after any reorder, and a
+      // longer block on the SAME pair swapping straight back — the
+      // different-size oscillation that read as shivering.
+      if (now - swapGuard.current.t < 140) return;
       const el = document.elementFromPoint(x, y);
       const target = el?.closest?.("[data-widget-key]")?.getAttribute("data-widget-key");
-      if (target && target !== key) placeAtRef.current(key, target);
+      if (!target || target === key) return;
+      const pair = [key, target].sort().join("|");
+      if (pair === swapGuard.current.pair && now - swapGuard.current.t < 420) return;
+      placeAtRef.current(key, target);
+      swapGuard.current = { t: now, pair };
     };
 
     const move = (e) => {
       lastPointRef.current = { x: e.clientX, y: e.clientY };
+      placeClone();
       hitTest(e.clientX, e.clientY);
     };
     const up = () => {
       if (!dragKeyRef.current) return;
       dragKeyRef.current = null;
+      dragRect.current = null;
       setDragKey(null);
     };
 
-    // Edge auto-scroll. The dashboard is taller than the window, and a
-    // drag towards a tile below the fold otherwise just sails off the
-    // viewport — instrumenting the pointer showed it crossing into
-    // nothing at the bottom edge. Holding a drag near either edge
-    // scrolls the studio pane and keeps hit-testing as tiles pass under
-    // the stationary pointer, which is exactly how a phone's edit mode
-    // carries a tile a long way.
+    // Edge auto-scroll: the dashboard is taller than the window, and a
+    // drag towards a tile below the fold otherwise sails off the
+    // viewport into nothing. Holding near either edge scrolls the pane
+    // while hit-testing continues, so a stationary pointer carries the
+    // tile a long way — exactly how a phone's edit mode does it.
     const pane = document.querySelector(".murchid-content-pane");
     let raf = 0;
     const tick = () => {
@@ -304,6 +375,13 @@ export default function DashboardView({ onJump }) {
     active: dragKey,
     start: (key) => (e) => {
       e.preventDefault();
+      const node = tileNodes.current.get(key);
+      const r = node?.getBoundingClientRect();
+      if (r) {
+        dragRect.current = { width: r.width, height: r.height };
+        grabOffset.current = { x: e.clientX - r.left, y: e.clientY - r.top };
+      }
+      lastPointRef.current = { x: e.clientX, y: e.clientY };
       dragKeyRef.current = key;
       setDragKey(key);
     },
@@ -629,13 +707,32 @@ export default function DashboardView({ onJump }) {
         </section>
       )}
 
+      {/* The clone that rides the cursor. Inert, so the pointer drags
+          through it to hit-test the real tiles underneath. */}
+      {dragKey && dragRect.current && createPortal(
+        <div
+          ref={cloneRef}
+          className={s.dragClone}
+          style={{ width: dragRect.current.width, height: dragRect.current.height }}
+          aria-hidden="true"
+        >
+          {renderWidget(dragKey)}
+        </div>,
+        document.body
+      )}
+
       {/* ── the flow grid: everything else, at the teacher's sizes ──── */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
         {flowWidgets.map((w) => {
           const span = w.sizes ? prefs.sizes[w.key] ?? w.size : 12;
           const tile = renderWidget(w.key);
           return (
-            <div key={w.key} className={SPAN[span] || "lg:col-span-12"} data-widget-key={w.key}>
+            <div
+              key={w.key}
+              className={SPAN[span] || "lg:col-span-12"}
+              data-widget-key={w.key}
+              ref={(el) => { if (el) tileNodes.current.set(w.key, el); else tileNodes.current.delete(w.key); }}
+            >
               {editing
                 ? <EditFrame widget={w.key} prefs={prefs} onChange={changePrefs} drag={drag}>{tile}</EditFrame>
                 : tile}

@@ -550,17 +550,30 @@
 .dragBtn:hover > span { transform: scale(1.06); }
 .dragBtn:focus-visible > span { outline: 2px solid var(--p-ink); outline-offset: 2px; }
 
-/* The tile being carried: lifted above its neighbours, solid outline in
-   place of the dashed one, slightly shrunk so the page reads as "held". */
-.editFrame[data-drag="true"] {
-  z-index: 20;
-}
+/* While a tile is carried, its grid slot stays behind as a quiet
+   placeholder — the moving thing is the floating clone, not the slot. */
 .editFrame[data-drag="true"] > :first-child {
-  opacity: 0.95;
-  transform: scale(0.985);
+  opacity: 0.3;
 }
 .editFrame[data-drag="true"]::after {
   border-style: solid;
-  border-color: var(--p-accent);
-  box-shadow: 0 18px 44px -14px color-mix(in oklab, var(--p-accent) 50%, transparent);
+  border-color: color-mix(in oklab, var(--p-accent) 55%, transparent);
+  background: color-mix(in oklab, var(--p-accent) 5%, transparent);
 }
+
+/* The clone that follows the pointer. Fixed, transform-positioned, and
+   inert — pointer-events none matters twice over: the cursor must drag
+   THROUGH it to hit-test the tiles underneath, and it must never eat
+   its own pointerup. */
+.dragClone {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 60;
+  pointer-events: none;
+  will-change: transform;
+  border-radius: 22px;
+  box-shadow: 0 30px 60px -20px color-mix(in oklab, var(--p-ink) 45%, transparent);
+  opacity: 0.96;
+}
+.dragClone > * { height: 100%; }
