@@ -507,47 +507,78 @@ export async function deleteLibrary(id: string) {
 export async function dashboard() {
   const today = new Date().toISOString().slice(0, 10);
   const weekOut = new Date(Date.now() + 7 * 864e5).toISOString().slice(0, 10);
+  const { facultyId: fid } = await ident();
 
-  const [todayRows, upcoming, work, notes, classes, students] = await Promise.all([
-    supabase.from("schedule_entries").select(SCHED).eq("date", today).order("start_time"),
-    supabase.from("schedule_entries").select(SCHED).gt("date", today).lte("date", weekOut).order("date").limit(8),
-    supabase.from("ai_studio").select("id, type, status, content, updated_at").is("deleted_at", null).order("updated_at", { ascending: false }),
-    supabase.from("notifications").select("id, kind, title, body, link, read_at, created_at").is("read_at", null).order("created_at", { ascending: false }).limit(5),
-    supabase.from("classes").select("id", { count: "exact", head: true }).eq("is_archived", false),
+  // Six round trips became four. `head: true` counts without shipping
+  // rows, and one scan of ai_studio serves both the counts and the
+  // recent list — a second query for five rows it already had was the
+  // easiest thing here to stop doing.
+  const [schedule, work, notes, roster] = await Promise.all([
+    supabase.from("schedule_entries").select(SCHED)
+      .gte("date", today).lte("date", weekOut).order("date").order("start_time"),
+    supabase.from("ai_studio").select("id, type, status, content, updated_at")
+      .is("deleted_at", null).order("updated_at", { ascending: false }),
+    supabase.from("notifications")
+      .select("id, kind, title, body, link, read_at, created_at")
+      .is("read_at", null).order("created_at", { ascending: false }).limit(5),
     supabase.from("students").select("id", { count: "exact", head: true }),
   ]);
-  for (const r of [todayRows, upcoming, work, notes]) if (r.error) throw r.error;
+  for (const r of [schedule, work, notes]) if (r.error) throw r.error;
 
+  const days = (schedule.data || []) as any[];
   const rows = (work.data || []) as any[];
   const countOf = (t: string) => rows.filter((r) => r.type === t).length;
 
   return {
-    today_lessons: todayRows.data || [],
-    upcoming_lessons: upcoming.data || [],
-    // The old dashboard split these out of assignments. Assignments have
-    // no UI yet, so the tiles read from the work itself and stay honest
-    // about being counts rather than pretending to be due-lists.
-    pending_homework: [],
-    pending_quizzes: [],
-    recent_drafts: rows.slice(0, 5).map((r) => ({
+    today_lessons: days.filter((d) => d.date === today),
+    upcoming_lessons: days.filter((d) => d.date > today).slice(0, 8),
+    recent_drafts: rows.slice(0, 6).map((r) => ({
       id: r.id,
-      name: r.content?.title || r.content?.name || r.type,
-      type: r.type, status: r.status,
+      name: r.content?.title || r.content?.name || "Untitled",
+      type: r.type,
+      status: r.status,
       subject: r.content?.subject ?? null,
+      grade: r.content?.grade ?? null,
+      progress: r.content?.progress ?? null,
       last_edited: r.updated_at,
     })),
     counts: {
-      students: students.count ?? 0,
-      classes: classes.count ?? 0,
+      students: roster.count ?? 0,
       drafts: countOf("lesson_plan"),
       quizzes: countOf("quiz"),
       homework: countOf("homework"),
       presentations: countOf("presentation"),
       activities: countOf("activity"),
       templates: countOf("template"),
-      materials: 0,
+      total: rows.length,
     },
     recent_notifications: (notes.data || []).map(outNote),
+    // Trial and balance, so the dashboard can say how much runway is
+    // left instead of the teacher discovering it at the moment a write
+    // is refused.
+    plan: await planSummary(fid),
+  };
+}
+
+/** Plan, status and days remaining. Null when there is no faculty row. */
+async function planSummary(fid: string | null) {
+  if (!fid) return null;
+  const [sub, cr] = await Promise.all([
+    supabase.from("subscriptions").select("plan, status, trial_ends_at, current_period_end").maybeSingle(),
+    supabase.from("credits").select("balance, monthly_allowance").maybeSingle(),
+  ]);
+  const s: any = sub.data;
+  if (!s) return null;
+  const ends = s.current_period_end ?? s.trial_ends_at;
+  return {
+    plan: s.plan,
+    status: s.status,
+    ends_at: ends,
+    days_left: ends
+      ? Math.max(0, Math.ceil((new Date(ends).getTime() - Date.now()) / 864e5))
+      : null,
+    credits: cr.data?.balance ?? null,
+    allowance: cr.data?.monthly_allowance ?? null,
   };
 }
 
