@@ -28,7 +28,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   Send, Paperclip, X, Sparkles, Square, RotateCcw, Save, Check,
   FileText, GraduationCap, ClipboardList, Layers, Puzzle,
-  PanelLeftOpen, PanelLeftClose, Plus, Trash2, MessageSquare,
+  PanelRightOpen, PanelRightClose, Plus, Trash2, MessageSquare,
 } from "lucide-react";
 import { api } from "@/views/_shared";
 import { supabase } from "@/lib/supabaseClient";
@@ -161,6 +161,10 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
   useEffect(() => {
     const el = threadRef.current;
     if (!el) return;
+    // Nothing said yet means the opening screen, and on a phone that is
+    // just tall enough to land inside the "near the bottom" window — so
+    // the studio opened already scrolled past its own heading.
+    if (!turns.length) return;
     const near = el.scrollHeight - el.scrollTop - el.clientHeight < 160;
     if (forceScroll.current || near) {
       el.scrollTop = el.scrollHeight;
@@ -381,64 +385,6 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
 
   return (
     <div className={s.withRail}>
-      {/* ── history ─────────────────────────────────────────────── */}
-      <aside className={s.rail} data-open={railOpen} aria-label="Recent conversations" aria-hidden={!railOpen}>
-        <div className={s.railHead}>
-          <span className={s.railTitle}>Recent</span>
-          <button
-            type="button" className={s.iconBtn} onClick={() => setRailOpen(false)}
-            aria-label="Hide conversation history" title="Hide history"
-          >
-            <PanelLeftClose size={16} />
-          </button>
-        </div>
-        <button type="button" className={s.newChat} onClick={newChat}>
-          <Plus size={15} className="text-accent flex-shrink-0" /> New conversation
-        </button>
-        <div className={s.railList}>
-          {sessions.length === 0 ? (
-            <p className="text-[12px] text-muted px-3 py-2 leading-relaxed">
-              Nothing yet. Conversations you have here are kept for {KEEP_DAYS} days — anything
-              you save goes to your library and stays.
-            </p>
-          ) : (
-            sessions.map((x) => (
-              // Two sibling buttons in a plain row, not a button inside
-              // a role="button". Nesting them made the row's accessible
-              // name swallow the delete label, so a screen reader
-              // announced one control offering both actions.
-              <div
-                key={x.session_id}
-                className={s.railItem}
-                data-on={x.session_id === sessionId}
-              >
-                <button
-                  type="button"
-                  className={s.railOpen}
-                  onClick={() => openSession(x.session_id)}
-                  aria-current={x.session_id === sessionId ? "true" : undefined}
-                >
-                  <MessageSquare size={13} className="text-muted flex-shrink-0 mt-0.5 self-start" />
-                  <span className={s.railItemText}>
-                    {x.title || "Untitled"}
-                    <span className={s.railItemWhen}>{when(x.updated_at || x.created_at)}</span>
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  className={s.railDel}
-                  onClick={(e) => removeSession(x.session_id, e)}
-                  aria-label={`Delete conversation: ${x.title || "Untitled"}`}
-                >
-                  <Trash2 size={13} />
-                </button>
-              </div>
-            ))
-          )}
-        </div>
-      </aside>
-
-      {railOpen && <div className={s.railScrim} onClick={() => setRailOpen(false)} aria-hidden="true" />}
 
       <div className={s.chatSide}>
         {!railOpen && (
@@ -446,7 +392,7 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
             type="button" className={s.railToggle} onClick={() => setRailOpen(true)}
             aria-label="Show conversation history" title="Recent conversations"
           >
-            <PanelLeftOpen size={17} />
+            <PanelRightOpen size={17} />
           </button>
         )}
         <div className={s.shell}>
@@ -673,6 +619,67 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
 
         </div>
       </div>
+
+      {railOpen && <div className={s.railScrim} onClick={() => setRailOpen(false)} aria-hidden="true" />}
+
+      {/* ── history ─────────────────────────────────────────────── */}
+      <aside className={s.rail} data-open={railOpen} aria-label="Recent conversations" aria-hidden={!railOpen}>
+        <div className={s.railPane}>
+          <div className={s.railHead}>
+            <span className={s.railTitle}>Recent</span>
+            <button
+              type="button" className={s.iconBtn} onClick={() => setRailOpen(false)}
+              aria-label="Hide conversation history" title="Hide history"
+            >
+              <PanelRightClose size={16} />
+            </button>
+          </div>
+          <button type="button" className={s.newChat} onClick={newChat}>
+            <Plus size={15} className="text-accent flex-shrink-0" /> New conversation
+          </button>
+          <div className={s.railList}>
+            {sessions.length === 0 ? (
+              <p className={s.railEmpty}>
+                Nothing yet. Conversations you have here are kept for {KEEP_DAYS} days — anything
+                you save goes to your library and stays.
+              </p>
+            ) : (
+              sessions.map((x) => (
+                // Two sibling buttons in a plain row, not a button inside
+                // a role="button". Nesting them made the row's accessible
+                // name swallow the delete label, so a screen reader
+                // announced one control offering both actions.
+                <div
+                  key={x.session_id}
+                  className={s.railItem}
+                  data-on={x.session_id === sessionId}
+                >
+                  <button
+                    type="button"
+                    className={s.railOpen}
+                    onClick={() => openSession(x.session_id)}
+                    aria-current={x.session_id === sessionId ? "true" : undefined}
+                  >
+                    <MessageSquare size={13} className="text-muted flex-shrink-0 mt-0.5 self-start" />
+                    <span className={s.railItemText}>
+                      <span className={s.railItemTitle}>{x.title || "Untitled"}</span>
+                      <span className={s.railItemWhen}>{when(x.updated_at || x.created_at)}</span>
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    className={s.railDel}
+                    onClick={(e) => removeSession(x.session_id, e)}
+                    aria-label={`Delete conversation: ${x.title || "Untitled"}`}
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </aside>
 
       {presenting && (
         <SlideFullscreen
