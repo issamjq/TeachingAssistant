@@ -264,40 +264,7 @@ export default function StudioShell({ children }: { children: React.ReactNode })
 
   // Studio launcher — the hero CTA, lifted out of the nav list. Sits just
   // above the account chip so the two persistent affordances pair up.
-  const studioLauncher = role === "teacher" && (
-    <button
-      type="button"
-      onClick={() => navigate(["studio"])}
-      data-tour="studio"
-      className={`murchid-studio-launcher ${
-        section === "studio" ? "murchid-studio-launcher-active" : ""
-      }`}
-      aria-label="Open AI studio"
-      aria-current={section === "studio" ? "page" : undefined}
-    >
-      <span className="murchid-studio-launcher-head">
-        <span className="murchid-studio-launcher-brand">
-          <span className="murchid-studio-launcher-icon" aria-hidden>
-            <Sparkles size={15} strokeWidth={2.25} />
-          </span>
-          <span className="murchid-studio-launcher-title">{t("studio.name")}</span>
-        </span>
-        <span className="murchid-studio-launcher-pill">{t("studio.badge")}</span>
-      </span>
-      <span className="murchid-studio-launcher-body">
-        <span className="murchid-studio-launcher-subtitle">{t("studio.subtitle")}</span>
-        <span className="murchid-studio-launcher-tagline">{t("studio.tagline")}</span>
-      </span>
-      <span className="murchid-studio-launcher-cta">
-        <span>{t("studio.open")}</span>
-        <ArrowRight
-          size={14}
-          strokeWidth={2.25}
-          className="murchid-studio-launcher-cta-arrow"
-        />
-      </span>
-    </button>
-  );
+
 
   // Rendered once for the desktop rail and again inside the mobile drawer,
   // so navigation is identical everywhere.
@@ -370,8 +337,6 @@ export default function StudioShell({ children }: { children: React.ReactNode })
           ));
         })()}
       </nav>
-
-      {studioLauncher && <div className="px-2 pb-2">{studioLauncher}</div>}
 
       {/* Pinned above the account chip: settings, support, sign out.
           Separate from the nav sections because they are not places in

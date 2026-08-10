@@ -1,32 +1,182 @@
 "use client";
 
 // =====================================================================
-// Dashboard widgets — calendar, charts, tasks
+// Dashboard widgets — calendar, pill chart, ring, schedule, tasks
 //
-// The charts are hand-drawn SVG rather than Chart.js or Recharts. Not
-// stubbornness: the whole app runs on ten runtime dependencies, and the
-// three shapes needed here — a trend line, a set of bars, a ring — are
-// about forty lines each. A charting library would be the largest
-// dependency in the project, shipped so a sparkline can have a tooltip.
+// All hand-drawn SVG and CSS rather than a charting library. The whole
+// app runs on ten runtime dependencies, and the shapes needed here — a
+// row of pill bars, a donut, a month grid — are about forty lines each.
+// Chart.js would be the largest dependency in the project, shipped so a
+// bar can have a tooltip.
 //
-// If real analytics arrive later — zoom, brushing, multiple series —
-// that is the moment to add one. Not before.
+// Every visual carries an accessible twin: charts have sr-only tables,
+// calendar days speak their counts, and nothing relies on colour alone.
 // =====================================================================
 import React, { useMemo } from "react";
 import s from "./Dashboard.module.css";
 
 const MONTHS = ["January","February","March","April","May","June","July",
                 "August","September","October","November","December"];
+const MON_SHORT = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 const DOW = ["M", "T", "W", "T", "F", "S", "S"];
+
+/* ── pill bar chart ───────────────────────────────────────────────── */
+
+/**
+ * Work created per week, as rounded pills — with empty weeks drawn as
+ * dashed ghosts rather than omitted. The ghost is the point: a missing
+ * bar reads as a rendering gap, a dashed one reads as "this week
+ * existed and held nothing".
+ */
+export function PillBars({ data = [] }) {
+  const max = Math.max(1, ...data.map((d) => d.n));
+  const total = data.reduce((a, d) => a + d.n, 0);
+
+  if (!total) {
+    return (
+      <p className="text-sm text-muted py-8 text-center">
+        Nothing made yet — this fills in as you work.
+      </p>
+    );
+  }
+
+  const label = (iso) => {
+    const d = new Date(iso + "T00:00:00");
+    return `${d.getDate()} ${MON_SHORT[d.getMonth()]}`;
+  };
+
+  return (
+    <>
+      <div
+        className={s.pillRow}
+        role="img"
+        aria-label={`Work created per week over the last ${data.length} weeks, ${total} items in total.`}
+      >
+        {data.map((d, i) => {
+          const now = i === data.length - 1;
+          return (
+            <div key={d.week} className={s.pillCol}>
+              {d.n === 0 ? (
+                <div className={s.pillGhost} aria-hidden="true" />
+              ) : (
+                <div
+                  className={s.pill}
+                  data-now={now}
+                  // Floor of 14% so one item is still visibly a pill,
+                  // not a dot lost at the baseline.
+                  style={{ height: `${Math.max(14, (d.n / max) * 100)}%` }}
+                  aria-hidden="true"
+                />
+              )}
+              <span className={s.pillLabel} data-now={now}>{now ? "now" : label(d.week)}</span>
+            </div>
+          );
+        })}
+      </div>
+      <table className="sr-only">
+        <caption>Work created per week</caption>
+        <tbody>
+          {data.map((d) => (
+            <tr key={d.week}><th scope="row">{d.week}</th><td>{d.n}</td></tr>
+          ))}
+        </tbody>
+      </table>
+    </>
+  );
+}
+
+/* ── ring ─────────────────────────────────────────────────────────── */
+
+/** A donut for "x of y", drawn for the dark card. */
+export function Ring({ value = 0, max = 1, size = 92, children }) {
+  const stroke = 9;
+  const r = (size - stroke) / 2;
+  const c = 2 * Math.PI * r;
+  const frac = Math.min(1, Math.max(0, max ? value / max : 0));
+  return (
+    <div style={{ position: "relative", width: size, height: size, flexShrink: 0 }}>
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden="true">
+        <circle className={s.ringTrack} cx={size / 2} cy={size / 2} r={r}
+                fill="none" strokeWidth={stroke} />
+        <circle
+          className={s.ringFill}
+          cx={size / 2} cy={size / 2} r={r}
+          fill="none" strokeWidth={stroke} strokeLinecap="round"
+          strokeDasharray={c}
+          strokeDashoffset={c * (1 - frac)}
+          transform={`rotate(-90 ${size / 2} ${size / 2})`}
+        />
+      </svg>
+      <div style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center" }}>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+/* ── week schedule ────────────────────────────────────────────────── */
+
+/**
+ * The next lessons as a dated list — each row led by a date chip, the
+ * way EDUPRO sets its upcoming assignments. Big serif day numeral so
+ * the date is scannable before the title is read.
+ */
+export function WeekSchedule({ entries = [], onOpen }) {
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const rows = useMemo(
+    () =>
+      [...entries]
+        .filter((e) => e?.date)
+        .sort((a, b) =>
+          a.date === b.date
+            ? (a.start_time || "").localeCompare(b.start_time || "")
+            : a.date.localeCompare(b.date))
+        .slice(0, 5),
+    [entries]
+  );
+
+  if (!rows.length) {
+    return (
+      <p className="text-sm text-muted py-4">
+        Nothing on the timetable yet — plan a lesson and it lands here.
+      </p>
+    );
+  }
+
+  return (
+    <ul className="space-y-1.5">
+      {rows.map((e, i) => {
+        const d = new Date(e.date + "T00:00:00");
+        return (
+          <li key={`${e.date}-${i}`}>
+            <button type="button" onClick={() => onOpen?.()} className={`${s.task} !py-2`}>
+              <span className={s.dateChip} data-today={e.date === todayIso} aria-hidden="true">
+                <span className={s.dateChipDay}>{d.getDate()}</span>
+                <span className={s.dateChipMon}>{MON_SHORT[d.getMonth()]}</span>
+              </span>
+              <span className="min-w-0 flex-1 pt-0.5">
+                <span className="block text-[13.5px] text-ink leading-snug truncate">
+                  {e.title || "Lesson"}
+                </span>
+                <span className="block text-[11.5px] text-muted mt-0.5 truncate">
+                  {[e.start_time ? e.start_time.slice(0, 5) : null, e.subject]
+                    .filter(Boolean).join(" · ") || "—"}
+                </span>
+              </span>
+            </button>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
 
 /* ── calendar ─────────────────────────────────────────────────────── */
 
 /**
- * A month grid with the teacher's lessons marked.
- *
- * Monday-first, because a teaching week is. Days outside the month are
- * still rendered so the grid keeps its shape rather than reflowing
- * between months.
+ * A month grid with the teacher's lessons marked. Monday-first, because
+ * a teaching week is. Days outside the month stay rendered so the grid
+ * keeps its shape between months.
  */
 export function MiniCalendar({ entries = [], onPick }) {
   const today = new Date();
@@ -44,18 +194,12 @@ export function MiniCalendar({ entries = [], onPick }) {
 
   const cells = useMemo(() => {
     const first = new Date(y, m, 1);
-    // getDay() is Sunday-based; shift so Monday is column 0.
-    const lead = (first.getDay() + 6) % 7;
+    const lead = (first.getDay() + 6) % 7;      // shift Sunday-based to Monday-first
     const out = [];
-    for (let i = 0; i < lead; i++) {
-      const d = new Date(y, m, -(lead - 1 - i));
-      out.push({ d, outside: true });
-    }
+    for (let i = 0; i < lead; i++) out.push({ d: new Date(y, m, -(lead - 1 - i)), outside: true });
     const days = new Date(y, m + 1, 0).getDate();
     for (let i = 1; i <= days; i++) out.push({ d: new Date(y, m, i), outside: false });
-    while (out.length % 7) {
-      out.push({ d: new Date(y, m + 1, out.length - lead - days + 1), outside: true });
-    }
+    while (out.length % 7) out.push({ d: new Date(y, m + 1, out.length - lead - days + 1), outside: true });
     return out;
   }, [y, m]);
 
@@ -82,7 +226,6 @@ export function MiniCalendar({ entries = [], onPick }) {
               data-today={key === todayIso}
               data-has={n > 0}
               onClick={() => onPick?.(key)}
-              // Screen readers get the count in words; the dot is for eyes.
               aria-label={`${d.getDate()} ${MONTHS[d.getMonth()]}${n ? `, ${n} lesson${n > 1 ? "s" : ""}` : ", nothing scheduled"}`}
             >
               {d.getDate()}
@@ -95,76 +238,7 @@ export function MiniCalendar({ entries = [], onPick }) {
   );
 }
 
-/* ── trend ────────────────────────────────────────────────────────── */
-
-/**
- * Work created per week. A line chart, because the question is "is this
- * going up" and a line answers it faster than anything else.
- *
- * pathLength="1" normalises the dash animation so the draw-on takes the
- * same time whatever the shape.
- */
-export function TrendChart({ data = [], height = 96 }) {
-  const w = 320;
-  const pad = 6;
-  const max = Math.max(1, ...data.map((d) => d.n));
-
-  const pts = data.map((d, i) => {
-    const x = pad + (i / Math.max(1, data.length - 1)) * (w - pad * 2);
-    const yv = height - pad - (d.n / max) * (height - pad * 2);
-    return [x, yv];
-  });
-
-  const line = pts.map(([x, yv], i) => `${i ? "L" : "M"}${x.toFixed(1)} ${yv.toFixed(1)}`).join(" ");
-  const area = pts.length
-    ? `${line} L${pts[pts.length - 1][0].toFixed(1)} ${height - pad} L${pts[0][0].toFixed(1)} ${height - pad} Z`
-    : "";
-
-  const total = data.reduce((a, d) => a + d.n, 0);
-  if (!total) {
-    return (
-      <p className="text-sm text-muted py-6 text-center">
-        Nothing made yet — this fills in as you work.
-      </p>
-    );
-  }
-
-  return (
-    <>
-      <svg
-        className={s.spark}
-        viewBox={`0 0 ${w} ${height}`}
-        preserveAspectRatio="none"
-        role="img"
-        aria-label={`Work created per week for the last ${data.length} weeks, ${total} items in total.`}
-      >
-        <defs>
-          <linearGradient id="trendFill" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="var(--p-accent)" stopOpacity="0.22" />
-            <stop offset="100%" stopColor="var(--p-accent)" stopOpacity="0" />
-          </linearGradient>
-        </defs>
-        {area && <path d={area} fill="url(#trendFill)" />}
-        <path className={s.sparkLine} d={line} pathLength="1" />
-        {pts.map(([x, yv], i) => (
-          <circle key={i} cx={x} cy={yv} r={i === pts.length - 1 ? 3.5 : 0}
-                  fill="var(--p-accent)" />
-        ))}
-      </svg>
-      {/* The accessible alternative to the picture. */}
-      <table className="sr-only">
-        <caption>Work created per week</caption>
-        <tbody>
-          {data.map((d) => (
-            <tr key={d.week}><th scope="row">{d.week}</th><td>{d.n}</td></tr>
-          ))}
-        </tbody>
-      </table>
-    </>
-  );
-}
-
-/* ── breakdown ────────────────────────────────────────────────────── */
+/* ── library breakdown ────────────────────────────────────────────── */
 
 /** Horizontal bars, sorted descending — the ranking is the point. */
 export function TypeBreakdown({ data = [], onPick }) {
@@ -180,15 +254,9 @@ export function TypeBreakdown({ data = [], onPick }) {
     <ul className="space-y-2.5">
       {rows.map((r) => (
         <li key={r.key}>
-          <button
-            type="button"
-            onClick={() => onPick?.(r.key)}
-            className="w-full text-start group cursor-pointer"
-          >
+          <button type="button" onClick={() => onPick?.(r.key)} className="w-full text-start group cursor-pointer">
             <div className="flex items-baseline justify-between gap-3 mb-1.5">
-              <span className="text-[13px] text-ink group-hover:text-accent transition-colors">
-                {r.label}
-              </span>
+              <span className="text-[13px] text-ink group-hover:text-accent transition-colors">{r.label}</span>
               <span className="text-[13px] tabular-nums text-ink-soft">{r.n}</span>
             </div>
             <div className={s.barTrack}>
@@ -204,21 +272,17 @@ export function TypeBreakdown({ data = [], onPick }) {
 /* ── tasks ────────────────────────────────────────────────────────── */
 
 /**
- * What needs attention.
- *
- * Derived from work that is already unfinished rather than typed in by
- * hand. A manual list is one more thing to maintain, and an empty one is
- * a reproach — this one is right without tending and empties itself as
- * the work gets done.
+ * What needs attention — derived from work already in an unfinished
+ * state, never typed in. A manual list is one more thing to maintain,
+ * and an empty one is a reproach; this one empties itself as the work
+ * gets done.
  */
 export function TaskList({ tasks = [], onOpen }) {
   if (!tasks.length) {
     return (
       <div className="py-5 text-center">
         <p className="text-sm text-ink">Nothing needs you right now.</p>
-        <p className="text-xs text-muted mt-1">
-          Unfinished drafts and today's lessons show up here.
-        </p>
+        <p className="text-xs text-muted mt-1">Unfinished drafts and today's lessons show up here.</p>
       </div>
     );
   }
@@ -236,5 +300,20 @@ export function TaskList({ tasks = [], onOpen }) {
         </li>
       ))}
     </ul>
+  );
+}
+
+/* ── the khatim watermark ─────────────────────────────────────────── */
+
+/** The landing's eight-point star, for the loud card's corner. */
+export function KhatimMark({ className }) {
+  // Two overlapping squares, one rotated 45° — the classic construction.
+  return (
+    <svg viewBox="0 0 100 100" className={className} aria-hidden="true" fill="none">
+      <rect x="18" y="18" width="64" height="64" stroke="currentColor" strokeWidth="1.4" />
+      <rect x="18" y="18" width="64" height="64" stroke="currentColor" strokeWidth="1.4"
+            transform="rotate(45 50 50)" />
+      <circle cx="50" cy="50" r="13" stroke="currentColor" strokeWidth="1.4" />
+    </svg>
   );
 }

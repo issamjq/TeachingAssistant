@@ -1,91 +1,179 @@
 /* =====================================================================
-   Dashboard surfaces — glass, on paper
+   Dashboard surfaces — a bento, on paper
 
-   The design generator recommended glassmorphism on a near-black slate
-   palette with Fira Code. The effect is right for a dashboard; the
-   palette and the type are not — Murchid is cream paper, firozeh accent,
-   Fraunces and Inter Tight, and a dark data-console dropped into it
-   would read as a different product. So the EFFECT is taken and the
-   colours are ours: every value here is a --p-* token.
+   Rebuilt against three LMS references (Xcourse, GEEKS, EDUPRO). What
+   those shots actually share is not a colour scheme, it is CONTRAST
+   HIERARCHY: one saturated card that owns the page, one dark card as
+   its counterweight, quiet paper cards for everything else, and numbers
+   set so large they ARE the card. The first cut of this dashboard was
+   four rows of same-tone glass panels — technically fine and visually
+   flat, because nothing on it outranked anything else.
 
-   Glass on a light background is where this technique usually fails.
-   `bg-white/10` over cream is invisible, and text on it fails contrast
-   outright. So the surfaces are HIGH opacity — 78–88% — and carry a real
-   border. The blur is doing depth, not transparency: you should sense a
-   layer, not read through it.
+   The palette stays Murchid's. The references are lime-on-black and
+   lavender; copying that would bolt a different product onto this one.
+   The loud card here is firozeh, the dark card is ink, the numerals are
+   Fraunces — and every value is a --p-* token so a palette swap carries
+   the whole page.
    ===================================================================== */
+
+/* ── the quiet card ───────────────────────────────────────────────── */
 
 .glass {
   position: relative;
-  border-radius: 18px;
-  background: color-mix(in oklab, var(--p-surface) 86%, transparent);
+  border-radius: 20px;
+  background: color-mix(in oklab, var(--p-surface) 88%, transparent);
   border: 1px solid color-mix(in oklab, var(--p-line) 85%, transparent);
   box-shadow:
     0 1px 2px color-mix(in oklab, var(--p-ink) 5%, transparent),
-    0 12px 28px -12px color-mix(in oklab, var(--p-ink) 16%, transparent);
+    0 12px 28px -12px color-mix(in oklab, var(--p-ink) 14%, transparent);
   backdrop-filter: blur(14px) saturate(120%);
   -webkit-backdrop-filter: blur(14px) saturate(120%);
 }
-
-/* The light source. A 1px inner highlight along the top edge is what
-   makes a flat rectangle read as a pane of glass rather than a card with
-   a blur filter on it. */
 .glass::before {
   content: "";
   position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  padding-top: 1px;
-  background: linear-gradient(
-    to bottom,
-    color-mix(in oklab, white 55%, transparent),
-    transparent 45%
-  );
-  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-  -webkit-mask-composite: xor;
-  mask-composite: exclude;
+  inset: 0 0 auto 0;
+  height: 1px;
+  border-radius: 20px 20px 0 0;
+  background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.75), transparent);
   pointer-events: none;
 }
 
-/* Raised: for the one surface that should sit above the rest. */
 .glassRaised {
   composes: glass;
-  background: color-mix(in oklab, var(--p-surface) 92%, transparent);
+  background: color-mix(in oklab, var(--p-surface) 94%, transparent);
   box-shadow:
     0 2px 4px color-mix(in oklab, var(--p-ink) 6%, transparent),
-    0 24px 48px -20px color-mix(in oklab, var(--p-ink) 24%, transparent);
+    0 24px 48px -20px color-mix(in oklab, var(--p-ink) 22%, transparent);
 }
 
-/* A tinted pane, for the accent-led hero. */
-.glassAccent {
-  composes: glass;
+/* ── the loud card ────────────────────────────────────────────────────
+   Solid accent, not an accent-tinted wash. The reference shots work
+   because exactly one card is allowed to shout; a translucent tint
+   whispers, which is what the last version got wrong. */
+.loud {
+  position: relative;
+  border-radius: 22px;
+  background: linear-gradient(150deg, var(--p-accent) 0%, var(--p-accent-hover) 100%);
+  color: var(--p-on-accent);
+  border: 1px solid var(--p-accent-hover);
+  box-shadow:
+    0 2px 6px color-mix(in oklab, var(--p-accent) 30%, transparent),
+    0 22px 48px -18px color-mix(in oklab, var(--p-accent) 55%, transparent);
+  overflow: hidden;
+}
+.loudEyebrow {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: color-mix(in oklab, var(--p-on-accent) 72%, transparent);
+}
+.loudSub { color: color-mix(in oklab, var(--p-on-accent) 82%, transparent); }
+
+/* The khatim watermark — the landing's eight-point star, ghosted into
+   the corner. The references use flowers and coils; this is ours. */
+.loudMark {
+  position: absolute;
+  inset-inline-end: -34px;
+  top: -34px;
+  width: 190px;
+  height: 190px;
+  color: color-mix(in oklab, var(--p-on-accent) 14%, transparent);
+  pointer-events: none;
+}
+
+/* Buttons that live ON the accent. */
+.btnOnLoud {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 44px;
+  padding: 0 22px;
+  border-radius: 999px;
+  background: var(--p-on-accent);
+  color: var(--p-accent);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.btnOnLoud:hover { box-shadow: 0 6px 16px rgb(0 0 0 / 0.18); transform: translateY(-1px); }
+.btnOnLoud:focus-visible { outline: 2px solid var(--p-on-accent); outline-offset: 2px; }
+.btnGhostOnLoud {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 44px;
+  padding: 0 20px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in oklab, var(--p-on-accent) 45%, transparent);
+  color: var(--p-on-accent);
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.btnGhostOnLoud:hover {
+  background: color-mix(in oklab, var(--p-on-accent) 14%, transparent);
+  border-color: color-mix(in oklab, var(--p-on-accent) 70%, transparent);
+}
+.btnGhostOnLoud:focus-visible { outline: 2px solid var(--p-on-accent); outline-offset: 2px; }
+
+/* ── the dark card ────────────────────────────────────────────────────
+   The counterweight. Ink, solid — a dark pane on a cream page reads as
+   deliberate the way a translucent grey never does. */
+.ink {
+  position: relative;
+  border-radius: 22px;
   background:
-    linear-gradient(
-      135deg,
-      color-mix(in oklab, var(--p-accent) 12%, transparent),
-      transparent 55%
-    ),
-    color-mix(in oklab, var(--p-surface) 88%, transparent);
-  border-color: color-mix(in oklab, var(--p-accent) 30%, transparent);
+    radial-gradient(120% 90% at 100% 0%,
+      color-mix(in oklab, var(--p-ambient-mid) 26%, transparent), transparent 55%),
+    var(--p-ink);
+  color: var(--p-paper-cool);
+  border: 1px solid color-mix(in oklab, white 10%, transparent);
+  box-shadow: 0 20px 44px -18px color-mix(in oklab, var(--p-ink) 60%, transparent);
+  overflow: hidden;
+}
+.inkEyebrow {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: color-mix(in oklab, var(--p-paper-cool) 55%, transparent);
+}
+.inkMuted { color: color-mix(in oklab, var(--p-paper-cool) 62%, transparent); }
+
+/* ── numerals ─────────────────────────────────────────────────────────
+   The reference cards work because the number IS the card. */
+.figure {
+  font-family: var(--font-serif);
+  font-weight: 500;
+  font-size: clamp(38px, 4.5vw, 56px);
+  line-height: 0.95;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+}
+.figureUnit {
+  font-family: var(--font-sans);
+  font-size: 12px;
+  letter-spacing: 0;
 }
 
 /* ── interactive panes ────────────────────────────────────────────── */
 
 .tap {
   cursor: pointer;
+  text-align: start;
   transition: border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
 }
-/* Colour and shadow, never transform. A hover that scales nudges its
-   neighbours and makes a grid feel loose. */
 .tap:hover {
   border-color: color-mix(in oklab, var(--p-accent) 55%, transparent);
-  background: color-mix(in oklab, var(--p-surface) 96%, transparent);
-  box-shadow: 0 6px 18px -8px color-mix(in oklab, var(--p-accent) 40%, transparent);
+  background: color-mix(in oklab, var(--p-surface) 97%, transparent);
+  box-shadow: 0 8px 20px -8px color-mix(in oklab, var(--p-accent) 35%, transparent);
 }
-.tap:focus-visible {
-  outline: 2px solid var(--p-accent);
-  outline-offset: 2px;
-}
+.tap:focus-visible { outline: 2px solid var(--p-accent); outline-offset: 2px; }
 
 /* ── section chrome ───────────────────────────────────────────────── */
 
@@ -97,7 +185,6 @@
   text-transform: uppercase;
   color: var(--p-muted);
 }
-
 .title {
   font-family: var(--font-serif);
   font-size: 19px;
@@ -107,13 +194,100 @@
 }
 .title em { font-style: italic; color: var(--p-accent); }
 
+/* ── pill bar chart ───────────────────────────────────────────────────
+   Bars as fully-rounded pills, with weeks that have nothing shown as
+   dashed ghosts (GEEKS does this for future months). The ghost matters:
+   a missing bar reads as a rendering gap, a dashed one reads as "this
+   week existed and held nothing". */
+.pillRow {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  height: 100%;
+  min-height: 132px;
+}
+.pillCol {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  height: 100%;
+  justify-content: flex-end;
+}
+.pill {
+  width: 100%;
+  max-width: 34px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--p-ink) 78%, var(--p-accent));
+  transition: height 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.pill[data-now="true"] {
+  background: linear-gradient(180deg, var(--p-ambient-lift), var(--p-accent));
+  box-shadow: 0 6px 14px -6px color-mix(in oklab, var(--p-accent) 60%, transparent);
+}
+.pillGhost {
+  width: 100%;
+  max-width: 34px;
+  height: 100%;
+  border-radius: 999px;
+  border: 1.5px dashed var(--p-line-strong);
+  background: transparent;
+}
+.pillLabel {
+  font-family: var(--font-mono);
+  font-size: 8.5px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--p-muted);
+  white-space: nowrap;
+}
+.pillLabel[data-now="true"] { color: var(--p-accent); font-weight: 700; }
+@media (prefers-reduced-motion: reduce) { .pill { transition: none; } }
+
+/* ── ring ─────────────────────────────────────────────────────────── */
+
+.ringTrack { stroke: color-mix(in oklab, var(--p-paper-cool) 16%, transparent); }
+.ringFill {
+  stroke: var(--p-ambient-lift);
+  transition: stroke-dashoffset 0.7s cubic-bezier(0.4, 0, 0.2, 1);
+}
+@media (prefers-reduced-motion: reduce) { .ringFill { transition: none; } }
+
+/* ── schedule date chips ──────────────────────────────────────────── */
+
+.dateChip {
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border-radius: 13px;
+  background: var(--p-accent-soft);
+  color: var(--p-ink);
+}
+.dateChip[data-today="true"] { background: var(--p-accent); color: var(--p-on-accent); }
+.dateChipDay {
+  font-family: var(--font-serif);
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1;
+}
+.dateChipMon {
+  font-family: var(--font-mono);
+  font-size: 8px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  opacity: 0.75;
+  margin-top: 2px;
+}
+
 /* ── calendar ─────────────────────────────────────────────────────── */
 
-.calGrid {
-  display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
-  gap: 3px;
-}
+.calGrid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 3px; }
 .calHead {
   font-family: var(--font-mono);
   font-size: 9.5px;
@@ -128,10 +302,11 @@
   aspect-ratio: 1;
   display: grid;
   place-items: center;
-  border-radius: 9px;
+  border-radius: 10px;
   font-size: 12px;
   color: var(--p-ink-soft);
   border: 1px solid transparent;
+  cursor: pointer;
   transition: background 0.15s ease, border-color 0.15s ease;
 }
 .calDay[data-outside="true"] { color: color-mix(in oklab, var(--p-muted) 55%, transparent); }
@@ -146,7 +321,6 @@
   color: var(--p-ink);
   font-weight: 500;
 }
-/* A dot, not just colour — colour alone is not an indicator. */
 .calDot {
   position: absolute;
   bottom: 3px;
@@ -157,29 +331,10 @@
 }
 .calDay[data-today="true"] .calDot { background: var(--p-on-accent); }
 
-/* ── charts ───────────────────────────────────────────────────────── */
-
-.spark { display: block; width: 100%; height: auto; overflow: visible; }
-
-/* Draw the trend line on once. Purely decorative, so it goes entirely
-   under reduced motion rather than being shortened. */
-.sparkLine {
-  fill: none;
-  stroke: var(--p-accent);
-  stroke-width: 2;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-dasharray: 1;
-  stroke-dashoffset: 1;
-  animation: draw 0.9s cubic-bezier(0.4, 0, 0.2, 1) forwards;
-}
-@keyframes draw { to { stroke-dashoffset: 0; } }
-@media (prefers-reduced-motion: reduce) {
-  .sparkLine { animation: none; stroke-dashoffset: 0; }
-}
+/* ── library breakdown ────────────────────────────────────────────── */
 
 .barTrack {
-  height: 7px;
+  height: 8px;
   border-radius: 999px;
   background: color-mix(in oklab, var(--p-ink) 8%, transparent);
   overflow: hidden;
@@ -187,12 +342,10 @@
 .barFill {
   height: 100%;
   border-radius: 999px;
-  background: var(--p-accent);
+  background: linear-gradient(90deg, var(--p-accent), var(--p-ambient-lift));
   transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
 }
-@media (prefers-reduced-motion: reduce) {
-  .barFill { transition: none; }
-}
+@media (prefers-reduced-motion: reduce) { .barFill { transition: none; } }
 
 /* ── tasks ────────────────────────────────────────────────────────── */
 
@@ -203,7 +356,7 @@
   width: 100%;
   text-align: start;
   padding: 10px 12px;
-  border-radius: 12px;
+  border-radius: 13px;
   border: 1px solid transparent;
   cursor: pointer;
   transition: background 0.15s ease, border-color 0.15s ease;
@@ -213,7 +366,6 @@
   border-color: color-mix(in oklab, var(--p-accent) 28%, transparent);
 }
 .task:focus-visible { outline: 2px solid var(--p-accent); outline-offset: 2px; }
-
 .taskPip {
   width: 7px; height: 7px;
   border-radius: 999px;
