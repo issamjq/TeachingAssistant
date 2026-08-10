@@ -553,12 +553,113 @@ export async function dashboard() {
       total: rows.length,
     },
     recent_notifications: (notes.data || []).map(outNote),
+
+    // ── what the charts and the calendar need ──────────────────────
+    //
+    // Derived from rows already fetched. A chart is not worth a second
+    // round trip when the data for it is sitting in `rows`.
+    activity: activitySeries(rows, 8),
+    by_type: [
+      { key: "lesson_plan",  label: "Lessons",       n: countOf("lesson_plan") },
+      { key: "quiz",         label: "Quizzes",       n: countOf("quiz") },
+      { key: "homework",     label: "Homework",      n: countOf("homework") },
+      { key: "presentation", label: "Presentations", n: countOf("presentation") },
+      { key: "activity",     label: "Activities",    n: countOf("activity") },
+    ],
+    // Every dated thing in the next fortnight, for the mini-calendar.
+    calendar: days.map((d: any) => ({
+      date: d.date, title: d.title, subject: d.subject,
+      start_time: d.start_time, kind: "lesson",
+    })),
+    tasks: buildTasks(days, rows, today),
     // Trial and balance, so the dashboard can say how much runway is
     // left instead of the teacher discovering it at the moment a write
     // is refused.
     plan: await planSummary(fid),
   };
 }
+
+/**
+ * Work created per week, oldest first. Eight buckets is two months —
+ * enough to show a shape without pretending a new account has a trend.
+ */
+function activitySeries(rows: any[], weeks: number) {
+  const out: { week: string; n: number }[] = [];
+  const now = new Date();
+  // Monday-based buckets, because a teaching week is not a calendar week
+  // starting on Sunday.
+  const monday = new Date(now);
+  monday.setDate(now.getDate() - ((now.getDay() + 6) % 7));
+  monday.setHours(0, 0, 0, 0);
+
+  for (let i = weeks - 1; i >= 0; i--) {
+    const from = new Date(monday.getTime() - i * 7 * 864e5);
+    const to = new Date(from.getTime() + 7 * 864e5);
+    out.push({
+      week: from.toISOString().slice(0, 10),
+      n: rows.filter((r) => {
+        const t = new Date(r.created_at ?? r.updated_at).getTime();
+        return t >= from.getTime() && t < to.getTime();
+      }).length,
+    });
+  }
+  return out;
+}
+
+/**
+ * What needs attention — derived, not typed in.
+ *
+ * A manual to-do list is another thing to maintain, and an empty one is
+ * just a reproach. These come from work that is already in an unfinished
+ * state, so the list is right without anyone tending it and empties
+ * itself as the work gets done.
+ */
+function buildTasks(days: any[], rows: any[], today: string) {
+  const tasks: any[] = [];
+
+  for (const d of days.filter((x) => x.date === today && x.status === "planned")) {
+    tasks.push({
+      id: `lesson-${d.id}`, kind: "lesson",
+      title: `Teach ${d.title}`,
+      meta: d.start_time ? d.start_time.slice(0, 5) : "today",
+      section: "schedule", urgent: true,
+    });
+  }
+
+  for (const r of rows.filter((x) => x.status === "generating" || x.status === "processing")) {
+    tasks.push({
+      id: `stuck-${r.id}`, kind: "stuck",
+      title: `Finish "${r.content?.title || r.content?.name || "Untitled"}"`,
+      meta: "still drafting", section: sectionFor(r.type), urgent: true,
+    });
+  }
+
+  for (const r of rows.filter((x) => {
+    const p = Number(x.content?.progress);
+    return Number.isFinite(p) && p > 0 && p < 100;
+  }).slice(0, 4)) {
+    tasks.push({
+      id: `wip-${r.id}`, kind: "wip",
+      title: r.content?.title || r.content?.name || "Untitled",
+      meta: `${r.content.progress}% done`, section: sectionFor(r.type), urgent: false,
+    });
+  }
+
+  const empty = rows.filter((x) => x.type === "quiz" && !(x.content?.questions?.length));
+  for (const r of empty.slice(0, 3)) {
+    tasks.push({
+      id: `q-${r.id}`, kind: "empty",
+      title: `Add questions to "${r.content?.title || "Untitled quiz"}"`,
+      meta: "no questions yet", section: "quizzes", urgent: false,
+    });
+  }
+
+  return tasks.slice(0, 8);
+}
+
+const sectionFor = (type: string) =>
+  ({ lesson_plan: "lesson-plans", quiz: "quizzes", homework: "homework",
+     presentation: "presentations", activity: "activities" }[type] || "lesson-plans");
 
 /** Plan, status and days remaining. Null when there is no faculty row. */
 async function planSummary(fid: string | null) {

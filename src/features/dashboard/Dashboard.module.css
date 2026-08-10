@@ -1,0 +1,224 @@
+/* =====================================================================
+   Dashboard surfaces — glass, on paper
+
+   The design generator recommended glassmorphism on a near-black slate
+   palette with Fira Code. The effect is right for a dashboard; the
+   palette and the type are not — Murchid is cream paper, firozeh accent,
+   Fraunces and Inter Tight, and a dark data-console dropped into it
+   would read as a different product. So the EFFECT is taken and the
+   colours are ours: every value here is a --p-* token.
+
+   Glass on a light background is where this technique usually fails.
+   `bg-white/10` over cream is invisible, and text on it fails contrast
+   outright. So the surfaces are HIGH opacity — 78–88% — and carry a real
+   border. The blur is doing depth, not transparency: you should sense a
+   layer, not read through it.
+   ===================================================================== */
+
+.glass {
+  position: relative;
+  border-radius: 18px;
+  background: color-mix(in oklab, var(--p-surface) 86%, transparent);
+  border: 1px solid color-mix(in oklab, var(--p-line) 85%, transparent);
+  box-shadow:
+    0 1px 2px color-mix(in oklab, var(--p-ink) 5%, transparent),
+    0 12px 28px -12px color-mix(in oklab, var(--p-ink) 16%, transparent);
+  backdrop-filter: blur(14px) saturate(120%);
+  -webkit-backdrop-filter: blur(14px) saturate(120%);
+}
+
+/* The light source. A 1px inner highlight along the top edge is what
+   makes a flat rectangle read as a pane of glass rather than a card with
+   a blur filter on it. */
+.glass::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding-top: 1px;
+  background: linear-gradient(
+    to bottom,
+    color-mix(in oklab, white 55%, transparent),
+    transparent 45%
+  );
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+/* Raised: for the one surface that should sit above the rest. */
+.glassRaised {
+  composes: glass;
+  background: color-mix(in oklab, var(--p-surface) 92%, transparent);
+  box-shadow:
+    0 2px 4px color-mix(in oklab, var(--p-ink) 6%, transparent),
+    0 24px 48px -20px color-mix(in oklab, var(--p-ink) 24%, transparent);
+}
+
+/* A tinted pane, for the accent-led hero. */
+.glassAccent {
+  composes: glass;
+  background:
+    linear-gradient(
+      135deg,
+      color-mix(in oklab, var(--p-accent) 12%, transparent),
+      transparent 55%
+    ),
+    color-mix(in oklab, var(--p-surface) 88%, transparent);
+  border-color: color-mix(in oklab, var(--p-accent) 30%, transparent);
+}
+
+/* ── interactive panes ────────────────────────────────────────────── */
+
+.tap {
+  cursor: pointer;
+  transition: border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+}
+/* Colour and shadow, never transform. A hover that scales nudges its
+   neighbours and makes a grid feel loose. */
+.tap:hover {
+  border-color: color-mix(in oklab, var(--p-accent) 55%, transparent);
+  background: color-mix(in oklab, var(--p-surface) 96%, transparent);
+  box-shadow: 0 6px 18px -8px color-mix(in oklab, var(--p-accent) 40%, transparent);
+}
+.tap:focus-visible {
+  outline: 2px solid var(--p-accent);
+  outline-offset: 2px;
+}
+
+/* ── section chrome ───────────────────────────────────────────────── */
+
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--p-muted);
+}
+
+.title {
+  font-family: var(--font-serif);
+  font-size: 19px;
+  font-weight: 600;
+  line-height: 1.15;
+  color: var(--p-ink);
+}
+.title em { font-style: italic; color: var(--p-accent); }
+
+/* ── calendar ─────────────────────────────────────────────────────── */
+
+.calGrid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 3px;
+}
+.calHead {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--p-muted);
+  text-align: center;
+  padding-bottom: 4px;
+}
+.calDay {
+  position: relative;
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  font-size: 12px;
+  color: var(--p-ink-soft);
+  border: 1px solid transparent;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.calDay[data-outside="true"] { color: color-mix(in oklab, var(--p-muted) 55%, transparent); }
+.calDay[data-today="true"] {
+  background: var(--p-accent);
+  color: var(--p-on-accent);
+  font-weight: 600;
+}
+.calDay[data-has="true"]:not([data-today="true"]) {
+  border-color: color-mix(in oklab, var(--p-accent) 45%, transparent);
+  background: color-mix(in oklab, var(--p-accent) 9%, transparent);
+  color: var(--p-ink);
+  font-weight: 500;
+}
+/* A dot, not just colour — colour alone is not an indicator. */
+.calDot {
+  position: absolute;
+  bottom: 3px;
+  width: 3.5px;
+  height: 3.5px;
+  border-radius: 999px;
+  background: var(--p-accent);
+}
+.calDay[data-today="true"] .calDot { background: var(--p-on-accent); }
+
+/* ── charts ───────────────────────────────────────────────────────── */
+
+.spark { display: block; width: 100%; height: auto; overflow: visible; }
+
+/* Draw the trend line on once. Purely decorative, so it goes entirely
+   under reduced motion rather than being shortened. */
+.sparkLine {
+  fill: none;
+  stroke: var(--p-accent);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: draw 0.9s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+@keyframes draw { to { stroke-dashoffset: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .sparkLine { animation: none; stroke-dashoffset: 0; }
+}
+
+.barTrack {
+  height: 7px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--p-ink) 8%, transparent);
+  overflow: hidden;
+}
+.barFill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--p-accent);
+  transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .barFill { transition: none; }
+}
+
+/* ── tasks ────────────────────────────────────────────────────────── */
+
+.task {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  width: 100%;
+  text-align: start;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.task:hover {
+  background: color-mix(in oklab, var(--p-accent) 7%, transparent);
+  border-color: color-mix(in oklab, var(--p-accent) 28%, transparent);
+}
+.task:focus-visible { outline: 2px solid var(--p-accent); outline-offset: 2px; }
+
+.taskPip {
+  width: 7px; height: 7px;
+  border-radius: 999px;
+  margin-top: 6px;
+  flex-shrink: 0;
+  background: color-mix(in oklab, var(--p-muted) 60%, transparent);
+}
+.taskPip[data-urgent="true"] { background: var(--p-accent); }

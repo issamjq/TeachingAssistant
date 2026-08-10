@@ -1,6 +1,6 @@
 "use client";
 
-import Dashboard from "@/views/Dashboard";
+import DashboardView from "../DashboardView";
 import { navigate } from "@/lib/route";
 import { navTargetFor } from "@/config/nav";
 
@@ -8,5 +8,5 @@ import { navTargetFor } from "@/config/nav";
 // navTargetFor map the sidebar uses, so a tile and its nav item always land
 // on the same place (e.g. lesson-plans → /lesson-plans/templates).
 export default function DashboardRoute() {
-  return <Dashboard onJump={(key: string) => navigate(navTargetFor(key))} />;
+  return <DashboardView onJump={(key?: string) => key && navigate(navTargetFor(key))} />;
 }

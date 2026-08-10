@@ -24,6 +24,9 @@ import {
   Menu,
   PanelLeftClose,
   PanelLeftOpen,
+  Settings,
+  LifeBuoy,
+  LogOut,
 } from "lucide-react";
 import { getRole, onRoleChange, ROLE_LABELS } from "@/lib/role";
 import { api, ApiError } from "@/shared/lib/apiClient";
@@ -40,6 +43,7 @@ import Avatar from "@/components/Avatar";
 import TeachingRail from "@/views/TeachingRail";
 import {
   NAV_BY_ROLE,
+  FOOTER_ACTIONS,
   DEFAULT_ROUTE,
   SECTIONS_BY_ROLE,
   TEACHING_RAIL_SECTIONS,
@@ -135,6 +139,50 @@ export default function StudioShell({ children }: { children: React.ReactNode })
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const ACTION_ICON = { settings: Settings, help: LifeBuoy, logout: LogOut };
+
+  /**
+   * Sign out fully: revoke the Supabase session, drop every cached
+   * identity, then a full page load so no React state survives.
+   *
+   * The cached faculty id matters — without clearing it the next teacher
+   * to sign in on this device inherits it and writes their rows against
+   * someone else's profile.
+   */
+  const signOutFully = async () => {
+    try {
+      const { signOut } = await import("@/lib/supabaseAuth");
+      await signOut();
+    } catch (e) {
+      console.warn("Supabase signOut failed:", e);
+    }
+    const [{ clearSessionId }, { clearIdent }] = await Promise.all([
+      import("@/lib/session"),
+      import("@/lib/data/session"),
+    ]);
+    clearSessionId();
+    clearIdent();
+    clearAccount();
+    clearRoute();
+    window.location.assign("/");
+  };
+
+  const runAction = (key: string) => {
+    if (key === "account") return navigate(["account"]);
+    // Support opens the assistant. It is already there, it answers
+    // immediately, and a contact form that emails someone is a worse
+    // answer to "how does the gradebook work".
+    if (key === "support") {
+      const launcher = document.querySelector<HTMLButtonElement>(
+        '[aria-label="Open the assistant"]'
+      );
+      if (launcher) launcher.click();
+      else setHelpOpen(true);
+      return;
+    }
+    if (key === "logout") void signOutFully();
+  };
 
   // The logo leaves the studio for the marketing site. `?home=1` is what
   // stops the entry gate bouncing straight back — without it, "/" sees a
@@ -325,6 +373,28 @@ export default function StudioShell({ children }: { children: React.ReactNode })
 
       {studioLauncher && <div className="px-2 pb-2">{studioLauncher}</div>}
 
+      {/* Pinned above the account chip: settings, support, sign out.
+          Separate from the nav sections because they are not places in
+          the same sense — two navigate, one opens the assistant, one
+          ends the session. */}
+      <div className="murchid-sidebar-footer">
+        {FOOTER_ACTIONS.map((a) => {
+          const Icon = ACTION_ICON[a.icon as keyof typeof ACTION_ICON];
+          return (
+            <button
+              key={a.key}
+              type="button"
+              className="murchid-sidebar-action"
+              data-danger={a.key === "logout"}
+              onClick={() => runAction(a.key)}
+            >
+              <Icon size={15} className="flex-shrink-0" aria-hidden="true" />
+              <span className="flex-1 min-w-0 truncate">{a.label}</span>
+            </button>
+          );
+        })}
+      </div>
+
       <div className="relative">
         <button
           onClick={() => setAccountMenuOpen((o) => !o)}
@@ -369,29 +439,7 @@ export default function StudioShell({ children }: { children: React.ReactNode })
           onOpenSettings={() => navigate(["account"])}
           onOpenHelp={() => setHelpOpen(true)}
           onUpgrade={() => navigate(["signup"])}
-          onLogout={async () => {
-            // Sign out of Supabase first so the next /api/* call has no token
-            // to send, then clear local state and return to landing.
-            try {
-              const { signOut } = await import("@/lib/supabaseAuth");
-              await signOut();
-            } catch (e) {
-              console.warn("Supabase signOut failed:", e);
-            }
-            const { clearSessionId } = await import("@/lib/session");
-            clearSessionId();
-            // The cached faculty id must go too, or the next teacher to
-            // sign in on this device inherits it and writes their rows
-            // against someone else's profile.
-            const { clearIdent } = await import("@/lib/data/session");
-            clearIdent();
-            clearAccount();
-            clearRoute();
-            // A full load, not a client navigation: signing out has to
-            // leave no React state behind, and `?home=1` is unnecessary
-            // because the session is genuinely gone by now.
-            window.location.assign("/");
-          }}
+          onLogout={signOutFully}
         />
       </div>
     </>
@@ -408,7 +456,11 @@ export default function StudioShell({ children }: { children: React.ReactNode })
           sidebarCollapsed ? "md:w-0" : "md:w-64"
         }`}
       >
-        <div className="w-64 h-full flex flex-col">{sidebarBody}</div>
+        {/* The floating pane. The fixed-width inner column keeps the
+            contents from reflowing mid-slide while the aside animates. */}
+        <div className="w-64 h-full">
+          <div className="murchid-sidebar-pane w-full">{sidebarBody}</div>
+        </div>
       </aside>
 
       {/* Mobile / iPad-portrait drawer — slides in over a scrim. Identical

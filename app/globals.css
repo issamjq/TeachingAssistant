@@ -1022,10 +1022,82 @@ select:focus-visible {
        cubic-bezier transition between positions
      - the brand mark gets a single-shot accent halo on mount and a
        soft scale on hover */
+/* The sidebar floats: a detached pane inset from every edge rather than
+   a column welded to the window. The inset is what makes it read as a
+   surface sitting ON the page instead of a border drawn across it.
+   Glass at high opacity — see the argument in Dashboard.module.css. */
 .murchid-sidebar {
+  padding: 12px 0 12px 12px;
+  background: transparent;
+  border-right: 0;
+}
+.murchid-sidebar-pane {
+  position: relative;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  border-radius: 20px;
+  overflow: hidden;
   background:
-    linear-gradient(180deg, var(--color-paper-warm) 0%, var(--color-paper) 100%);
-  border-right: 1px solid var(--color-line);
+    linear-gradient(
+      180deg,
+      color-mix(in oklab, var(--color-paper-warm) 92%, transparent) 0%,
+      color-mix(in oklab, var(--color-paper) 92%, transparent) 100%
+    );
+  border: 1px solid color-mix(in oklab, var(--color-line) 90%, transparent);
+  box-shadow:
+    0 1px 2px rgb(0 0 0 / 0.04),
+    0 18px 40px -22px rgb(0 0 0 / 0.28);
+  backdrop-filter: blur(16px) saturate(120%);
+  -webkit-backdrop-filter: blur(16px) saturate(120%);
+}
+/* The light along the top edge — what turns a rounded rectangle into a
+   pane of glass. */
+.murchid-sidebar-pane::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.8), transparent);
+  pointer-events: none;
+}
+
+/* Pinned to the bottom of the pane: settings, support, sign out. */
+.murchid-sidebar-footer {
+  margin-top: auto;
+  padding: 8px 10px 10px;
+  border-top: 1px solid color-mix(in oklab, var(--color-line) 70%, transparent);
+}
+.murchid-sidebar-action {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  /* 40px tall plus the 10px gutter clears the 44px touch target. */
+  min-height: 40px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  font-size: 13px;
+  color: var(--color-ink-soft);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  text-align: start;
+  transition: background-color 200ms ease, color 200ms ease;
+}
+.murchid-sidebar-action:hover {
+  background: rgb(255 255 255 / 0.6);
+  color: var(--color-ink);
+}
+.murchid-sidebar-action:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
+}
+/* Signing out is the one destructive action here, and it should look
+   different from "Settings" before it is pressed, not after. */
+.murchid-sidebar-action[data-danger="true"]:hover {
+  background: color-mix(in oklab, var(--color-crit) 12%, transparent);
+  color: var(--color-crit);
 }
 
 .murchid-sidebar-brand {
@@ -1461,9 +1533,8 @@ select:focus-visible {
   to   { opacity: 1; transform: translateX(0); }
 }
 .murchid-sidebar-item:hover {
-  background: rgba(255, 255, 255, 0.6);
+  background: rgb(255 255 255 / 0.6);
   color: var(--color-ink);
-  transform: translateX(2px);
 }
 .murchid-sidebar-item-active {
   background: var(--color-paper-cool);
