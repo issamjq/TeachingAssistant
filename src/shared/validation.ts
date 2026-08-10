@@ -1,15 +1,18 @@
-// Input validation. zod gives us per-route schema enforcement; this
-// module wires schemas to Express middleware so a route can declare
+// =====================================================================
+// Request shapes, as zod schemas
 //
-//   router.post("/x", validateBody(SomeSchema), handler)
+// These were the API's input validation. With the API gone and the
+// browser writing to Postgres directly, they moved here — and they
+// matter more, not less: there is no longer a server to reject a
+// malformed body before it reaches a table.
 //
-// and unknown / over-long / wrong-type fields are rejected with a
-// 400 before the handler runs. The handler can trust req.validated.
-//
-// We deliberately use `.strip()` so unknown fields are silently
-// removed (not rejected) — keeps the API tolerant of a frontend that
-// sends a few extra keys, while still preventing them from reaching
-// the SQL layer.
+// What they are NOT is the security boundary. That is RLS and the CHECK
+// constraints, both of which hold whatever the client sends. These
+// schemas exist to catch a mistake early and to give a teacher a useful
+// message instead of a Postgres error — and to give shared/types/api.ts
+// something to infer from, so a field added here is a compile error at
+// every call site that builds one of these objects.
+// =====================================================================
 import { z } from "zod";
 
 // ── Reusable primitives ────────────────────────────────────────────────
@@ -141,20 +144,3 @@ export const ProfilePatchSchema = z.object({
 }).strip();
 
 // ── Middleware factory ─────────────────────────────────────────────────
-export function validateBody(schema) {
-  return (req, res, next) => {
-    const r = schema.safeParse(req.body || {});
-    if (!r.success) {
-      // Strip the zod machinery; surface a flat list the frontend can
-      // map onto inputs without exposing schema internals.
-      const issues = r.error.issues.map((i) => ({
-        path: i.path.join("."),
-        message: i.message,
-      }));
-      return res.status(400).json({ error: "Invalid input.", issues });
-    }
-    req.validated = r.data;
-    req.body = r.data; // legacy handlers read req.body
-    next();
-  };
-}

@@ -1,13 +1,13 @@
 // Canonical domain types for the frontend.
 //
-// These mirror backend/lib/roles.js and the accounts table. Before the
+// These mirror the backend project's role catalog and the accounts table. Before the
 // TypeScript migration, the role catalog was duplicated as plain arrays in
-// both src/lib/role.js and backend/lib/roles.js with a "keep the two in
+// both src/lib/role.js and the backend project's role catalog with a "keep the two in
 // sync" comment and nothing enforcing it. Naming the union here means a
 // typo like "superadmin" (vs "super_admin") is now a compile error at every
 // call site instead of a silently-failing permission check.
 //
-// Not imported from the backend directly: backend/lib/roles.js reads
+// Not imported from the backend directly: the backend project's role catalog reads
 // process.env at module scope and pulls in server-only concerns, so it
 // can't be bundled for the browser.
 

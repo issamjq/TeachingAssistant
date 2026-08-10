@@ -1,25 +1,21 @@
 import type { NextConfig } from "next";
 
-// Where /api/* is served from.
-//   dev  — the Express app running standalone on PORT (npm run dev starts
-//          both concurrently). Vite used to mount buildApp() as middleware;
-//          Next has no equivalent, so we proxy instead. Same Express app,
-//          same routes, no behaviour drift.
-//   prod — Render. Overridden by API_PROXY_TARGET in Vercel project settings.
+// Where the remaining /api/* calls go.
 //
-// Note this is the SERVER-side proxy target. The browser always calls
-// same-origin /api/*, so no CORS preflight and no VITE_API_URL equivalent
-// is needed on the client.
-// NOT process.env.PORT. Next sets PORT to the port IT is listening on, so
-// deriving the API target from it made the rewrite point back at the Next
-// server itself — every /api/* call became a proxy loop returning 500 while
-// the API answered correctly on its own port. Use the dedicated variable,
-// and default to the Express port from .env.example.
-const API_TARGET =
-  process.env.API_PROXY_TARGET ||
-  (process.env.NODE_ENV === "production"
-    ? "https://teachingassistant-twbz.onrender.com"
-    : `http://localhost:${process.env.API_PORT || 3001}`);
+// Almost nothing uses this any more: the teacher's data comes from
+// Supabase directly (see src/lib/data). What is left is the handful of
+// endpoints that need a secret or a privilege the browser must never
+// hold — AI generation, CV parsing, the auth bootstrap, and the
+// privileged consoles — and those are served by a SEPARATE backend
+// project. See todo/backend-requirements.md.
+//
+// No default. The old one pointed at localhost:3001 in dev and a Render
+// URL in production, which meant that with no backend running the calls
+// were proxied into a void and surfaced as an HTML error page rather
+// than as anything a caller could read. With the variable unset there is
+// no rewrite at all, so those paths 404 as themselves — which is the
+// truth, and is what src/lib/data reports as a clear message.
+const API_TARGET = process.env.API_PROXY_TARGET || "";
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
@@ -28,6 +24,7 @@ const nextConfig: NextConfig = {
   // catch-all rewrite from that file is NOT carried over — the App Router
   // resolves paths natively, so it is no longer needed.
   async rewrites() {
+    if (!API_TARGET) return [];
     return [{ source: "/api/:path*", destination: `${API_TARGET}/api/:path*` }];
   },
 

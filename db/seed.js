@@ -21,8 +21,8 @@
 // flag someone has switched on.
 // =====================================================================
 import "dotenv/config";
-import { pool } from "../lib/db.js";
-import { UAE_SCHOOLS } from "../../src/lib/schools.js";
+import { pool } from "./client.js";
+import { UAE_SCHOOLS } from "../src/lib/schools.js";
 
 const FLAGS = [
   ["ai_studio", "AI Studio generation endpoints"],

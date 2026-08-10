@@ -1,4 +1,4 @@
-// Role catalog for the frontend. Mirrors backend/lib/roles.js — keep
+// Role catalog for the frontend. Mirrors the backend project's role catalog — keep
 // the two in sync (top-level roles + sub-role taxonomy + grant rules).
 //
 // The canonical role lives in the accounts row on the server (set by
@@ -62,7 +62,7 @@ export const ROLE_DESCRIPTIONS: Record<Role, string> = {
 
 // Mirror of backend rolesGrantableBy(). The actor's role + sub_role
 // determines which top-level roles they can assign through the admin /
-// super-admin UI. See backend/lib/roles.js for the canonical rules.
+// super-admin UI. See the backend project's role catalog for the canonical rules.
 export function rolesGrantableBy(actor: Actor | null | undefined): Role[] {
   if (!actor) return [];
   if (actor.role === "dev" || actor.role === "super_admin") return [...ROLES];

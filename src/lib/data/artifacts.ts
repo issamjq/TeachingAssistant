@@ -2,7 +2,7 @@
 // Generated work — lesson plans, quizzes, homework, presentations,
 // activities and templates — straight from ai_studio
 //
-// This is the client-side twin of what backend/lib/artifacts.js did:
+// This is the client-side twin of what the API's artifact router did:
 // one table, discriminated by `type`, with the body in a jsonb `content`
 // column, presented to the screens as the flat rows they were written
 // against.
@@ -163,7 +163,7 @@ export async function purge(kind: Kind, id: string) {
 /**
  * Quiz questions live in content.questions as an array. Each keeps a
  * `qid` so the screens that address one by id still can — see the note
- * in the old backend/routes/quizzes.js for why an array is the right
+ * in todo/backend-requirements.md for why an array is the right
  * shape for a document that is authored and marked as a whole.
  */
 export async function questions(quizId: string) {

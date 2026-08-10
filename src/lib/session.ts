@@ -5,7 +5,11 @@
 // X-Session-Id header (see shared/lib/apiClient.ts). When the same
 // account signs in elsewhere, the server rotates the id; our stale id no
 // longer matches and the next request comes back 401 `session_superseded`,
-// which logs this device out. See backend/lib/auth.js.
+// which logs this device out.
+//
+// NOTE: with the API removed, nothing enforces this on the paths that go
+// straight to Supabase — RLS asks whether a row is yours, never whether
+// this is the current device. See todo/backend-requirements.md §2.
 
 const KEY = "murchid.session.id";
 

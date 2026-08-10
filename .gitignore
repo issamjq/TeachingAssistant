@@ -39,3 +39,15 @@ firebase-admin.json
 
 # Local .env backups (may contain secrets)
 .env.bak-*
+
+# Local scratch — never committed
+/graphify-out/
+/new-docs/
+/Murchid/
+
+# One package manager. Two lockfiles disagree silently, and the one that
+# is not maintained goes stale the first time a dependency changes —
+# pnpm-lock still listed express weeks after it was removed.
+pnpm-lock.yaml
+yarn.lock
+bun.lockb

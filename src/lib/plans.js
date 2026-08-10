@@ -1,7 +1,7 @@
 // Single source of truth for membership pricing AND subscription length.
 // Monthly is the anchor (29.99 AED/mo); quarterly and annual apply the
 // "Standard" discount ladder (10% / 25%). Tweak here and every surface
-// updates — including the backend's subscription_ends_at math.
+// updates — including the backend's subscription end-date maths.
 //
 //   perMonth     effective AED per month (what the big number shows)
 //   total        AED actually charged each billing cycle
@@ -12,10 +12,12 @@
 //   best         flags the highlighted "best value" card
 //
 // ⚠️ THIS FILE MUST STAY PLAIN JAVASCRIPT.
-// The Express backend imports it directly (backend/routes/auth.js, admin.js,
-// owner.js, superadmin.js) to price subscriptions and compute
-// subscription_ends_at. Node runs it as-is with no transpile step, so a .ts
-// extension breaks the API server at boot with ERR_MODULE_NOT_FOUND.
+// The separate backend project imports it directly — the auth bootstrap
+// prices a subscription and computes its end date from these same
+// numbers, and duplicating them is how the pricing table and the charge
+// come to disagree. Node runs plain JS with no transpile step, so a .ts
+// extension would break that import.
+//
 // Types come from JSDoc instead — TypeScript reads them via allowJs, so
 // frontend call sites are still fully typed.
 

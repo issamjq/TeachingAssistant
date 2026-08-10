@@ -1,20 +1,16 @@
 // API request/response types, inferred from the backend's zod schemas.
 //
-// backend/lib/validate.js already defines the authoritative shape of every
-// request body. Re-declaring those shapes by hand on the frontend would
-// create two sources of truth that drift silently — the exact failure the
-// duplicated role catalog already demonstrated (see shared/types/domain.ts).
+// shared/validation.ts defines the authoritative shape of every write.
+// Re-declaring those shapes by hand would create two sources of truth
+// that drift silently — the exact failure the duplicated role catalog
+// already demonstrated (see shared/types/domain.ts).
 //
-// Instead we infer from the schemas themselves. Add a field to
-// StudentSchema on the server and every frontend call site that builds a
-// student is a compile error until it's updated.
-//
-// `import type` is fully erased at compile time, so NO backend code reaches
-// the browser bundle — this costs nothing at runtime. It works because
-// tsconfig has allowJs, letting TypeScript read types out of the .js source.
+// So they are inferred from the schemas themselves: add a field to
+// StudentSchema and every call site that builds a student is a compile
+// error until it is updated.
 
 import type { z } from "zod";
-import type * as Schemas from "@backend/lib/validate";
+import type * as Schemas from "@/shared/validation";
 
 // ── Auth ─────────────────────────────────────────────────────────────
 export type SupabaseBootstrapInput = z.infer<

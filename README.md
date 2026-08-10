@@ -9,6 +9,7 @@ cp .env.example .env       # then paste your Neon DATABASE_URL into .env
 npm install
 npm run db:tune            # schema, indexes and policies on Supabase
 npm run db:seed            # UAE schools catalog + feature flags
+npm run dev                # http://localhost:3000
 npm run dev                # Vite on http://localhost:5173
 ```
 
@@ -17,7 +18,8 @@ npm run dev                # Vite on http://localhost:5173
 The repo deploys as **two services**:
 
 - **Frontend** → Vercel (static `dist/`, configured by `vercel.json`).
-- **Backend** → Render (Express app in [`backend/`](backend/), one source of truth shared with the dev-mode Vite middleware via `backend/app.js`).
+- **Data** → Supabase, read and written from the browser via [`src/lib/data/`](src/lib/data/), authorised by Row Level Security.
+- **Backend** → a separate project, for the few endpoints needing a secret. See [todo/backend-requirements.md](todo/backend-requirements.md).
 
 ### Backend on Render
 

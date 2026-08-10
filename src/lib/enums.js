@@ -1,6 +1,6 @@
 // Single source of truth for reference data.
 // Imported by:
-//   - backend/db/tune.sql — to build the CHECK constraints
+//   - db/tune.sql — to build the CHECK constraints
 //   - vite.config.js — when mutation endpoints validate request bodies (TODO)
 //   - studio views    — to populate dropdowns
 // If you need a new value, add it here and re-run `npm run db:tune` so the

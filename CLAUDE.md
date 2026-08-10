@@ -1,6 +1,6 @@
 # Murchid — Teacher Studio
 
-AI lesson director for teachers (KG–G12). **Next.js (App Router) frontend + Express API.** Two surfaces:
+AI lesson director for teachers (KG–G12). **Next.js (App Router) frontend on Supabase.** Two surfaces:
 
 - **Landing page** — marketing site at `/`. Lives in `src/views/Landing.jsx` + `src/landing.css`.
 - **Studio** — the teacher workspace. Lives in `src/App.jsx` + `src/views/*`. Opened by "Lesson Planner →" in the landing nav; the studio's × button returns to landing.
@@ -23,7 +23,7 @@ What this means in practice:
 - **New work goes in `src/features/<feature>/`** with a matching route segment under `app/`. Feature modules own their components, `api.ts`, and `types.ts`.
 - **Peeling a route is additive** — create the real segment (e.g. `app/(studio)/quizzes/page.tsx`) and it automatically stops reaching the catch-all. Nothing needs removing.
 - `src/legacy/` and `app/[[...slug]]/` are **scaffolding** and get deleted in Phase 4.
-- **Backend is out of scope** *for the Next.js migration* — but it has since moved to Supabase. `backend/` now runs on Supabase Postgres, and Firebase auth has been replaced by Supabase Auth (see below).
+- **There is no backend in this repo.** The browser reads and writes Supabase directly through `src/lib/data/`, with Row Level Security doing the authorisation an API used to do in middleware. The handful of endpoints that need a secret — AI generation, CV parsing, the auth bootstrap, the privileged consoles — live in a separate project; see [todo/backend-requirements.md](todo/backend-requirements.md).
 
 ## Frontend conventions (post-migration)
 
@@ -32,6 +32,23 @@ What this means in practice:
 - **Client env vars go through `src/config/env.ts`** — never read `process.env` in a component. `import.meta.env` no longer exists (that was Vite); `NEXT_PUBLIC_*` values are public and inlined into the browser bundle.
 - **`app/**` files stay thin** — resolve params, set metadata, render one feature component. No business logic.
 - **Keep `"use client"` at the feature-component boundary**, not in layouts, so layouts stay server components.
+
+## Data access
+
+`src/lib/data/` is the whole data layer. `index.ts` maps a path to a
+Supabase query and is the only file that knows what is served locally and
+what still needs the separate backend (`SERVER_ONLY`). Screens keep
+calling `api("/api/students")`; they do not know the difference.
+
+Authorisation is RLS, not application code. Read paths do **not** filter
+by owner — the policies already do, and a redundant `.eq("faculty_id", …)`
+would only be a second place to get it wrong. Inserts DO supply the owner
+id, because a policy checks it rather than filling it in.
+
+`credits`, `subscriptions`, `usage_logs`, `feature_flags` and `audit_log`
+are deliberately not writable from the browser. That is the security
+argument for going direct at all — a teacher cannot top up their own
+balance or extend their own plan.
 
 ## Where to find things
 
@@ -64,13 +81,13 @@ Full documentation lives in [`docs/`](docs/README.md). Read it before making non
 
 ```bash
 npm install
-cp .env.example .env   # fill in DATABASE_URL + SUPABASE_URL + NEXT_PUBLIC_SUPABASE_*
-npm run db:tune        # schema, indexes, policies
+cp .env.example .env   # NEXT_PUBLIC_SUPABASE_* for the app; DATABASE_URL only for migrations
+npm run db:tune        # schema, indexes, policies   (idempotent)
 npm run db:seed        # schools catalog + feature flags
-npm run dev            # web http://localhost:3000 · api :3001
+npm run dev            # http://localhost:3000
 ```
 
-`npm run dev` starts Next **and** the Express API concurrently. Next rewrites `/api/*` to the API port, so the browser stays same-origin. (Vite used to mount Express as middleware; Next has no equivalent.)
+One process. Data comes from Supabase over PostgREST — there is no API to start.
 
 Checks: `npm run typecheck` · `npm run build` · `npm run test:e2e`
 
@@ -78,15 +95,13 @@ Checks: `npm run typecheck` · `npm run build` · `npm run test:e2e`
 
 When a unit of work is finished, ship it. Do **not** ask for confirmation first. The deploy story is:
 
-- **`git push origin main`** → Vercel auto-deploys the frontend **and** Render auto-deploys the backend (`npm run start:backend`). One push covers both.
-- ⚠️ **Before the first deploy after the Supabase migration**, replace the Firebase env vars in Vercel with `NEXT_PUBLIC_SUPABASE_URL` + `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, and add `SUPABASE_URL` + the pooler `DATABASE_URL` on Render. The `VITE_FIREBASE_*` / `NEXT_PUBLIC_FIREBASE_*` vars are dead and can be deleted.
-- **`npm run db:tune`** → applies `backend/db/tune.sql` to Supabase: structure, indexes, RLS policies, CHECK constraints, storage policies. One transaction, idempotent, skips anything the schema no longer has.
+- **`git push origin main`** → Vercel auto-deploys. There is no backend here to deploy.
+- **`npm run db:tune`** → applies `db/tune.sql` to Supabase: structure, indexes, RLS policies, CHECK constraints, storage policies. One transaction, idempotent, skips anything the schema no longer has.
 - **`npm run db:seed`** → reference data only (the UAE schools catalog from `src/lib/schools.js`, and the feature flags). Idempotent.
 
-Neither runs automatically. The API used to build the whole schema on
-every boot from `backend/db/init.js`; that file is gone, the schema is
-authored in Supabase, and migrations are applied deliberately from a
-machine that can read the output.
+Neither runs automatically. Migrations are applied deliberately, from a
+machine that can read the output — an API that rebuilt the schema on
+every boot is exactly what this replaced.
 
 Carve-out: actions that **delete or rewrite live data** on Supabase (`TRUNCATE`, dropping columns, destructive migrations) still need explicit confirmation. Idempotent re-init does not.
 

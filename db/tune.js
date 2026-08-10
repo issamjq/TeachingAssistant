@@ -14,7 +14,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import "dotenv/config";
-import { pool } from "../lib/db.js";
+import { pool } from "./client.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 

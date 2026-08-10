@@ -9,7 +9,7 @@
 // Key conventions: `<surface>.<feature>` lowercased, dot-separated.
 
 // ⚠️ THIS FILE MUST STAY PLAIN JAVASCRIPT.
-// backend/routes/superadmin.js imports PERMISSION_KEYS from here to validate
+// The superadmin console's backend imports PERMISSION_KEYS from here to validate
 // permission payloads. Node runs it untranspiled, so a .ts extension breaks
 // the API server at boot. Types come from JSDoc, read by TypeScript via
 // allowJs.
