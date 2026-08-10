@@ -15,7 +15,7 @@
 // rendered it — it was dead code and is not carried over.
 
 import React, { useEffect, useState } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   ChevronRight,
   X,
@@ -74,6 +74,7 @@ export default function StudioShell({ children }: { children: React.ReactNode })
   const account = useAccount();
   const t = useT();
   const pathname = usePathname();
+  const router = useRouter();
 
   // The section is the first path segment — the shell needs it for active
   // nav state and to decide whether the teaching rail shows.
@@ -134,6 +135,12 @@ export default function StudioShell({ children }: { children: React.ReactNode })
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // The logo leaves the studio for the marketing site. `?home=1` is what
+  // stops the entry gate bouncing straight back — without it, "/" sees a
+  // stored session and returns the teacher to the dashboard they were
+  // trying to leave.
+  const openLanding = () => router.push("/?home=1");
 
   // Single-device enforcement heartbeat. Re-validate every 20s; if the
   // account has since signed in elsewhere this returns 401
@@ -250,9 +257,10 @@ export default function StudioShell({ children }: { children: React.ReactNode })
     <>
       <div className="flex items-center pe-2">
         <button
-          onClick={() => navigate([DEFAULT_ROUTE[role]])}
+          onClick={openLanding}
           className="murchid-sidebar-brand flex-1 flex items-center px-5 pt-6 pb-4 text-left"
-          aria-label="Go home"
+          aria-label="Go to the Murchid home page"
+          title="Murchid home"
         >
           <MurchidLogo
             className="h-[50px] w-auto text-ink"
@@ -372,8 +380,17 @@ export default function StudioShell({ children }: { children: React.ReactNode })
             }
             const { clearSessionId } = await import("@/lib/session");
             clearSessionId();
+            // The cached faculty id must go too, or the next teacher to
+            // sign in on this device inherits it and writes their rows
+            // against someone else's profile.
+            const { clearIdent } = await import("@/lib/data/session");
+            clearIdent();
             clearAccount();
             clearRoute();
+            // A full load, not a client navigation: signing out has to
+            // leave no React state behind, and `?home=1` is unnecessary
+            // because the session is genuinely gone by now.
+            window.location.assign("/");
           }}
         />
       </div>
@@ -435,9 +452,10 @@ export default function StudioShell({ children }: { children: React.ReactNode })
           </button>
           <span className="h-7 w-px bg-line/70" aria-hidden="true" />
           <button
-            onClick={() => navigate([DEFAULT_ROUTE[role]])}
+            onClick={openLanding}
             className="flex-1 flex items-center text-start min-w-0"
-            aria-label="Go home"
+            aria-label="Go to the Murchid home page"
+            title="Murchid home"
           >
             <MurchidLogo
               className="h-[42px] w-auto text-ink"

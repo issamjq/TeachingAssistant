@@ -1,7 +1,7 @@
 "use client";
 
-import Landing from "@/views/Landing";
-import { navigate } from "@/lib/route";
+import { Suspense } from "react";
+import EntryGate from "./EntryGate";
 
 // The marketing landing page at "/".
 //
@@ -24,11 +24,16 @@ import { navigate } from "@/lib/route";
 //   sign-IN  → /dashboard  a summary of work they have actually done
 //   anything else → /planner, which is what the landing's own
 //                          "Open the planner" button says it does
+// A signed-in teacher is sent to their dashboard before anything paints;
+// see EntryGate. Reaching the marketing page on purpose is `/?home=1`,
+// which is where the studio's logo points.
 export default function LandingRoute() {
+  // useSearchParams needs a Suspense boundary to keep this route
+  // statically renderable — without one Next opts the whole page into
+  // dynamic rendering, and "/" is the one page that must stay static.
   return (
-    <Landing
-      onOpenStudio={(where?: string) => navigate([where ?? "planner"])}
-      heroVariant="atelier"
-    />
+    <Suspense fallback={null}>
+      <EntryGate />
+    </Suspense>
   );
 }
