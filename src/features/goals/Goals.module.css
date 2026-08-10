@@ -1,0 +1,166 @@
+/* =====================================================================
+   Goal planner — same bento language as the dashboard
+
+   A goal is the biggest thing a teacher hands the system — a term, a
+   unit, a whole book — so the screen borrows the dashboard's hierarchy:
+   one loud intro card explaining what this is, glass cards for the
+   goals themselves. All --p-* tokens.
+   ===================================================================== */
+
+.glass {
+  position: relative;
+  border-radius: 20px;
+  background: color-mix(in oklab, var(--p-surface) 88%, transparent);
+  border: 1px solid color-mix(in oklab, var(--p-line) 85%, transparent);
+  box-shadow:
+    0 1px 2px color-mix(in oklab, var(--p-ink) 5%, transparent),
+    0 12px 28px -12px color-mix(in oklab, var(--p-ink) 14%, transparent);
+  backdrop-filter: blur(14px) saturate(120%);
+  -webkit-backdrop-filter: blur(14px) saturate(120%);
+}
+
+.loud {
+  position: relative;
+  border-radius: 22px;
+  background: linear-gradient(150deg, var(--p-accent) 0%, var(--p-accent-hover) 100%);
+  color: var(--p-on-accent);
+  border: 1px solid var(--p-accent-hover);
+  box-shadow:
+    0 2px 6px color-mix(in oklab, var(--p-accent) 30%, transparent),
+    0 22px 48px -18px color-mix(in oklab, var(--p-accent) 55%, transparent);
+  overflow: hidden;
+}
+.loudEyebrow {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: color-mix(in oklab, var(--p-on-accent) 72%, transparent);
+}
+.loudSub { color: color-mix(in oklab, var(--p-on-accent) 84%, transparent); }
+
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--p-muted);
+}
+
+/* ── status chips ─────────────────────────────────────────────────── */
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.chip[data-status="processing"] {
+  background: color-mix(in oklab, var(--p-warn) 14%, transparent);
+  color: var(--p-warn);
+}
+.chip[data-status="active"] {
+  background: color-mix(in oklab, var(--p-ok) 14%, transparent);
+  color: var(--p-ok);
+}
+.chip[data-status="achieved"] {
+  background: color-mix(in oklab, var(--p-accent) 14%, transparent);
+  color: var(--p-accent-hover);
+}
+.chip[data-status="abandoned"], .chip[data-status="failed"] {
+  background: color-mix(in oklab, var(--p-muted) 14%, transparent);
+  color: var(--p-muted);
+}
+
+/* ── form fields ──────────────────────────────────────────────────── */
+
+.field {
+  width: 100%;
+  border-radius: 13px;
+  border: 1px solid var(--p-line);
+  background: var(--p-paper-cool);
+  padding: 11px 14px;
+  font: inherit;
+  font-size: 14px;
+  color: var(--p-ink);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.field::placeholder { color: var(--p-muted); }
+.field:focus {
+  outline: none;
+  border-color: var(--p-accent);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--p-accent) 16%, transparent);
+}
+
+.label {
+  display: block;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--p-ink-soft);
+  margin-bottom: 6px;
+}
+
+/* Timeline options as a segmented row rather than a dropdown — five
+   choices are faster to see than to open. */
+.seg {
+  display: inline-flex;
+  padding: 3px;
+  gap: 3px;
+  border-radius: 999px;
+  border: 1px solid var(--p-line);
+  background: var(--p-paper-cool);
+}
+.segBtn {
+  height: 34px;
+  padding: 0 14px;
+  border-radius: 999px;
+  font-size: 12.5px;
+  color: var(--p-ink-soft);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.segBtn:hover { color: var(--p-ink); }
+.segBtn[data-on="true"] {
+  background: var(--p-accent);
+  color: var(--p-on-accent);
+  font-weight: 600;
+}
+
+/* ── attached material rows ───────────────────────────────────────── */
+
+.doc {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 11px;
+  border-radius: 11px;
+  border: 1px solid var(--p-line);
+  background: var(--p-paper-cool);
+  font-size: 12.5px;
+  color: var(--p-ink-soft);
+}
+
+/* ── the week rail on a planned goal ──────────────────────────────── */
+
+.week {
+  border-inline-start: 2px solid color-mix(in oklab, var(--p-accent) 40%, transparent);
+  padding-inline-start: 14px;
+  padding-block: 2px 10px;
+}
+.weekNum {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--p-accent);
+}

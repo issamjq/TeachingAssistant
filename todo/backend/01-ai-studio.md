@@ -345,3 +345,72 @@ export function recordUsage({ userId, facultyId, model, operation, tokensIn = 0,
 - [ ] Client disconnect aborts the upstream request
 - [ ] 429 and 503 reported as transient, not as stack traces
 - [ ] Nothing writes `ai_studio` — the browser saves its own work
+
+---
+
+## 1.1b · The goal planner — `POST /api/studio/goal-plan`
+
+The biggest generation in the product. A teacher hands over a whole
+portion of a subject — a term, a unit, a book — and gets a week-by-week
+teaching plan built the way an expert with THEIR profile would plan it.
+
+The frontend is already live: goals are created browser-side into the
+`goals` table (title, `timeline_days`, `material_ids`, and the teacher's
+own description in `plan.brief`), attached files are in Storage with
+`materials` rows pointing at them, and the screen calls this endpoint
+and currently shows "not connected yet".
+
+| Method | Path | Body |
+|---|---|---|
+| POST | `/api/studio/goal-plan` | `{ goal_id }` |
+
+### What to do
+
+1. Load the goal, check `faculty_id` is the caller's. 404 otherwise —
+   not 403, which would confirm the id exists.
+2. Ground the prompt in the teacher, not just the goal:
+   - `faculty.expertise`, `eligible_grades`, `qualification`,
+     `years_experience`, `bio`
+   - their `teaching_skills` rows, when present
+   - `plan.brief` — the teacher's own words about the class
+3. Read the attached materials. `materials.extracted_text` when set;
+   otherwise pull the file from Storage and extract (bytes path, as in
+   [02](02-document-parsing.md)). Fence every document — same rule as
+   always: an uploaded file that says "ignore the above" is a document
+   saying something odd, not an instruction.
+4. One structured call (`responseSchema`), asking for:
+
+```jsonc
+{
+  "verdict": "One honest sentence: is this timeline realistic for this scope?",
+  "weeks": [{
+    "week": 1,
+    "focus": "What this week is about",
+    "lessons": [{ "title": "...", "objectives": ["..."], "outline": "..." }],
+    "assets": [{ "kind": "quiz|homework|presentation|activity", "title": "..." }]
+  }]
+}
+```
+
+5. Write back: `goals.plan = { brief, weeks }` (keep the brief — it is
+   the teacher's input, not yours to discard), `ai_verdict = verdict`,
+   `status = 'active'`.
+6. Return the updated goal row. The frontend swaps it in place.
+7. Meter it (`operation: "goal.plan"`). This is the most expensive call
+   in the product — charge more than one credit if credits are to mean
+   anything.
+
+### The verdict is not decoration
+
+If six weeks of material is squeezed into two, say so in `verdict`
+rather than emitting a plan that pretends. The teacher can change the
+timeline and re-plan; a plan that silently overpacks weeks fails them in
+front of a class.
+
+### Assets are drafted lazily
+
+Do NOT generate every week's lessons and quizzes up front — that is
+dozens of model calls for material the teacher may reshape after week
+one. The plan lists the assets; each is drafted on demand through the
+normal `/api/studio/generate` path when the teacher reaches that week.
+`goals.status` moves to `achieved` by the teacher's hand, not yours.

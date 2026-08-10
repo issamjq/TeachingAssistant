@@ -804,6 +804,66 @@ export async function deleteQuizScore(id: string) {
   return { ok: true };
 }
 
+// ── goals ─────────────────────────────────────────────────────────────
+//
+// A goal is a whole portion of a subject — a term, a unit, a book —
+// that the AI breaks into a week-by-week teaching plan grounded in the
+// teacher's own profile. The row is created here, browser-side; the
+// PLANNING runs on the API service, because it needs the model key.
+//
+// plan (jsonb) belongs to the AI. The one exception is `brief`, written
+// at creation: the teacher's own description of what the goal covers is
+// input the planner needs, and the table has no other column for it.
+
+const GOAL_COLS = "id, title, material_ids, timeline_days, plan, ai_verdict, status, created_at, updated_at";
+
+export async function listGoals() {
+  const { data, error } = await supabase
+    .from("goals").select(GOAL_COLS).order("created_at", { ascending: false });
+  if (error) throw error;
+  return data || [];
+}
+
+export async function createGoal(body: Record<string, any>) {
+  const fid = await facultyId();
+  const { title, brief, timeline_days, material_ids } = body || {};
+  if (!title?.trim()) throw Object.assign(new Error("Give the goal a name."), { status: 400 });
+  const { data, error } = await supabase
+    .from("goals")
+    .insert({
+      faculty_id: fid,
+      title: title.trim(),
+      timeline_days: timeline_days ?? null,
+      material_ids: material_ids?.length ? material_ids : null,
+      plan: brief?.trim() ? { brief: brief.trim() } : null,
+      status: "processing",
+    })
+    .select(GOAL_COLS).single();
+  if (error) throw error;
+  return data;
+}
+
+export async function updateGoal(id: string, body: Record<string, any>) {
+  const patch: Record<string, any> = { updated_at: iso() };
+  // Only what a teacher may change by hand. The plan and the verdict are
+  // the AI's to write, through the service.
+  for (const k of ["title", "timeline_days", "status"]) {
+    if (body?.[k] !== undefined) patch[k] = body[k];
+  }
+  const { data, error } = await supabase
+    .from("goals").update(patch).eq("id", id).select(GOAL_COLS).maybeSingle();
+  if (error) throw error;
+  if (!data) throw notFound();
+  return data;
+}
+
+export async function deleteGoal(id: string) {
+  const { error, count } = await supabase.from("goals").delete({ count: "exact" }).eq("id", id);
+  if (error) throw error;
+  if (!count) throw notFound();
+  return { ok: true };
+}
+
 // ── sign-in ───────────────────────────────────────────────────────────
 
 /**

@@ -14,9 +14,9 @@ import type { Role } from "@/shared/types/domain";
 export interface NavItem {
   key: string;
   label: string;
-  /** Unicode glyph badge. */
+  /** Semantic icon key, resolved to a lucide icon by the shell. */
   icon?: string;
-  /** Fallback mono letter badge. */
+  /** Mono letter badge — the fallback for anything without an icon. */
   letter?: string;
 }
 
@@ -29,36 +29,31 @@ const TEACHER_NAV: NavSection[] = [
   {
     section: "Overview",
     items: [
-      { key: "dashboard", label: "Dashboard", icon: "◫" },
-      { key: "studio", label: "AI Studio", icon: "✦" },
+      { key: "dashboard", label: "Dashboard", icon: "dashboard" },
+      { key: "studio", label: "AI Studio", icon: "studio" },
     ],
   },
-  // "Planners" is the teacher's own word for everything they set. Grouped
-  // by what a teacher makes rather than by which table it lands in —
-  // lessons, quizzes and homework are one job to them even though the
-  // schema stores them as one table discriminated by type.
-  //
-  // Exams are not a separate kind here. The schema has no exam type and
-  // inventing a nav entry for a screen that would show quizzes is a dead
-  // link with a different name on it, so exams live in Quizzes until
-  // there is something that makes them genuinely different.
+  // "Planners" is everything the teacher sets ahead of time. Scheduler,
+  // not "Planner" — inside a section called Planners, an item called
+  // Planner said nothing; the thing it opens is the timetable.
   {
     section: "Planners",
     items: [
-      { key: "planner", label: "Planner", icon: "▦" },
-      { key: "lesson-plans", label: "Lessons", letter: "L" },
-      { key: "quizzes", label: "Quizzes & exams", letter: "Q" },
-      { key: "homework", label: "Homework", letter: "H" },
-      { key: "presentations", label: "Presentations", letter: "P" },
-      { key: "activities", label: "Activities", letter: "A" },
-      { key: "bulletin-board", label: "Bulletin board", letter: "B" },
+      { key: "planner", label: "Scheduler", icon: "scheduler" },
+      { key: "goals", label: "Goal planner", icon: "goals" },
+      { key: "lesson-plans", label: "Lessons", icon: "lessons" },
+      { key: "quizzes", label: "Quizzes & exams", icon: "quizzes" },
+      { key: "homework", label: "Homework", icon: "homework" },
+      { key: "presentations", label: "Presentations", icon: "presentations" },
+      { key: "activities", label: "Activities", icon: "activities" },
+      { key: "bulletin-board", label: "Bulletin board", icon: "bulletin" },
     ],
   },
   {
     section: "Teacher",
     items: [
-      { key: "database", label: "My students", letter: "C" },
-      { key: "reports", label: "Reports", letter: "R" },
+      { key: "database", label: "My students", icon: "students" },
+      { key: "reports", label: "Reports", icon: "reports" },
     ],
   },
 ];
@@ -90,22 +85,22 @@ const ADMIN_NAV: NavSection[] = [
   {
     section: "Admin",
     items: [
-      { key: "admin-dashboard", label: "Dashboard", letter: "D" },
-      { key: "admin-console", label: "Teachers", letter: "T" },
+      { key: "admin-dashboard", label: "Dashboard", icon: "dashboard" },
+      { key: "admin-console", label: "Teachers", icon: "students" },
     ],
   },
 ];
 
 const DEV_NAV: NavSection[] = [
-  { section: "Dev", items: [{ key: "dev-console", label: "Dev console", letter: "D" }] },
+  { section: "Dev", items: [{ key: "dev-console", label: "Dev console", icon: "dashboard" }] },
 ];
 
 const SUPERADMIN_NAV: NavSection[] = [
   {
     section: "Super admin",
     items: [
-      { key: "superadmin-dashboard", label: "Dashboard", letter: "D" },
-      { key: "superadmin-console", label: "Account access", letter: "A" },
+      { key: "superadmin-dashboard", label: "Dashboard", icon: "dashboard" },
+      { key: "superadmin-console", label: "Account access", icon: "keys" },
     ],
   },
 ];
@@ -155,6 +150,7 @@ export const SECTIONS_BY_ROLE: Record<Role, Set<string>> = {
     "dashboard",
     "studio",
     "planner",
+    "goals",
     "bulletin-board",
     "lesson-plans",
     "schedule",

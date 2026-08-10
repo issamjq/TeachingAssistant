@@ -214,6 +214,13 @@ export async function resolve(
       if (a && method === "DELETE") return yes(await E.deleteQuizScore(a));
       return { handled: false };
 
+    case "goals":
+      if (!a && method === "GET") return yes(await E.listGoals());
+      if (!a && method === "POST") return yes(await E.createGoal(body));
+      if (a && method === "PATCH") return yes(await E.updateGoal(a, body));
+      if (a && method === "DELETE") return yes(await E.deleteGoal(a));
+      return { handled: false };
+
     case "library":
       if (!a && method === "GET") return yes(await E.listLibrary());
       if (!a && method === "POST") return yes(await E.createLibrary(body));

@@ -27,6 +27,19 @@ import {
   Settings,
   LifeBuoy,
   LogOut,
+  LayoutDashboard,
+  CalendarRange,
+  Target,
+  BookOpen,
+  ClipboardCheck,
+  PenLine,
+  MonitorPlay,
+  Puzzle,
+  Pin,
+  Users,
+  BarChart3,
+  KeyRound,
+  type LucideIcon,
 } from "lucide-react";
 import { getRole, onRoleChange, ROLE_LABELS } from "@/lib/role";
 import { api, ApiError } from "@/shared/lib/apiClient";
@@ -52,17 +65,38 @@ import {
 
 const SIDEBAR_COLLAPSED_KEY = "murchid.sidebar.collapsed";
 
+// Semantic key → icon. Letters were placeholders from before the nav
+// had a design; an icon says what a place IS before the label is read,
+// which a mono "H" never did.
+const NAV_ICON: Record<string, LucideIcon> = {
+  dashboard: LayoutDashboard,
+  studio: Sparkles,
+  scheduler: CalendarRange,
+  goals: Target,
+  lessons: BookOpen,
+  quizzes: ClipboardCheck,
+  homework: PenLine,
+  presentations: MonitorPlay,
+  activities: Puzzle,
+  bulletin: Pin,
+  students: Users,
+  reports: BarChart3,
+  keys: KeyRound,
+};
+
 function NavBadge({ letter, icon }: { letter?: string; icon?: string }) {
-  if (icon) {
+  const Icon = icon ? NAV_ICON[icon] : undefined;
+  if (Icon) {
     return (
       <span className="murchid-nav-badge" aria-hidden>
-        {icon}
+        <Icon size={15} strokeWidth={1.9} />
       </span>
     );
   }
+  // Anything unmapped keeps the letter rather than a blank square.
   return (
     <span className="murchid-nav-badge" aria-hidden>
-      {letter}
+      {letter || icon}
     </span>
   );
 }
