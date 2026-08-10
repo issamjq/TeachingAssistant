@@ -62,9 +62,12 @@ export function PillBars({ data = [] }) {
                 <div
                   className={s.pill}
                   data-now={now}
-                  // Floor of 14% so one item is still visibly a pill,
-                  // not a dot lost at the baseline.
-                  style={{ height: `${Math.max(14, (d.n / max) * 100)}%` }}
+                  // Pixels, not per cent. A percentage height needs every
+                  // ancestor to have a definite height, and the edit-mode
+                  // wrapper broke that chain — the bars silently rendered
+                  // at zero. A pixel height cannot be orphaned. The floor
+                  // keeps one item visibly a pill, not a dot.
+                  style={{ height: `${Math.max(20, (d.n / max) * 118)}px` }}
                   aria-hidden="true"
                 />
               )}

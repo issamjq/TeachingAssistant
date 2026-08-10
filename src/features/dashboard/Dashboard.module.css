@@ -203,8 +203,7 @@
   display: flex;
   align-items: flex-end;
   gap: 8px;
-  height: 100%;
-  min-height: 132px;
+  min-height: 148px;
 }
 .pillCol {
   flex: 1;
@@ -230,7 +229,7 @@
 .pillGhost {
   width: 100%;
   max-width: 34px;
-  height: 100%;
+  height: 118px;   /* matches the tallest pill; % would need a definite parent */
   border-radius: 999px;
   border: 1.5px dashed var(--p-line-strong);
   background: transparent;
@@ -374,3 +373,147 @@
   background: color-mix(in oklab, var(--p-muted) 60%, transparent);
 }
 .taskPip[data-urgent="true"] { background: var(--p-accent); }
+
+/* ── edit mode ─────────────────────────────────────────────────────────
+   The page becomes its own editor, the way a phone's quick-panel edit
+   works: a bar on top with Done and Reset, controls ON each tile, and a
+   tray of hidden tiles waiting to come back. No second page, no
+   checkbox list divorced from the thing it controls. */
+
+.editBar {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: 16px;
+  background: color-mix(in oklab, var(--p-surface) 93%, transparent);
+  border: 1px solid color-mix(in oklab, var(--p-accent) 30%, transparent);
+  box-shadow: 0 10px 26px -12px color-mix(in oklab, var(--p-ink) 25%, transparent);
+  backdrop-filter: blur(16px) saturate(120%);
+  -webkit-backdrop-filter: blur(16px) saturate(120%);
+}
+
+/* A tile while editing: dimmed a touch and outlined, so the page reads
+   as "arrangement" rather than "content". Content stays inert — the
+   frame intercepts clicks so hiding a stat card cannot navigate. */
+.editFrame {
+  position: relative;
+  border-radius: 22px;
+  height: 100%;
+}
+.editFrame > :first-child {
+  pointer-events: none;
+  opacity: 0.82;
+}
+.editFrame::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  border: 1.5px dashed color-mix(in oklab, var(--p-accent) 45%, transparent);
+  pointer-events: none;
+}
+
+/* The tile's own controls, floating on its top corner. 32px visual,
+   44px touch — padding makes up the difference. */
+.tileControls {
+  position: absolute;
+  top: -10px;
+  inset-inline-end: -6px;
+  display: flex;
+  gap: 6px;
+  z-index: 5;
+}
+.tileBtn {
+  display: grid;
+  place-items: center;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 6px;
+  cursor: pointer;
+  background: transparent;
+  border: 0;
+}
+.tileBtn > span {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  background: var(--p-ink);
+  color: var(--p-paper-cool);
+  box-shadow: 0 4px 12px -2px color-mix(in oklab, var(--p-ink) 45%, transparent);
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+.tileBtn:hover > span { background: var(--p-crit); transform: scale(1.06); }
+.tileBtn:focus-visible > span { outline: 2px solid var(--p-accent); outline-offset: 2px; }
+
+/* Size + chart-model controls, docked along the tile's bottom edge. */
+.tileDock {
+  position: absolute;
+  bottom: 10px;
+  inset-inline-start: 12px;
+  inset-inline-end: 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  z-index: 5;
+}
+.sizeSeg {
+  display: inline-flex;
+  padding: 3px;
+  gap: 2px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--p-ink) 90%, transparent);
+  box-shadow: 0 4px 12px -2px color-mix(in oklab, var(--p-ink) 40%, transparent);
+}
+.sizeBtn {
+  min-width: 34px;
+  height: 30px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: color-mix(in oklab, var(--p-paper-cool) 75%, transparent);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.sizeBtn:hover { color: var(--p-paper-cool); }
+.sizeBtn[data-on="true"] {
+  background: var(--p-ambient-lift);
+  color: var(--p-ink);
+}
+
+/* The tray of hidden tiles. */
+.tray {
+  border-radius: 18px;
+  border: 1.5px dashed var(--p-line-strong);
+  background: color-mix(in oklab, var(--p-surface) 55%, transparent);
+  padding: 14px 16px;
+}
+.trayChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 16px 0 12px;
+  border-radius: 999px;
+  border: 1px solid var(--p-line);
+  background: var(--p-paper-cool);
+  font-size: 13px;
+  color: var(--p-ink);
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+}
+.trayChip:hover {
+  border-color: var(--p-accent);
+  background: var(--p-accent-soft);
+  box-shadow: 0 4px 12px -6px color-mix(in oklab, var(--p-accent) 40%, transparent);
+}
+.trayChip:focus-visible { outline: 2px solid var(--p-accent); outline-offset: 2px; }
