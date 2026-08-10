@@ -178,6 +178,22 @@ export async function api<TResponse = unknown, TBody = unknown>(
 
   if (!res.ok) {
     const payload = (data ?? {}) as { error?: string; code?: string };
+
+    // No backend configured. With API_PROXY_TARGET unset there is no
+    // rewrite, so these paths hit Next's own 404 and come back as HTML —
+    // which parses to nothing and would otherwise surface as a bare
+    // "HTTP 404" on a screen the teacher was told would work.
+    //
+    // A missing feature and a broken one look identical at this layer,
+    // so the difference is stated rather than left to be guessed.
+    const { needsServer } = await import("@/lib/data");
+    if (res.status === 404 && data === null && needsServer(path)) {
+      throw new ApiError(
+        "This part of Murchid needs the API service, which isn't connected yet.",
+        503,
+        "no_backend"
+      );
+    }
     // The account was claimed by a newer sign-in on another device. Tear
     // this device's session down and bounce to the landing page.
     if (payload.code === "session_superseded") {
