@@ -21,6 +21,7 @@
 // =====================================================================
 import { supabase } from "@/lib/supabaseClient";
 import { clearIdent, facultyId, ident } from "./session";
+import { daysFromToday } from "../localDate";
 
 const iso = () => new Date().toISOString();
 const notFound = () => Object.assign(new Error("Not found"), { status: 404 });
@@ -505,8 +506,8 @@ export async function deleteLibrary(id: string) {
 // ── dashboard ─────────────────────────────────────────────────────────
 
 export async function dashboard() {
-  const today = new Date().toISOString().slice(0, 10);
-  const weekOut = new Date(Date.now() + 7 * 864e5).toISOString().slice(0, 10);
+  const today = daysFromToday(0);
+  const weekOut = daysFromToday(7);
   const { facultyId: fid } = await ident();
 
   // Six round trips became four. `head: true` counts without shipping

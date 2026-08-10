@@ -11,6 +11,7 @@ import {
   DatePicker,
 } from "./_shared";
 import BrandLoader from "../components/BrandLoader";
+import { isoDay, today } from "@/lib/localDate";
 
 const fmtTime = (t) => (t ? t.slice(0, 5) : "");
 
@@ -22,7 +23,8 @@ const startOfWeek = (d) => {
   return x;
 };
 
-const isoDate = (d) => new Date(d).toISOString().slice(0, 10);
+// Local parts, not toISOString — see src/lib/localDate.ts.
+const isoDate = isoDay;
 
 export default function Schedule() {
   const [items, setItems] = useState([]);
@@ -272,7 +274,7 @@ const EMPTY = {
 function ScheduleModal({ initial, onClose, onSaved }) {
   const isNew = !initial;
   const [form, setForm] = useState(() => {
-    if (!initial) return { ...EMPTY, date: new Date().toISOString().slice(0, 10) };
+    if (!initial) return { ...EMPTY, date: today() };
     return {
       ...EMPTY,
       ...initial,

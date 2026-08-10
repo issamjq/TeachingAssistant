@@ -25,6 +25,7 @@ import { Award, BookOpen, Calendar, Check, ChevronDown, ClipboardList, Clock, Ga
 import { Button } from "@/components/ui/button";
 import { DatePicker } from "@/views/_shared";
 import { useT, useI18n } from "@/lib/i18n";
+import { today } from "@/lib/localDate";
 import {
   QUIZ_DIFFICULTIES,
   QUIZ_DURATIONS,
@@ -621,7 +622,7 @@ export function PresentationParamsPanel({ params, onChange, gradeOptions, majorO
 
 export function ScheduledDateRow({ value, onChange, score, onScoreChange, scoreOptional = false }) {
   const t = useT();
-  const todayISO = new Date().toISOString().slice(0, 10);
+  const todayISO = today();
   return (
     <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2 px-1">
       <span className="inline-flex items-center gap-2">

@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { GRADE_LEVELS } from "../lib/enums";
 import { selectClasses, inputClasses, api, DatePicker } from "./_shared";
 import BrandLoader from "../components/BrandLoader";
+import { isoDay } from "@/lib/localDate";
 
 const STATUSES = ["Present", "Absent", "Late", "Excused"];
 
@@ -17,7 +18,8 @@ const STATUS_COLORS = {
   Excused: "bg-paper-warm text-ink-soft border-line",
 };
 
-const isoDate = (d) => new Date(d).toISOString().slice(0, 10);
+// Local parts, not toISOString — see src/lib/localDate.ts.
+const isoDate = isoDay;
 
 export default function DatabaseAttendance() {
   const [date, setDate] = useState(isoDate(new Date()));

@@ -91,6 +91,12 @@ One process. Data comes from Supabase over PostgREST — there is no API to star
 
 Checks: `npm run typecheck` · `npm run build` · `npm run test:e2e`
 
+Want data on screen? `npm run db:demo` fills the account in
+`TEST_ACCOUNT_EMAIL` with a term — roster, timetable, marks, attendance,
+a nine-week library — and creates a second, deliberately empty account
+for looking at empty states. It rewrites only those two accounts. See
+[db/seed-demo.js](db/seed-demo.js).
+
 ## Deploy policy — push without asking
 
 When a unit of work is finished, ship it. Do **not** ask for confirmation first. The deploy story is:

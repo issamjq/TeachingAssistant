@@ -14,6 +14,7 @@
 // =====================================================================
 import React, { useMemo } from "react";
 import s from "./Dashboard.module.css";
+import { today } from "@/lib/localDate";
 
 const MONTHS = ["January","February","March","April","May","June","July",
                 "August","September","October","November","December"];
@@ -125,7 +126,7 @@ export function Ring({ value = 0, max = 1, size = 92, children }) {
  * the date is scannable before the title is read.
  */
 export function WeekSchedule({ entries = [], onOpen }) {
-  const todayIso = new Date().toISOString().slice(0, 10);
+  const todayIso = today();
   const rows = useMemo(
     () =>
       [...entries]

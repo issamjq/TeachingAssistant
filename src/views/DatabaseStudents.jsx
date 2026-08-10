@@ -294,7 +294,13 @@ export default function DatabaseStudents() {
                 {!loading && sorted.length === 0 && (
                   <tr>
                     <td colSpan={7} className="py-12 text-center text-muted">
-                      No students match the current filters.
+                      {/* An empty roster and a roster hidden by a filter are
+                          different problems. Telling a teacher who has never
+                          added anyone to check their filters sends them
+                          looking for a control they never touched. */}
+                      {students.length === 0
+                        ? "No students yet. Add your first with New student."
+                        : "No students match the current filters."}
                     </td>
                   </tr>
                 )}

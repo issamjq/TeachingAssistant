@@ -10,6 +10,7 @@ import { createPortal } from "react-dom";
 import { useMounted } from "../shared/hooks/useMounted";
 import { X } from "lucide-react";
 import { api, inputClasses, selectClasses, DatePicker } from "./_shared";
+import { today as localToday } from "@/lib/localDate";
 
 export default function SchedulePopup({
   initial,
@@ -24,7 +25,7 @@ export default function SchedulePopup({
   // Snapshot the initial form once — used to detect dirty state for the
   // discard-changes guard. Lazy init so it doesn't reshuffle each render.
   const [initialForm] = useState(() => {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = localToday();
     if (!initial) {
       return {
         title: "", subject: "", grade: "", section: "",
