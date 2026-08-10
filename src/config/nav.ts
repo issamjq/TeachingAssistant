@@ -58,29 +58,6 @@ const TEACHER_NAV: NavSection[] = [
   },
 ];
 
-/**
- * The pinned footer actions — settings, support and signing out.
- *
- * Separate from the sections above because they are not places in the
- * same sense: two are navigation, one opens the assistant, one ends the
- * session. Keeping them out of NAV_BY_ROLE means the role-bounce logic
- * in SECTIONS_BY_ROLE does not have to grow special cases for them.
- */
-export interface NavAction {
-  key: "account" | "support" | "logout";
-  label: string;
-  icon: string;
-}
-
-export const FOOTER_ACTIONS: NavAction[] = [
-  { key: "account", label: "Settings", icon: "settings" },
-  // Support opens the assistant rather than a page. It is already there,
-  // it answers immediately, and a contact form that emails someone is a
-  // worse answer to "how does the gradebook work".
-  { key: "support", label: "Support", icon: "help" },
-  { key: "logout", label: "Log out", icon: "logout" },
-];
-
 const ADMIN_NAV: NavSection[] = [
   {
     section: "Admin",

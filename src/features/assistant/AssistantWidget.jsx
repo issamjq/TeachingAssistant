@@ -31,6 +31,7 @@ import AccessibilityWidget from "@/views/AccessibilityWidget";
 import { useI18n } from "@/lib/i18n";
 import { useVoice } from "./useVoice";
 import { answerFor, suggestionsAfter } from "./answer";
+import { matchNavigate, accountAnswer } from "./actions";
 import s from "./Assistant.module.css";
 
 const STARTERS = {
@@ -40,16 +41,14 @@ const STARTERS = {
     "What does it cost?",
     "Is it right for my subject?",
   ],
-  // Informational, not imperative. Acting on the teacher's own work
-  // needs the API, which is moving to its own project — until it lands,
-  // suggesting "Draft a lesson plan" would promise something this
-  // cannot do, and a bot that offers then declines is worse than one
-  // that never offered.
+  // Things the assistant genuinely does in the studio TODAY: it moves
+  // the teacher anywhere, and it reads their live plan and credits.
+  // Drafting on request still needs the API service.
   studio: [
-    "How do I make a lesson plan?",
-    "How does the gradebook work?",
-    "Can I upload my own material?",
-    "How do I take attendance?",
+    "How many credits do I have?",
+    "Open the Goal planner",
+    "What's the difference between Scheduler and Goal planner?",
+    "Take me to my students",
   ],
 };
 
@@ -97,7 +96,7 @@ function inline(str) {
  *   teacher around once the studio side is wired to the new backend;
  *   answering from a JSON file cannot decide to navigate.
  */
-export default function AssistantWidget({ scope = "landing" }) {
+export default function AssistantWidget({ scope = "landing", onNavigate }) {
   const { t, dir } = useI18n?.() || { t: (k) => k, dir: "ltr" };
   const [portalRoot, setPortalRoot] = useState(null);
   const [open, setOpen] = useState(false);
@@ -168,12 +167,33 @@ export default function AssistantWidget({ scope = "landing" }) {
     setDoing("thinking");
     setMessages((m) => [...m, { role: "user", text: message }, { role: "assistant", text: "" }]);
 
-    const { text: full, topicId } = answerFor(message);
+
+    // Resolve the answer. In the studio two things outrank the knowledge
+    // lookup: a request to GO somewhere (handled without any model — a
+    // command is not a question), and a question about the teacher's own
+    // plan or credits, which is answered from live data rather than
+    // prose. Everything else falls through to the knowledge base.
+    const resolveAnswer = async () => {
+      if (scope === "studio") {
+        const nav = matchNavigate(message);
+        if (nav) {
+          onNavigate?.(nav.section);
+          return { full: nav.reply, topicId: null };
+        }
+        if (/credit|token|plan\b|trial|subscri|renew|expire|days left/i.test(message)) {
+          const live = await accountAnswer();
+          if (live) return { full: live, topicId: "pricing" };
+        }
+      }
+      const { text, topicId } = answerFor(message);
+      return { full: text, topicId };
+    };
 
     // A beat before it starts. Instant is unsettling — it reads as a
     // canned response rather than an answer, which is precisely the
-    // impression to avoid even though it IS a lookup.
-    const begin = setTimeout(() => {
+    // impression to avoid even when it IS a lookup.
+    const begin = setTimeout(async () => {
+      const { full, topicId } = await resolveAnswer();
       setDoing(null);
       const words = full.split(/(\s+)/);
       let i = 0;
@@ -197,7 +217,7 @@ export default function AssistantWidget({ scope = "landing" }) {
     }, 260);
 
     return () => clearTimeout(begin);
-  }, [draft, busy, voice, stopTyping]);
+  }, [draft, busy, voice, stopTyping, scope, onNavigate]);
 
   const starters = STARTERS[scope] || STARTERS.landing;
   const greeting = scope === "studio"

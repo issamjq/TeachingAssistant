@@ -66,6 +66,63 @@
       "answer": "Five steps, start to finish:\n\n- **Sign in** with Google, LinkedIn, or an email and password.\n- **Set up in two clicks** — upload a CV or staff card and Murchid reads your subjects, grades and school off it.\n- **Describe what you need.** Attach your own material if you like: a textbook chapter, a syllabus PDF.\n- **Murchid drafts it.** You edit anything, save it, and assign it to a class.\n- **Marks and attendance** come back into your gradebook.\n\nThe whole loop is a school week, not a chat box."
     },
     {
+      "id": "ai-studio",
+      "tags": [
+        "studio",
+        "generate",
+        "draft",
+        "superpower",
+        "co-pilot",
+        "creates",
+        "engine"
+      ],
+      "ask": [
+        "what is the ai studio",
+        "what makes ai studio special",
+        "where does the ai write things",
+        "how do i generate a lesson"
+      ],
+      "answer": "**AI Studio is the engine behind everything else.** Lessons, quizzes, homework, presentations, activities, the Goal planner's weekly plans — they're all drafted by the same studio, each with its own craft:\n\n- a *lesson* comes back with objectives, an activity you can teach from, and an assessment\n- a *quiz* comes back as real questions with an answer key\n- a *presentation* comes back as slides, not paragraphs\n\nIt knows your subjects, your grades and your own materials, so the draft fits your class rather than a generic one. You always get an editable draft — never something sent to students unseen."
+    },
+    {
+      "id": "goal-planner",
+      "tags": [
+        "goal",
+        "unit",
+        "term",
+        "portion",
+        "syllabus",
+        "breakdown",
+        "plan"
+      ],
+      "ask": [
+        "what does the goal planner do",
+        "how do i plan a whole unit",
+        "can it plan a term for me",
+        "what is a goal"
+      ],
+      "answer": "The **Goal planner** takes the biggest thing you can hand it — a full unit, a term, a whole book — and plans it like an expert who knows *you*.\n\n- Name the goal and describe the class in your own words.\n- Attach the syllabus or textbook chapters.\n- Pick a timeline, from two weeks to two terms.\n\nMurchid weighs it against your subjects, grades and skills, then lays out a week-by-week plan — and tells you honestly if the timeline is too tight rather than pretending. The lessons, quizzes and materials for each week are drafted as you reach it."
+    },
+    {
+      "id": "scheduler-vs-goals",
+      "tags": [
+        "scheduler",
+        "difference",
+        "versus",
+        "timetable",
+        "goal",
+        "planner",
+        "planners"
+      ],
+      "ask": [
+        "what's the difference between scheduler and goal planner",
+        "scheduler vs goal planner",
+        "which planner should i use",
+        "how is the goal planner different"
+      ],
+      "answer": "They answer different questions.\n\n- **Scheduler** answers *when*: it's your timetable. You place lessons on days and times, and the dashboard, calendar and reminders follow it.\n- **Goal planner** answers *how*: you hand over a whole unit or term — attach the syllabus, set a deadline — and Murchid breaks it into a week-by-week teaching plan built around your subjects and your way of teaching, drafting the lessons and quizzes for each week as you go.\n\nUse the Goal planner to decide the route, the Scheduler to book the journey."
+    },
+    {
       "id": "features",
       "tags": [
         "capabilities",

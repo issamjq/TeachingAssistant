@@ -24,9 +24,6 @@ import {
   Menu,
   PanelLeftClose,
   PanelLeftOpen,
-  Settings,
-  LifeBuoy,
-  LogOut,
   LayoutDashboard,
   CalendarRange,
   Target,
@@ -56,7 +53,6 @@ import Avatar from "@/components/Avatar";
 import TeachingRail from "@/views/TeachingRail";
 import {
   NAV_BY_ROLE,
-  FOOTER_ACTIONS,
   DEFAULT_ROUTE,
   SECTIONS_BY_ROLE,
   TEACHING_RAIL_SECTIONS,
@@ -174,8 +170,6 @@ export default function StudioShell({ children }: { children: React.ReactNode })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const ACTION_ICON = { settings: Settings, help: LifeBuoy, logout: LogOut };
-
   /**
    * Sign out fully: revoke the Supabase session, drop every cached
    * identity, then a full page load so no React state survives.
@@ -200,22 +194,6 @@ export default function StudioShell({ children }: { children: React.ReactNode })
     clearAccount();
     clearRoute();
     window.location.assign("/");
-  };
-
-  const runAction = (key: string) => {
-    if (key === "account") return navigate(["account"]);
-    // Support opens the assistant. It is already there, it answers
-    // immediately, and a contact form that emails someone is a worse
-    // answer to "how does the gradebook work".
-    if (key === "support") {
-      const launcher = document.querySelector<HTMLButtonElement>(
-        '[aria-label="Open the assistant"]'
-      );
-      if (launcher) launcher.click();
-      else setHelpOpen(true);
-      return;
-    }
-    if (key === "logout") void signOutFully();
   };
 
   // The logo leaves the studio for the marketing site. `?home=1` is what
@@ -372,28 +350,6 @@ export default function StudioShell({ children }: { children: React.ReactNode })
         })()}
       </nav>
 
-      {/* Pinned above the account chip: settings, support, sign out.
-          Separate from the nav sections because they are not places in
-          the same sense — two navigate, one opens the assistant, one
-          ends the session. */}
-      <div className="murchid-sidebar-footer">
-        {FOOTER_ACTIONS.map((a) => {
-          const Icon = ACTION_ICON[a.icon as keyof typeof ACTION_ICON];
-          return (
-            <button
-              key={a.key}
-              type="button"
-              className="murchid-sidebar-action"
-              data-danger={a.key === "logout"}
-              onClick={() => runAction(a.key)}
-            >
-              <Icon size={15} className="flex-shrink-0" aria-hidden="true" />
-              <span className="flex-1 min-w-0 truncate">{a.label}</span>
-            </button>
-          );
-        })}
-      </div>
-
       <div className="relative">
         <button
           onClick={() => setAccountMenuOpen((o) => !o)}
@@ -436,7 +392,13 @@ export default function StudioShell({ children }: { children: React.ReactNode })
           user={account}
           showUpgrade
           onOpenSettings={() => navigate(["account"])}
-          onOpenHelp={() => setHelpOpen(true)}
+          onOpenHelp={() => {
+            const launcher = document.querySelector<HTMLButtonElement>(
+              '[aria-label="Open the assistant"]'
+            );
+            if (launcher) launcher.click();
+            else setHelpOpen(true);
+          }}
           onUpgrade={() => navigate(["signup"])}
           onLogout={signOutFully}
         />

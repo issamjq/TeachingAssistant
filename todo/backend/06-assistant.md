@@ -93,3 +93,17 @@ script pointed at it does not spend your money.
 - [ ] 7-day retention, relevant turns only
 - [ ] Rate limited
 - [ ] `usage_logs` written, as in [01](01-ai-studio.md)
+
+## Subscription and credit gating
+
+The assistant acts *as* the teacher, so it obeys the same limits:
+
+- **Reads** (counts, lists, navigation, account questions) are always
+  allowed — RLS already scopes them, and a lapsed teacher must still be
+  able to ask "what happened to my account".
+- **Creating work through a tool** costs credits exactly as the studio
+  does: check `subscription_active()` semantics and the `credits`
+  balance BEFORE the model call, decline in prose when the plan has
+  lapsed ("your plan has ended — everything you made is still here"),
+  and meter with `recordUsage` after. The browser-side assistant already
+  answers plan/credit questions from live data; do not contradict it.

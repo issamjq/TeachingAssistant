@@ -317,3 +317,120 @@ export function KhatimMark({ className }) {
     </svg>
   );
 }
+
+/* ── the line model of the rhythm chart ───────────────────────────── */
+
+/**
+ * The same eight weeks as a line — the alternative model the customize
+ * panel offers. A line answers "which way is this heading" faster than
+ * pills; the pills answer "which week held what". Both are honest, so
+ * the teacher picks.
+ */
+export function LineTrend({ data = [] }) {
+  const total = data.reduce((a, d) => a + d.n, 0);
+  if (!total) {
+    return (
+      <p className="text-sm text-muted py-8 text-center">
+        Nothing made yet — this fills in as you work.
+      </p>
+    );
+  }
+  const w = 320, h = 110, pad = 8;
+  const max = Math.max(1, ...data.map((d) => d.n));
+  const pts = data.map((d, i) => [
+    pad + (i / Math.max(1, data.length - 1)) * (w - pad * 2),
+    h - pad - (d.n / max) * (h - pad * 2),
+  ]);
+  const line = pts.map(([x, y], i) => `${i ? "L" : "M"}${x.toFixed(1)} ${y.toFixed(1)}`).join(" ");
+  const area = `${line} L${pts[pts.length - 1][0].toFixed(1)} ${h - pad} L${pts[0][0].toFixed(1)} ${h - pad} Z`;
+
+  return (
+    <>
+      <svg viewBox={`0 0 ${w} ${h}`} className="w-full h-auto" preserveAspectRatio="none"
+           role="img" aria-label={`Work created per week, ${total} items over ${data.length} weeks.`}>
+        <defs>
+          <linearGradient id="ltFill" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="var(--p-accent)" stopOpacity="0.22" />
+            <stop offset="100%" stopColor="var(--p-accent)" stopOpacity="0" />
+          </linearGradient>
+        </defs>
+        <path d={area} fill="url(#ltFill)" />
+        <path d={line} fill="none" stroke="var(--p-accent)" strokeWidth="2.5"
+              strokeLinecap="round" strokeLinejoin="round" />
+        <circle cx={pts[pts.length - 1][0]} cy={pts[pts.length - 1][1]} r="4" fill="var(--p-accent)" />
+      </svg>
+      <table className="sr-only">
+        <caption>Work created per week</caption>
+        <tbody>{data.map((d) => <tr key={d.week}><th scope="row">{d.week}</th><td>{d.n}</td></tr>)}</tbody>
+      </table>
+    </>
+  );
+}
+
+/* ── the donut model of the library breakdown ─────────────────────── */
+
+const DONUT_TONES = [
+  "var(--p-accent)", "var(--p-ambient-lift)", "var(--p-ok)",
+  "var(--p-warn)", "var(--p-ambient-deep)",
+];
+
+/** The library as proportions rather than ranks. */
+export function KindDonut({ data = [], onPick }) {
+  const rows = [...data].filter((r) => r.n > 0).sort((a, b) => b.n - a.n);
+  const total = rows.reduce((a, r) => a + r.n, 0);
+  if (!total) {
+    return <p className="text-sm text-muted py-4">Your library is empty. Anything you make lands here.</p>;
+  }
+
+  const size = 132, stroke = 16;
+  const r = (size - stroke) / 2;
+  const c = 2 * Math.PI * r;
+  let acc = 0;
+  const segs = rows.map((row, i) => {
+    const frac = row.n / total;
+    const seg = { ...row, tone: DONUT_TONES[i % DONUT_TONES.length], dash: frac * c, off: -acc * c };
+    acc += frac;
+    return seg;
+  });
+
+  return (
+    <div className="flex items-center gap-5 flex-wrap">
+      <div style={{ position: "relative", width: size, height: size, flexShrink: 0 }}>
+        <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden="true">
+          {segs.map((sg) => (
+            <circle key={sg.key} cx={size / 2} cy={size / 2} r={r} fill="none"
+                    stroke={sg.tone} strokeWidth={stroke}
+                    strokeDasharray={`${Math.max(0, sg.dash - 2)} ${c - sg.dash + 2}`}
+                    strokeDashoffset={sg.off}
+                    transform={`rotate(-90 ${size / 2} ${size / 2})`} />
+          ))}
+        </svg>
+        <div style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center" }}>
+          <span className="text-center leading-none">
+            <span className="block font-serif text-[26px] text-ink">{total}</span>
+            <span className="block text-[9px] font-mono uppercase tracking-widest text-muted mt-1">items</span>
+          </span>
+        </div>
+      </div>
+      <ul className="space-y-1.5 min-w-[130px] flex-1">
+        {segs.map((sg) => (
+          <li key={sg.key}>
+            <button type="button" onClick={() => onPick?.(sg.key)}
+                    className="flex items-center gap-2.5 w-full text-start group cursor-pointer">
+              <span aria-hidden="true"
+                    style={{ width: 9, height: 9, borderRadius: 3, background: sg.tone, flexShrink: 0 }} />
+              <span className="text-[12.5px] text-ink group-hover:text-accent transition-colors flex-1">
+                {sg.label}
+              </span>
+              <span className="text-[12.5px] tabular-nums text-ink-soft">{sg.n}</span>
+            </button>
+          </li>
+        ))}
+      </ul>
+      <table className="sr-only">
+        <caption>Library by kind</caption>
+        <tbody>{rows.map((x) => <tr key={x.key}><th scope="row">{x.label}</th><td>{x.n}</td></tr>)}</tbody>
+      </table>
+    </div>
+  );
+}
