@@ -184,25 +184,55 @@
    scales from phone to ultra-wide.
    ════════════════════════════════════════════════════════════════════ */
 
-/* ── Focus ring — one consistent look for every interactive control. */
+/* ── Focus — drawn in the accent, never as a black box.
+   Two treatments, because two shapes of control want different things.
+   A button or a link takes a ring that follows its outside edge. A text
+   field lights its OWN border and lifts a soft halo, which is what a
+   teacher expects from the box they just clicked into — a hard
+   rectangle floating around it reads as a rendering fault.
+   Both are the accent. This ring was 2px of near-black ink, and at that
+   weight on cream it looked like a defect rather than like focus. */
 *:focus-visible {
   outline: none;
 }
 .murchid-focus:focus-visible,
 button:focus-visible,
 [role="button"]:focus-visible,
-a:focus-visible,
-input:focus-visible,
-textarea:focus-visible,
-select:focus-visible {
-  /* Neutral ink ring, shown only on real (keyboard) focus. Was a 2px
-     accent-red outline applied to every .murchid-focus element always —
-     which is the permanent red border that showed up around buttons.
-     Keeping a visible focus ring (accessibility) but in the brand ink,
-     not red. */
-  outline: 2px solid var(--color-ink);
+a:focus-visible {
+  outline: 2px solid var(--color-accent);
   outline-offset: 2px;
   border-radius: 6px;
+}
+
+/* Fields answer to any focus, not only keyboard focus: clicking into a
+   box and seeing nothing change is the confusing case. The halo is the
+   accent at low alpha, so it reads on both the cream and dark palettes
+   without ever becoming a second border. */
+input:focus,
+textarea:focus,
+select:focus {
+  outline: none;
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 16%, transparent);
+}
+/* Controls that are a button but read as a field — the audience
+   dropdown's trigger, for one. They take the field treatment so a form
+   does not show two different ideas of focus in one row. */
+.murchid-field:focus {
+  outline: none;
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 16%, transparent);
+}
+
+/* Checkboxes and radios keep the ring — they have no border to light. */
+input[type="checkbox"]:focus,
+input[type="radio"]:focus {
+  box-shadow: none;
+}
+input[type="checkbox"]:focus-visible,
+input[type="radio"]:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
 }
 
 /* ── Pressable affordance for every clickable element. */
@@ -1376,8 +1406,14 @@ select:focus-visible {
   transition: border-color 200ms ease, background-color 200ms ease;
 }
 .murchid-search:focus-within {
-  border-color: var(--color-ink);
+  border-color: var(--color-accent);
   background: var(--color-paper-cool);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 16%, transparent);
+}
+/* The input inside already sits on the wrapper's border, so it must not
+   draw a second halo of its own. */
+.murchid-search input:focus {
+  box-shadow: none;
 }
 
 /* Schedule popup — backdrop fades + panel pops on open. Paired with

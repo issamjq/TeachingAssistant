@@ -635,7 +635,7 @@ export function ScheduledDateRow({ value, onChange, score, onScoreChange, scoreO
           value={value ? String(value).slice(0, 10) : ""}
           min={todayISO}
           onChange={(v) => onChange(v || "")}
-          className="bg-paper-cool border border-line rounded-md px-2.5 py-1 text-sm text-ink outline-none focus:border-ink transition-colors duration-150 min-w-[160px]"
+          className="bg-paper-cool border border-line rounded-md px-2.5 py-1 text-sm text-ink outline-none focus:border-accent transition-colors duration-150 min-w-[160px]"
         />
         {value ? (
           <button
@@ -670,7 +670,7 @@ export function ScheduledDateRow({ value, onChange, score, onScoreChange, scoreO
             value={score ?? ""}
             onChange={(e) => onScoreChange(e.target.value)}
             placeholder={t("studio.schedule.scorePlaceholder")}
-            className={`w-20 bg-paper-cool border rounded-md px-2.5 py-1 text-sm text-ink outline-none focus:border-ink transition-colors duration-150 normal-case tracking-normal font-sans ${
+            className={`w-20 bg-paper-cool border rounded-md px-2.5 py-1 text-sm text-ink outline-none focus:border-accent transition-colors duration-150 normal-case tracking-normal font-sans ${
               chipIsSet(score)
                 ? "border-line"
                 : scoreOptional
@@ -726,7 +726,7 @@ export function InstructionsRow({ mode, text, onModeChange, onTextChange }) {
           value={text ?? ""}
           onChange={(e) => onTextChange(e.target.value)}
           placeholder={t("studio.instructions.placeholder")}
-          className="mt-2 w-full bg-paper-cool border border-line rounded-md px-2.5 py-1.5 text-sm text-ink outline-none focus:border-ink transition-colors duration-150 resize-y"
+          className="mt-2 w-full bg-paper-cool border border-line rounded-md px-2.5 py-1.5 text-sm text-ink outline-none focus:border-accent transition-colors duration-150 resize-y"
         />
       )}
     </div>
@@ -1172,7 +1172,7 @@ export function AddChipValuePopup({ label, onCancel, onAdd }) {
           onChange={(e) => setVal(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); submit(); } }}
           placeholder={t("studio.combo.addNewPh")}
-          className="w-full px-3.5 py-2.5 rounded-lg border border-line bg-paper text-sm text-ink outline-none focus:border-ink focus:shadow-[0_0_0_3px_rgba(200,71,43,0.12)] transition-all"
+          className="w-full px-3.5 py-2.5 rounded-lg border border-line bg-paper text-sm text-ink outline-none focus:border-accent transition-all"
         />
         <div className="mt-4 flex items-center justify-end gap-2">
           <Button variant="secondary" onClick={onCancel} className="text-sm px-4 py-2">

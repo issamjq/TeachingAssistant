@@ -985,7 +985,7 @@ export default function SlideBuilder({
               onChange={(e) => { setDeckTitle(e.target.value); onDeckTitleChange?.(e.target.value); }}
               title="Click to edit the presentation title"
               placeholder="Click to name your presentation"
-              className="font-serif text-xl md:text-2xl font-medium text-ink bg-paper-warm/40 border border-dashed border-line hover:border-ink/40 focus:border-solid focus:border-ink focus:bg-paper outline-none rounded-md px-2.5 py-1 pe-8 min-w-0 w-full transition-colors duration-150 placeholder:text-muted/70 cursor-text"
+              className="font-serif text-xl md:text-2xl font-medium text-ink bg-paper-warm/40 border border-dashed border-line hover:border-ink/40 focus:border-solid focus:border-accent focus:bg-paper outline-none rounded-md px-2.5 py-1 pe-8 min-w-0 w-full transition-colors duration-150 placeholder:text-muted/70 cursor-text"
               aria-label="Deck title"
             />
             <Pencil
@@ -1057,7 +1057,7 @@ export default function SlideBuilder({
             <select
               value={status}
               onChange={(e) => setStatus(e.target.value)}
-              className="rounded-lg border border-line bg-paper-cool px-3 py-1.5 text-sm outline-none focus:border-ink"
+              className="rounded-lg border border-line bg-paper-cool px-3 py-1.5 text-sm outline-none focus:border-accent"
             >
               <option>Draft</option><option>Ready</option><option>Archived</option>
             </select>
@@ -1067,7 +1067,7 @@ export default function SlideBuilder({
             <DatePicker
               value={scheduledFor}
               onChange={(v) => setScheduledFor(v)}
-              className="rounded-lg border border-line bg-paper-cool px-3 py-1.5 text-sm outline-none focus:border-ink min-w-[160px]"
+              className="rounded-lg border border-line bg-paper-cool px-3 py-1.5 text-sm outline-none focus:border-accent min-w-[160px]"
             />
           </label>
         </div>
@@ -1300,7 +1300,7 @@ export default function SlideBuilder({
               <select
                 value={cur?.font || "editorial"}
                 onChange={(e) => patchActive({ font: e.target.value })}
-                className="rounded-lg border border-line bg-paper-cool px-2.5 py-1 text-[12px] outline-none focus:border-ink cursor-pointer"
+                className="rounded-lg border border-line bg-paper-cool px-2.5 py-1 text-[12px] outline-none focus:border-accent cursor-pointer"
                 aria-label="Font style"
               >
                 {FONT_CATEGORIES.map((cat) => {
@@ -1342,7 +1342,7 @@ export default function SlideBuilder({
               <select
                 value={transition}
                 onChange={(e) => setTransition(e.target.value)}
-                className="rounded-lg border border-line bg-paper-cool px-2.5 py-1 text-[12px] outline-none focus:border-ink cursor-pointer"
+                className="rounded-lg border border-line bg-paper-cool px-2.5 py-1 text-[12px] outline-none focus:border-accent cursor-pointer"
                 aria-label="Slide transition"
                 title="How slides change in the presenter"
               >
@@ -1432,7 +1432,7 @@ export default function SlideBuilder({
               onChange={(e) => patchActive({ notes: e.target.value })}
               rows={2}
               placeholder="What you'll say while this slide is up (optional)…"
-              className="w-full rounded-lg border border-line bg-paper-cool px-3 py-2 text-[13px] text-ink outline-none focus:border-ink resize-none placeholder:text-muted/60"
+              className="w-full rounded-lg border border-line bg-paper-cool px-3 py-2 text-[13px] text-ink outline-none focus:border-accent resize-none placeholder:text-muted/60"
             />
           </div>
         </div>
@@ -2253,7 +2253,7 @@ function LineFormatBar({ label, fmt = {}, align = "", onChange, onAlign, onClose
         value={fmt.font || ""}
         onMouseDown={(e) => e.stopPropagation()}
         onChange={(e) => onChange({ font: e.target.value || null })}
-        className="rounded-md border border-line bg-paper px-1.5 py-1 text-[11px] outline-none focus:border-ink cursor-pointer max-w-[140px]"
+        className="rounded-md border border-line bg-paper px-1.5 py-1 text-[11px] outline-none focus:border-accent cursor-pointer max-w-[140px]"
         aria-label="Selection font"
         title="Font for the selection"
       >
@@ -2405,7 +2405,7 @@ function ColorControl({
               onKeyDown={(e) => { if (e.key === "Enter") commit(hex); }}
               onBlur={() => commit(hex)}
               placeholder="2f7d95"
-              className="flex-1 min-w-0 rounded-lg border border-line bg-paper px-2 py-1.5 text-sm outline-none focus:border-ink font-mono"
+              className="flex-1 min-w-0 rounded-lg border border-line bg-paper px-2 py-1.5 text-sm outline-none focus:border-accent font-mono"
             />
             {typeof window !== "undefined" && window.EyeDropper && (
               <button type="button" onClick={eyedrop} title="Pick from screen"
@@ -2574,7 +2574,7 @@ function ImagePicker({ suggestedQuery, onClose, onPick }) {
                   value={q}
                   onChange={(e) => setQ(e.target.value)}
                   placeholder="Search real photos — e.g. 'rain on leaves'…"
-                  className="flex-1 rounded-lg border border-line bg-paper px-3 py-2 text-sm outline-none focus:border-ink"
+                  className="flex-1 rounded-lg border border-line bg-paper px-3 py-2 text-sm outline-none focus:border-accent"
                 />
                 <button type="submit" disabled={busy || !q.trim()}
                   className="planner-nav-btn px-4 py-2 rounded-lg bg-ink text-paper-cool text-sm font-medium disabled:opacity-50 inline-flex items-center gap-1.5">

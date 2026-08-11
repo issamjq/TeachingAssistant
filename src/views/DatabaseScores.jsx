@@ -156,7 +156,7 @@ export default function DatabaseScores() {
           <select
             value={quizId}
             onChange={(e) => setQuizId(e.target.value)}
-            className="w-full px-3 py-2 rounded-lg border border-line bg-paper-cool text-sm text-ink outline-none focus:border-ink"
+            className="w-full px-3 py-2 rounded-lg border border-line bg-paper-cool text-sm text-ink outline-none focus:border-accent"
           >
             <option value="">Select a quiz…</option>
             {quizzes.map((q) => (
@@ -217,7 +217,7 @@ export default function DatabaseScores() {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search by name…"
-              className="w-full ps-9 pe-3 py-1.5 rounded-full border border-line bg-paper-cool text-sm text-ink placeholder:text-muted outline-none focus:border-ink"
+              className="w-full ps-9 pe-3 py-1.5 rounded-full border border-line bg-paper-cool text-sm text-ink placeholder:text-muted outline-none focus:border-accent"
             />
           </div>
         </div>
@@ -282,7 +282,7 @@ export default function DatabaseScores() {
                         min="0"
                         value={row.score ?? ""}
                         onChange={(e) => setCell(s.id, { score: e.target.value })}
-                        className="w-20 px-2 py-1 rounded-md border border-line bg-paper text-sm outline-none focus:border-ink"
+                        className="w-20 px-2 py-1 rounded-md border border-line bg-paper text-sm outline-none focus:border-accent"
                       />
                     </td>
                     <td className="px-4 py-2.5">
@@ -292,7 +292,7 @@ export default function DatabaseScores() {
                         placeholder={String(quiz?.total_marks ?? "")}
                         value={row.max_score ?? ""}
                         onChange={(e) => setCell(s.id, { max_score: e.target.value })}
-                        className="w-20 px-2 py-1 rounded-md border border-line bg-paper text-sm outline-none focus:border-ink"
+                        className="w-20 px-2 py-1 rounded-md border border-line bg-paper text-sm outline-none focus:border-accent"
                       />
                     </td>
                     <td className="px-4 py-2.5">
@@ -301,7 +301,7 @@ export default function DatabaseScores() {
                         placeholder="Optional"
                         value={row.feedback ?? ""}
                         onChange={(e) => setCell(s.id, { feedback: e.target.value })}
-                        className="w-full px-2 py-1 rounded-md border border-line bg-paper text-sm outline-none focus:border-ink"
+                        className="w-full px-2 py-1 rounded-md border border-line bg-paper text-sm outline-none focus:border-accent"
                       />
                     </td>
                     <td className="px-4 py-2.5">

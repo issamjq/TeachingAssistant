@@ -131,7 +131,7 @@ export function FilePill({ name, type, size, removable = false }) {
 }
 
 export const inputClasses =
-  "w-full rounded-md border border-line bg-paper focus:border-ink focus:outline-none px-3 py-2.5 text-sm text-ink font-sans";
+  "w-full rounded-md border border-line bg-paper focus:border-accent focus:outline-none px-3 py-2.5 text-sm text-ink font-sans";
 export const selectClasses = inputClasses + " appearance-none";
 
 // ── AudienceSelect — grades / sections, multi, in a dropdown ──────────
@@ -187,7 +187,7 @@ export function AudienceSelect({ value, onChange, options = [], allLabel = "All"
         onClick={() => setOpen((o) => !o)}
         aria-haspopup="listbox"
         aria-expanded={open}
-        className={`${inputClasses} inline-flex items-center justify-between gap-2 text-start ${
+        className={`${inputClasses} murchid-field inline-flex items-center justify-between gap-2 text-start ${
           list.length === 0 ? "text-muted" : ""
         }`}
       >
@@ -324,7 +324,7 @@ export function DatePicker({
         type="button"
         disabled={disabled}
         onClick={() => setOpen((o) => !o)}
-        className={`${className} inline-flex items-center justify-between gap-2 text-left disabled:opacity-50 ${
+        className={`${className} murchid-field inline-flex items-center justify-between gap-2 text-left disabled:opacity-50 ${
           !label ? "text-muted" : ""
         }`}
       >
