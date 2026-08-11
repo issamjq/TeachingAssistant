@@ -3,7 +3,7 @@
 import React, { useState, useMemo, useEffect, useRef } from "react";
 import {
   ArrowUp, ArrowDown, ArrowUpDown, X, Pencil, Trash2,
-  Calendar, ChevronLeft, ChevronRight,
+  Calendar, ChevronLeft, ChevronRight, ChevronDown, Check,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -99,7 +99,7 @@ export function fmtRowTimestamp(row) {
   return { label: "Created", value: timeAgo(created || updated), iso: created || updated };
 }
 
-export function Field({ label, children, hint }) {
+export function Field({ label, children, hint = undefined }) {
   return (
     <label className="block">
       <span className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted flex items-center justify-between gap-3 mb-2">
@@ -134,6 +134,120 @@ export const inputClasses =
   "w-full rounded-md border border-line bg-paper focus:border-ink focus:outline-none px-3 py-2.5 text-sm text-ink font-sans";
 export const selectClasses = inputClasses + " appearance-none";
 
+// ── AudienceSelect — grades / sections, multi, in a dropdown ──────────
+// These fields used to be single selects whose "—" option meant
+// everyone. They are now multi: the value stays the display string
+// ("Grade 9, Grade 11") because the columns are text and every consumer
+// renders them as text — splitAudience() turns it back into a list.
+//
+// A dropdown rather than a chip row, deliberately: a teacher with ten
+// grades and eight sections would face a wall of chips in every form.
+// Closed, it is the size of the select it replaced and reads its
+// selection back ("All grades", or the picked list with a count). Open,
+// it is a checkbox list — "All" first, owning the empty state — that
+// stays open while several are ticked. A value from an old row that is
+// no longer on the teacher's profile still shows as a row rather than
+// silently disappearing.
+export function AudienceSelect({ value, onChange, options = [], allLabel = "All", emptyNote = "Nothing on your profile yet" }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  const list = splitAudience(value);
+  const opts = [...options, ...list.filter((v) => !options.includes(v))];
+
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    const onEsc = (e) => { if (e.key === "Escape") setOpen(false); };
+    document.addEventListener("mousedown", onDoc);
+    document.addEventListener("keydown", onEsc);
+    return () => {
+      document.removeEventListener("mousedown", onDoc);
+      document.removeEventListener("keydown", onEsc);
+    };
+  }, [open]);
+
+  if (!opts.length) return <p className="text-xs text-muted py-2">{emptyNote}</p>;
+
+  const toggle = (v) => {
+    const next = list.includes(v) ? list.filter((x) => x !== v) : [...list, v];
+    // Keep the option order, not the click order.
+    onChange(joinAudience(opts.filter((o) => next.includes(o))));
+  };
+  const mark = (on) =>
+    `h-4 w-4 rounded border flex items-center justify-center flex-shrink-0 transition ${
+      on ? "bg-ink border-ink text-paper-cool" : "border-line bg-paper"
+    }`;
+  const row =
+    "w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-[13px] text-ink hover:bg-paper-warm transition text-start";
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        className={`${inputClasses} inline-flex items-center justify-between gap-2 text-start ${
+          list.length === 0 ? "text-muted" : ""
+        }`}
+      >
+        <span className="truncate">{list.length === 0 ? allLabel : list.join(", ")}</span>
+        <span className="flex items-center gap-1.5 flex-shrink-0">
+          {list.length > 1 && (
+            <span className="font-mono text-[10px] leading-none px-1.5 py-1 rounded-full bg-ink text-paper-cool">
+              {list.length}
+            </span>
+          )}
+          <ChevronDown
+            size={14}
+            className={`text-muted transition-transform ${open ? "rotate-180" : ""}`}
+          />
+        </span>
+      </button>
+
+      {open && (
+        <div
+          role="listbox"
+          aria-multiselectable="true"
+          className="absolute z-50 mt-1.5 w-full min-w-[220px] max-h-60 overflow-y-auto rounded-xl border border-line bg-paper-cool shadow-[0_24px_60px_-20px_rgba(15,20,16,0.4)] p-1.5"
+        >
+          <button
+            type="button"
+            role="option"
+            aria-selected={list.length === 0}
+            onClick={() => { onChange(""); setOpen(false); }}
+            className={row}
+          >
+            <span className={mark(list.length === 0)} aria-hidden="true">
+              {list.length === 0 && <Check size={10} strokeWidth={3} />}
+            </span>
+            {allLabel}
+          </button>
+          <div className="h-px bg-line my-1" aria-hidden="true" />
+          {opts.map((o) => {
+            const on = list.includes(o);
+            return (
+              <button
+                key={o}
+                type="button"
+                role="option"
+                aria-selected={on}
+                onClick={() => toggle(o)}
+                className={row}
+              >
+                <span className={mark(on)} aria-hidden="true">
+                  {on && <Check size={10} strokeWidth={3} />}
+                </span>
+                <span className="truncate">{o}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── DatePicker — one branded calendar used for every date field, so the
 // app never falls back to the OS's mismatched native picker. Drop-in
 // for <input type="date">: value/onChange are ISO "yyyy-mm-dd" strings
@@ -152,8 +266,8 @@ const DP_MONTH_LABEL = (y, m) =>
   new Date(y, m, 1).toLocaleDateString(undefined, { month: "short" });
 
 export function DatePicker({
-  value, onChange, placeholder, className = inputClasses,
-  min, max, disabled = false,
+  value, onChange, placeholder = undefined, className = inputClasses,
+  min = undefined, max = undefined, disabled = false,
 }) {
   const t = useT();
   const ph = placeholder || t("dp.placeholder");
@@ -748,3 +862,5 @@ export function useTeacherClasses() {
 // api() itself — a bare `export ... from` creates no local binding.
 import { api, ApiError } from "@/shared/lib/apiClient";
 export { api, ApiError };
+import { splitAudience, joinAudience } from "@/shared/lib/audience";
+export { splitAudience, joinAudience };

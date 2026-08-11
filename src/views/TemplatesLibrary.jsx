@@ -161,7 +161,7 @@ export default function TemplatesLibrary({ onNewTemplate, onUseTemplate, onEditT
   const templateExport = (tpl) => (
     <ExportMenu
       compact
-      formats={["pdf", "doc"]}
+      formats={["pdf", "doc", "md"]}
       buildDoc={() =>
         lessonPlanToDoc(
           {

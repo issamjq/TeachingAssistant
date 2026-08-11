@@ -66,7 +66,8 @@ export function Button({
   size = "md",
   fullWidth = false,
   children,
-  style,
+  // Default so TS consumers (.tsx features) see the prop as optional.
+  style = undefined,
   ...props
 }) {
   const cls = [

@@ -9,9 +9,11 @@ import { Button } from "@/components/ui/button";
 import { GRADE_LEVELS } from "@/lib/enums";
 import {
   Field, Modal, inputClasses, selectClasses, api, DatePicker,
+  AudienceSelect, useTeacherClasses,
 } from "@/views/_shared";
 import { fmtTime } from "./timetable";
 import { today } from "@/lib/localDate";
+import { findClash, HHMM } from "@/shared/lib/scheduleClash";
 
 const EMPTY = {
   title: "",
@@ -28,6 +30,7 @@ const EMPTY = {
 
 export default function ScheduleModal({ initial, prefill, onClose, onSaved }) {
   const isNew = !initial;
+  const { grades: teacherGrades, sections: teacherSections } = useTeacherClasses();
   const [form, setForm] = useState(() => {
     // A slot clicked in the grid arrives as `prefill`, so the editor
     // opens on the day and hour the teacher actually pointed at.
@@ -42,6 +45,7 @@ export default function ScheduleModal({ initial, prefill, onClose, onSaved }) {
   });
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState(null);
+  const [conflict, setConflict] = useState(null);
   const [drafts, setDrafts] = useState([]);
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
 
@@ -64,9 +68,24 @@ export default function ScheduleModal({ initial, prefill, onClose, onSaved }) {
     }));
   };
 
-  const submit = async () => {
+  // `opts === true` means the teacher pressed "Save anyway" on the clash
+  // warning — compared with === because the footer button passes the
+  // click event here, which is truthy.
+  const submit = async (opts) => {
+    const ignoreConflict = opts === true;
     setSaving(true);
     setErr(null);
+    // Warn-don't-block: teachers sometimes run parallel activities on
+    // purpose, so a clash is a question, never a refusal.
+    if (!ignoreConflict && form.start_time && form.status !== "cancelled") {
+      const clash = await findClash(form, isNew ? null : initial.id);
+      if (clash) {
+        setConflict(clash);
+        setSaving(false);
+        return;
+      }
+    }
+    setConflict(null);
     try {
       const saved = isNew
         ? await api("/api/schedule", { method: "POST", body: form })
@@ -97,6 +116,27 @@ export default function ScheduleModal({ initial, prefill, onClose, onSaved }) {
           <p className="text-sm text-accent">{err}</p>
         </div>
       )}
+      {conflict && (
+        <div className="mb-4 bg-paper border border-accent rounded-lg p-3">
+          <p className="text-sm text-ink">
+            This clashes with <strong>“{conflict.title}”</strong>
+            {conflict.start_time &&
+              ` (${HHMM(conflict.start_time)}${conflict.end_time ? `–${HHMM(conflict.end_time)}` : ""})`}
+            {conflict.grade && ` for ${conflict.grade}${conflict.section ? ` ${conflict.section}` : ""}`}.
+          </p>
+          <p className="text-xs text-muted mt-1">
+            Running two things in parallel is sometimes the plan — your call.
+          </p>
+          <div className="mt-2.5 flex gap-2">
+            <Button variant="secondary" size="sm" onClick={() => setConflict(null)}>
+              Change the time
+            </Button>
+            <Button size="sm" onClick={() => submit(true)} disabled={saving}>
+              Save anyway
+            </Button>
+          </div>
+        </div>
+      )}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="md:col-span-2">
           <Field label="Link to lesson plan (optional)">
@@ -123,13 +163,25 @@ export default function ScheduleModal({ initial, prefill, onClose, onSaved }) {
           <input className={inputClasses} value={form.subject} onChange={(e) => set("subject", e.target.value)} />
         </Field>
         <Field label="Grade">
-          <select className={selectClasses} value={form.grade} onChange={(e) => set("grade", e.target.value)}>
-            <option value="">—</option>
-            {GRADE_LEVELS.map((g) => <option key={g} value={g}>{g}</option>)}
-          </select>
+          <AudienceSelect
+            value={form.grade}
+            onChange={(v) => set("grade", v)}
+            options={teacherGrades.length ? teacherGrades : GRADE_LEVELS}
+            allLabel="All grades"
+          />
         </Field>
         <Field label="Section">
-          <input className={inputClasses} value={form.section} onChange={(e) => set("section", e.target.value)} />
+          {teacherSections.length ? (
+            <AudienceSelect
+              value={form.section}
+              onChange={(v) => set("section", v)}
+              options={teacherSections}
+              allLabel="All sections"
+            />
+          ) : (
+            // No sections on the profile yet — free text, commas for several.
+            <input className={inputClasses} value={form.section} onChange={(e) => set("section", e.target.value)} />
+          )}
         </Field>
         <Field label="Date">
           <DatePicker value={form.date} onChange={(v) => set("date", v)} />

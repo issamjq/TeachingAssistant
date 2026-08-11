@@ -53,7 +53,7 @@ export default function Quizzes({ onOpenQuiz }) {
     return quizToDoc(full || q, questions || [], t);
   };
   const quizExport = (q) => (
-    <ExportMenu compact formats={["pdf", "doc"]} buildDoc={() => buildQuizDoc(q)} />
+    <ExportMenu compact formats={["pdf", "doc", "md"]} buildDoc={() => buildQuizDoc(q)} />
   );
 
   const confirmDelete = async () => {

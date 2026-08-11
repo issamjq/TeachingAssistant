@@ -76,7 +76,7 @@ export default function ActivityBuilder({ activity, onClose }) {
         </div>
         <div className="flex gap-3 items-center">
           {acId && (
-            <ExportMenu formats={["pdf"]} buildDoc={() => activityToDoc(form, t)} />
+            <ExportMenu formats={["pdf", "md"]} buildDoc={() => activityToDoc(form, t)} />
           )}
           <Button variant="secondary" onClick={onClose}>Back to activities</Button>
           <Button onClick={save} disabled={saving}>

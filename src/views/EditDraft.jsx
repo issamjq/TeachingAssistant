@@ -5,7 +5,7 @@ import { Save, CheckCircle2, Trash2, Plus } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ExportMenu } from "@/components/ui/export-menu";
-import { Field, AttachmentsList, inputClasses, selectClasses, api, useTeacherClasses, DatePicker } from "./_shared";
+import { Field, AttachmentsList, inputClasses, selectClasses, api, useTeacherClasses, DatePicker, AudienceSelect } from "./_shared";
 import { lessonPlanToDoc } from "../lib/toDoc";
 import { useT } from "../lib/i18n";
 
@@ -118,7 +118,7 @@ export default function EditDraft({ draft: initial, onClose, onMarkReady }) {
         <div className="flex gap-3 items-center">
           {form.name && (
             <ExportMenu
-              formats={["pdf", "doc"]}
+              formats={["pdf", "doc", "md"]}
               buildDoc={() => lessonPlanToDoc(form, t)}
             />
           )}
@@ -147,22 +147,22 @@ export default function EditDraft({ draft: initial, onClose, onMarkReady }) {
                   <input className={inputClasses} value={form.subject} onChange={(e) => set("subject", e.target.value)} />
                 </Field>
                 <Field label="Grade">
-                  <select className={selectClasses} value={form.grade || ""} onChange={(e) => set("grade", e.target.value)}>
-                    <option value="">{teacherGrades.length ? "—" : "No grades on your profile"}</option>
-                    {teacherGrades.map((g) => <option key={g} value={g}>{g}</option>)}
-                    {form.grade && !teacherGrades.includes(form.grade) && (
-                      <option value={form.grade}>{form.grade}</option>
-                    )}
-                  </select>
+                  <AudienceSelect
+                    value={form.grade || ""}
+                    onChange={(v) => set("grade", v)}
+                    options={teacherGrades}
+                    allLabel="All grades"
+                    emptyNote="No grades on your profile"
+                  />
                 </Field>
                 <Field label="Section">
-                  <select className={selectClasses} value={form.section || ""} onChange={(e) => set("section", e.target.value)}>
-                    <option value="">{teacherSections.length ? "—" : "No sections on your profile"}</option>
-                    {teacherSections.map((s) => <option key={s} value={s}>{s}</option>)}
-                    {form.section && !teacherSections.includes(form.section) && (
-                      <option value={form.section}>{form.section}</option>
-                    )}
-                  </select>
+                  <AudienceSelect
+                    value={form.section || ""}
+                    onChange={(v) => set("section", v)}
+                    options={teacherSections}
+                    allLabel="All sections"
+                    emptyNote="No sections on your profile"
+                  />
                 </Field>
                 <Field label="Duration (minutes)">
                   <input type="number" className={inputClasses} value={form.duration_minutes ?? ""} onChange={(e) => set("duration_minutes", e.target.value === "" ? null : Number(e.target.value))} />

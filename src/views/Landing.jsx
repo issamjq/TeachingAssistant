@@ -16,6 +16,7 @@ import {
   useAccount, setAccount, clearAccount,
   getPendingProfile, clearPendingProfile,
   getPendingSchools, clearPendingSchools,
+  getPendingStudents, clearPendingStudents,
 } from "../lib/account";
 import { api as apiFetch } from "./_shared";
 import { setSessionId, clearSessionId } from "../lib/session";
@@ -2259,7 +2260,11 @@ function OnboardingPage({ onChoosePlan, onPage }) {
     setPickingPlan(planId);
     setSetupStage("account");
     try {
-      await onChoosePlan(planId);
+      // The stage setter rides along so the handler (which lives in
+      // Landing, a different component) can advance the overlay. It used
+      // to call a setSetupStage that was not in its scope — a
+      // ReferenceError the moment a teacher picked a plan.
+      await onChoosePlan(planId, setSetupStage);
       // On success the studio opens and this component unmounts — the
       // setPickingPlan(null) below never runs. On failure (alert in the
       // handler), we drop back here and clear so the user can retry.
@@ -3010,7 +3015,7 @@ export default function Landing({ onOpenStudio, heroVariant = null }) {
   const handleProfileDone = () => {
     goPage("onboarding");
   };
-  const handleChoosePlan = async (plan) => {
+  const handleChoosePlan = async (plan, setSetupStage = () => {}) => {
     const profile = getPendingProfile() || undefined;
     const pendingSchools = getPendingSchools() || [];
 
@@ -3137,6 +3142,35 @@ export default function Landing({ onOpenStudio, heroVariant = null }) {
       console.warn("Failed to attach schools during sign-up:", e);
     }
     clearPendingSchools();
+
+    // Persist the roster imported during onboarding's CSV step. The rows
+    // sat in localStorage because the CSV upload runs before the account
+    // exists — this is the only place they reach the database. Straight
+    // browser→Supabase inserts (RLS scopes them to this teacher); the
+    // API service is not involved. Non-fatal: a failed row is logged and
+    // the teacher can re-import from My students.
+    const pendingStudents = getPendingStudents() || [];
+    if (pendingStudents.length > 0) {
+      setSetupStage("students");
+      for (const st of pendingStudents) {
+        try {
+          await apiFetch("/api/students", {
+            method: "POST",
+            body: {
+              first_name: st.firstName,
+              last_name: st.lastName,
+              grade: st.grade || undefined,
+              section: st.section || undefined,
+              student_id: st.studentId || undefined,
+              primary_guardian_email: st.parentEmail || undefined,
+            },
+          });
+        } catch (e) {
+          console.warn(`Failed to import student ${st.firstName} ${st.lastName}:`, e);
+        }
+      }
+    }
+    clearPendingStudents();
     setPendingAuthUser(null);
 
     // Final stage. The overlay stays mounted through the handoff — it is

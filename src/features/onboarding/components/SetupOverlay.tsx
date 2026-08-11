@@ -27,13 +27,14 @@ import styles from "./SetupOverlay.module.css";
 // handleChoosePlan — so the progress shown is honest rather than a timed
 // animation pretending to be work.
 
-export const SETUP_STAGES = ["account", "profile", "schools", "studio"] as const;
+export const SETUP_STAGES = ["account", "profile", "schools", "students", "studio"] as const;
 export type SetupStage = (typeof SETUP_STAGES)[number];
 
 const STAGE_LABEL: Record<SetupStage, TranslationKey> = {
   account: "setup.step.account",
   profile: "setup.step.profile",
   schools: "setup.step.schools",
+  students: "setup.step.students",
   studio: "setup.step.studio",
 };
 

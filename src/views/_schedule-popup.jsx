@@ -9,12 +9,16 @@ import React, { useState, useCallback, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { useMounted } from "../shared/hooks/useMounted";
 import { X } from "lucide-react";
-import { api, inputClasses, selectClasses, DatePicker } from "./_shared";
+import { api, inputClasses, selectClasses, DatePicker, AudienceSelect } from "./_shared";
 import { today as localToday } from "@/lib/localDate";
+import { findClash, HHMM } from "@/shared/lib/scheduleClash";
 
 export default function SchedulePopup({
   initial,
   defaultDate,
+  // Field values to seed a NEW entry with (the assistant's hand-off, a
+  // clicked slot, …). Ignored when editing.
+  prefill = null,
   teacherGrades = [],
   teacherSections = [],
   onClose,
@@ -31,6 +35,7 @@ export default function SchedulePopup({
         title: "", subject: "", grade: "", section: "",
         date: defaultDate || today, status: "planned",
         start_time: "", end_time: "", notes: "",
+        ...(prefill || {}),
       };
     }
     return {
@@ -48,6 +53,7 @@ export default function SchedulePopup({
   const [form, setForm] = useState(initialForm);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState(null);
+  const [conflict, setConflict] = useState(null);
   const [showDiscard, setShowDiscard] = useState(false);
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
 
@@ -68,7 +74,11 @@ export default function SchedulePopup({
     };
   }, [attemptClose]);
 
-  const submit = async () => {
+  // `opts === true` means the teacher pressed "Save anyway" on the
+  // clash warning. Compared with === because the footer button passes
+  // the click event here, which is truthy.
+  const submit = async (opts) => {
+    const ignoreConflict = opts === true;
     setSaving(true);
     setErr(null);
     // Empty strings for TIME columns trip Postgres' type cast; turn them
@@ -78,6 +88,17 @@ export default function SchedulePopup({
       start_time: form.start_time || null,
       end_time: form.end_time || null,
     };
+    // Teachers sometimes run parallel activities on purpose, so a clash
+    // is a question, never a refusal.
+    if (!ignoreConflict && payload.start_time && payload.status !== "cancelled") {
+      const clash = await findClash(payload, isEdit ? initial.id : null);
+      if (clash) {
+        setConflict(clash);
+        setSaving(false);
+        return;
+      }
+    }
+    setConflict(null);
     try {
       if (isEdit) {
         await api(`/api/schedule/${initial.id}`, { method: "PATCH", body: payload });
@@ -168,6 +189,36 @@ export default function SchedulePopup({
               <p className="text-sm text-accent">{err}</p>
             </div>
           )}
+          {conflict && (
+            <div className="mb-3 bg-paper border border-accent rounded-lg p-3">
+              <p className="text-sm text-ink">
+                This clashes with <strong>“{conflict.title}”</strong>
+                {conflict.start_time &&
+                  ` (${HHMM(conflict.start_time)}${conflict.end_time ? `–${HHMM(conflict.end_time)}` : ""})`}
+                {conflict.grade && ` for ${conflict.grade}${conflict.section ? ` ${conflict.section}` : ""}`}.
+              </p>
+              <p className="text-xs text-muted mt-1">
+                Running two things in parallel is sometimes the plan — your call.
+              </p>
+              <div className="mt-2.5 flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setConflict(null)}
+                  className="planner-nav-btn px-3 py-1.5 rounded-lg border border-line bg-paper-cool hover:border-ink hover:bg-paper-warm text-xs text-ink"
+                >
+                  Change the time
+                </button>
+                <button
+                  type="button"
+                  onClick={() => submit(true)}
+                  disabled={saving}
+                  className="planner-nav-btn px-3 py-1.5 rounded-lg bg-ink text-paper-cool text-xs font-medium hover:bg-ink-soft disabled:opacity-50"
+                >
+                  Save anyway
+                </button>
+              </div>
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-x-4 gap-y-3">
             <SerifField label="Title" wide>
               <input className={inputClasses} value={form.title} onChange={(e) => set("title", e.target.value)} />
@@ -176,30 +227,22 @@ export default function SchedulePopup({
               <input className={inputClasses} value={form.subject} onChange={(e) => set("subject", e.target.value)} />
             </SerifField>
             <SerifField label="Grade">
-              <select
-                className={selectClasses}
+              <AudienceSelect
                 value={form.grade}
-                onChange={(e) => set("grade", e.target.value)}
-              >
-                <option value="">{teacherGrades.length ? "—" : "No grades on your profile"}</option>
-                {teacherGrades.map((g) => <option key={g} value={g}>{g}</option>)}
-                {form.grade && !teacherGrades.includes(form.grade) && (
-                  <option value={form.grade}>{form.grade}</option>
-                )}
-              </select>
+                onChange={(v) => set("grade", v)}
+                options={teacherGrades}
+                allLabel="All grades"
+                emptyNote="No grades on your profile"
+              />
             </SerifField>
             <SerifField label="Section">
-              <select
-                className={selectClasses}
+              <AudienceSelect
                 value={form.section}
-                onChange={(e) => set("section", e.target.value)}
-              >
-                <option value="">{teacherSections.length ? "—" : "No sections on your profile"}</option>
-                {teacherSections.map((s) => <option key={s} value={s}>{s}</option>)}
-                {form.section && !teacherSections.includes(form.section) && (
-                  <option value={form.section}>{form.section}</option>
-                )}
-              </select>
+                onChange={(v) => set("section", v)}
+                options={teacherSections}
+                allLabel="All sections"
+                emptyNote="No sections on your profile"
+              />
             </SerifField>
             <SerifField label="Date">
               <DatePicker value={form.date} onChange={(v) => set("date", v)} />

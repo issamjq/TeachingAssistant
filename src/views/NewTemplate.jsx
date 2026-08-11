@@ -4,7 +4,7 @@ import React, { useState } from "react";
 import { X, Sparkles } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { SubjectBadge, Section, Field, FilePill, inputClasses, selectClasses, api, useTeacherClasses } from "./_shared";
+import { SubjectBadge, Section, Field, FilePill, inputClasses, selectClasses, api, useTeacherClasses, AudienceSelect, splitAudience } from "./_shared";
 
 const initialStages = [
   { id: 1, name: "Warm-up", duration: 5, note: "Quick recap of last lesson, vocabulary check." },
@@ -46,7 +46,8 @@ export default function NewTemplate({ onCancel, onSave }) {
     setSaveErr(null);
     try {
       const durationInt = parseInt(String(duration).match(/\d+/)?.[0] || "0", 10);
-      const gradeShort = grade.replace(/^Grade\s+/i, "");
+      // "Grade 6, Grade 7" → "6, 7" — strip the word from each item.
+      const gradeShort = splitAudience(grade).map((g) => g.replace(/^Grade\s+/i, "")).join(", ");
       const flow = stages
         .filter((s) => s.name?.trim())
         .map((s) => s.name)
@@ -125,13 +126,13 @@ export default function NewTemplate({ onCancel, onSave }) {
                 </select>
               </Field>
               <Field label="Grade level">
-                <select value={grade} onChange={(e) => setGrade(e.target.value)} className={selectClasses}>
-                  <option value="">{teacherGrades.length ? "—" : "No grades on your profile"}</option>
-                  {teacherGrades.map((g) => <option key={g} value={g}>{g}</option>)}
-                  {grade && !teacherGrades.includes(grade) && (
-                    <option value={grade}>{grade}</option>
-                  )}
-                </select>
+                <AudienceSelect
+                  value={grade}
+                  onChange={setGrade}
+                  options={teacherGrades}
+                  allLabel="All grades"
+                  emptyNote="No grades on your profile"
+                />
               </Field>
               <Field label="Duration">
                 <select value={duration} onChange={(e) => setDuration(e.target.value)} className={selectClasses}>

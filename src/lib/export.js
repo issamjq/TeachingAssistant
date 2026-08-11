@@ -124,6 +124,57 @@ export function printDoc(doc) {
   setTimeout(() => window.print(), 40);
 }
 
+// ── Markdown (.md) ─────────────────────────────────────────────────────
+// The third format: clean plain text that pastes anywhere — an LMS, an
+// email, a wiki. Same doc model, no dependency, no network, instant.
+function blockToMd(b) {
+  switch (b?.type) {
+    case "heading":
+      return `${"#".repeat(Math.min(Math.max(b.level || 2, 1), 4))} ${b.text || ""}`;
+    case "paragraph":
+      return String(b.text || "");
+    case "note":
+      return `> *${String(b.text || "").replace(/\r?\n/g, "\n> ")}*`;
+    case "list": {
+      const items = (b.items || []).filter((it) => it != null && String(it).trim() !== "");
+      return items.map((it, i) => (b.ordered ? `${i + 1}. ${it}` : `- ${it}`)).join("\n");
+    }
+    case "qa": {
+      const marks =
+        b.marks != null
+          ? ` *(${b.marks} ${b.marksLabel || (b.marks == 1 ? "mark" : "marks")})*`
+          : "";
+      const lines = [`**${b.n}.** ${b.prompt || ""}${marks}`];
+      (b.choices || []).forEach((c, i) => lines.push(`   ${String.fromCharCode(65 + i)}. ${c}`));
+      if (b.answer) lines.push(`   **${b.answerLabel || "Answer"}:** ${b.answer}`);
+      return lines.join("\n");
+    }
+    case "divider":
+      return "---";
+    default:
+      return "";
+  }
+}
+
+/** The doc as Markdown text. Pure — no DOM, so it can be checked on its own. */
+export function docToMarkdown(doc) {
+  const lines = [`# ${doc.title || "Untitled"}`];
+  if (doc.subtitle) lines.push(`*${doc.subtitle}*`);
+  const meta = (doc.meta || []).filter((m) => m && m.value != null && String(m.value).trim() !== "");
+  if (meta.length) lines.push(meta.map((m) => `**${m.label}:** ${m.value}`).join(" · "));
+  for (const b of doc.blocks || []) {
+    const md = blockToMd(b);
+    if (md) lines.push(md);
+  }
+  lines.push("---", doc.footer || "Made with Murchid");
+  return lines.join("\n\n") + "\n";
+}
+
+export function exportMarkdown(doc) {
+  const blob = new Blob([docToMarkdown(doc)], { type: "text/markdown;charset=utf-8" });
+  downloadBlob(blob, `${sanitizeFilename(doc.title)}.md`);
+}
+
 // ── Word (.docx) ───────────────────────────────────────────────────────
 const sanitizeFilename = (s) =>
   String(s || "Murchid document")

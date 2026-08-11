@@ -52,7 +52,7 @@ export default function Activities({ onOpenActivity }) {
   const activityExport = (a) => (
     <ExportMenu
       compact
-      formats={["pdf"]}
+      formats={["pdf", "md"]}
       buildDoc={async () => activityToDoc(await api(`/api/activities/${a.id}`).catch(() => a), t)}
     />
   );

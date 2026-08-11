@@ -44,7 +44,7 @@ export default function Homework({ onOpenHomework }) {
   const hwExport = (h) => (
     <ExportMenu
       compact
-      formats={["pdf", "doc"]}
+      formats={["pdf", "doc", "md"]}
       buildDoc={async () => homeworkToDoc(await api(`/api/homework/${h.id}`).catch(() => h), t)}
     />
   );

@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { ExportMenu } from "@/components/ui/export-menu";
 import {
   Field, AttachmentsList, inputClasses, selectClasses, api,
-  useTeacherClasses, DatePicker,
+  useTeacherClasses, DatePicker, AudienceSelect,
 } from "./_shared";
 import { homeworkToDoc } from "../lib/toDoc";
 import { useT } from "../lib/i18n";
@@ -80,7 +80,7 @@ export default function HomeworkBuilder({ homework, onClose }) {
         <div className="flex gap-3 items-center">
           {hwId && (
             <ExportMenu
-              formats={["pdf", "doc"]}
+              formats={["pdf", "doc", "md"]}
               buildDoc={() => homeworkToDoc(form, t)}
             />
           )}
@@ -110,22 +110,22 @@ export default function HomeworkBuilder({ homework, onClose }) {
               <input className={inputClasses} value={form.subject} onChange={(e) => set("subject", e.target.value)} />
             </Field>
             <Field label="Grade">
-              <select className={selectClasses} value={form.grade} onChange={(e) => set("grade", e.target.value)}>
-                <option value="">{teacherGrades.length ? "—" : "No grades on your profile"}</option>
-                {teacherGrades.map((g) => <option key={g} value={g}>{g}</option>)}
-                {form.grade && !teacherGrades.includes(form.grade) && (
-                  <option value={form.grade}>{form.grade}</option>
-                )}
-              </select>
+              <AudienceSelect
+                value={form.grade}
+                onChange={(v) => set("grade", v)}
+                options={teacherGrades}
+                allLabel="All grades"
+                emptyNote="No grades on your profile"
+              />
             </Field>
             <Field label="Section">
-              <select className={selectClasses} value={form.section} onChange={(e) => set("section", e.target.value)}>
-                <option value="">{teacherSections.length ? "—" : "No sections on your profile"}</option>
-                {teacherSections.map((s) => <option key={s} value={s}>{s}</option>)}
-                {form.section && !teacherSections.includes(form.section) && (
-                  <option value={form.section}>{form.section}</option>
-                )}
-              </select>
+              <AudienceSelect
+                value={form.section}
+                onChange={(v) => set("section", v)}
+                options={teacherSections}
+                allLabel="All sections"
+                emptyNote="No sections on your profile"
+              />
             </Field>
             <Field label="Due date">
               <DatePicker value={form.due_date} onChange={(v) => set("due_date", v)} />

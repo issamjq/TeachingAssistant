@@ -93,10 +93,9 @@ export const clearPendingProfile = (): void => {
 };
 
 // Pending student roster from onboarding's CSV-upload step. Survives
-// the plan-picker step and gets POSTed to /api/students the first time
-// the teacher opens My students (server-side). For
-// now, lives in localStorage so the planner's My-students view can
-// surface what was imported during onboarding.
+// the plan-picker step; Landing's handleChoosePlan flushes it to
+// /api/students (browser→Supabase inserts) right after the schools are
+// attached, then clears it.
 const STUDENTS_KEY = "murchid.students.pending";
 export const setPendingStudents = (rows: unknown[]): void => {
   try { localStorage.setItem(STUDENTS_KEY, JSON.stringify(rows || [])); }

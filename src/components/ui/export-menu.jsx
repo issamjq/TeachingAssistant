@@ -1,13 +1,13 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
-import { Download, FileText, FileType2, Loader2 } from "lucide-react";
-import { printDoc, exportDocx } from "../../lib/export";
+import { Download, FileCode2, FileText, FileType2, Loader2 } from "lucide-react";
+import { printDoc, exportDocx, exportMarkdown } from "../../lib/export";
 import { useT } from "../../lib/i18n";
 
 // Export control shared by every teaching surface.
 //
-//   formats  — ["pdf"] or ["pdf","doc"] (Word). Controls which options show.
+//   formats  — any of ["pdf","doc","md"]. Controls which options show.
 //   buildDoc — () => doc | Promise<doc>; produces the normalized doc model
 //              (see src/lib/export.js). Builders pass current state; list
 //              rows pass an async loader that fetches the full item first.
@@ -41,6 +41,7 @@ export function ExportMenu({ formats = ["pdf"], buildDoc, compact = false, class
       const doc = await buildDoc();
       if (!doc) return;
       if (fmt === "doc") await exportDocx(doc);
+      else if (fmt === "md") exportMarkdown(doc);
       else printDoc(doc);
     } catch (e) {
       console.error("Export failed", e);
@@ -101,6 +102,15 @@ export function ExportMenu({ formats = ["pdf"], buildDoc, compact = false, class
               className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-[13px] text-ink hover:bg-paper-warm transition text-left"
             >
               <FileType2 size={14} className="text-sage" /> {lbl("word", "Word")}
+            </button>
+          )}
+          {formats.includes("md") && (
+            <button
+              type="button"
+              onClick={() => run("md")}
+              className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-[13px] text-ink hover:bg-paper-warm transition text-left"
+            >
+              <FileCode2 size={14} className="text-ink-soft" /> {lbl("markdown", "Markdown")}
             </button>
           )}
         </div>

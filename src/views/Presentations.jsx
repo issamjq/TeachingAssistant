@@ -50,7 +50,7 @@ export default function Presentations({ onOpenPresentation }) {
   const presExport = (p) => (
     <ExportMenu
       compact
-      formats={["pdf"]}
+      formats={["pdf", "md"]}
       buildDoc={async () => {
         const row = await api(`/api/presentations/${p.id}`).catch(() => p);
         const deck = deckFromPresentation(row);

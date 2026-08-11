@@ -5,7 +5,7 @@ import { Plus, Trash2, Scale } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ExportMenu } from "@/components/ui/export-menu";
-import { Field, inputClasses, selectClasses, api, useTeacherClasses, DatePicker } from "./_shared";
+import { Field, inputClasses, selectClasses, api, useTeacherClasses, DatePicker, AudienceSelect } from "./_shared";
 import { quizToDoc } from "../lib/toDoc";
 import { useT } from "../lib/i18n";
 
@@ -221,7 +221,7 @@ export default function QuizBuilder({ quiz, onClose }) {
         <div className="flex gap-3 items-center">
           {quizId && (
             <ExportMenu
-              formats={["pdf", "doc"]}
+              formats={["pdf", "doc", "md"]}
               buildDoc={() => quizToDoc(meta, questions, t)}
             />
           )}
@@ -251,22 +251,22 @@ export default function QuizBuilder({ quiz, onClose }) {
               <input className={inputClasses} value={meta.subject} onChange={(e) => setMetaField("subject", e.target.value)} />
             </Field>
             <Field label="Grade">
-              <select className={selectClasses} value={meta.grade} onChange={(e) => setMetaField("grade", e.target.value)}>
-                <option value="">{teacherGrades.length ? "—" : "No grades on your profile"}</option>
-                {teacherGrades.map((g) => <option key={g} value={g}>{g}</option>)}
-                {meta.grade && !teacherGrades.includes(meta.grade) && (
-                  <option value={meta.grade}>{meta.grade}</option>
-                )}
-              </select>
+              <AudienceSelect
+                value={meta.grade}
+                onChange={(v) => setMetaField("grade", v)}
+                options={teacherGrades}
+                allLabel="All grades"
+                emptyNote="No grades on your profile"
+              />
             </Field>
             <Field label="Section">
-              <select className={selectClasses} value={meta.section} onChange={(e) => setMetaField("section", e.target.value)}>
-                <option value="">{teacherSections.length ? "—" : "No sections on your profile"}</option>
-                {teacherSections.map((s) => <option key={s} value={s}>{s}</option>)}
-                {meta.section && !teacherSections.includes(meta.section) && (
-                  <option value={meta.section}>{meta.section}</option>
-                )}
-              </select>
+              <AudienceSelect
+                value={meta.section}
+                onChange={(v) => setMetaField("section", v)}
+                options={teacherSections}
+                allLabel="All sections"
+                emptyNote="No sections on your profile"
+              />
             </Field>
             <Field label="Status">
               <select className={selectClasses} value={meta.status} onChange={(e) => setMetaField("status", e.target.value)}>
