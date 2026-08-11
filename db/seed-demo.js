@@ -37,7 +37,7 @@ import "dotenv/config";
 import { pool } from "./client.js";
 import {
   TEACHER, CLASSES, STUDENTS, TIMETABLE, LESSON_ROTATION,
-  ARTIFACTS, MATERIALS, GOALS, SKILLS, NOTIFICATIONS, THREADS,
+  ARTIFACTS, MATERIALS, GOALS, SKILLS, NOTIFICATIONS, THREADS, BULLETIN,
 } from "./demo-data.js";
 
 const args = process.argv.slice(2);
@@ -123,6 +123,7 @@ async function seedDemo() {
   await handOut(fid, artifacts, classIds, students);
   await materials(fid);
   await goals(fid);
+  await bulletin(fid);
   await skills(fid);
   await notifications(user.id);
   await threads(user.id);
@@ -152,6 +153,7 @@ async function wipe(fid, userId) {
     ["ai_studio",     `faculty_id = $1`],
     ["materials",     `faculty_id = $1`],
     ["goals",         `faculty_id = $1`],
+    ["bulletin_posts", `faculty_id = $1`],
     ["teaching_skills", `faculty_id = $1`],
     ["faculty_schools", `faculty_id = $1`],
   ];
@@ -539,6 +541,22 @@ async function goals(fid) {
     );
   }
   console.log(`   ${GOALS.length} goals`);
+}
+
+async function bulletin(fid) {
+  for (const p of BULLETIN) {
+    const at = weeksAgo(p.w);
+    await q(
+      `INSERT INTO public.bulletin_posts
+         (faculty_id, title, body, kind, status, pinned, grade, section, event_on, expires_on, created_at, updated_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$11)`,
+      [fid, p.title, p.body || null, p.kind, p.status || "published", !!p.pinned,
+       p.grade || null, p.section || null,
+       p.eventInDays != null ? day(p.eventInDays) : null,
+       p.expiresInDays != null ? day(p.expiresInDays) : null, at],
+    );
+  }
+  console.log(`   ${BULLETIN.length} bulletin posts`);
 }
 
 async function skills(fid) {

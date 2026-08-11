@@ -221,6 +221,13 @@ export async function resolve(
       if (a && method === "DELETE") return yes(await E.deleteGoal(a));
       return { handled: false };
 
+    case "bulletin":
+      if (!a && method === "GET") return yes(await E.listBulletin(q));
+      if (!a && method === "POST") return yes(await E.createBulletin(body));
+      if (a && method === "PATCH") return yes(await E.updateBulletin(a, body));
+      if (a && method === "DELETE") return yes(await E.deleteBulletin(a));
+      return { handled: false };
+
     case "library":
       if (!a && method === "GET") return yes(await E.listLibrary());
       if (!a && method === "POST") return yes(await E.createLibrary(body));

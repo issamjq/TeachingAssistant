@@ -476,6 +476,33 @@ export const NOTIFICATIONS = [
     body: "Chemistry has the 09:00 slot. Practical: friction may need moving.", link: "/schedule" },
 ];
 
+/**
+ * The bulletin board — a term's worth of notices in believable states:
+ * pinned, audience-scoped, dated, expired, and one archived. `w` is
+ * weeks ago (creation), event/expiry dates are days from today so the
+ * board always shows something upcoming.
+ */
+export const BULLETIN = [
+  { kind: "notice", w: 0.5, pinned: true,
+    title: "Safety goggles are now mandatory in every practical",
+    body: "The new boxes are in the cupboard by the door of Lab 2. If a pair does not fit, tell me before the lesson, not during it." },
+  { kind: "event", w: 1, grade: "Grade 9", section: "A", eventInDays: 9,
+    title: "Science fair — hall slots close next week",
+    body: "One entry per pair. The sign-up sheet is on the door of Lab 2; projects need a risk line before they book a bench." },
+  { kind: "reminder", w: 0, grade: "Grade 10", section: "A", expiresInDays: 5,
+    title: "Calculators for Sunday's mid-unit check",
+    body: "Scientific, not graphing. Spares exist but there are four of them, and twenty-six of you." },
+  { kind: "event", w: 2, eventInDays: 14, pinned: true,
+    title: "Parent–teacher evening — Thursday the week after next",
+    body: "Ten-minute slots, booked through the office. Bring your lab notebook if we are going to talk about practical marks." },
+  { kind: "celebration", w: 2, grade: "Grade 11", section: "B",
+    title: "Physics 11B — best attendance in the department this term",
+    body: "Twenty-two of twenty-six above 95%. The bar for next term is set." },
+  { kind: "notice", w: 6, status: "archived",
+    title: "Lab 2 closed for recalibration during week 3",
+    body: "Practicals moved to Lab 1 for the week. Timetable on the notice board outside." },
+];
+
 /** Studio threads, so the Recent rail has a history worth scrolling. */
 export const THREADS = [
   {

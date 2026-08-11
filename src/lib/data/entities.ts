@@ -865,6 +865,72 @@ export async function deleteGoal(id: string) {
   return { ok: true };
 }
 
+// ── bulletin board ────────────────────────────────────────────────────
+//
+// Notices a teacher pins up: field trips, exam weeks, birthdays. Plain
+// rows, not artifacts — see the note on section 19b of db/tune.sql.
+// Audience is grade + section text (null = the whole board), the same
+// vocabulary schedule_entries uses.
+
+const BULLETIN_COLS =
+  "id, title, body, kind, status, pinned, grade, section, event_on, expires_on, created_at, updated_at";
+
+export async function listBulletin(q: URLSearchParams) {
+  let query = supabase
+    .from("bulletin_posts")
+    .select(BULLETIN_COLS)
+    .order("pinned", { ascending: false })
+    .order("created_at", { ascending: false });
+  const status = q.get("status");
+  if (status) query = query.eq("status", status);
+  const { data, error } = await query;
+  if (error) throw error;
+  return data || [];
+}
+
+export async function createBulletin(body: Record<string, any>) {
+  const fid = await facultyId();
+  const { title, kind, grade, section, event_on, expires_on, pinned } = body || {};
+  if (!title?.trim()) throw Object.assign(new Error("Give the post a title."), { status: 400 });
+  const { data, error } = await supabase
+    .from("bulletin_posts")
+    .insert({
+      faculty_id: fid,
+      title: title.trim(),
+      body: body?.body?.trim() || null,
+      kind: kind || "notice",
+      pinned: !!pinned,
+      grade: grade || null,
+      section: section || null,
+      event_on: event_on || null,
+      expires_on: expires_on || null,
+    })
+    .select(BULLETIN_COLS).single();
+  if (error) throw error;
+  return data;
+}
+
+export async function updateBulletin(id: string, body: Record<string, any>) {
+  const patch: Record<string, any> = { updated_at: iso() };
+  for (const k of ["title", "body", "kind", "status", "pinned", "grade", "section", "event_on", "expires_on"]) {
+    if (body?.[k] !== undefined) patch[k] = body[k];
+  }
+  const { data, error } = await supabase
+    .from("bulletin_posts").update(patch).eq("id", id)
+    .select(BULLETIN_COLS).maybeSingle();
+  if (error) throw error;
+  if (!data) throw notFound();
+  return data;
+}
+
+export async function deleteBulletin(id: string) {
+  const { error, count } = await supabase
+    .from("bulletin_posts").delete({ count: "exact" }).eq("id", id);
+  if (error) throw error;
+  if (!count) throw notFound();
+  return { ok: true };
+}
+
 // ── sign-in ───────────────────────────────────────────────────────────
 
 /**

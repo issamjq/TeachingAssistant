@@ -709,6 +709,72 @@ BEGIN
 END $$;
 
 
+-- ── 19b. The bulletin board ───────────────────────────────────────────
+--
+-- Notices a teacher pins up for a class: a field-trip reminder, exam
+-- week, a birthday. Same argument as section 11: a post is a fact about
+-- the class, not generated work, so it does not belong in ai_studio —
+-- and its vocabulary (published, pinned, expires) would collide with
+-- the generation lifecycle CHECK there.
+--
+-- Audience is grade + section text, matching schedule_entries: null
+-- means the whole board, and the forms offer only what this teacher
+-- actually teaches.
+CREATE TABLE IF NOT EXISTS public.bulletin_posts (
+  id         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  faculty_id uuid NOT NULL REFERENCES public.faculty(id) ON DELETE CASCADE,
+  title      text NOT NULL,
+  body       text,
+  kind       text NOT NULL DEFAULT 'notice',
+  status     text NOT NULL DEFAULT 'published',
+  pinned     boolean NOT NULL DEFAULT false,
+  grade      text,
+  section    text,
+  event_on   date,
+  expires_on date,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS bulletin_faculty_idx
+  ON public.bulletin_posts (faculty_id, created_at DESC);
+
+-- The section-8 vocabulary driver has already run by the time this table
+-- exists on a fresh database, so its checks live here instead.
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint
+                 WHERE conname = 'bulletin_posts_kind_check'
+                   AND connamespace = 'public'::regnamespace) THEN
+    ALTER TABLE public.bulletin_posts ADD CONSTRAINT bulletin_posts_kind_check
+      CHECK (kind IN ('notice','event','reminder','celebration'));
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint
+                 WHERE conname = 'bulletin_posts_status_check'
+                   AND connamespace = 'public'::regnamespace) THEN
+    ALTER TABLE public.bulletin_posts ADD CONSTRAINT bulletin_posts_status_check
+      CHECK (status IN ('published','archived'));
+  END IF;
+END $$;
+
+ALTER TABLE public.bulletin_posts ENABLE ROW LEVEL SECURITY;
+-- Transient: section 27 drops every policy on this table and installs
+-- the device + subscription gated set. This one covers the window in
+-- between, mirroring uploaded_images above.
+DROP POLICY IF EXISTS bulletin_posts_owner ON public.bulletin_posts;
+CREATE POLICY bulletin_posts_owner ON public.bulletin_posts
+  FOR ALL TO authenticated
+  USING (faculty_id = current_faculty_id()) WITH CHECK (faculty_id = current_faculty_id());
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_trigger
+                 WHERE tgrelid = 'public.bulletin_posts'::regclass
+                   AND tgname = 'set_updated_at' AND NOT tgisinternal) THEN
+    CREATE TRIGGER set_updated_at BEFORE UPDATE ON public.bulletin_posts
+      FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+  END IF;
+END $$;
+
+
 -- ── 20. Reporting projections for the admin consoles ──────────────────
 --
 -- admin, dev, moe, owner and superadmin are 1,243 lines of read-only
@@ -1071,6 +1137,7 @@ BEGIN
       ('goals',             'faculty_id = current_faculty_id()'),
       ('teaching_skills',   'faculty_id = current_faculty_id()'),
       ('uploaded_images',   'faculty_id = current_faculty_id()'),
+      ('bulletin_posts',    'faculty_id = current_faculty_id()'),
       ('faculty_schools',   'faculty_id = current_faculty_id()'),
       ('students',
        'created_by = current_faculty_id() OR EXISTS (SELECT 1 FROM class_members cm JOIN classes c ON c.id = cm.class_id WHERE cm.student_id = students.id AND c.faculty_id = current_faculty_id())'),

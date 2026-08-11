@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
-import ComingSoon from "@/features/studio-shell/ComingSoon";
+import { BulletinBoardRoute } from "@/features/bulletin-board";
 
 export const metadata: Metadata = { title: "Bulletin board — Murchid" };
 
 export default function BulletinBoardPage() {
-  return <ComingSoon section="bulletin-board" label="Bulletin board" />;
+  return <BulletinBoardRoute />;
 }

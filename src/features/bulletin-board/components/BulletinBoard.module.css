@@ -1,0 +1,47 @@
+/* Corkboard character: alternating cards sit a hair off square, and a
+   pinned card gets a brass pin-head at its top edge. The tilt is
+   decorative only — it straightens while a card is being read, and is
+   removed entirely under reduced motion. */
+
+.note {
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+  /* The kind's hue as a quiet top rule — enough to tell notes apart
+     when scanning, without turning the board into a colour chart. */
+  border-top: 2px solid color-mix(in srgb, var(--tint, var(--p-line)) 55%, transparent);
+}
+
+.board .note:nth-child(4n + 1) { transform: rotate(-0.4deg); }
+.board .note:nth-child(4n + 2) { transform: rotate(0.3deg); }
+.board .note:nth-child(4n + 3) { transform: rotate(0.45deg); }
+.board .note:nth-child(4n)     { transform: rotate(-0.3deg); }
+
+.board .note:hover,
+.board .note:focus-within {
+  transform: rotate(0deg) translateY(-2px);
+  box-shadow: var(--shadow-2);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .board .note,
+  .board .note:hover,
+  .board .note:focus-within {
+    transform: none;
+    transition: none;
+  }
+}
+
+/* The pin-head. Sits half over the card's top edge, centred. */
+.pinned::before {
+  content: "";
+  position: absolute;
+  top: -6px;
+  inset-inline-start: 50%;
+  margin-inline-start: -6px;
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  background:
+    radial-gradient(circle at 35% 30%, rgba(255, 255, 255, 0.55), transparent 55%),
+    var(--p-accent);
+  box-shadow: 0 2px 4px rgba(15, 20, 16, 0.35);
+}
