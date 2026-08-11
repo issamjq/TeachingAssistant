@@ -12,6 +12,9 @@
 //
 //   data: {"type":"session","sessionId":"…"}   chat only, always first
 //   data: {"type":"tool","name":"get_schedule"} chat only, zero or more
+//   data: {"type":"action","action":"navigate","where":"quizzes"}
+//                                               chat only — something the
+//                                               BROWSER must carry out
 //   data: {"type":"delta","text":"Here are "}   the answer, in pieces
 //   data: {"type":"done", …}                    generation adds kind/usage
 //   data: {"type":"error","message":"…"}        in-band; HTTP was 200
@@ -25,11 +28,13 @@ import { API_BASE } from "@/config/env";
 import { ApiError } from "./apiClient";
 
 export interface StreamEvent {
-  type: "session" | "tool" | "delta" | "done" | "error" | string;
+  type: "session" | "tool" | "action" | "delta" | "done" | "error" | string;
   text?: string;
   message?: string;
   name?: string;
   sessionId?: string;
+  /** On `action` frames: what the browser is asked to do. */
+  action?: string;
   [key: string]: unknown;
 }
 
@@ -143,17 +148,31 @@ export interface StreamResult {
   text: string;
   sessionId: string | null;
   tools: string[];
+  /** `action` frames, in arrival order — things the browser must carry out. */
+  actions: StreamEvent[];
   done: StreamEvent | null;
 }
 
 export async function streamText(
   path: string,
   body: unknown,
-  opts: { signal?: AbortSignal; onText?: (full: string, delta: string) => void; onTool?: (name: string) => void } = {},
+  opts: {
+    signal?: AbortSignal;
+    onText?: (full: string, delta: string) => void;
+    onTool?: (name: string) => void;
+    /**
+     * An `action` frame is not part of the prose — it is the assistant
+     * asking the BROWSER to do something (navigate, pre-fill a form,
+     * change an accessibility setting). Dropping one silently makes the
+     * assistant claim it did a thing that never happened.
+     */
+    onAction?: (event: StreamEvent) => void;
+  } = {},
 ): Promise<StreamResult> {
   let text = "";
   let sessionId: string | null = null;
   const tools: string[] = [];
+  const actions: StreamEvent[] = [];
   let done: StreamEvent | null = null;
 
   await streamSSE(path, {
@@ -168,11 +187,14 @@ export async function streamText(
       } else if (e.type === "tool" && e.name) {
         tools.push(e.name);
         opts.onTool?.(e.name);
+      } else if (e.type === "action" && e.action) {
+        actions.push(e);
+        opts.onAction?.(e);
       } else if (e.type === "done") {
         done = e;
       }
     },
   });
 
-  return { text, sessionId, tools, done };
+  return { text, sessionId, tools, actions, done };
 }

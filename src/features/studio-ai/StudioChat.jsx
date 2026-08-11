@@ -58,7 +58,7 @@ const STARTERS = [
 ];
 
 const safeName = (name) =>
-  name.normalize("NFKD").replace(/[^\w.\-]+/g, "-").replace(/-+/g, "-").slice(-80) || "file";
+  name.normalize("NFKD").replace(/[^\w.-]+/g, "-").replace(/-+/g, "-").slice(-80) || "file";
 
 /** Pull a usable title out of whatever came back. */
 /**
@@ -114,6 +114,21 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
     refreshSessions();
     purgeOld();
   }, [refreshSessions]);
+
+  // The assistant's "make me a …" hand-off: seed the composer with the
+  // action's payload so the teacher lands mid-thought rather than at a
+  // blank box. Nothing is generated until they press send.
+  useEffect(() => {
+    import("@/shared/lib/assistantPrefill").then(({ takePrefill }) => {
+      const pre = takePrefill("create_work");
+      if (!pre) return;
+      const text = [pre.prompt, pre.topic, pre.title, pre.description]
+        .find((v) => typeof v === "string" && v.trim());
+      if (text) setDraft(String(text).trim());
+      if (typeof pre.kind === "string" && KIND_META[pre.kind]) setKind(pre.kind);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // A narrow window opens with the rail closed: the studio is already
   // tight there, and a list of last week's work is not what a teacher

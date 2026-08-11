@@ -18,6 +18,7 @@ import {
   api,
   DatePicker,
 } from "./_shared";
+import { takePrefill } from "@/shared/lib/assistantPrefill";
 
 const initials = (first, last) =>
   `${(first || "")[0] || ""}${(last || "")[0] || ""}`.toUpperCase();
@@ -47,6 +48,28 @@ export default function DatabaseStudents() {
   const [editing, setEditing] = useState(null); // student row being edited, or "new"
   const [deleting, setDeleting] = useState(null);
   const [busy, setBusy] = useState(false);
+  // The assistant's "add a student called…" hand-off: collect the parked
+  // payload once, open the new-student form with what it knew. The
+  // teacher still confirms — the assistant never saves.
+  const [prefill, setPrefill] = useState(null);
+  useEffect(() => {
+    const pre = takePrefill("add_student");
+    if (!pre) return;
+    const fields = {};
+    for (const k of ["first_name", "last_name", "student_id", "grade", "section", "email", "gender", "nationality", "notes"]) {
+      if (typeof pre[k] === "string" && pre[k]) fields[k] = pre[k];
+    }
+    // The tool may send one "name" instead of first/last.
+    if (!fields.first_name && typeof pre.name === "string" && pre.name.trim()) {
+      const [first, ...rest] = pre.name.trim().split(/\s+/);
+      fields.first_name = first;
+      if (rest.length) fields.last_name = rest.join(" ");
+    }
+    if (Object.keys(fields).length) {
+      setPrefill(fields);
+      setEditing("new");
+    }
+  }, []);
 
   const reload = () => {
     setLoading(true);
@@ -313,7 +336,8 @@ export default function DatabaseStudents() {
       {editing && (
         <StudentEditModal
           initial={editing === "new" ? null : editing}
-          onClose={() => setEditing(null)}
+          prefill={editing === "new" ? prefill : null}
+          onClose={() => { setEditing(null); setPrefill(null); }}
           onSaved={onSaved}
         />
       )}
@@ -359,10 +383,10 @@ const EMPTY_STUDENT = {
   school_id: "",
 };
 
-function StudentEditModal({ initial, onClose, onSaved }) {
+function StudentEditModal({ initial, prefill = null, onClose, onSaved }) {
   const isNew = !initial;
   const [form, setForm] = useState(() => {
-    if (!initial) return EMPTY_STUDENT;
+    if (!initial) return { ...EMPTY_STUDENT, ...(prefill || {}) };
     return {
       ...EMPTY_STUDENT,
       ...initial,

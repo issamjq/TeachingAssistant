@@ -2500,9 +2500,31 @@ function ImagePicker({ suggestedQuery, onClose, onPick }) {
           canvas.width = width;
           canvas.height = height;
           canvas.getContext("2d").drawImage(img, 0, 0, width, height);
-          const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
-          const { url } = await api("/api/images/upload", { method: "POST", body: { dataUrl } });
-          onPick({ url, thumb: url, alt: file.name, credit: "Uploaded" });
+          // Straight to Supabase Storage under the teacher's own session.
+          // The API's upload route is retired (410 use_storage): a server
+          // that never touches the bytes cannot leak them. The leading
+          // <uid>/ segment IS the access control — the bucket policy
+          // matches it against auth.uid().
+          const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.85));
+          if (!blob) throw new Error("Could not read that image.");
+          const { supabase } = await import("@/lib/supabaseClient");
+          const { data: auth } = await supabase.auth.getUser();
+          const uid = auth?.user?.id;
+          if (!uid) throw new Error("Sign in again to upload images.");
+          const safe = file.name.normalize("NFKD").replace(/[^\w.-]+/g, "-").replace(/-+/g, "-").slice(-60) || "image";
+          const path = `${uid}/${Date.now()}-${safe}.jpg`;
+          const up = await supabase.storage.from("imports").upload(path, blob, {
+            contentType: "image/jpeg",
+            upsert: false,
+          });
+          if (up.error) throw new Error(up.error.message);
+          // `imports` is private, so the deck stores a signed URL — a year,
+          // so a saved deck outlives the editing session — plus the storage
+          // path, so a renderer can re-sign when the URL eventually lapses.
+          const { data: signed, error: signErr } = await supabase.storage
+            .from("imports").createSignedUrl(path, 60 * 60 * 24 * 365);
+          if (signErr) throw new Error(signErr.message);
+          onPick({ url: signed.signedUrl, thumb: signed.signedUrl, alt: file.name, credit: "Uploaded", storagePath: path });
         } catch (e) {
           setError(e.message);
           setUploadBusy(false);

@@ -32,6 +32,8 @@ import { useI18n } from "@/lib/i18n";
 import { useVoice } from "./useVoice";
 import { answerFor, suggestionsAfter } from "./answer";
 import { matchNavigate, accountAnswer } from "./actions";
+import { PREFILL_KEY } from "@/shared/lib/assistantPrefill";
+import { useMounted } from "@/shared/hooks/useMounted";
 import s from "./Assistant.module.css";
 
 /**
@@ -124,7 +126,8 @@ function inline(str) {
  */
 export default function AssistantWidget({ scope = "landing", onNavigate }) {
   const { t, dir } = useI18n?.() || { t: (k) => k, dir: "ltr" };
-  const [portalRoot, setPortalRoot] = useState(null);
+  // Portals cannot be server-rendered — see useMounted.
+  const mounted = useMounted();
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState("chat");
   const [messages, setMessages] = useState([]);
@@ -141,8 +144,6 @@ export default function AssistantWidget({ scope = "landing", onNavigate }) {
     lang,
     onFinal: (text) => setDraft((d) => (d ? `${d} ${text}` : text)),
   });
-
-  useEffect(() => { setPortalRoot(document.body); }, []);
 
   // Follow the conversation as it grows, but only while it is growing —
   // yanking the view back down while a teacher is reading an earlier
@@ -245,6 +246,10 @@ export default function AssistantWidget({ scope = "landing", onNavigate }) {
               // a number a teacher trusts and one they have to go and
               // check for themselves.
               onTool: (name) => setDoing(TOOL_LABEL[name] || "Looking that up"),
+              // The service asks; the browser acts. An unhandled action
+              // is the assistant saying "I've opened that for you" while
+              // nothing moves.
+              onAction: (ev) => performAction(ev, onNavigate),
             },
           );
           if (sessionId) chatSessionRef.current = sessionId;
@@ -312,7 +317,7 @@ export default function AssistantWidget({ scope = "landing", onNavigate }) {
 
   const side = dir === "rtl" ? { left: 20, right: "auto" } : { right: 20, left: "auto" };
 
-  if (!portalRoot) return null;
+  if (!mounted) return null;
 
   const launcher = (
     <button
@@ -512,7 +517,50 @@ export default function AssistantWidget({ scope = "landing", onNavigate }) {
     </>
   );
 
-  return createPortal(<>{launcher}{panel}</>, portalRoot);
+  return createPortal(<>{launcher}{panel}</>, document.body);
+}
+
+
+/**
+ * Carry out an `action` frame from /api/chat.
+ *
+ * The service's write-tools never save — they hand the teacher a
+ * pre-filled form to confirm (see todo/backend/06-assistant.md). So every
+ * action here resolves to at most: park the payload, move the teacher.
+ * `navigate` and `set_accessibility` are the two the browser completes
+ * by itself.
+ */
+function performAction(ev, onNavigate) {
+  switch (ev.action) {
+    case "navigate": {
+      const where = ev.where || ev.section;
+      if (where) onNavigate?.(String(where));
+      return;
+    }
+    case "set_accessibility": {
+      // Settings may arrive nested or flat; strip the frame's own keys.
+      const { type: _t, action: _a, ...flat } = ev;
+      applyA11y(ev.settings && typeof ev.settings === "object" ? ev.settings : flat);
+      return;
+    }
+    case "create_work":
+    case "add_student":
+    case "add_schedule_entry": {
+      try {
+        sessionStorage.setItem(PREFILL_KEY, JSON.stringify({ ...ev, at: Date.now() }));
+      } catch { /* private browsing: the teacher just fills the form */ }
+      const section =
+        ev.action === "add_student" ? "database"
+        : ev.action === "add_schedule_entry" ? "planner"
+        : "studio"; // the studio composer reads the payload and drafts from it
+      onNavigate?.(section);
+      return;
+    }
+    default:
+      // A new action this build doesn't know. Doing nothing visible is
+      // correct; logging it is how the gap gets noticed.
+      console.warn("[assistant] unhandled action frame:", ev.action);
+  }
 }
 
 /**
@@ -542,7 +590,7 @@ function applyA11y(settings = {}) {
       }
       localStorage.setItem(KEY, JSON.stringify(next));
     }
-    window.dispatchEvent(new StorageEvent("storage", { key: KEY }));
+    window.dispatchEvent(new window.StorageEvent("storage", { key: KEY }));
   } catch {
     /* private browsing: the change just doesn't stick */
   }
