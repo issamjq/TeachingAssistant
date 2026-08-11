@@ -21,7 +21,7 @@ import { useEffect, useState } from "react";
 // light image for the first paint moments until the observer fires; that
 // brief swap costs less than double-shipping every screenshot.
 
-function useIsDark(): boolean {
+export function useIsDark(): boolean {
   const [dark, setDark] = useState(false);
   useEffect(() => {
     const el = document.documentElement;

@@ -162,7 +162,7 @@ export default function Outputs() {
       </div>
 
       <div className={s.bento}>
-        <div className={`${s.cell} ${s.cellWide}`} data-cell>
+        <div className={`${s.cell} ${s.cellWide}`} data-cell data-tilt>
           <ThemedShot
             src="/marketing/lesson-plans.jpg"
             alt={t("mk.shot.plans")}
@@ -179,7 +179,7 @@ export default function Outputs() {
           </span>
         </div>
 
-        <div className={`${s.cell} ${s.cellTall}`} data-cell>
+        <div className={`${s.cell} ${s.cellTall}`} data-cell data-tilt>
           <ThemedShot
             src="/marketing/dashboard.jpg"
             alt={t("mk.shot.dashboard")}
@@ -197,7 +197,7 @@ export default function Outputs() {
         </div>
 
         {TEXT_CELLS.map(({ key, Icon }, i) => (
-          <div key={key} className={`${s.cell} ${i < 3 ? s.cellSm : s.cellHalf}`} data-cell>
+          <div key={key} className={`${s.cell} ${i < 3 ? s.cellSm : s.cellHalf}`} data-cell data-tilt>
             <span className={s.cellIcon} data-cell-icon>
               <Icon size={16} strokeWidth={2} aria-hidden="true" />
             </span>

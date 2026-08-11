@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import MurchidLogo from "@/components/MurchidLogo";
 import { useT } from "@/shared/i18n";
 import s from "./Landing.module.css";
 
@@ -17,8 +18,11 @@ export default function LegalSheet({ doc }: { doc: "privacy" | "terms" }) {
     <div className={s.page}>
       <header className={s.nav}>
         <div className={s.navInner}>
-          <Link href="/" className={s.lockup}>
-            Murchid <i aria-hidden="true">مرشد</i>
+          <Link href="/" className={s.logoLink} aria-label="Murchid">
+            <MurchidLogo
+              className="h-9 w-auto"
+              style={{ color: "var(--ink)", "--murchid-logo-accent": "var(--accent)" } as React.CSSProperties}
+            />
           </Link>
           <nav className={s.navLinks}>
             <Link href="/" className={s.navLink}>

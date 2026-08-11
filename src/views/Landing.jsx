@@ -1285,12 +1285,10 @@ function AuthShell({ title, em, lead, onPage, children }) {
           </button>
 
           <div>
-            <span className={wc.lockupLatin} style={{ fontSize: "26px" }}>
-              Murchid
-            </span>{" "}
-            <span className={wc.lockupArabic} aria-hidden="true">
-              مرشد
-            </span>
+            <MurchidLogo
+              className="h-11 w-auto"
+              style={{ color: "var(--ink, #101718)", "--murchid-logo-accent": "var(--accent, #16646c)" }}
+            />
 
             <ul className={wc.authPoints}>
               {reassurances.map((line) => (

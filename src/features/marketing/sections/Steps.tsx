@@ -77,7 +77,7 @@ export default function Steps() {
           <div
             key={step.k}
             className={`${s.step} ${i % 2 === 1 ? s.stepReverse : ""}`}
-            data-reveal
+            data-step-row={step.k}
           >
             <div data-reveal-stagger>
               <p className={s.stepIndex} data-reveal-item>
@@ -91,7 +91,7 @@ export default function Steps() {
               </p>
             </div>
 
-            <div className={s.frame} data-reveal-scale>
+            <div className={s.frame} data-frame-target>
               <ThemedShot
                 src={step.src}
                 alt={t(step.shot as never)}

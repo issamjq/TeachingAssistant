@@ -107,7 +107,7 @@ export default function TermTimeline() {
         </div>
 
         {WEEKS.map((k) => (
-          <article className={s.week} key={k} data-week>
+          <article className={s.week} key={k} data-week data-tilt>
             <p className={s.weekRange}>{t(`mk.term.${k}.range` as never)}</p>
             <h3 className={s.weekTitle}>{t(`mk.term.${k}.title` as never)}</h3>
             <p className={s.weekBody}>{t(`mk.term.${k}.body` as never)}</p>
