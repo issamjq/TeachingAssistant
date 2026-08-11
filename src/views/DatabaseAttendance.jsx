@@ -9,13 +9,18 @@ import { selectClasses, inputClasses, api, DatePicker } from "./_shared";
 import BrandLoader from "../components/BrandLoader";
 import { isoDay } from "@/lib/localDate";
 
-const STATUSES = ["Present", "Absent", "Late", "Excused"];
+// Lowercase, because that is what the column defaults to and what every
+// other status vocabulary in this schema uses. Capitalised values were
+// stored verbatim — no CHECK constraint caught them — so a register
+// marked by hand and one written by any other path disagreed, and the
+// highlight matched neither.
+const STATUSES = ["present", "absent", "late", "excused"];
 
 const STATUS_COLORS = {
-  Present: "bg-sage text-paper-cool border-sage",
-  Absent:  "bg-accent text-paper-cool border-accent",
-  Late:    "bg-gold text-paper-cool border-gold",
-  Excused: "bg-paper-warm text-ink-soft border-line",
+  present: "bg-ok text-paper-cool border-ok",
+  absent:  "bg-crit text-paper-cool border-crit",
+  late:    "bg-warn text-paper-cool border-warn",
+  excused: "bg-paper-warm text-ink-soft border-line",
 };
 
 // Local parts, not toISOString — see src/lib/localDate.ts.
@@ -62,7 +67,7 @@ export default function DatabaseAttendance() {
     try {
       await api("/api/attendance", {
         method: "PUT",
-        body: { student_id: row.student_id, date, status: row.status || "Present", notes },
+        body: { student_id: row.student_id, date, status: row.status || "present", notes },
       });
     } catch (e) {
       alert(`Could not save: ${e.message}`);
@@ -83,7 +88,7 @@ export default function DatabaseAttendance() {
       // eslint-disable-next-line no-await-in-loop
       await api("/api/attendance", {
         method: "PUT",
-        body: { student_id: r.student_id, date, status: "Present" },
+        body: { student_id: r.student_id, date, status: "present" },
       });
     }
     reload();
@@ -206,7 +211,7 @@ export default function DatabaseAttendance() {
                                 : "border-transparent text-muted hover:text-ink"
                             }`}
                           >
-                            {s[0]}
+                            {s[0].toUpperCase()}
                           </button>
                         ))}
                       </div>
