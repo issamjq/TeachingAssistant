@@ -1211,4 +1211,9 @@ export const AR: Partial<Record<TranslationKey, string>> = {
   "mk.foot.start": "ابدأ سبعة أيام مجاناً",
   "mk.foot.product": "المنتج",
   "mk.foot.legal": "قانوني",
+  "mk.price.best": "اختيار معظم المعلّمين",
+  "mk.price.save": "وفّر {save}%",
+  "mk.price.everyPlan": "كلّ اشتراك يشمل",
+  "mk.plan.billedMonthly": "يُحسب {total} درهماً كلّ شهر.",
+  "mk.plan.billed": "يُدفع {total} درهماً مقدّماً، أقلّ بـ {save}% شهرياً.",
 };

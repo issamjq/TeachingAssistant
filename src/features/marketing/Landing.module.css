@@ -1520,3 +1520,153 @@
   align-items: center;
   flex: none;
 }
+
+/* ── Pricing: one board, three cadences ──────────────────────────────
+   The cycles share a single chalk plate; the quarterly column lifts on
+   an accent ring because plans.js marks it best. Inclusions live once,
+   beneath all three. Under 720px the columns stack and the lift rests. */
+
+.priceBoard {
+  margin-top: clamp(26px, 4vw, 44px);
+  background: var(--chalk);
+  border: 1px solid var(--frame-border);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-shot);
+  padding: clamp(18px, 2.6vw, 34px);
+}
+
+.cycles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: clamp(10px, 1.4vw, 16px);
+  align-items: stretch;
+}
+
+.cycle {
+  position: relative;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-md);
+  padding: clamp(16px, 2vw, 24px);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: var(--paper);
+}
+
+.cycleBest {
+  background: var(--accent-wash);
+  border-color: transparent;
+  box-shadow: inset 0 0 0 1.5px var(--accent), 0 14px 34px -18px rgba(16, 23, 24, 0.35);
+}
+
+@media (min-width: 720px) {
+  .cycleBest {
+    transform: translateY(-10px);
+    margin-bottom: -10px;
+  }
+}
+
+.cycleFlag {
+  position: absolute;
+  top: 0;
+  inset-inline-start: 50%;
+  transform: translate(-50%, -50%);
+  white-space: nowrap;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: var(--t-1);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+[dir="rtl"] .cycleFlag {
+  transform: translate(50%, -50%);
+}
+
+.cycleName {
+  margin: 4px 0 0;
+  font-size: var(--t-2);
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+
+.cyclePrice {
+  margin: 2px 0 0;
+  font-family: Fraunces, Georgia, serif;
+  font-weight: 300;
+  font-size: clamp(34px, 3.4vw, 46px);
+  letter-spacing: -0.03em;
+  line-height: 1;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.cycleUnit {
+  font-family: "Inter Tight", ui-sans-serif, system-ui, sans-serif;
+  font-size: var(--t-1);
+  font-weight: 500;
+  letter-spacing: 0;
+  color: var(--muted);
+}
+
+.cycleBilled {
+  margin: 6px 0 0;
+  font-size: var(--t-1);
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.cycleSave {
+  align-self: flex-start;
+  margin-top: auto;
+  padding-top: 10px;
+  font-size: var(--t-1);
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.included {
+  margin-top: clamp(18px, 2.4vw, 28px);
+  padding-top: clamp(16px, 2vw, 24px);
+  border-top: 1px solid var(--line-soft);
+}
+
+.includedHead {
+  margin: 0 0 12px;
+  font-size: var(--t-1);
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.includedList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 10px 24px;
+  font-size: var(--t-2);
+  color: var(--ink-soft);
+}
+
+.includedList li {
+  display: flex;
+  gap: 9px;
+  align-items: flex-start;
+  line-height: 1.45;
+}
+
+.includedList svg {
+  flex: none;
+  margin-top: 3px;
+  color: var(--accent);
+}
+
+.priceActions {
+  margin-top: clamp(20px, 2.6vw, 30px);
+  text-align: center;
+}

@@ -1245,4 +1245,9 @@ export const EN = {
   "mk.foot.start": "Start seven days free",
   "mk.foot.product": "Product",
   "mk.foot.legal": "Legal",
+  "mk.price.best": "Most teachers pick this",
+  "mk.price.save": "Save {save}%",
+  "mk.price.everyPlan": "Every plan includes",
+  "mk.plan.billedMonthly": "Billed {total} AED each month.",
+  "mk.plan.billed": "Billed {total} AED up front, {save}% less per month.",
 };
