@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { useT } from "@/shared/i18n";
+import ThemedShot from "../ThemedShot";
 import s from "../Landing.module.css";
 
 // The term, panned horizontally as you scroll down.
@@ -22,7 +23,16 @@ import s from "../Landing.module.css";
 // happen at all: the track is a plain vertical stack in CSS, which is why
 // the markup carries no inline transforms of its own.
 
-const WEEKS = ["w1", "w2", "w3", "w4"] as const;
+// Each week SHOWS the material it claims: real captures of the screens
+// where that week's work lives, so a first-time visitor reads the term
+// at a glance instead of parsing four paragraphs. The rail with its
+// nodes underneath makes the four cards read as one timeline.
+const WEEKS = [
+  { k: "w1", img: "/marketing/lesson-plans.jpg", alt: "mk.shot.plans" },
+  { k: "w2", img: "/marketing/planner.jpg", alt: "mk.shot.planner" },
+  { k: "w3", img: "/marketing/studio.jpg", alt: "mk.shot.studio" },
+  { k: "w4", img: "/marketing/quizzes.jpg", alt: "mk.shot.quizzes" },
+] as const;
 const A11Y_KEY = "murchid.a11y";
 
 function motionIsStopped(): boolean {
@@ -101,14 +111,30 @@ export default function TermTimeline() {
           <p className={s.body} style={{ marginTop: 16 }}>
             {t("mk.term.lede")}
           </p>
-          <p className={s.small} style={{ marginTop: 18 }}>
+          {/* The whole term in one line, so the section's claim is
+              checkable at a glance before a single card is read. */}
+          <p className={s.termSum}>{t("mk.term.sum")}</p>
+          <p className={s.small} style={{ marginTop: 14 }}>
             {t("mk.term.demo")}
           </p>
         </div>
 
-        {WEEKS.map((k) => (
+        {WEEKS.map(({ k, img, alt }, i) => (
           <article className={s.week} key={k} data-week data-tilt>
-            <p className={s.weekRange}>{t(`mk.term.${k}.range` as never)}</p>
+            <p className={s.weekRange}>
+              <span className={s.weekNode} aria-hidden="true" />
+              {t(`mk.term.${k}.range` as never)}
+            </p>
+            <div className={s.weekMedia}>
+              <ThemedShot
+                src={img}
+                alt={t(alt as never)}
+                width={720}
+                height={450}
+                sizes="(max-width: 900px) 100vw, 360px"
+                className={s.weekImg}
+              />
+            </div>
             <h3 className={s.weekTitle}>{t(`mk.term.${k}.title` as never)}</h3>
             <p className={s.weekBody}>{t(`mk.term.${k}.body` as never)}</p>
             <p className={s.weekMeta}>{t(`mk.term.${k}.meta` as never)}</p>

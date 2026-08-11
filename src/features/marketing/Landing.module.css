@@ -862,14 +862,56 @@
   color: rgba(var(--band-fg-rgb), 0.55);
 }
 
+.termSum {
+  margin: 18px 0 0;
+  font-family: Fraunces, Georgia, serif;
+  font-weight: 300;
+  font-style: italic;
+  font-size: var(--t-serif);
+  line-height: 1.4;
+  color: var(--accent-on-ink);
+  max-width: 26ch;
+}
+
 .week {
+  position: relative;
   border: 1px solid rgba(var(--band-fg-rgb), 0.18);
   border-radius: var(--r-lg);
-  padding: clamp(20px, 2.4vw, 30px);
+  padding: clamp(18px, 2.2vw, 26px);
   background: rgba(var(--band-fg-rgb), 0.04);
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+/* The rail: each card's range row sits on a hairline that runs on into
+   the gap toward the next card, with a node dot marking the week — four
+   cards become one readable timeline. */
+.weekNode {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  background: var(--accent-on-ink);
+  box-shadow: 0 0 0 3px rgba(var(--band-fg-rgb), 0.12);
+  margin-inline-end: 10px;
+  vertical-align: 1px;
+}
+
+.weekMedia {
+  margin: 6px 0 8px;
+  border-radius: var(--r-sm);
+  overflow: hidden;
+  border: 1px solid rgba(var(--band-fg-rgb), 0.2);
+  background: var(--chalk);
+}
+
+.weekImg {
+  display: block;
+  width: 100%;
+  height: clamp(120px, 11vw, 156px);
+  object-fit: cover;
+  object-position: top left;
 }
 
 .weekRange {
@@ -930,8 +972,20 @@
   }
 
   .week {
-    width: clamp(280px, 26vw, 360px);
+    width: clamp(300px, 28vw, 380px);
     flex: none;
+  }
+
+  /* The hairline runs from each node across the card and its gap, so the
+     rail reads continuous behind the range labels while the track pans. */
+  .week:not(:last-child) .weekRange::after {
+    content: "";
+    position: absolute;
+    inset-inline-start: 20px;
+    inset-inline-end: calc(-1 * clamp(20px, 2.4vw, 32px) - clamp(18px, 2.2vw, 26px));
+    top: 50%;
+    border-top: 1px dashed rgba(var(--band-fg-rgb), 0.25);
+    z-index: -1;
   }
 }
 

@@ -1250,4 +1250,5 @@ export const EN = {
   "mk.price.everyPlan": "Every plan includes",
   "mk.plan.billedMonthly": "Billed {total} AED each month.",
   "mk.plan.billed": "Billed {total} AED up front, {save}% less per month.",
+  "mk.term.sum": "Thirty days. Fourteen lesson plans, three quizzes, one exam, from a single brief.",
 };

@@ -1216,4 +1216,5 @@ export const AR: Partial<Record<TranslationKey, string>> = {
   "mk.price.everyPlan": "كلّ اشتراك يشمل",
   "mk.plan.billedMonthly": "يُحسب {total} درهماً كلّ شهر.",
   "mk.plan.billed": "يُدفع {total} درهماً مقدّماً، أقلّ بـ {save}% شهرياً.",
+  "mk.term.sum": "ثلاثون يوماً. أربع عشرة خطة درس وثلاثة اختبارات وامتحان واحد، من وصف واحد.",
 };
