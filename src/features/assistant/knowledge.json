@@ -224,14 +224,24 @@
         "grades",
         "subject",
         "subjects",
-        "kg"
+        "kg",
+        "kindergarten",
+        "primary",
+        "secondary",
+        "age",
+        "young"
       ],
       "ask": [
         "which curriculum does it support",
         "does it work with moe",
         "does it support ib",
         "what grades does it cover",
-        "is it right for my subject"
+        "is it right for my subject",
+        "is it good for kindergarten",
+        "does it work for kg",
+        "is it for primary or secondary",
+        "which grades does it cover",
+        "is it suitable for young children"
       ],
       "answer": "It covers **KG through Grade 12**, and it knows the **MoE** and **IB** curricula. British, American and Indian curriculum schools use it too.\n\nSubject doesn't really limit it — sciences, maths, languages, humanities. What matters more is that you can attach *your* syllabus or textbook chapter, so the draft follows the book your school actually teaches from rather than a generic one."
     },
@@ -263,13 +273,21 @@
         "gdpr",
         "pdpl",
         "store",
-        "stored"
+        "stored",
+        "access",
+        "see",
+        "who",
+        "confidential"
       ],
       "ask": [
         "is my data safe",
         "what do you do with my data",
         "is it private",
-        "where is my data stored"
+        "where is my data stored",
+        "who can see my students data",
+        "who has access to my students information",
+        "is my student data private",
+        "can the school see my data"
       ],
       "answer": "Your work is yours. A few specifics:\n\n- Documents you upload go to **private storage scoped to your account** — nobody else's session can reach them.\n- Your lesson plans and student records are visible to **you**, not to other teachers.\n- Nothing you write is used to train a model.\n\nIf you need something specific for your school's policy, ask through the contact form and a person will answer."
     },

@@ -1,0 +1,564 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-08-11T18:30:00.000Z",
+  "title": "Design System: Murchid",
+  "extensions": {
+    "colorMeta": {
+      "accent": {
+        "role": "primary",
+        "displayName": "Firozeh",
+        "canonical": "#16646c",
+        "altPalette": {
+          "verdigris": "#3c6b60"
+        },
+        "tonalRamp": [
+          "#04191c",
+          "#072a2e",
+          "#0b3c42",
+          "#0f4e55",
+          "#16646c",
+          "#2d8791",
+          "#57a6ad",
+          "#d3e2e3"
+        ]
+      },
+      "accent-hover": {
+        "role": "primary",
+        "displayName": "Firozeh Deep",
+        "canonical": "#0f4e55",
+        "altPalette": {
+          "verdigris": "#2f574e"
+        },
+        "tonalRamp": [
+          "#031416",
+          "#062226",
+          "#093a40",
+          "#0f4e55",
+          "#166670",
+          "#2a8792",
+          "#63aeb5",
+          "#cfe3e5"
+        ]
+      },
+      "accent-soft": {
+        "role": "primary",
+        "displayName": "Glaze Wash",
+        "canonical": "#d3e2e3",
+        "altPalette": {
+          "verdigris": "#dce7e2"
+        },
+        "tonalRamp": [
+          "#1c2b2c",
+          "#2c4243",
+          "#3f5a5b",
+          "#587475",
+          "#7a9394",
+          "#a3b8b9",
+          "#d3e2e3",
+          "#eef5f5"
+        ]
+      },
+      "paper": {
+        "role": "neutral",
+        "displayName": "Plaster",
+        "canonical": "#e8e7e2",
+        "altPalette": {
+          "verdigris": "#edeae1"
+        },
+        "tonalRamp": [
+          "#1c1c1a",
+          "#2f2f2c",
+          "#464642",
+          "#61615c",
+          "#8a8a84",
+          "#b5b5ae",
+          "#e8e7e2",
+          "#f7f7f4"
+        ]
+      },
+      "paper-warm": {
+        "role": "neutral",
+        "displayName": "Plaster Shadow",
+        "canonical": "#e0dfd9",
+        "altPalette": {
+          "verdigris": "#e4e0d5"
+        },
+        "tonalRamp": [
+          "#1a1a17",
+          "#2c2c28",
+          "#43433d",
+          "#5d5d56",
+          "#85857c",
+          "#b0afa6",
+          "#e0dfd9",
+          "#f3f2ee"
+        ]
+      },
+      "paper-cool": {
+        "role": "neutral",
+        "displayName": "Chalk",
+        "canonical": "#f4f3ef",
+        "altPalette": {
+          "verdigris": "#f7f5ef"
+        },
+        "tonalRamp": [
+          "#1e1e1b",
+          "#31312d",
+          "#484843",
+          "#63635d",
+          "#8c8c85",
+          "#b8b8b0",
+          "#dedcd6",
+          "#f4f3ef"
+        ]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Ink",
+        "canonical": "#101718",
+        "altPalette": {
+          "verdigris": "#141917"
+        },
+        "tonalRamp": [
+          "#101718",
+          "#1d2829",
+          "#2b3a3c",
+          "#3c4e51",
+          "#5c7175",
+          "#8399a0",
+          "#b3c4c8",
+          "#e0e8ea"
+        ]
+      },
+      "ink-soft": {
+        "role": "neutral",
+        "displayName": "Ink Soft",
+        "canonical": "#364043",
+        "altPalette": {
+          "verdigris": "#3a423f"
+        },
+        "tonalRamp": [
+          "#0d1112",
+          "#1a2022",
+          "#2a3234",
+          "#364043",
+          "#4f5c60",
+          "#748387",
+          "#a2aeb1",
+          "#d8dfe0"
+        ]
+      },
+      "muted": {
+        "role": "neutral",
+        "displayName": "Graphite",
+        "canonical": "#646e72",
+        "altPalette": {
+          "verdigris": "#6c7471"
+        },
+        "tonalRamp": [
+          "#14181a",
+          "#232a2c",
+          "#343d40",
+          "#4a5457",
+          "#646e72",
+          "#8a9498",
+          "#b4bcbf",
+          "#dfe4e5"
+        ]
+      },
+      "line": {
+        "role": "neutral",
+        "displayName": "Rule",
+        "canonical": "#cdcdc6",
+        "altPalette": {
+          "verdigris": "#d5d0c4"
+        },
+        "tonalRamp": [
+          "#1d1d1a",
+          "#2f2f2b",
+          "#45453f",
+          "#5f5f58",
+          "#88887f",
+          "#adada5",
+          "#cdcdc6",
+          "#eeeeea"
+        ]
+      },
+      "ok": {
+        "role": "tertiary",
+        "displayName": "Ready Green",
+        "canonical": "#2f6e52",
+        "altPalette": {
+          "verdigris": "#2f6e86"
+        },
+        "tonalRamp": [
+          "#0a1a13",
+          "#122d21",
+          "#1c4433",
+          "#265a44",
+          "#2f6e52",
+          "#4a9170",
+          "#7bb89a",
+          "#d3e6dc"
+        ]
+      },
+      "warn": {
+        "role": "tertiary",
+        "displayName": "Caution Ochre",
+        "canonical": "#94661f",
+        "altPalette": {
+          "verdigris": "#9a6b22"
+        },
+        "tonalRamp": [
+          "#241804",
+          "#3b2809",
+          "#553a0f",
+          "#745016",
+          "#94661f",
+          "#b9873a",
+          "#d6ac6d",
+          "#f0e0c4"
+        ]
+      },
+      "crit": {
+        "role": "tertiary",
+        "displayName": "Fault Red",
+        "canonical": "#a0453c",
+        "altPalette": {
+          "verdigris": "#a0453c"
+        },
+        "tonalRamp": [
+          "#260d0a",
+          "#3e1713",
+          "#59221c",
+          "#7b3128",
+          "#a0453c",
+          "#c06a60",
+          "#d99a92",
+          "#f2ddda"
+        ]
+      },
+      "ambient-mid": {
+        "role": "tertiary",
+        "displayName": "Ambient Mid",
+        "canonical": "#17646c",
+        "altPalette": {
+          "verdigris": "#3c6b60"
+        },
+        "tonalRamp": [
+          "#04191b",
+          "#072a2d",
+          "#0b3c42",
+          "#104e55",
+          "#17646c",
+          "#2f878f",
+          "#57a6ad",
+          "#e3efef"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "Hero and page-defining headings. Fraunces at weight 300, tight negative tracking, text-wrap: balance. Exactly one italic accent word."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "Section headings inside a screen."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Card titles, table headers, row leads."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Running copy, form values, table cells."
+      },
+      "label": {
+        "displayName": "Eyebrow / Label",
+        "purpose": "Uppercase, 0.18em tracked orientation labels, status pills, tags, metadata. Inter Tight, not a mono face."
+      },
+      "marketing-scale": {
+        "displayName": "Marketing type scale",
+        "purpose": "Eleven steps on .page: --t-1 13px, --t-2 14.5px, --t-3 15.5px, --t-4 18px, --t-5 20px, --t-6 24px, --t-body fluid, and --d-1..--d-5 for display. Replaced twenty ad hoc sizes."
+      }
+    },
+    "shadows": [
+      {
+        "name": "marketing/rest-light",
+        "value": "0 1px 3px rgba(16, 23, 24, 0.05), 0 20px 50px -22px rgba(16, 23, 24, 0.22)",
+        "purpose": "Cards and the auth plate on the light ground."
+      },
+      {
+        "name": "marketing/shot-light",
+        "value": "0 2px 6px rgba(16, 23, 24, 0.06), 0 30px 70px -20px rgba(16, 23, 24, 0.26)",
+        "purpose": "Product screenshots, light mode."
+      },
+      {
+        "name": "marketing/cta-light",
+        "value": "0 1px 2px rgba(16, 23, 24, 0.08), 0 10px 26px rgba(22, 100, 108, 0.22)",
+        "purpose": "Primary action, light mode. Tinted with the accent, not neutral."
+      },
+      {
+        "name": "marketing/shot-dark",
+        "value": "0 2px 6px rgba(4, 8, 9, 0.55), 0 30px 70px -20px rgba(4, 8, 9, 0.62)",
+        "purpose": "Product screenshots, dark mode. Tinted to the dark ground; pure black reads flat."
+      },
+      {
+        "name": "marketing/cta-dark",
+        "value": "0 1px 2px rgba(4, 8, 9, 0.45), 0 10px 26px rgba(4, 8, 9, 0.38)",
+        "purpose": "Primary action, dark mode."
+      }
+    ],
+    "motion": [
+      {
+        "name": "ease-out-quart",
+        "value": "cubic-bezier(0.25, 1, 0.5, 1)",
+        "purpose": "Default easing for press and colour state transitions."
+      },
+      {
+        "name": "ease-out-quint",
+        "value": "cubic-bezier(0.22, 1, 0.36, 1)",
+        "purpose": "Card lift and list entrance."
+      },
+      {
+        "name": "ease-out-expo",
+        "value": "cubic-bezier(0.16, 1, 0.3, 1)",
+        "purpose": "Large surface entrances and drawer motion."
+      },
+      {
+        "name": "ease-snap",
+        "value": "cubic-bezier(0.34, 1.18, 0.6, 1)",
+        "purpose": "Slight-overshoot accent for small deliberate moves. The only easing with overshoot — do not apply it broadly."
+      },
+      {
+        "name": "dur-press",
+        "value": "120ms",
+        "purpose": "Press scale (0.97)."
+      },
+      {
+        "name": "dur-hover",
+        "value": "220ms",
+        "purpose": "Hover colour, border, and shadow."
+      },
+      {
+        "name": "dur-transition",
+        "value": "420ms",
+        "purpose": "View and panel transitions."
+      },
+      {
+        "name": "dur-entrance",
+        "value": "720ms",
+        "purpose": "First-paint entrances."
+      }
+    ],
+    "darkPalette": {
+      "ground": "#0f1517",
+      "ground-warm": "#131b1d",
+      "surface": "#1b2629",
+      "text": "#eef0ec",
+      "text-soft": "#c3ccc9",
+      "muted": "#90a09c",
+      "line": "#2e3b3e",
+      "line-soft": "#243033",
+      "accent": "#7cc7bf",
+      "accent-hover": "#99d6cf",
+      "accent-wash": "#12292d",
+      "band-bg": "#1e2a2d",
+      "band-fg": "#edefe9"
+    },
+    "studioDarkPalette": {
+      "ground": "#12181a",
+      "surface": "#1a2325",
+      "text": "#e9e7e1",
+      "text-soft": "#b9c2c2",
+      "muted": "#8b9694",
+      "line": "#2c3739",
+      "accent": "#4f9aa1",
+      "accent-verdigris": "#5f9184",
+      "invert": "#202b2e",
+      "on-invert": "#eceae4"
+    }
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The studio workhorse. Ink fill, not brand colour — the accent stays rationed for the single most important action.",
+      "html": "<button class=\"ds-btn-primary\">Open the planner</button>",
+      "css": ".ds-btn-primary { display: inline-flex; align-items: center; justify-content: center; gap: 6px; font-family: var(--font-sans, 'Inter Tight', sans-serif); font-size: 14px; font-weight: 500; line-height: 1; padding: 8px 16px; border: 0; border-radius: 999px; background: var(--color-ink, #101718); color: var(--color-paper-cool, #f4f3ef); box-shadow: 0 1px 2px rgba(16,23,24,.06), 0 8px 24px rgba(16,23,24,.08), 0 0 0 1px rgba(16,23,24,.04); cursor: pointer; transition: transform 120ms cubic-bezier(.25,1,.5,1), background-color 220ms cubic-bezier(.25,1,.5,1), box-shadow 220ms cubic-bezier(.25,1,.5,1); } .ds-btn-primary:hover { background: var(--color-ink-soft, #364043); box-shadow: 0 2px 4px rgba(16,23,24,.08), 0 24px 56px rgba(16,23,24,.14), 0 0 0 1px rgba(16,23,24,.05); } .ds-btn-primary:active { transform: scale(.97); } .ds-btn-primary:focus-visible { outline: 2px solid var(--color-accent, #16646c); outline-offset: 2px; }"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Chalk ground with a hairline border. The default for any action that is not the one that matters most.",
+      "html": "<button class=\"ds-btn-secondary\">Save draft</button>",
+      "css": ".ds-btn-secondary { display: inline-flex; align-items: center; justify-content: center; gap: 6px; font-family: var(--font-sans, 'Inter Tight', sans-serif); font-size: 14px; font-weight: 500; line-height: 1; padding: 8px 16px; border-radius: 999px; background: var(--color-paper-cool, #f4f3ef); color: var(--color-ink, #101718); border: 1px solid var(--color-line, #cdcdc6); cursor: pointer; transition: transform 120ms cubic-bezier(.25,1,.5,1), background-color 220ms cubic-bezier(.25,1,.5,1), border-color 220ms cubic-bezier(.25,1,.5,1); } .ds-btn-secondary:hover { background: var(--color-paper-warm, #e0dfd9); border-color: rgba(16,23,24,.4); } .ds-btn-secondary:active { transform: scale(.97); } .ds-btn-secondary:focus-visible { outline: 2px solid var(--color-accent, #16646c); outline-offset: 2px; }"
+    },
+    {
+      "name": "Outline Button",
+      "kind": "button",
+      "refersTo": "button-outline",
+      "description": "Accent text on a transparent ground with a tinted border. The accent-voiced action when a filled accent would be too loud.",
+      "html": "<button class=\"ds-btn-outline\">Generate lesson</button>",
+      "css": ".ds-btn-outline { display: inline-flex; align-items: center; justify-content: center; gap: 6px; font-family: var(--font-sans, 'Inter Tight', sans-serif); font-size: 14px; font-weight: 500; line-height: 1; padding: 8px 16px; border-radius: 999px; background: transparent; color: var(--color-accent, #16646c); border: 1px solid color-mix(in srgb, var(--color-accent, #16646c) 30%, transparent); cursor: pointer; transition: transform 120ms cubic-bezier(.25,1,.5,1), background-color 220ms cubic-bezier(.25,1,.5,1), border-color 220ms cubic-bezier(.25,1,.5,1); } .ds-btn-outline:hover { border-color: var(--color-accent, #16646c); background: color-mix(in srgb, var(--color-accent, #16646c) 6%, transparent); } .ds-btn-outline:active { transform: scale(.97); } .ds-btn-outline:focus-visible { outline: 2px solid var(--color-accent, #16646c); outline-offset: 2px; }"
+    },
+    {
+      "name": "Card",
+      "kind": "card",
+      "refersTo": "card-flat",
+      "description": "Chalk surface on plaster ground, 16px corners, hairline border. Interactive cards lift 2px to meet the cursor.",
+      "html": "<div class=\"ds-card\"><p class=\"ds-card-eyebrow\">Grade 7 · Biology</p><h3 class=\"ds-card-title\">Photosynthesis <em>lab</em></h3><p class=\"ds-card-body\">Ready to use · 45 min · 3 sections</p></div>",
+      "css": ".ds-card { background: var(--color-paper-cool, #f4f3ef); border: 1px solid var(--color-line, #cdcdc6); border-radius: 16px; padding: 24px; box-shadow: 0 1px 2px rgba(16,23,24,.05); transition: transform 220ms cubic-bezier(.22,1,.36,1), box-shadow 220ms cubic-bezier(.22,1,.36,1); } .ds-card:hover { transform: translateY(-2px); box-shadow: 0 2px 4px rgba(16,23,24,.08), 0 24px 56px rgba(16,23,24,.14), 0 0 0 1px rgba(16,23,24,.05); } .ds-card-eyebrow { margin: 0 0 10px; font-family: var(--font-sans, 'Inter Tight', sans-serif); font-size: 11px; font-weight: 500; letter-spacing: .18em; text-transform: uppercase; color: var(--color-muted, #646e72); display: inline-flex; align-items: center; gap: 10px; } .ds-card-eyebrow::before { content: ''; width: 22px; height: 1px; background: var(--color-accent, #16646c); } .ds-card-title { margin: 0 0 8px; font-family: var(--font-serif, Fraunces, Georgia, serif); font-weight: 400; font-size: 24px; line-height: 1.15; letter-spacing: -.02em; color: var(--color-ink, #101718); } .ds-card-title em { font-style: italic; font-weight: 300; color: var(--color-accent, #16646c); } .ds-card-body { margin: 0; font-family: var(--font-sans, 'Inter Tight', sans-serif); font-size: 14px; line-height: 1.55; color: var(--color-ink-soft, #364043); }"
+    },
+    {
+      "name": "Search Field",
+      "kind": "input",
+      "refersTo": "search-field",
+      "description": "Pill-shaped field on the plaster ground. On focus it lights its own border and lifts a soft accent halo — never an outside ring.",
+      "html": "<div class=\"ds-search\"><svg width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\"><circle cx=\"11\" cy=\"11\" r=\"7\"></circle><path d=\"m20 20-3.5-3.5\"></path></svg><input class=\"ds-search-input\" type=\"text\" placeholder=\"Search lessons, students, marks\" /></div>",
+      "css": ".ds-search { display: flex; align-items: center; gap: 8px; padding: 7px 12px; border-radius: 999px; border: 1px solid var(--color-line, #cdcdc6); background: var(--color-paper, #e8e7e2); color: var(--color-muted, #646e72); transition: border-color 200ms ease, box-shadow 200ms ease, background-color 200ms ease; } .ds-search:focus-within { border-color: var(--color-accent, #16646c); box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent, #16646c) 16%, transparent); } .ds-search-input { flex: 1; border: 0; outline: none; background: transparent; font-family: var(--font-sans, 'Inter Tight', sans-serif); font-size: 14px; color: var(--color-ink, #101718); } .ds-search-input::placeholder { color: var(--color-muted, #646e72); }"
+    },
+    {
+      "name": "Sidebar Nav Item",
+      "kind": "nav",
+      "refersTo": "nav-item",
+      "description": "10px radius, 13.5px label. Active state is an accent wash with an inset accent ring and a soft glow — colour and weight, never a heavier border.",
+      "html": "<nav class=\"ds-nav\"><button class=\"ds-nav-item\">Lesson plans</button><button class=\"ds-nav-item ds-nav-item-active\">Dashboard</button><button class=\"ds-nav-item\">Quizzes</button></nav>",
+      "css": ".ds-nav { display: flex; flex-direction: column; gap: 2px; padding: 8px; background: var(--color-paper-cool, #f4f3ef); border-radius: 16px; } .ds-nav-item { width: 100%; display: flex; align-items: center; gap: 10px; padding: 8px 12px 8px 16px; border: 0; border-radius: 10px; background: transparent; font-family: var(--font-sans, 'Inter Tight', sans-serif); font-size: 13.5px; color: var(--color-ink-soft, #364043); text-align: left; cursor: pointer; transition: background-color 200ms ease, color 200ms ease, transform 200ms cubic-bezier(.22,1,.36,1); } .ds-nav-item:hover { background: color-mix(in oklab, var(--color-ink, #101718) 5%, transparent); } .ds-nav-item:focus-visible { outline: 2px solid var(--color-accent, #16646c); outline-offset: 2px; } .ds-nav-item-active { background: color-mix(in oklab, var(--color-accent, #16646c) 11%, var(--color-paper-cool, #f4f3ef)); color: #0f4e55; font-weight: 600; box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--color-accent, #16646c) 26%, transparent), 0 6px 16px -8px color-mix(in oklab, var(--color-accent, #16646c) 45%, transparent); }"
+    },
+    {
+      "name": "Status Pill",
+      "kind": "chip",
+      "refersTo": "label",
+      "description": "Dot plus uppercase tracked label in a bordered pill. The dot colour carries the meaning and comes from the status tokens, never from the accent.",
+      "html": "<span class=\"ds-pill\"><i class=\"ds-pill-dot\"></i>Ready to use</span> <span class=\"ds-pill\"><i class=\"ds-pill-dot ds-pill-dot-crit\"></i>Blocked</span>",
+      "css": ".ds-pill { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--color-line, #cdcdc6); background: var(--color-paper, #e8e7e2); font-family: var(--font-sans, 'Inter Tight', sans-serif); font-size: 11px; font-weight: 500; letter-spacing: .12em; text-transform: uppercase; color: var(--color-ink-soft, #364043); } .ds-pill-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--color-ok, #2f6e52); } .ds-pill-dot-crit { background: var(--color-crit, #a0453c); }"
+    },
+    {
+      "name": "Eyebrow",
+      "kind": "custom",
+      "refersTo": "label",
+      "description": "The page-level orientation label: a short accent rule followed by uppercase tracked text. Inline metadata omits the rule.",
+      "html": "<p class=\"ds-eyebrow\">This week</p>",
+      "css": ".ds-eyebrow { display: inline-flex; align-items: center; gap: 10px; margin: 0; font-family: var(--font-sans, 'Inter Tight', sans-serif); font-size: 11px; font-weight: 500; letter-spacing: .18em; text-transform: uppercase; color: var(--color-muted, #646e72); } .ds-eyebrow::before { content: ''; width: 22px; height: 1px; background: var(--color-accent, #16646c); }"
+    },
+    {
+      "name": "Display Heading",
+      "kind": "custom",
+      "refersTo": "display",
+      "description": "The signature: Fraunces at weight 300, tight negative tracking, with exactly one italic word in the accent.",
+      "html": "<h1 class=\"ds-display\">Your week, <em>directed</em></h1>",
+      "css": ".ds-display { margin: 0; font-family: var(--font-serif, Fraunces, Georgia, serif); font-weight: 300; font-size: clamp(28px, 4.2vw, 56px); line-height: 1.04; letter-spacing: -.028em; color: var(--color-ink, #101718); text-wrap: balance; } .ds-display em { font-style: italic; color: var(--color-accent, #16646c); }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Teacher's Ledger",
+    "overview": "Murchid looks like a working record book, not like software. Ruled hairlines instead of boxes, matte plaster-coloured paper instead of white, one ink for content and one rationed jewel colour for the things that matter. It is dense without being cramped, because a teacher opens it between classes and needs to read a week at a glance — but every surface is built to be written in daily rather than admired once.\n\nThe ground does the heavy lifting. Nothing in the palette is bright except the accent, which is turquoise the way it appears in tilework and dome glaze — firozeh, the stone the colour is named after — sitting on cool lime plaster. That contrast is the entire visual argument: a single saturated thing in a desaturated room reads as important without needing size, weight, or a badge to say so. Type reinforces it. Fraunces carries display and headline in light weights with a tight negative track; Inter Tight carries everything else, including the uppercase tracked eyebrows that used to be a separate mono face. One serif, one sans, no third voice.\n\nThe confirmed anti-reference is generic AI-product signalling: purple-blue gradients, glowing sparkle icons, dark glassmorphism, \"powered by AI\" chrome. Murchid sells AI assistance and must never look like it was generated by the thing it sells. When a screen needs to feel special, it earns it through material — a washed gradient ground, a serif set large, real content — never through the visual vocabulary of an AI demo.",
+    "keyCharacteristics": [
+      "Matte plaster ground (#e8e7e2), never white",
+      "One rationed jewel accent; status colours deliberately separate from it",
+      "Fraunces light + tight tracking for display, Inter Tight for everything else",
+      "Hairline borders as the primary separator; shadow reserved for hierarchy",
+      "Full-pill buttons, 16px cards, 10px nav items",
+      "Two shipped palettes, swapped on <html data-palette> with zero component changes"
+    ],
+    "rules": [
+      {
+        "name": "The Meaning-Is-Not-Decoration Rule",
+        "body": "ok, warn, and crit are deliberately not derived from the accent. A teacher must be able to tell \"ready to use\" from \"brand colour\" at a glance. Never restyle a status token to match the palette, and never use a status colour decoratively.",
+        "section": "colors"
+      },
+      {
+        "name": "The Palette-Layer Rule",
+        "body": "Raw colour values are written in exactly one place — the --p-* palette block. A hex or oklch() literal anywhere else is a bug: it will not re-theme, and it will silently break the alternate palette.",
+        "section": "colors"
+      },
+      {
+        "name": "The One Italic Word Rule",
+        "body": "The signature is a serif heading with exactly one word set in italic and coloured in the accent. One per heading — a second italic word spends the device and it stops reading as emphasis.",
+        "section": "typography"
+      },
+      {
+        "name": "The Ring-In-The-Shadow Rule",
+        "body": "Every shadow token carries its own 0 0 0 1px ring. Don't add a border to a shadowed surface as well — you get a double edge that reads as a rendering fault.",
+        "section": "elevation"
+      },
+      {
+        "name": "The No-Mock Rule",
+        "body": "A product preview built out of styled divs is forbidden. If the page needs to show the product, it shows a real capture of the running studio.",
+        "section": "colors"
+      },
+      {
+        "name": "The Visible-By-Default Rule",
+        "body": "Nothing animates opacity. A reveal starting at opacity 0 leaves content invisible to print, a full-page capture, and crawlers. Transform only.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Motion-Stop Rule",
+        "body": "The accessibility toolbar kills CSS animation but not GSAP, which writes inline transforms from JS. Every animated component reads murchid.a11y directly and does not run when motion is stopped.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Eleven Steps Rule",
+        "body": "The marketing type scale is eleven steps declared on .page. It replaced twenty ad hoc sizes. Add a step only when no existing one can do the job.",
+        "section": "typography"
+      },
+      {
+        "name": "The Two Grounds Rule",
+        "body": "The marketing page is light. Exactly two bands invert to ink, the term timeline and the closing CTA, as bookends. A third would be drift.",
+        "section": "colors"
+      },
+      {
+        "name": "The Bands Lift, They Do Not Flip",
+        "body": "The two ink bands stay dark in dark mode and rise above the ground rather than inverting to white. Inverting an inversion puts a blinding slab mid-scroll.",
+        "section": "colors"
+      },
+      {
+        "name": "The Tinted Shadow Rule",
+        "body": "Shadows carry the hue of the ground they fall on: rgba(16,23,24,...) in light, rgba(4,8,9,...) in dark. Pure black is flat and reads as a sticker.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Inverted-Surface Rule",
+        "body": "A surface that is the opposite of the page ground uses --p-invert / --p-on-invert, never --p-ink. --p-ink is the primary text colour and lightens in dark mode, so anything using it as a background inverts with it.",
+        "section": "colors"
+      },
+      {
+        "name": "Theme Is Applied Twice",
+        "body": "A blocking script stamps data-theme before paint so nothing flashes; ThemeSync re-applies it after hydration because React removes an attribute the server never rendered. Both halves are required.",
+        "section": "colors"
+      },
+      {
+        "name": "The Light-Default Rule",
+        "body": "Light is the default whatever the device prefers. Dark exists only through data-theme=dark, stamped pre-paint from the stored choice; Auto is resolved in JS and there is no prefers-color-scheme block in the CSS.",
+        "section": "colors"
+      },
+      {
+        "name": "The Themed-Screenshot Rule",
+        "body": "Dark pages show real dark captures of the studio, swapped by ThemedShot off the data-theme attribute. A dimmed light screenshot on a dark ground is not an option.",
+        "section": "colors"
+      }
+    ],
+    "dos": [
+      "Do add every new colour to the --p-* palette layer so both shipped palettes stay correct.",
+      "Do use clamp() for type, padding, and radius on signature surfaces; the system is fluid, not breakpoint-stepped.",
+      "Do reach for the motion tokens (--ease-out-quart, --ease-out-quint, --ease-out-expo, --ease-snap, --dur-press 120ms / --dur-hover 220ms / --dur-transition 420ms / --dur-entrance 720ms) instead of writing a cubic-bezier by hand.",
+      "Do give a serif heading exactly one italic accent word.",
+      "Do honour the accessibility toolbar: no fixed heights on text containers, and respect its motion-stop preference in new animation.",
+      "Do add a new <Button> variant in the component when you need a different look."
+    ],
+    "donts": [
+      "Don't write a hex or oklch() literal outside the palette layer. It won't re-theme, and it will break the alternate palette.",
+      "Don't override bg-* or text-* on <Button> via className — class collisions produce invisible buttons.",
+      "Don't put a border on a shadowed surface; the shadow tokens already carry a 1px ring.",
+      "Don't reintroduce a mono or third type family. font-mono resolves to Inter Tight on purpose.",
+      "Don't use a status colour (ok / warn / crit) decoratively, or derive one from the accent.",
+      "Don't wrap a focused text field in an outside ring; fields light their own border.",
+      "Don't drift toward AI-product signalling — purple-blue gradients, sparkle icons, dark glassmorphism, or \"powered by AI\" chrome.",
+      "Don't reuse the landing page's global class names (.hero, .lesson-card, .dash-mock) in studio components; that CSS is global and class-scoped."
+    ]
+  }
+}

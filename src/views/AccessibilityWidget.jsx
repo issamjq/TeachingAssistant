@@ -18,6 +18,36 @@ import { useI18n } from "../lib/i18n";
 // Preferences persist per-device in localStorage.
 
 const STORAGE_KEY = "murchid.a11y";
+const THEME_KEY = "murchid.theme";
+
+/** "light" | "system" | "dark". Nothing stored means light: that is the
+ * product default, whatever the device prefers. */
+function readTheme() {
+  try {
+    const t = localStorage.getItem(THEME_KEY);
+    return t === "dark" || t === "system" ? t : "light";
+  } catch {
+    return "light";
+  }
+}
+
+function writeTheme(next) {
+  const el = document.documentElement;
+  const deviceDark =
+    typeof window !== "undefined" &&
+    window.matchMedia &&
+    window.matchMedia("(prefers-color-scheme: dark)").matches;
+  // The only attribute that exists is data-theme="dark"; the base tokens
+  // are light, so "light" and "auto on a light device" both mean no
+  // attribute at all.
+  if (next === "dark" || (next === "system" && deviceDark)) el.dataset.theme = "dark";
+  else delete el.dataset.theme;
+  try {
+    localStorage.setItem(THEME_KEY, next);
+  } catch {
+    /* a locked-down browser still gets the change, just not the memory */
+  }
+}
 
 const DEFAULTS = {
   textStep: 0,        // 0..4  → zoom 1, 1.1, 1.2, 1.35, 1.5
@@ -83,10 +113,17 @@ function applyToRoot(s) {
 const isDefault = (s) =>
   Object.keys(DEFAULTS).every((k) => s[k] === DEFAULTS[k]);
 
-export default function AccessibilityWidget({ embedded = false } = {}) {
+export default function AccessibilityWidget({ embedded = false, bottomOffset = 0 } = {}) {
+  // bottomOffset lifts the launcher clear of anything else anchored to the
+  // same corner. On the marketing page the assistant sits at the bottom
+  // right; without this the two launchers land exactly on top of each other.
   const { t, dir, lang } = useI18n();
   const [open, setOpen] = useState(false);
   const [s, setS] = useState(loadSettings);
+  // Rendered as "system" on the server and corrected on mount, so the
+  // markup cannot disagree with what the pre-paint script already did.
+  const [theme, setTheme] = useState("light");
+  useEffect(() => { setTheme(readTheme()); }, []);
   const panelRef = useRef(null);
 
   // Portal into one stable, reused container instead of loose into
@@ -207,17 +244,17 @@ export default function AccessibilityWidget({ embedded = false } = {}) {
       title={t("a11y.reset")}
       style={{
         position: "fixed",
-        bottom: 26,
+        bottom: 26 + bottomOffset,
         ...(dir === "rtl"
           ? { right: "auto", left: 84 }
           : { left: "auto", right: 84 }),
         zIndex: 2147483000,
       }}
-      className="group inline-flex items-center gap-1.5 h-10 px-3.5 rounded-full bg-[#1a1814] text-[#faf6ec] text-[12px] font-medium tracking-wide shadow-[0_6px_18px_rgba(26,24,20,0.32)] ring-1 ring-white/15 hover:bg-[#c8472b] transition"
+      className="group inline-flex items-center gap-1.5 h-10 px-3.5 rounded-full bg-invert text-on-invert text-[12px] font-medium tracking-wide shadow-[0_6px_18px_rgba(26,24,20,0.32)] ring-1 ring-white/15 hover:bg-[color:color-mix(in_oklab,var(--p-accent)_25%,var(--p-invert))] transition"
     >
       <span className="relative grid place-items-center w-2 h-2">
-        <span className="absolute inset-0 rounded-full bg-[#e87a55] animate-ping opacity-75" />
-        <span className="relative w-2 h-2 rounded-full bg-[#e87a55]" />
+        <span className="absolute inset-0 rounded-full bg-[color:var(--p-accent)] animate-ping opacity-75" />
+        <span className="relative w-2 h-2 rounded-full bg-[color:var(--p-accent)]" />
       </span>
       <span>{t("a11y.filtersOn")}</span>
       <span className="opacity-60 group-hover:opacity-100">·</span>
@@ -236,18 +273,18 @@ export default function AccessibilityWidget({ embedded = false } = {}) {
       onClick={() => setOpen((o) => !o)}
       aria-label={t("a11y.open")}
       title={t("a11y.open")}
-      style={{ position: "fixed", bottom: 20, ...side, zIndex: 2147483000 }}
-      className="grid place-items-center w-14 h-14 rounded-full bg-[#faf6ec] text-[#c8472b] shadow-[0_8px_24px_rgba(26,24,20,0.32)] ring-2 ring-[#c8472b]/25 transition hover:scale-105 active:scale-95"
+      style={{ position: "fixed", bottom: 20 + bottomOffset, ...side, zIndex: 2147483000 }}
+      className="grid place-items-center w-14 h-14 rounded-full bg-[color:var(--p-paper-cool)] text-[color:var(--p-accent)] shadow-[0_8px_24px_rgba(26,24,20,0.32)] ring-2 ring-[color:var(--p-accent)]/25 transition hover:scale-105 active:scale-95"
     >
       <Accessibility size={28} strokeWidth={2.2} />
       {dirty && (
         <>
           <span
-            className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full bg-[#e87a55] ring-2 ring-white animate-ping opacity-70"
+            className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full bg-[color:var(--p-accent)] ring-2 ring-white animate-ping opacity-70"
             aria-hidden="true"
           />
           <span
-            className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full bg-[#6b7f5a] ring-2 ring-white"
+            className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full bg-[color:var(--p-ok)] ring-2 ring-white"
             aria-hidden="true"
           />
         </>
@@ -264,7 +301,7 @@ export default function AccessibilityWidget({ embedded = false } = {}) {
       <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2">
         {/* Quick profiles */}
         <div>
-          <p className="px-1 mb-1.5 text-[10.5px] font-semibold uppercase tracking-wider text-[#6b6354]">
+          <p className="px-1 mb-1.5 text-[10.5px] font-semibold uppercase tracking-wider text-[color:var(--p-muted)]">
             {t("a11y.profilesTitle")}
           </p>
           <div className="grid grid-cols-3 gap-1.5">
@@ -380,6 +417,20 @@ export default function AccessibilityWidget({ embedded = false } = {}) {
           onChange={(v) => set({ colorBlind: v })}
         />
 
+        <Choice
+          icon={<Contrast size={17} />}
+          label={t("a11y.theme")}
+          hint={t("a11y.themeHint")}
+          value={theme}
+          cols={3}
+          options={[
+            { v: "light", label: t("a11y.theme.light") },
+            { v: "system", label: t("a11y.theme.system") },
+            { v: "dark", label: t("a11y.theme.dark") },
+          ]}
+          onChange={(v) => { setTheme(v); writeTheme(v); }}
+        />
+
         <Toggle
           icon={<MousePointer2 size={17} />}
           label={t("a11y.bigCursor")}
@@ -419,19 +470,19 @@ export default function AccessibilityWidget({ embedded = false } = {}) {
           <button
             type="button"
             onClick={stopReading}
-            className="w-full text-[12px] font-medium py-1.5 rounded-lg border border-[#d4c9b3] text-[#6b6354] hover:bg-[#ede4d3] transition"
+            className="w-full text-[12px] font-medium py-1.5 rounded-lg border border-[color:var(--p-line)] text-[color:var(--p-muted)] hover:bg-[color:var(--p-paper-warm)] transition"
           >
             {t("a11y.stopReading")}
           </button>
         )}
       </div>
 
-      <footer className="px-4 py-3 border-t border-[#d4c9b3] bg-[#f4ede0] flex items-center gap-2">
+      <footer className="px-4 py-3 border-t border-[color:var(--p-line)] bg-[color:var(--p-paper)] flex items-center gap-2">
         <button
           type="button"
           onClick={reset}
           disabled={!dirty}
-          className="flex-1 inline-flex items-center justify-center gap-1.5 text-[12.5px] font-medium py-2 rounded-lg border border-[#d4c9b3] text-[#2d2a24] hover:bg-[#ede4d3] transition disabled:opacity-40 disabled:cursor-default"
+          className="flex-1 inline-flex items-center justify-center gap-1.5 text-[12.5px] font-medium py-2 rounded-lg border border-[color:var(--p-line)] text-[color:var(--p-ink-soft)] hover:bg-[color:var(--p-paper-warm)] transition disabled:opacity-40 disabled:cursor-default"
         >
           <RotateCcw size={14} />
           {t("a11y.reset")}
@@ -439,7 +490,7 @@ export default function AccessibilityWidget({ embedded = false } = {}) {
         <button
           type="button"
           onClick={() => setOpen(false)}
-          className="flex-1 text-[12.5px] font-semibold py-2 rounded-lg bg-[#1a1814] text-[#faf6ec] hover:bg-[#2d2a24] transition"
+          className="flex-1 text-[12.5px] font-semibold py-2 rounded-lg bg-invert text-on-invert hover:bg-[color:color-mix(in_oklab,var(--p-accent)_25%,var(--p-invert))] transition"
         >
           {t("a11y.done")}
         </button>
@@ -465,16 +516,16 @@ export default function AccessibilityWidget({ embedded = false } = {}) {
         data-a11y-dir={dir}
         style={{
           position: "fixed",
-          bottom: 88,
+          bottom: 88 + bottomOffset,
           ...side,
           zIndex: 2147483001,
           width: 340,
           maxHeight: "min(78vh, 640px)",
         }}
-        className="flex flex-col rounded-2xl bg-[#faf6ec] text-[#1a1814] border border-[#d4c9b3] shadow-[0_24px_60px_rgba(26,24,20,0.34)] overflow-hidden"
+        className="flex flex-col rounded-2xl bg-[color:var(--p-paper-cool)] text-ink border border-[color:var(--p-line)] shadow-[0_24px_60px_rgba(26,24,20,0.34)] overflow-hidden"
       >
-        <header className="flex items-start gap-3 px-5 pt-4 pb-3 border-b border-[#d4c9b3] bg-[#f4ede0]">
-          <span className="grid place-items-center w-9 h-9 rounded-full bg-[#c8472b] text-white shrink-0">
+        <header className="flex items-start gap-3 px-5 pt-4 pb-3 border-b border-[color:var(--p-line)] bg-[color:var(--p-paper)]">
+          <span className="grid place-items-center w-9 h-9 rounded-full bg-[color:var(--p-accent)] text-white shrink-0">
             <Accessibility size={20} strokeWidth={2.2} />
           </span>
           <div className="flex-1 min-w-0">
@@ -484,7 +535,7 @@ export default function AccessibilityWidget({ embedded = false } = {}) {
             >
               {t("a11y.title")}
             </h2>
-            <p className="text-[11.5px] text-[#6b6354] leading-snug mt-0.5">
+            <p className="text-[11.5px] text-[color:var(--p-muted)] leading-snug mt-0.5">
               {t("a11y.subtitle")}
             </p>
           </div>
@@ -492,7 +543,7 @@ export default function AccessibilityWidget({ embedded = false } = {}) {
             type="button"
             onClick={() => setOpen(false)}
             aria-label={t("a11y.done")}
-            className="grid place-items-center w-7 h-7 rounded-full text-[#6b6354] hover:bg-[#ede4d3] transition"
+            className="grid place-items-center w-7 h-7 rounded-full text-[color:var(--p-muted)] hover:bg-[color:var(--p-paper-warm)] transition"
           >
             <X size={17} />
           </button>
@@ -578,7 +629,7 @@ function ProfileBtn({ label, onClick }) {
     <button
       type="button"
       onClick={onClick}
-      className="text-[11px] font-medium leading-tight px-1.5 py-2 rounded-lg border border-[#d4c9b3] bg-[#f4ede0] text-[#2d2a24] hover:border-[#c8472b] hover:text-[#c8472b] transition"
+      className="text-[11px] font-medium leading-tight px-1.5 py-2 rounded-lg border border-[color:var(--p-line)] bg-[color:var(--p-paper)] text-[color:var(--p-ink-soft)] hover:border-[color:var(--p-accent)] hover:text-[color:var(--p-accent)] transition"
     >
       {label}
     </button>
@@ -587,14 +638,14 @@ function ProfileBtn({ label, onClick }) {
 
 function Row({ icon, label, hint, children }) {
   return (
-    <div className="flex items-center gap-3 px-2.5 py-2 rounded-xl border border-[#e3dac6] bg-[#f4ede0]">
-      <span className="grid place-items-center w-7 h-7 rounded-lg bg-[#ede4d3] text-[#2d2a24] shrink-0">
+    <div className="flex items-center gap-3 px-2.5 py-2 rounded-xl border border-[color:var(--p-line-soft)] bg-[color:var(--p-paper)]">
+      <span className="grid place-items-center w-7 h-7 rounded-lg bg-[color:var(--p-paper-warm)] text-[color:var(--p-ink-soft)] shrink-0">
         {icon}
       </span>
       <div className="flex-1 min-w-0">
         <p className="text-[13px] font-medium leading-tight">{label}</p>
         {hint && (
-          <p className="text-[11px] text-[#6b6354] leading-snug mt-0.5">{hint}</p>
+          <p className="text-[11px] text-[color:var(--p-muted)] leading-snug mt-0.5">{hint}</p>
         )}
       </div>
       {children}
@@ -611,11 +662,11 @@ function Toggle({ icon, label, hint, on, onToggle, tOn, tOff }) {
         aria-checked={on}
         onClick={onToggle}
         className={`relative shrink-0 w-12 h-7 rounded-full transition-colors ${
-          on ? "bg-[#6b7f5a]" : "bg-[#d4c9b3]"
+          on ? "bg-ok" : "bg-line"
         }`}
       >
         <span
-          className={`absolute top-0.5 w-6 h-6 rounded-full bg-white shadow transition-all ${
+          className={`absolute top-0.5 w-6 h-6 rounded-full bg-paper-cool shadow transition-all ${
             on ? "left-[22px]" : "left-0.5"
           }`}
         />
@@ -625,21 +676,24 @@ function Toggle({ icon, label, hint, on, onToggle, tOn, tOff }) {
   );
 }
 
-function Choice({ icon, label, hint, value, options, onChange }) {
+function Choice({ icon, label, hint, value, options, onChange, cols = 4 }) {
   return (
-    <div className="px-2.5 py-2 rounded-xl border border-[#e3dac6] bg-[#f4ede0]">
+    <div className="px-2.5 py-2 rounded-xl border border-[color:var(--p-line-soft)] bg-[color:var(--p-paper)]">
       <div className="flex items-center gap-3">
-        <span className="grid place-items-center w-7 h-7 rounded-lg bg-[#ede4d3] text-[#2d2a24] shrink-0">
+        <span className="grid place-items-center w-7 h-7 rounded-lg bg-[color:var(--p-paper-warm)] text-[color:var(--p-ink-soft)] shrink-0">
           {icon}
         </span>
         <div className="flex-1 min-w-0">
           <p className="text-[13px] font-medium leading-tight">{label}</p>
           {hint && (
-            <p className="text-[11px] text-[#6b6354] leading-snug mt-0.5">{hint}</p>
+            <p className="text-[11px] text-[color:var(--p-muted)] leading-snug mt-0.5">{hint}</p>
           )}
         </div>
       </div>
-      <div className="mt-2 grid grid-cols-4 gap-1">
+      <div
+        className="mt-2 grid gap-1"
+        style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}
+      >
         {options.map((o) => (
           <button
             key={o.v}
@@ -648,8 +702,8 @@ function Choice({ icon, label, hint, value, options, onChange }) {
             aria-pressed={value === o.v}
             className={`text-[11px] font-medium py-1.5 rounded-lg border transition ${
               value === o.v
-                ? "bg-[#1a1814] text-[#faf6ec] border-[#1a1814]"
-                : "bg-[#faf6ec] text-[#2d2a24] border-[#d4c9b3] hover:border-[#c8472b] hover:text-[#c8472b]"
+                ? "bg-invert text-on-invert border-invert"
+                : "bg-[color:var(--p-paper-cool)] text-[color:var(--p-ink-soft)] border-[color:var(--p-line)] hover:border-[color:var(--p-accent)] hover:text-[color:var(--p-accent)]"
             }`}
           >
             {o.label}
@@ -669,7 +723,7 @@ function Stepper({ icon, label, hint, value, max, onChange }) {
           onClick={() => onChange(Math.max(0, value - 1))}
           disabled={value <= 0}
           aria-label="−"
-          className="grid place-items-center w-7 h-7 rounded-lg border border-[#d4c9b3] text-[#2d2a24] hover:bg-[#ede4d3] transition disabled:opacity-35"
+          className="grid place-items-center w-7 h-7 rounded-lg border border-[color:var(--p-line)] text-[color:var(--p-ink-soft)] hover:bg-[color:var(--p-paper-warm)] transition disabled:opacity-35"
         >
           <Minus size={14} />
         </button>
@@ -681,7 +735,7 @@ function Stepper({ icon, label, hint, value, max, onChange }) {
           onClick={() => onChange(Math.min(max, value + 1))}
           disabled={value >= max}
           aria-label="+"
-          className="grid place-items-center w-7 h-7 rounded-lg border border-[#d4c9b3] text-[#2d2a24] hover:bg-[#ede4d3] transition disabled:opacity-35"
+          className="grid place-items-center w-7 h-7 rounded-lg border border-[color:var(--p-line)] text-[color:var(--p-ink-soft)] hover:bg-[color:var(--p-paper-warm)] transition disabled:opacity-35"
         >
           <Plus size={14} />
         </button>

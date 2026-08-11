@@ -26,8 +26,7 @@
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabaseUrl } from "@/config/env";
-import Landing from "@/views/Landing";
-import { navigate } from "@/lib/route";
+import LandingPage from "@/features/marketing/LandingPage";
 
 /** The key supabase-js writes its session to: sb-<project-ref>-auth-token. */
 function sessionKey(): string | null {
@@ -81,10 +80,6 @@ export default function EntryGate() {
   // frame — it reads as work happening.
   if (redirecting) return null;
 
-  return (
-    <Landing
-      onOpenStudio={(where?: string) => navigate([where ?? "planner"])}
-      heroVariant="atelier"
-    />
-  );
+  // The marketing site: one scroll, real product screenshots, real hrefs.
+  return <LandingPage />;
 }

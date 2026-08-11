@@ -59,8 +59,14 @@ const score = (qTokens: string[], topic: Topic): Score => {
   // A tag hit is worth more than an incidental word: tags are the words
   // that identify the topic, which is how "how much" reaches pricing
   // without sharing a word with "cost".
+  // Tags are deduped BY STEM before counting. Several topics list both
+  // singular and plural forms ("work" and "works", "student" and
+  // "students"), which stem to the same token, so a single matching word
+  // was scoring twice and letting a generic tag outrank a specific one:
+  // "does it work in arabic" reached how-it-works rather than languages
+  // because "work"/"works" counted double.
   let tagHits = 0;
-  for (const tag of topic.tags) if (q.has(stem(tag))) tagHits++;
+  for (const tag of new Set(topic.tags.map(stem))) if (q.has(tag)) tagHits++;
 
   // Best single example question, not the sum across all of them —
   // otherwise a topic with eight examples outranks a better-fitting one
@@ -91,7 +97,10 @@ function hydrate(text: string): string {
     const save = p.savePct ? `, ${p.savePct}% cheaper than monthly` : "";
     const best = p.best ? " — the one most teachers pick" : "";
     const name = p.id.charAt(0).toUpperCase() + p.id.slice(1);
-    return `- **${name}** — $${p.total} per ${per} (works out at $${p.perMonth}/month${save})${best}`;
+    // AED, not dollars. plans.js is priced in dirhams and the pricing
+    // section says so; quoting "$80.99" here contradicted the page a
+    // visitor had just scrolled past.
+    return `- **${name}** — ${p.total} AED per ${per} (works out at ${p.perMonth} AED/month${save})${best}`;
   }).join("\n");
   return text
     .replace(/\{\{PRICING\}\}/g, pricing)

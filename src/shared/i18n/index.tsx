@@ -99,6 +99,31 @@ function applyDocumentLang(lang: Lang): void {
   document.documentElement.dir = dir;
 }
 
+// The Arabic faces, fetched the moment Arabic is first selected and never
+// before. Amiri is 208KB — 40% of everything the app used to spend on
+// fonts — and it was being downloaded on the English page to set a
+// decorative watermark and one metadata line. Reem Kufi carries Arabic
+// display on the marketing surface; Cairo carries Arabic UI.
+//
+// Injected rather than declared in the root layout because the root is a
+// server component and cannot know a device preference. The link is added
+// once per document; swapping back to English leaves it in place, since
+// the bytes are already spent and a teacher who toggles once will toggle
+// again.
+const ARABIC_FONTS_ID = "murchid-arabic-fonts";
+const ARABIC_FONTS_HREF =
+  "https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Cairo:wght@400;600;700&family=Reem+Kufi:wght@400;600&display=swap";
+
+function ensureArabicFonts(): void {
+  if (typeof document === "undefined") return;
+  if (document.getElementById(ARABIC_FONTS_ID)) return;
+  const link = document.createElement("link");
+  link.id = ARABIC_FONTS_ID;
+  link.rel = "stylesheet";
+  link.href = ARABIC_FONTS_HREF;
+  document.head.appendChild(link);
+}
+
 export function LanguageProvider({ children }: { children: React.ReactNode }) {
   // Server-render as "en" and correct on mount. Reading localStorage in the
   // initialiser would produce a hydration mismatch for Arabic users.
@@ -109,6 +134,7 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     applyDocumentLang(lang);
+    if (RTL_LANGS.has(lang)) ensureArabicFonts();
   }, [lang]);
 
   const setLang = useCallback((next: Lang) => {

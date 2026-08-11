@@ -13,8 +13,16 @@ export default function MarketingLayout({
     <LanguageProvider>
       <RouterBridge />
       {children}
-      {/* The floating assistant. It carries the accessibility controls as
-          one of its tabs, so this single mount covers both. */}
+      {/* ONE floating control, not two. The assistant answers product
+          questions from knowledge.json (no /api/chat, no credits, no
+          account) AND carries the full accessibility panel — including the
+          theme control — as its accessibility tab. A second launcher for
+          accessibility sat right next to this one and read as clutter. */}
+      {/* The assistant, answering visitor questions about the product.
+          On this surface it runs entirely from src/features/assistant/
+          knowledge.json: no /api/chat call, no AI credits, no account
+          needed. Only scope="studio" reaches the model, which is why a
+          signed-out visitor can ask it anything here for free. */}
       <AssistantMount scope="landing" />
     </LanguageProvider>
   );

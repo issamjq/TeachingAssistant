@@ -1,0 +1,1141 @@
+/* ═══════════════════════════════════════════════════════════════════
+   MURCHID — the marketing surface.
+
+   Single scroll. Built on the PRODUCT'S OWN material rather than a
+   separate marketing world: plaster ground, chalk surfaces, firozeh
+   accent, Fraunces display, Inter Tight text.
+
+   That choice is the point. The previous pass invented a green
+   screenprint world for marketing, which meant the page and the product
+   looked like two different companies, and every real screenshot landed
+   on it as a foreign object. Here the screenshots ARE the design
+   material: a teacher sees the actual interface, on the actual palette,
+   before they sign up.
+
+   Fraunces is used deliberately, not as a default reach for "editorial
+   feel": it is the brand's named display face (CLAUDE.md), it is what
+   the studio ships, and the product's own wordmark is drawn in it.
+   ═══════════════════════════════════════════════════════════════════ */
+
+.page {
+  /* Semantic pair for the inverted bands (term timeline, closing, pricing
+     feature, footer). Kept separate from the text colour because in dark
+     mode text lightens while these bands must stay dark, just lifted off
+     the ground. */
+  --band-bg: #101718;
+  --band-fg-rgb: 244, 243, 239;
+
+  /* Theme-varying materials, declared once here and re-pointed by the dark
+     blocks below. Before this the dark overrides were two identical copies
+     of the same three box-shadows, one per theming mechanism. */
+  --on-accent: #f4f3ef;
+  --frame-border: var(--line);
+  --shot-filter: none;
+  --shadow-cta: 0 1px 2px rgba(16, 23, 24, 0.08), 0 10px 26px rgba(22, 100, 108, 0.22);
+  --shadow-cta-hover: 0 2px 4px rgba(16, 23, 24, 0.1), 0 16px 34px rgba(22, 100, 108, 0.28);
+  --shadow-shot: 0 2px 6px rgba(16, 23, 24, 0.06), 0 30px 70px -20px rgba(16, 23, 24, 0.26);
+  --band-fg: #f4f3ef;
+
+  --paper: #e8e7e2;
+  --paper-warm: #e0dfd9;
+  --chalk: #f4f3ef;
+  --ink: #101718;
+  --ink-soft: #364043;
+  --muted: #5f696c;
+  --line: #cdcdc6;
+  --line-soft: #dcdbd6;
+  --accent: #16646c;
+  --accent-deep: #0f4e55;
+  --accent-wash: #dfeaea;
+  /* The accent, lifted for the two ink grounds. Firozeh at full strength
+     is too dark to read on ink; this is the same hue raised. */
+  --accent-on-ink: #8fc9c4;
+  --amber: #94661f;
+
+  --shell: 1280px;
+  --gutter: clamp(20px, 5vw, 56px);
+  --band: clamp(72px, 11vh, 140px);
+
+  --r-lg: 20px;
+  --r-md: 14px;
+  --r-sm: 10px;
+
+  /* TYPE SCALE. Was 20 distinct sizes, including 13/13.5, 14/14.5 and
+     15/15.5 pairs that differed by half a pixel and did no work, plus four
+     display clamps that landed within 4px of each other. Eleven steps, each
+     with a job. Add a step only when an existing one genuinely cannot do it. */
+  --t-1: 13px;      /* micro: ranges, notes, footers */
+  --t-2: 14.5px;    /* small: metadata, captions */
+  --t-3: 15.5px;    /* the default: body, ui, links */
+  --t-4: 18px;      /* the Arabic mark in the lockup */
+  --t-5: 20px;      /* bento cell names */
+  --t-6: 24px;      /* the lockup */
+  --t-body: clamp(15.5px, 1.15vw, 18px);
+
+  --d-1: clamp(24px, 2.5vw, 34px);   /* step and week titles */
+  --d-2: clamp(28px, 3vw, 40px);     /* auth title */
+  --d-3: clamp(30px, 3.6vw, 50px);   /* section titles */
+  --d-4: clamp(34px, 3.8vw, 54px);   /* hero and closing */
+  --d-5: clamp(40px, 5vw, 62px);     /* the price */
+
+  background: var(--paper);
+  color: var(--ink);
+  font-family: "Inter Tight", ui-sans-serif, system-ui, sans-serif;
+  overflow-x: clip;
+}
+
+/* Shape consistency: one radius family. Interactive controls take the
+   pill; surfaces take --r-lg; small chips take --r-sm. */
+
+.shell {
+  max-width: var(--shell);
+  margin-inline: auto;
+  padding-inline: var(--gutter);
+}
+
+/* ── Type ───────────────────────────────────────────────────────── */
+
+.display {
+  font-family: Fraunces, Georgia, serif;
+  font-weight: 300;
+  letter-spacing: -0.035em;
+  line-height: 1.02;
+  margin: 0;
+  text-wrap: balance;
+}
+
+.display em {
+  font-style: italic;
+  font-weight: 300;
+  color: var(--accent);
+  /* Descender clearance: Fraunces italic drops well below the baseline. */
+  line-height: 1.12;
+  padding-bottom: 0.06em;
+}
+
+.sectionTitle {
+  composes: display;
+  font-size: var(--d-3);
+}
+
+.body {
+  font-size: var(--t-body);
+  line-height: 1.62;
+  color: var(--ink-soft);
+  max-width: 62ch;
+  margin: 0;
+}
+
+.small {
+  font-size: var(--t-2);
+  line-height: 1.55;
+  color: var(--muted);
+  margin: 0;
+}
+
+/* ── Navigation: one line, 68px ─────────────────────────────────── */
+
+.nav {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  height: 68px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  background: color-mix(in srgb, var(--paper) 82%, transparent);
+  backdrop-filter: blur(14px);
+  border-bottom: 1px solid transparent;
+  transition: border-color 240ms ease, background-color 240ms ease;
+}
+
+.navScrolled {
+  border-bottom-color: var(--line);
+}
+
+.navInner {
+  max-width: var(--shell);
+  margin-inline: auto;
+  padding-inline: var(--gutter);
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: clamp(16px, 3vw, 40px);
+}
+
+.lockup {
+  font-family: Fraunces, Georgia, serif;
+  font-size: var(--t-6);
+  font-weight: 400;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+  text-decoration: none;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 9px;
+  flex: none;
+}
+
+.lockup i {
+  font-family: "Reem Kufi", sans-serif;
+  font-style: normal;
+  font-size: var(--t-4);
+  color: var(--accent);
+}
+
+.navLinks {
+  display: flex;
+  align-items: center;
+  gap: clamp(14px, 2vw, 30px);
+}
+
+.navLink {
+  font-size: var(--t-3);
+  font-weight: 500;
+  color: var(--ink-soft);
+  text-decoration: none;
+  white-space: nowrap;
+  transition: color 180ms ease;
+}
+
+.navLink:hover {
+  color: var(--accent);
+}
+
+@media (max-width: 860px) {
+  .navLinks a[data-secondary="true"] {
+    display: none;
+  }
+}
+
+/* ── Buttons ────────────────────────────────────────────────────── */
+
+.btnPrimary,
+.btnGhost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 48px;
+  padding-inline: 26px;
+  border-radius: 999px;
+  font-size: var(--t-3);
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: transform 160ms cubic-bezier(0.16, 1, 0.3, 1),
+    background-color 220ms ease, border-color 220ms ease, box-shadow 220ms ease;
+}
+
+.btnPrimary {
+  background: var(--accent);
+  color: var(--on-accent);
+  border: 1px solid var(--accent);
+  box-shadow: var(--shadow-cta);
+}
+
+.btnPrimary:hover {
+  background: var(--accent-deep);
+  box-shadow: var(--shadow-cta-hover);
+}
+
+.btnPrimary:active {
+  transform: translateY(1px);
+}
+
+.btnGhost {
+  background: transparent;
+  color: var(--ink);
+  border: 1px solid var(--line);
+}
+
+.btnGhost:hover {
+  border-color: var(--ink);
+  background: color-mix(in srgb, var(--ink) 4%, transparent);
+}
+
+.page :where(a, button):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+/* ── Hero: asymmetric split ─────────────────────────────────────── */
+
+.hero {
+  max-width: var(--shell);
+  margin-inline: auto;
+  padding-inline: var(--gutter);
+  padding-top: clamp(28px, 5vh, 72px);
+  padding-bottom: clamp(40px, 7vh, 90px);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: clamp(28px, 4vw, 64px);
+  align-items: center;
+  min-height: min(76vh, 720px);
+}
+
+.heroCopy {
+  max-width: none;
+}
+
+.heroTitle {
+  composes: display;
+  font-size: var(--d-4);
+}
+
+.word {
+  display: inline-block;
+  overflow: hidden;
+  vertical-align: top;
+  margin-inline-end: 0.26em;
+  /* Descender clearance: the mask must not crop g/p/y at rest. */
+  padding-bottom: 0.12em;
+  margin-bottom: -0.12em;
+}
+
+.wordInner {
+  display: inline-block;
+}
+
+.heroLede {
+  composes: body;
+  margin-top: 22px;
+  max-width: 46ch;
+}
+
+.heroActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 30px;
+}
+
+/* The product shot sits proud of the grid, bleeding toward the edge, so
+   the page opens on the interface rather than on a boxed thumbnail. */
+.heroShot {
+  position: relative;
+  border-radius: var(--r-lg);
+  overflow: hidden;
+  border: 1px solid var(--frame-border);
+  background: var(--chalk);
+  box-shadow: var(--shadow-shot);
+  margin-inline-end: calc(-1 * clamp(0px, 6vw, 90px));
+}
+
+.shotImg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+@media (max-width: 900px) {
+  .hero {
+    grid-template-columns: minmax(0, 1fr);
+    min-height: 0;
+    gap: 30px;
+  }
+
+  .heroCopy {
+    max-width: none;
+  }
+
+  .heroShot {
+    margin-inline-end: 0;
+  }
+}
+
+/* ── Section rhythm ─────────────────────────────────────────────── */
+
+.section {
+  padding-block: var(--band);
+}
+
+.sectionHead {
+  max-width: 60ch;
+}
+
+.sectionHead .body {
+  margin-top: 16px;
+}
+
+/* One eyebrow budget for the whole page; this is it. */
+.eyebrow {
+  font-size: var(--t-1);
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin: 0 0 14px;
+}
+
+/* ── Steps: alternating rows, capped at two before the rhythm breaks */
+
+.step {
+  display: grid;
+  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+  gap: clamp(24px, 4vw, 64px);
+  align-items: center;
+  padding-block: clamp(28px, 4vw, 52px);
+  border-top: 1px solid var(--line-soft);
+}
+
+.stepReverse > *:first-child {
+  order: 2;
+}
+
+.stepIndex {
+  font-family: Fraunces, Georgia, serif;
+  font-size: var(--t-3);
+  font-weight: 400;
+  font-style: italic;
+  color: var(--accent);
+  margin: 0 0 10px;
+}
+
+.stepTitle {
+  composes: display;
+  font-size: var(--d-1);
+}
+
+.stepBody {
+  composes: body;
+  margin-top: 12px;
+  font-size: var(--t-3);
+}
+
+.frame {
+  border-radius: var(--r-md);
+  overflow: hidden;
+  border: 1px solid var(--frame-border);
+  background: var(--chalk);
+  box-shadow: var(--shadow-shot);
+}
+
+@media (max-width: 860px) {
+  .step,
+  .stepReverse > *:first-child {
+    grid-template-columns: minmax(0, 1fr);
+    order: 0;
+  }
+}
+
+/* ── Steps rail: the reader's place in the sequence ─────────────── */
+
+.stepsWrap {
+  position: relative;
+  margin-top: clamp(24px, 4vw, 48px);
+}
+
+.stepsRail {
+  display: none;
+}
+
+@media (min-width: 900px) {
+  .stepsWrap {
+    padding-inline-start: clamp(22px, 3vw, 38px);
+  }
+
+  .stepsRail {
+    display: block;
+    position: absolute;
+    inset-block: 28px;
+    inset-inline-start: 0;
+    width: 2px;
+    background: var(--line-soft);
+  }
+
+  .stepsRailFill {
+    position: absolute;
+    inset: 0;
+    background: var(--accent);
+    transform-origin: top;
+    transform: scaleY(0);
+  }
+
+  .stepsRailDot {
+    position: absolute;
+    top: 0;
+    inset-inline-start: -5px;
+    width: 12px;
+    height: 12px;
+    border-radius: 999px;
+    background: var(--accent);
+    border: 2px solid var(--paper);
+    box-shadow: 0 1px 4px rgba(16, 23, 24, 0.25);
+  }
+}
+
+/* ── Outputs bento: seven cells, seven items ────────────────────── */
+
+.bento {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: clamp(12px, 1.4vw, 18px);
+  margin-top: clamp(28px, 4vw, 44px);
+}
+
+.cell {
+  background: var(--chalk);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  padding: clamp(18px, 2vw, 26px);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 150px;
+}
+
+/* Two cells carry real product imagery, so the grid is not a wall of
+   text boxes. */
+.cellWide {
+  grid-column: span 3;
+  padding: 0;
+  overflow: hidden;
+  position: relative;
+  min-height: 260px;
+}
+
+.cellTall {
+  grid-column: span 3;
+  padding: 0;
+  overflow: hidden;
+  position: relative;
+  min-height: 260px;
+}
+
+.cellSm {
+  grid-column: span 2;
+}
+
+/* The last two cells widen so the final row fills exactly. A bento with a
+   hole at the end means the grid was planned before the content. */
+.cellHalf {
+  grid-column: span 3;
+}
+
+.cellCaption {
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 18px;
+  background: linear-gradient(
+    to top,
+    rgba(16, 23, 24, 0.82),
+    rgba(16, 23, 24, 0.4) 55%,
+    transparent
+  );
+  color: #f4f3ef;
+  font-size: var(--t-3);
+  font-weight: 600;
+}
+
+.cellImg {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: top left;
+  display: block;
+  filter: var(--shot-filter);
+}
+
+.cellIcon {
+  display: inline-grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  flex: none;
+  border-radius: var(--r-sm);
+  background: var(--accent-wash);
+  color: var(--accent);
+  border: 1px solid var(--line-soft);
+  will-change: transform;
+}
+
+.cellCaption .cellIcon {
+  width: 28px;
+  height: 28px;
+  background: rgba(244, 243, 239, 0.16);
+  color: #f4f3ef;
+  border-color: rgba(244, 243, 239, 0.25);
+}
+
+.cellName {
+  font-family: Fraunces, Georgia, serif;
+  font-size: var(--t-5);
+  font-weight: 400;
+  margin: 0;
+}
+
+.cellText {
+  font-size: var(--t-2);
+  line-height: 1.5;
+  color: var(--muted);
+  margin: 0;
+}
+
+@media (max-width: 860px) {
+  .bento {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .cellWide,
+  .cellTall {
+    grid-column: span 2;
+    min-height: 220px;
+  }
+
+  .cellSm {
+    grid-column: span 1;
+  }
+}
+
+@media (max-width: 520px) {
+  .bento {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .cellWide,
+  .cellTall,
+  .cellSm {
+    grid-column: span 1;
+  }
+}
+
+/* ── Bilingual band ─────────────────────────────────────────────── */
+
+.bilingual {
+  background: var(--accent-wash);
+  border-block: 1px solid var(--line);
+}
+
+.bilingualInner {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: clamp(24px, 4vw, 60px);
+  align-items: center;
+}
+
+.arabicSample {
+  font-family: "Reem Kufi", "Cairo", sans-serif;
+  font-size: var(--d-3);
+  line-height: 1.5;
+  color: var(--ink);
+  direction: rtl;
+  text-align: right;
+  margin: 0;
+}
+
+@media (max-width: 860px) {
+  .bilingualInner {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* ── Pricing: one recommended plan, not three equal cards ───────── */
+
+.planWrap {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+  gap: clamp(20px, 3vw, 44px);
+  align-items: start;
+  margin-top: clamp(28px, 4vw, 44px);
+}
+
+.planFeature {
+  background: var(--band-bg);
+  color: var(--band-fg);
+  border-radius: var(--r-lg);
+  padding: clamp(26px, 3vw, 40px);
+}
+
+.planFeature .planPrice {
+  color: var(--band-fg);
+}
+
+.planPrice {
+  font-family: Fraunces, Georgia, serif;
+  font-size: var(--d-5);
+  font-weight: 300;
+  letter-spacing: -0.04em;
+  line-height: 1;
+  margin: 10px 0 0;
+}
+
+.planUnit {
+  font-family: "Inter Tight", sans-serif;
+  font-size: var(--t-3);
+  font-weight: 500;
+  opacity: 0.75;
+  letter-spacing: 0;
+}
+
+.planName {
+  font-size: var(--t-3);
+  font-weight: 600;
+  margin: 0;
+  opacity: 0.8;
+}
+
+.planList {
+  list-style: none;
+  margin: 22px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+  font-size: var(--t-3);
+}
+
+.planList li {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  line-height: 1.45;
+}
+
+.planAlt {
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--chalk);
+  padding: clamp(20px, 2.4vw, 28px);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.planAltRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 14px;
+  padding-block: 14px;
+}
+
+.planAltRow + .planAltRow {
+  border-top: 1px solid var(--line-soft);
+}
+
+@media (max-width: 860px) {
+  .planWrap {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* ── Questions ──────────────────────────────────────────────────── */
+
+.faqWrap {
+  max-width: 78ch;
+  margin-top: clamp(24px, 3vw, 36px);
+}
+
+/* ── Closing band. The page's one deliberate ground change. ─────── */
+
+.closing {
+  background: var(--band-bg);
+  color: var(--band-fg);
+  text-align: center;
+  padding-block: clamp(80px, 12vh, 150px);
+}
+
+.closing .display {
+  font-size: var(--d-4);
+}
+
+.closing .display em {
+  color: var(--accent-on-ink);
+}
+
+.closingNote {
+  font-size: var(--t-2);
+  color: rgba(var(--band-fg-rgb), 0.7);
+  margin: 18px 0 0;
+}
+
+.closingActions {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 30px;
+  flex-wrap: wrap;
+}
+
+.closing .btnGhost {
+  color: var(--band-fg);
+  border-color: rgba(var(--band-fg-rgb), 0.35);
+}
+
+.closing .btnGhost:hover {
+  border-color: var(--band-fg);
+  background: rgba(var(--band-fg-rgb), 0.08);
+}
+
+/* ── Footer ─────────────────────────────────────────────────────── */
+
+.footer {
+  background: var(--band-bg);
+  color: rgba(var(--band-fg-rgb), 0.72);
+  padding-bottom: clamp(28px, 4vw, 44px);
+  font-size: var(--t-2);
+}
+
+.footerInner {
+  border-top: 1px solid rgba(var(--band-fg-rgb), 0.14);
+  padding-top: clamp(24px, 3vw, 36px);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px 32px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.footerLinks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+}
+
+.footer a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.footer a:hover {
+  color: var(--band-fg);
+}
+
+/* Reserve the lane the fixed accessibility launcher occupies. */
+@media (max-width: 640px) {
+  .footer {
+    padding-bottom: 92px;
+  }
+}
+
+/* ── The funnel, in the same world ───────────────────────────────────
+   /signup and /signin are separate routes, but they are the destination
+   of the page's only real action, so they use this world rather than a
+   second one. Markup and styling only: every Supabase call, validation
+   rule and provider handler in AuthPage is untouched. */
+
+.authGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1fr);
+  gap: clamp(24px, 4vw, 64px);
+  align-items: start;
+  padding-block: clamp(28px, 5vw, 64px);
+}
+
+.authAside {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(18px, 3vw, 30px);
+}
+
+.authBack {
+  align-self: start;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: var(--t-3);
+  font-weight: 500;
+  color: var(--ink-soft);
+  border-bottom: 1px solid transparent;
+}
+
+.authBack:hover {
+  color: var(--accent);
+  border-bottom-color: currentColor;
+}
+
+.authPoints {
+  list-style: none;
+  margin: clamp(16px, 3vw, 26px) 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 13px;
+  max-width: 36ch;
+}
+
+.authPoint {
+  position: relative;
+  padding-inline-start: 22px;
+  font-size: var(--t-3);
+  line-height: 1.5;
+  color: var(--ink-soft);
+}
+
+.authPoint::before {
+  content: "";
+  position: absolute;
+  inset-inline-start: 0;
+  top: 10px;
+  width: 12px;
+  border-top: 2px solid var(--accent);
+}
+
+.authFoot {
+  margin: 0;
+  font-size: var(--t-1);
+  color: var(--muted);
+}
+
+.authPlate {
+  background: var(--chalk);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  padding: clamp(22px, 3vw, 38px);
+  box-shadow: 0 1px 3px rgba(16, 23, 24, 0.05),
+    0 20px 50px -22px rgba(16, 23, 24, 0.22);
+}
+
+.authTitle {
+  composes: display;
+  font-size: var(--d-2);
+}
+
+.authLead {
+  margin: 12px 0 24px;
+  font-size: var(--t-3);
+  line-height: 1.55;
+  color: var(--ink-soft);
+}
+
+@media (max-width: 860px) {
+  .authGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* ── The term, panned horizontally ───────────────────────────────────
+   Above 900px with motion allowed, GSAP pins this section and slides the
+   track. The CSS below is the NON-animated truth: a vertical stack that
+   reads correctly with no JavaScript at all, which is what a phone, a
+   reduced-motion visitor, the product's motion-stop toggle, and a crawler
+   all get. The pin is an enhancement layered on top, never the layout. */
+
+.termWrap {
+  background: var(--band-bg);
+  color: var(--band-fg);
+  padding-block: var(--band);
+  overflow: hidden;
+}
+
+.termTrack {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(16px, 2vw, 24px);
+  padding-inline: var(--gutter);
+  max-width: var(--shell);
+  margin-inline: auto;
+}
+
+.termIntro {
+  max-width: 46ch;
+}
+
+.termIntro .body {
+  color: rgba(var(--band-fg-rgb), 0.78);
+}
+
+.termIntro .small {
+  color: rgba(var(--band-fg-rgb), 0.55);
+}
+
+.week {
+  border: 1px solid rgba(var(--band-fg-rgb), 0.18);
+  border-radius: var(--r-lg);
+  padding: clamp(20px, 2.4vw, 30px);
+  background: rgba(var(--band-fg-rgb), 0.04);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.weekRange {
+  font-size: var(--t-1);
+  font-weight: 600;
+  color: var(--accent-on-ink);
+  margin: 0;
+}
+
+.weekTitle {
+  font-family: Fraunces, Georgia, serif;
+  font-weight: 300;
+  font-size: var(--d-1);
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+  margin: 0;
+}
+
+.weekBody {
+  font-size: var(--t-3);
+  line-height: 1.55;
+  color: rgba(var(--band-fg-rgb), 0.78);
+  margin: 0;
+}
+
+.weekMeta {
+  margin: auto 0 0;
+  padding-top: 14px;
+  font-size: var(--t-1);
+  color: rgba(var(--band-fg-rgb), 0.58);
+  border-top: 1px solid rgba(var(--band-fg-rgb), 0.14);
+}
+
+@media (min-width: 900px) {
+  .termWrap {
+    padding-block: 0;
+    /* The pinned viewport. min-h uses dvh so an iOS address bar cannot
+       shorten it mid-pin. */
+    min-height: 100dvh;
+    display: flex;
+    align-items: center;
+  }
+
+  .termTrack {
+    flex-direction: row;
+    align-items: stretch;
+    gap: clamp(20px, 2.4vw, 32px);
+    max-width: none;
+    width: max-content;
+    padding-inline: max(var(--gutter), calc((100vw - var(--shell)) / 2));
+    will-change: transform;
+  }
+
+  .termIntro {
+    width: clamp(320px, 34vw, 440px);
+    flex: none;
+    align-self: center;
+  }
+
+  .week {
+    width: clamp(280px, 26vw, 360px);
+    flex: none;
+  }
+}
+
+/* Hero parallax target. The shot is given its own compositing layer so the
+   scrubbed transform never triggers layout. */
+.heroShot {
+  will-change: transform;
+}
+
+/* ── Dark mode ───────────────────────────────────────────────────────
+   LIGHT IS THE DEFAULT. The base tokens above are the light theme, and
+   dark exists only through data-theme="dark" on <html> — stamped by the
+   pre-paint script when the visitor chose Dark, or chose Auto on a dark
+   device. There is deliberately NO prefers-color-scheme block: a
+   first-time visitor sees light whatever their device says, so the CSS
+   never consults the device at all. One block, one source of truth.
+
+   Retuned from the first pass, which was murky: the ground is deeper and
+   the card surface sits clearly above it, the hairlines are a step
+   brighter so frames still draw, and the accent is lifted further so the
+   primary action carries on a dark ground.
+
+   The two inverted bands do NOT become light. They lift ABOVE the ground,
+   so the light-mode rhythm of "the argument is bookended" survives.
+
+   Product screenshots swap to real dark captures of the studio (see
+   ThemedShot), so --shot-filter is none: there is no light image left to
+   dim. */
+
+:global(html[data-theme="dark"]) .page {
+  --paper: #0f1517;
+  --paper-warm: #131b1d;
+  --chalk: #1b2629;
+  --ink: #eef0ec;
+  --ink-soft: #c3ccc9;
+  --muted: #90a09c;
+  --line: #2e3b3e;
+  --line-soft: #243033;
+  --accent: #7cc7bf;
+  --accent-deep: #99d6cf;
+  --accent-wash: #12292d;
+  --accent-on-ink: #8fc9c4;
+
+  --band-bg: #1e2a2d;
+  --band-fg: #edefe9;
+  --band-fg-rgb: 237, 239, 233;
+  --on-accent: #08171a;
+  --frame-border: #35454a;
+  --shot-filter: none;
+  --shadow-cta: 0 1px 2px rgba(4, 8, 9, 0.45), 0 10px 26px rgba(4, 8, 9, 0.38);
+  --shadow-cta-hover: 0 2px 4px rgba(4, 8, 9, 0.5), 0 16px 34px rgba(4, 8, 9, 0.44);
+  --shadow-shot: 0 2px 6px rgba(4, 8, 9, 0.55), 0 30px 70px -20px rgba(4, 8, 9, 0.62);
+}
+
+/* ── Theme control ──────────────────────────────────────────────── */
+
+.themeToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--chalk);
+}
+
+.themeBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 26px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: background-color 180ms ease, color 180ms ease;
+}
+
+.themeBtn:hover {
+  color: var(--ink);
+}
+
+.themeBtnOn {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.themeBtnOn:hover {
+  color: var(--paper);
+}
+
+/* ── Morph stage: the travelling chips' own layer ─────────────────── */
+
+.morphHost {
+  position: relative;
+}
+
+.morphStage {
+  display: none;
+}
+
+@media (min-width: 900px) {
+  .morphStage {
+    display: block;
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 5;
+  }
+
+  .stageChip {
+    position: absolute;
+    top: 0;
+    inset-inline-start: 0;
+    background: var(--chalk);
+    box-shadow: var(--shadow-cta);
+    will-change: transform;
+  }
+}

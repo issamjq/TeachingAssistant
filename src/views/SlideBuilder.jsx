@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { api, DatePicker } from "./_shared";
 import { useT } from "../lib/i18n";
+import DeckFonts from "../features/presentations/DeckFonts";
 
 import { API_BASE } from "../config/env";
 const resolveSrc = (u) =>
@@ -942,6 +943,10 @@ export default function SlideBuilder({
 
   return (
     <div>
+      {/* The 19 deck typefaces the theme picker offers, requested here and
+          nowhere else. They used to load on every page in the app — see
+          src/features/presentations/DeckFonts.tsx. */}
+      <DeckFonts />
       {/* Print-only slide deck — hidden on screen, becomes the only thing
           the page prints. Each slide is wrapped in .deck-print-page which
           forces a page break after it, so a 5-slide deck prints as 5

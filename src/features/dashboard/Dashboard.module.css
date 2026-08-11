@@ -129,8 +129,8 @@
   background:
     radial-gradient(120% 90% at 100% 0%,
       color-mix(in oklab, var(--p-ambient-mid) 26%, transparent), transparent 55%),
-    var(--p-ink);
-  color: var(--p-paper-cool);
+    var(--p-invert);
+  color: var(--p-on-invert);
   border: 1px solid color-mix(in oklab, white 10%, transparent);
   box-shadow: 0 20px 44px -18px color-mix(in oklab, var(--p-ink) 60%, transparent);
   overflow: hidden;
@@ -141,9 +141,9 @@
   font-weight: 700;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: color-mix(in oklab, var(--p-paper-cool) 55%, transparent);
+  color: color-mix(in oklab, var(--p-on-invert) 62%, transparent);
 }
-.inkMuted { color: color-mix(in oklab, var(--p-paper-cool) 62%, transparent); }
+.inkMuted { color: color-mix(in oklab, var(--p-on-invert) 70%, transparent); }
 
 /* ── numerals ─────────────────────────────────────────────────────────
    The reference cards work because the number IS the card. */

@@ -11,6 +11,9 @@ import {
 } from "lucide-react";
 import "../landing.css";
 import { useT, useI18n, LangToggle } from "../lib/i18n";
+// The Wall Chart world, so the funnel the marketing CTA points at is the
+// same material as the page that sent the visitor there. Styling only.
+import wc from "../features/marketing/Landing.module.css";
 import { setRole as setLocalRole } from "../lib/role";
 import {
   useAccount, setAccount, clearAccount,
@@ -1247,115 +1250,69 @@ function validatePassword(password, { isSignin = false } = {}) {
 // chrome, so the last provider button would sit under the address bar.
 function AuthShell({ title, em, lead, onPage, children }) {
   const t = useT();
-  const { isRTL } = useI18n();
+
+  // Rebuilt in the Wall Chart world (direction seed 0df4eaa5). MARKUP AND
+  // STYLING ONLY — `children` is still whatever AuthPage renders, and every
+  // Supabase call, validation rule and provider handler is untouched.
+  //
+  // What changed and why:
+  // - The old shell gave 43% of the viewport to an empty gradient slab
+  //   carrying a decorative wordmark, while "No card required" sat at 11px
+  //   in its bottom corner, nowhere near the button it was reassuring. The
+  //   panel now carries the reassurance itself, at a readable size, on the
+  //   page where a visitor is deciding whether to hand over an email.
+  // - The form sits on a specimen plate, so the CTA's destination is the
+  //   same material as the page that sent them here.
+  // - h-[100dvh] with overflow-hidden is gone: it clipped the form under
+  //   the accessibility toolbar's 1.5x text setting, which is a shipped
+  //   product feature, not an edge case.
+  const reassurances = [
+    t("mk.auth.point1"),
+    t("mk.auth.point2"),
+    t("mk.auth.point3"),
+  ];
+
   return (
-    <main className="h-[100dvh] overflow-hidden grid lg:grid-cols-[0.85fr_1.15fr]">
-      {/* Brand panel — decorative, so it is hidden from assistive tech
-          rather than read out as a second copy of the page title. */}
-      <aside
-        aria-hidden="true"
-        className="relative hidden lg:flex flex-col justify-between p-12 overflow-hidden"
-        style={{
-          background:
-            "radial-gradient(ellipse 92% 64% at 50% 8%, oklch(0.64 0.13 197), transparent 72%)," +
-            "radial-gradient(circle at 88% 96%, oklch(0.36 0.1 197), transparent 60%)," +
-            "var(--cm-clay, oklch(0.46 0.085 208))",
-        }}
-      >
-        <span
-          className="font-mono text-[10px] uppercase tracking-[0.28em]"
-          style={{ color: "oklch(0.96 0.02 200 / 0.62)" }}
-        >
-          {t("landing.hero.eyebrow")}
-        </span>
-
-        <div className="relative">
-          {/* The bilingual mark, the landing's signature, at a size that
-              belongs to a side panel rather than a masthead. */}
-          <span
-            className="absolute -top-6 select-none pointer-events-none"
-            style={{
-              insetInlineStart: "-0.06em",
-              fontFamily: "'Amiri', 'Fraunces', serif",
-              fontSize: "clamp(150px, 17vw, 250px)",
-              lineHeight: 1,
-              color: "oklch(0.98 0.02 210)",
-              opacity: 0.09,
-            }}
-          >
-            {isRTL ? "Murchid" : "مرشد"}
-          </span>
-          <h1
-            className="relative"
-            style={{
-              fontFamily: "'Fraunces', Georgia, serif",
-              fontWeight: 300,
-              fontSize: "clamp(46px, 5.2vw, 78px)",
-              lineHeight: 0.94,
-              letterSpacing: "-0.035em",
-              color: "var(--cm-cream, oklch(0.96 0.008 200))",
-            }}
-          >
-            Mu<em style={{ fontStyle: "italic", fontWeight: 200, color: "oklch(0.86 0.035 200)" }}>r</em>chid
-          </h1>
-          <p
-            className="relative mt-5 max-w-[30ch]"
-            style={{
-              fontFamily: "'Fraunces', Georgia, serif",
-              fontWeight: 300,
-              fontSize: "clamp(19px, 1.6vw, 25px)",
-              lineHeight: 1.28,
-              color: "oklch(0.97 0.025 210)",
-            }}
-          >
-            {t("lp.hero.h1a")} <em style={{ fontStyle: "italic", color: "oklch(0.86 0.035 200)" }}>{t("lp.hero.brand")}</em> {t("lp.hero.h1b")}
-          </p>
-        </div>
-
-        <span className="font-mono text-[10px] tracking-[0.16em]" style={{ color: "oklch(0.96 0.02 200 / 0.5)" }}>
-          {t("atl.trust")}
-        </span>
-      </aside>
-
-      {/* Form column. min-h-0 lets it shrink inside the locked grid row
-          instead of pushing the page taller than the viewport. */}
-      <section className="relative min-h-0 flex flex-col px-6 sm:px-10 py-5 sm:py-8 overflow-hidden">
-        <div className="flex-none">
+    <div className={wc.page} style={{ minHeight: "100dvh" }}>
+      <div className={`${wc.shell} ${wc.authGrid}`}>
+        <aside className={wc.authAside}>
           <button
             type="button"
             onClick={() => onPage("home")}
-            className="link-quiet text-sm inline-flex items-center gap-1.5"
-            style={{ color: "var(--ink-2)" }}
+            className={wc.authBack}
           >
             {t("lp.pg.back")}
           </button>
-        </div>
 
-        <div className="flex-1 min-h-0 flex flex-col justify-center">
-          <div className="w-full max-w-sm mx-auto">
-            <h2
-              className="text-center"
-              style={{
-                fontFamily: "'Fraunces', Georgia, serif",
-                fontWeight: 400,
-                // Deliberately modest. The brand panel already carries the
-                // wordmark, so a second display-size title here is spent
-                // vertical budget that the form needs.
-                fontSize: "clamp(26px, 3.4vw, 34px)",
-                lineHeight: 1.1,
-                color: "var(--ink)",
-              }}
-            >
-              {title} <em style={{ fontStyle: "italic", color: "var(--accent, #2f6b6b)" }}>{em}</em>
-            </h2>
-            <p className="mt-2 mb-5 text-center text-sm" style={{ color: "var(--ink-2)" }}>
-              {lead}
-            </p>
-            {children}
+          <div>
+            <span className={wc.lockupLatin} style={{ fontSize: "26px" }}>
+              Murchid
+            </span>{" "}
+            <span className={wc.lockupArabic} aria-hidden="true">
+              مرشد
+            </span>
+
+            <ul className={wc.authPoints}>
+              {reassurances.map((line) => (
+                <li key={line} className={wc.authPoint}>
+                  {line}
+                </li>
+              ))}
+            </ul>
           </div>
-        </div>
-      </section>
-    </main>
+
+          <p className={wc.authFoot}>{t("mk.cta.note")}</p>
+        </aside>
+
+        <section className={wc.authPlate}>
+          <h1 className={wc.authTitle}>
+            {title} {em}
+          </h1>
+          <p className={wc.authLead}>{lead}</p>
+          {children}
+        </section>
+      </div>
+    </div>
   );
 }
 
@@ -1810,6 +1767,70 @@ function AuthPage({ onSignUp, onPage, mode = "signup", onEnterStudio, notice }) 
       lead={isSignin ? t("lp.auth.signin.lead") : t("lp.auth.lead")}
       onPage={onPage}
     >
+      {/* CONSENT SITS ABOVE THE ACTION IT GATES.
+          It used to render after the Continue button, so a teacher met a
+          button that looked pressable, did nothing, and explained nothing,
+          with the checkbox that unlocked it further down the page. Markup
+          move only: the same state, the same handlers, the same validation.
+ */}
+      {/* Legal acceptance block — sign-up only. Returning users already
+          accepted when they subscribed; that consent record lives on
+          the account row server-side. Re-asking adds friction with no
+          legal value. */}
+      {!isSignin && (
+        <div
+          ref={termsRef}
+          className={`max-w-sm mx-auto mt-6 rounded-xl transition-shadow ${
+            tried && !accepted
+              ? "p-3 -m-3 ring-2 ring-[color:var(--clay,#b3442b)] ring-offset-2 ring-offset-[color:var(--paper)] murchid-terms-pulse"
+              : ""
+          }`}
+        >
+          <label className="flex items-start gap-3 text-start cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={accepted}
+              onChange={(e) => { setAccepted(e.target.checked); if (e.target.checked) setTried(false); }}
+              // Native checkbox, scaled up so it's easy to tap. We avoid
+              // custom-painted boxes here because the legal acceptance
+              // checkbox should remain unmistakable as a real form
+              // control on every browser and assistive tech.
+              className="mt-0.5 h-4 w-4 flex-shrink-0 accent-[color:var(--clay,#b3442b)] cursor-pointer"
+              aria-describedby="auth-terms-text auth-terms-error"
+              required
+            />
+            <span
+              id="auth-terms-text"
+              className="text-sm leading-relaxed"
+              style={{ color: "var(--ink-2)" }}
+            >
+              I have read and agree to the{" "}
+              <button
+                type="button"
+                onClick={(e) => { e.preventDefault(); onPage("terms"); }}
+                className="underline decoration-from-font font-medium hover:text-[color:var(--clay,#b3442b)]"
+              >Terms &amp; Conditions</button>{" "}
+              and the{" "}
+              <button
+                type="button"
+                onClick={(e) => { e.preventDefault(); onPage("privacy"); }}
+                className="underline decoration-from-font font-medium hover:text-[color:var(--clay,#b3442b)]"
+              >Privacy Policy</button>, including the processing of my data
+              under UAE Federal Decree-Law No. 45 of 2021 (PDPL).
+            </span>
+          </label>
+          {tried && !accepted && (
+            <p
+              id="auth-terms-error"
+              role="alert"
+              className="text-xs mt-2 ps-7"
+              style={{ color: "var(--clay, #b3442b)" }}
+            >
+              Please confirm you agree to the Terms and Privacy Policy before continuing.
+            </p>
+          )}
+        </div>
+      )}
       <div className={`space-y-3 max-w-sm mx-auto transition-opacity ${accepted ? "opacity-100" : "opacity-90"}`}>
         {emailMode === "entering" && (
           <div className="space-y-3">
@@ -2004,7 +2025,9 @@ function AuthPage({ onSignUp, onPage, mode = "signup", onEnterStudio, notice }) 
               onClick={() => {}}
               disabled
             />
-            {(
+            {/* Sign-in only. A password reset link on a SIGN-UP screen offers
+                to recover a password for an account that does not exist. */}
+            {isSignin && (
               <div className="flex flex-col items-center gap-2 pt-1">
                 <button
                   type="button"
@@ -2173,64 +2196,6 @@ function AuthPage({ onSignUp, onPage, mode = "signup", onEnterStudio, notice }) 
         )}
       </div>
 
-      {/* Legal acceptance block — sign-up only. Returning users already
-          accepted when they subscribed; that consent record lives on
-          the account row server-side. Re-asking adds friction with no
-          legal value. */}
-      {!isSignin && (
-        <div
-          ref={termsRef}
-          className={`max-w-sm mx-auto mt-6 rounded-xl transition-shadow ${
-            tried && !accepted
-              ? "p-3 -m-3 ring-2 ring-[color:var(--clay,#b3442b)] ring-offset-2 ring-offset-[color:var(--paper)] murchid-terms-pulse"
-              : ""
-          }`}
-        >
-          <label className="flex items-start gap-3 text-start cursor-pointer select-none">
-            <input
-              type="checkbox"
-              checked={accepted}
-              onChange={(e) => { setAccepted(e.target.checked); if (e.target.checked) setTried(false); }}
-              // Native checkbox, scaled up so it's easy to tap. We avoid
-              // custom-painted boxes here because the legal acceptance
-              // checkbox should remain unmistakable as a real form
-              // control on every browser and assistive tech.
-              className="mt-0.5 h-4 w-4 flex-shrink-0 accent-[color:var(--clay,#b3442b)] cursor-pointer"
-              aria-describedby="auth-terms-text auth-terms-error"
-              required
-            />
-            <span
-              id="auth-terms-text"
-              className="text-sm leading-relaxed"
-              style={{ color: "var(--ink-2)" }}
-            >
-              I have read and agree to the{" "}
-              <button
-                type="button"
-                onClick={(e) => { e.preventDefault(); onPage("terms"); }}
-                className="underline decoration-from-font font-medium hover:text-[color:var(--clay,#b3442b)]"
-              >Terms &amp; Conditions</button>{" "}
-              and the{" "}
-              <button
-                type="button"
-                onClick={(e) => { e.preventDefault(); onPage("privacy"); }}
-                className="underline decoration-from-font font-medium hover:text-[color:var(--clay,#b3442b)]"
-              >Privacy Policy</button>, including the processing of my data
-              under UAE Federal Decree-Law No. 45 of 2021 (PDPL).
-            </span>
-          </label>
-          {tried && !accepted && (
-            <p
-              id="auth-terms-error"
-              role="alert"
-              className="text-xs mt-2 ps-7"
-              style={{ color: "var(--clay, #b3442b)" }}
-            >
-              Please confirm you agree to the Terms and Privacy Policy before continuing.
-            </p>
-          )}
-        </div>
-      )}
 
       {/* No sign-in / sign-up cross-link: there is nowhere else to go.
           One page works out which it is from the credentials given. */}
@@ -2645,8 +2610,14 @@ function MarketingPage({ page, onSignUp, onProfileDone, onChoosePlan, onPage, on
 // go to the AI Studio, which is the one screen that is useful when empty.
 // A returning teacher goes to the dashboard, which is a summary of work
 // they have actually done.
-export default function Landing({ onOpenStudio, heroVariant = null }) {
-  const [page, setPage] = useState("home");
+export default function Landing({ onOpenStudio, heroVariant = null, initialPage = "home" }) {
+  // `initialPage` is how a real route hands this view its starting screen.
+  // The funnel used to be reachable only as internal state at "/", which
+  // meant the primary CTA never changed the URL and the browser's Back
+  // button left the site entirely. The route segments under
+  // app/(marketing)/ now own the address; the funnel's own logic is
+  // untouched.
+  const [page, setPage] = useState(initialPage);
   // Mock auth: an account exists only once a provider was picked AND a
   // plan chosen. Signed-in visitors skip the funnel entirely.
   const account = useAccount();
@@ -3220,7 +3191,14 @@ export default function Landing({ onOpenStudio, heroVariant = null }) {
 
   return (
     <div className="murchid-landing paper-noise">
-      {isFunnel ? (
+      {page === "signup" || page === "signin" ? (
+        // The auth screens carry their own lockup and back link inside
+        // AuthShell, so a header above them is a SECOND header — it
+        // overlapped the back link and shipped two wordmarks in two
+        // different type systems. The other funnel stages (profile,
+        // onboarding) keep FunnelHeader; only these two own their frame.
+        null
+      ) : isFunnel ? (
         <FunnelHeader onHome={() => goPage("home")} />
       ) : (
         <Nav onEnter={enter} signedIn={signedIn} onJump={jump} onPage={goPage} onSignOut={handleSignOut} darkHero={page === "home"} />
