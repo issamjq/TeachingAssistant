@@ -1,5 +1,11 @@
 # 00 · Setup — the skeleton every other file builds on
 
+> **Status (2026-08-11): ✅ built and deployed** — live at
+> `https://murchid-backend.onrender.com` (healthz + readiness green, model
+> configured), documented at
+> [murchid-api-reference.vercel.app](https://murchid-api-reference.vercel.app/).
+> This file is kept as the contract reference.
+
 Do this first. Files 01–06 each add one router and assume everything here
 exists.
 

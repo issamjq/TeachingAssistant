@@ -1,69 +1,56 @@
 # 10 — Roadmap
 
-A frank list of what's built, what's stubbed, and what's missing — so the next person (or future you) can pick up without re-deriving it.
+What is genuinely still open, verified against the code on 2026-08-11. The
+previous version of this file predated auth, Supabase, Next.js and the AI
+studio, and nearly every line of it had since shipped; it was misleading
+enough to be harmful. This one lists only what is **not** done.
 
-## Built and working
+For the full picture of what exists, trust the code and
+[11 — Next.js migration](11-nextjs-migration.md); every studio section in the
+sidebar is a real screen now, including the bulletin board (the last
+`<ComingSoon />` stub, replaced 2026-08-11).
 
-- **Landing page** — full marketing site rendered in React. Hero, problem, solution, eight-tools map, dashboard mockup, studio collab split, screen mockups, footer. Reveal-on-scroll animation. CTA opens the studio.
-- **Interactive prototype** on the landing — fake-generates a complete lesson package from hardcoded templates per subject. Generate / Library tabs.
-- **Landing → Studio routing** in `main.jsx`. Studio's × button returns to landing.
-- Standalone React studio app — Vite dev server boots into it (or into the landing first).
-- Sidebar navigation with 4 sections; active-state styling correct.
-- Dashboard view (visual only, hardcoded data).
-- Templates library — fetches `/api/templates`, renders the grid, search filter works.
-- Reusable drafts — fetches `/api/drafts`, renders the table, search filter works.
-- Two-tab shell inside Lesson Plans (Templates / Drafts) with breadcrumb routing.
-- New / Edit forms render correctly (NewTemplate, NewDraft, EditDraft).
-- Tailwind v4 brand tokens via `@theme` in `src/index.css`.
-- Button + Card primitives.
-- Database schema and seed via `npm run db:init`.
-- Dev API: GET `/api/templates`, GET `/api/drafts`.
+> The master status doc is `new-docs/STATUS.md`, which tracks the launch
+> plan and feature roadmap against the code and the deployed backend.
+> **It is not in the repo** — `new-docs/` is gitignored, because it holds
+> commercial planning material. Ask the project owner for it. This file
+> keeps the narrower, repo-technical list, and stands on its own.
 
-## Stubbed (UI-only, no behavior)
+## Open — this repo
 
-- Save / Discard / Mark ready buttons in NewTemplate, NewDraft, EditDraft — they navigate back without persisting.
-- "Use template →" — synthesizes a fake draft client-side instead of inserting.
-- "Clear all drafts" button — no handler.
-- Filter dropdowns on Templates and Drafts (All grades / All subjects / Sort) — present, no logic.
-- Three-dot row menu on the drafts table.
-- Bell icon in the header.
-- "Import .docx" on Templates.
-- AI-assisted toggle on NewDraft (labeled "soon").
-- Draft auto-save copy ("Changes save automatically as you type") — copy only.
-- Drag-to-reorder on lesson-flow stages.
+- **Error tracking, logging, observability — none.** No Sentry/PostHog/
+  anything in `package.json` or `src/`. The only genuinely-untouched item
+  from the original roadmap.
+- **Server-side filtering, sorting, and pagination.** Every list screen
+  still pulls the full set and filters client-side (no `.range()`/`.limit()`
+  anywhere in `src/lib/data/`). Fine at teacher scale; wrong for the admin
+  consoles as accounts grow.
+- **`scripts/verify-auth.mjs` needs a rewrite** before it can run at all —
+  it targets the deleted Express server. Details in
+  [todo/supabase-migration.md](../todo/supabase-migration.md), item 6.
+- **Dead file:** `src/views/PortalSignIn.jsx` is unimported and describes
+  the old popup auth flow. Delete it.
+- **Docs refresh:** `docs/03-tech-stack.md` and `docs/04-architecture.md`
+  still describe the Vite/Firebase/Neon stack, and `CLAUDE.md` still
+  describes the removed `app/[[...slug]]` catch-all and `src/legacy/`.
 
-## Missing entirely
+## Open — dashboards and the backend service
 
-### Data
+- **Supabase / hosting dashboard configuration** that cannot be verified
+  from the repo (email confirmation toggle, Azure provider, redirect URLs,
+  secret-key rotation, Firebase decommission):
+  [todo/supabase-migration.md](../todo/supabase-migration.md).
+- **Backend service** (re-audited 2026-08-11 — most of the original
+  blockers have shipped): still open are **goal-plan 404** (route absent),
+  Gemini billing (free tier caps out), Resend production mode, structured
+  output on `/api/studio/generate`, and `/api/images/search`:
+  [todo/backend-integration.md](../todo/backend-integration.md) and the
+  specs in [todo/backend/](../todo/backend/).
 
-- POST/PATCH/DELETE endpoints for templates and drafts.
-- Server-side filtering, sorting, and pagination (currently client-side over the full list).
-- A real "current user" — Sara Abadi is a hardcoded placeholder.
+## Deliberately not done
 
-### App scope
-
-- Auth and multi-user. No login page. No tenant separation.
-- All sidebar items except Dashboard and Lesson Plans render `<ComingSoon />`: Studio, Library, Schedule, Quizzes & Exams, Homework, Presentations, Activities, Students, Grades, Reports.
-- Mobile sidebar drawer — sidebar is `hidden md:flex`, so mobile has no nav.
-- Dashboard data is hardcoded — should pull KPIs, today's schedule, and AI activity from real tables.
-- Notifications system behind the bell icon.
-- Real AI integration. The "AI activity" feed is decorative.
-
-### Production
-
-- Production deployment story. `vite build` produces a static bundle with no API. Need to choose: Node server, serverless functions, or edge functions, and port the Vite middleware queries to that runtime.
-- Secrets management beyond `.env`. Today the connection string is plaintext locally; production needs a proper env source.
-- Error tracking, logging, observability — none.
-
-## Suggested next steps
-
-If we want to keep momentum, a sensible order:
-
-1. **Wire NewDraft Save → `POST /api/drafts`.** Smallest unit of real persistence; unlocks everything downstream.
-2. **Then EditDraft → `PATCH /api/drafts/:id`** — same shape, plus `last_edited = NOW()`.
-3. **Then Templates create + edit.**
-4. **Then Dashboard data wiring** — pull the schedule and pending review from real tables (introduces a `schedule` table).
-5. **Then auth.** Don't bolt it on later than this; it gets harder.
-6. **Then production deployment.** Pick a host and port the API.
-
-Everything past step 6 — AI integration, sharing, classes, students, grades — is product-shape decisions, not infrastructure.
+- **A toast system.** Errors are inline banners; action failures are
+  `alert()`. Ugly but consistent — replace app-wide or not at all.
+- **`/api/bulletin` on the backend service.** The bulletin board is fully
+  browser-side; see [todo/backend/07-bulletin-board.md](../todo/backend/07-bulletin-board.md)
+  for the one optional endpoint (AI-composed notices) if it is ever wanted.

@@ -1,5 +1,13 @@
 # 05 · Images — `/api/images/*`
 
+> **Status (2026-08-11): ✅ built as specced** — legacy `GET /api/images/:id`
+> serves old rows, `POST /api/images/upload` returns `410 use_storage`.
+> The SlideBuilder frontend gap is **fixed** (same day): uploads now go
+> browser→Storage (`imports` bucket, year-long signed URL + storage path).
+> **One open item:** `GET /api/images/search?q=`, which SlideBuilder calls
+> for stock-image search, exists in **no** spec and not in the API
+> reference — build it or pull the affordance from the UI.
+
 Images pasted into a lesson plan or a slide deck.
 
 Requires [00 · Setup](00-setup.md).

@@ -1,5 +1,10 @@
 # 03 · Email verification — `/api/auth/email-verify/*`
 
+> **Status (2026-08-11): ✅ built and deployed** — send/check with cooldown
+> and rate limits, per the API reference. ⚠️ **Resend is in test mode**:
+> codes only deliver to the Resend account owner's address. Switch to a
+> verified domain before real teachers sign up.
+
 A 6-digit code proving an address during sign-up. Without this, email
 sign-up stalls — Google and LinkedIn are unaffected.
 

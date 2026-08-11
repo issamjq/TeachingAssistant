@@ -1,11 +1,15 @@
-# Supabase migration — required actions
+# Supabase migration — remaining actions
 
-Status as of commit `8e63cb7` ("Replace Firebase + Neon with Supabase for auth
-and database").
+The code migration is **done and verified**, and Google sign-in works in
+production. What remains is configuration that can only be done from the
+Supabase and hosting dashboards (none of it verifiable from the repo), plus
+two pieces of repo cleanup. Email/password sign-up stays degraded until
+item 1 is done; Microsoft sign-in until item 2.
 
-The code migration is **done and verified**. What remains is configuration that
-can only be done from the Supabase and hosting dashboards. **Sign-in does not
-work until items 1–4 are complete**, so treat these as blocking, not cleanup.
+*(Pruned 2026-08-11: the RLS follow-up is gone — RLS is now enabled on every
+table with owner policies via `db/tune.sql`, and the browser talks to
+Supabase directly. The env-var item is gone repo-side — no Firebase/Vite
+variable is read anywhere; only the dashboard values remain to confirm.)*
 
 ---
 
@@ -69,10 +73,11 @@ The `/**` wildcard covers the params the flows append
 
 Set **Site URL** to the production domain.
 
-### 4. Set the hosting environment variables
+### 4. Confirm the hosting environment variables
 
-Nothing in the code reads `NEXT_PUBLIC_FIREBASE_*` anymore, so production
-sign-in fails until these are replaced.
+Repo side this is done — nothing in the code reads any `VITE_*` or
+`NEXT_PUBLIC_FIREBASE_*` variable. What can't be verified from here is the
+dashboards; confirm the following are set and the Firebase-era ones deleted.
 
 **Vercel** (frontend):
 
@@ -122,21 +127,16 @@ public JWKS. It's needed only by `scripts/verify-auth.mjs` (item 6).
 
 ## 🟡 Verification
 
-### 6. Run the end-to-end auth check
+### 6. Rewrite, then run, the end-to-end auth check
 
-This is the one thing that could not be verified during the migration, because
-obtaining a real user access token requires the Admin API.
-
-```bash
-npm run dev                                  # in one terminal
-SUPABASE_SECRET_KEY=sb_secret_… npm run verify:auth
-```
-
-Creates a pre-confirmed throwaway user, signs in, exercises the bootstrap +
-every studio surface + the role gate, then deletes the user and its account row.
-
-Expect all checks `ok`. It also asserts the negative cases: no token → 401, and
-a forged token → 401.
+`scripts/verify-auth.mjs` **cannot pass as written**: it hard-codes
+`http://localhost:3001` (the deleted Express server) and exercises routes —
+`/api/auth/supabase`, `/api/me`, `/api/templates`, `/api/drafts` — that are
+now answered inside the browser by `src/lib/data/`, never over HTTP. The
+check it performs is still worth having; the script needs rewriting against
+Supabase directly (sign a throwaway user in with `@supabase/supabase-js` and
+exercise the PostgREST paths + RLS refusals) before it can run. Until then,
+the manual pass in item 7 is the auth verification.
 
 ### 7. Manually confirm the OAuth redirect round-trip
 
@@ -159,29 +159,23 @@ after the redirect, that key and the mount effects in `Landing.jsx` /
 
 ## 🟢 Follow-ups (non-blocking)
 
-### 8. Row Level Security
-
-Every table currently has RLS **disabled**. That is not a live vulnerability —
-the publishable key is never used to read data; all access goes through the
-Express API using the pooler connection, which bypasses RLS anyway.
-
-It becomes urgent the moment any browser code calls `supabase.from(...)`
-directly. If that's ever planned, enable RLS and write policies *first*.
-
-### 9. Decommission Firebase
+### 8. Decommission Firebase
 
 Once sign-in is confirmed working on Supabase, delete the Firebase project (or
 at least revoke the service-account key). Leaving it live keeps a second,
 unmonitored identity provider holding user records.
 
-### 10. Delete dead code
+### 9. Delete dead code
 
 `src/views/PortalSignIn.jsx` is no longer imported — all five portal routes use
-`src/features/portal/components/PortalSignIn.tsx`. Left in place because
-removing legacy views belongs to Phase 4 of the Next.js migration, but it still
-describes the old popup flow and will mislead.
+`src/features/portal/components/PortalSignIn.tsx`. The original reason to wait
+("removing legacy views belongs to Phase 4") no longer applies: `src/legacy/`
+and the catch-all route are already gone. It still describes the old popup
+flow and will mislead; delete it.
 
-### 11. Refresh the docs
+### 10. Refresh the docs
 
 `docs/03-tech-stack.md` and `docs/04-architecture.md` still describe Vite,
-Firebase and Neon. `CLAUDE.md` has been updated; these have not.
+Firebase and Neon. `CLAUDE.md` has drifted too — it describes the
+`app/[[...slug]]` catch-all, `src/legacy/` and `src/App.jsx`, all of which
+have since been removed; the migration is well past "Phase 1 complete".

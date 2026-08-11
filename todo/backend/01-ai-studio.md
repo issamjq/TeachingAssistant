@@ -1,5 +1,13 @@
 # 01 · AI Studio — `/api/studio/*`
 
+> **Status (2026-08-11): ✅ built and deployed, EXCEPT §1.1b.**
+> `generate`, `quiz`, `quiz-tweak` and `regenerate` are live and documented
+> at [murchid-api-reference.vercel.app](https://murchid-api-reference.vercel.app/)
+> (`/api/studio/quiz` now returns the structured `quiz` on its done frame,
+> which the frontend already reads). **`POST /api/studio/goal-plan` (§1.1b)
+> is still missing** — absent from the API reference; the Goal planner
+> button still dead-ends. That section is the remaining work in this file.
+
 The generation endpoints. This is the product's headline feature and the
 only reason a teacher needs this service at all for day-to-day work.
 

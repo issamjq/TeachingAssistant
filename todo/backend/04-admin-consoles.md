@@ -1,5 +1,9 @@
 # 04 · Admin consoles — `/api/{admin,superadmin,owner,moe,dev,teachers}/*`
 
+> **Status (2026-08-11): ✅ built and deployed** — every listed route
+> appears in the API reference, with role gates, audit writes, and the
+> self-lockout guard. Kept for the contract.
+
 Five privileged dashboards. Server-only for two reasons: they read across
 **all** teachers, which RLS forbids, and they write `audit_log`, which
 RLS enabled-with-no-policy makes unreachable from any client.

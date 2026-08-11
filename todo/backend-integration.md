@@ -3,8 +3,21 @@
 Against `https://murchid-backend.onrender.com`, probed **2026-08-10** with a
 real Supabase access token for `test.teacher@murchid.com`.
 
+**Re-audited 2026-08-11** against the published API reference
+([murchid-api-reference.vercel.app](https://murchid-api-reference.vercel.app/))
+plus a live probe: service healthy, database 113 ms, model configured
+(`gemini-3.5-flash`). Per-route probing was not possible this time — the
+test account's device claim was held by another session, and the service
+checks device before routing, so every path answers `401
+session_superseded`. Items marked *fixed per reference* below deserve one
+authed retest from a signed-in session. The per-blocker status lines are
+the current truth; the original bodies are kept for the contract detail.
+
 The frontend is wired and deployed-ready. Everything below that is marked
 BLOCKER is on the backend side; nothing in this repo is waiting on itself.
+*(The two frontend gaps found in the re-audit — SlideBuilder's retired
+upload route and dropped chat `action` frames — were both fixed
+2026-08-11.)*
 
 ---
 
@@ -14,9 +27,12 @@ BLOCKER is on the backend side; nothing in this repo is waiting on itself.
 makes `next.config.ts` rewrite `/api/*` to the service **server-side**. The
 browser therefore only ever talks to its own origin.
 
-That is not a convenience — the service sends no
-`Access-Control-Allow-Origin` header at all, so a direct browser call would
-be blocked by CORS before it left the page. Two ways out, either is fine:
+That is not just a convenience — a direct browser call depends on the
+service's CORS allowlist. *(Update 2026-08-11: the service now carries a
+hardcoded `ALLOWED_ORIGINS` list — localhost:5173/3000 and the murchid.com
+variants — so direct calls from those origins would work; any new domain
+must be added there **and** to the Supabase redirect list.)* Two shapes,
+either is fine:
 
 - **Keep the proxy** (what is configured now). Nothing to change on the
   backend. This is the recommended shape: no preflight, no origin list to
@@ -45,7 +61,7 @@ Next does not break SSE here.
 | `POST /api/studio/generate` | streams `text/event-stream`, kinds `lesson_plan · quiz · homework · presentation · activity` |
 | `POST /api/chat` | streams, **with working tool-calling** — asked "how many students do I have", it called `get_overview` + `get_schedule` and answered "You have **26 students**" |
 | `POST /api/auth/renew` | `{plan}` → `{plan,status,currentPeriodEnd}`; accepts `trial · monthly` (rejects unknown) |
-| `POST /api/images/upload` | `410 use_storage` — deliberately retired in favour of browser→Storage upload. Correct; the app already uploads that way. |
+| `POST /api/images/upload` | `410 use_storage` — deliberately retired in favour of browser→Storage upload. *(Frontend fixed 2026-08-11: SlideBuilder now uploads to the `imports` bucket under the teacher's own session and stores a year-long signed URL + the storage path.)* |
 | `/api/admin/*`, `/api/superadmin/*`, `/api/owner/*`, `/api/moe/*`, `/api/dev/*`, `/api/teachers` | `403` for a teacher token — correctly gated |
 | single-device enforcement | `401 session_superseded` when the token's `session_id` is not `users.active_session_id` |
 
@@ -64,9 +80,16 @@ data: {"type":"error","message":"…"}          in-band, inside an HTTP 200
 
 ---
 
-## BLOCKER 1 — the model quota is exhausted (highest priority)
+## BLOCKER 1 — the model quota is exhausted
 
-Every model-backed route now returns, in-band:
+> **Status 2026-08-11: infrastructure resolved, billing still open.** The
+> readiness probe reports the model configured and reachable. The API
+> reference states the cause plainly: the Gemini key is on the **free tier
+> (429 after ~20 requests/day)** — enable billing on the key (with a spend
+> cap) before real teachers arrive. The original observations below stand
+> as the symptom record.
+
+Every model-backed route returned, in-band:
 
 ```
 data: {"type":"error","message":"The assistant has hit its usage limit. Try again in a minute."}
@@ -96,6 +119,11 @@ Please also surface the real reason distinctly — `quota_exhausted` vs
 
 ## BLOCKER 2 — `POST /api/onboarding/parse` always 502
 
+> **Status 2026-08-11: fixed per reference, retest wanted.** The route is
+> now fully documented — both body variants, `DOC_TYPE`/`DOC_SIZE`/
+> `NO_AI_KEY` errors, and a `found`/`missing` split in the response. One
+> authed retest from a signed-in session confirms it.
+
 ```
 {"error":"The model service returned an error.","code":"upstream_error"}
 ```
@@ -121,6 +149,10 @@ bio } }` — every key optional, only what the document actually stated.
 ---
 
 ## BLOCKER 3 — `POST /api/studio/goal-plan` does not exist (404)
+
+> **Status 2026-08-11: STILL OPEN — now the top backend item.** The route
+> is absent from the API reference, so it has not been built. Everything
+> else on the original blocker list has moved; this one has not.
 
 The Goal planner is a headline feature: a teacher attaches a syllabus, names
 a timeline, and gets a week-by-week teaching plan. The button calls this and
@@ -161,6 +193,11 @@ so you have both states to test against.
 
 ## BLOCKER 4 — `POST /api/auth/email-verify/send` returns 502
 
+> **Status 2026-08-11: fixed in test mode.** Resend is configured and the
+> route is documented (cooldown, rate limits, attempt countdown). ⚠️ Resend
+> is in **test mode** — codes only deliver to the Resend account owner's
+> address. Verify a sending domain before launch.
+
 ```
 {"error":"Could not send the email. Try again in a moment.","code":"email_send_failed"}
 ```
@@ -172,6 +209,13 @@ by it today — but the route exists and will fail if anything routes to it.
 ---
 
 ## Gap 5 — generations never reach the library
+
+> **Status 2026-08-11: half-moved.** The dedicated `POST /api/studio/quiz`
+> route now puts the structured `quiz: { questions: [] }` on its **done**
+> frame, which the frontend already reads — so quizzes made through that
+> route light up. `/api/studio/generate` still streams prose only: no
+> `artifact` frame, no `id` on `done`, so presentations and generate-made
+> quizzes still save as text. 5a/5b below remain open for `generate`.
 
 `/api/studio/generate` streams prose and stops. It does **not** write a row
 to `public.ai_studio`, verified: 19 rows before a successful generation, 19
@@ -234,6 +278,21 @@ can link straight to the saved item instead of writing its own copy. Either
   read them, "attach a chapter and plan from it" is not actually happening —
   worth confirming. The extracted text is in `materials.extracted_text`, and
   the file itself is in the `imports` Storage bucket at `materials.file_path`.
+- **`GET /api/images/search?q=` is called but appears in no spec** — and
+  (checked 2026-08-11) not in the API reference either. The slide builder
+  uses it for stock-image search (`src/views/SlideBuilder.jsx`). Either
+  build it or the search affordance should come out of the UI.
+- **Chat `action` frames — handled as of 2026-08-11.** `streamText` now
+  surfaces `action` frames and the assistant widget carries them out:
+  `navigate` and `set_accessibility` complete in the browser; the three
+  prefill actions park their payload under the
+  `murchid.assistant.prefill` sessionStorage key and navigate to the
+  right screen. Remaining (frontend): teach the target forms to read
+  that key.
+- **The bulletin board needs nothing from this service.** It shipped fully
+  browser-side (Supabase CRUD on `bulletin_posts`); the only endpoint it
+  could ever want is the optional AI-compose in
+  [backend/07-bulletin-board.md](backend/07-bulletin-board.md).
 - **The single-device check treats NULL as superseded.** A token whose
   `users.active_session_id` is NULL (nobody has claimed the device yet) gets
   `401 session_superseded`. Postgres's own `is_current_device()` treats NULL

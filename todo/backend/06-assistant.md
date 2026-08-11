@@ -1,5 +1,13 @@
 # 06 · Studio assistant — `/api/chat` *(optional)*
 
+> **Status (2026-08-11): ✅ built and deployed, beyond this spec** — the
+> live service also emits `action` frames (`create_work`, `add_student`,
+> `add_schedule_entry`, `navigate`, `set_accessibility`). The frontend now
+> handles them (same day): `navigate`/`set_accessibility` complete in the
+> browser; the prefill actions park their payload under the
+> `murchid.assistant.prefill` sessionStorage key and navigate. Remaining
+> frontend adoption: the target forms reading that key.
+
 The landing-page bot needs nothing from you: it answers from
 `src/features/assistant/knowledge.json` in the browser, so it works
 offline, cannot invent a price, and has no quota. Leave it alone.
