@@ -388,25 +388,7 @@ select:focus-visible {
 /* ── Planner — today-cell glow.
    The today date cell pulses softly so the teacher always finds their
    anchor instantly. Reduced-motion freezes the pulse. */
-.planner-today-glow {
-  position: relative;
-  isolation: isolate;
-}
-.planner-today-glow::before {
-  content: '';
-  position: absolute; inset: 0;
-  border-radius: inherit;
-  background: radial-gradient(circle at 50% 0%, oklch(0.85 0.14 55 / 0.32), transparent 70%);
-  pointer-events: none;
-  z-index: 0;
-  animation: planner-today-breathe 4.8s ease-in-out infinite;
-}
-@keyframes planner-today-breathe {
-  0%, 100% { opacity: 0.35; }
-  50%      { opacity: 0.95; }
-}
 @media (prefers-reduced-motion: reduce) {
-  .planner-today-glow::before { animation: none; opacity: 0.6; }
 }
 
 /* ════════════════════════════════════════════════════════════════════
@@ -467,364 +449,31 @@ select:focus-visible {
    PLANNER 2026 — pulse hero card + drenched today cell corner
    ════════════════════════════════════════════════════════════════════ */
 
-/* ── Pulse hero — the planner's brand moment. A tall card with the
-   planner-hero-bg.png texture, holding the STUDIO AI kicker, a
-   narrative headline, and the four Studio launcher chips. Height is
-   fixed (not min-height) so the card stays the same shape whether
-   the empty-state copy or the populated-month copy is rendered. */
-.planner-pulse {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  gap: clamp(14px, 1.8vw, 22px);
-  padding: clamp(18px, 2.2vw, 30px);
-  border-radius: 18px;
-  border: 1px solid var(--color-line);
-  box-shadow: var(--shadow-1);
-  overflow: hidden;
-  isolation: isolate;
-  height: clamp(190px, 18vw, 220px);
-  background:
-    linear-gradient(105deg, oklch(0.97 0.03 78 / 0.78) 0%, oklch(0.97 0.03 78 / 0.4) 55%, transparent 100%),
-    url("/planner-hero-bg.png") center/cover no-repeat,
-    var(--color-paper-cool);
-}
-.planner-pulse > * { position: relative; z-index: 1; }
-.planner-pulse-text {
-  display: flex;
-  flex-direction: column;
-  gap: clamp(8px, 1vw, 14px);
-  min-width: 0;
-  max-width: 38ch;
-}
-.planner-pulse-kicker {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  font-family: var(--font-sans);
-  font-size: 10.5px;
-  font-weight: 600;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  color: var(--color-accent);
-}
-.planner-pulse-kicker::before {
-  content: '';
-  width: 20px; height: 1px; background: currentColor;
-}
-.planner-pulse-h {
-  font-family: var(--font-serif);
-  font-weight: 400;
-  font-size: clamp(20px, 2.2vw, 30px);
-  line-height: 1.15;
-  letter-spacing: -0.02em;
-  color: var(--color-ink);
-  margin: 0;
-  text-wrap: balance;
-  /* Cap at 2 lines so any future copy variant can't push the card
-     taller than its fixed height. Webkit-only line clamp; falls back
-     to overflow:hidden in other engines, which still prevents growth. */
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-.planner-pulse-h em {
-  font-style: italic;
-  color: var(--color-accent);
-}
-.planner-pulse-h b {
-  font-weight: 500;
-  font-style: normal;
-}
-.planner-pulse-chips {
-  display: grid;
-  /* auto-fit so the chips reflow by *available* width, not just viewport
-     width — the sidebar eats ~256px on md+, so a viewport breakpoint
-     alone would lie about the room a chip actually has. 4-up when wide,
-     2-up on phones, all without a media query. */
-  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
-  gap: clamp(6px, 0.8vw, 10px);
-}
-.planner-pulse-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 14px 10px 10px;
-  border-radius: 12px;
-  background: oklch(0.97 0.02 75 / 0.78);
-  border: 1px solid oklch(0.20 0.05 40 / 0.08);
-  cursor: pointer;
-  text-align: start;
-  backdrop-filter: blur(4px);
-  transition: transform var(--dur-hover) var(--ease-out-quart),
-              background var(--dur-hover) var(--ease-out-quart),
-              border-color var(--dur-hover) var(--ease-out-quart),
-              box-shadow var(--dur-hover) var(--ease-out-quart);
-}
-.planner-pulse-chip:hover {
-  transform: translateY(-2px);
-  background: var(--color-cream);
-  border-color: oklch(0.55 0.13 36 / 0.3);
-  box-shadow: var(--shadow-2);
-}
-.planner-pulse-chip:active { transform: translateY(0); }
-.planner-pulse-chip-icon {
-  width: 30px; height: 30px;
-  border-radius: 9px;
-  display: grid;
-  place-items: center;
-  flex-shrink: 0;
-}
-.planner-pulse-chip-icon.t-accent { background: oklch(0.85 0.13 60 / 0.22); color: var(--color-accent); }
-.planner-pulse-chip-icon.t-sage   { background: oklch(0.72 0.10 145 / 0.22); color: var(--color-sage); }
-.planner-pulse-chip-icon.t-gold   { background: oklch(0.82 0.13 78 / 0.30); color: var(--color-gold); }
-.planner-pulse-chip-icon.t-soft   { background: oklch(0.78 0.13 50 / 0.22); color: var(--color-accent-soft); }
-.planner-pulse-chip-meta {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  line-height: 1.1;
-}
-.planner-pulse-chip-verb {
-  font-family: var(--font-sans);
-  font-size: 12.5px;
-  font-weight: 600;
-  color: var(--color-ink);
-}
-.planner-pulse-chip-noun {
-  font-family: var(--font-sans);
-  font-size: 10.5px;
-  color: var(--color-muted);
-  margin-block-start: 3px;
-}
 @media (max-width: 640px) {
   /* On phones the chips wrap to two rows (handled by auto-fit above), so
      the fixed hero height clips them. Let it grow naturally instead. */
-  .planner-pulse {
-    height: auto;
-    min-height: 200px;
-  }
 }
 
 /* ── Calendar section title — "May 2026" big italic Fraunces, sits
    directly above the calendar card so the month label is adjacent to
    the surface it labels (and to its nav, now in the right-rail strip). */
-.planner-cal-title {
-  display: flex;
-  align-items: baseline;
-  gap: clamp(10px, 1.6vw, 18px);
-  flex-wrap: wrap;
-  margin-block-end: 6px;
-}
-.planner-cal-title-h {
-  font-family: var(--font-serif);
-  font-size: clamp(22px, 2.6vw, 36px);
-  font-weight: 500;
-  line-height: 1;
-  letter-spacing: -0.02em;
-  color: var(--color-ink);
-  margin: 0;
-}
-.planner-cal-title-h em {
-  font-style: italic;
-  font-weight: 400;
-  color: var(--color-accent);
-}
-.planner-cal-title-sub {
-  font-family: var(--font-serif);
-  font-style: italic;
-  font-size: clamp(11px, 1vw, 13px);
-  color: var(--color-muted);
-  line-height: 1.2;
-  margin: 0;
-}
 
 /* ── Calendar embedded toolbar — filter chips (nav controls have moved
    to the right-rail This Month strip). All chips now fit on a single
    row at most widths; fade-out mask still helps if the user is in a
    very narrow viewport. */
-.planner-cal-toolbar {
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 8px 10px 8px 12px;
-  border-block-end: 1px solid var(--color-line);
-  background:
-    linear-gradient(to bottom, oklch(0.97 0.02 75 / 0.6), transparent),
-    var(--color-paper-cool);
-  flex-shrink: 0;
-  min-height: 44px;
-}
-.planner-cal-filters {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  overflow-x: auto;
-  scrollbar-width: none;
-  flex: 1;
-  min-width: 0;
-  padding-block: 2px;
-  mask-image: linear-gradient(to right, black 0, black calc(100% - 18px), transparent 100%);
-  -webkit-mask-image: linear-gradient(to right, black 0, black calc(100% - 18px), transparent 100%);
-}
-.planner-cal-filters::-webkit-scrollbar { display: none; }
 
-.planner-cal-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 5px 10px;
-  border-radius: 8px;
-  border: 1px solid var(--color-line);
-  background: var(--color-paper-cool);
-  color: var(--color-muted);
-  font-family: var(--font-sans);
-  font-size: 11.5px;
-  font-weight: 500;
-  white-space: nowrap;
-  flex-shrink: 0;
-  cursor: pointer;
-  transition:
-    transform 180ms var(--ease-out-quart),
-    background-color 180ms var(--ease-out-quart),
-    border-color 180ms var(--ease-out-quart),
-    color 180ms var(--ease-out-quart),
-    box-shadow 180ms var(--ease-out-quart);
-}
-.planner-cal-chip:hover {
-  border-color: oklch(0.18 0.03 30 / 0.4);
-  color: var(--color-ink);
-}
-.planner-cal-chip:active { transform: scale(0.97); }
-.planner-cal-chip.is-on {
-  border-color: transparent;
-  font-weight: 500;
-}
-.planner-cal-chip.is-all-on {
-  background: var(--color-ink);
-  color: var(--color-paper-cool);
-  border-color: var(--color-ink);
-  box-shadow: var(--shadow-1);
-}
-.planner-cal-chip-tile {
-  display: inline-flex;
-  width: 14px; height: 14px;
-  align-items: center;
-  justify-content: center;
-  font-size: 8px;
-  border-radius: 3px;
-  background: oklch(0.18 0.03 40 / 0.08);
-}
-.planner-cal-chip.is-all-on .planner-cal-chip-tile {
-  background: oklch(0.96 0.025 80 / 0.18);
-}
 
-.planner-cal-nav {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  flex-shrink: 0;
-}
-.planner-cal-icon-btn {
-  height: 28px; width: 28px;
-  border-radius: 8px;
-  border: 1px solid var(--color-line);
-  background: var(--color-paper-cool);
-  color: var(--color-ink-soft);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition:
-    background-color 180ms var(--ease-out-quart),
-    border-color 180ms var(--ease-out-quart),
-    color 180ms var(--ease-out-quart),
-    transform 180ms var(--ease-out-quart);
-}
-.planner-cal-icon-btn:hover {
-  background: var(--color-paper-warm);
-  border-color: oklch(0.18 0.03 30 / 0.4);
-  color: var(--color-ink);
-}
-.planner-cal-icon-btn:active { transform: scale(0.94); }
-.planner-cal-today {
-  padding: 5px 12px;
-  border-radius: 8px;
-  border: 1px solid var(--color-line);
-  background: var(--color-paper-cool);
-  color: var(--color-ink);
-  font-family: var(--font-serif);
-  font-style: italic;
-  font-size: 12px;
-  cursor: pointer;
-  transition: background-color 180ms var(--ease-out-quart),
-              border-color 180ms var(--ease-out-quart);
-}
-.planner-cal-today:hover {
-  background: var(--color-paper-warm);
-  border-color: oklch(0.18 0.03 30 / 0.4);
-}
-.planner-cal-divider {
-  display: inline-block;
-  height: 20px;
-  width: 1px;
-  background: var(--color-line);
-  margin-inline: 4px;
-}
-.planner-cal-schedule {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 5px 12px 5px 10px;
-  border-radius: 8px;
-  border: 1px solid oklch(0.55 0.13 36 / 0.35);
-  background: oklch(0.55 0.13 36 / 0.10);
-  color: var(--color-accent);
-  font-family: var(--font-sans);
-  font-size: 11.5px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background-color 180ms var(--ease-out-quart),
-              border-color 180ms var(--ease-out-quart),
-              transform 180ms var(--ease-out-quart);
-}
-.planner-cal-schedule:hover {
-  background: oklch(0.55 0.13 36 / 0.18);
-  border-color: oklch(0.55 0.13 36 / 0.55);
-}
-.planner-cal-schedule:active { transform: scale(0.97); }
 /* Phone: hide the Schedule label, keep the + icon as an icon-only
    action so the toolbar stays one row. */
 @media (max-width: 520px) {
-  .planner-cal-schedule { padding: 7px 9px; }
-  .planner-cal-schedule > span { display: none; }
-  .planner-cal-today { padding: 7px 12px; font-size: 11.5px; }
   /* Coarser tap targets on phones — the desktop sizes are too small for
      a finger. Still compact enough to keep the toolbar on one row. */
-  .planner-cal-icon-btn { height: 32px; width: 32px; }
-  .planner-cal-chip { padding: 7px 11px; }
 }
 
 /* ── Today drench corner — applied to the today calendar cell on top
    of the existing accent ring. A diagonal warm wash in the corner
    makes "now" unmistakable. */
-.planner-cell-today::after {
-  content: '';
-  position: absolute;
-  top: 0; right: 0;
-  width: 38%; height: 38%;
-  background: linear-gradient(
-    225deg,
-    oklch(0.62 0.13 40 / 0.32),
-    transparent 70%
-  );
-  border-top-right-radius: inherit;
-  pointer-events: none;
-  z-index: 1;
-}
 
 /* ── Responsive container for the studio main area.
    Padding scales with viewport so the same component reads right at
@@ -1705,87 +1354,15 @@ select:focus-visible {
 
 /* Planner month-hero — big "May 2026" headline + caption on the left,
    concentric-ring orb with central sphere on the right. */
-.planner-month-hero {
-  padding: 0;
-  margin-bottom: 6px;
-  min-height: 120px;
-}
-.planner-orb {
-  position: absolute;
-  right: 3%;
-  top: -6px;
-  width: 130px;
-  height: 130px;
-  pointer-events: none;
-  align-items: center;
-  justify-content: center;
-  animation: planner-orb-float 7s ease-in-out infinite;
-}
-@keyframes planner-orb-float {
-  0%, 100% { transform: translateY(0); }
-  50%      { transform: translateY(-6px); }
-}
 
 /* Two concentric ring borders. Outer larger, inner smaller. */
-.planner-orb-ring {
-  position: absolute;
-  border-radius: 999px;
-  border: 1px solid;
-  pointer-events: none;
-}
-.planner-orb-ring-outer {
-  width: 140px;
-  height: 140px;
-  border-color: rgba(232, 122, 85, 0.30);
-}
-.planner-orb-ring-inner {
-  width: 110px;
-  height: 110px;
-  border-color: rgba(232, 122, 85, 0.45);
-}
 
 /* Soft accent halo glowing behind the sphere. */
-.planner-orb-halo {
-  position: absolute;
-  width: 80px;
-  height: 80px;
-  border-radius: 999px;
-  background: radial-gradient(circle, rgba(232, 122, 85, 0.55), rgba(232, 122, 85, 0) 70%);
-  filter: blur(6px);
-}
 
 /* Central sphere — warm gradient ball with a Sparkles glyph inside. */
-.planner-orb-sphere {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 70px;
-  height: 70px;
-  border-radius: 999px;
-  background:
-    radial-gradient(circle at 32% 30%, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0) 38%),
-    radial-gradient(circle at 65% 65%, var(--color-accent-soft) 0%, var(--color-accent) 65%, #6b2918 110%);
-  box-shadow:
-    0 16px 50px rgba(200, 71, 43, 0.42),
-    inset 0 -10px 22px rgba(15, 20, 16, 0.40),
-    inset 0 8px 16px rgba(255, 255, 255, 0.20);
-}
 
 /* Today-cell sparkle — pinned to bottom-right of the today cell as a
    tiny accent affordance. */
-.planner-cell-today-spark {
-  position: absolute;
-  right: 6px;
-  bottom: 6px;
-  color: var(--color-accent);
-  opacity: 0.85;
-  animation: planner-cell-today-spark 2.6s ease-in-out infinite;
-}
-@keyframes planner-cell-today-spark {
-  0%, 100% { transform: scale(1); opacity: 0.7; }
-  50%      { transform: scale(1.18); opacity: 1; }
-}
 
 /* Header search field — pill, faint border, kbd hint on the right. */
 .murchid-search {
@@ -1817,149 +1394,31 @@ select:focus-visible {
 /* Shared hover lift for the Planner toolbar buttons (filter chips,
    Schedule, Today, prev/next). Same easing + travel as the Studio AI
    chips so every clickable in the row reacts the same way. */
-.planner-nav-btn {
-  transition:
-    transform 220ms cubic-bezier(0.22, 1, 0.36, 1),
-    box-shadow 220ms ease,
-    background-color 200ms ease,
-    border-color 200ms ease,
-    color 200ms ease;
-}
-.planner-nav-btn:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 8px 16px -10px rgba(15, 20, 16, 0.18);
-}
-.planner-nav-btn:active {
-  transform: translateY(0);
-}
 
 /* Shared frame: subtle warm-gray border + soft drop shadow. Used by
    the Studio AI hero, AI Insights card, and the calendar grid so the
    three primary surfaces feel like the same "object". Upcoming and
    Quick Actions intentionally keep the plainer border-line look. */
-.planner-card-frame {
-  border: 1px solid #e6dccb;
-  box-shadow: 0 18px 44px -22px rgba(15, 20, 16, 0.14);
-}
 
 /* Planner hero card — single PNG background, no overlays. */
-.planner-hero {
-  background: url("/planner-hero-bg.png") center/cover no-repeat;
-  border: 1px solid #e6dccb;
-  box-shadow: 0 18px 44px -22px rgba(15, 20, 16, 0.14);
-  position: relative;
-  overflow: hidden;
-  isolation: isolate;
-}
 
-.planner-hero > * {
-  position: relative;
-  z-index: 2;
-}
 
-.planner-hero-chip {
-  position: relative;
-  z-index: 3;
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 9px;
-  padding: 6px 12px;
-  border-radius: 12px;
-  background-color: #fdf8ee;
-  background-image: none;
-  border: 1px solid #f0e6d2;
-  cursor: pointer;
-  text-align: left;
-  min-width: 0;
-  box-shadow: 0 1px 2px rgba(15, 20, 16, 0.04);
-  transition:
-    box-shadow 220ms ease,
-    transform 220ms cubic-bezier(0.22, 1, 0.36, 1),
-    border-color 200ms ease;
-}
-.planner-hero-chip:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 10px 20px -10px rgba(15, 20, 16, 0.18);
-  border-color: #e8ddca;
-}
 
 /* Per-chip icon palette so the row reads as six distinct tools. Soft
    tinted tile with the colored glyph centered inside — pastel feel
    rather than the saturated white-on-color square. */
-.planner-hero-chip-icon {
-  flex-shrink: 0;
-  height: 26px;
-  width: 26px;
-  border-radius: 7px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
-}
-.planner-hero-chip:hover .planner-hero-chip-icon {
-  transform: scale(1.06) rotate(-3deg);
-}
-.planner-hero-chip-icon-accent      { background: rgba(200, 71, 43, 0.12);  color: var(--color-accent); }
-.planner-hero-chip-icon-accent-soft { background: rgba(232, 122, 85, 0.14); color: var(--color-accent); }
-.planner-hero-chip-icon-sage        { background: rgba(107, 127, 90, 0.14); color: var(--color-sage); }
-.planner-hero-chip-icon-moss        { background: rgba(91, 139, 74, 0.14);  color: #5b8b4a; }
-.planner-hero-chip-icon-indigo      { background: rgba(91, 108, 203, 0.13); color: #5b6ccb; }
-.planner-hero-chip-icon-violet      { background: rgba(139, 92, 184, 0.13); color: #8b5cb8; }
-.planner-hero-chip-icon-gold        { background: rgba(184, 137, 61, 0.15); color: var(--color-gold); }
 
 /* Planner — monthly calendar grid. Each cell fades up on mount with a
    short stagger by column position so the grid assembles itself rather
    than appearing flat. Today's cell carries an inner accent halo and a
    subtle ring so it pops at any zoom level. */
-.planner-view {
-  animation: planner-view-in 460ms cubic-bezier(0.16, 1, 0.3, 1) both;
-}
-@keyframes planner-view-in {
-  from { opacity: 0; transform: translateY(8px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
 
-.planner-grid {
-  animation: planner-grid-in 560ms cubic-bezier(0.16, 1, 0.3, 1) 80ms both;
-}
-@keyframes planner-grid-in {
-  from { opacity: 0; transform: scale(0.985); filter: blur(4px); }
-  to   { opacity: 1; transform: scale(1); filter: blur(0); }
-}
 
-.planner-cell {
-  animation: planner-cell-in 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
-}
-@keyframes planner-cell-in {
-  from { opacity: 0; transform: translateY(4px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
 
-.planner-cell-today {
-  position: relative;
-  box-shadow: inset 0 0 0 1.5px var(--color-accent);
-  background:
-    radial-gradient(ellipse at top, rgba(200, 71, 43, 0.06), transparent 70%),
-    var(--color-paper-cool) !important;
-  animation: planner-today-breath 5.4s ease-in-out infinite;
-}
-@keyframes planner-today-breath {
-  0%, 100% { box-shadow: inset 0 0 0 1.5px var(--color-accent),
-                          0 0 0 0 rgba(200, 71, 43, 0); }
-  50%      { box-shadow: inset 0 0 0 1.5px var(--color-accent),
-                          0 0 0 10px rgba(200, 71, 43, 0.08); }
-}
 @media (prefers-reduced-motion: reduce) {
-  .planner-cell-today { animation: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .planner-view,
-  .planner-grid,
-  .planner-cell {
-    animation: none !important;
-  }
 }
 
 /* Accessibility — teachers who've turned on Reduce Motion in macOS / iOS

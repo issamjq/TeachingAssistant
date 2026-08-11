@@ -1,0 +1,395 @@
+/* =====================================================================
+   The Scheduler
+   =====================================================================
+
+   Replaces ~100 lines that lived in app/globals.css and were written
+   against the old palette — sage, gold, an oklch literal per chip and a
+   PNG texture behind the hero. None of that survives a palette swap, and
+   next to the rebuilt dashboard and studio it read as a different
+   product. This is the same language as the rest: cream ground, one
+   rationed accent, glass panes, muted per-kind hues that are nobody's
+   status colour.
+   ===================================================================== */
+
+/* ── the month ribbon ────────────────────────────────────────────────
+   One bar per day, stacked by kind. It is the piece the old screen had
+   no equivalent of: the grid tells you what is on the 14th, and this
+   tells you what KIND of month you are having — where the crush is,
+   where the clear week is — without reading a word. */
+
+.ribbon {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 46px;
+  padding: 0 2px;
+}
+.ribbonDay {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 1.5px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  border-radius: 3px;
+  transition: opacity 0.15s ease;
+}
+.ribbonDay:hover { opacity: 0.72; }
+.ribbonDay:focus-visible { outline: 2px solid var(--p-accent); outline-offset: 2px; }
+
+/* An empty day still needs a footprint, or the ribbon reads as a broken
+   bar chart with gaps rather than as a month with quiet days in it. */
+.ribbonDay::after {
+  content: "";
+  display: block;
+  height: 2px;
+  border-radius: 999px;
+  background: var(--p-line-strong);
+}
+/* Narrower than the slot they sit in. At 31 days across a wide screen a
+   full-width segment is ~33px wide and ~9px tall, which reads as a
+   barcode rather than as a bar chart — the eye needs the bars to be
+   taller than they are wide before it sees them as quantities. */
+.ribbonSeg,
+.ribbonDay::after {
+  width: min(100%, 17px);
+  margin-inline: auto;
+}
+.ribbonSeg {
+  display: block;
+  border-radius: 2px;
+  background: var(--seg);
+}
+.ribbonDay[data-today="true"]::after {
+  background: var(--p-accent);
+  height: 3px;
+  box-shadow: 0 0 6px color-mix(in oklab, var(--p-accent) 60%, transparent);
+}
+.ribbonDay[data-past="true"] { opacity: 0.42; }
+.ribbonDay[data-past="true"]:hover { opacity: 0.6; }
+
+.ribbonScale {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--font-mono);
+  font-size: 8.5px;
+  letter-spacing: 0.08em;
+  color: var(--p-muted);
+  margin-top: 5px;
+  padding: 0 2px;
+}
+
+/* ── filters ─────────────────────────────────────────────────────── */
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 11px 5px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--p-line);
+  background: transparent;
+  font-size: 12px;
+  color: var(--p-muted);
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+.chip:hover { border-color: var(--p-line-strong); color: var(--p-ink-soft); }
+.chip:focus-visible { outline: 2px solid var(--p-accent); outline-offset: 1px; }
+.chipDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--tint);
+  /* Off, the dot is an outline: a filled dot next to greyed-out text is
+     ambiguous about which state you are looking at. */
+  box-shadow: inset 0 0 0 7px var(--p-paper-cool);
+  transition: box-shadow 0.15s ease;
+}
+.chip[data-on="true"] {
+  border-color: color-mix(in oklab, var(--tint) 42%, transparent);
+  background: color-mix(in oklab, var(--tint) 10%, transparent);
+  color: var(--p-ink);
+}
+.chip[data-on="true"] .chipDot { box-shadow: inset 0 0 0 0 transparent; }
+.chipCount {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  color: var(--p-muted);
+}
+
+/* ── the grid ────────────────────────────────────────────────────── */
+
+.grid {
+  border: 1px solid var(--p-line);
+  border-radius: 18px;
+  overflow: hidden;
+  background: color-mix(in oklab, var(--p-surface) 88%, transparent);
+  box-shadow:
+    0 1px 2px color-mix(in oklab, var(--p-ink) 4%, transparent),
+    0 18px 40px -26px color-mix(in oklab, var(--p-ink) 30%, transparent);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.dowRow {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  border-bottom: 1px solid var(--p-line);
+  background: color-mix(in oklab, var(--p-paper-cool) 92%, transparent);
+  flex-shrink: 0;
+}
+.dow {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--p-muted);
+  text-align: center;
+  padding: 8px 2px;
+}
+.cells {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  flex: 1;
+  min-height: 0;
+}
+
+.cell {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-height: 96px;
+  padding: 6px 6px 7px;
+  text-align: start;
+  border-inline-end: 1px solid var(--p-line-soft);
+  border-block-end: 1px solid var(--p-line-soft);
+  background: transparent;
+  cursor: pointer;
+  transition: background 0.14s ease;
+}
+.cell:hover { background: color-mix(in oklab, var(--p-accent) 5%, transparent); }
+.cell:focus-visible { outline: 2px solid var(--p-accent); outline-offset: -2px; z-index: 2; }
+.cell[data-outside="true"] { background: color-mix(in oklab, var(--p-paper-warm) 34%, transparent); }
+.cell[data-weekend="true"] { background: color-mix(in oklab, var(--p-paper-warm) 22%, transparent); }
+.cell[data-past="true"] .cellChips { opacity: 0.55; }
+
+/* Today, marked the way the sidebar and the schedule mark it. */
+.cell[data-today="true"] { background: color-mix(in oklab, var(--p-accent) 7%, transparent); }
+.cell[data-today="true"]::before {
+  content: "";
+  position: absolute;
+  inset-inline: 0;
+  top: 0;
+  height: 2px;
+  background: linear-gradient(90deg, var(--p-ambient-lift), var(--p-accent));
+}
+
+.cellHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.cellNum {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1;
+  color: var(--p-ink-soft);
+}
+.cell[data-outside="true"] .cellNum { color: color-mix(in oklab, var(--p-muted) 60%, transparent); }
+.cell[data-past="true"] .cellNum { color: var(--p-muted); }
+.cell[data-today="true"] .cellNum {
+  display: grid;
+  place-items: center;
+  width: 21px;
+  height: 21px;
+  margin: -2px;
+  border-radius: 50%;
+  background: var(--p-accent);
+  color: var(--p-on-accent);
+  font-weight: 600;
+}
+.cellCount {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--p-muted);
+}
+
+.cellChips {
+  display: flex;
+  flex-direction: column;
+  gap: 2.5px;
+  min-height: 0;
+  overflow: hidden;
+}
+.cellChip {
+  position: relative;
+  display: block;
+  padding: 2px 5px 2px 7px;
+  border-radius: 5px;
+  font-size: 10.5px;
+  line-height: 1.3;
+  color: var(--p-ink);
+  background: color-mix(in oklab, var(--tint) 11%, transparent);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cellChip::before {
+  content: "";
+  position: absolute;
+  inset-block: 2px;
+  inset-inline-start: 0;
+  width: 2px;
+  border-radius: 999px;
+  background: var(--tint);
+}
+.cellMore {
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: 10.5px;
+  color: var(--p-muted);
+  padding-inline-start: 6px;
+}
+
+/* Add-on-this-day, revealed on hover. A permanent + in all 35 cells is
+   35 competing affordances; on hover it is one, exactly where the
+   pointer already is. */
+.cellAdd {
+  position: absolute;
+  inset-block-end: 5px;
+  inset-inline-end: 5px;
+  display: grid;
+  place-items: center;
+  width: 19px;
+  height: 19px;
+  border-radius: 6px;
+  color: var(--p-accent);
+  background: color-mix(in oklab, var(--p-surface) 92%, transparent);
+  border: 1px solid color-mix(in oklab, var(--p-accent) 32%, transparent);
+  opacity: 0;
+  transition: opacity 0.14s ease;
+}
+.cell:hover .cellAdd,
+.cell:focus-within .cellAdd { opacity: 1; }
+.cellAdd:hover { background: var(--p-accent); color: var(--p-on-accent); }
+
+/* ── the rail ────────────────────────────────────────────────────── */
+
+/* One pane, three sections, rather than three cards with gaps between
+   them — the old right column had a floating strip, a card and another
+   card, and the seams were the loudest thing on the screen. */
+.rail {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--p-line);
+  border-radius: 18px;
+  overflow: hidden;
+  background: color-mix(in oklab, var(--p-surface) 88%, transparent);
+  box-shadow:
+    0 1px 2px color-mix(in oklab, var(--p-ink) 4%, transparent),
+    0 18px 40px -26px color-mix(in oklab, var(--p-ink) 30%, transparent);
+  min-height: 0;
+}
+.railSection { padding: 14px 15px; border-block-start: 1px solid var(--p-line-soft); }
+.railSection:first-child { border-block-start: 0; }
+.railGrow { flex: 1; min-height: 0; overflow-y: auto; scrollbar-width: thin; }
+.railTitle {
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: 13px;
+  color: var(--p-muted);
+  margin-bottom: 9px;
+}
+
+.meter {
+  height: 6px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: color-mix(in oklab, var(--p-line) 70%, transparent);
+  display: flex;
+}
+.meterFill {
+  background: linear-gradient(90deg, var(--p-ambient-lift), var(--p-accent));
+  transition: width 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.upNext {
+  display: flex;
+  gap: 9px;
+  align-items: flex-start;
+  width: 100%;
+  text-align: start;
+  padding: 7px 0;
+  border-block-start: 1px solid var(--p-line-soft);
+  cursor: pointer;
+}
+.upNext:first-of-type { border-block-start: 0; padding-block-start: 0; }
+.upNextDay {
+  flex-shrink: 0;
+  width: 34px;
+  text-align: center;
+  font-family: var(--font-mono);
+  border-radius: 7px;
+  padding: 3px 0;
+  background: color-mix(in oklab, var(--tint) 12%, transparent);
+  color: color-mix(in oklab, var(--tint) 75%, var(--p-ink));
+}
+.upNextDow { display: block; font-size: 8px; letter-spacing: 0.1em; text-transform: uppercase; opacity: 0.8; }
+.upNextNum { display: block; font-size: 13px; line-height: 1.1; }
+
+.action {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 8px 9px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  text-align: start;
+  font-size: 12.5px;
+  color: var(--p-ink-soft);
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+.action:hover {
+  background: color-mix(in oklab, var(--tint) 9%, transparent);
+  border-color: color-mix(in oklab, var(--tint) 30%, transparent);
+  color: var(--p-ink);
+}
+.actionIcon {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+  border-radius: 8px;
+  color: var(--tint);
+  background: color-mix(in oklab, var(--tint) 13%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cell, .chip, .action, .meterFill, .ribbonDay { transition: none; }
+}
+
+/* Below the two-column breakpoint the rail follows the calendar rather
+   than sitting beside it. */
+@media (max-width: 1023px) {
+  .cell { min-height: 74px; }
+  .cellChip { font-size: 10px; }
+}

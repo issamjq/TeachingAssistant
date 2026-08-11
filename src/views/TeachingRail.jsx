@@ -202,7 +202,7 @@ export default function TeachingRail() {
           onClick={() => setCollapsed(false)}
           aria-label="Expand calendar rail"
           title="Show calendar"
-          className="planner-nav-btn h-8 w-8 rounded-lg border border-line bg-paper-cool hover:bg-paper-warm hover:border-ink flex items-center justify-center"
+          className="h-8 w-8 rounded-lg border border-line bg-paper-cool hover:bg-paper-warm hover:border-ink flex items-center justify-center transition hover:-translate-y-px cursor-pointer"
         >
           <ChevronLeft size={14} />
         </button>

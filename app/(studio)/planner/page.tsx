@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
-import Planner from "@/views/Planner";
+import PlannerView from "@/features/planner/PlannerView";
 
 export const metadata: Metadata = { title: "Planner — Murchid" };
 
 export default function PlannerPage() {
-  return <Planner />;
+  return <PlannerView />;
 }
