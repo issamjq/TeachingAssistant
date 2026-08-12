@@ -12,7 +12,10 @@ import TermTimeline from "./sections/TermTimeline";
 import Pricing from "./sections/Pricing";
 import Questions from "./sections/Questions";
 import ImageCourier from "./ImageCourier";
-import { useReveal } from "./useReveal";
+import gsap from "gsap";
+import { ScrollTrigger } from "gsap/ScrollTrigger";
+import { ScrollToPlugin } from "gsap/ScrollToPlugin";
+import { motionIsStopped, useReveal } from "./useReveal";
 import { useTilt } from "./useTilt";
 import s from "./Landing.module.css";
 
@@ -43,6 +46,42 @@ export default function LandingPage() {
   // The same scope hosts the pointer-tilt field for every [data-tilt] card.
   useTilt(scope);
   const [scrolled, setScrolled] = useState(false);
+
+  // In-page anchors travel, they do not teleport. A native hash jump
+  // drops the visitor into the MIDDLE of the scrubbed choreography: the
+  // outputs section is pinned for 200% of scroll, so landing at its pin
+  // start shows seven icons over an empty stage with the cards still
+  // parked below the fold — the "broken" state. Driving the jump with
+  // ScrollToPlugin plays every scrubbed timeline through on the way,
+  // and a pinned destination lands at the END of its pin, arriving with
+  // the animation completed instead of not yet begun. When motion is
+  // off (reduced motion or the accessibility toggle) the pins do not
+  // exist and the browser's plain jump is already correct.
+  useEffect(() => {
+    const root = scope.current;
+    if (!root) return;
+    gsap.registerPlugin(ScrollTrigger, ScrollToPlugin);
+    const onClick = (e: MouseEvent) => {
+      const a = (e.target as Element).closest?.('a[href^="#"]');
+      if (!a || !root.contains(a)) return;
+      const hash = a.getAttribute("href")!;
+      const el = hash.length > 1 ? document.querySelector(hash) : null;
+      if (!el || motionIsStopped()) return;
+      e.preventDefault();
+      const pin = ScrollTrigger.getAll().find((st) => st.trigger === el && st.pin);
+      const y = pin ? pin.end : el.getBoundingClientRect().top + window.scrollY;
+      const dist = Math.abs(y - window.scrollY);
+      gsap.to(window, {
+        scrollTo: { y, autoKill: true },
+        duration: Math.min(1.6, 0.6 + dist / 4000),
+        ease: "power2.inOut",
+        overwrite: "auto",
+        onComplete: () => history.replaceState(null, "", hash),
+      });
+    };
+    root.addEventListener("click", onClick);
+    return () => root.removeEventListener("click", onClick);
+  }, [scope]);
 
   // IntersectionObserver on a top sentinel rather than a scroll listener:
   // a scroll handler would fire on every frame for a hairline border.
