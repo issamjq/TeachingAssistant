@@ -1,12 +1,13 @@
 # 05 · Images — `/api/images/*`
 
-> **Status (2026-08-11): ✅ built as specced** — legacy `GET /api/images/:id`
-> serves old rows, `POST /api/images/upload` returns `410 use_storage`.
-> The SlideBuilder frontend gap is **fixed** (same day): uploads now go
-> browser→Storage (`imports` bucket, year-long signed URL + storage path).
-> **One open item:** `GET /api/images/search?q=`, which SlideBuilder calls
-> for stock-image search, exists in **no** spec and not in the API
-> reference — build it or pull the affordance from the UI.
+> **Status (2026-08-12): ✅ done, nothing open here.** Legacy
+> `GET /api/images/:id` serves old rows, `POST /api/images/upload` returns
+> `410 use_storage`, and SlideBuilder uploads browser→Storage (`imports`
+> bucket, year-long signed URL + storage path). The former open item is
+> settled: **`GET /api/images/search?q=` was built** (Openverse-backed,
+> now in the API reference, verified live 2026-08-12) and answers exactly
+> the `{ photos: [{ full, thumb, alt, credit, source }] }` shape
+> SlideBuilder already reads.
 
 Images pasted into a lesson plan or a slide deck.
 

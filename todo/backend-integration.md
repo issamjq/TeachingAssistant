@@ -160,10 +160,11 @@ Please also surface the real reason distinctly — `quota_exhausted` vs
 
 ## BLOCKER 2 — `POST /api/onboarding/parse` always 502
 
-> **Status 2026-08-11: fixed per reference, retest wanted.** The route is
-> now fully documented — both body variants, `DOC_TYPE`/`DOC_SIZE`/
-> `NO_AI_KEY` errors, and a `found`/`missing` split in the response. One
-> authed retest from a signed-in session confirms it.
+> **Status 2026-08-12: FIXED and verified live.** The authed retest
+> happened: a plain-text CV returned the full `fields`/`found`/`missing`
+> split through the real UI. The 502 below is history, kept as the
+> symptom record. Still wanted someday: per-field confidence scores in
+> the response, for review highlighting in the funnel.
 
 ```
 {"error":"The model service returned an error.","code":"upstream_error"}
@@ -191,9 +192,11 @@ bio } }` — every key optional, only what the document actually stated.
 
 ## BLOCKER 3 — `POST /api/studio/goal-plan` does not exist (404)
 
-> **Status 2026-08-11: STILL OPEN — now the top backend item.** The route
-> is absent from the API reference, so it has not been built. Everything
-> else on the original blocker list has moved; this one has not.
+> **Status 2026-08-12: FIXED and verified live.** The route is in the API
+> reference and planned the seeded goal into a 10-week plan rendered in
+> the UI. Contract note: the response nests under
+> `{ goal, unread_materials }` — the frontend merge was updated for that
+> envelope. Body below kept for the contract.
 
 The Goal planner is a headline feature: a teacher attaches a syllabus, names
 a timeline, and gets a week-by-week teaching plan. The button calls this and
@@ -251,12 +254,14 @@ by it today — but the route exists and will fail if anything routes to it.
 
 ## Gap 5 — generations never reach the library
 
-> **Status 2026-08-11: half-moved.** The dedicated `POST /api/studio/quiz`
-> route now puts the structured `quiz: { questions: [] }` on its **done**
-> frame, which the frontend already reads — so quizzes made through that
-> route light up. `/api/studio/generate` still streams prose only: no
-> `artifact` frame, no `id` on `done`, so presentations and generate-made
-> quizzes still save as text. 5a/5b below remain open for `generate`.
+> **Status 2026-08-12: 5a FIXED for `generate` too — 5b still open.**
+> `generate` is a batch protocol now (`batch → status → scope →
+> artifact_start → delta(kind) → artifact → artifact_end → done`) and a
+> structured `artifact` frame arrives before `done`, verified live
+> through the real UI. `done` still carries no `id`, so the browser keeps
+> saving to the library itself — the frontend already reads `ev.id` off
+> `done` when it appears (`src/features/studio-ai/StudioChat.jsx`), so
+> 5b lands with no frontend change.
 
 `/api/studio/generate` streams prose and stops. It does **not** write a row
 to `public.ai_studio`, verified: 19 rows before a successful generation, 19
@@ -314,22 +319,27 @@ can link straight to the saved item instead of writing its own copy. Either
   The studio shows a streaming placeholder so it does not look frozen, but
   if teachers will use this daily, a paid instance (or a keep-warm ping) is
   the single biggest perceived-speed win available.
-- **`/api/studio/generate` ignores `materials`.** The studio sends
-  `materials: [{id, name}]` for attached files. If the generator does not
-  read them, "attach a chapter and plan from it" is not actually happening —
-  worth confirming. The extracted text is in `materials.extracted_text`, and
-  the file itself is in the `imports` Storage bucket at `materials.file_path`.
-- **`GET /api/images/search?q=` is called but appears in no spec** — and
-  (checked 2026-08-11) not in the API reference either. The slide builder
-  uses it for stock-image search (`src/views/SlideBuilder.jsx`). Either
-  build it or the search affordance should come out of the UI.
+- **`/api/studio/generate` ignores `materials`.** *(Settled 2026-08-12:
+  the batch stream now reports `unread_materials` by name, so attachments
+  are read and anything skipped is surfaced — the studio shows it.)* The
+  original concern, kept for context: the studio sends
+  `materials: [{id, name}]`; the extracted text is in
+  `materials.extracted_text`, the file in the `imports` bucket at
+  `materials.file_path`.
+- **`GET /api/images/search?q=` is called but appears in no spec** —
+  *(Settled 2026-08-12: it was built — Openverse-backed, in the API
+  reference, verified live, answering exactly the `{ photos: [...] }`
+  shape SlideBuilder reads.)*
 - **Chat `action` frames — handled as of 2026-08-11.** `streamText` now
   surfaces `action` frames and the assistant widget carries them out:
   `navigate` and `set_accessibility` complete in the browser; the three
   prefill actions park their payload under the
   `murchid.assistant.prefill` sessionStorage key and navigate to the
-  right screen. Remaining (frontend): teach the target forms to read
-  that key.
+  right screen. The target forms read that key as of 2026-08-11
+  (verified in code 2026-08-12): new-student (`DatabaseStudents.jsx`),
+  schedule entry (`PlannerView.jsx`), studio composer (`StudioChat.jsx`),
+  all via `src/shared/lib/assistantPrefill.ts` (5-min TTL, consume-once).
+  Nothing remains here.
 - **The bulletin board needs nothing from this service.** It shipped fully
   browser-side (Supabase CRUD on `bulletin_posts`); the only endpoint it
   could ever want is the optional AI-compose in

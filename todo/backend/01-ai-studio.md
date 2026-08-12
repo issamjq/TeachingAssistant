@@ -1,12 +1,19 @@
 # 01 · AI Studio — `/api/studio/*`
 
-> **Status (2026-08-11): ✅ built and deployed, EXCEPT §1.1b.**
-> `generate`, `quiz`, `quiz-tweak` and `regenerate` are live and documented
-> at [murchid-api-reference.vercel.app](https://murchid-api-reference.vercel.app/)
-> (`/api/studio/quiz` now returns the structured `quiz` on its done frame,
-> which the frontend already reads). **`POST /api/studio/goal-plan` (§1.1b)
-> is still missing** — absent from the API reference; the Goal planner
-> button still dead-ends. That section is the remaining work in this file.
+> **Status (2026-08-12): ✅ built and deployed, all of it — verified live.**
+> Every route in this file, **including `POST /api/studio/goal-plan`
+> (§1.1b)**, is documented at
+> [murchid-api-reference.vercel.app](https://murchid-api-reference.vercel.app/)
+> and was exercised through the real UI on 2026-08-12: goal-plan planned a
+> seeded goal into a 10-week plan (response nests under
+> `{ goal, unread_materials }` — the frontend merge handles that).
+> `generate` is now a **batch protocol**: body takes `kinds: []`, stream
+> speaks `batch → status → scope → artifact_start → delta(kind) → artifact
+> → artifact_end → done`, with structured `artifact` frames (old singular
+> `kind` body still accepted). Remaining nit: `done` carries no `id`, so
+> the browser still persists to the library itself. `/api/studio/bulletin`
+> shipped too (wired to the bulletin editor); `quiz-tweak` and
+> `regenerate` are live but not yet wired to any UI.
 
 The generation endpoints. This is the product's headline feature and the
 only reason a teacher needs this service at all for day-to-day work.

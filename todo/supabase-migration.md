@@ -11,6 +11,15 @@ table with owner policies via `db/tune.sql`, and the browser talks to
 Supabase directly. The env-var item is gone repo-side — no Firebase/Vite
 variable is read anywhere; only the dashboard values remain to confirm.)*
 
+*(Re-checked 2026-08-12: nothing here has moved. Items 1–3, 5, 7 and 8 are
+dashboard-side and unverifiable from the repo; items 6, 9 and 10 remain
+open in the repo — `scripts/verify-auth.mjs:19` still targets the deleted
+`localhost:3001`, `src/views/PortalSignIn.jsx` is still present and
+unimported, docs 03/04 and `CLAUDE.md` still describe removed structure.
+One caveat on the 08-11 prune note above: the RLS **policies** exist, but
+nothing exercises them adversarially — that test suite is tracked as a
+top frontend-only item in `new-docs/STATUS.md`.)*
+
 ---
 
 ## 🔴 Blocking — sign-in is broken until these are done

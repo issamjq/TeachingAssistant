@@ -1,9 +1,11 @@
 # 02 · Document reading — `/api/onboarding/parse`
 
-> **Status (2026-08-11): ✅ built and documented** (both body variants,
-> `DOC_TYPE`/`DOC_SIZE`/`NO_AI_KEY` errors, `found`/`missing` arrays). The
-> 2026-08-10 probe saw a 502 here; one authed retest is wanted to confirm
-> the fix landed. Kept for the contract.
+> **Status (2026-08-12): ✅ built, documented, and verified live** (both
+> body variants, `DOC_TYPE`/`DOC_SIZE`/`NO_AI_KEY` errors, `found`/`missing`
+> arrays). The authed retest happened 2026-08-12: a plain-text CV returned
+> the full `fields`/`found`/`missing` split. The 2026-08-10 502 is gone.
+> Kept for the contract. Still wanted someday: per-field confidence scores
+> in the response, for review highlighting in the funnel.
 
 Reads a teacher's details off a CV or a staff card so setting up a
 profile is two clicks instead of a form.
