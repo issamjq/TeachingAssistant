@@ -165,7 +165,9 @@ export function compileProfile(
   const lines: string[] = [
     `# How I teach${teacherName ? ` — ${teacherName}` : ""}`,
     "",
-    `_Compiled from the teaching-skills interview on ${day}. Written in the teacher's own words._`,
+    // *stars*, not _underscores_ — the studio's tight markdown renderer
+    // only parses the star form, and this line must not show literally.
+    `*Compiled from the teaching-skills interview on ${day}. Written in the teacher's own words.*`,
   ];
   for (const q of QUESTIONS) {
     const a = answers[q.id]?.trim();

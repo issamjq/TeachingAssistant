@@ -22,9 +22,6 @@ import {
   VolumeX,
   ArrowUp,
   SkipForward,
-  Download,
-  Pencil,
-  Trash2,
   RotateCcw,
 } from "lucide-react";
 import { useI18n } from "@/shared/i18n";
@@ -36,11 +33,11 @@ import { ConfirmDelete } from "@/views/_shared";
 import { QUESTIONS, compileProfile, answeredCount } from "../interview";
 import type { SkillRow, SkillAssignment } from "../api";
 import {
-  listSkills, createSkill, updateSkill, deleteSkill,
+  listSkills, createSkill, deleteSkill,
   listAssignments, createAssignment, deleteAssignment,
 } from "../api";
-import { AssignmentsPanel } from "./AssignmentsPanel";
 import { InterviewOutline } from "./InterviewOutline";
+import { SkillCard } from "./SkillCard";
 import s from "./TeachingSkills.module.css";
 
 const DRAFT_KEY = "murchid.skills.interview";
@@ -94,8 +91,6 @@ export function TeachingSkillsRoute() {
   const [saving, setSaving] = useState(false);
   const [assignments, setAssignments] = useState<SkillAssignment[]>([]);
 
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editText, setEditText] = useState("");
   const [deleting, setDeleting] = useState<SkillRow | null>(null);
   const [busyDelete, setBusyDelete] = useState(false);
 
@@ -284,17 +279,6 @@ export function TeachingSkillsRoute() {
     }
   };
 
-  const saveEdit = async () => {
-    if (!editingId) return;
-    try {
-      const row = await updateSkill(editingId, { skill_profile: editText });
-      setRows((r) => (r || []).map((x) => (x.id === row.id ? row : x)));
-      setEditingId(null);
-    } catch (e: any) {
-      setError(e.message);
-    }
-  };
-
   const confirmDelete = async () => {
     if (!deleting) return;
     setBusyDelete(true);
@@ -307,15 +291,6 @@ export function TeachingSkillsRoute() {
     } finally {
       setBusyDelete(false);
     }
-  };
-
-  const download = (row: SkillRow) => {
-    const blob = new Blob([row.skill_profile || ""], { type: "text/markdown" });
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = `${(row.name || "teaching-profile").replace(/[^\w؀-ۿ-]+/g, "-").toLowerCase()}.md`;
-    a.click();
-    URL.revokeObjectURL(a.href);
   };
 
   const onKeyDown = useCallback(
@@ -535,7 +510,7 @@ export function TeachingSkillsRoute() {
   /* ── home ───────────────────────────────────────────────────────── */
   const hasProfiles = (rows?.length ?? 0) > 0;
   return (
-    <div className="space-y-4 max-w-5xl">
+    <div className="space-y-5 max-w-[1160px] mx-auto">
       <section className={`${s.loud} p-6 md:p-7`}>
         <p className={s.loudEyebrow}>Teaching skills</p>
         <h1 className="font-serif text-[26px] md:text-[32px] leading-[1.1] font-medium mt-2 max-w-2xl">
@@ -564,70 +539,26 @@ export function TeachingSkillsRoute() {
       {rows === null ? (
         <p className="text-sm text-muted">Loading your profiles…</p>
       ) : hasProfiles ? (
-        rows.map((row) => (
-          <section key={row.id} className={`${s.glass} p-5 md:p-6`}>
-            <div className="flex items-start gap-3 flex-wrap">
-              <div className="flex-1 min-w-[220px]">
-                <p className={s.eyebrow}>
-                  {row.source_type === "interview" ? "From the interview" : row.source_type === "cv" ? "From your CV" : "Uploaded"}
-                  {" · "}
-                  {new Date(row.updated_at).toLocaleDateString()}
-                </p>
-                <h2 className="font-serif text-[19px] mt-1">{row.name || "Teaching profile"}</h2>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <button type="button" className={s.iconBtn} title="Download as Markdown" onClick={() => download(row)}>
-                  <Download size={15} />
-                </button>
-                <button
-                  type="button"
-                  className={s.iconBtn}
-                  title="Edit"
-                  onClick={() => {
-                    setEditingId(row.id);
-                    setEditText(row.skill_profile || "");
-                  }}
-                >
-                  <Pencil size={15} />
-                </button>
-                <button type="button" className={s.iconBtn} title="Delete" onClick={() => setDeleting(row)}>
-                  <Trash2 size={15} />
-                </button>
-              </div>
-            </div>
-
-            {editingId === row.id ? (
-              <div className="mt-3 space-y-2">
-                <textarea
-                  className={s.reviewInput}
-                  value={editText}
-                  onChange={(e) => setEditText(e.target.value)}
-                  rows={14}
-                  aria-label="Edit profile Markdown"
-                />
-                <div className="flex items-center gap-2">
-                  <Button onClick={saveEdit}>Save changes</Button>
-                  <Button variant="secondary" onClick={() => setEditingId(null)}>Cancel</Button>
-                </div>
-              </div>
-            ) : (
-              <div className={s.profileBody}>{renderMarkdown(row.skill_profile || "")}</div>
-            )}
-
-            <AssignmentsPanel
+        <div className="grid gap-4 xl:grid-cols-2 items-start">
+          {rows.map((row) => (
+            <SkillCard
+              key={row.id}
+              row={row}
               assignments={assignments.filter((a) => a.skill_id === row.id)}
               others={assignments.filter((a) => a.skill_id !== row.id)}
-              onAdd={async (combo) => {
+              onPatched={(r) => setRows((x) => (x || []).map((y) => (y.id === r.id ? r : y)))}
+              onDelete={() => setDeleting(row)}
+              onAddAssignment={async (combo) => {
                 const created = await createAssignment({ skill_id: row.id, ...combo });
                 setAssignments((x) => [...x, created]);
               }}
-              onRemove={async (id) => {
+              onRemoveAssignment={async (id) => {
                 await deleteAssignment(id);
                 setAssignments((x) => x.filter((a) => a.id !== id));
               }}
             />
-          </section>
-        ))
+          ))}
+        </div>
       ) : (
         <section className={`${s.glass} p-6 text-center`}>
           <GraduationCap size={22} className="mx-auto text-muted" aria-hidden />

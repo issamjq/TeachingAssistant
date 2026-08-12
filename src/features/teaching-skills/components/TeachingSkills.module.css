@@ -450,12 +450,47 @@
 .reviewInput:focus { border-color: color-mix(in oklab, var(--p-accent) 45%, var(--p-line)); }
 
 .profileBody {
+  position: relative;
   margin-block-start: 10px;
   font-size: 14px;
   line-height: 1.7;
   color: var(--p-ink);
 }
-.profileBody :global(h1) { display: none; } /* the card header already names it */
+/* The document's own `# title` renders as the FIRST heading (the tight
+   renderer maps # → h2) — the card header already names it, so showing
+   it twice reads as a mistake. */
+.profileBody > :global(h2):first-child,
+.profileBody > :global(h1):first-child { display: none; }
+
+/* Collapsed profiles: a card should invite reading, not demand it. */
+.profileBody[data-clamped="true"] {
+  max-height: 250px;
+  overflow: hidden;
+}
+.profileFade {
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  height: 72px;
+  background: linear-gradient(to bottom, transparent, var(--p-surface));
+  pointer-events: none;
+}
+.readMore {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-block-start: 6px;
+  border: 0;
+  background: transparent;
+  padding: 4px 0;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--p-accent);
+  cursor: pointer;
+}
 .profileBody :global(h2) {
   font-family: var(--font-serif);
   font-size: 16px;
