@@ -19,9 +19,8 @@
 // =====================================================================
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  ChevronLeft, ChevronRight, Plus, ArrowRight, CalendarCheck2,
+  ChevronLeft, ChevronRight, Plus, CalendarCheck2,
 } from "lucide-react";
-import { navigate } from "@/lib/route";
 import { useT, useI18n } from "@/lib/i18n";
 import { api } from "@/views/_shared";
 import { Button } from "@/components/ui/button";
@@ -36,14 +35,6 @@ import {
   monthGrid, daysOfMonth, monthStats, weekOf,
 } from "./month";
 import s from "./Planner.module.css";
-
-/** The four things worth making, and where each one lives. */
-const MAKE = [
-  { kind: "lesson-plans",  verb: "Draft",  noun: "a lesson plan", to: ["lesson-plans"] },
-  { kind: "quizzes",       verb: "Build",  noun: "a quiz",        to: ["quizzes"] },
-  { kind: "homework",      verb: "Set",    noun: "homework",      to: ["homework"] },
-  { kind: "presentations", verb: "Make",   noun: "a deck",        to: ["presentations"] },
-];
 
 const VIEWS = ["day", "week", "month"];
 const VIEW_KEY = "murchid.planner.view";
@@ -185,11 +176,13 @@ export default function PlannerView() {
     return m;
   }, [events]);
 
+  // The sidebar's whole lower half is the queue now, so it can afford
+  // to show a real stretch of it rather than a teaser.
   const upcoming = useMemo(
     () => events
       .filter((e) => e.date >= todayIso)
       .sort((a, b) => (a.date + (a.time || "")).localeCompare(b.date + (b.time || "")))
-      .slice(0, 5),
+      .slice(0, 12),
     [events, todayIso],
   );
 
@@ -367,7 +360,7 @@ export default function PlannerView() {
           </div>
 
           <div className={`${s.railSection} ${s.railGrow}`}>
-            <p className={s.railTitle}>Up next</p>
+            <p className={s.railTitle}>Upcoming</p>
             {upcoming.length === 0 ? (
               <p className="text-[12.5px] text-muted leading-relaxed">
                 Nothing ahead. Click a day to put something in it.
@@ -398,26 +391,7 @@ export default function PlannerView() {
           </div>
 
           <div className={s.railSection}>
-            <p className={s.railTitle}>Make something</p>
-            {MAKE.map((m) => {
-              const Icon = KIND_BY_KEY[m.kind].icon;
-              return (
-                <button
-                  key={m.kind}
-                  type="button"
-                  className={s.action}
-                  style={{ "--tint": KIND_BY_KEY[m.kind].tint }}
-                  onClick={() => navigate(m.to)}
-                >
-                  <span className={s.actionIcon}><Icon size={14} /></span>
-                  <span className="flex-1">
-                    <span className="text-ink font-medium">{m.verb}</span> {m.noun}
-                  </span>
-                  <ArrowRight size={13} className="text-muted flex-shrink-0 rtl:rotate-180" />
-                </button>
-              );
-            })}
-            <div className="flex items-center justify-between mt-3 pt-3 border-t border-line/60 font-mono text-[10px] text-muted">
+            <div className="flex items-center justify-between font-mono text-[10px] text-muted">
               <span className="inline-flex items-center gap-1.5">
                 <CalendarCheck2 size={11} className="text-accent" /> {stats.done} done
               </span>
