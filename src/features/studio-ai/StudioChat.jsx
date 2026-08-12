@@ -91,7 +91,17 @@ function titleOf(kind, text, structured) {
 export default function StudioChat({ initialKind = "lesson_plan" }) {
   const [turns, setTurns] = useState([]);
   const [draft, setDraft] = useState("");
-  const [kind, setKind] = useState(initialKind);
+  // Multi-select: one prompt can come back as a lesson AND its quiz AND
+  // the homework — the service plans the batch and streams each artifact
+  // in canonical order. At least one kind stays on; the last one refuses
+  // to toggle off rather than leaving the send button aimed at nothing.
+  const [kinds, setKinds] = useState([initialKind]);
+  const toggleKind = (v) =>
+    setKinds((prev) => {
+      if (prev.includes(v)) return prev.length > 1 ? prev.filter((x) => x !== v) : prev;
+      const on = new Set([...prev, v]);
+      return KINDS.map((k) => k.value).filter((x) => on.has(x)); // canonical order
+    });
   // Which skill profiles ground generation. The picker reports here;
   // send() reads it. Saving a new approach bumps the version so the
   // picker refetches and the new skill appears selected.
@@ -132,7 +142,7 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
       const text = [pre.prompt, pre.topic, pre.title, pre.description]
         .find((v) => typeof v === "string" && v.trim());
       if (text) setDraft(String(text).trim());
-      if (typeof pre.kind === "string" && KIND_META[pre.kind]) setKind(pre.kind);
+      if (typeof pre.kind === "string" && KIND_META[pre.kind]) setKinds([pre.kind]);
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -249,7 +259,10 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
   const send = useCallback(async (text, useKind) => {
     const prompt = (text ?? draft).trim();
     if (!prompt || busy) return;
-    const k = useKind || kind;
+    // A caller-supplied kind (starters, "ask for a change") targets one
+    // format; otherwise the composer's whole selection goes as a batch.
+    const ks = useKind ? [useKind] : kinds;
+    const k = ks[0];
     const atts = attachments;
 
     setDraft("");
@@ -293,11 +306,10 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
 
       // Generate is a batch protocol: `batch → status → scope →
       // artifact_start → delta(kind) → artifact → artifact_end → done`,
-      // one start/end pair per requested kind. This screen asks for one
-      // kind at a time, so the batch is a batch of one — but the handling
-      // below rolls a new bubble per artifact, so a multi-kind stream
-      // renders as consecutive replies instead of dropping everything
-      // after the first artifact.
+      // one start/end pair per requested kind. The composer's kind row
+      // is a multi-select, so this is often a real batch — the handling
+      // below rolls a new bubble per artifact, and each renders as its
+      // own reply with its own viewer and Save.
       let acc = "", structured = null, savedId = null;
       let curKind = k;
       let open = true; // the placeholder bubble pushed at send time
@@ -324,7 +336,7 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
         signal: controller.signal,
         refusalAsAnswer: true,
         body: {
-          kinds: [k],
+          kinds: ks,
           prompt,
           materials: atts.map((a) => ({ id: a.id, name: a.name })),
           // Explicit only when the teacher narrowed the pick — "all
@@ -429,7 +441,7 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
       setBusy(false);
       abortRef.current = null;
     }
-  }, [draft, busy, kind, attachments, refreshSessions]);
+  }, [draft, busy, kinds, attachments, refreshSessions]);
 
   /** Keep an artifact. Goes browser → Supabase, so it works today. */
   const saveArtifact = async (turn, index) => {
@@ -553,7 +565,7 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
                   key={x.text}
                   type="button"
                   className={s.starter}
-                  onClick={() => { setKind(x.kind); send(x.text, x.kind); }}
+                  onClick={() => { setKinds([x.kind]); send(x.text, x.kind); }}
                 >
                   <span className={s.starterKind}>{KIND_META[x.kind].label}</span>
                   <span className={s.starterText}>{x.text}</span>
@@ -737,7 +749,11 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
             className={s.input}
             rows={1}
             value={draft}
-            placeholder={`Describe the ${KIND_META[kind]?.label.toLowerCase() || "thing"} you need…`}
+            placeholder={
+              kinds.length === 1
+                ? `Describe the ${KIND_META[kinds[0]]?.label.toLowerCase() || "thing"} you need…`
+                : `Describe it once — you'll get ${kinds.map((v) => KIND_META[v]?.label.toLowerCase()).join(" + ")}…`
+            }
             onChange={(e) => {
               setDraft(e.target.value);
               e.target.style.height = "auto";
@@ -768,8 +784,9 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
               {KINDS.map((k) => (
                 <button
                   key={k.value} type="button" className={s.kindBtn}
-                  data-on={kind === k.value} onClick={() => setKind(k.value)}
-                  aria-pressed={kind === k.value}
+                  data-on={kinds.includes(k.value)} onClick={() => toggleKind(k.value)}
+                  aria-pressed={kinds.includes(k.value)}
+                  title={kinds.includes(k.value) && kinds.length === 1 ? `${k.label} — at least one format stays on` : `Toggle ${k.label.toLowerCase()}`}
                 >
                   <k.icon size={13} /> {k.label}
                 </button>

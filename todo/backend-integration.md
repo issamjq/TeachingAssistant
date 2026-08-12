@@ -20,9 +20,12 @@ below was exercised live and end-to-end through the real UI. Current truth:
   order adds `teaching_guide` and `student_notes`); the stream speaks
   `batch → status → scope → artifact_start → delta(kind) → artifact →
   artifact_end → done`. The old singular `kind` body is still accepted.
-  The studio now sends `kinds: [k]`, shows the `status` stage while the
-  model plans, reports `unread_materials` by name, and renders a refusal
-  as the answer rather than as a retryable error.
+  The studio's kind row is a **multi-select** (2026-08-12 night): one
+  prompt can send `kinds: ["lesson_plan","quiz","homework"]` in a single
+  click, each artifact rendering as its own reply with its own viewer
+  and Save. It shows the `status` stage while the model plans, reports
+  `unread_materials` by name, and renders a refusal as the answer rather
+  than as a retryable error.
 - **Gap 5a is FIXED on the service**: a structured `artifact` frame
   (quiz questions verified live) arrives before `done`, and the quiz
   viewer lights up through the real UI. `done` still carries no `id`, so
