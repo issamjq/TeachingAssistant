@@ -14,6 +14,8 @@
 import { useState } from "react";
 import { Plus, X } from "lucide-react";
 import { AudienceSelect, useTeacherClasses } from "@/views/_shared";
+import { MAJORS } from "@/lib/enums";
+import { useAccount } from "@/lib/account";
 import type { SkillAssignment } from "../api";
 import s from "./TeachingSkills.module.css";
 
@@ -44,11 +46,22 @@ export function AssignmentsPanel({
   onRemove: (id: string) => Promise<void>;
 }) {
   const { grades, sections } = useTeacherClasses();
+  const account = useAccount();
   const [grade, setGrade] = useState("");
   const [section, setSection] = useState("");
   const [subject, setSubject] = useState("");
   const [note, setNote] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  // A dropdown, not free text, so "Physics" is spelled one way across
+  // every skill and the generator's matching stays exact. The teacher's
+  // own majors lead the list; the shared MAJORS vocabulary (the same
+  // one the studio dropdowns use) fills in the rest.
+  const mine = (account?.profile?.majors || []).filter(Boolean);
+  const subjects = [
+    ...mine,
+    ...MAJORS.filter((m: string) => !mine.some((x: string) => x.toLowerCase() === m.toLowerCase())),
+  ];
 
   const add = async () => {
     if (busy) return;
@@ -64,7 +77,6 @@ export function AssignmentsPanel({
       if (others.some((a) => sameCombo(a, combo))) {
         setNote("Added — note that another skill also covers this combination, so the generator will draw on both.");
       }
-      setSubject("");
     } catch (e: any) {
       setNote(e.message);
     } finally {
@@ -101,13 +113,9 @@ export function AssignmentsPanel({
         <div className="w-36">
           <AudienceSelect value={section} onChange={setSection} options={sections} allLabel="All sections" emptyNote="No sections yet" />
         </div>
-        <input
-          className={s.assignInput}
-          placeholder="Any subject"
-          value={subject}
-          onChange={(e) => setSubject(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter") add(); }}
-        />
+        <div className="w-44">
+          <AudienceSelect value={subject} onChange={setSubject} options={subjects} allLabel="Any subject" emptyNote="No subjects yet" />
+        </div>
         <button type="button" className={s.iconBtn} title="Add this combination" onClick={add} disabled={busy}>
           <Plus size={15} />
         </button>

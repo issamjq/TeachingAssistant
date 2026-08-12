@@ -332,20 +332,6 @@
   background: color-mix(in oklab, var(--p-accent) 16%, transparent);
   color: var(--p-accent);
 }
-.assignInput {
-  flex: 1;
-  min-width: 140px;
-  max-width: 220px;
-  font: inherit;
-  font-size: 13px;
-  color: var(--p-ink);
-  background: var(--p-surface);
-  border: 1px solid var(--p-line);
-  border-radius: 10px;
-  padding: 7px 12px;
-  outline: none;
-}
-.assignInput:focus { border-color: color-mix(in oklab, var(--p-accent) 45%, var(--p-line)); }
 
 .review {
   display: flex;
