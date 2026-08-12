@@ -312,7 +312,7 @@ export function TeachingSkillsRoute() {
 
         {mode === "interview" && (
           <div className={s.progressRail} aria-hidden>
-            <div className={s.progressFill} style={{ width: `${(progress / QUESTIONS.length) * 100}%` }} />
+            <div className={s.progressFill} style={{ transform: `scaleX(${progress / QUESTIONS.length})` }} />
           </div>
         )}
 
