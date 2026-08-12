@@ -53,6 +53,7 @@ const TEACHER_NAV: NavSection[] = [
     section: "Teacher",
     items: [
       { key: "database", label: "My students", icon: "students" },
+      { key: "teaching-skills", label: "Teaching skills", icon: "skills" },
       { key: "reports", label: "Reports", icon: "reports" },
     ],
   },
@@ -136,6 +137,7 @@ export const SECTIONS_BY_ROLE: Record<Role, Set<string>> = {
     "presentations",
     "activities",
     "database",
+    "teaching-skills",
     "reports",
     "account",
   ]),

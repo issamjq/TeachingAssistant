@@ -28,6 +28,7 @@ export const AR: Partial<Record<TranslationKey, string>> = {
   "nav.presentations": "العروض التقديمية",
   "nav.activities": "الأنشطة",
   "nav.database": "طلابي",
+  "nav.teaching-skills": "مهارات التدريس",
   "nav.admin-console": "المعلّمون",
   "nav.admin-dashboard": "لوحة الإدارة",
   "nav.superadmin-console": "وصول الحسابات",

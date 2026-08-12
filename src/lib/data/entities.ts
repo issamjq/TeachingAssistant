@@ -886,6 +886,63 @@ export async function deleteGoal(id: string) {
   return { ok: true };
 }
 
+// ── teaching skills ──────────────────────────────────────────────────
+//
+// How this teacher teaches, as prose. skill_profile is a Markdown
+// document — compiled from the skills interview, or extracted from a CV
+// — and it is what the AI service reads to ground generation in this
+// teacher's own practice. The rows are plain teacher-owned data, so they
+// live browser→Supabase like everything else that needs no secret.
+
+const SKILL_COLS = "id, name, source_type, skill_profile, status, created_at, updated_at";
+
+export async function listSkills() {
+  const { data, error } = await supabase
+    .from("teaching_skills").select(SKILL_COLS).order("created_at", { ascending: false });
+  if (error) throw error;
+  return data || [];
+}
+
+export async function createSkill(body: Record<string, any>) {
+  const fid = await facultyId();
+  const { name, source_type, skill_profile } = body || {};
+  if (!skill_profile?.trim()) {
+    throw Object.assign(new Error("The profile is empty — nothing to save."), { status: 400 });
+  }
+  const { data, error } = await supabase
+    .from("teaching_skills")
+    .insert({
+      faculty_id: fid,
+      name: name?.trim() || "Teaching profile",
+      source_type: source_type || "interview",
+      skill_profile: skill_profile.trim(),
+      status: "ready",
+    })
+    .select(SKILL_COLS).single();
+  if (error) throw error;
+  return data;
+}
+
+export async function updateSkill(id: string, body: Record<string, any>) {
+  const patch: Record<string, any> = { updated_at: iso() };
+  for (const k of ["name", "skill_profile", "status"]) {
+    if (body?.[k] !== undefined) patch[k] = body[k];
+  }
+  const { data, error } = await supabase
+    .from("teaching_skills").update(patch).eq("id", id).select(SKILL_COLS).maybeSingle();
+  if (error) throw error;
+  if (!data) throw notFound();
+  return data;
+}
+
+export async function deleteSkill(id: string) {
+  const { error, count } = await supabase
+    .from("teaching_skills").delete({ count: "exact" }).eq("id", id);
+  if (error) throw error;
+  if (!count) throw notFound();
+  return { ok: true };
+}
+
 // ── bulletin board ────────────────────────────────────────────────────
 //
 // Notices a teacher pins up: field trips, exam weeks, birthdays. Plain

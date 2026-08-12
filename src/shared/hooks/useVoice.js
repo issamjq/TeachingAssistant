@@ -24,6 +24,7 @@ const getRecognition = () => {
 /** Arabic if the page is, otherwise English. Voice follows the interface. */
 const localeFor = (lang) => (lang === "ar" ? "ar-AE" : "en-US");
 
+/** @param {{ lang?: string, onFinal?: (text: string) => void }} [opts] */
 export function useVoice({ lang = "en", onFinal } = {}) {
   const [listening, setListening] = useState(false);
   const [interim, setInterim] = useState("");
@@ -37,7 +38,7 @@ export function useVoice({ lang = "en", onFinal } = {}) {
   // it in a ref means recognition does not have to be torn down and
   // rebuilt each time, which would drop the current utterance.
   const onFinalRef = useRef(onFinal);
-  onFinalRef.current = onFinal;
+  useEffect(() => { onFinalRef.current = onFinal; });
 
   const canListen = useMemo(() => !!getRecognition(), []);
   const canSpeak = typeof window !== "undefined" && "speechSynthesis" in window;

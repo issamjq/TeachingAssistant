@@ -43,6 +43,11 @@ const variants = {
     "bg-transparent text-accent border border-accent/30 hover:border-accent hover:bg-accent/[0.06]",
   danger:
     "bg-transparent text-accent border border-accent/40 hover:bg-accent hover:text-paper-cool",
+  // For the accent-drenched "loud" intro cards: paper against the red
+  // ground, so the one action on the card is also its brightest thing.
+  onAccent:
+    "bg-paper-cool text-ink hover:bg-paper-warm active:bg-paper-cool " +
+    "shadow-[var(--shadow-2)] hover:shadow-[var(--shadow-3)]",
   // Drenched clay — for moments that should feel like an extension of
   // the landing hero. Use sparingly so it keeps its weight.
   clay:

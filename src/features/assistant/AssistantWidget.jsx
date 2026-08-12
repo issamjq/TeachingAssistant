@@ -29,7 +29,7 @@ import { createPortal } from "react-dom";
 import { MessageCircle, X, Send, Mic, Volume2, VolumeX, Accessibility, Sparkles } from "lucide-react";
 import AccessibilityWidget from "@/views/AccessibilityWidget";
 import { useI18n } from "@/lib/i18n";
-import { useVoice } from "./useVoice";
+import { useVoice } from "@/shared/hooks/useVoice";
 import { answerFor, suggestionsAfter } from "./answer";
 import { matchNavigate, accountAnswer } from "./actions";
 import { PREFILL_KEY } from "@/shared/lib/assistantPrefill";

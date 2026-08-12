@@ -30,6 +30,7 @@ export const EN = {
   "nav.presentations": "Presentations",
   "nav.activities": "Activities",
   "nav.database": "My students",
+  "nav.teaching-skills": "Teaching skills",
   "nav.admin-console": "Teachers",
   "nav.admin-dashboard": "Admin dashboard",
   "nav.superadmin-console": "Account access",

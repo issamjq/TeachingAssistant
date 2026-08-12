@@ -36,6 +36,7 @@ import {
   Users,
   BarChart3,
   KeyRound,
+  GraduationCap,
   type LucideIcon,
 } from "lucide-react";
 import { getRole, onRoleChange, ROLE_LABELS } from "@/lib/role";
@@ -77,6 +78,7 @@ const NAV_ICON: Record<string, LucideIcon> = {
   activities: Puzzle,
   bulletin: Pin,
   students: Users,
+  skills: GraduationCap,
   reports: BarChart3,
   keys: KeyRound,
 };
