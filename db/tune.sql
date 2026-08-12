@@ -790,6 +790,53 @@ BEGIN
 END $$;
 
 
+-- ── 19c. Where each teaching skill applies ────────────────────────────
+--
+-- A skill profile can shape generation for several classes, and one
+-- class can draw on several skills for different subjects — so this is
+-- a join table, not a column. grade/section/subject use the same
+-- audience vocabulary as the scheduler and the bulletin board (NULL =
+-- any). The generator reads it server-side to pick which profiles
+-- ground a request; the browser owns the rows like any teacher data.
+
+CREATE TABLE IF NOT EXISTS public.skill_assignments (
+  id         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  skill_id   uuid NOT NULL REFERENCES public.teaching_skills(id) ON DELETE CASCADE,
+  faculty_id uuid NOT NULL REFERENCES public.faculty(id) ON DELETE CASCADE,
+  grade      text,
+  section    text,
+  subject    text,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS skill_assignments_skill_idx
+  ON public.skill_assignments (skill_id);
+CREATE INDEX IF NOT EXISTS skill_assignments_faculty_idx
+  ON public.skill_assignments (faculty_id);
+-- The same combination twice on one skill says nothing new — refuse it
+-- at the source rather than trusting every client to check first.
+CREATE UNIQUE INDEX IF NOT EXISTS skill_assignments_combo_unique
+  ON public.skill_assignments
+  (skill_id, COALESCE(grade, ''), COALESCE(section, ''), COALESCE(subject, ''));
+
+ALTER TABLE public.skill_assignments ENABLE ROW LEVEL SECURITY;
+-- Transient: section 27 replaces this with the device + subscription
+-- gated set, same as every other owner table.
+DROP POLICY IF EXISTS skill_assignments_owner ON public.skill_assignments;
+CREATE POLICY skill_assignments_owner ON public.skill_assignments
+  FOR ALL TO authenticated
+  USING (faculty_id = current_faculty_id()) WITH CHECK (faculty_id = current_faculty_id());
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_trigger
+                 WHERE tgrelid = 'public.skill_assignments'::regclass
+                   AND tgname = 'set_updated_at' AND NOT tgisinternal) THEN
+    CREATE TRIGGER set_updated_at BEFORE UPDATE ON public.skill_assignments
+      FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+  END IF;
+END $$;
+
+
 -- ── 20. Reporting projections for the admin consoles ──────────────────
 --
 -- admin, dev, moe, owner and superadmin are 1,243 lines of read-only
@@ -1151,6 +1198,7 @@ BEGIN
       ('classes',           'faculty_id = current_faculty_id()'),
       ('goals',             'faculty_id = current_faculty_id()'),
       ('teaching_skills',   'faculty_id = current_faculty_id()'),
+      ('skill_assignments', 'faculty_id = current_faculty_id()'),
       ('uploaded_images',   'faculty_id = current_faculty_id()'),
       ('bulletin_posts',    'faculty_id = current_faculty_id()'),
       ('faculty_schools',   'faculty_id = current_faculty_id()'),

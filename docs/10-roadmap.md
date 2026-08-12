@@ -54,7 +54,10 @@ partial CSV roster import now names its failed rows.)*
   **Stripe billing** (nothing even calls `/api/auth/renew`; the plan is
   written once at sign-up), Gemini billing (free tier caps out), Resend
   production mode, `id` on `generate`'s `done` frame (server-side
-  persist), and per-field parse confidence:
+  persist), per-field parse confidence, and — new 2026-08-12 evening —
+  **`POST /api/studio/skill-profile` + assignment-aware generation**
+  (specced in [todo/backend/08-skills-refinement.md](../todo/backend/08-skills-refinement.md);
+  the frontend calls it and falls back gracefully until it exists):
   [todo/backend-integration.md](../todo/backend-integration.md) and the
   specs in [todo/backend/](../todo/backend/).
 

@@ -228,6 +228,12 @@ export async function resolve(
       if (a && method === "DELETE") return yes(await E.deleteSkill(a));
       return { handled: false };
 
+    case "skill-assignments":
+      if (!a && method === "GET") return yes(await E.listSkillAssignments());
+      if (!a && method === "POST") return yes(await E.createSkillAssignment(body));
+      if (a && method === "DELETE") return yes(await E.deleteSkillAssignment(a));
+      return { handled: false };
+
     case "bulletin":
       if (!a && method === "GET") return yes(await E.listBulletin(q));
       if (!a && method === "POST") return yes(await E.createBulletin(body));

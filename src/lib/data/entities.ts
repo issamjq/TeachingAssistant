@@ -943,6 +943,55 @@ export async function deleteSkill(id: string) {
   return { ok: true };
 }
 
+// Where each skill applies: grade/section/subject combos (NULL = any),
+// the same audience vocabulary as the scheduler. One skill may cover
+// several classes; one class may draw on several skills. The generator
+// reads these rows server-side to pick which profiles ground a request.
+
+const SKILL_ASSIGNMENT_COLS = "id, skill_id, grade, section, subject, created_at";
+
+export async function listSkillAssignments() {
+  const { data, error } = await supabase
+    .from("skill_assignments")
+    .select(SKILL_ASSIGNMENT_COLS)
+    .order("created_at", { ascending: true });
+  if (error) throw error;
+  return data || [];
+}
+
+export async function createSkillAssignment(body: Record<string, any>) {
+  const fid = await facultyId();
+  const { skill_id, grade, section, subject } = body || {};
+  if (!skill_id) throw Object.assign(new Error("skill_id is required"), { status: 400 });
+  const { data, error } = await supabase
+    .from("skill_assignments")
+    .insert({
+      faculty_id: fid,
+      skill_id,
+      grade: grade || null,
+      section: section || null,
+      subject: subject?.trim() || null,
+    })
+    .select(SKILL_ASSIGNMENT_COLS)
+    .single();
+  if (error) {
+    // The unique index refuses an exact repeat — say so in words.
+    if ((error as any).code === "23505") {
+      throw Object.assign(new Error("This skill already covers that exact combination."), { status: 409 });
+    }
+    throw error;
+  }
+  return data;
+}
+
+export async function deleteSkillAssignment(id: string) {
+  const { error, count } = await supabase
+    .from("skill_assignments").delete({ count: "exact" }).eq("id", id);
+  if (error) throw error;
+  if (!count) throw notFound();
+  return { ok: true };
+}
+
 // ── bulletin board ────────────────────────────────────────────────────
 //
 // Notices a teacher pins up: field trips, exam weeks, birthdays. Plain

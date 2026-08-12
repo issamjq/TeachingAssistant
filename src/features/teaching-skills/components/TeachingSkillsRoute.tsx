@@ -34,8 +34,12 @@ import { renderMarkdown } from "@/lib/markdown";
 import { Button } from "@/components/ui/button";
 import { ConfirmDelete } from "@/views/_shared";
 import { QUESTIONS, compileProfile, answeredCount } from "../interview";
-import type { SkillRow } from "../api";
-import { listSkills, createSkill, updateSkill, deleteSkill } from "../api";
+import type { SkillRow, SkillAssignment } from "../api";
+import {
+  listSkills, createSkill, updateSkill, deleteSkill,
+  listAssignments, createAssignment, deleteAssignment,
+} from "../api";
+import { AssignmentsPanel } from "./AssignmentsPanel";
 import s from "./TeachingSkills.module.css";
 
 const DRAFT_KEY = "murchid.skills.interview";
@@ -53,7 +57,8 @@ const WELCOME =
   "I'm going to ask you ten short questions about how you teach — there are no wrong answers, " +
   "and you can skip any of them. Your answers become a profile the AI studio reads every time " +
   "it generates for you, so the more this sounds like you, the more your materials will too. " +
-  "Type your answers, or tap the microphone and just talk.";
+  "Type your answers, tap the microphone and just talk — or if a question stumps you, tap one " +
+  "of the suggestions and edit it into your own words.";
 
 const readDraft = (): InterviewState | null => {
   try {
@@ -81,7 +86,12 @@ export function TeachingSkillsRoute() {
   const [hasDraft, setHasDraft] = useState(false);
 
   const [reviewText, setReviewText] = useState("");
+  const [skillName, setSkillName] = useState("How I teach");
+  const [reviewLoading, setReviewLoading] = useState(false);
+  const [refineNote, setRefineNote] = useState<string | null>(null);
+  const [editMd, setEditMd] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [assignments, setAssignments] = useState<SkillAssignment[]>([]);
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editText, setEditText] = useState("");
@@ -109,6 +119,9 @@ export function TeachingSkillsRoute() {
       // A half-done interview survives a refresh. Read AFTER mount — never
       // during the render React hydrates against.
       .finally(() => live && setHasDraft(!!readDraft()));
+    listAssignments()
+      .then((r) => live && setAssignments(r))
+      .catch(() => {}); // combos are decoration on this screen; the profiles still work
     return () => {
       live = false;
     };
@@ -155,12 +168,59 @@ export function TeachingSkillsRoute() {
     requestAnimationFrame(() => inputRef.current?.focus());
   };
 
-  const finish = (finalAnswers: Record<string, string>) => {
-    const name = [account?.profile?.firstName, account?.profile?.lastName]
+  // The answers go to the service to be shaped into a real profile —
+  // methods named, patterns drawn out, written as one coherent document.
+  // The deterministic local compile stays as the fallback, so the
+  // interview finishes into an editable draft whether or not the API is
+  // reachable. Either way the teacher reads, edits, and approves before
+  // anything is saved.
+  const finish = async (finalAnswers: Record<string, string>) => {
+    const teacherName = [account?.profile?.firstName, account?.profile?.lastName]
       .filter(Boolean)
       .join(" ");
-    setReviewText(compileProfile(name, finalAnswers));
     setMode("review");
+    setReviewLoading(true);
+    setEditMd(false);
+    setRefineNote(null);
+    setReviewText("");
+    try {
+      const { streamSSE } = await import("@/shared/lib/apiStream");
+      let acc = "";
+      let done: any = null;
+      await streamSSE("/api/studio/skill-profile", {
+        body: {
+          teacher_name: teacherName || undefined,
+          answers: QUESTIONS.filter((q) => finalAnswers[q.id]?.trim()).map((q) => ({
+            id: q.id,
+            heading: q.heading,
+            question: q.ask,
+            answer: finalAnswers[q.id].trim(),
+          })),
+        },
+        onEvent: (ev) => {
+          if (ev.type === "delta" && typeof ev.text === "string") {
+            acc += ev.text;
+            setReviewText(acc); // the profile writes itself on screen
+          } else if (ev.type === "done") {
+            done = ev;
+          }
+        },
+      });
+      const profile = String(done?.skill_profile || acc).trim();
+      if (!profile) throw new Error("empty_profile");
+      setReviewText(profile);
+      setSkillName(String(done?.name || "").trim() || "How I teach");
+    } catch (e: any) {
+      setReviewText(compileProfile(teacherName, finalAnswers));
+      setSkillName("How I teach");
+      setRefineNote(
+        e?.code === "no_backend"
+          ? "AI refinement isn't connected yet, so this draft is your answers compiled as-is — edit it freely below."
+          : "AI refinement didn't answer, so this draft is your answers compiled as-is — edit it freely below.",
+      );
+    } finally {
+      setReviewLoading(false);
+    }
   };
 
   const advance = (answerText: string | null) => {
@@ -209,7 +269,7 @@ export function TeachingSkillsRoute() {
     setError(null);
     try {
       const row = await createSkill({
-        name: "How I teach — interview",
+        name: skillName.trim() || "How I teach",
         source_type: "interview",
         skill_profile: reviewText,
       });
@@ -340,6 +400,25 @@ export function TeachingSkillsRoute() {
             </div>
 
             <div className={s.composerWrap}>
+              {step < QUESTIONS.length && QUESTIONS[step].options.length > 0 && (
+                <div className={s.quickPicks}>
+                  {QUESTIONS[step].options.map((opt) => (
+                    <button
+                      key={opt}
+                      type="button"
+                      className={s.quickPick}
+                      onClick={() => {
+                        // A starting point, not an answer: it lands in the
+                        // composer where it can be edited before sending.
+                        setDraft((d) => (d.trim() ? `${d.trim()}; ${opt}` : opt));
+                        inputRef.current?.focus();
+                      }}
+                    >
+                      {opt}
+                    </button>
+                  ))}
+                </div>
+              )}
               <div className={s.composer}>
                 <textarea
                   ref={inputRef}
@@ -383,25 +462,55 @@ export function TeachingSkillsRoute() {
         ) : (
           <div className={s.review}>
             <p className="text-sm text-ink-soft max-w-2xl">
-              {answeredCount(answers) < QUESTIONS.length
-                ? `Compiled from the ${answeredCount(answers)} questions you answered — skipped ones are simply left out. `
-                : "Compiled from all ten answers. "}
-              This is a plain Markdown document: edit it freely before saving. The AI studio reads
-              it on every generation.
+              {reviewLoading
+                ? `Shaping your ${answeredCount(answers)} answers into a teaching profile…`
+                : refineNote ||
+                  "Shaped from your answers. Read it over, rename it, edit anything — the AI studio reads it on every generation."}
             </p>
-            <textarea
-              className={s.reviewInput}
-              value={reviewText}
-              onChange={(e) => setReviewText(e.target.value)}
-              rows={18}
-              aria-label="Your teaching profile, editable Markdown"
-            />
+
+            {!reviewLoading && (
+              <input
+                className={s.nameInput}
+                value={skillName}
+                onChange={(e) => setSkillName(e.target.value)}
+                aria-label="Name this skill profile"
+                placeholder="Name this profile — e.g. Inquiry-led physics"
+              />
+            )}
+
+            {editMd && !reviewLoading ? (
+              <textarea
+                className={s.reviewInput}
+                value={reviewText}
+                onChange={(e) => setReviewText(e.target.value)}
+                rows={18}
+                aria-label="Your teaching profile, editable Markdown"
+              />
+            ) : (
+              <div className={`${s.glass} p-5 md:p-6`}>
+                {reviewLoading && !reviewText && (
+                  <div className="flex items-center gap-2 text-sm text-muted">
+                    <span className={s.thinkDot} /><span className={s.thinkDot} /><span className={s.thinkDot} />
+                    Writing…
+                  </div>
+                )}
+                <div className={s.profileBody} data-review>
+                  {renderMarkdown(reviewText || "")}
+                </div>
+              </div>
+            )}
+
             {error && <p className="text-[13px] text-crit">{error}</p>}
             <div className="flex items-center gap-2 flex-wrap">
-              <Button onClick={saveProfile} disabled={saving || !reviewText.trim()}>
+              <Button onClick={saveProfile} disabled={saving || reviewLoading || !reviewText.trim()}>
                 {saving ? "Saving…" : "Save my profile"}
               </Button>
-              <Button variant="secondary" onClick={() => setMode("interview")}>
+              {!reviewLoading && (
+                <Button variant="secondary" onClick={() => setEditMd((v) => !v)}>
+                  {editMd ? "Preview" : "Edit the text"}
+                </Button>
+              )}
+              <Button variant="secondary" disabled={reviewLoading} onClick={() => setMode("interview")}>
                 Back to the interview
               </Button>
             </div>
@@ -492,6 +601,19 @@ export function TeachingSkillsRoute() {
             ) : (
               <div className={s.profileBody}>{renderMarkdown(row.skill_profile || "")}</div>
             )}
+
+            <AssignmentsPanel
+              assignments={assignments.filter((a) => a.skill_id === row.id)}
+              others={assignments.filter((a) => a.skill_id !== row.id)}
+              onAdd={async (combo) => {
+                const created = await createAssignment({ skill_id: row.id, ...combo });
+                setAssignments((x) => [...x, created]);
+              }}
+              onRemove={async (id) => {
+                await deleteAssignment(id);
+                setAssignments((x) => x.filter((a) => a.id !== id));
+              }}
+            />
           </section>
         ))
       ) : (
