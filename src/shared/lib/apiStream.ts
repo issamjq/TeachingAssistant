@@ -43,6 +43,13 @@ export interface StreamOptions {
   signal?: AbortSignal;
   /** Called for every frame, in order. */
   onEvent: (event: StreamEvent) => void;
+  /**
+   * Forward `error` frames carrying `refusal: true` to onEvent instead of
+   * failing the stream. A refusal is the model declining on purpose ("not
+   * educational", "wrong tool") — for the studio that is a complete
+   * answer to show, not an error banner inviting a retry.
+   */
+  refusalAsAnswer?: boolean;
 }
 
 /**
@@ -51,7 +58,10 @@ export interface StreamOptions {
  * Resolves when the stream ends. Throws ApiError for a refusal before
  * the stream opened, and for an in-band `error` event after it did.
  */
-export async function streamSSE(path: string, { body, signal, onEvent }: StreamOptions): Promise<void> {
+export async function streamSSE(
+  path: string,
+  { body, signal, onEvent, refusalAsAnswer }: StreamOptions,
+): Promise<void> {
   const { getIdToken } = await import("@/lib/supabaseAuth");
   const token = await getIdToken().catch(() => null);
 
@@ -95,6 +105,10 @@ export async function streamSSE(path: string, { body, signal, onEvent }: StreamO
         continue; // a half-frame is not worth failing the whole answer over
       }
       if (event.type === "error") {
+        if (refusalAsAnswer && event.refusal) {
+          onEvent(event);
+          continue;
+        }
         streamError = new ApiError(event.message || "The generator stopped.", 502, "stream_error");
         continue;
       }

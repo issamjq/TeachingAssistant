@@ -41,9 +41,10 @@ below was exercised live and end-to-end through the real UI. Current truth:
 - **New routes, now used**: `/api/studio/bulletin` streams a composed
   post; the bulletin editor grew a "Write it out for me" action that
   streams into the message field (the browser still saves the row).
-  `/api/studio/quiz-tweak` (verified live) and `/api/studio/regenerate`
-  are still unwired — natural homes are the quiz builder and a
-  per-section rewrite in the studio viewers.
+  `/api/studio/quiz-tweak` and `/api/studio/regenerate` were wired the
+  same day (2026-08-12 afternoon): a "Tweak with AI" bar in the quiz
+  builder, and per-section rewrite on studio prose artifacts
+  (`src/features/studio-ai/RewritableBody.jsx`).
 - **BLOCKER 1 (Gemini free tier) and BLOCKER 4 (Resend test mode) are
   unchanged** — billing/domain switches, not code.
 - Frontend fix that surfaced during the retest: provider OAuth returned

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { Plus, Trash2, Scale } from "lucide-react";
+import { Plus, Trash2, Scale, Wand2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ExportMenu } from "@/components/ui/export-menu";
@@ -34,6 +34,8 @@ export default function QuizBuilder({ quiz, onClose }) {
   const [questions, setQuestions] = useState([]);
   const [savingMeta, setSavingMeta] = useState(false);
   const [err, setErr] = useState(null);
+  const [tweak, setTweak] = useState("");
+  const [tweaking, setTweaking] = useState(false);
 
   // Load existing meta + questions + scores when editing. Callers may pass
   // just `{ id }` (e.g. the Quizzes list hands us a stub by route), so we
@@ -154,6 +156,61 @@ export default function QuizBuilder({ quiz, onClose }) {
       setQuestions((qs) => qs.filter((x) => x.id !== q.id));
     } catch (e) {
       setErr(e.message || "Could not remove the question.");
+    }
+  };
+
+  // Hand the whole quiz and one instruction to /api/studio/quiz-tweak;
+  // the service streams commentary and puts the full revised quiz on its
+  // done frame — questions the instruction doesn't touch come back
+  // unchanged. The service speaks "true_false" where this builder stores
+  // "tf", so the shape is mapped on the way out and back.
+  const runTweak = async () => {
+    const instruction = tweak.trim();
+    if (!instruction || tweaking || questions.length === 0) return;
+    setTweaking(true);
+    setErr(null);
+    try {
+      const { streamSSE } = await import("@/shared/lib/apiStream");
+      const toWire = (q) => ({
+        position: q.position,
+        type: q.type === "tf" ? "true_false" : q.type,
+        prompt: q.prompt,
+        choices: Array.isArray(q.choices) && q.choices.length ? q.choices : undefined,
+        correct_answer: q.correct_answer,
+        marks: Number(q.marks) || 1,
+      });
+      let revised = null;
+      await streamSSE("/api/studio/quiz-tweak", {
+        body: { quiz: { questions: questions.map(toWire) }, instruction },
+        onEvent: (ev) => {
+          if (ev.type === "done" && ev.quiz?.questions?.length) revised = ev.quiz.questions;
+        },
+      });
+      if (!revised) throw new Error("The service answered without a revised quiz — nothing was changed.");
+      const fromWire = revised.map((q, i) => ({
+        position: i + 1,
+        type: q.type === "true_false" ? "tf" : q.type || "mcq",
+        prompt: q.prompt || "",
+        choices: Array.isArray(q.choices) && q.choices.length ? q.choices : undefined,
+        correct_answer: q.correct_answer ?? "",
+        marks: Number(q.marks) || 1,
+      }));
+      if (quizId) {
+        // One transactional replace, then re-read so ids stay authoritative.
+        await api(`/api/quizzes/${quizId}/sync`, { method: "POST", body: { questions: fromWire } });
+        setQuestions(await api(`/api/quizzes/${quizId}/questions`));
+      } else {
+        setQuestions(fromWire.map((q) => ({ ...q, id: tempQuestionId() })));
+      }
+      setTweak("");
+    } catch (e) {
+      setErr(
+        e?.code === "no_backend"
+          ? "AI tweaks need the Murchid API service, which isn't connected yet. Your questions are untouched."
+          : e.message || "The tweak failed — your questions are untouched.",
+      );
+    } finally {
+      setTweaking(false);
     }
   };
 
@@ -319,6 +376,22 @@ export default function QuizBuilder({ quiz, onClose }) {
               </Button>
             </div>
           </div>
+          {questions.length > 0 && (
+            <div className="mb-4 flex items-center gap-2">
+              <Wand2 size={14} className="text-muted flex-none" aria-hidden />
+              <input
+                className={inputClasses}
+                placeholder='Tweak the whole quiz with AI — e.g. "make question 3 harder and add two true/false"'
+                value={tweak}
+                disabled={tweaking}
+                onChange={(e) => setTweak(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") runTweak(); }}
+              />
+              <Button variant="secondary" onClick={runTweak} disabled={tweaking || !tweak.trim()}>
+                {tweaking ? "Tweaking…" : "Tweak"}
+              </Button>
+            </div>
+          )}
           <div className="space-y-4">
             {questions.map((q, i) => (
               <QuestionCard

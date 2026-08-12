@@ -3116,11 +3116,13 @@ export default function Landing({ onOpenStudio, heroVariant = null, initialPage 
     // sat in localStorage because the CSV upload runs before the account
     // exists — this is the only place they reach the database. Straight
     // browser→Supabase inserts (RLS scopes them to this teacher); the
-    // API service is not involved. Non-fatal: a failed row is logged and
-    // the teacher can re-import from My students.
+    // API service is not involved. Non-fatal — but not silent: a partial
+    // import must not look identical to a complete one, so failed rows
+    // are named to the teacher, who can add them from My students.
     const pendingStudents = getPendingStudents() || [];
     if (pendingStudents.length > 0) {
       setSetupStage("students");
+      const failed = [];
       for (const st of pendingStudents) {
         try {
           await apiFetch("/api/students", {
@@ -3136,7 +3138,19 @@ export default function Landing({ onOpenStudio, heroVariant = null, initialPage 
           });
         } catch (e) {
           console.warn(`Failed to import student ${st.firstName} ${st.lastName}:`, e);
+          failed.push(`${st.firstName || ""} ${st.lastName || ""}`.trim() || "(unnamed row)");
         }
+      }
+      if (failed.length > 0) {
+        // alert() is the app's convention for action failures. Blocking
+        // here is deliberate — the next screen is the studio, where an
+        // incomplete roster would just look mysteriously short.
+        const shown = failed.slice(0, 8).join(", ");
+        alert(
+          `${failed.length} of ${pendingStudents.length} students couldn't be imported: ` +
+          `${shown}${failed.length > 8 ? ", …" : ""}. ` +
+          `The rest were added. You can add the missing ones from My students.`,
+        );
       }
     }
     clearPendingStudents();

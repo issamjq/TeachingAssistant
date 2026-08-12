@@ -13,7 +13,8 @@
 > `kind` body still accepted). Remaining nit: `done` carries no `id`, so
 > the browser still persists to the library itself. `/api/studio/bulletin`
 > shipped too (wired to the bulletin editor); `quiz-tweak` and
-> `regenerate` are live but not yet wired to any UI.
+> `regenerate` are wired as of 2026-08-12 afternoon — the quiz builder's
+> "Tweak with AI" bar and per-section rewrite in the studio viewers.
 
 The generation endpoints. This is the product's headline feature and the
 only reason a teacher needs this service at all for day-to-day work.

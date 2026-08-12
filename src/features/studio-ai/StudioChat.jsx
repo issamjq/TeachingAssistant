@@ -35,8 +35,9 @@ import { supabase } from "@/lib/supabaseClient";
 import { facultyId } from "@/lib/data/session";
 import { parseSections, renderMarkdown } from "@/lib/markdown";
 import {
-  ArtifactCard, MarkdownBody, QuizViewer, SlideViewer, SlideFullscreen, DocViewer, KIND_META,
+  ArtifactCard, QuizViewer, SlideViewer, SlideFullscreen, DocViewer, KIND_META,
 } from "./artifacts";
+import { RewritableBody } from "./RewritableBody";
 import {
   listSessions, createSession, appendMessage, loadSession, deleteSession, purgeOld, KEEP_DAYS,
 } from "./history";
@@ -278,116 +279,118 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
     }
 
     try {
-      const { getIdToken } = await import("@/lib/supabaseAuth");
-      const token = await getIdToken().catch(() => null);
-      // Raw fetch, not api(): this is a stream, and the helper parses a
-      // whole JSON body before returning.
-      const res = await fetch("/api/studio/generate", {
-        method: "POST",
-        signal: controller.signal,
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        // `kinds` is the documented shape — the service plans a batch and
-        // streams each artifact in canonical order. This screen asks for
-        // one at a time, so the batch is a batch of one.
-        body: JSON.stringify({ kinds: [k], prompt, materials: atts.map((a) => ({ id: a.id, name: a.name })) }),
-      });
+      // The shared SSE reader, not a hand-rolled one: it scans frames for
+      // the `data:` line (a keep-alive comment or an `event:` line used
+      // to make this parser drop the whole frame), separates a refusal
+      // from a failure, and turns a code-less 404 into "not built yet".
+      const { streamSSE } = await import("@/shared/lib/apiStream");
 
-      if (!res.ok || !res.body) {
-        // With no API service configured the rewrite is absent and this
-        // is Next's own 404 in HTML. Say which it is; a teacher should
-        // not have to tell "not built" from "broken".
-        let msg = "The studio couldn't reach the generator.";
-        try {
-          const j = await res.json();
-          if (j?.error) msg = j.error;
-        } catch {
-          if (res.status === 404) {
-            msg = "Generation needs the Murchid API service, which isn't connected yet. " +
-                  "Everything else here works — you can still attach materials and save what you write.";
-          }
-        }
-        throw Object.assign(new Error(msg), { soft: true });
-      }
+      // Generate is a batch protocol: `batch → status → scope →
+      // artifact_start → delta(kind) → artifact → artifact_end → done`,
+      // one start/end pair per requested kind. This screen asks for one
+      // kind at a time, so the batch is a batch of one — but the handling
+      // below rolls a new bubble per artifact, so a multi-kind stream
+      // renders as consecutive replies instead of dropping everything
+      // after the first artifact.
+      let acc = "", structured = null, savedId = null;
+      let curKind = k;
+      let open = true; // the placeholder bubble pushed at send time
 
-      const reader = res.body.getReader();
-      const dec = new TextDecoder();
-      let buf = "", acc = "", structured = null, savedId = null;
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buf += dec.decode(value, { stream: true });
-        let i;
-        while ((i = buf.indexOf("\n\n")) !== -1) {
-          const frame = buf.slice(0, i);
-          buf = buf.slice(i + 2);
-          if (!frame.startsWith("data:")) continue;
-          let ev; try { ev = JSON.parse(frame.slice(5)); } catch { continue; }
-          if (ev.type === "delta") {
-            acc += ev.text;
-            setTurns((t) => {
-              const n = [...t];
-              n[n.length - 1] = { ...n[n.length - 1], text: acc, stage: null };
-              return n;
-            });
-          } else if (ev.type === "status") {
-            // The service says what it is doing before any prose exists
-            // ("planning"). Shown in place of the empty bubble, so a slow
-            // cold start reads as work rather than as a hang.
-            setTurns((t) => {
-              const n = [...t];
-              n[n.length - 1] = { ...n[n.length - 1], stage: ev.stage || null };
-              return n;
-            });
-          } else if (ev.type === "unread" || (ev.type === "batch" && ev.unread_materials?.length)) {
-            // Files the service could not read did not shape the answer.
-            // Say so now, not after the teacher wonders why the chapter
-            // was ignored.
-            const names = (ev.unread_materials || []).join(", ");
-            if (names) setNotice(`Couldn't read: ${names} — the reply was written without ${ev.unread_materials.length === 1 ? "it" : "them"}.`);
-          } else if (ev.type === "artifact") {
-            // The structured form of what was just written in prose: a
-            // deck as slides, a quiz as questions. The service does not
-            // send this yet (see todo/backend-integration.md, gap 5a) and
-            // everything still works without it — the reply renders as
-            // markdown. When it does arrive the deck and quiz viewers
-            // light up with no further change here.
-            structured = normaliseArtifact(ev.content ?? ev.artifact ?? ev);
-          } else if (ev.type === "done") {
-            // Normalise to ONE shape. The generator sends a quiz as
-            // { quiz: { questions } } but a deck as { slides: [...] } —
-            // storing whichever arrived raw meant the deck was an array
-            // where the renderer looked for `.slides`, and every deck
-            // silently fell through to plain markdown.
-            structured = structured || normaliseArtifact(
-              ev.quiz ? ev.quiz : ev.slides ? { slides: ev.slides } : ev.structured,
-            );
-            if (ev.id) savedId = ev.id;
-          } else if (ev.type === "error" && ev.refusal) {
-            // A refusal is the model declining on purpose ("not
-            // educational", "wrong tool") — a complete answer, not a
-            // failure. Show the message as the reply rather than as an
-            // error banner suggesting the teacher retry the same thing.
-            acc = ev.message || "The studio can only make teaching material.";
-            setTurns((t) => {
-              const n = [...t];
-              n[n.length - 1] = { ...n[n.length - 1], text: acc, stage: null };
-              return n;
-            });
-          } else if (ev.type === "error") {
-            throw Object.assign(new Error(ev.message), { soft: true });
-          }
-        }
-      }
-
-      setTurns((t) => {
+      const patchLast = (fields) => setTurns((t) => {
         const n = [...t];
-        n[n.length - 1] = { ...n[n.length - 1], text: acc, structured, streaming: false, done: true };
+        n[n.length - 1] = { ...n[n.length - 1], ...fields };
         return n;
       });
-      appendMessage(sid, { role: "assistant", text: acc, kind: k, structured });
+      const finalizeTurn = () => {
+        patchLast({ text: acc, structured, streaming: false, done: true, stage: null });
+        appendMessage(sid, { role: "assistant", text: acc, kind: curKind, structured });
+        open = false;
+      };
+      const startTurn = (kindNext) => {
+        curKind = kindNext || curKind;
+        acc = "";
+        structured = null;
+        setTurns((t) => [...t, { role: "assistant", kind: curKind, text: "", streaming: true }]);
+        open = true;
+      };
+
+      await streamSSE("/api/studio/generate", {
+        signal: controller.signal,
+        refusalAsAnswer: true,
+        body: { kinds: [k], prompt, materials: atts.map((a) => ({ id: a.id, name: a.name })) },
+        onEvent: (ev) => {
+          switch (ev.type) {
+            case "batch":
+            case "unread": {
+              // Files the service could not read did not shape the
+              // answer. Say so now, not after the teacher wonders why
+              // the chapter was ignored.
+              const names = (ev.unread_materials || []).join(", ");
+              if (names) setNotice(`Couldn't read: ${names} — the reply was written without ${ev.unread_materials.length === 1 ? "it" : "them"}.`);
+              break;
+            }
+            case "status":
+              // The service says what it is doing before any prose
+              // exists ("planning"). Shown in place of the empty bubble,
+              // so a slow cold start reads as work rather than as a hang.
+              patchLast({ stage: ev.stage || null });
+              break;
+            case "scope":
+              // What the request resolved to (subject, grade, class).
+              // Metadata rather than prose — kept on the turn so a
+              // future header can show it; not rendered today.
+              patchLast({ scope: ev.scope ?? ev });
+              break;
+            case "artifact_start":
+              // Each artifact gets its own bubble; the first one reuses
+              // the placeholder pushed at send time.
+              if (!open) startTurn(ev.kind);
+              else if (ev.kind && ev.kind !== curKind) { curKind = ev.kind; patchLast({ kind: ev.kind }); }
+              break;
+            case "delta":
+              // Defensive rollover: a delta for a new kind with no
+              // artifact_start between (older protocol variants).
+              if (!open || (ev.kind && ev.kind !== curKind && !acc)) {
+                if (!open) startTurn(ev.kind);
+              }
+              acc += ev.text || "";
+              patchLast({ text: acc, stage: null });
+              break;
+            case "artifact":
+              // The structured form of what was just written in prose —
+              // a deck as slides, a quiz as questions. The viewers
+              // prefer it over markdown when present.
+              structured = normaliseArtifact(ev.content ?? ev.artifact ?? ev);
+              break;
+            case "artifact_end":
+              finalizeTurn();
+              break;
+            case "done":
+              // Normalise to ONE shape. The generator sends a quiz as
+              // { quiz: { questions } } but a deck as { slides: [...] } —
+              // storing whichever arrived raw meant the deck was an
+              // array where the renderer looked for `.slides`, and every
+              // deck silently fell through to plain markdown.
+              structured = structured || normaliseArtifact(
+                ev.quiz ? ev.quiz : ev.slides ? { slides: ev.slides } : ev.structured,
+              );
+              if (ev.id) savedId = ev.id;
+              break;
+            case "error":
+              // Only refusals reach here (refusalAsAnswer) — the model
+              // declining on purpose is a complete answer, not a failure
+              // banner suggesting the teacher retry the same thing.
+              acc = ev.message || "The studio can only make teaching material.";
+              patchLast({ text: acc, stage: null });
+              break;
+          }
+        },
+      });
+
+      // Close whatever is still open: the whole answer on the pre-batch
+      // protocol (no artifact_end), a refusal, or a batch whose last end
+      // frame never arrived.
+      if (open) finalizeTurn();
       // A row the service saved itself needs no second copy from here.
       if (savedId) setTurns((t) => t.map((x, i) => (i === t.length - 1 ? { ...x, saved: true, artifactId: savedId } : x)));
       refreshSessions();
@@ -574,7 +577,17 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
                         ) : questions ? (
                           <QuizViewer questions={questions} />
                         ) : (
-                          <MarkdownBody markdown={turn.text} />
+                          // Prose artifacts can be rewritten a section at a
+                          // time (/api/studio/regenerate). A rewrite makes
+                          // the turn saveable again — the library copy
+                          // would otherwise be the stale text.
+                          <RewritableBody
+                            markdown={turn.text}
+                            kind={turn.kind}
+                            onChange={(next) =>
+                              setTurns((t) => t.map((x, j) => (j === i ? { ...x, text: next, saved: false } : x)))
+                            }
+                          />
                         )}
                       </ArtifactCard>
                     )}
