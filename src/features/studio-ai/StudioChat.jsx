@@ -538,7 +538,7 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
   };
 
   return (
-    <div className={s.withRail}>
+    <div className={s.withRail} data-rail-open={railOpen}>
 
       <div className={s.chatSide}>
         {!railOpen && (

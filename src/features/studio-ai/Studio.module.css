@@ -466,21 +466,31 @@
    lit accent rail marking what is open. A teacher should recognise it
    without being told what it is. */
 
-.withRail { position: relative; display: flex; gap: 0; height: 100%; min-height: 0; }
+/* Grid, not flex, so the collapse animates grid-template-columns — the
+   composited-friendly way to open a panel; animating the rail's own
+   width forced a reflow every frame of the slide. */
+.withRail {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 274px;
+  height: 100%;
+  min-height: 0;
+  transition: grid-template-columns 0.24s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.withRail[data-rail-open="false"] { grid-template-columns: minmax(0, 1fr) 0px; }
 
 .rail {
-  flex-shrink: 0;
-  width: 274px;
-  padding: 10px 10px 10px 6px;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   min-height: 0;
-  transition: width 0.24s cubic-bezier(0.22, 1, 0.36, 1),
-              opacity 0.18s ease;
+  transition: opacity 0.18s ease;
   overflow: hidden;
 }
-.rail[data-open="false"] { width: 0; padding-inline: 0; opacity: 0; }
-@media (prefers-reduced-motion: reduce) { .rail { transition: none; } }
+.rail[data-open="false"] { opacity: 0; pointer-events: none; }
+@media (prefers-reduced-motion: reduce) {
+  .withRail, .rail { transition: none; }
+}
 
 /* The pane itself — the sidebar's treatment, lighter than the canvas so
    it reads as a surface sitting on it. */
@@ -491,6 +501,10 @@
   display: flex;
   flex-direction: column;
   width: 256px;
+  /* The spacing the rail's padding used to provide — margin on the pane
+     keeps the closed rail a true 0px (border-box padding can't shrink
+     below itself, which left a sliver). */
+  margin: 10px 10px 10px 6px;
   border-radius: 20px;
   overflow: hidden;
   /* The main sidebar is a light pane on the dark canvas. Here the
@@ -700,15 +714,25 @@
    screen is not a sidebar, it is the screen. It comes from the trailing
    edge, the side its toggle sits on. */
 @media (max-width: 720px) {
+  /* The drawer overlays the thread, so its grid column stays collapsed
+     regardless of open state. */
+  .withRail, .withRail[data-rail-open="false"] {
+    grid-template-columns: minmax(0, 1fr) 0px;
+  }
   .rail {
     position: absolute;
     inset-block: 8px;
     inset-inline-end: 8px;
     z-index: 30;
     width: min(84vw, 300px);
-    padding: 0;
+    transform: translateX(0);
+    transition: transform 0.24s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.18s ease;
   }
-  .rail[data-open="false"] { width: 0; }
+  .rail .railPane { margin: 0; }
+  /* Slides off the trailing edge it lives on — transform, not width. */
+  .rail[data-open="false"] { transform: translateX(calc(100% + 8px)); }
+  [dir="rtl"] .rail[data-open="false"] { transform: translateX(calc(-100% - 8px)); }
+  @media (prefers-reduced-motion: reduce) { .rail { transition: none; } }
   /* Opaque as a drawer. Translucency reads as depth when there is a
      pane behind it; over the thread itself it just makes the list
      unreadable. */
