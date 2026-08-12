@@ -102,6 +102,21 @@ CREATE UNIQUE INDEX IF NOT EXISTS schools_name_emirate_key
 ALTER TABLE public.faculty
   ADD COLUMN IF NOT EXISTS school_id uuid REFERENCES public.schools(id) ON DELETE SET NULL;
 
+-- When the period being counted down actually BEGAN.
+--
+-- Without it a subscription is only an end date, so "22 days left" has
+-- nothing behind it: no paid date, no way to show how far through the
+-- month a teacher is, and no way to tell a stale row from a fresh one.
+-- Backfilled a month behind the end date, which is the period every
+-- existing row was created with.
+ALTER TABLE public.subscriptions
+  ADD COLUMN IF NOT EXISTS current_period_start timestamptz;
+
+UPDATE public.subscriptions
+   SET current_period_start = current_period_end - INTERVAL '1 month'
+ WHERE current_period_start IS NULL
+   AND current_period_end IS NOT NULL;
+
 
 -- ── 5. Tables the existing code already expects ───────────────────────
 

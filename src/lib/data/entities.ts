@@ -662,11 +662,33 @@ const sectionFor = (type: string) =>
   ({ lesson_plan: "lesson-plans", quiz: "quizzes", homework: "homework",
      presentation: "presentations", activity: "activities" }[type] || "lesson-plans");
 
+/**
+ * Whole days from today until `iso`, counted in CALENDAR days in the
+ * reader's own timezone.
+ *
+ * Not `ceil(ms / 864e5)`. That counts 24-hour blocks from the current
+ * instant, so the same subscription reads 20 in the morning and 19 that
+ * evening — the number moves when the clock passes an arbitrary time of
+ * day rather than when the date changes. Flattening both ends to local
+ * midnight means it falls by exactly one, exactly at midnight.
+ */
+function daysUntil(iso: string): number {
+  const midnight = (d: Date) => {
+    const x = new Date(d);
+    x.setHours(0, 0, 0, 0);
+    return x.getTime();
+  };
+  return Math.max(0, Math.round((midnight(new Date(iso)) - midnight(new Date())) / 864e5));
+}
+
 /** Plan, status and days remaining. Null when there is no faculty row. */
 async function planSummary(fid: string | null) {
   if (!fid) return null;
   const [sub, cr] = await Promise.all([
-    supabase.from("subscriptions").select("plan, status, trial_ends_at, current_period_end").maybeSingle(),
+    supabase
+      .from("subscriptions")
+      .select("plan, status, trial_ends_at, current_period_start, current_period_end")
+      .maybeSingle(),
     supabase.from("credits").select("balance, monthly_allowance").maybeSingle(),
   ]);
   const s: any = sub.data;
@@ -676,9 +698,8 @@ async function planSummary(fid: string | null) {
     plan: s.plan,
     status: s.status,
     ends_at: ends,
-    days_left: ends
-      ? Math.max(0, Math.ceil((new Date(ends).getTime() - Date.now()) / 864e5))
-      : null,
+    started_at: s.current_period_start ?? null,
+    days_left: ends ? daysUntil(ends) : null,
     credits: cr.data?.balance ?? null,
     allowance: cr.data?.monthly_allowance ?? null,
   };

@@ -230,13 +230,27 @@ async function profile(userId, fid, school) {
   // A paying account rather than a trial: the runway tile, the plan
   // badge and the expiry gate all read differently on each, and the
   // trial is the one you get for free by doing nothing.
+  //
+  // The billing period is anchored to the CALENDAR, not to the moment
+  // this script runs. It used to be `now() + 22 days`, which meant the
+  // countdown reset to 22 every time the demo was re-seeded and never
+  // appeared to move — the one thing a countdown has to do. Paid on the
+  // first of the month, renews on the first of the next: re-seeding on
+  // any day of the same month leaves the same dates behind, and the
+  // number on the dashboard falls by one every midnight.
   await q(
-    `INSERT INTO public.subscriptions (faculty_id, plan, status, current_period_end, trial_ends_at)
-     VALUES ($1, 'monthly', 'active', now() + INTERVAL '22 days', now() - INTERVAL '38 days')
+    `INSERT INTO public.subscriptions
+       (faculty_id, plan, status, current_period_start, current_period_end, trial_ends_at)
+     VALUES ($1, 'monthly', 'active',
+             date_trunc('month', now()),
+             date_trunc('month', now()) + INTERVAL '1 month',
+             date_trunc('month', now()) - INTERVAL '8 days')
      ON CONFLICT (faculty_id) DO UPDATE SET
        plan = 'monthly', status = 'active',
-       current_period_end = now() + INTERVAL '22 days',
-       trial_ends_at = now() - INTERVAL '38 days', updated_at = now()`,
+       current_period_start = date_trunc('month', now()),
+       current_period_end = date_trunc('month', now()) + INTERVAL '1 month',
+       trial_ends_at = date_trunc('month', now()) - INTERVAL '8 days',
+       updated_at = now()`,
     [fid],
   );
   await q(
