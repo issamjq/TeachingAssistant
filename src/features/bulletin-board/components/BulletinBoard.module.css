@@ -56,12 +56,17 @@
 /* ── the four papers ─────────────────────────────────────────────── */
 
 /* Poster: crisp printed sheet, near-square corners, a heavy keyline in
-   the kind's ink across the top. */
+   the kind's ink across the top. The keyline is a background layer, not
+   a border, so it clips cleanly under the corner radius instead of
+   bending around it. */
 .poster {
   border-radius: 6px;
   border: 1px solid var(--p-line);
-  border-top: 4px solid color-mix(in srgb, var(--tint, var(--p-line)) 70%, transparent);
-  background: var(--p-surface);
+  background: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--tint, var(--p-line)) 70%, transparent) 0 4px,
+    var(--p-surface) 4px
+  );
 }
 
 /* Sticky note: kind-tinted paper, no rule, one folded corner. The fold
