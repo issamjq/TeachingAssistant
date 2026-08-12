@@ -44,28 +44,28 @@ import s from "./TeachingSkills.module.css";
 
 const DRAFT_KEY = "murchid.skills.interview";
 
-type Turn = { role: "bot" | "user"; text: string; skipped?: boolean };
 type Mode = "home" | "interview" | "review";
 
+// One focused question at a time — no fake chat transcript. `maxStep` is
+// the frontier: dots up to it are revisitable, so an earlier answer can
+// be edited without losing your place.
 interface InterviewState {
   step: number;
+  maxStep: number;
   answers: Record<string, string>;
-  turns: Turn[];
 }
 
 const WELCOME =
-  "I'm going to ask you ten short questions about how you teach — there are no wrong answers, " +
-  "and you can skip any of them. Your answers become a profile the AI studio reads every time " +
-  "it generates for you, so the more this sounds like you, the more your materials will too. " +
-  "Type your answers, tap the microphone and just talk — or if a question stumps you, tap one " +
-  "of the suggestions and edit it into your own words.";
+  "Ten short questions, no wrong answers, skip anything. Your answers become a profile the AI " +
+  "studio reads every time it generates for you — so the more this sounds like you, the more " +
+  "your materials will too. Type, talk, or tap a suggestion and make it yours.";
 
 const readDraft = (): InterviewState | null => {
   try {
     const raw = sessionStorage.getItem(DRAFT_KEY);
     if (!raw) return null;
     const p = JSON.parse(raw);
-    if (typeof p?.step !== "number" || !Array.isArray(p?.turns)) return null;
+    if (typeof p?.step !== "number" || typeof p?.answers !== "object" || !p.answers) return null;
     return p;
   } catch {
     return null;
@@ -79,8 +79,8 @@ export function TeachingSkillsRoute() {
   const [error, setError] = useState<string | null>(null);
 
   const [mode, setMode] = useState<Mode>("home");
-  const [turns, setTurns] = useState<Turn[]>([]);
   const [step, setStep] = useState(0);
+  const [maxStep, setMaxStep] = useState(0);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [draft, setDraft] = useState("");
   const [hasDraft, setHasDraft] = useState(false);
@@ -98,7 +98,6 @@ export function TeachingSkillsRoute() {
   const [deleting, setDeleting] = useState<SkillRow | null>(null);
   const [busyDelete, setBusyDelete] = useState(false);
 
-  const threadRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   const lang = dir === "rtl" ? "ar" : "en";
@@ -143,28 +142,29 @@ export function TeachingSkillsRoute() {
     setHasDraft(false);
   };
 
-  const scrollThread = () => {
-    requestAnimationFrame(() => {
-      threadRef.current?.scrollTo({ top: threadRef.current.scrollHeight, behavior: "smooth" });
-    });
-  };
-
   const start = () => {
     const saved = readDraft();
     if (saved && saved.step < QUESTIONS.length) {
-      setTurns(saved.turns);
+      const frontier = Math.min(Math.max(saved.maxStep ?? saved.step, saved.step), QUESTIONS.length);
       setStep(saved.step);
+      setMaxStep(frontier);
       setAnswers(saved.answers || {});
+      setDraft((saved.answers || {})[QUESTIONS[saved.step].id] || "");
     } else {
-      setTurns([
-        { role: "bot", text: WELCOME },
-        { role: "bot", text: QUESTIONS[0].ask },
-      ]);
       setStep(0);
+      setMaxStep(0);
       setAnswers({});
+      setDraft("");
     }
     setMode("interview");
-    scrollThread();
+    requestAnimationFrame(() => inputRef.current?.focus());
+  };
+
+  /** Jump back to an already-visited question; its answer loads into the composer. */
+  const go = (i: number) => {
+    if (i > maxStep || i >= QUESTIONS.length) return;
+    setStep(i);
+    setDraft(answers[QUESTIONS[i].id] || "");
     requestAnimationFrame(() => inputRef.current?.focus());
   };
 
@@ -223,32 +223,29 @@ export function TeachingSkillsRoute() {
     }
   };
 
+  // Answer (or skip) the current question, then move on. From the
+  // frontier that means the next question; from a revisited earlier one
+  // it means back to the frontier — and past the last question it means
+  // the review. A skip on a revisit leaves the old answer standing.
   const advance = (answerText: string | null) => {
     const q = QUESTIONS[step];
     const nextAnswers = answerText ? { ...answers, [q.id]: answerText } : answers;
-    const userTurn: Turn = answerText
-      ? { role: "user", text: answerText }
-      : { role: "user", text: "Skipped", skipped: true };
-    const next = step + 1;
-    const nextTurns: Turn[] =
-      next < QUESTIONS.length
-        ? [...turns, userTurn, { role: "bot", text: QUESTIONS[next].ask }]
-        : [
-            ...turns,
-            userTurn,
-            { role: "bot", text: "That's all ten. Here is your profile — read it over, edit anything, and save it when it sounds like you." },
-          ];
+    const target = step < maxStep ? maxStep : step + 1;
+    const frontier = Math.max(maxStep, target);
 
     setAnswers(nextAnswers);
-    setTurns(nextTurns);
-    setStep(next);
-    setDraft("");
+    setMaxStep(frontier);
     voice.stop();
-    persist({ step: next, answers: nextAnswers, turns: nextTurns });
+    persist({ step: Math.min(target, QUESTIONS.length - 1), maxStep: frontier, answers: nextAnswers });
     setHasDraft(true);
-    scrollThread();
 
-    if (next >= QUESTIONS.length) finish(nextAnswers);
+    if (target >= QUESTIONS.length) {
+      finish(nextAnswers);
+      return;
+    }
+    setStep(target);
+    setDraft(nextAnswers[QUESTIONS[target].id] || "");
+    requestAnimationFrame(() => inputRef.current?.focus());
   };
 
   const send = () => {
@@ -276,8 +273,8 @@ export function TeachingSkillsRoute() {
       setRows((r) => [row, ...(r || [])]);
       clearDraftState();
       setMode("home");
-      setTurns([]);
       setStep(0);
+      setMaxStep(0);
       setAnswers({});
     } catch (e: any) {
       setError(e.message);
@@ -328,7 +325,7 @@ export function TeachingSkillsRoute() {
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [draft, step, turns, answers],
+    [draft, step, maxStep, answers],
   );
 
   /* ── interview mode ─────────────────────────────────────────────── */
@@ -370,37 +367,36 @@ export function TeachingSkillsRoute() {
           </div>
         </header>
 
-        {mode === "interview" && (
-          <div className={s.progressRail} aria-hidden>
-            <div className={s.progressFill} style={{ transform: `scaleX(${progress / QUESTIONS.length})` }} />
-          </div>
-        )}
-
         {mode === "interview" ? (
           <>
-            <div ref={threadRef} className={s.thread}>
-              <div className={s.threadInner}>
-                {turns.map((turn, i) => (
-                  <div key={i} className={s.turn} data-role={turn.role}>
-                    {turn.role === "bot" && (
-                      <span className={s.avatar} aria-hidden>
-                        <GraduationCap size={15} />
-                      </span>
-                    )}
-                    {turn.role === "bot" ? (
-                      <p className={s.botText}>{turn.text}</p>
-                    ) : (
-                      <p className={s.userBubble} data-skipped={turn.skipped || undefined}>
-                        {turn.text}
-                      </p>
-                    )}
-                  </div>
-                ))}
-              </div>
+            {/* One dot per question: filled = answered, hollow = seen,
+                faint = still ahead. Every visited dot is a way back —
+                tap it, edit the answer, and you return to where you were. */}
+            <div className={s.stepDots} aria-label="Interview progress">
+              {QUESTIONS.map((qq, i) => {
+                const state =
+                  i === step ? "current" : answers[qq.id]?.trim() ? "answered" : i < maxStep ? "seen" : "todo";
+                return (
+                  <button
+                    key={qq.id}
+                    type="button"
+                    className={s.stepDot}
+                    data-state={state}
+                    disabled={i > maxStep}
+                    title={`${i + 1} · ${qq.heading}`}
+                    aria-label={`Question ${i + 1}: ${qq.heading}${state === "answered" ? " (answered — tap to edit)" : ""}`}
+                    onClick={() => go(i)}
+                  />
+                );
+              })}
             </div>
 
-            <div className={s.composerWrap}>
-              {step < QUESTIONS.length && QUESTIONS[step].options.length > 0 && (
+            <div className={s.stage} key={step}>
+              {step === 0 && maxStep === 0 && <p className={s.stageIntro}>{WELCOME}</p>}
+              <p className={s.eyebrow}>{QUESTIONS[step].heading}</p>
+              <h2 className={s.stageQuestion}>{QUESTIONS[step].ask}</h2>
+
+              {QUESTIONS[step].options.length > 0 && (
                 <div className={s.quickPicks}>
                   {QUESTIONS[step].options.map((opt) => (
                     <button
@@ -419,13 +415,14 @@ export function TeachingSkillsRoute() {
                   ))}
                 </div>
               )}
+
               <div className={s.composer}>
                 <textarea
                   ref={inputRef}
                   className={s.input}
-                  rows={2}
+                  rows={3}
                   value={voice.listening && voice.interim ? `${draft} ${voice.interim}` : draft}
-                  placeholder={voice.listening ? "Listening…" : QUESTIONS[Math.min(step, QUESTIONS.length - 1)].hint}
+                  placeholder={voice.listening ? "Listening…" : QUESTIONS[step].hint}
                   onChange={(e) => setDraft(e.target.value)}
                   onKeyDown={onKeyDown}
                 />
@@ -444,7 +441,7 @@ export function TeachingSkillsRoute() {
                   )}
                   <span className="flex-1" />
                   <button type="button" className={s.skipBtn} onClick={() => advance(null)}>
-                    <SkipForward size={13} /> Skip
+                    <SkipForward size={13} /> {step < maxStep ? "Keep as is" : "Skip"}
                   </button>
                   <button
                     type="button"
@@ -510,7 +507,15 @@ export function TeachingSkillsRoute() {
                   {editMd ? "Preview" : "Edit the text"}
                 </Button>
               )}
-              <Button variant="secondary" disabled={reviewLoading} onClick={() => setMode("interview")}>
+              <Button
+                variant="secondary"
+                disabled={reviewLoading}
+                onClick={() => {
+                  // Re-enter at the last question; every dot stays open.
+                  go(Math.min(step, QUESTIONS.length - 1));
+                  setMode("interview");
+                }}
+              >
                 Back to the interview
               </Button>
             </div>

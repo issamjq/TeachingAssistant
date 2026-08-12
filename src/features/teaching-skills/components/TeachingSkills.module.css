@@ -78,85 +78,70 @@
   padding-block-end: 12px;
 }
 
-.progressRail {
-  height: 3px;
+/* ── the focused stage — one question at a time ───────────────────── */
+
+.stepDots {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding-block: 10px 4px;
+}
+.stepDot {
+  width: 22px;
+  height: 6px;
+  padding: 0;
+  border: 0;
   border-radius: 999px;
-  background: color-mix(in oklab, var(--p-line) 70%, transparent);
-  overflow: hidden;
+  background: color-mix(in oklab, var(--p-line) 80%, transparent);
+  cursor: pointer;
+  transition: background 160ms ease, transform 160ms ease;
 }
-.progressFill {
-  width: 100%;
-  height: 100%;
-  border-radius: inherit;
-  background: var(--p-accent);
-  /* Scaled, not resized — transform animates off the layout thread. */
-  transform-origin: left center;
-  transition: transform 320ms ease;
+.stepDot[data-state="answered"] { background: var(--p-accent); }
+.stepDot[data-state="seen"] {
+  background: color-mix(in oklab, var(--p-accent) 35%, var(--p-line));
 }
-[dir="rtl"] .progressFill { transform-origin: right center; }
+.stepDot[data-state="current"] {
+  background: var(--p-ink);
+  transform: scaleY(1.6);
+}
+.stepDot:disabled { cursor: default; }
+.stepDot:not(:disabled):hover { transform: scaleY(1.6); }
 
-/* ── the thread ───────────────────────────────────────────────────── */
-
-.thread {
+.stage {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding-block: 18px 8px;
-}
-.threadInner {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
   max-width: 720px;
+  padding-block: 22px 12px;
+  animation: stageIn 260ms ease both;
+}
+@keyframes stageIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: none; }
 }
 
-.turn { display: flex; gap: 10px; }
-.turn[data-role="user"] { justify-content: flex-end; }
-
-.avatar {
-  flex: none;
-  display: grid;
-  place-items: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 999px;
-  margin-block-start: 2px;
-  background: color-mix(in oklab, var(--p-accent) 12%, transparent);
-  color: var(--p-accent);
-}
-
-.botText {
-  font-size: 14.5px;
-  line-height: 1.65;
-  color: var(--p-ink);
-  max-width: 56ch;
-}
-
-.userBubble {
-  background: color-mix(in oklab, var(--p-accent) 9%, var(--p-surface));
-  border: 1px solid color-mix(in oklab, var(--p-accent) 22%, transparent);
-  border-radius: 16px 16px 5px 16px;
-  padding: 9px 14px;
-  max-width: 78%;
+.stageIntro {
   font-size: 14px;
-  line-height: 1.55;
-  white-space: pre-wrap;
-}
-[dir="rtl"] .userBubble { border-radius: 16px 16px 16px 5px; }
-.userBubble[data-skipped] {
+  line-height: 1.65;
   color: var(--p-muted);
-  font-style: italic;
-  background: transparent;
-  border-style: dashed;
+  max-width: 56ch;
+  margin-block-end: 18px;
+  padding-block-end: 16px;
+  border-block-end: 1px solid color-mix(in oklab, var(--p-line) 70%, transparent);
+}
+
+.stageQuestion {
+  font-family: var(--font-serif);
+  font-size: 26px;
+  line-height: 1.25;
+  font-weight: 500;
+  color: var(--p-ink);
+  max-width: 24ch;
+  margin-block: 8px 18px;
 }
 
 /* ── composer ─────────────────────────────────────────────────────── */
 
-.composerWrap {
-  flex: none;
-  padding-block: 10px 4px;
-  background: var(--p-paper);
-}
 .composer {
   max-width: 720px;
   border: 1px solid var(--p-line);

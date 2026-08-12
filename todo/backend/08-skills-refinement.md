@@ -29,7 +29,9 @@ POST /api/studio/skill-profile
 Authorization: Bearer <supabase access token>
 ```
 
-### Request body (exactly what the frontend already sends)
+### Request body — TWO shapes, exactly what the frontend already sends
+
+**Shape A — interview answers** (from `/teaching-skills`):
 
 ```json
 {
@@ -46,8 +48,36 @@ Authorization: Bearer <supabase access token>
 }
 ```
 
-Validate: `answers` non-empty array, each item has non-empty `answer`.
-400 with a field message otherwise, same style as the other routes.
+**Shape B — distill an approach from a loved generation** (from the AI
+Studio's "Save this approach as a skill", offered the moment a teacher
+saves an artifact they liked):
+
+```json
+{
+  "source": "artifact",
+  "artifact": {
+    "kind": "quiz",                           // lesson_plan | quiz | homework | presentation | activity
+    "prompt": "Forces and motion end-of-unit quiz, grade 9, hard",
+    "content": "…the generated markdown the teacher kept (≤ 8000 chars)…"
+  }
+}
+```
+
+For Shape B, the model's job is **reverse-engineering the method**: read
+prompt + output and describe the reusable pattern — structure, question
+mix, difficulty calibration, tone, pacing — as instructions a future
+generation can follow. NOT a summary of the content ("a quiz about
+forces") but a description of the approach ("end-of-unit quizzes open
+with two confidence questions, escalate to application, mark scheme
+favours explanation"). Same output contract as Shape A; keep `name`
+short and method-flavoured. The frontend has a deterministic fallback
+(instruction + reference excerpt) when this route is absent, so again:
+missing degrades quality, not availability.
+
+Validate: Shape A needs non-empty `answers[]` with non-empty `answer`s;
+Shape B (`source: "artifact"`) needs `artifact.kind` and
+`artifact.content`. 400 with a field message otherwise, same style as
+the other routes.
 
 ### What the model should do
 
@@ -134,7 +164,27 @@ Semantics the UI already promises the teacher:
 - Matching is case-insensitive on `subject`; `grade`/`section` are the
   same text vocabulary the scheduler uses.
 
-### Selection rule for `/api/studio/generate` (and `goal-plan`)
+### Explicit override: `skill_ids` on the generate body
+
+The studio composer now carries a **skills multi-select** (all selected
+by default; the teacher's pick persists as their default). The wire
+rule:
+
+- **Field absent** → the teacher left everything selected. Apply the
+  assignment-aware selection below.
+- **`skill_ids: ["<uuid>", …]` present** → the teacher narrowed the
+  pick. Use **exactly these** skills (validate each id belongs to this
+  teacher and is `status = 'ready'`; silently drop ids that don't),
+  skipping the assignment filter entirely — an explicit choice outranks
+  the defaults.
+- **`skill_ids: []`** (empty array) → the teacher switched every skill
+  off. Ground the generation in **no** profile; generic output is the
+  requested behaviour, not an error.
+
+Accept the field on `POST /api/studio/generate` now; `quiz`,
+`quiz-tweak` and `regenerate` can adopt it later with the same rule.
+
+### Selection rule when `skill_ids` is absent (and for `goal-plan`)
 
 Where you currently read the teacher's `teaching_skills` rows, replace
 "all of them" with:

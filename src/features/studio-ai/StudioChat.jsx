@@ -38,6 +38,7 @@ import {
   ArtifactCard, QuizViewer, SlideViewer, SlideFullscreen, DocViewer, KIND_META,
 } from "./artifacts";
 import { RewritableBody } from "./RewritableBody";
+import { SkillsPicker } from "./SkillsPicker";
 import {
   listSessions, createSession, appendMessage, loadSession, deleteSession, purgeOld, KEEP_DAYS,
 } from "./history";
@@ -91,6 +92,11 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
   const [turns, setTurns] = useState([]);
   const [draft, setDraft] = useState("");
   const [kind, setKind] = useState(initialKind);
+  // Which skill profiles ground generation. The picker reports here;
+  // send() reads it. Saving a new approach bumps the version so the
+  // picker refetches and the new skill appears selected.
+  const skillSel = useRef(null);
+  const [skillsVersion, setSkillsVersion] = useState(0);
   const [busy, setBusy] = useState(false);
   const [attachments, setAttachments] = useState([]);
   const [uploading, setUploading] = useState(false);
@@ -317,7 +323,15 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
       await streamSSE("/api/studio/generate", {
         signal: controller.signal,
         refusalAsAnswer: true,
-        body: { kinds: [k], prompt, materials: atts.map((a) => ({ id: a.id, name: a.name })) },
+        body: {
+          kinds: [k],
+          prompt,
+          materials: atts.map((a) => ({ id: a.id, name: a.name })),
+          // Explicit only when the teacher narrowed the pick — "all
+          // selected" omits the field so the service's assignment-aware
+          // defaults decide. See todo/backend/08-skills-refinement.md.
+          ...(skillSel.current && !skillSel.current.all ? { skill_ids: skillSel.current.ids } : {}),
+        },
         onEvent: (ev) => {
           switch (ev.type) {
             case "batch":
@@ -442,6 +456,61 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
       setTurns((t) => t.map((x, i) => (i === index ? { ...x, saved: true } : x)));
     } catch (e) {
       setNotice(`Couldn't save that: ${e.message}`);
+    }
+  };
+
+  // The teacher just kept something they liked — capture HOW it was made
+  // as a reusable teaching skill. The service distils prompt + output
+  // into a method profile; without it, a deterministic note (instruction
+  // + reference excerpt) is still worth saving. Either way the row goes
+  // browser→Supabase and future generations can be grounded in it.
+  const captureSkill = async (turn, index) => {
+    if (turn.skillSaving || turn.skillSaved) return;
+    const promptText = (() => {
+      for (let j = index - 1; j >= 0; j--) if (turns[j]?.role === "user") return turns[j].text;
+      return "";
+    })();
+    const title = titleOf(turn.kind, turn.text, turn.structured);
+    const label = (KIND_META[turn.kind]?.label || "material").toLowerCase();
+    setTurns((t) => t.map((x, i) => (i === index ? { ...x, skillSaving: true } : x)));
+    let name = `Approach: ${title}`.slice(0, 40);
+    let profile = "";
+    try {
+      const { streamSSE } = await import("@/shared/lib/apiStream");
+      let acc = "", done = null;
+      await streamSSE("/api/studio/skill-profile", {
+        body: {
+          source: "artifact",
+          artifact: { kind: turn.kind, prompt: promptText, content: (turn.text || "").slice(0, 8000) },
+        },
+        onEvent: (ev) => {
+          if (ev.type === "delta" && typeof ev.text === "string") acc += ev.text;
+          else if (ev.type === "done") done = ev;
+        },
+      });
+      profile = String(done?.skill_profile || acc).trim();
+      if (done?.name) name = String(done.name).slice(0, 60);
+    } catch {
+      /* distillation unavailable — fall through to the deterministic note */
+    }
+    if (!profile) {
+      profile =
+        `# Approach — ${title}\n\n` +
+        `_Saved from an AI Studio ${label} the teacher wanted to reuse._\n\n` +
+        `## The instruction that produced it\n\n${promptText || "(not recorded)"}\n\n` +
+        `## How to reproduce it\n\nMatch the structure, difficulty and tone of the reference below when making similar ${label}s.\n\n` +
+        `## Reference\n\n${(turn.text || "").slice(0, 2000)}`;
+    }
+    try {
+      await api("/api/skills", {
+        method: "POST",
+        body: { name, source_type: "generation", skill_profile: profile },
+      });
+      setTurns((t) => t.map((x, i) => (i === index ? { ...x, skillSaving: false, skillSaved: true } : x)));
+      setSkillsVersion((v) => v + 1); // the picker refetches; new skill arrives selected
+    } catch (e) {
+      setTurns((t) => t.map((x, i) => (i === index ? { ...x, skillSaving: false } : x)));
+      setNotice(`Couldn't save the approach: ${e.message}`);
     }
   };
 
@@ -604,6 +673,26 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
                         >
                           <RotateCcw size={13} /> Ask for a change
                         </button>
+                        {/* They kept it because they loved it — that is the
+                            moment to keep the METHOD too. */}
+                        {turn.saved && (
+                          turn.skillSaved ? (
+                            <span className={s.chipBtn} aria-disabled="true">
+                              <Check size={13} /> Approach saved to Teaching skills
+                            </span>
+                          ) : (
+                            <button
+                              type="button"
+                              className={s.chipBtn}
+                              data-primary
+                              disabled={turn.skillSaving}
+                              onClick={() => captureSkill(turn, i)}
+                            >
+                              <GraduationCap size={13} />
+                              {turn.skillSaving ? "Capturing the approach…" : "Loved it? Save this approach as a skill"}
+                            </button>
+                          )
+                        )}
                         {meta.section && (
                           <button
                             type="button" className={s.chipBtn}
@@ -686,6 +775,8 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
                 </button>
               ))}
             </div>
+
+            <SkillsPicker version={skillsVersion} onSelection={(sel) => { skillSel.current = sel; }} />
 
             <span className="flex-1" />
 
