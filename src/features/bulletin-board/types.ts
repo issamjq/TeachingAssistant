@@ -4,6 +4,22 @@
 export type BulletinKind = "notice" | "event" | "reminder" | "celebration";
 export type BulletinStatus = "published" | "archived";
 
+export type BulletinMediaType = "image" | "video" | "audio";
+
+/** One attachment on a post, as stored in the jsonb `media` column. */
+export interface BulletinMedia {
+  type: BulletinMediaType;
+  /** Storage path inside the bulletin-media bucket — needed to delete. */
+  path: string;
+  /** Public URL, resolvable without a session (the bucket is public). */
+  url: string;
+  name?: string;
+  mime?: string;
+  size?: number;
+  /** Seconds, recorded for voice notes so the chip can show a length. */
+  duration?: number;
+}
+
 export interface BulletinPost {
   id: string;
   title: string;
@@ -11,6 +27,7 @@ export interface BulletinPost {
   kind: BulletinKind;
   status: BulletinStatus;
   pinned: boolean;
+  media: BulletinMedia[];
   /** Audience. Null means the whole board — same vocabulary as schedule_entries. */
   grade: string | null;
   section: string | null;
@@ -31,6 +48,15 @@ export interface BulletinDraft {
   section?: string | null;
   event_on?: string | null;
   expires_on?: string | null;
+  media?: BulletinMedia[];
+}
+
+/** What the student board RPC returns — see bulletin_board_public(). */
+export interface PublicBoard {
+  teacher: string | null;
+  /** False when the token matches no share row: a dead or mistyped link. */
+  known: boolean;
+  posts: Omit<BulletinPost, "status" | "expires_on">[];
 }
 
 export type BulletinPatch = Partial<BulletinDraft> & { status?: BulletinStatus };

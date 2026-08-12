@@ -1,19 +1,42 @@
-/* Corkboard character: alternating cards sit a hair off square, and a
-   pinned card gets a brass pin-head at its top edge. The tilt is
-   decorative only — it straightens while a card is being read, and is
-   removed entirely under reduced motion. */
+/* The board made literal: notes on cork, and each kind wearing the
+   paper it would really be on. A notice is a poster, a reminder is a
+   sticky note, an event is a ruled index card, a celebration is a
+   polaroid. The tilt is decorative only — it straightens while a card
+   is being read, and is removed entirely under reduced motion. */
+
+/* ── the cork ─────────────────────────────────────────────────────────
+   A quiet cork ground behind the columns, framed like the real thing.
+   Everything is mixed from tokens so the dark palette keeps working:
+   the cork is the paper warmed towards tan, the frame is the line
+   colour deepened the same way. */
+.cork {
+  padding: 20px 20px 24px;
+  border-radius: 18px;
+  border: 1px solid color-mix(in srgb, #8a5a33 30%, var(--p-line));
+  background:
+    radial-gradient(circle at 20% 30%, color-mix(in srgb, #8a5a33 6%, transparent) 0 2px, transparent 3px),
+    radial-gradient(circle at 70% 60%, color-mix(in srgb, #8a5a33 5%, transparent) 0 2px, transparent 3px),
+    radial-gradient(circle at 45% 85%, color-mix(in srgb, #8a5a33 5%, transparent) 0 1.5px, transparent 2.5px),
+    color-mix(in srgb, #c89b6a 12%, var(--p-paper));
+  background-size: 90px 90px, 70px 70px, 110px 110px, auto;
+  box-shadow:
+    inset 0 1px 6px color-mix(in srgb, var(--p-ink) 8%, transparent),
+    inset 0 0 0 6px color-mix(in srgb, #8a5a33 14%, var(--p-paper));
+}
 
 .note {
   transition: transform 0.25s ease, box-shadow 0.25s ease;
-  /* The kind's hue as a quiet top rule — enough to tell notes apart
-     when scanning, without turning the board into a colour chart. */
-  border-top: 2px solid color-mix(in srgb, var(--tint, var(--p-line)) 55%, transparent);
+  box-shadow: 0 1px 3px color-mix(in srgb, var(--p-ink) 10%, transparent);
 }
 
-.board .note:nth-child(4n + 1) { transform: rotate(-0.4deg); }
-.board .note:nth-child(4n + 2) { transform: rotate(0.3deg); }
-.board .note:nth-child(4n + 3) { transform: rotate(0.45deg); }
-.board .note:nth-child(4n)     { transform: rotate(-0.3deg); }
+.board .note:nth-child(4n + 1) { transform: rotate(-0.6deg); }
+.board .note:nth-child(4n + 2) { transform: rotate(0.4deg); }
+.board .note:nth-child(4n + 3) { transform: rotate(0.7deg); }
+.board .note:nth-child(4n)     { transform: rotate(-0.4deg); }
+
+/* Sticky notes sit less carefully than everything else. */
+.board .sticky:nth-child(odd)  { transform: rotate(-1.3deg); }
+.board .sticky:nth-child(even) { transform: rotate(1.1deg); }
 
 .board .note:hover,
 .board .note:focus-within {
@@ -30,6 +53,114 @@
   }
 }
 
+/* ── the four papers ─────────────────────────────────────────────── */
+
+/* Poster: crisp printed sheet, near-square corners, a heavy keyline in
+   the kind's ink across the top. */
+.poster {
+  border-radius: 6px;
+  border: 1px solid var(--p-line);
+  border-top: 4px solid color-mix(in srgb, var(--tint, var(--p-line)) 70%, transparent);
+  background: var(--p-surface);
+}
+
+/* Sticky note: kind-tinted paper, no rule, one folded corner. The fold
+   is a clipped corner with a shaded triangle laid into it. */
+.sticky {
+  border-radius: 2px;
+  border: 1px solid color-mix(in srgb, var(--tint, var(--p-line)) 22%, var(--p-line));
+  background:
+    linear-gradient(
+      160deg,
+      color-mix(in srgb, var(--tint, var(--p-muted)) 10%, var(--p-surface)),
+      color-mix(in srgb, var(--tint, var(--p-muted)) 18%, var(--p-surface))
+    );
+  clip-path: polygon(
+    0 0, 100% 0,
+    100% calc(100% - 20px), calc(100% - 20px) 100%,
+    0 100%
+  );
+}
+.sticky::after {
+  content: "";
+  position: absolute;
+  inset-block-end: 0;
+  inset-inline-end: 0;
+  width: 20px;
+  height: 20px;
+  background: linear-gradient(
+    315deg,
+    transparent 50%,
+    color-mix(in srgb, var(--p-ink) 16%, transparent) 50%,
+    color-mix(in srgb, var(--p-ink) 5%, transparent) 66%,
+    transparent 100%
+  );
+}
+[dir="rtl"] .sticky {
+  clip-path: polygon(
+    0 0, 100% 0,
+    100% 100%, 20px 100%,
+    0 calc(100% - 20px)
+  );
+}
+[dir="rtl"] .sticky::after {
+  background: linear-gradient(
+    45deg,
+    transparent 50%,
+    color-mix(in srgb, var(--p-ink) 16%, transparent) 50%,
+    color-mix(in srgb, var(--p-ink) 5%, transparent) 66%,
+    transparent 100%
+  );
+}
+
+/* Index card: ruled feint lines and a margin rule in the kind's ink,
+   the card events get written on. */
+.ticket {
+  border-radius: 8px;
+  border: 1px solid var(--p-line);
+  background:
+    repeating-linear-gradient(
+      to bottom,
+      transparent 0 26px,
+      color-mix(in srgb, var(--tint, var(--p-line)) 16%, transparent) 26px 27px
+    ),
+    var(--p-surface);
+}
+.ticket::before {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 14px;
+  width: 1px;
+  background: color-mix(in srgb, var(--tint, var(--p-accent)) 45%, transparent);
+}
+
+/* Polaroid: thick white border, deeper chin, held up with two bits of
+   tape. The photo (when there is one) prints edge to edge inside the
+   frame — MediaGallery renders first for this kind. */
+.polaroid {
+  border-radius: 3px;
+  border: 1px solid var(--p-line);
+  background: var(--p-surface);
+  box-shadow:
+    0 1px 3px color-mix(in srgb, var(--p-ink) 10%, transparent),
+    inset 0 0 0 6px var(--p-surface);
+  padding-block-end: 1.75rem;
+}
+.tape::before,
+.tape::after {
+  content: "";
+  position: absolute;
+  top: -8px;
+  width: 46px;
+  height: 18px;
+  background: color-mix(in srgb, var(--tint, var(--p-muted)) 14%, rgba(255, 255, 240, 0.55));
+  border: 1px solid color-mix(in srgb, var(--p-ink) 10%, transparent);
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--p-ink) 12%, transparent);
+}
+.tape::before { inset-inline-start: -12px; transform: rotate(-40deg); }
+.tape::after  { inset-inline-end: -12px;  transform: rotate(40deg); }
+
 /* The pin-head. Sits half over the card's top edge, centred. */
 .pinned::before {
   content: "";
@@ -44,4 +175,20 @@
     radial-gradient(circle at 35% 30%, rgba(255, 255, 255, 0.55), transparent 55%),
     var(--p-accent);
   box-shadow: 0 2px 4px rgba(15, 20, 16, 0.35);
+  z-index: 1;
+}
+
+/* The "new since your last visit" sticker on the student board — a
+   small starburst in the accent ink, rotated like it was slapped on. */
+.newSticker {
+  position: absolute;
+  top: -10px;
+  inset-inline-end: 10px;
+  transform: rotate(8deg);
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--p-accent);
+  color: var(--p-paper-cool, #fff);
+  box-shadow: 0 2px 5px color-mix(in srgb, var(--p-ink) 25%, transparent);
+  z-index: 1;
 }

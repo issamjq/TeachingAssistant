@@ -14,3 +14,6 @@ export const updatePost = (id: string, patch: BulletinPatch) =>
 
 export const deletePost = (id: string) =>
   api<{ ok: true }>(`/api/bulletin/${id}`, { method: "DELETE" });
+
+/** The class share token, minted server-side on first ask. */
+export const getShare = () => api<{ token: string }>("/api/bulletin/share");

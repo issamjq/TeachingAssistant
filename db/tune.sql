@@ -790,6 +790,97 @@ BEGIN
 END $$;
 
 
+-- ── 19b². Bulletin attachments and the class share link ───────────────
+--
+-- media: what is pinned to a note besides words — photos, a clip, a
+-- voice message. A jsonb array of {type, path, url, name, mime, size,
+-- duration} rather than a join table, because the attachments live and
+-- die with their post and are never queried on their own.
+ALTER TABLE public.bulletin_posts
+  ADD COLUMN IF NOT EXISTS media jsonb NOT NULL DEFAULT '[]'::jsonb;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint
+                 WHERE conname = 'bulletin_posts_media_check'
+                   AND connamespace = 'public'::regnamespace) THEN
+    ALTER TABLE public.bulletin_posts ADD CONSTRAINT bulletin_posts_media_check
+      CHECK (jsonb_typeof(media) = 'array');
+  END IF;
+END $$;
+
+-- The files live in their own PUBLIC bucket, unlike the five private
+-- ones in section 9. Board media is announcement material and the same
+-- bytes are read by students over an unauthenticated share link, so the
+-- URLs must resolve without a session. Writes keep the own-folder rule:
+-- a path must begin with the uploader's own uid.
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('bulletin-media', 'bulletin-media', true)
+ON CONFLICT (id) DO UPDATE SET public = true;
+
+DROP POLICY IF EXISTS bulletin_media_own_folder ON storage.objects;
+CREATE POLICY bulletin_media_own_folder ON storage.objects
+  FOR ALL TO authenticated
+  USING      (bucket_id = 'bulletin-media' AND (storage.foldername(name))[1] = (SELECT auth.uid()::text))
+  WITH CHECK (bucket_id = 'bulletin-media' AND (storage.foldername(name))[1] = (SELECT auth.uid()::text));
+
+-- The share link: one row per teacher, minted on first use. The
+-- unguessable token IS the authorisation — a student with the link needs
+-- no account, which is the only arrangement that works for a class of
+-- nine-year-olds.
+CREATE TABLE IF NOT EXISTS public.bulletin_shares (
+  faculty_id uuid PRIMARY KEY REFERENCES public.faculty(id) ON DELETE CASCADE,
+  token      uuid NOT NULL UNIQUE DEFAULT gen_random_uuid(),
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+ALTER TABLE public.bulletin_shares ENABLE ROW LEVEL SECURITY;
+-- Not in the section-27 driver on purpose: reading your own token must
+-- keep working from a superseded device or a lapsed plan — the board
+-- link students already hold does not stop resolving, so the screen
+-- that shows it should not pretend otherwise.
+DROP POLICY IF EXISTS bulletin_shares_owner ON public.bulletin_shares;
+CREATE POLICY bulletin_shares_owner ON public.bulletin_shares
+  FOR ALL TO authenticated
+  USING (faculty_id = current_faculty_id()) WITH CHECK (faculty_id = current_faculty_id());
+
+-- What a student sees behind the token: published, unexpired posts only.
+-- SECURITY DEFINER because anon has no row access to bulletin_posts or
+-- users — this function is the entire public surface of the board, and
+-- it never returns drafts, the archive, or anything expired.
+CREATE OR REPLACE FUNCTION public.bulletin_board_public(share_token uuid)
+RETURNS jsonb
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public
+AS $$
+  SELECT jsonb_build_object(
+    'teacher', (
+      SELECT COALESCE(
+               NULLIF(TRIM(CONCAT(u.first_name, ' ', u.last_name)), ''),
+               u.full_name
+             )
+        FROM bulletin_shares s
+        JOIN faculty f ON f.id = s.faculty_id
+        LEFT JOIN users u ON u.id = f.user_id
+       WHERE s.token = share_token
+    ),
+    'known', EXISTS (SELECT 1 FROM bulletin_shares s WHERE s.token = share_token),
+    'posts', COALESCE((
+      SELECT jsonb_agg(jsonb_build_object(
+               'id', p.id, 'title', p.title, 'body', p.body, 'kind', p.kind,
+               'pinned', p.pinned, 'grade', p.grade, 'section', p.section,
+               'event_on', p.event_on, 'media', p.media,
+               'created_at', p.created_at, 'updated_at', p.updated_at
+             ) ORDER BY p.pinned DESC, p.created_at DESC)
+        FROM bulletin_posts p
+        JOIN bulletin_shares s ON s.faculty_id = p.faculty_id
+       WHERE s.token = share_token
+         AND p.status = 'published'
+         AND (p.expires_on IS NULL OR p.expires_on >= CURRENT_DATE)
+    ), '[]'::jsonb)
+  );
+$$;
+REVOKE ALL ON FUNCTION public.bulletin_board_public(uuid) FROM public;
+GRANT EXECUTE ON FUNCTION public.bulletin_board_public(uuid) TO anon, authenticated;
+
+
 -- ── 19c. Where each teaching skill applies ────────────────────────────
 --
 -- A skill profile can shape generation for several classes, and one

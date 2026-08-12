@@ -1000,7 +1000,7 @@ export async function deleteSkillAssignment(id: string) {
 // vocabulary schedule_entries uses.
 
 const BULLETIN_COLS =
-  "id, title, body, kind, status, pinned, grade, section, event_on, expires_on, created_at, updated_at";
+  "id, title, body, kind, status, pinned, grade, section, event_on, expires_on, media, created_at, updated_at";
 
 export async function listBulletin(q: URLSearchParams) {
   let query = supabase
@@ -1031,6 +1031,7 @@ export async function createBulletin(body: Record<string, any>) {
       section: section || null,
       event_on: event_on || null,
       expires_on: expires_on || null,
+      media: Array.isArray(body?.media) ? body.media : [],
     })
     .select(BULLETIN_COLS).single();
   if (error) throw error;
@@ -1039,7 +1040,7 @@ export async function createBulletin(body: Record<string, any>) {
 
 export async function updateBulletin(id: string, body: Record<string, any>) {
   const patch: Record<string, any> = { updated_at: iso() };
-  for (const k of ["title", "body", "kind", "status", "pinned", "grade", "section", "event_on", "expires_on"]) {
+  for (const k of ["title", "body", "kind", "status", "pinned", "grade", "section", "event_on", "expires_on", "media"]) {
     if (body?.[k] !== undefined) patch[k] = body[k];
   }
   const { data, error } = await supabase
@@ -1056,6 +1057,31 @@ export async function deleteBulletin(id: string) {
   if (error) throw error;
   if (!count) throw notFound();
   return { ok: true };
+}
+
+/**
+ * The class share link, minted on first ask. One row per teacher; the
+ * token goes into the /board/<token> URL the students bookmark, and the
+ * board behind it is served by the bulletin_board_public() function —
+ * see db/tune.sql §19b².
+ */
+export async function getBulletinShare() {
+  const fid = await facultyId();
+  const { data, error } = await supabase
+    .from("bulletin_shares").select("token").eq("faculty_id", fid).maybeSingle();
+  if (error) throw error;
+  if (data) return { token: data.token };
+  const { data: created, error: insErr } = await supabase
+    .from("bulletin_shares").insert({ faculty_id: fid }).select("token").single();
+  if (insErr) {
+    // Two tabs racing to mint the first token: the loser's insert hits
+    // the primary key, but the row now exists — read it instead.
+    const { data: again } = await supabase
+      .from("bulletin_shares").select("token").eq("faculty_id", fid).maybeSingle();
+    if (again) return { token: again.token };
+    throw insErr;
+  }
+  return { token: created.token };
 }
 
 // ── sign-in ───────────────────────────────────────────────────────────

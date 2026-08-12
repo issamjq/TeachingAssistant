@@ -1,5 +1,7 @@
-import { useState } from "react";
-import { Pin, Sparkles } from "lucide-react";
+import { useRef, useState } from "react";
+import {
+  Film, ImagePlus, Mic, Pin, Sparkles, Square, Trash2, X,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useT } from "@/shared/i18n";
 import {
@@ -7,7 +9,11 @@ import {
 } from "@/views/_shared";
 import { createPost, updatePost } from "../api";
 import { KINDS } from "../kinds";
-import type { BulletinKind, BulletinPost } from "../types";
+import {
+  limitLabel, mediaTypeOf, removeBulletinMedia, uploadBulletinMedia,
+} from "../media";
+import { fmtClock, useVoiceRecorder } from "../useVoiceRecorder";
+import type { BulletinKind, BulletinMedia, BulletinPost } from "../types";
 
 // The one form for a post — creating and editing are the same fields.
 // Audience offers only what this teacher actually teaches, the same way
@@ -21,6 +27,9 @@ interface Props {
   onClose: () => void;
   onSaved: (row: BulletinPost) => void;
 }
+
+/** Enough for a class notice; past this the board stops being glanceable. */
+const MAX_ATTACHMENTS = 8;
 
 export default function PostEditor({ post, onClose, onSaved }: Props) {
   const t = useT();
@@ -37,6 +46,98 @@ export default function PostEditor({ post, onClose, onSaved }: Props) {
   const [busy, setBusy] = useState(false);
   const [composing, setComposing] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+
+  // Attachments. Files upload the moment they are picked — a spinner on
+  // Save that might be 50MB of video is where posts get abandoned — and
+  // the media array only reaches the row on save. Anything uploaded in
+  // THIS session and then discarded (removed, or the editor closed
+  // without saving) is deleted from storage; media the post already had
+  // is only ever detached, so cancelling an edit stays free.
+  const [media, setMedia] = useState<BulletinMedia[]>(post?.media || []);
+  const [uploads, setUploads] = useState(0);
+  const sessionPaths = useRef(new Set<string>());
+  const savedRef = useRef(false);
+  const imageInput = useRef<HTMLInputElement>(null);
+  const videoInput = useRef<HTMLInputElement>(null);
+
+  const recorder = useVoiceRecorder();
+
+  const uploadErr = (e: unknown, kind: "image" | "video" | "audio", name?: string) => {
+    const code = (e as { code?: string })?.code;
+    if (code === "too-big") {
+      setErr(t("bb.tooBig", { name: name || t(`bb.media.${kind}`), limit: limitLabel(kind) }));
+    } else if (code === "mic-denied") {
+      setErr(t("bb.micDenied"));
+    } else if (code === "no-recorder") {
+      setErr(t("bb.noRecorder"));
+    } else {
+      setErr(e instanceof Error ? e.message : String(e));
+    }
+  };
+
+  const addFiles = async (files: FileList | null) => {
+    if (!files?.length) return;
+    setErr(null);
+    for (const file of Array.from(files)) {
+      if (media.length + uploads >= MAX_ATTACHMENTS) break;
+      const type = mediaTypeOf(file);
+      if (!type) continue;
+      setUploads((n) => n + 1);
+      try {
+        const item = await uploadBulletinMedia(file, type, file.name);
+        sessionPaths.current.add(item.path);
+        setMedia((xs) => [...xs, item]);
+      } catch (e) {
+        uploadErr(e, type, file.name);
+      } finally {
+        setUploads((n) => n - 1);
+      }
+    }
+  };
+
+  const toggleRecord = async () => {
+    setErr(null);
+    if (recorder.recording) {
+      const done = await recorder.stop();
+      if (!done) return;
+      setUploads((n) => n + 1);
+      try {
+        const ext = done.mime.includes("mp4") ? "m4a" : "webm";
+        const item = await uploadBulletinMedia(
+          done.blob, "audio", `voice-note.${ext}`, done.seconds
+        );
+        sessionPaths.current.add(item.path);
+        setMedia((xs) => [...xs, item]);
+      } catch (e) {
+        uploadErr(e, "audio");
+      } finally {
+        setUploads((n) => n - 1);
+      }
+    } else {
+      try {
+        await recorder.start();
+      } catch (e) {
+        uploadErr(e, "audio");
+      }
+    }
+  };
+
+  const removeItem = (item: BulletinMedia) => {
+    setMedia((xs) => xs.filter((x) => x.path !== item.path));
+    if (sessionPaths.current.has(item.path)) {
+      sessionPaths.current.delete(item.path);
+      void removeBulletinMedia([item]);
+    }
+  };
+
+  const close = () => {
+    recorder.cancel();
+    if (!savedRef.current) {
+      const orphans = media.filter((m) => sessionPaths.current.has(m.path));
+      if (orphans.length) void removeBulletinMedia(orphans);
+    }
+    onClose();
+  };
 
   // AI compose: the teacher writes the gist wherever is natural — the
   // title, or a rough message — and the service phrases the post. The
@@ -77,7 +178,7 @@ export default function PostEditor({ post, onClose, onSaved }: Props) {
   };
 
   const save = () => {
-    if (!title.trim() || busy) return;
+    if (!title.trim() || busy || uploads > 0) return;
     setBusy(true);
     setErr(null);
     const payload = {
@@ -89,25 +190,43 @@ export default function PostEditor({ post, onClose, onSaved }: Props) {
       section: section || null,
       event_on: eventOn || null,
       expires_on: expiresOn || null,
+      media,
     };
     (post ? updatePost(post.id, payload) : createPost(payload))
-      .then((row) => { onSaved(row); onClose(); })
+      .then((row) => {
+        savedRef.current = true;
+        // Media the post used to carry and no longer does is gone from
+        // the row now — the objects can follow.
+        const dropped = (post?.media || []).filter(
+          (m) => !media.some((x) => x.path === m.path)
+        );
+        if (dropped.length) void removeBulletinMedia(dropped);
+        onSaved(row);
+        close();
+      })
       .catch((e) => { setErr(e.message); setBusy(false); });
   };
+
+  const attachBtn =
+    "inline-flex items-center gap-1.5 px-2.5 py-1 rounded font-mono text-[10px] uppercase tracking-wider border border-line bg-paper text-ink-soft hover:border-ink transition disabled:opacity-40 disabled:cursor-default";
 
   return (
     <Modal
       open
-      onClose={onClose}
+      onClose={close}
       eyebrow={t("nav.bulletin-board")}
       title={post ? t("bb.editPost") : t("bb.newPost")}
       footer={
         <>
-          <Button variant="secondary" onClick={onClose} disabled={busy}>
+          <Button variant="secondary" onClick={close} disabled={busy}>
             {t("common.cancel")}
           </Button>
-          <Button variant="primary" onClick={save} disabled={busy || !title.trim()}>
-            {busy ? t("common.saving") : t("common.save")}
+          <Button
+            variant="primary"
+            onClick={save}
+            disabled={busy || !title.trim() || uploads > 0}
+          >
+            {busy ? t("common.saving") : uploads > 0 ? t("bb.uploading") : t("common.save")}
           </Button>
         </>
       }
@@ -173,6 +292,112 @@ export default function PostEditor({ post, onClose, onSaved }: Props) {
             <Sparkles size={12} aria-hidden="true" />
             {composing ? t("bb.composing") : t("bb.compose")}
           </button>
+        </Field>
+
+        {/* ── attachments ─────────────────────────────────────────────── */}
+        <Field label={t("bb.attachments")} hint={t("bb.optional")}>
+          <input
+            ref={imageInput} type="file" accept="image/*" multiple hidden
+            onChange={(e) => { void addFiles(e.target.files); e.target.value = ""; }}
+          />
+          <input
+            ref={videoInput} type="file" accept="video/*" hidden
+            onChange={(e) => { void addFiles(e.target.files); e.target.value = ""; }}
+          />
+
+          <div className="flex flex-wrap items-center gap-1.5">
+            <button
+              type="button" className={attachBtn}
+              disabled={media.length + uploads >= MAX_ATTACHMENTS || recorder.recording}
+              onClick={() => imageInput.current?.click()}
+            >
+              <ImagePlus size={12} aria-hidden="true" /> {t("bb.addPhoto")}
+            </button>
+            <button
+              type="button" className={attachBtn}
+              disabled={media.length + uploads >= MAX_ATTACHMENTS || recorder.recording}
+              onClick={() => videoInput.current?.click()}
+            >
+              <Film size={12} aria-hidden="true" /> {t("bb.addVideo")}
+            </button>
+            <button
+              type="button"
+              onClick={() => void toggleRecord()}
+              disabled={!recorder.recording && media.length + uploads >= MAX_ATTACHMENTS}
+              className={
+                recorder.recording
+                  ? "inline-flex items-center gap-1.5 px-2.5 py-1 rounded font-mono text-[10px] uppercase tracking-wider border border-accent bg-paper text-accent transition"
+                  : attachBtn
+              }
+            >
+              {recorder.recording ? (
+                <>
+                  <span className="relative flex h-2 w-2" aria-hidden="true">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-accent opacity-60" />
+                    <span className="relative inline-flex h-2 w-2 rounded-full bg-accent" />
+                  </span>
+                  {fmtClock(recorder.seconds)}
+                  <Square size={10} fill="currentColor" aria-hidden="true" />
+                  {t("bb.stopRecording")}
+                </>
+              ) : (
+                <>
+                  <Mic size={12} aria-hidden="true" /> {t("bb.record")}
+                </>
+              )}
+            </button>
+            {recorder.recording && (
+              <button
+                type="button"
+                onClick={recorder.cancel}
+                className="inline-flex items-center gap-1 font-mono text-[10px] uppercase tracking-wider text-muted hover:text-ink transition-colors"
+              >
+                <Trash2 size={11} aria-hidden="true" /> {t("common.cancel")}
+              </button>
+            )}
+            {uploads > 0 && (
+              <span className="font-mono text-[10px] uppercase tracking-wider text-muted animate-pulse">
+                {t("bb.uploading")}
+              </span>
+            )}
+          </div>
+
+          {media.length > 0 && (
+            <ul className="mt-3 flex flex-wrap gap-2">
+              {media.map((m) => (
+                <li key={m.path} className="relative group">
+                  {m.type === "image" ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={m.url}
+                      alt={m.name || ""}
+                      className="h-16 w-16 rounded-lg border border-line object-cover"
+                    />
+                  ) : (
+                    <span className="inline-flex h-16 items-center gap-2 rounded-lg border border-line bg-paper px-3 max-w-44">
+                      {m.type === "video"
+                        ? <Film size={14} className="shrink-0 text-ink-soft" aria-hidden="true" />
+                        : <Mic size={14} className="shrink-0 text-ink-soft" aria-hidden="true" />}
+                      <span className="truncate text-[11px] text-ink-soft">
+                        {m.type === "audio" && m.duration
+                          ? `${t("bb.voiceNote")} · ${fmtClock(m.duration)}`
+                          : m.name || t(`bb.media.${m.type}`)}
+                      </span>
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => removeItem(m)}
+                    title={t("bb.removeAttachment")}
+                    aria-label={t("bb.removeAttachment")}
+                    className="absolute -top-1.5 -end-1.5 h-5 w-5 rounded-full border border-line bg-surface text-ink-soft hover:text-accent hover:border-accent flex items-center justify-center shadow-sm transition"
+                  >
+                    <X size={10} />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
         </Field>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

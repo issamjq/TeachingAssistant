@@ -236,6 +236,7 @@ export async function resolve(
 
     case "bulletin":
       if (!a && method === "GET") return yes(await E.listBulletin(q));
+      if (a === "share" && method === "GET") return yes(await E.getBulletinShare());
       if (!a && method === "POST") return yes(await E.createBulletin(body));
       if (a && method === "PATCH") return yes(await E.updateBulletin(a, body));
       if (a && method === "DELETE") return yes(await E.deleteBulletin(a));

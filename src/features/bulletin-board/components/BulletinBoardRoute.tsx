@@ -10,12 +10,13 @@
 // =====================================================================
 
 import { useEffect, useMemo, useState } from "react";
-import { Archive, Pin, Plus } from "lucide-react";
+import { Archive, Check, Link2, Pin, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SkeletonCards } from "@/components/ui/skeleton";
 import { ConfirmDelete } from "@/views/_shared";
 import { useT } from "@/shared/i18n";
-import { deletePost, listPosts, updatePost } from "../api";
+import { deletePost, getShare, listPosts, updatePost } from "../api";
+import { removeBulletinMedia } from "../media";
 import { KINDS } from "../kinds";
 import type { BulletinKind, BulletinPost } from "../types";
 import PostCard from "./PostCard";
@@ -37,6 +38,7 @@ export default function BulletinBoardRoute() {
   const [editing, setEditing] = useState<BulletinPost | null>(null);
   const [deleting, setDeleting] = useState<BulletinPost | null>(null);
   const [busy, setBusy] = useState(false);
+  const [shareState, setShareState] = useState<"idle" | "busy" | "copied">("idle");
 
   useEffect(() => {
     listPosts()
@@ -92,6 +94,8 @@ export default function BulletinBoardRoute() {
     setBusy(true);
     deletePost(deleting.id)
       .then(() => {
+        // The row is gone; its files in storage can follow, best-effort.
+        if (deleting.media?.length) void removeBulletinMedia(deleting.media);
         setPosts((xs) => xs.filter((x) => x.id !== deleting.id));
         setDeleting(null);
         setBusy(false);
@@ -99,6 +103,26 @@ export default function BulletinBoardRoute() {
       .catch((e) => {
         setBusy(false);
         alert(`Could not delete: ${e.message}`);
+      });
+  };
+
+  // The class link: fetched (minted on first ask) and put on the
+  // clipboard in one motion. Students open it with no account — it is
+  // how the board leaves the studio.
+  const share = () => {
+    if (shareState === "busy") return;
+    setShareState("busy");
+    getShare()
+      .then(({ token }) =>
+        navigator.clipboard.writeText(`${window.location.origin}/board/${token}`)
+      )
+      .then(() => {
+        setShareState("copied");
+        setTimeout(() => setShareState("idle"), 2500);
+      })
+      .catch((e) => {
+        setShareState("idle");
+        alert(`Could not copy the link: ${e.message}`);
       });
   };
 
@@ -122,9 +146,22 @@ export default function BulletinBoardRoute() {
           </h1>
           <p className="text-muted mt-2 text-[14.5px]">{t("bb.subtitle")}</p>
         </div>
-        <Button variant="primary" onClick={openNew}>
-          <Plus size={15} className="me-1.5" /> {t("bb.new")}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="secondary" onClick={share} disabled={shareState === "busy"}>
+            {shareState === "copied" ? (
+              <>
+                <Check size={14} className="me-1.5" /> {t("bb.shareCopied")}
+              </>
+            ) : (
+              <>
+                <Link2 size={14} className="me-1.5" /> {t("bb.share")}
+              </>
+            )}
+          </Button>
+          <Button variant="primary" onClick={openNew}>
+            <Plus size={15} className="me-1.5" /> {t("bb.new")}
+          </Button>
+        </div>
       </div>
 
       {/* ── filters ─────────────────────────────────────────────────── */}
@@ -173,18 +210,20 @@ export default function BulletinBoardRoute() {
       )}
 
       {!loading && shown.length > 0 && (
-        <div className={`${s.board} columns-1 sm:columns-2 xl:columns-3 gap-5 pt-2`}>
-          {shown.map((post) => (
-            <PostCard
-              key={post.id}
-              post={post}
-              onEdit={openEdit}
-              onTogglePin={(p) => patch(p, { pinned: !p.pinned })}
-              onArchive={(p) => patch(p, { status: "archived", pinned: false })}
-              onRestore={(p) => patch(p, { status: "published" })}
-              onDelete={setDeleting}
-            />
-          ))}
+        <div className={s.cork}>
+          <div className={`${s.board} columns-1 sm:columns-2 xl:columns-3 gap-5 pt-2`}>
+            {shown.map((post) => (
+              <PostCard
+                key={post.id}
+                post={post}
+                onEdit={openEdit}
+                onTogglePin={(p) => patch(p, { pinned: !p.pinned })}
+                onArchive={(p) => patch(p, { status: "archived", pinned: false })}
+                onRestore={(p) => patch(p, { status: "published" })}
+                onDelete={setDeleting}
+              />
+            ))}
+          </div>
         </div>
       )}
 
