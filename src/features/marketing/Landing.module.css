@@ -23,6 +23,7 @@
      mode text lightens while these bands must stay dark, just lifted off
      the ground. */
   --band-bg: #101718;
+  --term-veil: rgba(16, 23, 24, 0.86);
   --band-fg-rgb: 244, 243, 239;
 
   /* Theme-varying materials, declared once here and re-pointed by the dark
@@ -835,13 +836,28 @@
    all get. The pin is an enhancement layered on top, never the layout. */
 
 .termWrap {
+  position: relative;
   background: var(--band-bg);
   color: var(--band-fg);
   padding-block: var(--band);
   overflow: hidden;
 }
 
+.termBack {
+  /* A classroom, blurred at the source (Unsplash imgix blur, so no
+     runtime filter cost while the section is pinned), veiled with the
+     theme's own band ink. The veil is what adapts: each theme lays its
+     band colour over the same photograph, so the room reads as depth
+     behind the term, never as competition for the text. */
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(var(--term-veil), var(--term-veil)),
+    url("/marketing/photos/term-bg.jpg") center / cover no-repeat;
+}
+
 .termTrack {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: clamp(16px, 2vw, 24px);
@@ -1041,6 +1057,7 @@
   --accent-on-ink: #8fc9c4;
 
   --band-bg: #1e2a2d;
+  --term-veil: rgba(30, 42, 45, 0.9);
   --band-fg: #edefe9;
   --band-fg-rgb: 237, 239, 233;
   --on-accent: #08171a;

@@ -111,6 +111,7 @@ export default function TermTimeline() {
 
   return (
     <section className={s.termWrap} ref={wrap} id="term">
+      <div className={s.termBack} aria-hidden="true" />
       <div className={s.termTrack} ref={track}>
         <div className={s.termIntro}>
           <h2 className={s.sectionTitle}>{t("mk.term.title")}</h2>
