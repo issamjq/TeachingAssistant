@@ -40,6 +40,7 @@ import {
   listAssignments, createAssignment, deleteAssignment,
 } from "../api";
 import { AssignmentsPanel } from "./AssignmentsPanel";
+import { InterviewOutline } from "./InterviewOutline";
 import s from "./TeachingSkills.module.css";
 
 const DRAFT_KEY = "murchid.skills.interview";
@@ -391,6 +392,7 @@ export function TeachingSkillsRoute() {
               })}
             </div>
 
+            <div className={s.stageRow}>
             <div className={s.stage} key={step}>
               {step === 0 && maxStep === 0 && <p className={s.stageIntro}>{WELCOME}</p>}
               <p className={s.eyebrow}>{QUESTIONS[step].heading}</p>
@@ -454,6 +456,9 @@ export function TeachingSkillsRoute() {
                   </button>
                 </div>
               </div>
+            </div>
+
+            <InterviewOutline answers={answers} step={step} maxStep={maxStep} onGo={go} />
             </div>
           </>
         ) : (

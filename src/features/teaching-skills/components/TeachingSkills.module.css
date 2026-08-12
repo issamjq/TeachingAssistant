@@ -107,13 +107,106 @@
 .stepDot:disabled { cursor: default; }
 .stepDot:not(:disabled):hover { transform: scaleY(1.6); }
 
+.stageRow {
+  display: flex;
+  gap: 32px;
+  flex: 1;
+  min-height: 0;
+}
+
 .stage {
   flex: 1;
+  min-width: 0;
   min-height: 0;
   overflow-y: auto;
   max-width: 720px;
   padding-block: 22px 12px;
   animation: stageIn 260ms ease both;
+}
+
+/* The right rail: the profile assembling itself as answers land. */
+.outline {
+  width: 300px;
+  flex: none;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 20px 18px;
+  margin-block: 22px 12px;
+  border-radius: 20px;
+  background: color-mix(in oklab, var(--p-surface) 88%, transparent);
+  border: 1px solid color-mix(in oklab, var(--p-line) 85%, transparent);
+}
+@media (max-width: 1100px) {
+  .outline { display: none; }
+}
+
+.outlineList {
+  display: flex;
+  flex-direction: column;
+  margin-block-start: 10px;
+}
+.outlineItem {
+  display: block;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  text-align: start;
+  padding: 8px 10px;
+  border-radius: 10px;
+  cursor: pointer;
+  border-inline-start: 2px solid transparent;
+}
+.outlineItem:disabled { cursor: default; }
+.outlineItem:not(:disabled):hover { background: color-mix(in oklab, var(--p-ink) 4%, transparent); }
+.outlineItem[data-state="current"] {
+  background: color-mix(in oklab, var(--p-accent) 7%, transparent);
+  border-inline-start-color: var(--p-accent);
+  border-radius: 4px 10px 10px 4px;
+}
+.outlineItem[data-state="todo"] { opacity: 0.45; }
+
+.outlineHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--p-ink);
+}
+.outlineNum {
+  flex: none;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--p-muted);
+}
+.outlineItem[data-state="answered"] .outlineNum { color: var(--p-accent); }
+
+.outlineText {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  margin-block-start: 3px;
+  padding-inline-start: 18px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--p-muted);
+}
+.outlineSkip {
+  display: block;
+  margin-block-start: 3px;
+  padding-inline-start: 18px;
+  font-size: 12px;
+  font-style: italic;
+  color: color-mix(in oklab, var(--p-accent) 70%, var(--p-muted));
+}
+
+.outlineFoot {
+  margin-block-start: 12px;
+  padding-block-start: 10px;
+  border-block-start: 1px solid color-mix(in oklab, var(--p-line) 70%, transparent);
+  font-size: 11.5px;
+  color: var(--p-muted);
 }
 @keyframes stageIn {
   from { opacity: 0; transform: translateY(10px); }
