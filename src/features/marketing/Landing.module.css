@@ -1108,42 +1108,6 @@
   }
 }
 
-/* ── The guide: the page's scroll companion ───────────────────────────
-   display:none at rest; GuideChip's effect switches it on only when the
-   viewport, the motion preference, and the motion-stop toggle all allow
-   it. A static render never contains it. */
-
-.guideDock {
-  display: none;
-  position: fixed;
-  bottom: 26px;
-  inset-inline: 0;
-  place-items: center;
-  pointer-events: none;
-  z-index: 30;
-}
-
-.guideChip {
-  width: 46px;
-  height: 46px;
-  border-radius: var(--r-sm);
-  background: var(--chalk);
-  color: var(--accent);
-  border: 1px solid var(--line);
-  box-shadow: var(--shadow-cta);
-  overflow: hidden;
-  display: grid;
-  place-items: center;
-  will-change: transform;
-}
-
-.guideFace {
-  grid-area: 1 / 1;
-  display: grid;
-  place-items: center;
-  width: 100%;
-  height: 100%;
-}
 
 
 /* ── The courier: the mini window that delivers each image ──────────

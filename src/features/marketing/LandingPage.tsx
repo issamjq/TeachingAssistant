@@ -11,7 +11,6 @@ import Bilingual from "./sections/Bilingual";
 import TermTimeline from "./sections/TermTimeline";
 import Pricing from "./sections/Pricing";
 import Questions from "./sections/Questions";
-import GuideChip from "./GuideChip";
 import ImageCourier from "./ImageCourier";
 import { useReveal } from "./useReveal";
 import { useTilt } from "./useTilt";
@@ -128,7 +127,6 @@ export default function LandingPage() {
             <p className={s.closingNote}>{t("mk.cta.note")}</p>
           </div>
         </section>
-        <GuideChip />
         <ImageCourier />
       </main>
 
