@@ -135,10 +135,20 @@ export const onAccountChange = (fn: AccountListener): (() => void) => {
 
 // React binding — re-renders when the mock account changes (any tab via
 // `storage`, or this tab via the listener set).
+//
+// The first render deliberately returns null even though localStorage is
+// right there and could answer immediately. It is the render React
+// compares against the server's HTML, and the server has no localStorage:
+// reading it here made the sidebar render the real initials over a server
+// pass that had rendered the fallback, and React threw away the entire
+// hydrated studio tree and rebuilt it on every single page load. One
+// frame of the fallback chip costs less than that, and the effect below
+// fills it in before the frame after.
 export function useAccount(): Account | null {
-  const [account, setState] = useState(getAccount);
+  const [account, setState] = useState<Account | null>(null);
   useEffect(() => {
     const sync = () => setState(getAccount());
+    sync();
     const off = onAccountChange(sync);
     window.addEventListener("storage", sync);
     return () => { off(); window.removeEventListener("storage", sync); };

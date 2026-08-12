@@ -125,12 +125,19 @@ function ensureArabicFonts(): void {
 }
 
 export function LanguageProvider({ children }: { children: React.ReactNode }) {
-  // Server-render as "en" and correct on mount. Reading localStorage in the
-  // initialiser would produce a hydration mismatch for Arabic users.
-  const [lang, setLangState] = useState<Lang>(() => {
+  // Server-render as "en" and correct on mount. Reading localStorage in
+  // the initialiser produces a hydration mismatch for Arabic users: the
+  // server has no storage, renders English, and the client's first
+  // render — the one React compares against that HTML — comes back
+  // Arabic, so React discards the tree and rebuilds it. The comment
+  // below this line used to say exactly that while the code did the
+  // opposite; the read now happens where it claimed to, on mount.
+  const [lang, setLangState] = useState<Lang>("en");
+
+  useEffect(() => {
     const saved = readStorage(STORAGE_KEY);
-    return saved === "ar" || saved === "en" ? saved : "en";
-  });
+    if (saved === "ar" || saved === "en") setLangState(saved);
+  }, []);
 
   useEffect(() => {
     applyDocumentLang(lang);
