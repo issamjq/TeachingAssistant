@@ -1,24 +1,9 @@
 # Supabase migration — remaining actions
 
-The code migration is **done and verified**, and Google sign-in works in
-production. What remains is configuration that can only be done from the
-Supabase and hosting dashboards (none of it verifiable from the repo), plus
-two pieces of repo cleanup. Email/password sign-up stays degraded until
-item 1 is done; Microsoft sign-in until item 2.
-
-*(Pruned 2026-08-11: the RLS follow-up is gone — RLS is now enabled on every
-table with owner policies via `db/tune.sql`, and the browser talks to
-Supabase directly. The env-var item is gone repo-side — no Firebase/Vite
-variable is read anywhere; only the dashboard values remain to confirm.)*
-
-*(Re-checked 2026-08-12: nothing here has moved. Items 1–3, 5, 7 and 8 are
-dashboard-side and unverifiable from the repo; items 6, 9 and 10 remain
-open in the repo — `scripts/verify-auth.mjs:19` still targets the deleted
-`localhost:3001`, `src/views/PortalSignIn.jsx` is still present and
-unimported, docs 03/04 and `CLAUDE.md` still describe removed structure.
-One caveat on the 08-11 prune note above: the RLS **policies** exist, but
-nothing exercises them adversarially — that test suite is tracked as a
-top frontend-only item in `new-docs/STATUS.md`.)*
+Configuration that can only be done from the Supabase and hosting
+dashboards (none of it verifiable from the repo), plus repo cleanup.
+Email/password sign-up stays degraded until item 1 is done; Microsoft
+sign-in until item 2. *(Pruned 2026-08-12 to open work only.)*
 
 ---
 
@@ -82,11 +67,9 @@ The `/**` wildcard covers the params the flows append
 
 Set **Site URL** to the production domain.
 
-### 4. Confirm the hosting environment variables
+### 4. Confirm the hosting environment variables (dashboard side only)
 
-Repo side this is done — nothing in the code reads any `VITE_*` or
-`NEXT_PUBLIC_FIREBASE_*` variable. What can't be verified from here is the
-dashboards; confirm the following are set and the Firebase-era ones deleted.
+Confirm the following are set and the Firebase-era ones deleted.
 
 **Vercel** (frontend):
 

@@ -1,28 +1,14 @@
 # 10 — Roadmap
 
-What is genuinely still open, verified against the code on 2026-08-12. The
-previous version of this file predated auth, Supabase, Next.js and the AI
-studio, and nearly every line of it had since shipped; it was misleading
-enough to be harmful. This one lists only what is **not** done.
-
-For the full picture of what exists, trust the code and
-[11 — Next.js migration](11-nextjs-migration.md); every studio section in the
-sidebar is a real screen now, including the bulletin board (the last
-`<ComingSoon />` stub, replaced 2026-08-11).
+What is genuinely still open, verified against the code on 2026-08-12.
+This file lists only what is **not** done; for the full picture of what
+exists, trust the code and [11 — Next.js migration](11-nextjs-migration.md).
 
 > The master status doc is `new-docs/STATUS.md`, which tracks the launch
 > plan and feature roadmap against the code and the deployed backend.
 > **It is not in the repo** — `new-docs/` is gitignored, because it holds
 > commercial planning material. Ask the project owner for it. This file
 > keeps the narrower, repo-technical list, and stands on its own.
-
-*(Pruned 2026-08-12, afternoon: the teaching-skills interview shipped at
-`/teaching-skills` — conversation UI, voice in/out, Markdown profile into
-`teaching_skills` via the new `/api/skills` data path; `quiz-tweak` and
-`regenerate` are wired (quiz-builder tweak bar, per-section rewrite in
-studio prose artifacts); StudioChat now streams through
-`src/shared/lib/apiStream.ts` and handles the full batch protocol; and a
-partial CSV roster import now names its failed rows.)*
 
 ## Open — this repo
 
@@ -54,17 +40,19 @@ partial CSV roster import now names its failed rows.)*
   **Stripe billing** (nothing even calls `/api/auth/renew`; the plan is
   written once at sign-up), Gemini billing (free tier caps out), Resend
   production mode, `id` on `generate`'s `done` frame (server-side
-  persist), per-field parse confidence, and — new 2026-08-12 evening —
-  **`POST /api/studio/skill-profile` + assignment-aware generation**
-  (specced in [todo/backend/08-skills-refinement.md](../todo/backend/08-skills-refinement.md);
-  the frontend calls it and falls back gracefully until it exists):
-  [todo/backend-integration.md](../todo/backend-integration.md) and the
-  specs in [todo/backend/](../todo/backend/).
+  persist), per-field parse confidence, and
+  **`POST /api/studio/skill-profile` + `skill_ids` + assignment-aware
+  generation** (specced in
+  [todo/backend/08-skills-refinement.md](../todo/backend/08-skills-refinement.md);
+  the frontend calls it and falls back gracefully until it exists).
+  Full open list: [todo/backend-integration.md](../todo/backend-integration.md).
+  *(The 00–07 build specs were deleted 2026-08-12 — everything in them
+  shipped; the API reference site documents the live contracts.)*
 
 ## Deliberately not done
 
 - **A toast system.** Errors are inline banners; action failures are
   `alert()`. Ugly but consistent — replace app-wide or not at all.
 - **`/api/bulletin` on the backend service.** The bulletin board is fully
-  browser-side; see [todo/backend/07-bulletin-board.md](../todo/backend/07-bulletin-board.md)
-  for the one optional endpoint (AI-composed notices) if it is ever wanted.
+  browser-side (Supabase CRUD); the AI-composed notices it could ever want
+  already exist via `/api/studio/bulletin`.
