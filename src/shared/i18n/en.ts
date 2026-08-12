@@ -1251,4 +1251,8 @@ export const EN = {
   "mk.plan.billedMonthly": "Billed {total} AED each month.",
   "mk.plan.billed": "Billed {total} AED up front, {save}% less per month.",
   "mk.term.sum": "Thirty days. Fourteen lesson plans, three quizzes, one exam, from a single brief.",
+  "mk.term.w1.alt": "Open books and a handwritten notebook on a desk",
+  "mk.term.w2.alt": "A stack of books with an apple and letter blocks on a teacher's desk",
+  "mk.term.w3.alt": "Three students laughing together over laptops at a shared table",
+  "mk.term.w4.alt": "A hand working through papers with a pen",
 };
