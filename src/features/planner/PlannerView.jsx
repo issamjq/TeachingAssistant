@@ -28,6 +28,7 @@ import SchedulePopup from "@/views/_schedule-popup";
 import PlannerTour, { hasSeenPlannerTour } from "@/views/onboarding/PlannerTour";
 import { today as todayKey } from "@/lib/localDate";
 import DayPeek from "./DayPeek";
+import EventPeek from "./EventPeek";
 import MiniMonth from "./MiniMonth";
 import WeekGrid from "./WeekGrid";
 import {
@@ -127,17 +128,21 @@ export default function PlannerView() {
           id: `schedule-${r.id}`, raw: r, date: isoOnly(r.date), kind: "schedule",
           title: r.title, time: r.start_time ? String(r.start_time).slice(0, 5) : undefined,
         })),
+        // `raw` rides along on every kind, not just schedule: the hover
+        // card reads subject, grade, marks and notes from it. Artifact
+        // rows never carry start_time, so keeping raw cannot promote a
+        // quiz into the timed rail by accident.
         ...get(1).filter((q) => q.scheduled_for).map((q) => ({
-          id: `quiz-${q.id}`, date: isoOnly(q.scheduled_for), kind: "quizzes", title: q.title,
+          id: `quiz-${q.id}`, raw: q, date: isoOnly(q.scheduled_for), kind: "quizzes", title: q.title,
         })),
         ...get(2).filter((h) => h.due_date).map((h) => ({
-          id: `homework-${h.id}`, date: isoOnly(h.due_date), kind: "homework", title: h.title,
+          id: `homework-${h.id}`, raw: h, date: isoOnly(h.due_date), kind: "homework", title: h.title,
         })),
         ...get(3).filter((p) => p.scheduled_for).map((p) => ({
-          id: `presentation-${p.id}`, date: isoOnly(p.scheduled_for), kind: "presentations", title: p.title,
+          id: `presentation-${p.id}`, raw: p, date: isoOnly(p.scheduled_for), kind: "presentations", title: p.title,
         })),
         ...get(4).filter((a) => a.scheduled_for).map((a) => ({
-          id: `activity-${a.id}`, date: isoOnly(a.scheduled_for), kind: "activities", title: a.title,
+          id: `activity-${a.id}`, raw: a, date: isoOnly(a.scheduled_for), kind: "activities", title: a.title,
         })),
       ];
       setEvents(all);
@@ -252,6 +257,43 @@ export default function PlannerView() {
       return next;
     });
   const allOn = visible.size === KINDS.length;
+
+  // The hover card. One card for the whole page, positioned beside
+  // whichever chip the pointer (or focus) is resting on. The open is
+  // delayed a beat so sweeping across a busy week does not strobe;
+  // the close is immediate. Hover-capable pointers only — on touch
+  // there is no rest state, and the tap already opens the real thing.
+  const [peek, setPeek] = useState(null);
+  const peekTimer = useRef(null);
+  const canHover = useRef(false);
+  useEffect(() => {
+    canHover.current =
+      typeof window !== "undefined" &&
+      window.matchMedia("(hover: hover) and (pointer: fine)").matches;
+  }, []);
+  const peekStart = useCallback((event, el, immediate = false) => {
+    if (!canHover.current || !el) return;
+    clearTimeout(peekTimer.current);
+    const rect = el.getBoundingClientRect();
+    if (immediate) setPeek({ event, anchor: rect });
+    else peekTimer.current = setTimeout(() => setPeek({ event, anchor: rect }), 350);
+  }, []);
+  const peekEnd = useCallback(() => {
+    clearTimeout(peekTimer.current);
+    setPeek(null);
+  }, []);
+  // Scrolling moves the anchor out from under a fixed card; any click is
+  // about to open something real. Both dismiss.
+  useEffect(() => {
+    if (!peek) return;
+    const off = () => peekEnd();
+    window.addEventListener("scroll", off, { capture: true, passive: true });
+    window.addEventListener("pointerdown", off, true);
+    return () => {
+      window.removeEventListener("scroll", off, { capture: true });
+      window.removeEventListener("pointerdown", off, true);
+    };
+  }, [peek, peekEnd]);
 
   const fallToDay = (d) => {
     setAnchor(new Date(d));
@@ -445,7 +487,8 @@ export default function PlannerView() {
                             key={e.id}
                             className={s.cellChip}
                             style={{ "--tint": tintOf(e.kind) }}
-                            title={`${KIND_BY_KEY[e.kind]?.label || e.kind} · ${e.title}${e.time ? ` · ${e.time}` : ""}`}
+                            onMouseEnter={(ev) => peekStart(e, ev.currentTarget)}
+                            onMouseLeave={peekEnd}
                           >
                             {e.time ? `${e.time} ` : ""}{e.title}
                           </span>
@@ -475,10 +518,14 @@ export default function PlannerView() {
               onEventClick={openEditEntry}
               onAllDayClick={(iso) => setDayListDate(iso)}
               onDayClick={fallToDay}
+              onPeek={peekStart}
+              onPeekEnd={peekEnd}
             />
           )}
         </div>
       </div>
+
+      <EventPeek peek={peek} locale={locale} />
 
       {dayListDate && (
         <DayPeek

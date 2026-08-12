@@ -16,7 +16,7 @@
 // A hairline marks the current minute across today's column.
 // =====================================================================
 import React, { useEffect, useMemo, useState } from "react";
-import { isoKey, sameYMD, tintOf, KIND_BY_KEY, hourWindow, layoutDay, toMin } from "./month";
+import { isoKey, sameYMD, tintOf, hourWindow, layoutDay, toMin } from "./month";
 import s from "./Planner.module.css";
 
 const HOUR_PX = 52;
@@ -36,6 +36,8 @@ export default function WeekGrid({
   onEventClick,       // (event) → edit
   onAllDayClick,      // (iso) → the day's list
   onDayClick,         // (Date) → day view
+  onPeek,             // (event, el) → hover card beside the chip
+  onPeekEnd,          // () → hover card away
 }) {
   const today = new Date();
 
@@ -118,8 +120,11 @@ export default function WeekGrid({
                   type="button"
                   className={s.tgChip}
                   style={{ "--tint": tintOf(e.kind) }}
-                  title={`${KIND_BY_KEY[e.kind]?.label || e.kind} · ${e.title}`}
                   onClick={() => onAllDayClick?.(iso)}
+                  onMouseEnter={(ev) => onPeek?.(e, ev.currentTarget)}
+                  onMouseLeave={() => onPeekEnd?.()}
+                  onFocus={(ev) => onPeek?.(e, ev.currentTarget, true)}
+                  onBlur={() => onPeekEnd?.()}
                 >
                   {e.title}
                 </button>
@@ -182,8 +187,11 @@ export default function WeekGrid({
                     insetInlineStart: `calc(${(col / cols) * 100}% + 2px)`,
                     width: `calc(${100 / cols}% - 5px)`,
                   }}
-                  title={`${e.title} · ${fmtHour(locale, startMin)}–${fmtHour(locale, endMin)}`}
                   onClick={(ev) => { ev.stopPropagation(); onEventClick?.(e); }}
+                  onMouseEnter={(ev) => onPeek?.(e, ev.currentTarget)}
+                  onMouseLeave={() => onPeekEnd?.()}
+                  onFocus={(ev) => onPeek?.(e, ev.currentTarget, true)}
+                  onBlur={() => onPeekEnd?.()}
                 >
                   <span className={s.tgEventTitle}>{e.title}</span>
                   {endMin - startMin >= 40 && (
