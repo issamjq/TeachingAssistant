@@ -366,8 +366,20 @@ export default function GoalsView() {
     try {
       // The planner lives on the API service — it needs the model key and
       // reads the teacher's skills server-side. See todo/backend/01.
-      const updated = await api("/api/studio/goal-plan", { method: "POST", body: { goal_id: id } });
+      const res = await api("/api/studio/goal-plan", { method: "POST", body: { goal_id: id } });
+      // The service answers { goal, unread_materials }. Spreading the raw
+      // envelope onto the row left status/plan untouched, so a finished
+      // plan looked like the button had done nothing.
+      const updated = res?.goal ?? res;
       setGoals((g) => g.map((x) => (x.id === id ? { ...x, ...updated } : x)));
+      if (res?.unread_materials?.length) {
+        setPlanError({
+          id,
+          message:
+            `Planned — but ${res.unread_materials.length === 1 ? "one attached file" : `${res.unread_materials.length} attached files`} ` +
+            `could not be read and did not shape the plan: ${res.unread_materials.join(", ")}.`,
+        });
+      }
     } catch (e) {
       setPlanError({
         id,

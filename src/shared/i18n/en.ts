@@ -1255,4 +1255,6 @@ export const EN = {
   "mk.term.w2.alt": "A stack of books with an apple and letter blocks on a teacher's desk",
   "mk.term.w3.alt": "Three students laughing together over laptops at a shared table",
   "mk.term.w4.alt": "A hand working through papers with a pen",
+  "bb.compose": "Write it out for me",
+  "bb.composing": "Writing…",
 };

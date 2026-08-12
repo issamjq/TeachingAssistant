@@ -94,7 +94,13 @@ export async function signInWithGoogle() {
     await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: redirectTo("/"),
+        // "/signin", NOT "/". The funnel-resume effect that exchanges the
+        // provider return into a routed session lives in the auth screens;
+        // "/" is the marketing page, which used to leave a freshly
+        // signed-in teacher standing on the hero with nowhere to go. The
+        // marketing page also carries a forwarding shim in case the
+        // Supabase redirect allowlist ever falls back to the site root.
+        redirectTo: redirectTo("/signin"),
         // Force the account chooser every time, so a teacher signed into
         // several Google accounts in one browser can pick the right one.
         // Without this Google silently reuses the last account.
@@ -120,7 +126,13 @@ export async function signInWithLinkedIn() {
     await supabase.auth.signInWithOAuth({
       provider: "linkedin_oidc",
       options: {
-        redirectTo: redirectTo("/"),
+        // "/signin", NOT "/". The funnel-resume effect that exchanges the
+        // provider return into a routed session lives in the auth screens;
+        // "/" is the marketing page, which used to leave a freshly
+        // signed-in teacher standing on the hero with nowhere to go. The
+        // marketing page also carries a forwarding shim in case the
+        // Supabase redirect allowlist ever falls back to the site root.
+        redirectTo: redirectTo("/signin"),
         scopes: "openid profile email",
       },
     })
@@ -137,7 +149,13 @@ export async function signInWithMicrosoft() {
     await supabase.auth.signInWithOAuth({
       provider: "azure",
       options: {
-        redirectTo: redirectTo("/"),
+        // "/signin", NOT "/". The funnel-resume effect that exchanges the
+        // provider return into a routed session lives in the auth screens;
+        // "/" is the marketing page, which used to leave a freshly
+        // signed-in teacher standing on the hero with nowhere to go. The
+        // marketing page also carries a forwarding shim in case the
+        // Supabase redirect allowlist ever falls back to the site root.
+        redirectTo: redirectTo("/signin"),
         // openid/email/profile are what populate user_metadata; without
         // them the display name and avatar come back empty.
         scopes: "openid email profile",

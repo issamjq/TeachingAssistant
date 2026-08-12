@@ -1221,4 +1221,6 @@ export const AR: Partial<Record<TranslationKey, string>> = {
   "mk.term.w2.alt": "كومة كتب وتفاحة ومكعبات حروف على مكتب معلّم",
   "mk.term.w3.alt": "ثلاثة طلاب يضحكون معاً أمام حواسيبهم على طاولة مشتركة",
   "mk.term.w4.alt": "يد تعمل على أوراق بقلم",
+  "bb.compose": "اكتبه لي",
+  "bb.composing": "جارٍ الكتابة…",
 };

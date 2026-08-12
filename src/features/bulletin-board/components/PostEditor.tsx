@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Pin } from "lucide-react";
+import { Pin, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useT } from "@/shared/i18n";
 import {
@@ -35,7 +35,46 @@ export default function PostEditor({ post, onClose, onSaved }: Props) {
   const [expiresOn, setExpiresOn] = useState(post?.expires_on || "");
   const [pinned, setPinned] = useState(post?.pinned || false);
   const [busy, setBusy] = useState(false);
+  const [composing, setComposing] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+
+  // AI compose: the teacher writes the gist wherever is natural — the
+  // title, or a rough message — and the service phrases the post. The
+  // reply streams into the message field as it is written, and the done
+  // frame carries the finished { title, body }, which then win. The
+  // browser still does the saving; the service only writes words.
+  const compose = async () => {
+    const gist = (bodyText.trim() || title.trim());
+    if (!gist || composing) return;
+    setComposing(true);
+    setErr(null);
+    let streamed = "";
+    try {
+      const { streamSSE } = await import("@/shared/lib/apiStream");
+      await streamSSE("/api/studio/bulletin", {
+        body: {
+          prompt: gist,
+          kind,
+          ...(grade ? { grade } : {}),
+          ...(section ? { section } : {}),
+        },
+        onEvent: (ev) => {
+          if (ev.type === "delta" && typeof ev.text === "string") {
+            streamed += ev.text;
+            setBodyText(streamed);
+          } else if (ev.type === "done") {
+            const b = (ev as { bulletin?: { title?: string; body?: string } }).bulletin;
+            if (b?.body) setBodyText(b.body);
+            if (b?.title) setTitle(b.title);
+          }
+        },
+      });
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setComposing(false);
+    }
+  };
 
   const save = () => {
     if (!title.trim() || busy) return;
@@ -123,7 +162,17 @@ export default function PostEditor({ post, onClose, onSaved }: Props) {
             value={bodyText}
             onChange={(e) => setBodyText(e.target.value)}
             maxLength={2000}
+            readOnly={composing}
           />
+          <button
+            type="button"
+            onClick={compose}
+            disabled={composing || !(bodyText.trim() || title.trim())}
+            className="mt-2 inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-wider text-accent hover:text-ink transition-colors disabled:opacity-40 disabled:cursor-default cursor-pointer"
+          >
+            <Sparkles size={12} aria-hidden="true" />
+            {composing ? t("bb.composing") : t("bb.compose")}
+          </button>
         </Field>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

@@ -289,7 +289,10 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
           "Content-Type": "application/json",
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-        body: JSON.stringify({ kind: k, prompt, materials: atts.map((a) => ({ id: a.id, name: a.name })) }),
+        // `kinds` is the documented shape — the service plans a batch and
+        // streams each artifact in canonical order. This screen asks for
+        // one at a time, so the batch is a batch of one.
+        body: JSON.stringify({ kinds: [k], prompt, materials: atts.map((a) => ({ id: a.id, name: a.name })) }),
       });
 
       if (!res.ok || !res.body) {
@@ -326,9 +329,24 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
             acc += ev.text;
             setTurns((t) => {
               const n = [...t];
-              n[n.length - 1] = { ...n[n.length - 1], text: acc };
+              n[n.length - 1] = { ...n[n.length - 1], text: acc, stage: null };
               return n;
             });
+          } else if (ev.type === "status") {
+            // The service says what it is doing before any prose exists
+            // ("planning"). Shown in place of the empty bubble, so a slow
+            // cold start reads as work rather than as a hang.
+            setTurns((t) => {
+              const n = [...t];
+              n[n.length - 1] = { ...n[n.length - 1], stage: ev.stage || null };
+              return n;
+            });
+          } else if (ev.type === "unread" || (ev.type === "batch" && ev.unread_materials?.length)) {
+            // Files the service could not read did not shape the answer.
+            // Say so now, not after the teacher wonders why the chapter
+            // was ignored.
+            const names = (ev.unread_materials || []).join(", ");
+            if (names) setNotice(`Couldn't read: ${names} — the reply was written without ${ev.unread_materials.length === 1 ? "it" : "them"}.`);
           } else if (ev.type === "artifact") {
             // The structured form of what was just written in prose: a
             // deck as slides, a quiz as questions. The service does not
@@ -347,6 +365,17 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
               ev.quiz ? ev.quiz : ev.slides ? { slides: ev.slides } : ev.structured,
             );
             if (ev.id) savedId = ev.id;
+          } else if (ev.type === "error" && ev.refusal) {
+            // A refusal is the model declining on purpose ("not
+            // educational", "wrong tool") — a complete answer, not a
+            // failure. Show the message as the reply rather than as an
+            // error banner suggesting the teacher retry the same thing.
+            acc = ev.message || "The studio can only make teaching material.";
+            setTurns((t) => {
+              const n = [...t];
+              n[n.length - 1] = { ...n[n.length - 1], text: acc, stage: null };
+              return n;
+            });
           } else if (ev.type === "error") {
             throw Object.assign(new Error(ev.message), { soft: true });
           }
@@ -506,6 +535,11 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
                     {turn.streaming && !turn.text && (
                       <div className={s.thinking} aria-label="Working">
                         <span className={s.thinkDot} /><span className={s.thinkDot} /><span className={s.thinkDot} />
+                        {turn.stage && (
+                          <span className="text-[12px] text-muted ms-1">
+                            {turn.stage === "planning" ? "planning the material" : turn.stage}
+                          </span>
+                        )}
                       </div>
                     )}
 

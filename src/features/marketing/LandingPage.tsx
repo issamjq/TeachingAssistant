@@ -47,6 +47,27 @@ export default function LandingPage() {
   useTilt(scope);
   const [scrolled, setScrolled] = useState(false);
 
+  // OAuth landing shim. Provider sign-in is a full-page redirect, and if
+  // the Supabase allowlist sends the return to the site root, the teacher
+  // arrives HERE — signed in, with a ?code= still in the URL and a parked
+  // funnel intent in sessionStorage, standing on a marketing page that
+  // has no idea. The screens that know how to finish the trip (exchange
+  // the code, claim the single-device session, route to the dashboard or
+  // the onboarding funnel) are the auth pages, so forward there with the
+  // query and hash intact. Guarded on the return markers: a normal
+  // visitor, signed in or not, never gets bounced off the landing page.
+  useEffect(() => {
+    const { search, hash } = window.location;
+    let pendingFunnel = false;
+    try { pendingFunnel = Boolean(sessionStorage.getItem("murchid.signup.pending")); }
+    catch { /* unreadable storage — the URL markers still decide */ }
+    const oauthReturn =
+      /[?&](code|error_description)=/.test(search) || /access_token=/.test(hash);
+    if (oauthReturn || pendingFunnel) {
+      window.location.replace(`/signin${search}${hash}`);
+    }
+  }, []);
+
   // In-page anchors travel, they do not teleport. A native hash jump
   // drops the visitor into the MIDDLE of the scrubbed choreography: the
   // outputs section is pinned for 200% of scroll, so landing at its pin

@@ -13,6 +13,47 @@ session_superseded`. Items marked *fixed per reference* below deserve one
 authed retest from a signed-in session. The per-blocker status lines are
 the current truth; the original bodies are kept for the contract detail.
 
+**Re-audited 2026-08-12, this time with a signed-in session** — every route
+below was exercised live and end-to-end through the real UI. Current truth:
+
+- **Generate is a batch protocol now.** Body takes `kinds: []` (canonical
+  order adds `teaching_guide` and `student_notes`); the stream speaks
+  `batch → status → scope → artifact_start → delta(kind) → artifact →
+  artifact_end → done`. The old singular `kind` body is still accepted.
+  The studio now sends `kinds: [k]`, shows the `status` stage while the
+  model plans, reports `unread_materials` by name, and renders a refusal
+  as the answer rather than as a retryable error.
+- **Gap 5a is FIXED on the service**: a structured `artifact` frame
+  (quiz questions verified live) arrives before `done`, and the quiz
+  viewer lights up through the real UI. `done` still carries no `id`, so
+  5b (server-side persist) remains open and the browser keeps saving.
+- **BLOCKER 3 is FIXED and verified**: `/api/studio/goal-plan` planned the
+  seeded goal into a 10-week plan rendered in the UI. One contract note:
+  the response nests under `{ goal, unread_materials }` — the frontend
+  merge was updated for that envelope (it used to spread the envelope
+  itself and the card looked unchanged).
+- **BLOCKER 2 is FIXED and verified**: `/api/onboarding/parse` returned
+  the full `fields`/`found`/`missing` split for a plain-text CV.
+- **`GET /api/images/search` now exists** (Openverse-backed) and answers
+  exactly the `{ photos: [{ full, thumb, alt, credit, source }] }` shape
+  SlideBuilder already reads. The "build it or pull the affordance" note
+  below is settled: it was built.
+- **New routes, now used**: `/api/studio/bulletin` streams a composed
+  post; the bulletin editor grew a "Write it out for me" action that
+  streams into the message field (the browser still saves the row).
+  `/api/studio/quiz-tweak` (verified live) and `/api/studio/regenerate`
+  are still unwired — natural homes are the quiz builder and a
+  per-section rewrite in the studio viewers.
+- **BLOCKER 1 (Gemini free tier) and BLOCKER 4 (Resend test mode) are
+  unchanged** — billing/domain switches, not code.
+- Frontend fix that surfaced during the retest: provider OAuth returned
+  to "/", which is the marketing page since the rebuild, so a signed-in
+  teacher was left standing on the hero. OAuth now returns to
+  `/signin` where the funnel-resume machinery lives (with a forwarding
+  shim on the marketing page in case the Supabase allowlist falls back
+  to the site root): signed-out returns resume the funnel, signed-in
+  returns land on the dashboard.
+
 The frontend is wired and deployed-ready. Everything below that is marked
 BLOCKER is on the backend side; nothing in this repo is waiting on itself.
 *(The two frontend gaps found in the re-audit — SlideBuilder's retired
