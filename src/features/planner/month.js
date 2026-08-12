@@ -95,13 +95,92 @@ export function monthStats(days, todayIso) {
   };
 }
 
+/* ── the week, and where in the day things sit ─────────────────────
+   The time-grid views need three things the month never did: which
+   seven days make a week, where a clock time lands vertically, and how
+   to lay out entries that overlap. All pure, all checkable alone. */
+
+/** Monday-first week containing `anchor` — the teaching week, and the
+    same convention the month grid and the dashboard strip use. */
+export function weekOf(anchor) {
+  const start = new Date(anchor.getFullYear(), anchor.getMonth(), anchor.getDate());
+  start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
+  return Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(start);
+    d.setDate(start.getDate() + i);
+    return d;
+  });
+}
+
+/** "HH:MM[:SS]" → minutes since midnight, or null. */
+export const toMin = (t) => {
+  if (typeof t !== "string") return null;
+  const m = t.match(/^(\d{1,2}):(\d{2})/);
+  return m ? Math.min(1439, Number(m[1]) * 60 + Number(m[2])) : null;
+};
+
 /**
- * The tallest stack the ribbon has to draw.
+ * The hour window a set of timed events needs.
  *
- * Scaling every bar to the busiest day means one heavy day flattens the
- * rest into nothing, so the ceiling is at least four — a month whose
- * heaviest day has two lessons should not render as two full-height
- * bars beside twenty-eight empty ones.
+ * A 24-hour rail is mostly night: it scrolls the school day out of
+ * sight to show sixteen empty rows. The window is the school day
+ * (07:00–17:00) stretched — never shrunk — to fit whatever is actually
+ * scheduled, so a 06:30 exam or an evening meeting is still on the rail.
  */
-export const ribbonCeiling = (days) =>
-  Math.max(4, ...days.map((d) => d.events.length));
+export function hourWindow(events) {
+  let start = 7 * 60, end = 17 * 60;
+  for (const e of events) {
+    const a = toMin(e.raw?.start_time);
+    if (a == null) continue;
+    const b = toMin(e.raw?.end_time) ?? a + 55;
+    if (a < start) start = Math.floor(a / 60) * 60;
+    if (b > end) end = Math.ceil(b / 60) * 60;
+  }
+  return { start, end };
+}
+
+/**
+ * Column assignment for one day's timed entries, the way a calendar
+ * drawer does it: sweep by start time, give each entry the leftmost
+ * column that is free, and remember how wide the crowd got so every
+ * member of an overlapping cluster divides the day column evenly.
+ *
+ * Returns [{ event, startMin, endMin, col, cols }].
+ */
+export function layoutDay(events) {
+  const timed = events
+    .map((e) => {
+      const startMin = toMin(e.raw?.start_time);
+      if (startMin == null) return null;
+      const endRaw = toMin(e.raw?.end_time);
+      // A missing end is one period; a zero/negative span still needs
+      // enough height to grab.
+      const endMin = Math.max(startMin + 30, endRaw ?? startMin + 55);
+      return { event: e, startMin, endMin };
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.startMin - b.startMin || a.endMin - b.endMin);
+
+  const colEnds = [];        // per column, when it frees up
+  let cluster = [];          // entries sharing any overlap
+  let clusterMaxEnd = -1;
+
+  const flush = () => {
+    const cols = colEnds.length || 1;
+    for (const x of cluster) x.cols = cols;
+    cluster = [];
+    colEnds.length = 0;
+  };
+
+  for (const x of timed) {
+    if (cluster.length && x.startMin >= clusterMaxEnd) flush();
+    let col = colEnds.findIndex((end) => end <= x.startMin);
+    if (col === -1) { col = colEnds.length; colEnds.push(0); }
+    colEnds[col] = x.endMin;
+    x.col = col;
+    cluster.push(x);
+    clusterMaxEnd = Math.max(clusterMaxEnd, x.endMin);
+  }
+  flush();
+  return timed;
+}

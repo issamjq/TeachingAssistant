@@ -1,20 +1,21 @@
 "use client";
 
 // =====================================================================
-// The Scheduler — a month you can read the shape of
+// The Scheduler — the calendar model everyone already knows
 //
-// The old screen was three stacked surfaces that had drifted out of the
-// design system: a cream hero with a PNG texture and its own quick
-// actions, a month grid whose chips were sage and gold, and a right
-// column of three separate cards whose seams were the loudest thing on
-// the page. It also asked twice — once in the hero, once in the rail —
-// for the same four "make something" actions.
+// Restructured on the convention Google Calendar taught the world,
+// wearing Murchid's own materials: one toolbar (Today, arrows, the
+// period, the view), one sidebar (create, the little month, which
+// calendars are on, what is next), and one main surface that is a
+// month grid, a week drawer or a day drawer depending on the view.
 //
-// What it did not have was any sense of LOAD. A month grid tells you
-// what is on the 14th; it does not tell you that the second week is
-// brutal and the third is empty, which is the thing a teacher opens a
-// month view to find out. So the ribbon above the grid draws one bar per
-// day, stacked by kind: the shape of the month, before a word is read.
+// The week and day views are the new capability, not just new paint:
+// schedule entries have clock times, and a month cell cannot show that
+// 09:00 and 09:30 collide — the time grid can, and does, the same way
+// a calendar drawer does everywhere else. Clicking an empty slot
+// creates an entry at that hour; clicking an entry edits it; a day's
+// header falls into its day. Quizzes, homework, decks and activities
+// carry dates but no clock, so they live on the all-day shelf.
 // =====================================================================
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -28,9 +29,11 @@ import SchedulePopup from "@/views/_schedule-popup";
 import PlannerTour, { hasSeenPlannerTour } from "@/views/onboarding/PlannerTour";
 import { today as todayKey } from "@/lib/localDate";
 import DayPeek from "./DayPeek";
+import MiniMonth from "./MiniMonth";
+import WeekGrid from "./WeekGrid";
 import {
   KINDS, KIND_BY_KEY, tintOf, isoKey, sameYMD,
-  monthGrid, daysOfMonth, monthStats, ribbonCeiling,
+  monthGrid, daysOfMonth, monthStats, weekOf,
 } from "./month";
 import s from "./Planner.module.css";
 
@@ -42,15 +45,32 @@ const MAKE = [
   { kind: "presentations", verb: "Make",   noun: "a deck",        to: ["presentations"] },
 ];
 
+const VIEWS = ["day", "week", "month"];
+const VIEW_KEY = "murchid.planner.view";
+
 export default function PlannerView() {
   const t = useT();
   const { lang } = useI18n();
   const locale = lang === "ar" ? "ar" : "en-US";
 
-  const [anchor, setAnchor] = useState(() => {
-    const n = new Date();
-    return new Date(n.getFullYear(), n.getMonth(), 1);
-  });
+  // The anchor is a DAY now, not a month: week and day views need to
+  // know which one, and the month views just read its month.
+  const [anchor, setAnchor] = useState(() => new Date());
+  // Server-rendered as month and corrected on mount — reading the saved
+  // view during the first render is the localStorage-hydration trap this
+  // repo has already paid for twice.
+  const [view, setView] = useState("month");
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(VIEW_KEY);
+      if (VIEWS.includes(saved)) setView(saved);
+    } catch { /* default stands */ }
+  }, []);
+  const pickView = (v) => {
+    setView(v);
+    try { localStorage.setItem(VIEW_KEY, v); } catch { /* a preference, not data */ }
+  };
+
   const [visible, setVisible] = useState(() => new Set(KINDS.map((k) => k.key)));
   const [events, setEvents] = useState([]);
   const [teacherGrades, setTeacherGrades] = useState([]);
@@ -155,9 +175,9 @@ export default function PlannerView() {
   }, [events, visible]);
 
   const grid = useMemo(() => monthGrid(anchor), [anchor]);
+  const week = useMemo(() => weekOf(anchor), [anchor]);
   const monthDays = useMemo(() => daysOfMonth(anchor, eventsByDate), [anchor, eventsByDate]);
   const stats = useMemo(() => monthStats(monthDays, todayIso), [monthDays, todayIso]);
-  const ceiling = useMemo(() => ribbonCeiling(monthDays), [monthDays]);
 
   const counts = useMemo(() => {
     const m = new Map();
@@ -178,22 +198,58 @@ export default function PlannerView() {
       new Intl.DateTimeFormat(locale, { weekday: "short" }).format(new Date(2024, 0, 1 + i))),
     [locale],
   );
-  const monthName = new Intl.DateTimeFormat(locale, { month: "long" }).format(anchor);
 
-  const goPrev = () => setAnchor((a) => new Date(a.getFullYear(), a.getMonth() - 1, 1));
-  const goNext = () => setAnchor((a) => new Date(a.getFullYear(), a.getMonth() + 1, 1));
-  const goToday = () => setAnchor(new Date(today.getFullYear(), today.getMonth(), 1));
+  // What the toolbar calls the period depends on the view: the month,
+  // the week's span, or the day itself.
+  const title = useMemo(() => {
+    if (view === "day") {
+      return new Intl.DateTimeFormat(locale, { weekday: "long", day: "numeric", month: "long" }).format(anchor);
+    }
+    if (view === "week") {
+      try {
+        return new Intl.DateTimeFormat(locale, { day: "numeric", month: "short", year: "numeric" })
+          .formatRange(week[0], week[6]);
+      } catch {
+        return `${week[0].getDate()} – ${week[6].getDate()}`;
+      }
+    }
+    return new Intl.DateTimeFormat(locale, { month: "long", year: "numeric" }).format(anchor);
+  }, [view, anchor, week, locale]);
 
-  const openNewForDay = (iso) => {
+  // Prev/next move by whatever the view shows.
+  const step = (dir) =>
+    setAnchor((a) => {
+      if (view === "month") return new Date(a.getFullYear(), a.getMonth() + dir, 1);
+      const d = new Date(a);
+      d.setDate(a.getDate() + dir * (view === "week" ? 7 : 1));
+      return d;
+    });
+  const goToday = () => setAnchor(new Date());
+
+  const openNewForDay = (iso, startTime = null) => {
     setFormDefaultDate(iso);
     setEditingEntry(null);
     setDayListDate(null);
+    if (startTime) {
+      const [h] = startTime.split(":").map(Number);
+      setPrefillEntry({
+        date: iso,
+        start_time: startTime,
+        end_time: `${String(Math.min(23, h + 1)).padStart(2, "0")}:00`,
+      });
+    }
     setShowSchedule(true);
   };
   const openEditEntry = (entry) => {
-    setEditingEntry(entry);
-    setDayListDate(null);
-    setShowSchedule(true);
+    // Only schedule entries are editable here; a quiz chip belongs to the
+    // quizzes screen and the day peek offers the way there.
+    if (entry.kind === "schedule" && entry.raw) {
+      setEditingEntry(entry.raw);
+      setDayListDate(null);
+      setShowSchedule(true);
+    } else {
+      setDayListDate(entry.date);
+    }
   };
 
   const toggleKind = (key) =>
@@ -204,211 +260,110 @@ export default function PlannerView() {
     });
   const allOn = visible.size === KINDS.length;
 
+  const fallToDay = (d) => {
+    setAnchor(new Date(d));
+    pickView("day");
+  };
+
   return (
     <div className="relative max-w-[1440px] mx-auto flex flex-col lg:h-full lg:min-h-0">
-      {/* ── header ──────────────────────────────────────────────── */}
-      <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-5">
-        <div>
-          <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-2 inline-flex items-center gap-2.5">
-            <span className="w-6 h-px bg-accent" /> Scheduler
-          </p>
-          <h1 className="font-serif text-4xl font-medium text-ink leading-none">
-            {monthName} <em className="italic font-light text-accent">{anchor.getFullYear()}</em>
-          </h1>
-          <p className="text-muted mt-2 text-[14.5px]">{t("planner.subtitle")}</p>
-        </div>
-
+      {/* ── the toolbar ─────────────────────────────────────────── */}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2.5 mb-4">
         <div className="flex items-center gap-2">
           <button
-            type="button" onClick={goPrev} aria-label="Previous month"
-            className="h-9 w-9 rounded-lg border border-line hover:border-accent hover:bg-paper-warm grid place-items-center cursor-pointer transition"
-          >
-            <ChevronLeft size={15} />
-          </button>
-          <button
             type="button" onClick={goToday}
-            className="h-9 px-3 rounded-lg border border-line hover:border-accent hover:bg-paper-warm font-mono text-[10.5px] uppercase tracking-wider cursor-pointer transition"
+            className="h-9 px-3.5 rounded-lg border border-line hover:border-accent hover:bg-paper-warm font-mono text-[10.5px] uppercase tracking-wider cursor-pointer transition"
           >
             Today
           </button>
           <button
-            type="button" onClick={goNext} aria-label="Next month"
+            type="button" onClick={() => step(-1)} aria-label={`Previous ${view}`}
             className="h-9 w-9 rounded-lg border border-line hover:border-accent hover:bg-paper-warm grid place-items-center cursor-pointer transition"
           >
-            <ChevronRight size={15} />
+            <ChevronLeft size={15} className="rtl:rotate-180" />
           </button>
-          <Button className="ms-1" onClick={() => openNewForDay(todayIso)}>
+          <button
+            type="button" onClick={() => step(1)} aria-label={`Next ${view}`}
+            className="h-9 w-9 rounded-lg border border-line hover:border-accent hover:bg-paper-warm grid place-items-center cursor-pointer transition"
+          >
+            <ChevronRight size={15} className="rtl:rotate-180" />
+          </button>
+        </div>
+
+        <h1 className="font-serif text-[22px] md:text-[26px] font-medium text-ink leading-none min-w-0 truncate">
+          {view === "month" ? (
+            <>
+              {new Intl.DateTimeFormat(locale, { month: "long" }).format(anchor)}{" "}
+              <em className="italic font-light text-accent">{anchor.getFullYear()}</em>
+            </>
+          ) : title}
+        </h1>
+
+        <div className="ms-auto flex items-center gap-2">
+          <div className={s.viewSeg} role="radiogroup" aria-label="Calendar view">
+            {VIEWS.map((v) => (
+              <button
+                key={v} type="button" role="radio"
+                aria-checked={view === v}
+                data-on={view === v}
+                className={s.viewBtn}
+                onClick={() => pickView(v)}
+              >
+                {v}
+              </button>
+            ))}
+          </div>
+          <Button onClick={() => openNewForDay(view === "month" ? todayIso : isoKey(anchor))}>
             <Plus size={15} className="mr-2" /> New entry
           </Button>
         </div>
       </div>
 
-      {/* ── the shape of the month ──────────────────────────────── */}
-      <div className="rounded-2xl border border-line bg-surface/85 px-4 pt-3.5 pb-3 mb-4">
-        <div className="flex items-baseline justify-between gap-3 mb-2.5">
-          <p className="font-mono text-[9.5px] uppercase tracking-[0.14em] text-muted">
-            How the month falls
-          </p>
-          <p className="text-[11.5px] text-muted">
-            {stats.total
-              ? <>Heaviest: <span className="text-ink">
-                  {stats.busiest?.date.toLocaleDateString(locale, { weekday: "long", day: "numeric" })}
-                </span> · {stats.busiest?.events.length} items</>
-              : "Nothing scheduled yet"}
-          </p>
-        </div>
-
-        <div className={s.ribbon}>
-          {monthDays.map(({ date, key, events: evs }) => (
-            <button
-              key={key}
-              type="button"
-              className={s.ribbonDay}
-              data-today={sameYMD(date, today)}
-              data-past={date < todayStart}
-              onClick={() => setDayListDate(key)}
-              title={`${date.toLocaleDateString(locale, { weekday: "long", day: "numeric", month: "long" })} — ${evs.length} item${evs.length === 1 ? "" : "s"}`}
-              aria-label={`${date.getDate()}: ${evs.length} items`}
-            >
-              {evs.slice(0, 6).map((e, i) => (
-                <span
-                  key={e.id || i}
-                  className={s.ribbonSeg}
-                  style={{ "--seg": tintOf(e.kind), height: `${Math.max(3, (100 / ceiling) * 0.82)}%` }}
-                />
-              ))}
-            </button>
-          ))}
-        </div>
-        <div className={s.ribbonScale}>
-          <span>1</span>
-          <span>{Math.ceil(monthDays.length / 2)}</span>
-          <span>{monthDays.length}</span>
-        </div>
-      </div>
-
-      {/* ── filters ─────────────────────────────────────────────── */}
-      <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
-        <div className={s.filters}>
-          <button
-            type="button"
-            className={s.chip}
-            data-on={allOn}
-            onClick={() => setVisible(allOn ? new Set() : new Set(KINDS.map((k) => k.key)))}
-            style={{ "--tint": "var(--p-ink)" }}
-          >
-            <span className={s.chipDot} />
-            {t("planner.all")}
-            <span className={s.chipCount}>{events.length}</span>
-          </button>
-          {/* Only kinds something can actually be. Lesson plans carry no
-              date yet, so a chip for them would sit at zero forever,
-              toggling nothing — a control that cannot do anything is
-              worse than an absent one. It appears by itself the day
-              drafts start arriving with dates on them. */}
-          {KINDS.filter((k) => counts.get(k.key)).map((k) => (
-            <button
-              key={k.key}
-              type="button"
-              className={s.chip}
-              data-on={visible.has(k.key)}
-              onClick={() => toggleKind(k.key)}
-              style={{ "--tint": k.tint }}
-              aria-pressed={visible.has(k.key)}
-            >
-              <span className={s.chipDot} />
-              {k.label}
-              <span className={s.chipCount}>{counts.get(k.key) || 0}</span>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* ── calendar + rail ─────────────────────────────────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-4 lg:flex-1 lg:min-h-0">
-        <div className={s.grid}>
-          <div className={s.dowRow}>
-            {weekdayLabels.map((d, i) => <div key={i} className={s.dow}>{d}</div>)}
-          </div>
-          <div className={s.cells} style={{ gridTemplateRows: `repeat(${grid.length / 7}, minmax(0, 1fr))` }}>
-            {grid.map((d, i) => {
-              const key = isoKey(d);
-              const inMonth = d.getMonth() === anchor.getMonth();
-              const isToday = sameYMD(d, today);
-              const dayEvents = eventsByDate.get(key) || [];
-              const shown = dayEvents.slice(0, 3);
-              const overflow = dayEvents.length - shown.length;
-              const dow = d.getDay();
-
-              return (
-                <div
-                  key={i}
-                  role="button"
-                  tabIndex={0}
-                  data-tour={i === 0 ? "planner-cell" : undefined}
-                  className={s.cell}
-                  data-today={isToday}
-                  data-outside={!inMonth}
-                  data-past={!isToday && d < todayStart}
-                  data-weekend={inMonth && (dow === 0 || dow === 6)}
-                  onClick={() => setDayListDate(key)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setDayListDate(key); }
-                  }}
-                  aria-label={`${d.toLocaleDateString(locale, { weekday: "long", day: "numeric", month: "long" })}, ${dayEvents.length} items`}
-                >
-                  <div className={s.cellHead}>
-                    <span className={s.cellNum}>{d.getDate()}</span>
-                    {dayEvents.length > 0 && <span className={s.cellCount}>{dayEvents.length}</span>}
-                  </div>
-
-                  <div className={s.cellChips}>
-                    {shown.map((e) => (
-                      <span
-                        key={e.id}
-                        className={s.cellChip}
-                        style={{ "--tint": tintOf(e.kind) }}
-                        title={`${KIND_BY_KEY[e.kind]?.label || e.kind} · ${e.title}${e.time ? ` · ${e.time}` : ""}`}
-                      >
-                        {e.time ? `${e.time} ` : ""}{e.title}
-                      </span>
-                    ))}
-                    {overflow > 0 && <span className={s.cellMore}>+{overflow} more</span>}
-                  </div>
-
-                  <button
-                    type="button"
-                    className={s.cellAdd}
-                    aria-label={`Add an entry on ${d.toLocaleDateString(locale, { day: "numeric", month: "long" })}`}
-                    onClick={(ev) => { ev.stopPropagation(); openNewForDay(key); }}
-                  >
-                    <Plus size={12} />
-                  </button>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* ── one rail, three sections ───────────────────────────── */}
-        <aside className={s.rail}>
+      {/* ── sidebar + main ──────────────────────────────────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-[248px_1fr] gap-4 lg:flex-1 lg:min-h-0">
+        <aside className={`${s.sidebar} order-2 lg:order-1 hidden lg:flex`}>
           <div className={s.railSection}>
-            <p className={s.railTitle}>This month</p>
-            <div className="flex items-baseline gap-2">
-              <span className="font-serif text-[30px] leading-none text-ink">{stats.total}</span>
-              <span className="text-[12px] text-muted">
-                {stats.total === 1 ? "thing planned" : "things planned"}
-              </span>
-            </div>
-            <div className={`${s.meter} mt-3`}>
-              <span className={s.meterFill} style={{ width: `${stats.percent}%` }} />
-            </div>
-            <div className="flex items-center justify-between mt-2 font-mono text-[10px] text-muted">
-              <span className="inline-flex items-center gap-1.5">
-                <CalendarCheck2 size={11} className="text-accent" /> {stats.done} done
-              </span>
-              <span>{stats.ahead} still ahead</span>
-            </div>
+            <MiniMonth
+              anchor={anchor}
+              view={view}
+              eventsByDate={eventsByDate}
+              locale={locale}
+              onPick={(d) => setAnchor(new Date(d))}
+              onMonthStep={(dir) =>
+                setAnchor((a) => new Date(a.getFullYear(), a.getMonth() + dir, Math.min(a.getDate(), 28)))}
+            />
+          </div>
+
+          <div className={s.railSection}>
+            <p className={s.railTitle}>Calendars</p>
+            <button
+              type="button"
+              className={s.calRow}
+              data-on={allOn}
+              onClick={() => setVisible(allOn ? new Set() : new Set(KINDS.map((k) => k.key)))}
+              style={{ "--tint": "var(--p-ink)" }}
+            >
+              <span className={s.calDotSm} />
+              {t("planner.all")}
+              <span className={s.calCount}>{events.length}</span>
+            </button>
+            {/* Only kinds something can actually be — a row that toggles
+                nothing is worse than an absent one. */}
+            {KINDS.filter((k) => counts.get(k.key)).map((k) => (
+              <button
+                key={k.key}
+                type="button"
+                className={s.calRow}
+                data-on={visible.has(k.key)}
+                onClick={() => toggleKind(k.key)}
+                style={{ "--tint": k.tint }}
+                aria-pressed={visible.has(k.key)}
+              >
+                <span className={s.calDotSm} />
+                {k.label}
+                <span className={s.calCount}>{counts.get(k.key) || 0}</span>
+              </button>
+            ))}
           </div>
 
           <div className={`${s.railSection} ${s.railGrow}`}>
@@ -458,12 +413,97 @@ export default function PlannerView() {
                   <span className="flex-1">
                     <span className="text-ink font-medium">{m.verb}</span> {m.noun}
                   </span>
-                  <ArrowRight size={13} className="text-muted flex-shrink-0" />
+                  <ArrowRight size={13} className="text-muted flex-shrink-0 rtl:rotate-180" />
                 </button>
               );
             })}
+            <div className="flex items-center justify-between mt-3 pt-3 border-t border-line/60 font-mono text-[10px] text-muted">
+              <span className="inline-flex items-center gap-1.5">
+                <CalendarCheck2 size={11} className="text-accent" /> {stats.done} done
+              </span>
+              <span>{stats.ahead} ahead this month</span>
+            </div>
           </div>
         </aside>
+
+        {/* ── the main surface ───────────────────────────────────── */}
+        <div className={`${s.grid} order-1 lg:order-2`}>
+          {view === "month" ? (
+            <>
+              <div className={s.dowRow}>
+                {weekdayLabels.map((d, i) => <div key={i} className={s.dow}>{d}</div>)}
+              </div>
+              <div className={s.cells} style={{ gridTemplateRows: `repeat(${grid.length / 7}, minmax(0, 1fr))` }}>
+                {grid.map((d, i) => {
+                  const key = isoKey(d);
+                  const inMonth = d.getMonth() === anchor.getMonth();
+                  const isToday = sameYMD(d, today);
+                  const dayEvents = eventsByDate.get(key) || [];
+                  const shown = dayEvents.slice(0, 3);
+                  const overflow = dayEvents.length - shown.length;
+                  const dow = d.getDay();
+
+                  return (
+                    <div
+                      key={i}
+                      role="button"
+                      tabIndex={0}
+                      data-tour={i === 0 ? "planner-cell" : undefined}
+                      className={s.cell}
+                      data-today={isToday}
+                      data-outside={!inMonth}
+                      data-past={!isToday && d < todayStart}
+                      data-weekend={inMonth && (dow === 0 || dow === 6)}
+                      onClick={() => setDayListDate(key)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setDayListDate(key); }
+                      }}
+                      aria-label={`${d.toLocaleDateString(locale, { weekday: "long", day: "numeric", month: "long" })}, ${dayEvents.length} items`}
+                    >
+                      <div className={s.cellHead}>
+                        <span className={s.cellNum}>{d.getDate()}</span>
+                        {dayEvents.length > 0 && <span className={s.cellCount}>{dayEvents.length}</span>}
+                      </div>
+
+                      <div className={s.cellChips}>
+                        {shown.map((e) => (
+                          <span
+                            key={e.id}
+                            className={s.cellChip}
+                            style={{ "--tint": tintOf(e.kind) }}
+                            title={`${KIND_BY_KEY[e.kind]?.label || e.kind} · ${e.title}${e.time ? ` · ${e.time}` : ""}`}
+                          >
+                            {e.time ? `${e.time} ` : ""}{e.title}
+                          </span>
+                        ))}
+                        {overflow > 0 && <span className={s.cellMore}>+{overflow} more</span>}
+                      </div>
+
+                      <button
+                        type="button"
+                        className={s.cellAdd}
+                        aria-label={`Add an entry on ${d.toLocaleDateString(locale, { day: "numeric", month: "long" })}`}
+                        onClick={(ev) => { ev.stopPropagation(); openNewForDay(key); }}
+                      >
+                        <Plus size={12} />
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          ) : (
+            <WeekGrid
+              days={view === "week" ? week : [anchor]}
+              eventsByDate={eventsByDate}
+              locale={locale}
+              onSlotClick={(iso, time) => openNewForDay(iso, time)}
+              onEventClick={openEditEntry}
+              onAllDayClick={(iso) => setDayListDate(iso)}
+              onDayClick={fallToDay}
+            />
+          )}
+        </div>
       </div>
 
       {dayListDate && (
