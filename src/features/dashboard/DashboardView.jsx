@@ -42,18 +42,38 @@ const QUICK = [
 
 // Tailwind needs the class names written out — a template string span
 // would be purged from the build.
+// A quarter- or third-width tile only exists once the page is wide
+// enough to divide into one. The studio rail eats a quarter of a 1024px
+// screen, where lg:col-span-3 measured 161px — narrower than the header
+// controls inside it, which spilled 20px out of the card. Both narrow
+// rungs therefore fall back to half a row below xl.
 const SPAN = {
-  3: "lg:col-span-3", 4: "lg:col-span-4", 6: "lg:col-span-6", 12: "lg:col-span-12",
+  3: "lg:col-span-6 xl:col-span-3",
+  4: "lg:col-span-6 xl:col-span-4",
+  6: "lg:col-span-6",
+  12: "lg:col-span-12",
 };
+// Below this the month grid gives seven columns of under 30px: a grid
+// you can see but not read. Measured on the tile, so it is the same
+// judgement at every viewport and every span.
+const CALENDAR_MONTH_MIN = 270;
+// Below this a chart stops being drawn small and starts being drawn
+// differently — fewer weeks, shorter bars, one label. Set so the S rung
+// of the chart ladder actually reaches it: a span of 3 measures ~305px
+// on a 1600 screen and ~224px on a 1280 one, and eight columns of 30px
+// put the 8.5px date labels into each other.
+const CHART_COMPACT_MAX = 340;
+
 // Labelled by POSITION in a widget's own ladder, not by column count.
 // A shared span→label map broke as soon as one widget had a different
 // ladder: the calendar's 6 is its largest while the rhythm's 6 is its
 // middle, and one map cannot call the same number both L and M.
 const SIZE_LABELS = ["S", "M", "L"];
 
-function nowLesson(lessons) {
-  if (!lessons?.length) return { mode: "clear" };
-  const now = new Date();
+function nowLesson(lessons, now) {
+  // No clock yet means the server pass: say nothing about "right now"
+  // rather than saying the server's version of it.
+  if (!now || !lessons?.length) return { mode: "clear" };
   const m = now.getHours() * 60 + now.getMinutes();
   let next = null, delta = Infinity;
   for (const l of lessons) {
@@ -68,8 +88,11 @@ function nowLesson(lessons) {
 
 function Head({ eyebrow, title, action, onAction }) {
   return (
-    <div className="flex items-start justify-between gap-3 mb-4">
-      <div>
+    // Wraps rather than spills: a header action pushed past the card
+    // edge is the one break a narrow tile produces reliably, and it
+    // reads as the card being torn rather than the label being long.
+    <div className="flex items-start justify-between gap-x-3 gap-y-1 mb-4 flex-wrap">
+      <div className="min-w-0">
         {eyebrow && <p className={`${s.eyebrow} mb-1`}>{eyebrow}</p>}
         <h2 className={s.title}>{title}</h2>
       </div>
@@ -82,6 +105,63 @@ function Head({ eyebrow, title, action, onAction }) {
           {action} <ArrowRight size={12} className="rtl:rotate-180" />
         </button>
       )}
+    </div>
+  );
+}
+
+/**
+ * One tile in the flow grid, measuring itself.
+ *
+ * Which drawing a widget uses is a question about PIXELS, not about
+ * grid columns: a span of 4 is 384px on a 1440 screen and 220px on a
+ * 1024 one, and only one of those fits a month grid. So the tile
+ * reports its own width and the widget chooses from that. This also
+ * decides `self-start` — a tile that fell back to its compact drawing
+ * is short, and stretching it to a tall neighbour leaves dead space
+ * that reads as something failing to load.
+ */
+function FlowTile({ widget, span, className, editing, prefs, onChange, drag, render, onNode }) {
+  const el = useRef(null);
+  const [width, setWidth] = useState(null);
+
+  useLayoutEffect(() => {
+    const node = el.current;
+    if (!node) return;
+    setWidth(node.getBoundingClientRect().width);
+    if (typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(([e]) => setWidth(e.contentRect.width));
+    ro.observe(node);
+    return () => ro.disconnect();
+  }, []);
+
+  const tile = render(widget.key, width);
+  // A tile showing its compact drawing is SHORT — a week strip is ~120px
+  // and five stubby bars are less. Stretched to a tall neighbour like
+  // "Needs you", the remaining 300px of card is dead space that reads as
+  // something failing to load, so these opt out of the row's height.
+  // The calendar is always its own height: a month is however many rows
+  // it is, and stretching it to match a seven-item task list pads the
+  // card with 300px of nothing. The charts only opt out when compact,
+  // because at full size their bars are meant to sit on the row's
+  // shared baseline.
+  const short =
+    widget.key === "calendar" ||
+    (width != null &&
+      (widget.key === "rhythm" || widget.key === "kinds") &&
+      width < CHART_COMPACT_MAX);
+
+  return (
+    <div
+      className={`${className} ${short ? "self-start" : ""}`}
+      data-widget-key={widget.key}
+      ref={(node) => {
+        el.current = node;
+        onNode(widget.key, node);
+      }}
+    >
+      {editing
+        ? <EditFrame widget={widget.key} prefs={prefs} onChange={onChange} drag={drag}>{tile}</EditFrame>
+        : tile}
     </div>
   );
 }
@@ -408,14 +488,29 @@ export default function DashboardView({ onJump }) {
   const counts = data?.counts || {};
   const plan = data?.plan || null;
   const calendar = data?.calendar || [];
-  const status = useMemo(() => nowLesson(today), [today]);
+  // The clock is the client's, and only the client's. Rendered during
+  // SSR these two lines take the SERVER's hour and timezone, which is a
+  // different afternoon from the teacher's — React then reports a
+  // hydration mismatch and throws away the tree it just built. `now` is
+  // null until mount, so the first paint commits to no time at all
+  // rather than to the wrong one.
+  const [now, setNow] = useState(null);
+  useEffect(() => {
+    setNow(new Date());
+    // Cross midday, midnight or a lesson boundary with the tab open and
+    // the greeting should follow rather than stay stuck on "morning".
+    const id = setInterval(() => setNow(new Date()), 60_000);
+    return () => clearInterval(id);
+  }, []);
+  const status = useMemo(() => nowLesson(today, now), [today, now]);
   const isNew = !loading && !error && (counts.total ?? 0) === 0 && today.length === 0;
 
-  const hour = new Date().getHours();
-  const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
-  const dateLine = new Date().toLocaleDateString(undefined, {
-    weekday: "long", month: "long", day: "numeric",
-  });
+  const hour = now?.getHours() ?? null;
+  const greeting =
+    hour == null ? "Hello" : hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+  const dateLine = now
+    ? now.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })
+    : "";
 
   let headline, sub;
   if (status.mode === "live") {
@@ -443,7 +538,10 @@ export default function DashboardView({ onJump }) {
   }[k]);
 
   /** One tile's content, by key. The edit frame wraps whatever this returns. */
-  const renderWidget = (key) => {
+  const renderWidget = (key, width = null) => {
+    // A null width is a tile that has not measured yet (first paint) or
+    // the drag clone: assume roomy, so nothing flashes compact.
+    const chartCompact = width != null && width < CHART_COMPACT_MAX;
     switch (key) {
       case "stats":
         return (
@@ -465,12 +563,15 @@ export default function DashboardView({ onJump }) {
       case "rhythm":
         return (
           <section className={`${s.glass} p-5 md:p-6 h-full flex flex-col`}>
-            <Head eyebrow="Last eight weeks" title={<>Your <em>rhythm</em></>} />
-            <div className="flex-1 min-h-[150px] flex flex-col justify-end">
-              {loading ? <Bar w="w-full" h="h-28" />
+            <Head
+              eyebrow={chartCompact ? "Last five weeks" : "Last eight weeks"}
+              title={<>Your <em>rhythm</em></>}
+            />
+            <div className={`flex-1 flex flex-col justify-end ${chartCompact ? "min-h-[104px]" : "min-h-[150px]"}`}>
+              {loading ? <Bar w="w-full" h={chartCompact ? "h-20" : "h-28"} />
                 : prefs.charts.rhythm === "line"
-                  ? <LineTrend data={data?.activity || []} />
-                  : <PillBars data={data?.activity || []} />}
+                  ? <LineTrend data={data?.activity || []} compact={chartCompact} />
+                  : <PillBars data={data?.activity || []} compact={chartCompact} />}
             </div>
           </section>
         );
@@ -478,8 +579,10 @@ export default function DashboardView({ onJump }) {
         // At its smallest the calendar shows the WEEK, not a shrunken
         // month. Seven columns in a quarter-width tile give ~30px cells,
         // which is a grid you can see but not read — and a calendar you
-        // cannot read is decoration.
-        const compact = (prefs.sizes.calendar ?? 4) <= 3;
+        // cannot read is decoration. The threshold is the tile's own
+        // width, not its span: span 4 is 384px at 1440 and 220px at
+        // 1024, and only the first can hold a month.
+        const compact = width != null && width < CALENDAR_MONTH_MIN;
         return (
           <section className={`${s.glass} p-5 h-full`}>
             <Head
@@ -521,8 +624,8 @@ export default function DashboardView({ onJump }) {
             {loading
               ? <div className="space-y-3">{[0, 1, 2, 3].map((i) => <Bar key={i} w="w-full" h="h-7" />)}</div>
               : prefs.charts.kinds === "donut"
-                ? <KindDonut data={data?.by_type || []} onPick={kindsPick} />
-                : <TypeBreakdown data={data?.by_type || []} onPick={kindsPick} />}
+                ? <KindDonut data={data?.by_type || []} onPick={kindsPick} compact={chartCompact} />
+                : <TypeBreakdown data={data?.by_type || []} onPick={kindsPick} compact={chartCompact} />}
           </section>
         );
       default:
@@ -631,6 +734,17 @@ export default function DashboardView({ onJump }) {
                           {plan.days_left === 1 ? "day left" : "days left"}
                           {plan.status === "trialing" ? " — then choose a plan" : ""}
                         </p>
+                        {/* The date the number is counting to. A bare
+                            countdown is unfalsifiable — this is what
+                            makes it checkable against a bank statement. */}
+                        {plan.ends_at && (
+                          <p className={`${s.inkMuted} text-[11px] mt-1 opacity-75`}>
+                            {plan.status === "trialing" ? "Ends " : "Renews "}
+                            {new Date(plan.ends_at).toLocaleDateString(undefined, {
+                              day: "numeric", month: "long",
+                            })}
+                          </p>
+                        )}
                       </div>
                       {plan.credits != null && (
                         <Ring value={plan.credits} max={plan.allowance || 1} size={92}>
@@ -732,34 +846,27 @@ export default function DashboardView({ onJump }) {
           style={{ width: dragRect.current.width, height: dragRect.current.height }}
           aria-hidden="true"
         >
-          {renderWidget(dragKey)}
+          {renderWidget(dragKey, dragRect.current?.width ?? null)}
         </div>,
         document.body
       )}
 
       {/* ── the flow grid: everything else, at the teacher's sizes ──── */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-        {flowWidgets.map((w) => {
-          const span = w.sizes ? prefs.sizes[w.key] ?? w.size : 12;
-          const tile = renderWidget(w.key);
-          // A short tile should not be stretched to a tall neighbour's
-          // height. The week strip is ~120px of content; forced to match
-          // the rhythm chart beside it, the rest of the card is dead
-          // space that reads as something failing to load.
-          const selfStart = w.key === "calendar" && span <= 3 ? "self-start" : "";
-          return (
-            <div
-              key={w.key}
-              className={`${SPAN[span] || "lg:col-span-12"} ${selfStart}`}
-              data-widget-key={w.key}
-              ref={(el) => { if (el) tileNodes.current.set(w.key, el); else tileNodes.current.delete(w.key); }}
-            >
-              {editing
-                ? <EditFrame widget={w.key} prefs={prefs} onChange={changePrefs} drag={drag}>{tile}</EditFrame>
-                : tile}
-            </div>
-          );
-        })}
+        {flowWidgets.map((w) => (
+          <FlowTile
+            key={w.key}
+            widget={w}
+            span={w.sizes ? prefs.sizes[w.key] ?? w.size : 12}
+            className={SPAN[w.sizes ? prefs.sizes[w.key] ?? w.size : 12] || "lg:col-span-12"}
+            editing={editing}
+            prefs={prefs}
+            onChange={changePrefs}
+            drag={drag}
+            render={renderWidget}
+            onNode={(k, node) => { if (node) tileNodes.current.set(k, node); else tileNodes.current.delete(k); }}
+          />
+        ))}
       </div>
     </div>
   );

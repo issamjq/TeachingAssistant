@@ -205,6 +205,12 @@
   gap: 8px;
   min-height: 148px;
 }
+/* The chart's smallest drawing: shorter, tighter, and with the dates
+   dimmed to near-silence so five columns of 30px do not read as a wall
+   of colliding text. */
+.pillRow[data-compact] { gap: 5px; min-height: 100px; }
+.pillRow[data-compact] .pill,
+.pillRow[data-compact] .pillGhost { max-width: 22px; }
 .pillCol {
   flex: 1;
   min-width: 0;
@@ -230,6 +236,9 @@
   width: 100%;
   max-width: 34px;
   height: 118px;   /* matches the tallest pill; % would need a definite parent */
+}
+.pillGhost[data-compact] {
+  height: 76px;
   border-radius: 999px;
   border: 1.5px dashed var(--p-line-strong);
   background: transparent;
@@ -243,6 +252,9 @@
   white-space: nowrap;
 }
 .pillLabel[data-now="true"] { color: var(--p-accent); font-weight: 700; }
+/* Kept in the DOM for the screen reader and the shape of the column,
+   but visually quiet: at this width only "now" is legible anyway. */
+.pillLabel[data-quiet] { opacity: 0; }
 @media (prefers-reduced-motion: reduce) { .pill { transition: none; } }
 
 /* ── ring ─────────────────────────────────────────────────────────── */

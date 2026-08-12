@@ -1,6 +1,14 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import ThemeSync from "@/shared/theme/ThemeSync";
+import {
+  STORAGE_KEY as A11Y_KEY,
+  DEFAULTS as A11Y_DEFAULTS,
+  ZOOMS,
+  LETTER,
+  WORD,
+  LINE,
+} from "@/shared/a11y/settings";
 // Root layout — replaces index.html.
 //
 // This is a SERVER component and must stay one. Every client-side concern
@@ -78,6 +86,50 @@ const THEME_BOOTSTRAP = `
     (t === "system" && window.matchMedia &&
      matchMedia("(prefers-color-scheme: dark)").matches);
   if (dark) document.documentElement.dataset.theme = "dark";
+}catch(e){}})();
+`;
+
+// The accessibility settings, applied before paint.
+//
+// The panel that writes them lives inside the assistant's Accessibility
+// tab, so it is only mounted while that panel is open — which meant a
+// teacher's saved text size, readable font, contrast or motion-stop was
+// applied when set and then silently dropped on every page load. This
+// script is what makes the setting survive a reload, and it runs before
+// paint so large text never flashes small first.
+//
+// The numbers come from src/shared/a11y/settings.js so the script and
+// the panel cannot drift apart; only the dozen lines of DOM writing are
+// restated here, because an inline boot script cannot import.
+const A11Y_BOOTSTRAP = `
+(function(){try{
+  var r = document.getElementById("root");
+  if (!r) return;
+  var d = ${JSON.stringify(A11Y_DEFAULTS)};
+  var raw = localStorage.getItem(${JSON.stringify(A11Y_KEY)});
+  var s = raw ? Object.assign({}, d, JSON.parse(raw)) : d;
+  var Z = ${JSON.stringify(ZOOMS)}, LT = ${JSON.stringify(LETTER)},
+      W = ${JSON.stringify(WORD)}, LN = ${JSON.stringify(LINE)};
+  var st = r.style;
+  st.setProperty("--a11y-zoom", String(Z[s.textStep] || 1));
+  st.setProperty("--a11y-letter", (LT[s.letterStep] || 0) + "em");
+  st.setProperty("--a11y-word", (W[s.wordStep] || 0) + "em");
+  st.setProperty("--a11y-line", String(LN[s.lineStep] || ${LINE[0]}));
+  var f = [];
+  if (s.colorBlind && s.colorBlind !== "off") f.push("url(#a11y-cb-" + s.colorBlind + ")");
+  if (s.grayscale) f.push("grayscale(1)");
+  else if (s.lowSat) f.push("saturate(0.45)");
+  if (s.contrast) f.push("contrast(1.32)");
+  st.filter = f.join(" ");
+  var c = r.classList;
+  c.toggle("a11y-zoom-on", s.textStep > 0);
+  c.toggle("a11y-readable", !!s.readableFont);
+  c.toggle("a11y-spaced", s.letterStep > 0 || s.wordStep > 0 || s.lineStep > 0);
+  c.toggle("a11y-contrast", !!s.contrast);
+  c.toggle("a11y-big-cursor", !!s.bigCursor);
+  c.toggle("a11y-hl-links", !!s.highlightLinks);
+  c.toggle("a11y-stop-anim", !!s.stopAnim);
+  c.toggle("a11y-read-aloud", !!s.readAloud);
 }catch(e){}})();
 `;
 
@@ -171,7 +223,14 @@ review, the verdict, and DESIGN.md
           }}
         />
         <ThemeSync />
-        <div id="root">{children}</div>
+        {/* suppressHydrationWarning for the same reason <html> carries
+            it: A11Y_BOOTSTRAP writes this element's inline style and
+            classes before React hydrates, so the markup React handed the
+            server and the markup it finds are meant to differ here. */}
+        <div id="root" suppressHydrationWarning>{children}</div>
+        {/* After #root exists — a head script could not find it — and
+            still before paint. */}
+        <script dangerouslySetInnerHTML={{ __html: A11Y_BOOTSTRAP }} />
       </body>
     </html>
   );

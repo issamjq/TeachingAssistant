@@ -10,6 +10,12 @@ import {
   Accessibility, X, Type, Eye, Volume2, RotateCcw,
   MousePointer2, Link2, Pause, Contrast, Droplet, Minus, Plus,
 } from "lucide-react";
+import {
+  STORAGE_KEY as A11Y_KEY,
+  DEFAULTS,
+  loadSettings,
+  applyToRoot,
+} from "@/shared/a11y/settings";
 import { useI18n } from "../lib/i18n";
 
 // Native accessibility toolbar. Floating launcher + panel, portaled to
@@ -17,7 +23,6 @@ import { useI18n } from "../lib/i18n";
 // visual filters (zoom / grayscale / contrast) we apply to #root.
 // Preferences persist per-device in localStorage.
 
-const STORAGE_KEY = "murchid.a11y";
 const THEME_KEY = "murchid.theme";
 
 /** "light" | "system" | "dark". Nothing stored means light: that is the
@@ -47,67 +52,6 @@ function writeTheme(next) {
   } catch {
     /* a locked-down browser still gets the change, just not the memory */
   }
-}
-
-const DEFAULTS = {
-  textStep: 0,        // 0..4  → zoom 1, 1.1, 1.2, 1.35, 1.5
-  readableFont: false,
-  letterStep: 0,      // 0..3
-  wordStep: 0,        // 0..3
-  lineStep: 0,        // 0..3
-  contrast: false,
-  grayscale: false,
-  lowSat: false,
-  colorBlind: "off",   // off | prot | deut | trit
-  bigCursor: false,
-  highlightLinks: false,
-  stopAnim: false,
-  readAloud: false,
-};
-
-const ZOOMS = [1, 1.1, 1.2, 1.35, 1.5];
-const LETTER = [0, 0.06, 0.12, 0.2];      // em
-const WORD = [0, 0.1, 0.22, 0.4];         // em
-const LINE = [1.5, 1.7, 2, 2.4];          // unitless (applied when step>0)
-
-function loadSettings() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return { ...DEFAULTS };
-    return { ...DEFAULTS, ...JSON.parse(raw) };
-  } catch {
-    return { ...DEFAULTS };
-  }
-}
-
-function applyToRoot(s) {
-  const root = document.getElementById("root");
-  if (!root) return;
-  const st = root.style;
-  st.setProperty("--a11y-zoom", String(ZOOMS[s.textStep] || 1));
-  st.setProperty("--a11y-letter", `${LETTER[s.letterStep] || 0}em`);
-  st.setProperty("--a11y-word", `${WORD[s.wordStep] || 0}em`);
-  st.setProperty("--a11y-line", String(LINE[s.lineStep] || 1.5));
-
-  // Combine every colour transform into ONE inline filter so a
-  // colour-blind SVG filter can stack with contrast/grayscale instead
-  // of competing class rules clobbering each other.
-  const f = [];
-  if (s.colorBlind && s.colorBlind !== "off") f.push(`url(#a11y-cb-${s.colorBlind})`);
-  if (s.grayscale) f.push("grayscale(1)");
-  else if (s.lowSat) f.push("saturate(0.45)");
-  if (s.contrast) f.push("contrast(1.32)");
-  st.filter = f.join(" ");
-
-  const cl = root.classList;
-  cl.toggle("a11y-zoom-on", s.textStep > 0);
-  cl.toggle("a11y-readable", s.readableFont);
-  cl.toggle("a11y-spaced", s.letterStep > 0 || s.wordStep > 0 || s.lineStep > 0);
-  cl.toggle("a11y-contrast", s.contrast);
-  cl.toggle("a11y-big-cursor", s.bigCursor);
-  cl.toggle("a11y-hl-links", s.highlightLinks);
-  cl.toggle("a11y-stop-anim", s.stopAnim);
-  cl.toggle("a11y-read-aloud", s.readAloud);
 }
 
 const isDefault = (s) =>
@@ -158,7 +102,7 @@ export default function AccessibilityWidget({ embedded = false, bottomOffset = 0
   // land here, so the panel and the page update together.
   useEffect(() => {
     const onStorage = (e) => {
-      if (e.key && e.key !== STORAGE_KEY) return;
+      if (e.key && e.key !== A11Y_KEY) return;
       setS(loadSettings());
     };
     window.addEventListener("storage", onStorage);
@@ -166,7 +110,7 @@ export default function AccessibilityWidget({ embedded = false, bottomOffset = 0
   }, []);
 
   useEffect(() => {
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(s)); } catch { /* ignore */ }
+    try { localStorage.setItem(A11Y_KEY, JSON.stringify(s)); } catch { /* ignore */ }
     applyToRoot(s);
   }, [s]);
 

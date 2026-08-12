@@ -31,7 +31,15 @@ export const WIDGETS = [
   { key: "hero",     label: "Greeting & what's next", locked: true },
   { key: "runway",   label: "Plan & credits",         default: true },
   { key: "stats",    label: "Big numbers",            default: true,  sizes: [6, 12], size: 12 },
-  { key: "rhythm",   label: "Work per week",          default: true,  sizes: [4, 6, 12], size: 6 },
+  // The charts carry the calendar's ladder now. A bar chart of eight
+  // weeks stretched across the full page was scale without information
+  // — the same eight numbers, further apart — so the full-width rung is
+  // gone, every rung slid down, and the new bottom rung is a different
+  // DRAWING rather than a squeezed one: five weeks, shorter bars, one
+  // label. Which drawing appears is decided by the tile's measured
+  // width, not by the span, so it is the same judgement at 1024 as at
+  // 1728. See CHART_COMPACT_MAX in DashboardView.
+  { key: "rhythm",   label: "Work per week",          default: true,  sizes: [3, 4, 6], size: 4 },
   // The calendar's own ladder, one notch below everything else. A full
   // month grid at half the page was more room than a month needs, so the
   // old L is gone and the rungs slid down — and the new bottom rung is a
@@ -40,7 +48,7 @@ export const WIDGETS = [
   { key: "calendar", label: "Calendar",               default: true,  sizes: [3, 4, 6], size: 4 },
   { key: "tasks",    label: "Needs you",              default: true,  sizes: [4, 6, 12], size: 6 },
   { key: "week",     label: "This week's lessons",    default: false, sizes: [4, 6, 12], size: 6 },
-  { key: "kinds",    label: "Library by kind",        default: false, sizes: [4, 6, 12], size: 6 },
+  { key: "kinds",    label: "Library by kind",        default: false, sizes: [3, 4, 6], size: 4 },
 ];
 
 /** The chart styles a widget can switch between, from its edit chrome. */

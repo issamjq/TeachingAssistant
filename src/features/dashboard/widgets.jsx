@@ -29,7 +29,13 @@ const DOW = ["M", "T", "W", "T", "F", "S", "S"];
  * bar reads as a rendering gap, a dashed one reads as "this week
  * existed and held nothing".
  */
-export function PillBars({ data = [] }) {
+export function PillBars({ data = [], compact = false }) {
+  // Compact is a different drawing, not a scaled one: eight columns in a
+  // 210px tile give 22px each, where the date labels collide and the
+  // pills become tally marks. Five weeks, shorter bars, and only the
+  // current week labelled keeps every element at a size it can be read
+  // at — the chart answers "is it going up" either way.
+  if (compact) data = data.slice(-5);
   const max = Math.max(1, ...data.map((d) => d.n));
   const total = data.reduce((a, d) => a + d.n, 0);
 
@@ -50,6 +56,7 @@ export function PillBars({ data = [] }) {
     <>
       <div
         className={s.pillRow}
+        data-compact={compact || undefined}
         role="img"
         aria-label={`Work created per week over the last ${data.length} weeks, ${total} items in total.`}
       >
@@ -58,7 +65,7 @@ export function PillBars({ data = [] }) {
           return (
             <div key={d.week} className={s.pillCol}>
               {d.n === 0 ? (
-                <div className={s.pillGhost} aria-hidden="true" />
+                <div className={s.pillGhost} data-compact={compact || undefined} aria-hidden="true" />
               ) : (
                 <div
                   className={s.pill}
@@ -68,11 +75,13 @@ export function PillBars({ data = [] }) {
                   // wrapper broke that chain — the bars silently rendered
                   // at zero. A pixel height cannot be orphaned. The floor
                   // keeps one item visibly a pill, not a dot.
-                  style={{ height: `${Math.max(20, (d.n / max) * 118)}px` }}
+                  style={{ height: `${Math.max(compact ? 14 : 20, (d.n / max) * (compact ? 76 : 118))}px` }}
                   aria-hidden="true"
                 />
               )}
-              <span className={s.pillLabel} data-now={now}>{now ? "now" : label(d.week)}</span>
+              <span className={s.pillLabel} data-now={now} data-quiet={compact && !now ? "" : undefined}>
+                {now ? "now" : label(d.week)}
+              </span>
             </div>
           );
         })}
@@ -319,7 +328,7 @@ export function WeekStrip({ entries = [], onPick }) {
 /* ── library breakdown ────────────────────────────────────────────── */
 
 /** Horizontal bars, sorted descending — the ranking is the point. */
-export function TypeBreakdown({ data = [], onPick }) {
+export function TypeBreakdown({ data = [], onPick, compact = false }) {
   const rows = [...data].sort((a, b) => b.n - a.n);
   const max = Math.max(1, ...rows.map((r) => r.n));
   const total = rows.reduce((a, r) => a + r.n, 0);
@@ -329,13 +338,13 @@ export function TypeBreakdown({ data = [], onPick }) {
   }
 
   return (
-    <ul className="space-y-2.5">
+    <ul className={compact ? "space-y-1.5" : "space-y-2.5"}>
       {rows.map((r) => (
         <li key={r.key}>
           <button type="button" onClick={() => onPick?.(r.key)} className="w-full text-start group cursor-pointer">
-            <div className="flex items-baseline justify-between gap-3 mb-1.5">
-              <span className="text-[13px] text-ink group-hover:text-accent transition-colors">{r.label}</span>
-              <span className="text-[13px] tabular-nums text-ink-soft">{r.n}</span>
+            <div className={`flex items-baseline justify-between gap-2 ${compact ? "mb-1" : "mb-1.5"}`}>
+              <span className={`${compact ? "text-[12px]" : "text-[13px]"} text-ink group-hover:text-accent transition-colors truncate`}>{r.label}</span>
+              <span className={`${compact ? "text-[12px]" : "text-[13px]"} tabular-nums text-ink-soft shrink-0`}>{r.n}</span>
             </div>
             <div className={s.barTrack}>
               <div className={s.barFill} style={{ width: `${(r.n / max) * 100}%` }} />
@@ -404,7 +413,8 @@ export function KhatimMark({ className }) {
  * pills; the pills answer "which week held what". Both are honest, so
  * the teacher picks.
  */
-export function LineTrend({ data = [] }) {
+export function LineTrend({ data = [], compact = false }) {
+  if (compact) data = data.slice(-5);
   const total = data.reduce((a, d) => a + d.n, 0);
   if (!total) {
     return (
@@ -413,7 +423,7 @@ export function LineTrend({ data = [] }) {
       </p>
     );
   }
-  const w = 320, h = 110, pad = 8;
+  const w = 320, h = compact ? 74 : 110, pad = 8;
   const max = Math.max(1, ...data.map((d) => d.n));
   const pts = data.map((d, i) => [
     pad + (i / Math.max(1, data.length - 1)) * (w - pad * 2),
@@ -453,14 +463,17 @@ const DONUT_TONES = [
 ];
 
 /** The library as proportions rather than ranks. */
-export function KindDonut({ data = [], onPick }) {
+export function KindDonut({ data = [], onPick, compact = false }) {
   const rows = [...data].filter((r) => r.n > 0).sort((a, b) => b.n - a.n);
   const total = rows.reduce((a, r) => a + r.n, 0);
   if (!total) {
     return <p className="text-sm text-muted py-4">Your library is empty. Anything you make lands here.</p>;
   }
 
-  const size = 132, stroke = 16;
+  // A 132px ring beside a 130px legend needs 290px to sit on one line.
+  // Under that the flex wraps and the ring dominates a tile it should
+  // be summarising, so the compact drawing shrinks the ring instead.
+  const size = compact ? 92 : 132, stroke = compact ? 12 : 16;
   const r = (size - stroke) / 2;
   const c = 2 * Math.PI * r;
   let acc = 0;
@@ -472,7 +485,7 @@ export function KindDonut({ data = [], onPick }) {
   });
 
   return (
-    <div className="flex items-center gap-5 flex-wrap">
+    <div className={`flex items-center flex-wrap ${compact ? "gap-3" : "gap-5"}`}>
       <div style={{ position: "relative", width: size, height: size, flexShrink: 0 }}>
         <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden="true">
           {segs.map((sg) => (
@@ -485,22 +498,22 @@ export function KindDonut({ data = [], onPick }) {
         </svg>
         <div style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center" }}>
           <span className="text-center leading-none">
-            <span className="block font-serif text-[26px] text-ink">{total}</span>
+            <span className={`block font-serif ${compact ? "text-[19px]" : "text-[26px]"} text-ink`}>{total}</span>
             <span className="block text-[9px] font-mono uppercase tracking-widest text-muted mt-1">items</span>
           </span>
         </div>
       </div>
-      <ul className="space-y-1.5 min-w-[130px] flex-1">
+      <ul className={`space-y-1.5 flex-1 ${compact ? "min-w-[112px]" : "min-w-[130px]"}`}>
         {segs.map((sg) => (
           <li key={sg.key}>
             <button type="button" onClick={() => onPick?.(sg.key)}
                     className="flex items-center gap-2.5 w-full text-start group cursor-pointer">
               <span aria-hidden="true"
                     style={{ width: 9, height: 9, borderRadius: 3, background: sg.tone, flexShrink: 0 }} />
-              <span className="text-[12.5px] text-ink group-hover:text-accent transition-colors flex-1">
+              <span className="text-[12.5px] text-ink group-hover:text-accent transition-colors flex-1 min-w-0 truncate">
                 {sg.label}
               </span>
-              <span className="text-[12.5px] tabular-nums text-ink-soft">{sg.n}</span>
+              <span className="text-[12.5px] tabular-nums text-ink-soft shrink-0">{sg.n}</span>
             </button>
           </li>
         ))}
