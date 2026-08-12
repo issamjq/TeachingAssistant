@@ -394,6 +394,7 @@ export function TeachingSkillsRoute() {
 
             <div className={s.stageRow}>
             <div className={s.stage} key={step}>
+              <div className={s.stageInner}>
               {step === 0 && maxStep === 0 && <p className={s.stageIntro}>{WELCOME}</p>}
               <p className={s.eyebrow}>{QUESTIONS[step].heading}</p>
               <h2 className={s.stageQuestion}>{QUESTIONS[step].ask}</h2>
@@ -455,6 +456,7 @@ export function TeachingSkillsRoute() {
                     <ArrowUp size={16} />
                   </button>
                 </div>
+              </div>
               </div>
             </div>
 
