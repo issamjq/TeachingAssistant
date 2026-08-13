@@ -14,7 +14,7 @@
 // bootstrap, and the privileged consoles. Those keep the same behaviour
 // they always had, including the single-device session header.
 
-import { API_BASE } from "@/config/env";
+import { apiBase } from "./apiBase";
 
 export type HttpMethod = "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
 
@@ -162,7 +162,7 @@ export async function api<TResponse = unknown, TBody = unknown>(
   // out. A mismatch means the account signed in elsewhere.
   if (sessionId) headers["X-Session-Id"] = sessionId;
 
-  const res = await fetch(API_BASE + path, {
+  const res = await fetch(apiBase() + path, {
     method,
     headers: Object.keys(headers).length ? headers : undefined,
     body: body ? JSON.stringify(body) : undefined,

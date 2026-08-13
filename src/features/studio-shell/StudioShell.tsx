@@ -47,6 +47,7 @@ import type { TranslationKey } from "@/shared/i18n";
 import { useAccount, clearAccount, updateProfile } from "@/lib/account";
 import { readStorage, writeStorage } from "@/shared/lib/storage";
 import type { Role } from "@/shared/types/domain";
+import dynamic from "next/dynamic";
 import AccountMenu from "@/views/AccountMenu";
 import HelpPopover from "@/views/HelpPopover";
 import MurchidLogo from "@/components/MurchidLogo";
@@ -55,6 +56,7 @@ import TeachingRail from "@/views/TeachingRail";
 import DeviceNotice from "./DeviceNotice";
 import { ContextPanelRegion, useContextPanelState } from "@/shared/shell/ContextPanel";
 import { useMediaQuery } from "@/shared/hooks/useMediaQuery";
+import { ALLOW_API_OVERRIDE } from "@/config/env";
 import {
   NAV_BY_ROLE,
   DEFAULT_ROUTE,
@@ -64,6 +66,15 @@ import {
 } from "@/config/nav";
 
 const SIDEBAR_COLLAPSED_KEY = "murchid.sidebar.collapsed";
+
+// Preview builds only. A lazy chunk, so production never fetches it: the
+// flag inlines to `false`, the chip never renders, and an unrendered
+// dynamic import is never requested. The override functions themselves
+// hard-return on the same flag, so the panel is not the security
+// boundary — see src/shared/lib/apiBase.ts.
+const DevApiEndpoint = ALLOW_API_OVERRIDE
+  ? dynamic(() => import("./DevApiEndpoint"), { ssr: false })
+  : () => null;
 
 // Semantic key → icon. Letters were placeholders from before the nav
 // had a design; an icon says what a place IS before the label is read,
@@ -368,6 +379,8 @@ export default function StudioShell({ children }: { children: React.ReactNode })
           ));
         })()}
       </nav>
+
+      {ALLOW_API_OVERRIDE && <DevApiEndpoint />}
 
       <div className="relative">
         <button

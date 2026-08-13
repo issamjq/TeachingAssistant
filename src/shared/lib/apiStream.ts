@@ -24,7 +24,7 @@
 // arrive as an event inside a 200. Treating only !res.ok as failure
 // would show a teacher a silent, empty, apparently-successful answer.
 // =====================================================================
-import { API_BASE } from "@/config/env";
+import { apiBase } from "./apiBase";
 import { ApiError } from "./apiClient";
 
 export interface StreamEvent {
@@ -65,7 +65,7 @@ export async function streamSSE(
   const { getIdToken } = await import("@/lib/supabaseAuth");
   const token = await getIdToken().catch(() => null);
 
-  const res = await fetch(API_BASE + path, {
+  const res = await fetch(apiBase() + path, {
     method: "POST",
     signal,
     headers: {

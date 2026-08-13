@@ -54,3 +54,17 @@ export const API_BASE = (process.env.NEXT_PUBLIC_API_URL ?? "").replace(
   /\/$/,
   ""
 );
+
+// ── development: point the browser at another backend ─────────────────
+//
+// Set to "1" on PREVIEW deployments only. It unlocks a panel that
+// rewrites the /api prefix at runtime so a deployed frontend can call a
+// backend running on your own machine — see src/shared/lib/apiBase.ts
+// for why that has to be a browser-side base URL rather than the
+// server-side rewrite, and why it must never ship to production.
+//
+// Compared against a literal so the bundler can fold it: with the
+// variable unset this is `false` at build time and every branch guarded
+// by it, including the import of the editor, is eliminated.
+export const ALLOW_API_OVERRIDE =
+  process.env.NEXT_PUBLIC_ALLOW_API_OVERRIDE === "1";
