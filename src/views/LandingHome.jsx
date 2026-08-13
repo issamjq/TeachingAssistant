@@ -697,9 +697,10 @@ export default function LandingHome({ onEnter, signedIn, heroVariant = null }) {
   // Anything else is a stage-one variant id; see
   // features/hero-constellation/variants.
   // "legacy" is the original card fan — a different component, not a
-  // stage-one variant, kept reachable at /preview2 so the design it
-  // replaced stays one click from every alternative. null means the same
-  // thing, for any caller that has not been updated.
+  // stage-one variant. null means the same thing, for any caller that has
+  // not been updated. The other cuts are no longer browsable: /preview1..7
+  // used to serve them and now hold seven designs for the STUDIO screen
+  // instead (src/features/studio-previews/).
   const Hero = !heroVariant || heroVariant === "legacy"
     ? HeroAtelier
     : (props) => <HeroStageOne {...props} variant={heroVariant} />;

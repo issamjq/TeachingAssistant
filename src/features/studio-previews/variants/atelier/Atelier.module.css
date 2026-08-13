@@ -1,0 +1,419 @@
+/* =====================================================================
+   01 · Atelier — the studio as a printed journal
+
+   One measure down the middle, a live margin rail on the left, and each
+   outcome set as a numbered plate. The teacher's notes sit in the margin
+   in red italic, where a proof-reader would put them; the artwork runs
+   full-bleed to the measure, the way a plate does in a book.
+   ===================================================================== */
+
+.page {
+  --art-bg: #ece9e0;
+  --art-ink: #101718;
+  --art-accent: var(--p-accent);
+  --art-soft: #dcdfd6;
+
+  min-height: 100vh;
+  background: var(--p-paper);
+  color: var(--p-ink);
+  font-family: var(--font-sans);
+  padding-bottom: 180px;
+  position: relative;
+}
+
+/* Paper tooth. Two hairline gradients, not an image. */
+.grain {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.5;
+  background:
+    repeating-linear-gradient(0deg, rgb(16 23 24 / 0.018) 0 1px, transparent 1px 3px),
+    repeating-linear-gradient(90deg, rgb(16 23 24 / 0.012) 0 1px, transparent 1px 4px);
+}
+
+/* ── masthead ─────────────────────────────────────────────────────── */
+
+.masthead {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  padding: 13px clamp(16px, 4vw, 40px);
+  border-bottom: 1px solid var(--p-ink);
+  background: var(--p-paper);
+}
+.mark {
+  font-family: var(--font-serif);
+  font-size: 17px;
+  letter-spacing: -0.02em;
+}
+.mark em { font-style: italic; color: var(--p-crit); }
+.mastRule { flex: 1; border-bottom: 1px dotted var(--p-line-strong); transform: translateY(-4px); }
+.mastMeta {
+  font-size: 10.5px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--p-muted);
+}
+
+/* ── the two columns ──────────────────────────────────────────────── */
+
+.body {
+  display: grid;
+  grid-template-columns: 200px minmax(0, 700px);
+  gap: clamp(24px, 4vw, 56px);
+  justify-content: center;
+  padding: clamp(24px, 4vw, 48px) clamp(16px, 4vw, 40px) 0;
+}
+@media (max-width: 980px) {
+  .body { grid-template-columns: minmax(0, 1fr); }
+  .rail { display: none; }
+}
+
+.rail {
+  position: sticky;
+  top: 76px;
+  align-self: start;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--p-muted);
+}
+.railHead {
+  font-size: 9.5px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--p-ink);
+  padding-bottom: 7px;
+  border-bottom: 1px solid var(--p-ink);
+  margin-bottom: 12px;
+}
+.stage { display: flex; gap: 8px; padding: 5px 0; }
+.stageTick { color: var(--p-accent); flex-shrink: 0; }
+.stageName { color: var(--p-ink-soft); }
+.stageDetail { display: block; color: var(--p-muted); font-variant-numeric: tabular-nums; }
+
+.railBlock { margin-top: 22px; padding-top: 12px; border-top: 1px dotted var(--p-line-strong); }
+.railKey {
+  font-size: 9.5px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  display: block;
+  margin-bottom: 5px;
+  color: var(--p-ink);
+}
+.ground { display: block; color: var(--p-accent); }
+
+/* The fourteen days, as a fine bar chart in the margin. */
+.pulse { display: flex; align-items: flex-end; gap: 3px; height: 42px; margin-top: 4px; }
+.pulseBar { flex: 1; background: var(--p-accent); opacity: 0.35; min-height: 2px; }
+.pulseBar:last-child { opacity: 1; }
+
+/* ── the brief ────────────────────────────────────────────────────── */
+
+.brief { margin-bottom: 52px; }
+.briefLabel {
+  font-size: 9.5px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--p-muted);
+}
+.briefText {
+  font-family: var(--font-serif);
+  font-weight: 300;
+  font-size: clamp(21px, 2.6vw, 28px);
+  line-height: 1.32;
+  letter-spacing: -0.02em;
+  margin: 10px 0 0;
+  text-indent: -0.4em;
+}
+.briefMeta { display: flex; flex-wrap: wrap; gap: 6px 10px; margin-top: 16px; }
+.tag {
+  font-size: 11px;
+  color: var(--p-ink-soft);
+  border: 1px solid var(--p-line-strong);
+  border-radius: 2px;
+  padding: 3px 8px;
+  background: var(--p-paper-cool);
+}
+.tag b { font-weight: 600; color: var(--p-accent); }
+
+/* ── plates ───────────────────────────────────────────────────────── */
+
+.plate { margin-bottom: 60px; }
+
+.plateHead {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  border-bottom: 2px solid var(--p-ink);
+  padding-bottom: 8px;
+  margin-bottom: 18px;
+}
+.plateNum {
+  font-family: var(--font-serif);
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  color: var(--p-crit);
+}
+.plateKind {
+  font-size: 9.5px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--p-muted);
+  margin-inline-start: auto;
+}
+
+.plateTitle {
+  font-family: var(--font-serif);
+  font-weight: 400;
+  font-size: clamp(24px, 3vw, 34px);
+  line-height: 1.1;
+  letter-spacing: -0.024em;
+  margin: 0;
+}
+.plateSub { font-size: 12px; color: var(--p-muted); margin: 6px 0 0; }
+
+/* outcomes */
+.outcomes { list-style: none; margin: 20px 0 26px; padding: 0; counter-reset: o; }
+.outcome {
+  counter-increment: o;
+  display: flex;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px dotted var(--p-line);
+  font-size: 14.5px;
+  line-height: 1.5;
+}
+.outcome::before {
+  content: counter(o, decimal-leading-zero);
+  font-family: var(--font-serif);
+  font-size: 11px;
+  color: var(--p-accent);
+  flex-shrink: 0;
+  padding-top: 3px;
+}
+
+/* phases — minutes in the gutter, note in the margin */
+.phase { display: grid; grid-template-columns: 46px minmax(0, 1fr); gap: 14px; padding: 16px 0; border-top: 1px solid var(--p-line); }
+.phaseMin {
+  font-family: var(--font-serif);
+  font-size: 19px;
+  color: var(--p-accent);
+  line-height: 1;
+  padding-top: 2px;
+}
+.phaseMin span { display: block; font-family: var(--font-sans); font-size: 9px; letter-spacing: 0.14em; color: var(--p-muted); margin-top: 3px; }
+.phaseName { font-size: 15px; font-weight: 600; margin: 0 0 5px; }
+.phaseName i { font-style: normal; color: var(--p-muted); font-weight: 400; font-size: 11px; letter-spacing: 0.12em; margin-inline-end: 8px; }
+.phaseBody { font-size: 14px; line-height: 1.6; color: var(--p-ink-soft); margin: 0; }
+.marginal {
+  display: block;
+  margin-top: 8px;
+  padding-inline-start: 12px;
+  border-inline-start: 2px solid var(--p-crit);
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: 13.5px;
+  color: var(--p-crit);
+}
+
+.diff { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--p-line); border: 1px solid var(--p-line); margin-top: 26px; }
+@media (max-width: 620px) { .diff { grid-template-columns: 1fr; } }
+.diffCell { background: var(--p-paper-cool); padding: 12px 14px; }
+.diffKey { font-size: 9.5px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--p-accent); display: block; margin-bottom: 5px; }
+.diffVal { font-size: 13px; line-height: 1.5; color: var(--p-ink-soft); }
+
+/* ── the deck plate ───────────────────────────────────────────────── */
+
+.figure { margin: 0; }
+.plateArt {
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  display: block;
+  border: 1px solid var(--p-ink);
+  background: var(--art-bg);
+}
+.caption {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  margin-top: 8px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--p-line);
+  font-size: 11.5px;
+  color: var(--p-muted);
+}
+.captionNum { font-family: var(--font-serif); color: var(--p-crit); }
+
+.slideText { margin-top: 18px; }
+.slideTitle {
+  font-family: var(--font-serif);
+  font-weight: 400;
+  font-size: 24px;
+  letter-spacing: -0.02em;
+  margin: 0 0 10px;
+}
+.slideBullets { margin: 0; padding: 0; list-style: none; }
+.slideBullets li {
+  font-size: 15px;
+  line-height: 1.6;
+  padding: 4px 0 4px 18px;
+  position: relative;
+  color: var(--p-ink-soft);
+}
+.slideBullets li::before {
+  content: "";
+  position: absolute;
+  inset-inline-start: 0;
+  top: 13px;
+  width: 7px;
+  height: 1.5px;
+  background: var(--p-accent);
+}
+.notes {
+  margin-top: 14px;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--p-muted);
+  font-style: italic;
+  font-family: var(--font-serif);
+}
+.notes b {
+  font-family: var(--font-sans);
+  font-style: normal;
+  font-size: 9px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--p-ink);
+  display: block;
+  margin-bottom: 3px;
+}
+
+.strip { display: flex; gap: 6px; margin-top: 22px; overflow-x: auto; padding-bottom: 6px; }
+.thumb {
+  flex: 0 0 auto;
+  width: 78px;
+  padding: 0;
+  border: 1px solid var(--p-line-strong);
+  background: none;
+  cursor: pointer;
+  line-height: 0;
+  position: relative;
+  transition: border-color 0.18s, transform 0.18s;
+}
+.thumb svg { width: 100%; aspect-ratio: 16 / 10; display: block; }
+.thumb[data-on="true"] { border-color: var(--p-ink); transform: translateY(-3px); }
+.thumb[data-on="true"]::after {
+  content: "";
+  position: absolute;
+  inset-inline: 0;
+  bottom: -4px;
+  height: 2px;
+  background: var(--p-crit);
+}
+
+/* ── the quiz plate ───────────────────────────────────────────────── */
+
+.q { padding: 18px 0; border-top: 1px solid var(--p-line); display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 12px; }
+.qNum { font-family: var(--font-serif); font-size: 17px; color: var(--p-accent); line-height: 1.2; }
+.qText { font-size: 15px; line-height: 1.5; margin: 0 0 10px; font-weight: 500; }
+.qDiff {
+  font-size: 9px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--p-muted);
+  border: 1px solid var(--p-line-strong);
+  padding: 1px 6px;
+  border-radius: 999px;
+  margin-inline-start: 8px;
+  white-space: nowrap;
+}
+.opts { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.opt {
+  display: flex;
+  gap: 9px;
+  font-size: 13.5px;
+  line-height: 1.5;
+  padding: 5px 9px;
+  color: var(--p-ink-soft);
+}
+.opt[data-right="true"] {
+  background: var(--p-accent-soft);
+  color: var(--p-ink);
+  font-weight: 500;
+  box-shadow: inset 2px 0 0 var(--p-accent);
+}
+.optLetter { font-family: var(--font-serif); color: var(--p-muted); flex-shrink: 0; }
+.opt[data-right="true"] .optLetter { color: var(--p-accent); }
+
+/* ── the shelf ────────────────────────────────────────────────────── */
+
+.shelf {
+  max-width: 700px;
+  margin: 0 auto;
+  padding: 26px clamp(16px, 4vw, 40px) 0;
+  border-top: 2px solid var(--p-ink);
+}
+.shelfHead { font-size: 9.5px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--p-muted); margin-bottom: 12px; }
+.shelfRow { display: flex; align-items: baseline; gap: 10px; padding: 7px 0; border-bottom: 1px dotted var(--p-line); font-size: 13px; }
+.shelfKind { font-size: 9.5px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--p-accent); width: 88px; flex-shrink: 0; }
+.shelfTitle { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.shelfWhen { color: var(--p-muted); font-size: 11.5px; }
+.live { color: var(--p-crit); font-family: var(--font-serif); font-style: italic; font-size: 11.5px; }
+
+/* ── composer ─────────────────────────────────────────────────────── */
+
+.composerWrap {
+  position: fixed;
+  inset-inline: 0;
+  bottom: 0;
+  padding: 0 clamp(16px, 4vw, 40px) 18px;
+  background: linear-gradient(to top, var(--p-paper) 58%, transparent);
+  pointer-events: none;
+}
+.composer {
+  pointer-events: auto;
+  max-width: 700px;
+  margin: 0 auto;
+  border: 1px solid var(--p-ink);
+  background: var(--p-paper-cool);
+  box-shadow: 4px 4px 0 rgb(16 23 24 / 0.1);
+}
+.input {
+  padding: 14px 16px 8px;
+  font-size: 14.5px;
+  color: var(--p-muted);
+  min-height: 46px;
+}
+.composerBar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-top: 1px dotted var(--p-line-strong);
+  flex-wrap: wrap;
+}
+.kindWord {
+  font-size: 12px;
+  color: var(--p-muted);
+  background: none;
+  border: 0;
+  padding: 2px 0;
+  cursor: pointer;
+  border-bottom: 1.5px solid transparent;
+}
+.kindWord[data-on="true"] { color: var(--p-ink); border-bottom-color: var(--p-crit); font-weight: 600; }
+.sendWord {
+  margin-inline-start: auto;
+  font-family: var(--font-serif);
+  font-size: 14px;
+  color: var(--p-paper-cool);
+  background: var(--p-ink);
+  border: 0;
+  padding: 5px 16px;
+  cursor: pointer;
+}
+.disclaimer { text-align: center; font-size: 10.5px; color: var(--p-muted); margin: 7px 0 0; }

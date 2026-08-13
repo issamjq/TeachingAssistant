@@ -1,0 +1,206 @@
+/* =====================================================================
+   05 · Bento — the session as tiles
+
+   The bet: a teacher does not want to scroll through a conversation to
+   find out what they now have. So nothing is hidden — the deck, the
+   plan, the quiz, the fortnight's activity and the classes they are for
+   all sit on one board, sized by how much they matter rather than by
+   the order they arrived in.
+
+   The cost is honest and visible here: prose has to be clamped to fit a
+   tile, so the lesson plan shows its shape rather than its words.
+   ===================================================================== */
+
+.page {
+  --art-bg: #e9efec;
+  --art-ink: #101718;
+  --art-accent: var(--p-accent);
+  --art-soft: #d5e4e1;
+
+  min-height: 100vh;
+  background: var(--p-paper-warm);
+  color: var(--p-ink);
+  font-family: var(--font-sans);
+  padding: clamp(14px, 2.4vw, 26px);
+}
+
+/* ── the ask, across the top ──────────────────────────────────────── */
+
+.top { display: flex; align-items: center; gap: 14px; margin-bottom: clamp(14px, 2vw, 20px); flex-wrap: wrap; }
+.hello { font-family: var(--font-serif); font-weight: 300; font-size: clamp(21px, 2.6vw, 31px); letter-spacing: -0.026em; margin: 0; }
+.hello em { font-style: italic; color: var(--p-accent); }
+.helloSub { font-size: 12.5px; color: var(--p-muted); margin: 3px 0 0; }
+.topRight { margin-inline-start: auto; display: flex; align-items: center; gap: 8px; }
+.badge {
+  font-size: 11.5px;
+  border-radius: 999px;
+  padding: 6px 12px;
+  background: var(--p-surface);
+  border: 1px solid var(--p-line);
+  color: var(--p-ink-soft);
+}
+.badge b { color: var(--p-accent); }
+.face { width: 34px; height: 34px; border-radius: 999px; background: var(--p-invert); color: var(--p-on-invert); display: grid; place-items: center; font-size: 12px; font-weight: 600; }
+
+/* ── the board ────────────────────────────────────────────────────── */
+
+.board {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: clamp(10px, 1.2vw, 14px);
+  align-items: stretch;
+}
+@media (max-width: 1000px) { .board { grid-template-columns: repeat(6, 1fr); } }
+@media (max-width: 620px) { .board { grid-template-columns: repeat(2, 1fr); } }
+
+.tile {
+  position: relative;
+  border-radius: 20px;
+  background: var(--p-surface);
+  border: 1px solid var(--p-line);
+  padding: 16px 17px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  transition: box-shadow 0.22s, transform 0.22s;
+}
+.tile:hover { box-shadow: 0 18px 40px -30px rgb(16 23 24 / 0.55); }
+
+.ask     { grid-column: span 12; }
+.deckT   { grid-column: span 7; grid-row: span 2; padding: 0; }
+.planT   { grid-column: span 5; grid-row: span 2; }
+.quizT   { grid-column: span 7; }
+.pulseT  { grid-column: span 5; }
+.tallyT  { grid-column: span 4; }
+.classT  { grid-column: span 4; }
+.shelfT  { grid-column: span 4; }
+@media (max-width: 1000px) {
+  .ask, .deckT, .planT, .quizT, .pulseT, .tallyT, .classT, .shelfT { grid-column: span 6; }
+  .deckT { grid-row: auto; }
+  .planT { grid-row: auto; }
+}
+@media (max-width: 620px) {
+  .ask, .deckT, .planT, .quizT, .pulseT, .tallyT, .classT, .shelfT { grid-column: span 2; }
+}
+
+.tileHead { display: flex; align-items: center; gap: 9px; margin-bottom: 12px; }
+.tileKey { font-size: 9.5px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--p-muted); }
+.tileIcon { width: 26px; height: 26px; border-radius: 8px; background: var(--p-accent-soft); color: var(--p-accent); display: grid; place-items: center; flex-shrink: 0; }
+.tileMore { margin-inline-start: auto; font-size: 11px; color: var(--p-accent); background: none; border: 0; cursor: pointer; }
+
+/* — ask tile — */
+.askBox { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.askText { flex: 1; min-width: 220px; font-size: 14px; color: var(--p-ink-soft); line-height: 1.5; }
+.askText b { color: var(--p-ink); font-weight: 500; }
+.askKinds { display: flex; gap: 5px; flex-wrap: wrap; }
+.kind {
+  font-size: 11px;
+  border-radius: 999px;
+  padding: 5px 11px;
+  border: 1px solid var(--p-line);
+  background: var(--p-paper-warm);
+  color: var(--p-muted);
+  cursor: pointer;
+}
+.kind[data-on="true"] { background: var(--p-accent); border-color: var(--p-accent); color: var(--p-on-accent); }
+.askSend {
+  width: 34px; height: 34px; border-radius: 999px; border: 0;
+  background: var(--p-invert); color: var(--p-on-invert);
+  display: grid; place-items: center; cursor: pointer;
+}
+.clips { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 10px; width: 100%; }
+.clip { font-size: 10.5px; border: 1px solid var(--p-line); border-radius: 7px; padding: 3px 8px; color: var(--p-muted); background: var(--p-paper-warm); }
+
+/* — deck tile — */
+.deckArt { position: relative; flex: 1; min-height: 190px; }
+.deckArt svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.deckOver {
+  position: absolute; inset-inline: 0; bottom: 0;
+  padding: 18px;
+  background: linear-gradient(to top, rgb(16 23 24 / 0.94) 42%, rgb(16 23 24 / 0.72) 62%, transparent);
+  color: #f2f4f1;
+}
+.deckKind { font-size: 9.5px; letter-spacing: 0.18em; text-transform: uppercase; color: #9fd4cf; }
+.deckTitle { font-family: var(--font-serif); font-weight: 400; font-size: clamp(20px, 2.4vw, 29px); letter-spacing: -0.024em; margin: 6px 0 8px; line-height: 1.06; }
+.deckBullets { list-style: none; margin: 0; padding: 0; display: grid; gap: 3px; }
+.deckBullets li { font-size: 12.5px; color: #c8d5d2; padding-inline-start: 14px; position: relative; }
+.deckBullets li::before { content: ""; position: absolute; inset-inline-start: 0; top: 0.62em; width: 7px; height: 2px; background: #9fd4cf; }
+.deckStrip { display: flex; gap: 4px; padding: 10px; background: var(--p-surface); border-top: 1px solid var(--p-line); overflow-x: auto; }
+.deckPip {
+  flex: 0 0 auto; width: 54px;
+  border: 1px solid var(--p-line); border-radius: 6px;
+  overflow: hidden; padding: 0; cursor: pointer; background: none; line-height: 0;
+  transition: border-color 0.16s, transform 0.16s;
+}
+.deckPip svg { width: 100%; aspect-ratio: 16 / 10; display: block; }
+.deckPip[data-on="true"] { border-color: var(--p-accent); transform: translateY(-2px); box-shadow: 0 0 0 2px var(--p-accent-soft); }
+.deckNote { font-size: 11.5px; color: var(--p-muted); padding: 0 12px 12px; background: var(--p-surface); }
+.deckNote b { color: var(--p-accent); font-size: 9px; letter-spacing: 0.18em; text-transform: uppercase; display: block; margin-bottom: 2px; }
+
+/* — plan tile — */
+.planTitle { font-family: var(--font-serif); font-weight: 400; font-size: 20px; letter-spacing: -0.02em; margin: 0 0 3px; }
+.planSub { font-size: 11.5px; color: var(--p-muted); margin: 0 0 12px; }
+.phase { display: flex; gap: 10px; padding: 8px 0; border-top: 1px solid var(--p-line-soft); }
+.phase:first-of-type { border-top: 0; }
+.phaseMin {
+  flex-shrink: 0; width: 34px; height: 34px; border-radius: 10px;
+  background: var(--p-accent-soft); color: var(--p-accent);
+  display: grid; place-items: center; font-size: 13px; font-weight: 600;
+}
+.phaseName { font-size: 13px; font-weight: 600; margin: 3px 0 2px; }
+.phaseBody {
+  font-size: 11.8px; line-height: 1.45; color: var(--p-muted); margin: 0;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.planFoot { margin-top: auto; padding-top: 12px; display: flex; gap: 6px; flex-wrap: wrap; }
+.mini { font-size: 10.5px; border-radius: 8px; padding: 5px 9px; background: var(--p-paper-warm); color: var(--p-ink-soft); border: 1px solid var(--p-line-soft); }
+
+/* — quiz tile — */
+.qRow { display: flex; gap: 10px; padding: 9px 0; border-top: 1px solid var(--p-line-soft); }
+.qRow:first-of-type { border-top: 0; }
+.qN { font-size: 10.5px; font-weight: 700; color: var(--p-on-accent); background: var(--p-accent); border-radius: 999px; width: 20px; height: 20px; display: grid; place-items: center; flex-shrink: 0; margin-top: 1px; }
+.qText { font-size: 13px; line-height: 1.45; margin: 0 0 6px; font-weight: 500; }
+.qOpts { display: flex; flex-wrap: wrap; gap: 4px; }
+.qOpt { font-size: 11.5px; border-radius: 7px; padding: 4px 9px; background: var(--p-paper-warm); color: var(--p-muted); border: 1px solid var(--p-line-soft); }
+.qOpt[data-right="true"] { background: color-mix(in srgb, var(--p-ok) 14%, transparent); border-color: var(--p-ok); color: var(--p-ink); font-weight: 500; }
+
+/* — data tiles — */
+.bigNum { font-family: var(--font-serif); font-weight: 300; font-size: clamp(34px, 4.4vw, 52px); line-height: 0.94; letter-spacing: -0.04em; color: var(--p-accent); }
+.numFoot { font-size: 11.5px; color: var(--p-muted); margin-top: 5px; }
+.spark { display: flex; align-items: flex-end; gap: 3px; height: 58px; margin-top: auto; padding-top: 14px; }
+.sparkBar { flex: 1; border-radius: 3px 3px 0 0; background: var(--p-accent); opacity: 0.28; min-height: 4px; transition: opacity 0.2s; }
+.sparkBar[data-hot="true"] { opacity: 1; }
+
+.tallyRow { display: flex; align-items: center; gap: 9px; padding: 6px 0; }
+.tallyName { font-size: 12px; width: 84px; flex-shrink: 0; color: var(--p-ink-soft); }
+.tallyTrack { flex: 1; height: 8px; border-radius: 999px; background: var(--p-paper-warm); overflow: hidden; }
+.tallyFill { display: block; height: 100%; border-radius: 999px; background: var(--p-accent); }
+.tallyNum { font-size: 12px; width: 46px; text-align: end; flex-shrink: 0; font-variant-numeric: tabular-nums; }
+.delta { font-size: 10px; margin-inline-start: 4px; }
+.up { color: var(--p-ok); }
+.down { color: var(--p-warn); }
+
+.classRow { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-top: 1px solid var(--p-line-soft); }
+.classRow:first-of-type { border-top: 0; }
+.classDot { width: 30px; height: 30px; border-radius: 10px; background: var(--p-paper-warm); border: 1px solid var(--p-line); display: grid; place-items: center; font-size: 11.5px; font-weight: 600; flex-shrink: 0; }
+.classText { min-width: 0; }
+.classWhen { display: block; font-size: 12.5px; font-weight: 500; }
+.classSub { display: block; font-size: 11px; color: var(--p-muted); }
+.ready { margin-inline-start: auto; font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; border-radius: 999px; padding: 3px 8px; }
+.readyYes { background: color-mix(in srgb, var(--p-ok) 15%, transparent); color: var(--p-ok); }
+.readyNo { background: color-mix(in srgb, var(--p-warn) 15%, transparent); color: var(--p-warn); }
+
+.shelfRow { display: flex; align-items: baseline; gap: 8px; padding: 6px 0; border-top: 1px solid var(--p-line-soft); font-size: 12.3px; }
+.shelfRow:first-of-type { border-top: 0; }
+.shelfTitle { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.shelfWhen { font-size: 10.5px; color: var(--p-muted); flex-shrink: 0; }
+.new { font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--p-accent); border: 1px solid var(--p-accent); border-radius: 999px; padding: 1px 6px; }
+
+/* One tile inverted, so the board has a floor as well as a wall. */
+.dark { background: var(--p-invert); border-color: var(--p-invert); color: var(--p-on-invert); }
+.dark .tileKey { color: color-mix(in srgb, var(--p-on-invert) 60%, transparent); }
+.dark .bigNum { color: var(--p-on-invert); }
+.dark .numFoot { color: color-mix(in srgb, var(--p-on-invert) 66%, transparent); }
+.dark .tileIcon { background: color-mix(in srgb, var(--p-on-invert) 14%, transparent); color: var(--p-on-invert); }
+.dark .sparkBar { background: var(--p-on-invert); }

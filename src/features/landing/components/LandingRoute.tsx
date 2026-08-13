@@ -12,8 +12,13 @@ import EntryGate from "./EntryGate";
 // The opening act is the "atelier" cut: the studio window with the eight
 // modules flanking it, each named and captioned with what it does. It
 // replaced a fan of eight cards dealt at a scale where none of them could
-// be read — the fan is still reachable at /preview2 for comparison, and
-// the alternatives at /preview1 and /preview3../preview7.
+// be read.
+//
+// The stage-one variants that used to be browsable at /preview1../preview7
+// are gone; those routes now hold seven designs for the STUDIO screen
+// instead (src/features/studio-previews/). The variant definitions
+// themselves still live in src/features/hero-constellation/variants.ts,
+// which is what LandingHome picks the shipping cut from.
 //
 // Landing.jsx is still one 7,266-line view backed by 2,674 lines of global
 // CSS in src/landing.css. Breaking it into sections with co-located CSS

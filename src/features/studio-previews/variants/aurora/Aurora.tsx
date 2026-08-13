@@ -1,0 +1,264 @@
+"use client";
+
+// 03 · Aurora — dark, lit from behind.
+//
+// The one that photographs well. Two ideas carry it: the ground is a
+// slow-moving field of light rather than a flat colour, and the deck is
+// a stack in depth — the next slide sits behind the current one, tilted
+// and dimmed, so eight slides read as one object you can feel the
+// thickness of.
+
+import { useState } from "react";
+import { Sparkles, ChevronLeft, ChevronRight, Send, Paperclip, Check } from "lucide-react";
+import SlideArt from "../../SlideArt";
+import {
+  classes, deck, lesson, prompt, pulse, quiz, recents, run, streak, teacher, KIND_LABEL,
+} from "../../fixture";
+import s from "./Aurora.module.css";
+
+const KINDS = ["lesson_plan", "presentation", "quiz", "homework", "activity"] as const;
+
+export default function Aurora() {
+  const [i, setI] = useState(2);
+  const n = deck.slides.length;
+  const slide = deck.slides[i];
+  const peak = Math.max(...pulse);
+
+  // Three cards: the one behind, the one in front, and the one after.
+  const stack = [-1, 0, 1]
+    .map((d) => ({ d, k: i + d }))
+    .filter((x) => x.k >= 0 && x.k < n);
+
+  return (
+    <div className={s.page}>
+      <div className={s.field} aria-hidden="true">
+        <span className={`${s.blob} ${s.b1}`} />
+        <span className={`${s.blob} ${s.b2}`} />
+        <span className={`${s.blob} ${s.b3}`} />
+      </div>
+      <div className={s.mesh} aria-hidden="true" />
+
+      <div className={s.wrap}>
+        <nav className={s.nav}>
+          <span className={s.brand}>
+            <span className={s.brandDot} />
+            Murchid Studio
+          </span>
+          <span className={s.navMeta}>{teacher.school}</span>
+          <span className={s.navRight}>
+            <span className={s.navChip}>
+              <b>{run.credits}</b> credits used
+            </span>
+            <span className={s.navChip}>
+              {teacher.creditsTotal - teacher.creditsUsed} left
+            </span>
+            <span className={s.who}>{teacher.initials}</span>
+          </span>
+        </nav>
+
+        <header className={s.head}>
+          <p className={s.kicker}>
+            {prompt.at} · {teacher.role}
+          </p>
+          <h1 className={s.brief}>{prompt.text}</h1>
+          <div className={s.headMeta}>
+            {prompt.attachments.map((a) => (
+              <span key={a.name} className={s.metaChip}>
+                <Paperclip size={11} /> <b>{a.name}</b> {a.pages}pp
+              </span>
+            ))}
+            {run.grounding.map((g) => (
+              <span key={g} className={s.metaChip}>
+                <Check size={11} /> {g}
+              </span>
+            ))}
+            <span className={s.metaChip}>
+              <Sparkles size={11} /> <b>{run.totalSeconds}s</b> · 3 outcomes
+            </span>
+          </div>
+        </header>
+
+        {/* ── the deck, in depth ────────────────────────────────── */}
+        <section className={s.section}>
+          <div className={s.secHead}>
+            <h2 className={s.secTitle}>{deck.title}</h2>
+            <span className={s.secMeta}>
+              {KIND_LABEL.presentation} · {n} slides
+            </span>
+          </div>
+
+          <div className={s.deckStage}>
+            {stack.map(({ d, k }) => {
+              const sl = deck.slides[k];
+              const front = d === 0;
+              return (
+                <div
+                  key={sl.n}
+                  className={s.card}
+                  data-pos={front ? "front" : "behind"}
+                  style={{
+                    transform: front
+                      ? "translate3d(0,0,0)"
+                      : `translate3d(${d * 13}%, ${Math.abs(d) * -3}%, -220px) rotateY(${d * -13}deg) scale(0.92)`,
+                    zIndex: front ? 3 : 1,
+                  }}
+                  aria-hidden={!front}
+                >
+                  <SlideArt seed={sl.art} />
+                  <span className={s.cardVeil} />
+                  {front && (
+                    <div className={s.cardText}>
+                      <h3 className={s.cardTitle}>{sl.title}</h3>
+                      <ul className={s.cardBullets}>
+                        {sl.bullets.map((b) => (
+                          <li key={b}>{b}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  <span className={s.glow} />
+                </div>
+              );
+            })}
+          </div>
+
+          <div className={s.deckBar}>
+            <button type="button" className={s.orb} onClick={() => setI((v) => Math.max(0, v - 1))} disabled={i === 0} aria-label="Previous slide">
+              <ChevronLeft size={16} />
+            </button>
+            <span className={s.pips}>
+              {deck.slides.map((sl, k) => (
+                <button key={sl.n} type="button" className={s.pip} data-on={k === i} onClick={() => setI(k)} aria-label={`Slide ${sl.n}`} />
+              ))}
+            </span>
+            <button type="button" className={s.orb} onClick={() => setI((v) => Math.min(n - 1, v + 1))} disabled={i === n - 1} aria-label="Next slide">
+              <ChevronRight size={16} />
+            </button>
+          </div>
+          <p className={s.noteLine}>
+            <b>Speaker notes · slide {slide.n}</b>
+            {slide.notes}
+          </p>
+        </section>
+
+        {/* ── glass panels ──────────────────────────────────────── */}
+        <section className={s.section}>
+          <div className={s.panels}>
+            <div className={`${s.panel} ${s.panelWide}`}>
+              <div className={s.panelHead}>
+                <h2 className={s.panelTitle}>{lesson.title}</h2>
+                <span className={s.panelTag}>
+                  {lesson.duration} · {lesson.phases.length} phases
+                </span>
+              </div>
+              {lesson.phases.map((p) => (
+                <div key={p.n} className={s.phase}>
+                  <span className={s.phaseMin}>
+                    {p.minutes}
+                    <span>MIN</span>
+                  </span>
+                  <div>
+                    <h3 className={s.phaseName}>{p.name}</h3>
+                    <p className={s.phaseBody}>{p.body}</p>
+                    <p className={s.phaseNote}>{p.teacher}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className={`${s.panel} ${s.panelWide}`}>
+              <div className={s.panelHead}>
+                <h2 className={s.panelTitle}>{quiz.title}</h2>
+                <span className={s.panelTag}>
+                  {quiz.marks} marks · key lit
+                </span>
+              </div>
+              {quiz.questions.map((q, k) => (
+                <div key={q.q} className={s.q}>
+                  <p className={s.qText}>
+                    <span className={s.qN}>{String(k + 1).padStart(2, "0")}</span>
+                    {q.q}
+                  </p>
+                  <div className={s.opts}>
+                    {q.options.map((o, oi) => (
+                      <div key={o} className={s.opt} data-right={oi === q.answer}>
+                        {oi === q.answer && <Check size={12} className={s.tick} />}
+                        {o}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className={s.panel}>
+              <div className={s.panelHead}>
+                <h2 className={s.panelTitle}>This fortnight</h2>
+                <span className={s.panelTag}>live</span>
+              </div>
+              <div className={s.stats}>
+                <div className={s.stat}>
+                  <div className={s.statNum}>{pulse.at(-1)}</div>
+                  <span className={s.statKey}>made today</span>
+                </div>
+                <div className={s.stat}>
+                  <div className={s.statNum}>{streak.days}</div>
+                  <span className={s.statKey}>day streak</span>
+                </div>
+                <div className={s.stat}>
+                  <div className={s.statNum}>{streak.hours}</div>
+                  <span className={s.statKey}>hours saved</span>
+                </div>
+              </div>
+              <div className={s.spark} role="img" aria-label="Fourteen days of activity">
+                {pulse.map((v, k) => (
+                  <span key={k} className={s.sparkBar} style={{ height: `${Math.max(7, (v / peak) * 100)}%` }} />
+                ))}
+              </div>
+            </div>
+
+            <div className={s.panel}>
+              <div className={s.panelHead}>
+                <h2 className={s.panelTitle}>Next up</h2>
+                <span className={s.panelTag}>{classes.length} classes</span>
+              </div>
+              {classes.map((c) => (
+                <div key={c.name} className={s.shelfRow}>
+                  <span className={s.shelfKind}>{c.name}</span>
+                  <span className={s.shelfTitle}>
+                    {c.students} students · {c.next}
+                  </span>
+                  <span className={s.shelfWhen}>{c.ready ? "ready" : "no plan yet"}</span>
+                </div>
+              ))}
+              <div style={{ height: 12 }} />
+              {recents.slice(0, 4).map((r) => (
+                <div key={r.title} className={s.shelfRow}>
+                  <span className={s.shelfKind}>{KIND_LABEL[r.kind]}</span>
+                  <span className={s.shelfTitle}>{r.title}</span>
+                  <span className={s.shelfWhen}>{r.when}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <div className={s.dock}>
+        <div className={s.dockInner}>
+          <p className={s.dockInput}>Ask for a change, or start the next one…</p>
+          <div className={s.dockBar}>
+            {KINDS.map((k) => (
+              <button key={k} type="button" className={s.dockKind} data-on={k === "lesson_plan" || k === "presentation" || k === "quiz"}>
+                {KIND_LABEL[k]}
+              </button>
+            ))}
+            <button type="button" className={s.dockSend} aria-label="Send">
+              <Send size={15} />
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
