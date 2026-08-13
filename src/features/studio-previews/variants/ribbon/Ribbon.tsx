@@ -12,10 +12,12 @@
 // the same reason: both readable at once beats one at a time.
 
 import { useState } from "react";
-import { ArrowRight, Send } from "lucide-react";
+import { ArrowRight, Plus, Send } from "lucide-react";
 import SlideArt from "../../SlideArt";
 import StudioFrame from "../../StudioFrame";
-import { KIND_LABEL, KINDS, pulse, SESSIONS, streak } from "../../fixture";
+import {
+  KIND_LABEL, KINDS, olderSessions, pulse, SESSIONS, streak,
+} from "../../fixture";
 import s from "./Ribbon.module.css";
 
 const LETTER = ["a", "b", "c", "d"];
@@ -27,8 +29,36 @@ export default function Ribbon() {
   const peak = Math.max(...pulse);
 
   return (
-    <StudioFrame theme={s.theme} session={session} onSession={(n) => { setSession(n); setI(0); }}>
+    <StudioFrame>
       <div className={s.page}>
+        {/* ── conversations · one horizontal row ──────────────────── */}
+        <div className={s.chips}>
+          {SESSIONS.map((x, k) => (
+            <button
+              key={x.id}
+              type="button"
+              className={s.chip}
+              data-on={k === session}
+              onClick={() => { setSession(k); setI(0); }}
+              aria-current={k === session}
+            >
+              {x.live && <span className={s.chipLive} />}
+              <span className={s.chipName}>{x.title}</span>
+              <span className={s.chipWhen}>{x.turns} turns</span>
+            </button>
+          ))}
+          <span className={s.chipDivider} aria-hidden="true" />
+          {olderSessions.map((x) => (
+            <button key={x.id} type="button" className={s.chip}>
+              <span className={s.chipName}>{x.title}</span>
+              <span className={s.chipWhen}>{x.when}</span>
+            </button>
+          ))}
+          <button type="button" className={`${s.chip} ${s.chipGhost} ${s.chipNew}`}>
+            <Plus size={12} /> New
+          </button>
+        </div>
+
         {/* ── the brief ───────────────────────────────────────────── */}
         <header className={s.head}>
           <div className={s.headTop}>

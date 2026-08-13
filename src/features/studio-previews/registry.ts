@@ -3,6 +3,12 @@
 // One list, read by the chooser at /preview and by nothing else. Adding
 // a design means adding a row here and a route folder — the chooser
 // picks it up without being edited.
+//
+// Note what the copy talks about. Colour is NOT a differentiator: every
+// design draws from the same --p-* tokens, and the sidebar and top bar
+// are identical in all ten. What separates them is where the
+// conversation list goes, what form it takes, and how the three outcomes
+// are arranged — so that is what each row describes.
 
 export type VariantId =
   | "atelier" | "canvas" | "aurora" | "nova" | "slate"
@@ -11,107 +17,95 @@ export type VariantId =
 export type VariantMeta = {
   id: VariantId;
   name: string;
-  /** One line on the chooser card — what it IS. */
+  /** Where the conversation list lives, and in what form. */
+  threads: string;
+  /** How the work itself is arranged. */
   line: string;
   /** What it is good at, and what it costs you. */
   why: string;
-  /** The structural move that makes it different from the other nine. */
-  shape: string;
   mood: string;
-  /** Two swatches for the chooser card, as CSS colours. */
-  swatch: [string, string];
 };
 
 export const VARIANTS: VariantMeta[] = [
   {
     id: "atelier",
     name: "Atelier",
-    line: "The studio as a printed journal — one column, wide margins, plates.",
-    why: "Best reading experience of the ten. Every outcome is set like a page in a book, with the teacher's notes in the margin where a proof-reader would put them. Slowest to scan if you only want a number.",
-    shape: "Single measure with a live margin rail",
-    mood: "Editorial · warm paper · serif",
-    swatch: ["#e8e7e2", "#16646c"],
+    threads: "A printed index at the head of the margin",
+    line: "One measure down the middle, outcomes set as numbered plates.",
+    why: "Best reading experience of the ten, and the thread list costs nothing — the margin column was already there carrying the run log, so the index sits above it without adding a rail. Slowest to scan if you only want a number.",
+    mood: "Editorial · paper · serif",
   },
   {
     id: "canvas",
     name: "Canvas",
-    line: "Chat on the left, a permanent working canvas on the right.",
-    why: "The one that scales to a long session. The conversation never pushes the deck off screen, and switching between the three outcomes is a tab, not a scroll. Costs you a column — four of them at once is a lot of chrome.",
-    shape: "Two panes, tabbed canvas",
-    mood: "Modern product · crisp · confident",
-    swatch: ["#f4f3ef", "#16646c"],
+    threads: "The innermost of three columns, always open",
+    line: "Threads, chat, and a tabbed canvas that never scrolls away.",
+    why: "The one that scales to a long session: the deck stays put while the conversation grows, and the thread list never moves. Three columns inside the content area is the most chrome of any design here.",
+    mood: "Product · crisp · confident",
   },
   {
     id: "aurora",
     name: "Aurora",
-    line: "Dark, lit from behind. Glass over a slow indigo-and-mint field.",
-    why: "The showpiece, recoloured: the first cut ran teal light over a teal ground and went muddy, so the ground is now true slate with no green in it and the light travels indigo → violet → mint. Presents beautifully; the most expensive to keep legible.",
-    shape: "Floating glass over an ambient ground",
-    mood: "Cinematic · dark · luminous",
-    swatch: ["#07080f", "#6ee7d0"],
+    threads: "A strip of cards across the top, scrolling sideways",
+    line: "The product's dark theme, lit from behind, deck stacked in depth.",
+    why: "Nothing else in this design is a list, so the threads are not one either — each is a card the width of a hand carrying what it produced. Presents beautifully; the dark ground is the shipped theme, not a variant palette.",
+    mood: "Dark · ambient · cinematic",
   },
   {
     id: "nova",
     name: "Nova",
-    line: "Gradient banner, elevated cards, a colour per kind, a button on every card.",
-    why: "The one that looks most like software people already pay for. A deck and a quiz can never be confused at a glance, and every card ends in the action you would take next. The busiest of the light designs.",
-    shape: "Result banner over an outcome grid",
-    mood: "Product · vivid · actionable",
-    swatch: ["#5b4bdb", "#10b3a3"],
+    threads: "A table — title, produced, class, turns, last active",
+    line: "A result banner over an outcome grid, an action on every card.",
+    why: "The only design that treats threads as data rather than navigation. At forty conversations a rail stops working and sortable columns start. Costs the most vertical space before you reach the work.",
+    mood: "Product · structured · direct",
   },
   {
     id: "slate",
     name: "Slate",
-    line: "Flat charcoal, hairline borders, one lime accent used only where something is true.",
-    why: "Dark without the theatre — no glow, no blur, no gradient. A segmented switch shows one outcome at full width, which is the calmest way to read a long lesson plan. The one you would still want at 4pm on a Thursday.",
-    shape: "Segmented switch over one full-width pane",
-    mood: "Pro app · restrained · dark",
-    swatch: ["#0c0d0f", "#a8e05f"],
+    threads: "A steady right rail, grouped open and earlier",
+    line: "Dark theme, one outcome at full width behind a segmented switch.",
+    why: "The classic answer, and this is the design that argues for it: the list is always in the same place at the same width. Reading one outcome full-width is the calmest way through a six-phase plan. The least surprising of the ten.",
+    mood: "Dark · dense · steady",
   },
   {
     id: "desk",
     name: "Desk",
-    line: "Things on a table. Photo prints, index cards, a clipped paper.",
-    why: "The most human of the ten and the one teachers recognise fastest — a deck looks like a strip of prints, a quiz looks like a marked paper. The tilt and shadow cost a little precision.",
-    shape: "Layered objects on a surface",
+    threads: "A fanned stack of cards you slide apart",
+    line: "Things on a table — photo prints, index cards, a clipped paper.",
+    why: "Threads behave like a deck of cards here because everything else does. The most human of the ten and the one teachers recognise fastest; the overlap costs you a little precision at a glance.",
     mood: "Tactile · warm · analogue",
-    swatch: ["#cbc5b6", "#a0453c"],
   },
   {
     id: "focus",
     name: "Focus",
-    line: "Almost nothing. Type, rules, air, and one accent used four times.",
-    why: "The quietest, and the only one that never competes with what it is showing. Runs the sidebar as icons only, because thirteen labels is thirteen more words than its argument allows. Least to grab hold of if you scan rather than read.",
-    shape: "One measure, no containers, icon rail",
+    threads: "One line — two names inline, the rest behind a count",
+    line: "Almost nothing. Type, rules, air, and no containers at all.",
+    why: "A permanent list of seven threads would be the largest object on a page whose whole argument is that there is nothing on it, so it collapses to a sentence. Gives you the least to grab hold of if you scan rather than read.",
     mood: "Minimal · typographic · calm",
-    swatch: ["#f4f3ef", "#101718"],
   },
   {
     id: "ribbon",
     name: "Ribbon",
+    threads: "A horizontal chip row under the top bar",
     line: "The deck runs sideways — four slides legible at once, not one.",
-    why: "The only one that lets you check a deck the way you actually do: by scanning its whole shape rather than clicking through it. Plan and check run as two newspaper columns underneath. Needs width to be worth it.",
-    shape: "Horizontal scroll-snap ribbon + two columns",
-    mood: "Cinematic · wide · editorial",
-    swatch: ["#f2efe7", "#c8502a"],
+    why: "Both lists read sideways, which suits a wide screen: the thread row costs 46px of height and no width at all. Lets you check a deck by scanning its shape rather than clicking through it. Needs width to be worth it.",
+    mood: "Wide · editorial · cinematic",
   },
   {
     id: "terrace",
     name: "Terrace",
-    line: "A warm gradient, deep soft cards, and the session read as a morning.",
-    why: "The softest of the ten and the one aimed at how the work feels. Everything is one spine top to bottom — you asked, it read, it made, here is the class it is for. The least efficient, and the most pleasant.",
-    shape: "Vertical timeline, one spine",
-    mood: "Warm · rounded · friendly",
-    swatch: ["#fbf1e8", "#e0664a"],
+    threads: "A grid at the foot — pick the next one up",
+    line: "The session read as a morning, down one timeline.",
+    why: "The only design where the thread list is a destination rather than a control: the timeline ends, and what follows is the shelf you choose the next piece of work from. The least efficient, and the most pleasant.",
+    mood: "Soft · rounded · unhurried",
   },
   {
     id: "prism",
     name: "Prism",
-    line: "A colour per kind — and the colour goes into the artwork too.",
-    why: "The only design where the plates are not the same picture everywhere: the deck's slides come out violet, the plan's green, the check's amber, from the same eight drawings. You can tell which part of a session you are in from across the room. Loud on purpose.",
-    shape: "Full-bleed colour-blocked bands",
-    mood: "Bold · colour-blocked · graphic",
-    swatch: ["#6d4bd6", "#c9781a"],
+    threads: "A column grouped by day, on the ink ground",
+    line: "Full-bleed bands, one tint of firozeh per outcome.",
+    why: "Threads grouped the way a teacher remembers them — today, yesterday, earlier — beside colour blocks that run edge to edge. You can tell which part of a session you are in from across the room. The boldest, and the least neutral.",
+    mood: "Graphic · banded · bold",
   },
 ];
 

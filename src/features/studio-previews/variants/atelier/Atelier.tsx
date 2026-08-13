@@ -9,9 +9,10 @@
 // the one thing on the page that is a different colour.
 
 import { useState } from "react";
+import { Plus } from "lucide-react";
 import SlideArt from "../../SlideArt";
 import {
-  classes, KIND_LABEL, KINDS, pulse, recents, SESSIONS, streak,
+  classes, KIND_LABEL, KINDS, olderSessions, pulse, recents, SESSIONS, streak,
 } from "../../fixture";
 import StudioFrame from "../../StudioFrame";
 import s from "./Atelier.module.css";
@@ -28,7 +29,7 @@ export default function Atelier() {
   const peak = Math.max(...pulse);
 
   return (
-    <StudioFrame theme={s.theme} session={session} onSession={(n) => { setSession(n); setI(0); }}>
+    <StudioFrame>
     <div className={s.page}>
       <div className={s.grain} aria-hidden="true" />
 
@@ -48,6 +49,38 @@ export default function Atelier() {
       <div className={s.body}>
         {/* ── margin rail ─────────────────────────────────────────── */}
         <aside className={s.rail}>
+          {/* Conversations, set as an index rather than housed in a rail
+              of their own — the margin already is the rail. */}
+          <div className={s.idx}>
+            <p className={s.railHead}>Conversations</p>
+            {SESSIONS.map((x, k) => (
+              <button
+                key={x.id}
+                type="button"
+                className={s.idxItem}
+                data-on={k === session}
+                onClick={() => { setSession(k); setI(0); }}
+                aria-current={k === session}
+              >
+                <span className={s.idxTitle}>{x.title}</span>
+                <span className={s.idxWhen}>
+                  {x.when} · {x.turns} turns · {x.grade}
+                </span>
+              </button>
+            ))}
+            {olderSessions.map((x) => (
+              <button key={x.id} type="button" className={`${s.idxItem} ${s.idxOlder}`}>
+                <span className={s.idxTitle}>{x.title}</span>
+                <span className={s.idxWhen}>
+                  {x.when} · {x.turns} turns
+                </span>
+              </button>
+            ))}
+            <button type="button" className={s.idxNew}>
+              <Plus size={12} /> New conversation
+            </button>
+          </div>
+
           <p className={s.railHead}>How it was made</p>
           {S.run.stages.map((st) => (
             <div key={st.label} className={s.stage}>

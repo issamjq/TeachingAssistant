@@ -10,10 +10,10 @@
 import { useState } from "react";
 import {
   Sparkles, FileText, Layers, GraduationCap, ChevronRight, ChevronLeft,
-  Save, Download, Play, Paperclip, Send, Check,
+  Save, Download, Play, Paperclip, Send, Check, Plus,
 } from "lucide-react";
 import SlideArt from "../../SlideArt";
-import { KIND_LABEL, SESSIONS } from "../../fixture";
+import { KIND_LABEL, olderSessions, SESSIONS } from "../../fixture";
 import StudioFrame from "../../StudioFrame";
 import s from "./Canvas.module.css";
 
@@ -38,11 +38,7 @@ export default function Canvas() {
   ];
 
   return (
-    <StudioFrame
-      theme={s.theme}
-      session={session}
-      onSession={(n) => { setSession(n); setI(0); setTab("deck"); }}
-    >
+    <StudioFrame>
     <div className={s.page}>
       {/* ── the session bar ───────────────────────────────────────── */}
       <header className={s.top}>
@@ -56,7 +52,42 @@ export default function Canvas() {
       </header>
 
       <div className={s.split}>
-        {/* ── left · conversation ─────────────────────────────────── */}
+        {/* ── conversations · the innermost column ────────────────── */}
+        <aside className={s.threads} aria-label="Conversations">
+          <div className={s.threadsHead}>Conversations</div>
+          <button type="button" className={s.threadsNew}>
+            <Plus size={13} /> New
+          </button>
+          <div className={s.threadsList}>
+            <span className={s.threadsGroup}>Open</span>
+            {SESSIONS.map((x, k) => (
+              <button
+                key={x.id}
+                type="button"
+                className={s.threadItem}
+                data-on={k === session}
+                onClick={() => { setSession(k); setI(0); setTab("deck"); }}
+                aria-current={k === session}
+              >
+                <span className={s.threadItemTitle}>{x.title}</span>
+                <span className={s.threadItemWhen}>
+                  {x.when} · {x.turns} turns
+                </span>
+              </button>
+            ))}
+            <span className={s.threadsGroup}>Earlier</span>
+            {olderSessions.map((x) => (
+              <button key={x.id} type="button" className={s.threadItem}>
+                <span className={s.threadItemTitle}>{x.title}</span>
+                <span className={s.threadItemWhen}>
+                  {x.when} · {x.turns} turns
+                </span>
+              </button>
+            ))}
+          </div>
+        </aside>
+
+        {/* ── middle · conversation ───────────────────────────────── */}
         <section className={s.chat}>
           <div className={s.thread}>
             <div className={s.userRow}>

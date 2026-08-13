@@ -1,43 +1,14 @@
-/* =====================================================================
-   08 · Ribbon — the deck runs sideways
-
-   Every other design stacks the deck downwards and shows you one slide.
-   This one lays the whole thing out as a horizontal ribbon you push
-   through with scroll-snap, at a size where four slides are legible at
-   once — which is how a teacher actually checks a deck: not slide by
-   slide, but by scanning the shape of the whole thing.
-
-   Light, wide and cinematic: black type on warm bone, one persimmon
-   accent, and a sticky summary column that never leaves.
-   ===================================================================== */
-
-.theme {
-  --f-bg: #e7e3da;
-  --f-panel: #f6f4ee;
-  --f-panel-2: #eae6dc;
-  --f-line: #d3cec1;
-  --f-line-soft: #e0dbcf;
-  --f-fg: #16150f;
-  --f-fg-dim: #726c5c;
-  --f-accent: #c8502a;
-  --f-accent-soft: #f4dfd6;
-  --f-on-accent: #fdfbf6;
-  --f-radius: 4px;
-  --f-nav-radius: 4px;
-  --f-hist-w: 250px;
-}
-
 .page {
-  --ink: #16150f;
-  --dim: #6d6759;
-  --line: #d6d1c4;
-  --bone: #f2efe7;
-  --persimmon: #c8502a;
+  --ink: var(--p-ink);
+  --dim: var(--p-muted);
+  --line: var(--p-line);
+  --bone: var(--p-paper-cool);
+  --persimmon: var(--p-crit);
 
-  --art-bg: #e9e5da;
-  --art-ink: #16150f;
-  --art-accent: #c8502a;
-  --art-soft: #dcd6c7;
+  --art-bg: var(--p-paper-warm);
+  --art-ink: var(--p-ink);
+  --art-accent: var(--p-accent);
+  --art-soft: var(--p-accent-soft);
 
   min-height: 100%;
   background: var(--bone);
@@ -205,3 +176,50 @@
   cursor: pointer;
   display: inline-flex; align-items: center; gap: 8px;
 }
+
+/* ── conversations · a chip row, scrolling with the ribbon ─────────── */
+/* This design already reads sideways, so the thread list does too: one
+   horizontal row directly under the top bar, open threads first and
+   named, earlier ones abbreviated behind them. It costs 46px of height
+   and no width at all, which is the trade a wide design wants. */
+
+.chips {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px clamp(16px, 3vw, 36px);
+  border-bottom: 1px solid var(--line);
+  overflow-x: auto;
+  scrollbar-width: thin;
+  background: var(--p-paper-warm);
+}
+.chip {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 320px;
+  border: 1px solid var(--line);
+  background: var(--p-paper-cool);
+  border-radius: 999px;
+  padding: 6px 14px;
+  font: inherit;
+  font-size: 12px;
+  color: var(--dim);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.chip:hover { color: var(--ink); border-color: var(--p-line-strong); }
+.chip:focus-visible { outline: 2px solid var(--persimmon); outline-offset: 2px; }
+.chip[data-on="true"] {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--p-paper-cool);
+  font-weight: 500;
+}
+.chipName { overflow: hidden; text-overflow: ellipsis; }
+.chipWhen { font-size: 10.5px; opacity: 0.72; font-variant-numeric: tabular-nums; }
+.chipLive { width: 6px; height: 6px; border-radius: 999px; background: var(--persimmon); flex-shrink: 0; }
+.chipDivider { flex: 0 0 auto; width: 1px; height: 20px; background: var(--line); margin: 0 4px; }
+.chipGhost { background: none; border-style: dashed; }
+.chipNew { flex: 0 0 auto; margin-inline-start: auto; }

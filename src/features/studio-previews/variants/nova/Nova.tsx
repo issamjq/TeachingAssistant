@@ -12,11 +12,14 @@
 import { useState } from "react";
 import {
   Sparkles, Clock, Paperclip, Check, FileText, MonitorPlay, GraduationCap,
-  Save, Download, Play, Send, ChevronRight,
+  Save, Download, Play, Send, ChevronRight, Plus,
 } from "lucide-react";
 import SlideArt from "../../SlideArt";
 import StudioFrame from "../../StudioFrame";
-import { KIND_LABEL, KINDS, pulse, SESSIONS, streak, tally } from "../../fixture";
+import {
+  KIND_LABEL, KINDS, olderSessions, pulse, SESSIONS, streak, tally,
+} from "../../fixture";
+import { KIND_ICON } from "../../kinds";
 import s from "./Nova.module.css";
 
 const LETTER = ["A", "B", "C", "D"];
@@ -30,8 +33,87 @@ export default function Nova() {
   const maxMade = Math.max(...tally.map((t) => t.made));
 
   return (
-    <StudioFrame theme={s.theme} session={session} onSession={(n) => { setSession(n); setI(0); }}>
+    <StudioFrame>
       <div className={s.page}>
+        {/* ── conversations · as data, not as navigation ─────────── */}
+        <section className={s.tableWrap}>
+          <div className={s.tableTop}>
+            <span className={s.tableTitle}>Conversations</span>
+            <span className={s.tableCount}>
+              {SESSIONS.length + olderSessions.length} in the last 30 days
+            </span>
+            <button type="button" className={s.tableNew}>
+              <Plus size={12} /> New conversation
+            </button>
+          </div>
+          <table className={s.table}>
+            <thead>
+              <tr>
+                <th>Conversation</th>
+                <th>Produced</th>
+                <th className={s.hideSm}>Class</th>
+                <th className={s.hideSm}>Turns</th>
+                <th>Last active</th>
+              </tr>
+            </thead>
+            <tbody>
+              {SESSIONS.map((x, k) => (
+                <tr
+                  key={x.id}
+                  className={s.row}
+                  data-on={k === session}
+                  onClick={() => { setSession(k); setI(0); }}
+                  aria-current={k === session}
+                >
+                  <td>
+                    <span className={s.rowTitle}>
+                      {x.live && <span className={s.rowLive} />}
+                      <span className={s.rowName}>{x.title}</span>
+                    </span>
+                  </td>
+                  <td>
+                    <span className={s.made}>
+                      {x.made.map((kind) => {
+                        const Icon = KIND_ICON[kind];
+                        return (
+                          <span key={kind} className={s.madeChip} title={KIND_LABEL[kind]}>
+                            <Icon size={11} />
+                          </span>
+                        );
+                      })}
+                    </span>
+                  </td>
+                  <td className={`${s.gradeCol} ${s.hideSm}`}>{x.grade}</td>
+                  <td className={`${s.numCol} ${s.hideSm}`}>{x.turns}</td>
+                  <td className={s.whenCol}>{x.when}</td>
+                </tr>
+              ))}
+              {olderSessions.map((x) => {
+                const Icon = KIND_ICON[x.kind];
+                return (
+                  <tr key={x.id} className={s.row}>
+                    <td>
+                      <span className={s.rowTitle}>
+                        <span className={s.rowName}>{x.title}</span>
+                      </span>
+                    </td>
+                    <td>
+                      <span className={s.made}>
+                        <span className={s.madeChip} title={KIND_LABEL[x.kind]}>
+                          <Icon size={11} />
+                        </span>
+                      </span>
+                    </td>
+                    <td className={`${s.gradeCol} ${s.hideSm}`}>—</td>
+                    <td className={`${s.numCol} ${s.hideSm}`}>{x.turns}</td>
+                    <td className={s.whenCol}>{x.when}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </section>
+
         {/* ── what you asked, and what happened ─────────────────── */}
         <section className={s.banner}>
           <span className={s.bannerGlow} aria-hidden="true" />

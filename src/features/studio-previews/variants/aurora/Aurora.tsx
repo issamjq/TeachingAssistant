@@ -9,12 +9,15 @@
 // thickness of.
 
 import { useState } from "react";
-import { Sparkles, ChevronLeft, ChevronRight, Send, Paperclip, Check } from "lucide-react";
+import {
+  Sparkles, ChevronLeft, ChevronRight, Send, Paperclip, Check, Plus,
+} from "lucide-react";
 import SlideArt from "../../SlideArt";
 import {
-  classes, KIND_LABEL, KINDS, pulse, recents, SESSIONS, streak, teacher,
+  classes, KIND_LABEL, KINDS, olderSessions, pulse, recents, SESSIONS, streak, teacher,
 } from "../../fixture";
 import StudioFrame from "../../StudioFrame";
+import { KIND_ICON } from "../../kinds";
 import s from "./Aurora.module.css";
 
 
@@ -32,7 +35,7 @@ export default function Aurora() {
     .filter((x) => x.k >= 0 && x.k < n);
 
   return (
-    <StudioFrame theme={s.theme} session={session} onSession={(x) => { setSession(x); setI(0); }} rail="icons">
+    <StudioFrame dark>
     <div className={s.page}>
       <div className={s.field} aria-hidden="true">
         <span className={`${s.blob} ${s.b1}`} />
@@ -42,6 +45,56 @@ export default function Aurora() {
       <div className={s.mesh} aria-hidden="true" />
 
       <div className={s.wrap}>
+        {/* ── conversations · a strip, not a list ─────────────────── */}
+        <div className={s.strip}>
+          {SESSIONS.map((x, k) => (
+            <button
+              key={x.id}
+              type="button"
+              className={s.stripCard}
+              data-on={k === session}
+              onClick={() => { setSession(k); setI(0); }}
+              aria-current={k === session}
+            >
+              <span className={s.stripTitle}>{x.title}</span>
+              <span className={s.stripMeta}>
+                {x.live && <span className={s.stripLive} />}
+                {x.when}
+                <span className={s.stripMade}>
+                  {x.made.map((kind) => {
+                    const Icon = KIND_ICON[kind];
+                    return (
+                      <span key={kind} className={s.stripChip} title={KIND_LABEL[kind]}>
+                        <Icon size={10} />
+                      </span>
+                    );
+                  })}
+                </span>
+              </span>
+            </button>
+          ))}
+          {olderSessions.map((x) => {
+            const Icon = KIND_ICON[x.kind];
+            return (
+              <button key={x.id} type="button" className={s.stripCard}>
+                <span className={s.stripTitle}>{x.title}</span>
+                <span className={s.stripMeta}>
+                  {x.when} · {x.turns} turns
+                  <span className={s.stripMade}>
+                    <span className={s.stripChip} title={KIND_LABEL[x.kind]}>
+                      <Icon size={10} />
+                    </span>
+                  </span>
+                </span>
+              </button>
+            );
+          })}
+          <button type="button" className={s.stripNew}>
+            <Plus size={16} />
+            New
+          </button>
+        </div>
+
         <header className={s.head}>
           <p className={s.kicker}>
             {S.prompt.at} · {teacher.role}

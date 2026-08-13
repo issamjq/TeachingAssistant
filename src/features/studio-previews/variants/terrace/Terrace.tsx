@@ -14,11 +14,14 @@
 import { useState } from "react";
 import {
   Sparkles, Paperclip, Check, MonitorPlay, FileText, GraduationCap,
-  CalendarDays, Send, MessageSquare,
+  CalendarDays, Send, MessageSquare, Plus,
 } from "lucide-react";
 import SlideArt from "../../SlideArt";
 import StudioFrame from "../../StudioFrame";
-import { classes, KIND_LABEL, KINDS, pulse, SESSIONS, streak } from "../../fixture";
+import {
+  classes, KIND_LABEL, KINDS, olderSessions, pulse, SESSIONS, streak,
+} from "../../fixture";
+import { KIND_ICON } from "../../kinds";
 import s from "./Terrace.module.css";
 
 const LETTER = ["A", "B", "C", "D"];
@@ -31,7 +34,7 @@ export default function Terrace() {
   const peak = Math.max(...pulse);
 
   return (
-    <StudioFrame theme={s.theme} session={session} onSession={(n) => { setSession(n); setI(0); }}>
+    <StudioFrame>
       <div className={s.page}>
         <div className={s.line}>
           {/* ── you asked ─────────────────────────────────────────── */}
@@ -270,6 +273,62 @@ export default function Terrace() {
             </div>
           </section>
         </div>
+
+        {/* ── conversations · the shelf you pick the next one off ─── */}
+        <section className={s.pickup}>
+          <div className={s.pickupHead}>
+            <h2 className={s.pickupTitle}>Pick one back up</h2>
+            <span className={s.pickupCount}>
+              {SESSIONS.length + olderSessions.length} conversations, kept 30 days
+            </span>
+          </div>
+          <div className={s.pickupGrid}>
+            {SESSIONS.map((x, k) => {
+              const Icon = KIND_ICON[x.made[0]];
+              return (
+                <button
+                  key={x.id}
+                  type="button"
+                  className={s.pickupCard}
+                  data-on={k === session}
+                  onClick={() => { setSession(k); setI(0); }}
+                  aria-current={k === session}
+                >
+                  <span className={s.pickupTop}>
+                    <span className={s.pickupKind}>
+                      <Icon size={13} />
+                    </span>
+                    {x.live && <span className={s.pickupLive}>Open</span>}
+                  </span>
+                  <span className={s.pickupName}>{x.title}</span>
+                  <span className={s.pickupMeta}>
+                    {x.grade} · {x.turns} turns · {x.when}
+                  </span>
+                </button>
+              );
+            })}
+            {olderSessions.map((x) => {
+              const Icon = KIND_ICON[x.kind];
+              return (
+                <button key={x.id} type="button" className={s.pickupCard}>
+                  <span className={s.pickupTop}>
+                    <span className={s.pickupKind}>
+                      <Icon size={13} />
+                    </span>
+                  </span>
+                  <span className={s.pickupName}>{x.title}</span>
+                  <span className={s.pickupMeta}>
+                    {KIND_LABEL[x.kind]} · {x.turns} turns · {x.when}
+                  </span>
+                </button>
+              );
+            })}
+            <button type="button" className={s.pickupNew}>
+              <Plus size={17} />
+              New conversation
+            </button>
+          </div>
+        </section>
 
         {/* ── composer ────────────────────────────────────────────── */}
         <div className={s.dock}>

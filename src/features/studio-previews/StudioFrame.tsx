@@ -3,33 +3,30 @@
 // =====================================================================
 // The studio chrome every design variant renders inside
 //
-// Sidebar, top bar, and the conversation rail — the whole dashboard
-// shell, not just the answer pane. The nav is TEACHER_NAV from
-// src/config/nav.ts reproduced item for item, because a preview of the
-// studio that invents its own navigation is a preview of a different
-// product.
+// Sidebar and top bar only — and both are FIXED. Same navigation, same
+// spacing, same colours in all ten previews, because the shell is not
+// what is being chosen between. The nav is TEACHER_NAV from
+// src/config/nav.ts, item for item.
 //
-// The structure is identical across all ten. Only the material changes:
-// every colour, radius, shadow and font here reads from a --f-* custom
-// property the variant sets on the root element. That is what makes the
-// comparison honest — you are choosing a design, not an IA.
+// What is NOT here any more: the conversation list. It used to live in
+// this file as a right rail, which meant all ten designs answered
+// "where do recent conversations go?" identically. Each variant now owns
+// that question — a printed index in the margin, a table across the top,
+// a dock at the foot, a strip of chips, a fanned stack — and answering it
+// differently is most of what separates them.
 //
-// The rail's top two conversations are real: clicking one switches the
-// whole content pane to that session's work (a lesson + deck + quiz in
-// one, an activity + deck + homework in the other), so each design has
-// to prove it handles both shapes rather than the one it was drawn for.
+// Colour comes from --p-* tokens throughout. No variant re-tints the
+// shell; DESIGN.md is one world for the whole product.
 // =====================================================================
 
 import type { ReactNode } from "react";
 import {
   LayoutDashboard, Sparkles, CalendarRange, Target, BookOpen, ClipboardCheck,
   PenLine, MonitorPlay, Puzzle, Pin, Users, GraduationCap, BarChart3,
-  PanelLeftClose, Search, Bell, HelpCircle, Plus, ChevronRight, MessageSquare,
-  FileText, type LucideIcon,
+  PanelLeftClose, Search, Bell, HelpCircle, Plus, ChevronRight,
+  type LucideIcon,
 } from "lucide-react";
-import {
-  ACTIVE_NAV, KIND_LABEL, NAV, SESSIONS, olderSessions, teacher, type Kind,
-} from "./fixture";
+import { ACTIVE_NAV, NAV, teacher } from "./fixture";
 import f from "./StudioFrame.module.css";
 
 // Same mapping StudioShell uses — semantic key to icon.
@@ -49,43 +46,24 @@ const NAV_ICON: Record<string, LucideIcon> = {
   reports: BarChart3,
 };
 
-const KIND_ICON: Record<Kind, LucideIcon> = {
-  lesson_plan: FileText,
-  quiz: GraduationCap,
-  homework: ClipboardCheck,
-  presentation: MonitorPlay,
-  activity: Puzzle,
-};
-
 export type FrameProps = {
-  /** The variant's own class, carrying its --f-* values. */
-  theme: string;
-  /** Which of the two open conversations the content pane is showing. */
-  session: number;
-  onSession: (i: number) => void;
   children: ReactNode;
-  /** Labelled rail, or icons only. */
-  rail?: "full" | "icons";
-  /** A design that owns its own conversation list can turn this one off. */
-  history?: boolean;
+  /** Render on the product's shipped dark theme rather than on paper. */
+  dark?: boolean;
 };
 
-export default function StudioFrame({
-  theme, session, onSession, children, rail = "full", history = true,
-}: FrameProps) {
+export default function StudioFrame({ children, dark = false }: FrameProps) {
   const pct = Math.round((teacher.creditsUsed / teacher.creditsTotal) * 100);
 
   return (
-    <div className={`${f.frame} ${theme}`} data-rail={rail}>
-      {/* ── sidebar ───────────────────────────────────────────────── */}
+    <div className={dark ? `${f.frame} ${f.dark}` : f.frame}>
+      {/* ── sidebar · identical in every design ───────────────────── */}
       <aside className={f.side}>
         <div className={f.brand}>
           <span className={f.brandMark}>
             <Sparkles size={15} />
           </span>
-          <span className={f.brandName}>
-            Murchid
-          </span>
+          <span className={f.brandName}>Murchid</span>
           <button type="button" className={f.collapse} aria-label="Collapse sidebar">
             <PanelLeftClose size={15} />
           </button>
@@ -136,7 +114,7 @@ export default function StudioFrame({
         </div>
       </aside>
 
-      {/* ── main ──────────────────────────────────────────────────── */}
+      {/* ── top bar · identical in every design ───────────────────── */}
       <div className={f.main}>
         <header className={f.top}>
           <span className={f.crumb}>
@@ -164,81 +142,7 @@ export default function StudioFrame({
           </span>
         </header>
 
-        <div className={f.body} data-hist={history}>
-          <main className={f.content}>{children}</main>
-
-          {history && (
-            <aside className={f.hist} aria-label="Conversations">
-              <div className={f.histHead}>
-                <span className={f.histTitle}>Conversations</span>
-                <span className={f.histCount}>{SESSIONS.length + olderSessions.length}</span>
-              </div>
-
-              <button type="button" className={f.histNew}>
-                <Plus size={14} />
-                New conversation
-              </button>
-
-              <div className={f.histList}>
-                <span className={f.histGroup}>Open</span>
-                {SESSIONS.map((s, i) => (
-                  <button
-                    key={s.id}
-                    type="button"
-                    className={f.histItem}
-                    data-on={i === session}
-                    onClick={() => onSession(i)}
-                    aria-current={i === session}
-                  >
-                    <span className={f.histItemTitle}>{s.title}</span>
-                    <span className={f.histMeta}>
-                      {s.live && <span className={f.liveDot} />}
-                      {s.when}
-                      <span className={f.histDot} />
-                      {s.turns} turns
-                      <span className={f.histMade}>
-                        {s.made.map((k) => {
-                          const Icon = KIND_ICON[k];
-                          return (
-                            <span key={k} className={f.histChip} title={KIND_LABEL[k]}>
-                              <Icon size={10} />
-                            </span>
-                          );
-                        })}
-                      </span>
-                    </span>
-                  </button>
-                ))}
-
-                <span className={f.histGroup}>Earlier</span>
-                {olderSessions.map((s) => {
-                  const Icon = KIND_ICON[s.kind];
-                  return (
-                    <button key={s.id} type="button" className={f.histItem}>
-                      <span className={f.histItemTitle}>{s.title}</span>
-                      <span className={f.histMeta}>
-                        <MessageSquare size={10} />
-                        {s.turns}
-                        <span className={f.histDot} />
-                        {s.when}
-                        <span className={f.histMade}>
-                          <span className={f.histChip} title={KIND_LABEL[s.kind]}>
-                            <Icon size={10} />
-                          </span>
-                        </span>
-                      </span>
-                    </button>
-                  );
-                })}
-
-                <p className={f.histNote}>
-                  Conversations are kept for 30 days. Anything you save goes to
-                  your library and stays.
-                </p>
-              </div>
-            </aside>
-          )}
-        </div>
+        <main className={f.content}>{children}</main>
       </div>
     </div>
   );

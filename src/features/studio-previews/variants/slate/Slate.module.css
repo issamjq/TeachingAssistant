@@ -1,54 +1,33 @@
-/* =====================================================================
-   05 · Slate — the quiet dark one
-
-   Dark, but nothing like Aurora: no glow, no gradient, no blur. Flat
-   charcoal, one-pixel borders, tight type and a single lime accent used
-   only where something is true — the answer key, the active slide, the
-   completed step.
-
-   Where Aurora is a showpiece, this is the one you would still want to
-   be looking at at 4pm on a Thursday. Everything is a segment, a row or
-   a rule; nothing floats.
-   ===================================================================== */
-
-.theme {
-  --f-bg: #0c0d0f;
-  --f-panel: #101214;
-  --f-panel-2: #17191c;
-  --f-line: #23262a;
-  --f-line-soft: #1a1d20;
-  --f-fg: #e6e8ea;
-  --f-fg-dim: #7c848c;
-  --f-accent: #a8e05f;
-  --f-accent-soft: #1e2417;
-  --f-on-accent: #14200a;
-  --f-radius: 8px;
-  --f-nav-radius: 7px;
-  --f-hist-w: 258px;
-}
-
 .page {
-  --bg: #0c0d0f;
-  --panel: #101214;
-  --panel-2: #16181b;
-  --line: #23262a;
-  --line-soft: #1b1e21;
-  --fg: #e6e8ea;
-  --dim: #838b93;
-  --lime: #a8e05f;
-  --lime-dim: #6f9c37;
+  --bg: var(--p-paper);
+  --panel: var(--p-paper-cool);
+  --panel-2: var(--p-paper-warm);
+  --line: var(--p-line);
+  --line-soft: var(--p-line-soft);
+  --fg: var(--p-ink);
+  --dim: var(--p-muted);
+  --lime: var(--p-accent);
+  --lime-dim: var(--p-ambient-mid);
 
-  --art-bg: #14171a;
-  --art-ink: #9aa3ab;
-  --art-accent: #a8e05f;
-  --art-soft: #1e2429;
+  --art-bg: var(--p-paper-warm);
+  --art-ink: var(--p-ink-soft);
+  --art-accent: var(--p-accent);
+  --art-soft: var(--p-accent-soft);
 
   min-height: 100%;
   background: var(--bg);
   color: var(--fg);
   font-family: var(--font-sans);
   font-size: 13px;
+  /* Work left, threads right. The rail is the classic answer and this is
+     the design that argues for it: at a steady width the thread list is
+     always in the same place, which is worth more in a tool than the
+     space it costs. */
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 250px;
 }
+@media (max-width: 1100px) { .page { grid-template-columns: minmax(0, 1fr); } .rail { display: none; } }
+.work { min-width: 0; }
 
 /* ── the brief ────────────────────────────────────────────────────── */
 
@@ -143,7 +122,7 @@
   cursor: pointer;
 }
 .tool:hover { color: var(--fg); border-color: var(--line-soft); }
-.toolOn { background: var(--lime); border-color: var(--lime); color: #14200a; font-weight: 600; }
+.toolOn { background: var(--lime); border-color: var(--lime); color: var(--p-on-accent); font-weight: 600; }
 
 /* ── panes ────────────────────────────────────────────────────────── */
 
@@ -208,7 +187,7 @@
 .qLvl { font-size: 9.5px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--dim); flex-shrink: 0; }
 .opts { display: grid; gap: 3px; margin-top: 10px; padding-inline-start: 28px; }
 .opt { display: flex; align-items: center; gap: 10px; font-size: 12.5px; color: var(--dim); padding: 5px 10px; border-radius: 6px; }
-.opt[data-right="true"] { background: var(--f-accent-soft, #1e2417); color: var(--lime); }
+.opt[data-right="true"] { background: var(--p-accent-soft); color: var(--lime); }
 .optL { font-size: 10.5px; opacity: 0.7; width: 12px; flex-shrink: 0; }
 .qWhy { font-size: 11.5px; color: var(--dim); margin: 9px 0 0 28px; }
 
@@ -237,17 +216,94 @@
   padding: 5px 10px;
   cursor: pointer;
 }
-.kind[data-on="true"] { border-color: var(--lime-dim); color: var(--lime); background: var(--f-accent-soft, #1e2417); }
+.kind[data-on="true"] { border-color: var(--lime-dim); color: var(--lime); background: var(--p-accent-soft); }
 .send {
   margin-inline-start: auto;
   display: inline-flex; align-items: center; gap: 7px;
   border: 0;
   border-radius: 7px;
   background: var(--lime);
-  color: #14200a;
+  color: var(--p-on-accent);
   font: inherit;
   font-size: 12px;
   font-weight: 600;
   padding: 7px 14px;
   cursor: pointer;
 }
+
+/* ── conversations · a steady right rail ───────────────────────────── */
+
+.rail {
+  border-inline-start: 1px solid var(--line);
+  background: var(--panel);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.railHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--line);
+  font-size: 9.5px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+.railCount { margin-inline-start: auto; font-size: 10.5px; }
+.railNew {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 10px 4px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: none;
+  color: var(--fg);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.railNew:hover { border-color: var(--lime-dim); color: var(--lime); }
+.railGroup {
+  font-size: 9.5px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--dim);
+  padding: 14px 12px 6px;
+  display: block;
+}
+.railItem {
+  display: block;
+  width: calc(100% - 20px);
+  margin: 0 10px 3px;
+  text-align: start;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: none;
+  padding: 8px 10px;
+  cursor: pointer;
+  font: inherit;
+  color: var(--dim);
+}
+.railItem:hover { background: var(--panel-2); }
+.railItem[data-on="true"] { border-color: var(--lime-dim); background: var(--panel-2); }
+.railTitle {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--fg);
+}
+.railItem[data-on="true"] .railTitle { color: var(--lime); font-weight: 600; }
+.railMeta { display: flex; align-items: center; gap: 7px; margin-top: 5px; font-size: 10.5px; font-variant-numeric: tabular-nums; }
+.railMade { display: flex; gap: 3px; margin-inline-start: auto; }
+.railChip { width: 16px; height: 16px; border-radius: 4px; background: var(--panel-2); color: var(--dim); display: grid; place-items: center; }
+.railItem[data-on="true"] .railChip { background: var(--lime); color: var(--p-on-accent); }
+.railLive { width: 5px; height: 5px; border-radius: 999px; background: var(--lime); }
+.railNote { font-size: 10.5px; line-height: 1.5; color: var(--dim); padding: 14px 12px; margin-top: auto; border-top: 1px solid var(--line); }

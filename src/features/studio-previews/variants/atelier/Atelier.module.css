@@ -1,21 +1,3 @@
-/* The shell in Atelier's material: the frame's own tokens pointed at
-   warm paper, hairline rules and the red the marginalia already uses. */
-.theme {
-  --f-bg: #e8e7e2;
-  --f-panel: #eeece6;
-  --f-panel-2: #e2e0d8;
-  --f-line: #cdcdc6;
-  --f-line-soft: #dcdbd6;
-  --f-fg: #101718;
-  --f-fg-dim: #6a7477;
-  --f-accent: #16646c;
-  --f-accent-soft: #d8e4e4;
-  --f-on-accent: #f4f3ef;
-  --f-radius: 3px;
-  --f-nav-radius: 3px;
-  --f-label-spacing: 0.2em;
-}
-
 /* =====================================================================
    01 · Atelier — the studio as a printed journal
 
@@ -26,10 +8,10 @@
    ===================================================================== */
 
 .page {
-  --art-bg: #ece9e0;
-  --art-ink: #101718;
+  --art-bg: var(--p-paper-warm);
+  --art-ink: var(--p-ink);
   --art-accent: var(--p-accent);
-  --art-soft: #dcdfd6;
+  --art-soft: var(--p-accent-soft);
 
   /* A pane inside the frame now, not the document — so it fills its
      column and lets the frame own the viewport height. */
@@ -401,7 +383,7 @@
   margin: 0 auto;
   border: 1px solid var(--p-ink);
   background: var(--p-paper-cool);
-  box-shadow: 4px 4px 0 rgb(16 23 24 / 0.1);
+  box-shadow: 0 10px 26px -22px rgb(16 23 24 / 0.55);
 }
 .input {
   padding: 14px 16px 8px;
@@ -438,3 +420,54 @@
   cursor: pointer;
 }
 .disclaimer { text-align: center; font-size: 10.5px; color: var(--p-muted); margin: 7px 0 0; }
+
+/* ── conversations · a printed index in the margin ─────────────────── */
+/* No panel and no rail of its own: the running list sits at the head of
+   the margin column the way a contents list sits at the head of a
+   section, with the open thread set in the text colour and everything
+   else in the margin's own grey. */
+
+.idx { margin-bottom: 24px; }
+.idxItem {
+  display: block;
+  width: 100%;
+  text-align: start;
+  background: none;
+  border: 0;
+  border-bottom: 1px dotted var(--p-line);
+  padding: 7px 0 7px 14px;
+  cursor: pointer;
+  font: inherit;
+  color: var(--p-muted);
+  position: relative;
+}
+.idxItem:hover { color: var(--p-ink); }
+.idxItem:focus-visible { outline: 2px solid var(--p-accent); outline-offset: 2px; }
+.idxItem[data-on="true"] { color: var(--p-ink); }
+.idxItem[data-on="true"]::before {
+  content: "";
+  position: absolute;
+  inset-inline-start: 0;
+  top: 13px;
+  width: 7px;
+  height: 1.5px;
+  background: var(--p-crit);
+}
+.idxTitle { display: block; font-size: 12px; line-height: 1.35; }
+.idxItem[data-on="true"] .idxTitle { font-weight: 600; }
+.idxWhen { display: block; font-size: 10.5px; color: var(--p-muted); margin-top: 2px; font-variant-numeric: tabular-nums; }
+.idxOlder { padding-inline-start: 14px; }
+.idxOlder .idxTitle { font-size: 11.5px; }
+.idxNew {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: 0;
+  padding: 9px 0 0 14px;
+  font: inherit;
+  font-size: 11.5px;
+  color: var(--p-accent);
+  cursor: pointer;
+}
+.idxNew:hover { text-decoration: underline; }

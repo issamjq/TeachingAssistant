@@ -1,45 +1,17 @@
-/* =====================================================================
-   09 · Terrace — the warm one
-
-   The softest of the ten, and the only one aimed squarely at how the
-   work FEELS rather than at how fast it can be checked. A sand-to-
-   apricot mesh under white cards with real depth, everything on a large
-   radius, and a coral/teal pair carrying the colour.
-
-   Its structural idea is the timeline: the session reads top to bottom
-   as a morning — you asked at 09:42, it read your chapter, it made three
-   things, here is the first lesson it is for. Nothing is a tab.
-   ===================================================================== */
-
-.theme {
-  --f-bg: #f6ece4;
-  --f-panel: #fffdfb;
-  --f-panel-2: #f7ede6;
-  --f-line: #ecdcd0;
-  --f-line-soft: #f4e7dd;
-  --f-fg: #2c211c;
-  --f-fg-dim: #8a7669;
-  --f-accent: #e0664a;
-  --f-accent-soft: #fbe3dc;
-  --f-on-accent: #fffdfb;
-  --f-radius: 14px;
-  --f-nav-radius: 12px;
-}
-
 .page {
-  --ink: #2c211c;
-  --dim: #85705f;
-  --card: #fffdfb;
-  --coral: #e0664a;
-  --coral-soft: #fce4dd;
-  --teal: #2f8f86;
-  --teal-soft: #dcefec;
-  --line: #f0e2d7;
+  --ink: var(--p-ink);
+  --dim: var(--p-muted);
+  --card: var(--p-surface);
+  --coral: var(--p-crit);
+  --coral-soft: color-mix(in srgb, var(--p-crit) 12%, var(--p-paper-cool));
+  --teal: var(--p-accent);
+  --teal-soft: var(--p-accent-soft);
+  --line: var(--p-line-soft);
 
-  --art-bg: #fdf3ec;
-  --art-ink: #2c211c;
-  --art-accent: #e0664a;
-  --art-soft: #f8ddd0;
+  --art-bg: var(--p-ambient-pale);
+  --art-ink: var(--p-ink);
+  --art-accent: var(--p-accent);
+  --art-soft: var(--p-accent-soft);
 
   position: relative;
   min-height: 100%;
@@ -47,10 +19,10 @@
   font-family: var(--font-sans);
   padding: clamp(18px, 2.6vw, 30px) clamp(14px, 2.6vw, 32px) 24px;
   background:
-    radial-gradient(90% 60% at 8% 0%, #ffe6d2 0%, transparent 58%),
-    radial-gradient(70% 55% at 96% 12%, #ffdfe4 0%, transparent 60%),
-    radial-gradient(80% 60% at 50% 100%, #e6f0e6 0%, transparent 62%),
-    linear-gradient(180deg, #fbf1e8 0%, #f7eee6 100%);
+    radial-gradient(90% 60% at 8% 0%, var(--p-ambient-pale) 0%, transparent 58%),
+    radial-gradient(70% 55% at 96% 12%, var(--p-paper-cool) 0%, transparent 60%),
+    radial-gradient(80% 60% at 50% 100%, var(--p-accent-soft) 0%, transparent 62%),
+    linear-gradient(180deg, var(--p-paper) 0%, var(--p-paper-warm) 100%);
 }
 
 /* ── the timeline spine ───────────────────────────────────────────── */
@@ -79,7 +51,7 @@
   border: 2px solid var(--coral);
   display: grid; place-items: center;
   color: var(--coral);
-  box-shadow: 0 4px 12px -6px rgb(44 33 28 / 0.4);
+  box-shadow: 0 4px 12px -6px rgb(16 23 24 / 0.4);
 }
 @media (max-width: 700px) { .beatDot { display: none; } }
 
@@ -87,7 +59,7 @@
   background: var(--card);
   border-radius: 22px;
   padding: clamp(16px, 2vw, 24px);
-  box-shadow: 0 2px 5px rgb(44 33 28 / 0.05), 0 20px 44px -30px rgb(44 33 28 / 0.55);
+  box-shadow: 0 2px 5px rgb(16 23 24 / 0.05), 0 20px 44px -30px rgb(16 23 24 / 0.55);
 }
 .time { font-size: 10.5px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--coral); }
 .said {
@@ -105,7 +77,7 @@
   font-size: 11.5px;
   border-radius: 999px;
   padding: 6px 12px;
-  background: var(--f-panel-2, #f7ede6);
+  background: var(--p-paper-warm);
   color: var(--dim);
 }
 .pillOn { background: var(--teal-soft); color: var(--teal); }
@@ -117,7 +89,7 @@
   border-radius: 999px;
   padding: 5px 11px;
   background: var(--coral-soft);
-  color: #a8402c;
+  color: var(--p-crit);
 }
 
 /* ── heading inside a beat ────────────────────────────────────────── */
@@ -131,7 +103,7 @@
   background: var(--teal-soft);
   color: var(--teal);
 }
-.chipCoral { background: var(--coral-soft); color: #a8402c; }
+.chipCoral { background: var(--coral-soft); color: var(--p-crit); }
 .beatMeta { margin-inline-start: auto; font-size: 11.5px; color: var(--dim); }
 .title {
   font-family: var(--font-serif);
@@ -147,7 +119,7 @@
 
 .deckRow { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 16px; align-items: start; }
 @media (max-width: 900px) { .deckRow { grid-template-columns: minmax(0, 1fr); } }
-.plate { border-radius: 18px; overflow: hidden; background: var(--art-bg); box-shadow: 0 12px 30px -22px rgb(44 33 28 / 0.6); }
+.plate { border-radius: 18px; overflow: hidden; background: var(--art-bg); box-shadow: 0 12px 30px -22px rgb(16 23 24 / 0.6); }
 .plate svg { width: 100%; aspect-ratio: 400 / 260; display: block; }
 .slideTitle { font-family: var(--font-serif); font-weight: 400; font-size: clamp(18px, 2vw, 23px); letter-spacing: -0.022em; margin: 0 0 10px; }
 .bullets { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
@@ -161,7 +133,7 @@
   background: var(--coral);
   opacity: 0.6;
 }
-.note { margin: 14px 0 0; border-radius: 14px; background: var(--f-panel-2, #f7ede6); padding: 11px 13px; font-size: 12px; line-height: 1.55; color: var(--dim); }
+.note { margin: 14px 0 0; border-radius: 14px; background: var(--p-paper-warm); padding: 11px 13px; font-size: 12px; line-height: 1.55; color: var(--dim); }
 .note b { display: block; font-size: 9.5px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--coral); margin-bottom: 3px; }
 
 .dots { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
@@ -184,7 +156,7 @@
 .phase {
   display: flex; gap: 13px;
   border-radius: 16px;
-  background: var(--f-panel-2, #f7ede6);
+  background: var(--p-paper-warm);
   padding: 13px 15px;
 }
 .pMin {
@@ -196,7 +168,7 @@
   display: grid; place-items: center;
   font-size: 15px; font-weight: 700;
   line-height: 1;
-  box-shadow: 0 4px 10px -6px rgb(44 33 28 / 0.4);
+  box-shadow: 0 4px 10px -6px rgb(16 23 24 / 0.4);
 }
 .pMin span { display: block; font-size: 8px; font-weight: 500; letter-spacing: 0.1em; color: var(--dim); }
 .pName { font-size: 14px; font-weight: 600; margin: 3px 0 5px; }
@@ -206,18 +178,18 @@
 .tri { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 9px; margin-top: 14px; }
 .triCell { border-radius: 16px; background: var(--teal-soft); padding: 13px 14px; }
 .triK { display: block; font-size: 9.5px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--teal); margin-bottom: 5px; }
-.triV { font-size: 12.5px; line-height: 1.5; color: #3e5a56; }
+.triV { font-size: 12.5px; line-height: 1.5; color: var(--p-ink-soft); }
 
 /* ── check ────────────────────────────────────────────────────────── */
 
-.q { border-radius: 18px; background: var(--f-panel-2, #f7ede6); padding: 15px 17px; margin-bottom: 9px; }
+.q { border-radius: 18px; background: var(--p-paper-warm); padding: 15px 17px; margin-bottom: 9px; }
 .qTop { display: flex; gap: 10px; align-items: baseline; margin-bottom: 11px; }
 .qN {
   flex-shrink: 0;
   width: 24px; height: 24px;
   border-radius: 999px;
   background: var(--coral);
-  color: #fff;
+  color: var(--p-on-accent);
   display: grid; place-items: center;
   font-size: 11px; font-weight: 700;
 }
@@ -232,14 +204,14 @@
   border-radius: 999px;
   padding: 8px 14px;
 }
-.opt[data-right="true"] { background: var(--teal); color: #fff; font-weight: 500; }
+.opt[data-right="true"] { background: var(--teal); color: var(--p-on-accent); font-weight: 500; }
 .optL { font-size: 10.5px; opacity: 0.7; }
 .qWhy { font-size: 11.5px; color: var(--dim); margin: 10px 0 0 34px; }
 
 /* ── the week ─────────────────────────────────────────────────────── */
 
 .week { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; }
-.wCell { border-radius: 18px; background: var(--card); padding: 15px 16px; box-shadow: 0 2px 5px rgb(44 33 28 / 0.05), 0 14px 30px -26px rgb(44 33 28 / 0.55); }
+.wCell { border-radius: 18px; background: var(--card); padding: 15px 16px; box-shadow: 0 2px 5px rgb(16 23 24 / 0.05), 0 14px 30px -26px rgb(16 23 24 / 0.55); }
 .wK { font-size: 9.5px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--dim); }
 .wV { font-family: var(--font-serif); font-weight: 300; font-size: 32px; letter-spacing: -0.035em; margin-top: 7px; line-height: 1; }
 .wF { font-size: 11px; color: var(--dim); margin-top: 5px; }
@@ -247,7 +219,7 @@
 .wBar { flex: 1; border-radius: 3px 3px 0 0; background: var(--coral); opacity: 0.26; min-height: 4px; }
 .wBar[data-hot="true"] { opacity: 1; }
 .classRow { display: flex; align-items: center; gap: 9px; padding: 6px 0; font-size: 12.5px; }
-.classDot { width: 28px; height: 28px; border-radius: 10px; background: var(--coral-soft); color: #a8402c; display: grid; place-items: center; font-size: 11px; font-weight: 700; flex-shrink: 0; }
+.classDot { width: 28px; height: 28px; border-radius: 10px; background: var(--coral-soft); color: var(--p-crit); display: grid; place-items: center; font-size: 11px; font-weight: 700; flex-shrink: 0; }
 .classWhen { color: var(--dim); font-size: 11.5px; margin-inline-start: auto; }
 
 /* ── composer ─────────────────────────────────────────────────────── */
@@ -257,7 +229,7 @@
   background: var(--card);
   border-radius: 22px;
   padding: 13px 15px;
-  box-shadow: 0 3px 8px rgb(44 33 28 / 0.07), 0 22px 44px -28px rgb(44 33 28 / 0.6);
+  box-shadow: 0 3px 8px rgb(16 23 24 / 0.07), 0 22px 44px -28px rgb(16 23 24 / 0.6);
 }
 .dockText { font-size: 14px; color: var(--dim); padding: 2px 2px 12px; }
 .dockBar { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
@@ -265,19 +237,88 @@
   font-size: 11.5px;
   border: 0;
   border-radius: 999px;
-  background: var(--f-panel-2, #f7ede6);
+  background: var(--p-paper-warm);
   color: var(--dim);
   padding: 6px 13px;
   cursor: pointer;
 }
-.kind[data-on="true"] { background: var(--coral); color: #fff; font-weight: 600; }
+.kind[data-on="true"] { background: var(--coral); color: var(--p-on-accent); font-weight: 600; }
 .send {
   margin-inline-start: auto;
   width: 36px; height: 36px;
   border-radius: 999px;
   border: 0;
   background: var(--ink);
-  color: #fff;
+  color: var(--p-on-accent);
   display: grid; place-items: center;
   cursor: pointer;
 }
+
+/* ── conversations · a grid at the foot, phrased as "pick one back up" ─
+   The timeline reads as a morning that ends, so the thread list is what
+   comes after the end: a shelf of cards you choose the next piece of work
+   from, not a rail you navigate with. It is the only design where the
+   list is a destination rather than a control. */
+
+.pickup { margin-top: clamp(22px, 3vw, 34px); }
+.pickupHead { display: flex; align-items: baseline; gap: 12px; margin-bottom: 14px; }
+.pickupTitle {
+  font-family: var(--font-serif);
+  font-weight: 400;
+  font-size: clamp(18px, 2vw, 23px);
+  letter-spacing: -0.022em;
+  margin: 0;
+}
+.pickupCount { margin-inline-start: auto; font-size: 11.5px; color: var(--dim); }
+.pickupGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(215px, 1fr)); gap: 11px; }
+.pickupCard {
+  text-align: start;
+  border: 1px solid transparent;
+  border-radius: 20px;
+  background: var(--card);
+  padding: 15px 16px 14px;
+  cursor: pointer;
+  font: inherit;
+  box-shadow: 0 2px 5px rgb(16 23 24 / 0.05), 0 16px 34px -30px rgb(16 23 24 / 0.55);
+  transition: transform 0.18s cubic-bezier(0.2, 0.7, 0.3, 1), box-shadow 0.18s;
+}
+.pickupCard:hover { transform: translateY(-3px); box-shadow: 0 3px 7px rgb(16 23 24 / 0.06), 0 22px 40px -28px rgb(16 23 24 / 0.6); }
+.pickupCard:focus-visible { outline: 2px solid var(--coral); outline-offset: 2px; }
+.pickupCard[data-on="true"] { border-color: var(--coral); }
+.pickupTop { display: flex; align-items: center; gap: 7px; margin-bottom: 10px; }
+.pickupKind {
+  width: 26px; height: 26px;
+  border-radius: 9px;
+  background: var(--coral-soft);
+  color: var(--coral);
+  display: grid; place-items: center;
+  flex-shrink: 0;
+}
+.pickupCard[data-on="true"] .pickupKind { background: var(--coral); color: var(--p-on-accent); }
+.pickupLive { margin-inline-start: auto; font-size: 9.5px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--coral); }
+.pickupName {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: 13.5px;
+  line-height: 1.4;
+  color: var(--ink);
+  font-weight: 500;
+  min-height: 38px;
+}
+.pickupMeta { display: block; font-size: 11px; color: var(--dim); margin-top: 9px; font-variant-numeric: tabular-nums; }
+.pickupNew {
+  border: 1.5px dashed var(--line);
+  border-radius: 20px;
+  background: none;
+  color: var(--dim);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  gap: 6px;
+  min-height: 118px;
+}
+.pickupNew:hover { border-color: var(--coral); color: var(--coral); border-style: solid; }

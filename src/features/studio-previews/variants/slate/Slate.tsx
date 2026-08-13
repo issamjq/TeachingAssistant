@@ -13,11 +13,14 @@
 import { useState } from "react";
 import {
   Check, Paperclip, FileText, MonitorPlay, GraduationCap, Save, Play,
-  Download, Send,
+  Download, Send, Plus,
 } from "lucide-react";
 import SlideArt from "../../SlideArt";
 import StudioFrame from "../../StudioFrame";
-import { KIND_LABEL, KINDS, pulse, SESSIONS, streak, tally } from "../../fixture";
+import {
+  KIND_LABEL, KINDS, olderSessions, pulse, SESSIONS, streak, tally,
+} from "../../fixture";
+import { KIND_ICON } from "../../kinds";
 import s from "./Slate.module.css";
 
 const LETTER = ["a", "b", "c", "d"];
@@ -33,8 +36,9 @@ export default function Slate() {
   const madeThisTerm = tally.reduce((a, t) => a + t.made, 0);
 
   return (
-    <StudioFrame theme={s.theme} session={session} onSession={(n) => { setSession(n); setI(0); setPane("deck"); }}>
+    <StudioFrame dark>
       <div className={s.page}>
+        <div className={s.work}>
         {/* ── brief ───────────────────────────────────────────────── */}
         <section className={s.brief}>
           <div className={s.briefTop}>
@@ -271,6 +275,65 @@ export default function Slate() {
             </button>
           </div>
         </div>
+        </div>
+
+        {/* ── conversations · a steady right rail ─────────────────── */}
+        <aside className={s.rail} aria-label="Conversations">
+          <div className={s.railHead}>
+            Conversations
+            <span className={s.railCount}>{SESSIONS.length + olderSessions.length}</span>
+          </div>
+          <button type="button" className={s.railNew}>
+            <Plus size={13} /> New conversation
+          </button>
+          <span className={s.railGroup}>Open</span>
+          {SESSIONS.map((x, k) => (
+            <button
+              key={x.id}
+              type="button"
+              className={s.railItem}
+              data-on={k === session}
+              onClick={() => { setSession(k); setI(0); setPane("deck"); }}
+              aria-current={k === session}
+            >
+              <span className={s.railTitle}>{x.title}</span>
+              <span className={s.railMeta}>
+                {x.live && <span className={s.railLive} />}
+                {x.when}
+                <span className={s.railMade}>
+                  {x.made.map((kind) => {
+                    const Icon = KIND_ICON[kind];
+                    return (
+                      <span key={kind} className={s.railChip} title={KIND_LABEL[kind]}>
+                        <Icon size={9} />
+                      </span>
+                    );
+                  })}
+                </span>
+              </span>
+            </button>
+          ))}
+          <span className={s.railGroup}>Earlier</span>
+          {olderSessions.map((x) => {
+            const Icon = KIND_ICON[x.kind];
+            return (
+              <button key={x.id} type="button" className={s.railItem}>
+                <span className={s.railTitle}>{x.title}</span>
+                <span className={s.railMeta}>
+                  {x.when} · {x.turns} turns
+                  <span className={s.railMade}>
+                    <span className={s.railChip} title={KIND_LABEL[x.kind]}>
+                      <Icon size={9} />
+                    </span>
+                  </span>
+                </span>
+              </button>
+            );
+          })}
+          <p className={s.railNote}>
+            Kept for 30 days. Anything you save goes to your library and stays.
+          </p>
+        </aside>
       </div>
     </StudioFrame>
   );

@@ -10,9 +10,10 @@
 // field behind it.
 
 import { useState } from "react";
+import { ChevronDown, ChevronUp } from "lucide-react";
 import SlideArt from "../../SlideArt";
 import {
-  KIND_LABEL, KINDS, pulse, recents, SESSIONS, streak, teacher,
+  KIND_LABEL, KINDS, olderSessions, pulse, recents, SESSIONS, streak, teacher,
 } from "../../fixture";
 import StudioFrame from "../../StudioFrame";
 import s from "./Focus.module.css";
@@ -38,18 +39,54 @@ function PulseLine() {
 export default function Focus() {
   const [session, setSession] = useState(0);
   const [i, setI] = useState(2);
+  const [threadsOpen, setThreadsOpen] = useState(false);
   const S = SESSIONS[session];
   const slide = S.deck.slides[Math.min(i, S.deck.slides.length - 1)];
 
   return (
-    <StudioFrame theme={s.theme} session={session} onSession={(n) => { setSession(n); setI(0); }} rail="icons">
+    <StudioFrame>
     <div className={s.page}>
-      <div className={s.bar}>
-        <span className={s.barMark}>Murchid Studio</span>
-        <span className={s.barRight}>
-          <span>{teacher.role}</span>
-          <span>{teacher.creditsTotal - teacher.creditsUsed} credits</span>
-        </span>
+      {/* ── conversations · one line, expanded only on request ────── */}
+      <div className={s.wide}>
+        <div className={s.threads}>
+          <div className={s.threadLine}>
+            {SESSIONS.map((x, k) => (
+              <span key={x.id} style={{ display: "contents" }}>
+                {k > 0 && <span className={s.threadSep}>/</span>}
+                <button
+                  type="button"
+                  className={s.threadNow}
+                  data-on={k === session}
+                  onClick={() => { setSession(k); setI(0); }}
+                  aria-current={k === session}
+                >
+                  {x.title}
+                </button>
+              </span>
+            ))}
+            <button
+              type="button"
+              className={s.threadMore}
+              onClick={() => setThreadsOpen((v) => !v)}
+              aria-expanded={threadsOpen}
+            >
+              {threadsOpen ? "Hide" : `${olderSessions.length} earlier`}
+              {threadsOpen ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+            </button>
+          </div>
+
+          {threadsOpen && (
+            <div className={s.threadList}>
+              {olderSessions.map((x) => (
+                <button key={x.id} type="button" className={s.threadRow}>
+                  <span className={s.threadRowTitle}>{x.title}</span>
+                  <span className={s.threadRowWhen}>{x.turns} turns</span>
+                  <span className={s.threadRowWhen}>{x.when}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* ── the brief ─────────────────────────────────────────────── */}

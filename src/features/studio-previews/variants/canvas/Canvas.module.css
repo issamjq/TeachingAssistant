@@ -1,25 +1,3 @@
-/* The shell in Canvas's material: the same crisp neutral the panes use,
-   so the frame reads as part of the product rather than a border round
-   a screenshot. */
-.theme {
-  --f-bg: #e0dfd9;
-  --f-panel: #f4f3ef;
-  --f-panel-2: #e6e5df;
-  --f-line: #cdcdc6;
-  --f-line-soft: #dcdbd6;
-  --f-fg: #101718;
-  --f-fg-dim: #646e72;
-  --f-accent: #16646c;
-  --f-accent-soft: #d3e2e3;
-  --f-on-accent: #f4f3ef;
-  --f-radius: 10px;
-  --f-nav-radius: 9px;
-  /* Four columns is a lot at 1440. Both rails give ground so the canvas
-     itself keeps the width it needs to be worth having. */
-  --f-rail-w: 214px;
-  --f-hist-w: 228px;
-}
-
 /* =====================================================================
    02 · Canvas — chat left, a permanent working canvas right
 
@@ -31,10 +9,10 @@
    ===================================================================== */
 
 .page {
-  --art-bg: #eef1ee;
-  --art-ink: #101718;
+  --art-bg: var(--p-ambient-pale);
+  --art-ink: var(--p-ink);
   --art-accent: var(--p-accent);
-  --art-soft: #d8e4e2;
+  --art-soft: var(--p-accent-soft);
 
   height: 100%;
   display: grid;
@@ -83,9 +61,13 @@
 
 /* ── the split ────────────────────────────────────────────────────── */
 
-.split { display: grid; grid-template-columns: 340px minmax(0, 1fr); min-height: 0; }
-@media (max-width: 1280px) { .split { grid-template-columns: 300px minmax(0, 1fr); } }
-@media (max-width: 840px) { .split { grid-template-columns: minmax(0, 1fr); } .chat { display: none; } }
+/* Threads, chat, canvas. Three columns inside the content area, narrowest
+   first — the thread list is the thing you look at least and leave open
+   the most, so it gets the least width and never moves. */
+.split { display: grid; grid-template-columns: 196px 320px minmax(0, 1fr); min-height: 0; }
+@media (max-width: 1360px) { .split { grid-template-columns: 172px 288px minmax(0, 1fr); } }
+@media (max-width: 1100px) { .split { grid-template-columns: 264px minmax(0, 1fr); } .threads { display: none; } }
+@media (max-width: 840px) { .split { grid-template-columns: minmax(0, 1fr); } .chat, .threads { display: none; } }
 
 /* ── left · the conversation ──────────────────────────────────────── */
 
@@ -152,7 +134,7 @@
 .pick:hover { transform: translateX(2px); }
 .pick[data-on="true"] { border-color: var(--p-accent); background: var(--p-accent-soft); }
 .pickIcon { width: 30px; height: 30px; border-radius: 8px; background: var(--p-accent); color: var(--p-on-accent); display: grid; place-items: center; flex-shrink: 0; font-size: 13px; }
-.pickText { min-width: 0; }
+.pickText { flex: 1; min-width: 0; }
 .pickTitle { display: block; font-size: 12.8px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pickMeta { display: block; font-size: 10.5px; color: var(--p-muted); margin-top: 1px; }
 .pickGo { margin-inline-start: auto; color: var(--p-muted); flex-shrink: 0; }
@@ -248,14 +230,14 @@
   position: relative;
   align-self: end;
   padding: clamp(18px, 3vw, 34px);
-  background: linear-gradient(to top, rgb(244 243 239 / 0.97) 46%, rgb(244 243 239 / 0));
+  background: linear-gradient(to top, color-mix(in srgb, var(--p-surface) 97%, transparent) 46%, color-mix(in srgb, var(--p-surface) 0%, transparent));
 }
 .stage[data-layout="split"] { grid-template-columns: 1fr 1fr; }
 .stage[data-layout="split"] .stageText { align-self: center; background: var(--p-surface); height: 100%; display: flex; flex-direction: column; justify-content: center; }
 .stage[data-layout="split"] .stageArt { inset-inline-start: 50%; width: 50%; }
 .stage[data-layout="cover"] .stageText { background: linear-gradient(to top, rgb(16 23 24 / 0.86), rgb(16 23 24 / 0)); color: var(--p-on-invert); }
-.stage[data-layout="cover"] .stageTitle { color: #f4f3ef; }
-.stage[data-layout="cover"] .stageBullets li { color: #d6ded9; }
+.stage[data-layout="cover"] .stageTitle { color: var(--p-on-invert); }
+.stage[data-layout="cover"] .stageBullets li { color: color-mix(in srgb, var(--p-on-invert) 76%, transparent); }
 
 .stageTitle {
   font-family: var(--font-serif);
@@ -372,6 +354,76 @@
 }
 .qOpt[data-right="true"] { border-color: var(--p-ok); background: color-mix(in srgb, var(--p-ok) 9%, transparent); color: var(--p-ink); font-weight: 500; }
 .qLetter { width: 18px; height: 18px; border-radius: 5px; border: 1px solid var(--p-line-strong); display: grid; place-items: center; font-size: 10px; flex-shrink: 0; }
-.qOpt[data-right="true"] .qLetter { background: var(--p-ok); border-color: var(--p-ok); color: #fff; }
+.qOpt[data-right="true"] .qLetter { background: var(--p-ok); border-color: var(--p-ok); color: var(--p-on-accent); }
 .qWhy { font-size: 11.5px; color: var(--p-muted); margin: 9px 0 0; }
 .qWhy b { color: var(--p-ok); }
+
+/* ── conversations · the innermost column ──────────────────────────── */
+
+.threads {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-inline-end: 1px solid var(--p-line);
+  background: var(--p-paper-warm);
+}
+.threadsHead {
+  display: flex;
+  align-items: center;
+  height: 42px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--p-line);
+  font-size: 9.5px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--p-muted);
+}
+.threadsNew {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 9px 9px 3px;
+  padding: 8px 10px;
+  border: 1px dashed var(--p-line-strong);
+  border-radius: 10px;
+  background: none;
+  color: var(--p-ink-soft);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.threadsNew:hover { border-style: solid; border-color: var(--p-accent); color: var(--p-accent); }
+.threadsList { overflow-y: auto; padding: 0 9px 12px; scrollbar-width: thin; min-height: 0; }
+.threadsGroup {
+  display: block;
+  font-size: 9.5px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--p-muted);
+  padding: 13px 3px 5px;
+}
+.threadItem {
+  display: block;
+  width: 100%;
+  text-align: start;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: none;
+  padding: 8px 9px;
+  margin-bottom: 2px;
+  cursor: pointer;
+  font: inherit;
+}
+.threadItem:hover { background: var(--p-paper-cool); }
+.threadItem[data-on="true"] { background: var(--p-accent-soft); border-color: var(--p-accent); }
+.threadItemTitle {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--p-ink);
+}
+.threadItem[data-on="true"] .threadItemTitle { font-weight: 600; color: var(--p-accent-hover); }
+.threadItemWhen { display: block; font-size: 10.5px; color: var(--p-muted); margin-top: 4px; font-variant-numeric: tabular-nums; }

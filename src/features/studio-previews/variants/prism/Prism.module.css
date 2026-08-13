@@ -1,55 +1,33 @@
-/* =====================================================================
-   10 · Prism — a colour per kind, and the colour goes all the way down
-
-   The one design where the artwork is not the same picture in every
-   section. Each outcome owns a hue, and that hue drives its band's
-   ground, its rules, its type colour AND the plate inside it — so the
-   deck's slides arrive violet, the plan's arrive green, the check's
-   arrive amber. Same drawings, three inks.
-
-   Colour-blocked full-bleed bands, big serif, and nothing boxed inside
-   them. Loud on purpose; the least neutral of the ten.
-   ===================================================================== */
-
-.theme {
-  --f-bg: #17141f;
-  --f-panel: #1e1a28;
-  --f-panel-2: #272134;
-  --f-line: #332c43;
-  --f-line-soft: #262032;
-  --f-fg: #f2eff7;
-  --f-fg-dim: #9990ab;
-  --f-accent: #f0b429;
-  --f-accent-soft: #3a2f16;
-  --f-on-accent: #221a06;
-  --f-radius: 10px;
-  --f-nav-radius: 9px;
-  --f-hist-w: 256px;
-}
-
 .page {
-  --ink: #17141f;
-  --paper: #faf7f2;
-  --violet: #6d4bd6;
-  --green: #17806a;
-  --amber: #c9781a;
+  --ink: var(--p-ink);
+  --paper: var(--p-paper-cool);
+  --violet: var(--p-ambient-deep);
+  --green: var(--p-accent);
+  --amber: var(--p-ambient-lift);
 
   min-height: 100%;
   background: var(--paper);
   color: var(--ink);
   font-family: var(--font-sans);
+  /* The bands run full-bleed, so the thread list cannot sit inside them
+     — it takes its own column on the ink ground, grouped by day, and the
+     colour blocks run edge to edge beside it. */
+  display: grid;
+  grid-template-columns: 226px minmax(0, 1fr);
 }
+@media (max-width: 1080px) { .page { grid-template-columns: minmax(0, 1fr); } .days { display: none; } }
+.bands { min-width: 0; }
 
 /* ── the opening band ─────────────────────────────────────────────── */
 
 .hero {
-  background: var(--ink);
-  color: var(--paper);
+  background: var(--p-invert);
+  color: var(--p-on-invert);
   padding: clamp(24px, 4vw, 46px) clamp(18px, 3.4vw, 44px) clamp(22px, 3.4vw, 38px);
 }
 .heroTop { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
-.heroKey { font-size: 10px; letter-spacing: 0.24em; text-transform: uppercase; color: #f0b429; }
-.heroTime { margin-inline-start: auto; font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: #9990ab; }
+.heroKey { font-size: 10px; letter-spacing: 0.24em; text-transform: uppercase; color: var(--p-ambient-lift); }
+.heroTime { margin-inline-start: auto; font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: color-mix(in srgb, var(--p-on-invert) 62%, transparent); }
 .heroText {
   font-family: var(--font-serif);
   font-weight: 300;
@@ -63,31 +41,31 @@
 .heroChip {
   display: inline-flex; align-items: center; gap: 7px;
   font-size: 11.5px;
-  border: 1px solid #3a3348;
+  border: 1px solid color-mix(in srgb, var(--p-on-invert) 24%, transparent);
   border-radius: 999px;
   padding: 5px 12px;
-  color: #cdc6d9;
+  color: color-mix(in srgb, var(--p-on-invert) 78%, transparent);
 }
-.heroChip b { color: #f0b429; font-weight: 500; }
-.heroSteps { display: flex; flex-wrap: wrap; gap: 0; margin-top: 22px; border-top: 1px solid #332c43; }
+.heroChip b { color: var(--p-ambient-lift); font-weight: 500; }
+.heroSteps { display: flex; flex-wrap: wrap; gap: 0; margin-top: 22px; border-top: 1px solid color-mix(in srgb, var(--p-on-invert) 20%, transparent); }
 .hStep { flex: 1 1 140px; padding: 12px 14px 0 0; }
-.hStepN { font-family: var(--font-serif); font-size: 11px; color: #f0b429; }
+.hStepN { font-family: var(--font-serif); font-size: 11px; color: var(--p-ambient-lift); }
 .hStepT { font-size: 12.5px; margin-top: 4px; }
-.hStepS { font-size: 10.5px; color: #9990ab; margin-top: 3px; }
+.hStepS { font-size: 10.5px; color: color-mix(in srgb, var(--p-on-invert) 62%, transparent); margin-top: 3px; }
 
 /* ── a coloured band ──────────────────────────────────────────────── */
 
 .band { padding: clamp(22px, 3.4vw, 40px) clamp(18px, 3.4vw, 44px); }
-.bDeck  { --hue: var(--violet); background: #f0ebfb; --art-bg: #e6dcfa; --art-ink: #241a3d; --art-accent: #6d4bd6; --art-soft: #d6c9f3; }
-.bPlan  { --hue: var(--green);  background: #e6f2ee; --art-bg: #d9ece6; --art-ink: #10241f; --art-accent: #17806a; --art-soft: #c3e0d7; }
-.bCheck { --hue: var(--amber);  background: #fbf0e2; --art-bg: #f7e6d1; --art-ink: #2e1e0b; --art-accent: #c9781a; --art-soft: #f0d6b4; }
+.bDeck  { --hue: var(--violet); background: var(--p-ambient-pale); --art-bg: var(--p-accent-soft); --art-ink: var(--p-ink); --art-accent: var(--p-ambient-deep); --art-soft: var(--p-ambient-pale); }
+.bPlan  { --hue: var(--green);  background: var(--p-accent-soft); --art-bg: var(--p-ambient-pale); --art-ink: var(--p-ink); --art-accent: var(--p-accent); --art-soft: var(--p-accent-soft); }
+.bCheck { --hue: var(--amber);  background: var(--p-paper-warm); --art-bg: var(--p-paper); --art-ink: var(--p-ink); --art-accent: var(--p-ambient-lift); --art-soft: var(--p-line-soft); }
 
 .bandHead { display: flex; align-items: baseline; gap: 12px; padding-bottom: 12px; border-bottom: 3px solid var(--hue); flex-wrap: wrap; }
 .bandKind {
   font-size: 10px;
   letter-spacing: 0.22em;
   text-transform: uppercase;
-  color: var(--paper);
+  color: var(--p-on-accent);
   background: var(--hue);
   border-radius: 999px;
   padding: 5px 12px;
@@ -168,7 +146,7 @@
 .qLvl { font-size: 9.5px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--hue); flex-shrink: 0; }
 .opts { list-style: none; margin: 11px 0 0; padding: 0 0 0 30px; display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 4px 16px; }
 .opt { display: flex; gap: 10px; font-size: 13.5px; color: color-mix(in srgb, var(--ink) 66%, transparent); padding: 5px 10px; }
-.opt[data-right="true"] { background: var(--hue); color: #fff; font-weight: 500; }
+.opt[data-right="true"] { background: var(--hue); color: var(--p-on-accent); font-weight: 500; }
 .optL { font-family: var(--font-serif); opacity: 0.75; }
 .qWhy { font-size: 12px; color: color-mix(in srgb, var(--ink) 58%, transparent); margin: 10px 0 0 30px; font-style: italic; font-family: var(--font-serif); }
 
@@ -176,11 +154,11 @@
 
 .foot { background: var(--ink); color: var(--paper); padding: clamp(20px, 3vw, 34px) clamp(18px, 3.4vw, 44px); display: flex; flex-wrap: wrap; gap: clamp(18px, 4vw, 56px); align-items: flex-end; }
 .fCell { min-width: 110px; }
-.fK { font-size: 9.5px; letter-spacing: 0.18em; text-transform: uppercase; color: #9990ab; }
+.fK { font-size: 9.5px; letter-spacing: 0.18em; text-transform: uppercase; color: color-mix(in srgb, var(--p-on-invert) 62%, transparent); }
 .fV { font-family: var(--font-serif); font-weight: 300; font-size: clamp(30px, 3.6vw, 44px); letter-spacing: -0.04em; line-height: 1; margin-top: 9px; }
-.fF { font-size: 11px; color: #9990ab; margin-top: 6px; }
+.fF { font-size: 11px; color: color-mix(in srgb, var(--p-on-invert) 62%, transparent); margin-top: 6px; }
 .fBars { display: flex; align-items: flex-end; gap: 3px; height: 40px; flex: 1 1 190px; min-width: 150px; }
-.fBar { flex: 1; background: #f0b429; opacity: 0.3; min-height: 4px; }
+.fBar { flex: 1; background: var(--p-accent); opacity: 0.3; min-height: 4px; }
 .fBar[data-hot="true"] { opacity: 1; }
 
 /* ── composer ─────────────────────────────────────────────────────── */
@@ -203,7 +181,7 @@
 .kind[data-on="true"] { background: var(--ink); color: var(--paper); font-weight: 600; }
 .send {
   border: 0;
-  background: #f0b429;
+  background: var(--p-accent);
   color: var(--ink);
   font: inherit;
   font-size: 12.5px;
@@ -213,3 +191,78 @@
   cursor: pointer;
   display: inline-flex; align-items: center; gap: 8px;
 }
+
+/* ── conversations · grouped by day, on the ink ground ─────────────── */
+
+.days {
+  background: var(--p-invert);
+  color: var(--p-on-invert);
+  padding: 20px 0 26px;
+  min-height: 100%;
+}
+.daysHead {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+  padding: 0 18px 14px;
+  border-bottom: 1px solid color-mix(in srgb, var(--p-on-invert) 18%, transparent);
+  margin-bottom: 4px;
+}
+.daysTitle { font-family: var(--font-serif); font-weight: 400; font-size: 19px; letter-spacing: -0.02em; margin: 0; }
+.daysCount { margin-inline-start: auto; font-size: 11px; color: color-mix(in srgb, var(--p-on-invert) 60%, transparent); }
+.dayLabel {
+  display: block;
+  font-size: 9.5px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--p-ambient-lift);
+  padding: 16px 18px 7px;
+}
+.dayItem {
+  display: block;
+  width: 100%;
+  text-align: start;
+  background: none;
+  border: 0;
+  border-inline-start: 3px solid transparent;
+  padding: 9px 18px 10px 15px;
+  cursor: pointer;
+  font: inherit;
+  color: color-mix(in srgb, var(--p-on-invert) 74%, transparent);
+}
+.dayItem:hover { background: color-mix(in srgb, var(--p-on-invert) 7%, transparent); color: var(--p-on-invert); }
+.dayItem:focus-visible { outline: 2px solid var(--p-ambient-lift); outline-offset: -2px; }
+.dayItem[data-on="true"] {
+  border-inline-start-color: var(--p-ambient-lift);
+  background: color-mix(in srgb, var(--p-on-invert) 9%, transparent);
+  color: var(--p-on-invert);
+}
+.dayTitle {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: 12.5px;
+  line-height: 1.35;
+}
+.dayItem[data-on="true"] .dayTitle { font-weight: 600; }
+.dayMeta { display: flex; align-items: center; gap: 7px; margin-top: 5px; font-size: 10.5px; color: color-mix(in srgb, var(--p-on-invert) 55%, transparent); font-variant-numeric: tabular-nums; }
+.dayMade { display: flex; gap: 3px; margin-inline-start: auto; }
+.dayChip { width: 16px; height: 16px; border-radius: 4px; background: color-mix(in srgb, var(--p-on-invert) 14%, transparent); display: grid; place-items: center; }
+.dayItem[data-on="true"] .dayChip { background: var(--p-ambient-lift); color: var(--p-invert); }
+.daysNew {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: calc(100% - 36px);
+  margin: 18px 18px 0;
+  padding: 9px 12px;
+  border: 1px solid color-mix(in srgb, var(--p-on-invert) 24%, transparent);
+  border-radius: 999px;
+  background: none;
+  color: var(--p-on-invert);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.daysNew:hover { background: color-mix(in srgb, var(--p-on-invert) 10%, transparent); }

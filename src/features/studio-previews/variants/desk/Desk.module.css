@@ -1,21 +1,3 @@
-/* The shell in Desk's material: a painted cabinet beside the table
-   rather than another sheet of paper on it, so the objects stay the only
-   things on screen that look pick-up-able. */
-.theme {
-  --f-bg: #cbc5b6;
-  --f-panel: #e6e1d5;
-  --f-panel-2: #d8d2c3;
-  --f-line: #b9b2a1;
-  --f-line-soft: #cbc5b6;
-  --f-fg: #23282a;
-  --f-fg-dim: #6d6a5e;
-  --f-accent: #a0453c;
-  --f-accent-soft: #e5d4cf;
-  --f-on-accent: #faf8f2;
-  --f-radius: 4px;
-  --f-nav-radius: 4px;
-}
-
 /* =====================================================================
    06 · Desk — things on a table
 
@@ -30,12 +12,12 @@
    ===================================================================== */
 
 .page {
-  --art-bg: #efece3;
-  --art-ink: #23282a;
+  --art-bg: var(--p-paper-warm);
+  --art-ink: var(--p-ink);
   --art-accent: var(--p-accent);
-  --art-soft: #dfe3d9;
-  --tape: rgb(224 214 186 / 0.75);
-  --card: #faf8f2;
+  --art-soft: var(--p-accent-soft);
+  --tape: color-mix(in srgb, var(--p-line-strong) 78%, transparent);
+  --card: var(--p-paper-cool);
 
   min-height: 100%;
   color: var(--p-ink);
@@ -44,7 +26,7 @@
   background:
     radial-gradient(120% 90% at 12% 0%, rgb(255 255 255 / 0.5), transparent 60%),
     repeating-linear-gradient(96deg, rgb(16 23 24 / 0.022) 0 2px, transparent 2px 7px),
-    linear-gradient(160deg, #ddd9cd 0%, #d3cec0 48%, #cbc5b6 100%);
+    linear-gradient(160deg, var(--p-paper) 0%, var(--p-paper-warm) 52%, var(--p-line-soft) 100%);
 }
 
 .sheetShadow { box-shadow: 0 1px 2px rgb(16 23 24 / 0.14), 0 14px 28px -18px rgb(16 23 24 / 0.5); }
@@ -94,7 +76,7 @@
 .pdf {
   display: inline-flex; align-items: center; gap: 6px;
   font-size: 11px;
-  background: #fff;
+  background: var(--p-surface);
   border: 1px solid rgb(16 23 24 / 0.12);
   padding: 5px 9px;
   color: var(--p-ink-soft);
@@ -107,15 +89,15 @@
   flex: 0 0 auto;
   width: 194px;
   padding: 16px 16px 18px;
-  background: linear-gradient(170deg, #f2e6b8, #ecdda6);
+  background: var(--p-paper-cool);
   transform: rotate(1.6deg);
   box-shadow: 0 1px 2px rgb(16 23 24 / 0.16), 0 16px 26px -18px rgb(16 23 24 / 0.65);
 }
-.stickyKey { font-size: 9.5px; letter-spacing: 0.16em; text-transform: uppercase; color: #7a6528; }
-.stickyNum { font-family: var(--font-serif); font-size: 42px; font-weight: 300; line-height: 1; letter-spacing: -0.04em; color: #3d3413; margin-top: 8px; }
-.stickySub { font-size: 11.5px; color: #6a5a24; margin-top: 6px; line-height: 1.45; }
+.stickyKey { font-size: 9.5px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--p-muted); }
+.stickyNum { font-family: var(--font-serif); font-size: 42px; font-weight: 300; line-height: 1; letter-spacing: -0.04em; color: var(--p-ink); margin-top: 8px; }
+.stickySub { font-size: 11.5px; color: var(--p-ink-soft); margin-top: 6px; line-height: 1.45; }
 .stickyBars { display: flex; align-items: flex-end; gap: 2.5px; height: 34px; margin-top: 12px; }
-.stickyBar { flex: 1; background: #8a7328; opacity: 0.35; min-height: 3px; }
+.stickyBar { flex: 1; background: var(--p-accent); opacity: 0.35; min-height: 3px; }
 .stickyBar[data-hot="true"] { opacity: 0.95; }
 
 .stamp {
@@ -157,7 +139,7 @@
 .bigPrint {
   flex: 1 1 460px;
   max-width: 640px;
-  background: #fff;
+  background: var(--p-surface);
   padding: 13px 13px 0;
   transform: rotate(-0.6deg);
   box-shadow: 0 2px 4px rgb(16 23 24 / 0.16), 0 26px 46px -26px rgb(16 23 24 / 0.7);
@@ -182,7 +164,7 @@
 
 .stripCol { flex: 0 1 300px; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-content: start; }
 .smallPrint {
-  background: #fff;
+  background: var(--p-surface);
   padding: 7px 7px 0;
   border: 0;
   cursor: pointer;
@@ -235,7 +217,7 @@
   top: -7px; inset-inline-end: 14px;
   width: 13px; height: 13px;
   border-radius: 999px;
-  background: radial-gradient(circle at 34% 32%, #e07a6a, #a0453c 62%, #6d2b25);
+  background: radial-gradient(circle at 34% 32%, color-mix(in srgb, var(--p-crit) 70%, #fff), var(--p-crit) 64%, color-mix(in srgb, var(--p-crit) 60%, #000));
   box-shadow: 0 3px 5px -1px rgb(16 23 24 / 0.55);
 }
 
@@ -243,7 +225,7 @@
 
 .paper {
   max-width: 780px;
-  background: #fdfcf7;
+  background: var(--p-paper-cool);
   padding: clamp(22px, 3vw, 38px) clamp(20px, 3vw, 40px) 30px;
   transform: rotate(0.4deg);
   box-shadow: 0 2px 4px rgb(16 23 24 / 0.14), 0 26px 44px -28px rgb(16 23 24 / 0.7);
@@ -254,10 +236,10 @@
   top: -16px; inset-inline-start: 42px;
   width: 68px; height: 30px;
   border-radius: 4px;
-  background: linear-gradient(180deg, #b9bcbb, #7f8483 55%, #9aa09e);
+  background: linear-gradient(180deg, var(--p-line-soft), var(--p-muted) 55%, var(--p-line-strong));
   box-shadow: 0 5px 9px -4px rgb(16 23 24 / 0.6);
 }
-.clipTop::after { content: ""; position: absolute; inset: 6px 8px auto; height: 4px; border-radius: 2px; background: rgb(255 255 255 / 0.35); }
+.clipTop::after { content: ""; position: absolute; inset: 6px 8px auto; height: 4px; border-radius: 2px; background: color-mix(in srgb, var(--p-paper-cool) 60%, transparent); }
 .paperHead { border-bottom: 2px solid var(--p-ink); padding-bottom: 12px; margin-bottom: 16px; display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
 .paperTitle { font-family: var(--font-serif); font-weight: 400; font-size: clamp(20px, 2.4vw, 26px); letter-spacing: -0.02em; margin: 0; }
 .paperMeta { font-size: 11.5px; color: var(--p-muted); margin-inline-start: auto; }
@@ -288,7 +270,7 @@
   margin-top: 30px;
   padding: 26px clamp(14px, 3vw, 40px) 20px;
   pointer-events: none;
-  background: linear-gradient(to top, #cec8ba 0 58%, transparent);
+  background: linear-gradient(to top, var(--p-paper-warm) 0 58%, transparent);
 }
 .padInner {
   pointer-events: auto;
@@ -315,11 +297,82 @@
 .padSend {
   margin-inline-start: auto;
   background: var(--p-ink);
-  color: var(--card);
+  color: var(--p-paper-cool);
   border: 0;
   padding: 7px 15px;
   font-size: 12px;
   cursor: pointer;
   display: inline-flex; align-items: center; gap: 7px;
-  box-shadow: 3px 3px 0 rgb(16 23 24 / 0.18);
+  box-shadow: 0 8px 18px -12px rgb(16 23 24 / 0.7);
 }
+
+/* ── conversations · a fanned stack on the surface ─────────────────── */
+/* Threads are the one thing on this desk that behaves like a deck of
+   cards, so they are drawn as one: overlapping, tilted, the open thread
+   lifted clear of the pile. Hovering slides a card out far enough to
+   read, which is what your hand does to a real stack. */
+
+.fan {
+  display: flex;
+  align-items: flex-start;
+  margin-bottom: clamp(24px, 3.4vw, 40px);
+  padding-inline-start: 4px;
+}
+.fanCard {
+  /* Positioned, or the z-index that lifts the open card does nothing and
+     the next card in the pile paints straight over it. */
+  position: relative;
+  flex: 0 0 auto;
+  width: 172px;
+  margin-inline-start: -22px;
+  background: var(--card);
+  border: 0;
+  text-align: start;
+  padding: 12px 13px 13px;
+  cursor: pointer;
+  font: inherit;
+  color: var(--p-ink-soft);
+  box-shadow: 0 1px 2px rgb(16 23 24 / 0.16), 0 14px 24px -18px rgb(16 23 24 / 0.7);
+  transition: transform 0.2s cubic-bezier(0.2, 0.7, 0.3, 1), box-shadow 0.2s;
+}
+.fanCard:first-child { margin-inline-start: 0; }
+.fanCard:nth-child(odd) { transform: rotate(-1.4deg); }
+.fanCard:nth-child(even) { transform: rotate(1.1deg); }
+.fanCard:hover { transform: rotate(0deg) translateY(-8px); z-index: 8; box-shadow: 0 2px 4px rgb(16 23 24 / 0.18), 0 22px 34px -18px rgb(16 23 24 / 0.75); }
+.fanCard:focus-visible { outline: 2px solid var(--p-crit); outline-offset: 2px; z-index: 6; }
+.fanCard[data-on="true"] {
+  transform: rotate(0deg) translateY(-12px);
+  z-index: 6;
+  border-top: 3px double var(--p-crit);
+  padding-top: 9px;
+}
+.fanTitle {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: 12.5px;
+  line-height: 1.35;
+  color: var(--p-ink);
+  min-height: 50px;
+}
+.fanCard[data-on="true"] .fanTitle { font-weight: 600; }
+.fanWhen { display: block; font-size: 10.5px; color: var(--p-muted); margin-top: 8px; font-variant-numeric: tabular-nums; }
+.fanNew {
+  flex: 0 0 auto;
+  width: 92px;
+  margin-inline-start: -18px;
+  align-self: stretch;
+  min-height: 108px;
+  border: 1.5px dashed var(--p-line-strong);
+  background: none;
+  color: var(--p-muted);
+  font: inherit;
+  font-size: 11.5px;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  gap: 5px;
+  transform: rotate(1.6deg);
+}
+.fanNew:hover { border-color: var(--p-crit); color: var(--p-crit); }

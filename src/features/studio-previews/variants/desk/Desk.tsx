@@ -8,9 +8,11 @@
 // read a word of them, which is the entire argument for this direction.
 
 import { useState } from "react";
-import { Paperclip, Send } from "lucide-react";
+import { Paperclip, Plus, Send } from "lucide-react";
 import SlideArt from "../../SlideArt";
-import { KIND_LABEL, KINDS, pulse, SESSIONS, streak, teacher } from "../../fixture";
+import {
+  KIND_LABEL, KINDS, olderSessions, pulse, SESSIONS, streak, teacher,
+} from "../../fixture";
 import StudioFrame from "../../StudioFrame";
 import s from "./Desk.module.css";
 
@@ -33,8 +35,39 @@ export default function Desk() {
   const peak = Math.max(...pulse);
 
   return (
-    <StudioFrame theme={s.theme} session={session} onSession={(n) => { setSession(n); setI(0); }}>
+    <StudioFrame>
     <div className={s.page}>
+      {/* ── conversations · a stack you fan through ───────────────── */}
+      <div className={s.fan}>
+        {SESSIONS.map((x, k) => (
+          <button
+            key={x.id}
+            type="button"
+            className={s.fanCard}
+            data-on={k === session}
+            onClick={() => { setSession(k); setI(0); }}
+            aria-current={k === session}
+          >
+            <span className={s.fanTitle}>{x.title}</span>
+            <span className={s.fanWhen}>
+              {x.when} · {x.turns} turns
+            </span>
+          </button>
+        ))}
+        {olderSessions.map((x) => (
+          <button key={x.id} type="button" className={s.fanCard}>
+            <span className={s.fanTitle}>{x.title}</span>
+            <span className={s.fanWhen}>
+              {x.when} · {x.turns} turns
+            </span>
+          </button>
+        ))}
+        <button type="button" className={s.fanNew}>
+          <Plus size={15} />
+          New
+        </button>
+      </div>
+
       {/* ── the tray ──────────────────────────────────────────────── */}
       <div className={s.tray}>
         <div className={s.note}>

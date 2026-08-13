@@ -17,20 +17,22 @@ export default function Gallery() {
           Ten studios, <em>two sessions.</em>
         </h1>
         <p className={g.lead}>
-          The AI studio at <code>/studio</code>, redrawn ten ways — the whole
-          screen, not the answer pane: the teacher&rsquo;s sidebar exactly as{" "}
-          <code>config/nav.ts</code> defines it, the top bar, and the
-          conversation rail. Every design carries the same chrome so what you
-          are choosing between is a design, never an information architecture.
+          The AI studio at <code>/studio</code>, redrawn ten ways. The sidebar
+          and top bar are <em>identical</em> in all ten — same nav as{" "}
+          <code>config/nav.ts</code>, same spacing, same colours — and every
+          design draws from the same <code>--p-*</code> tokens as the rest of
+          the product. No preview invents a palette.
         </p>
         <p className={g.note}>
-          Two conversations are open in the rail on every one of them, and
-          they are different <em>shapes</em> of work — a Grade 7 lesson plan,
-          eight-slide deck and quiz in the first; a Grade 6 card-sort
-          activity, six-slide deck and homework in the second. Click the
-          second one on any design to see it handle work it was not drawn
-          for. Nothing here calls the model or the database; the content is
-          pinned in <code>fixture.ts</code>.
+          What differs is everything else: where the conversation list lives
+          and what form it takes — a margin index, a table, a card strip, a
+          fanned stack, a single collapsed line — and how the three outcomes
+          are arranged. Two conversations are open on every design and they
+          are different <em>shapes</em> of work (a lesson plan, deck and quiz
+          in one; a card-sort activity, deck and homework in the other), so
+          opening the second shows each design handling work it was not drawn
+          for. Nothing calls the model or the database; the content is pinned
+          in <code>fixture.ts</code>.
         </p>
       </header>
 
@@ -41,11 +43,7 @@ export default function Gallery() {
               <div className={g.cardTop}>
                 <span className={g.num}>{String(i + 1).padStart(2, "0")}</span>
                 <span className={g.route}>{pathFor(i)}</span>
-                <span className={g.swatch}>
-                  {v.swatch.map((c) => (
-                    <span key={c} className={g.chip} style={{ background: c }} />
-                  ))}
-                </span>
+
               </div>
 
               <h2 className={g.name}>{v.name}</h2>
@@ -53,8 +51,8 @@ export default function Gallery() {
               <p className={g.line}>{v.line}</p>
               <p className={g.why}>{v.why}</p>
               <p className={g.shape}>
-                <b>Shape — </b>
-                {v.shape}
+                <b>Conversations — </b>
+                {v.threads}
               </p>
 
               <span className={g.go} aria-hidden="true">

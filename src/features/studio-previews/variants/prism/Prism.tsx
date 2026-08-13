@@ -10,10 +10,20 @@
 // the session you are in from across the room.
 
 import { useState } from "react";
-import { Paperclip, Check, Send } from "lucide-react";
+import { Paperclip, Check, Send, Plus } from "lucide-react";
 import SlideArt from "../../SlideArt";
 import StudioFrame from "../../StudioFrame";
-import { KIND_LABEL, KINDS, pulse, SESSIONS, streak } from "../../fixture";
+import {
+  KIND_LABEL, KINDS, olderSessions, pulse, SESSIONS, streak, type Kind,
+} from "../../fixture";
+import { KIND_ICON } from "../../kinds";
+
+// Threads grouped the way a teacher remembers them — by when, not by kind.
+const DAYS = [
+  { label: "Today", items: [SESSIONS[0]] },
+  { label: "Yesterday", items: [SESSIONS[1]] },
+  { label: "Earlier this week", items: olderSessions },
+];
 import s from "./Prism.module.css";
 
 const LETTER = ["a", "b", "c", "d"];
@@ -26,8 +36,55 @@ export default function Prism() {
   const peak = Math.max(...pulse);
 
   return (
-    <StudioFrame theme={s.theme} session={session} onSession={(n) => { setSession(n); setI(0); }}>
+    <StudioFrame>
       <div className={s.page}>
+        {/* ── conversations · grouped by day, on the ink ground ───── */}
+        <aside className={s.days} aria-label="Conversations">
+          <div className={s.daysHead}>
+            <h2 className={s.daysTitle}>Threads</h2>
+            <span className={s.daysCount}>{SESSIONS.length + olderSessions.length}</span>
+          </div>
+          {DAYS.map((day) => (
+            <div key={day.label}>
+              <span className={s.dayLabel}>{day.label}</span>
+              {day.items.map((x) => {
+                const open = "made" in x;
+                const k = open ? SESSIONS.findIndex((y) => y.id === x.id) : -1;
+                const kinds = open ? (x as (typeof SESSIONS)[number]).made : [(x as { kind: Kind }).kind];
+                return (
+                  <button
+                    key={x.id}
+                    type="button"
+                    className={s.dayItem}
+                    data-on={k === session}
+                    onClick={k >= 0 ? () => { setSession(k); setI(0); } : undefined}
+                    aria-current={k === session}
+                  >
+                    <span className={s.dayTitle}>{x.title}</span>
+                    <span className={s.dayMeta}>
+                      {x.turns} turns
+                      <span className={s.dayMade}>
+                        {kinds.map((kind) => {
+                          const Icon = KIND_ICON[kind];
+                          return (
+                            <span key={kind} className={s.dayChip} title={KIND_LABEL[kind]}>
+                              <Icon size={9} />
+                            </span>
+                          );
+                        })}
+                      </span>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          ))}
+          <button type="button" className={s.daysNew}>
+            <Plus size={13} /> New conversation
+          </button>
+        </aside>
+
+        <div className={s.bands}>
         {/* ── the brief ───────────────────────────────────────────── */}
         <header className={s.hero}>
           <div className={s.heroTop}>
@@ -227,6 +284,7 @@ export default function Prism() {
               </button>
             ))}
           </div>
+        </div>
         </div>
       </div>
     </StudioFrame>

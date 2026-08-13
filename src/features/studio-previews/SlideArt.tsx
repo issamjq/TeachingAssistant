@@ -38,17 +38,17 @@ function Frame({ children, className }: { children: React.ReactNode; className?:
       role="img"
       aria-hidden="true"
       preserveAspectRatio="xMidYMid meet"
-      style={{ background: "var(--art-bg, #e3efef)" }}
+      style={{ background: "var(--art-bg, var(--p-ambient-pale))" }}
     >
-      <rect width="400" height="260" fill="var(--art-bg, #e3efef)" />
+      <rect width="400" height="260" fill="var(--art-bg, var(--p-ambient-pale))" />
       {children}
     </svg>
   );
 }
 
-const INK = "var(--art-ink, #101718)";
-const ACC = "var(--art-accent, #16646c)";
-const SOFT = "var(--art-soft, #d3e2e3)";
+const INK = "var(--art-ink, var(--p-ink))";
+const ACC = "var(--art-accent, var(--p-accent))";
+const SOFT = "var(--art-soft, var(--p-accent-soft))";
 
 /* ── the eight plates ─────────────────────────────────────────────── */
 
@@ -58,12 +58,12 @@ const PLATES: Record<string, React.ReactNode> = {
     <>
       <circle cx="300" cy="60" r="120" fill={SOFT} opacity="0.55" />
       <path d="M60 220 C60 120 140 40 250 34 C258 140 180 218 60 220 Z" fill={ACC} opacity="0.9" />
-      <path d="M60 220 C120 160 190 96 250 34" stroke="var(--art-bg, #e3efef)" strokeWidth="3" fill="none" />
+      <path d="M60 220 C120 160 190 96 250 34" stroke="var(--art-bg, var(--p-ambient-pale))" strokeWidth="3" fill="none" />
       {[0, 1, 2, 3, 4].map((i) => (
         <path
           key={i}
           d={`M${92 + i * 32} ${188 - i * 32} q 30 -6 ${44 - i * 4} -${34 - i * 3}`}
-          stroke="var(--art-bg, #e3efef)"
+          stroke="var(--art-bg, var(--p-ambient-pale))"
           strokeWidth="2"
           fill="none"
           opacity="0.75"
@@ -97,8 +97,8 @@ const PLATES: Record<string, React.ReactNode> = {
     <>
       <circle cx="200" cy="128" r="66" fill={ACC} opacity="0.16" />
       <circle cx="200" cy="128" r="46" fill={ACC} />
-      <path d="M186 118 q 14 -16 28 0 q -14 22 -28 0 Z" fill="var(--art-bg, #e3efef)" />
-      <path d="M200 128 v22" stroke="var(--art-bg, #e3efef)" strokeWidth="3" />
+      <path d="M186 118 q 14 -16 28 0 q -14 22 -28 0 Z" fill="var(--art-bg, var(--p-ambient-pale))" />
+      <path d="M200 128 v22" stroke="var(--art-bg, var(--p-ambient-pale))" strokeWidth="3" />
       {["CO₂", "H₂O", "light"].map((t, i) => (
         <g key={t}>
           <text x="40" y={70 + i * 46} fontSize="15" fill={INK} fontFamily="ui-sans-serif, sans-serif" fontWeight="600">{t}</text>
@@ -124,7 +124,7 @@ const PLATES: Record<string, React.ReactNode> = {
       {[0, 1, 2, 3, 4, 5].map((c) =>
         [0, 1].map((r) => (
           <g key={`${c}-${r}`}>
-            <rect x={56 + c * 50} y={104 + r * 34} width="40" height="26" rx="9" fill="var(--art-bg, #e3efef)" stroke={INK} strokeWidth="1.2" />
+            <rect x={56 + c * 50} y={104 + r * 34} width="40" height="26" rx="9" fill="var(--art-bg, var(--p-ambient-pale))" stroke={INK} strokeWidth="1.2" />
             <ellipse cx={70 + c * 50} cy={117 + r * 34} rx="6" ry="4.5" fill={ACC} />
             <ellipse cx={84 + c * 50} cy={122 + r * 34} rx="5" ry="4" fill={ACC} opacity="0.7" />
           </g>
@@ -167,7 +167,7 @@ const PLATES: Record<string, React.ReactNode> = {
       <path d="M56 208 C 120 208 150 96 220 84 C 280 74 320 76 352 76" fill="none" stroke={ACC} strokeWidth="3.5" strokeLinecap="round" />
       <path d="M56 208 C 120 208 150 96 220 84 C 280 74 320 76 352 76 L352 208 Z" fill={ACC} opacity="0.14" />
       {[[104, 186], [148, 132], [196, 94], [252, 80], [312, 77]].map(([x, y], i) => (
-        <circle key={i} cx={x} cy={y} r="5.5" fill="var(--art-bg, #e3efef)" stroke={ACC} strokeWidth="2.5" />
+        <circle key={i} cx={x} cy={y} r="5.5" fill="var(--art-bg, var(--p-ambient-pale))" stroke={ACC} strokeWidth="2.5" />
       ))}
       <path d="M232 84 v-26 h64" stroke={INK} strokeWidth="1.4" strokeDasharray="4 4" opacity="0.6" fill="none" />
       <text x="300" y="54" fontSize="12" fill={INK} opacity="0.7" fontFamily="ui-sans-serif, sans-serif">plateau</text>
@@ -238,7 +238,7 @@ const PLATES: Record<string, React.ReactNode> = {
         [56, 132, 4], [134, 144, -5], [212, 136, 2], [290, 128, -3],
       ].map(([x, y, rot], i) => (
         <g key={i} transform={`rotate(${rot} ${x + 34} ${y + 24})`}>
-          <rect x={x} y={y} width="68" height="48" rx="5" fill="var(--art-bg, #e3efef)" stroke={INK} strokeWidth="1.5" />
+          <rect x={x} y={y} width="68" height="48" rx="5" fill="var(--art-bg, var(--p-ambient-pale))" stroke={INK} strokeWidth="1.5" />
           {[0, 1, 2, 3].map((d) => (
             <circle
               key={d}
@@ -293,7 +293,7 @@ const PLATES: Record<string, React.ReactNode> = {
   // Heat as movement.
   thermometer: (
     <>
-      <rect x="176" y="34" width="30" height="150" rx="15" fill="var(--art-bg, #e3efef)" stroke={INK} strokeWidth="2" />
+      <rect x="176" y="34" width="30" height="150" rx="15" fill="var(--art-bg, var(--p-ambient-pale))" stroke={INK} strokeWidth="2" />
       <circle cx="191" cy="196" r="26" fill={ACC} stroke={INK} strokeWidth="2" />
       <rect x="184" y="88" width="14" height="98" rx="7" fill={ACC} />
       {[0, 1, 2, 3, 4].map((i) => (
@@ -352,22 +352,22 @@ const PLATES: Record<string, React.ReactNode> = {
       <path d="M272 142 c -24 0 -37 16 -41 38 h82 c -4 -22 -17 -38 -41 -38 Z" fill="none" stroke={INK} strokeWidth="2" />
       <path d="M166 92 q 30 -18 62 -2" stroke={ACC} strokeWidth="2.5" fill="none" strokeLinecap="round" />
       <path d="M222 84 l8 6 l-9 5" stroke={ACC} strokeWidth="2.5" fill="none" strokeLinecap="round" />
-      <rect x="152" y="26" width="120" height="42" rx="9" fill="var(--art-bg, #e3efef)" stroke={INK} strokeWidth="1.6" />
+      <rect x="152" y="26" width="120" height="42" rx="9" fill="var(--art-bg, var(--p-ambient-pale))" stroke={INK} strokeWidth="1.6" />
       <path d="M168 40 h88 M168 54 h58" stroke={INK} strokeWidth="1.6" opacity="0.45" />
-      <path d="M200 68 l8 12 l10 -12 Z" fill="var(--art-bg, #e3efef)" stroke={INK} strokeWidth="1.6" />
+      <path d="M200 68 l8 12 l10 -12 Z" fill="var(--art-bg, var(--p-ambient-pale))" stroke={INK} strokeWidth="1.6" />
     </>
   ),
 
   // The slip they hand back at the door.
   "exit-ticket": (
     <>
-      <rect x="70" y="52" width="260" height="150" rx="8" fill="var(--art-bg, #e3efef)" stroke={INK} strokeWidth="2" transform="rotate(-3 200 128)" />
+      <rect x="70" y="52" width="260" height="150" rx="8" fill="var(--art-bg, var(--p-ambient-pale))" stroke={INK} strokeWidth="2" transform="rotate(-3 200 128)" />
       <rect x="82" y="42" width="260" height="150" rx="8" fill={SOFT} stroke={INK} strokeWidth="2" transform="rotate(2.5 200 128)" />
       <path d="M104 92 h206 M104 118 h206 M104 144 h140" stroke={INK} strokeWidth="1.4" opacity="0.4" transform="rotate(2.5 200 128)" />
       <path d="M108 86 q 42 -14 76 2 q 34 16 74 -6" stroke={ACC} strokeWidth="3" fill="none" strokeLinecap="round" transform="rotate(2.5 200 128)" />
       <path d="M108 112 q 56 -12 104 4" stroke={ACC} strokeWidth="3" fill="none" strokeLinecap="round" transform="rotate(2.5 200 128)" />
       <circle cx="300" cy="180" r="22" fill={ACC} />
-      <path d="M290 180 l7 8 l14 -16" stroke="var(--art-bg, #e3efef)" strokeWidth="3" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M290 180 l7 8 l14 -16" stroke="var(--art-bg, var(--p-ambient-pale))" strokeWidth="3" fill="none" strokeLinecap="round" strokeLinejoin="round" />
     </>
   ),
 };
