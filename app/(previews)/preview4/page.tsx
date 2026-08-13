@@ -1,15 +1,16 @@
 import type { Metadata } from "next";
-import Console from "@/features/studio-previews/variants/console/Console";
+import Nova from "@/features/studio-previews/variants/nova/Nova";
 
-// Studio design 4 of 7 — "Console". Listed at /preview.
+// Studio design 4 of 10 — "Nova". Listed at /preview.
 //
-// Renders the fixed session in src/features/studio-previews/fixture.ts.
-// Nothing here fetches, generates or saves.
+// Renders the two fixed sessions in
+// src/features/studio-previews/fixture.ts inside the shared studio
+// chrome. Nothing here fetches, generates or saves.
 export const metadata: Metadata = {
-  title: "Murchid Studio — Console (design 4)",
+  title: "Murchid Studio — Nova (design 4)",
   robots: { index: false, follow: false },
 };
 
 export default function Preview4Page() {
-  return <Console />;
+  return <Nova />;
 }

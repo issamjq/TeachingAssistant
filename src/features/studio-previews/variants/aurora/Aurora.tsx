@@ -12,16 +12,18 @@ import { useState } from "react";
 import { Sparkles, ChevronLeft, ChevronRight, Send, Paperclip, Check } from "lucide-react";
 import SlideArt from "../../SlideArt";
 import {
-  classes, deck, lesson, prompt, pulse, quiz, recents, run, streak, teacher, KIND_LABEL,
+  classes, KIND_LABEL, KINDS, pulse, recents, SESSIONS, streak, teacher,
 } from "../../fixture";
+import StudioFrame from "../../StudioFrame";
 import s from "./Aurora.module.css";
 
-const KINDS = ["lesson_plan", "presentation", "quiz", "homework", "activity"] as const;
 
 export default function Aurora() {
+  const [session, setSession] = useState(0);
   const [i, setI] = useState(2);
-  const n = deck.slides.length;
-  const slide = deck.slides[i];
+  const S = SESSIONS[session];
+  const n = S.deck.slides.length;
+  const slide = S.deck.slides[Math.min(i, n - 1)];
   const peak = Math.max(...pulse);
 
   // Three cards: the one behind, the one in front, and the one after.
@@ -30,6 +32,7 @@ export default function Aurora() {
     .filter((x) => x.k >= 0 && x.k < n);
 
   return (
+    <StudioFrame theme={s.theme} session={session} onSession={(x) => { setSession(x); setI(0); }} rail="icons">
     <div className={s.page}>
       <div className={s.field} aria-hidden="true">
         <span className={`${s.blob} ${s.b1}`} />
@@ -39,41 +42,24 @@ export default function Aurora() {
       <div className={s.mesh} aria-hidden="true" />
 
       <div className={s.wrap}>
-        <nav className={s.nav}>
-          <span className={s.brand}>
-            <span className={s.brandDot} />
-            Murchid Studio
-          </span>
-          <span className={s.navMeta}>{teacher.school}</span>
-          <span className={s.navRight}>
-            <span className={s.navChip}>
-              <b>{run.credits}</b> credits used
-            </span>
-            <span className={s.navChip}>
-              {teacher.creditsTotal - teacher.creditsUsed} left
-            </span>
-            <span className={s.who}>{teacher.initials}</span>
-          </span>
-        </nav>
-
         <header className={s.head}>
           <p className={s.kicker}>
-            {prompt.at} · {teacher.role}
+            {S.prompt.at} · {teacher.role}
           </p>
-          <h1 className={s.brief}>{prompt.text}</h1>
+          <h1 className={s.brief}>{S.prompt.text}</h1>
           <div className={s.headMeta}>
-            {prompt.attachments.map((a) => (
+            {S.prompt.attachments.map((a) => (
               <span key={a.name} className={s.metaChip}>
                 <Paperclip size={11} /> <b>{a.name}</b> {a.pages}pp
               </span>
             ))}
-            {run.grounding.map((g) => (
+            {S.run.grounding.map((g) => (
               <span key={g} className={s.metaChip}>
                 <Check size={11} /> {g}
               </span>
             ))}
             <span className={s.metaChip}>
-              <Sparkles size={11} /> <b>{run.totalSeconds}s</b> · 3 outcomes
+              <Sparkles size={11} /> <b>{S.run.totalSeconds}s</b> · 3 outcomes
             </span>
           </div>
         </header>
@@ -81,15 +67,15 @@ export default function Aurora() {
         {/* ── the deck, in depth ────────────────────────────────── */}
         <section className={s.section}>
           <div className={s.secHead}>
-            <h2 className={s.secTitle}>{deck.title}</h2>
+            <h2 className={s.secTitle}>{S.deck.title}</h2>
             <span className={s.secMeta}>
-              {KIND_LABEL.presentation} · {n} slides
+              {KIND_LABEL[S.deck.kind]} · {n} slides
             </span>
           </div>
 
           <div className={s.deckStage}>
             {stack.map(({ d, k }) => {
-              const sl = deck.slides[k];
+              const sl = S.deck.slides[k];
               const front = d === 0;
               return (
                 <div
@@ -127,7 +113,7 @@ export default function Aurora() {
               <ChevronLeft size={16} />
             </button>
             <span className={s.pips}>
-              {deck.slides.map((sl, k) => (
+              {S.deck.slides.map((sl, k) => (
                 <button key={sl.n} type="button" className={s.pip} data-on={k === i} onClick={() => setI(k)} aria-label={`Slide ${sl.n}`} />
               ))}
             </span>
@@ -146,12 +132,12 @@ export default function Aurora() {
           <div className={s.panels}>
             <div className={`${s.panel} ${s.panelWide}`}>
               <div className={s.panelHead}>
-                <h2 className={s.panelTitle}>{lesson.title}</h2>
+                <h2 className={s.panelTitle}>{S.plan.title}</h2>
                 <span className={s.panelTag}>
-                  {lesson.duration} · {lesson.phases.length} phases
+                  {S.plan.duration} · {S.plan.phases.length} phases
                 </span>
               </div>
-              {lesson.phases.map((p) => (
+              {S.plan.phases.map((p) => (
                 <div key={p.n} className={s.phase}>
                   <span className={s.phaseMin}>
                     {p.minutes}
@@ -168,12 +154,12 @@ export default function Aurora() {
 
             <div className={`${s.panel} ${s.panelWide}`}>
               <div className={s.panelHead}>
-                <h2 className={s.panelTitle}>{quiz.title}</h2>
+                <h2 className={s.panelTitle}>{S.check.title}</h2>
                 <span className={s.panelTag}>
-                  {quiz.marks} marks · key lit
+                  {S.check.marks} marks · key lit
                 </span>
               </div>
-              {quiz.questions.map((q, k) => (
+              {S.check.questions.map((q, k) => (
                 <div key={q.q} className={s.q}>
                   <p className={s.qText}>
                     <span className={s.qN}>{String(k + 1).padStart(2, "0")}</span>
@@ -260,5 +246,6 @@ export default function Aurora() {
         </div>
       </div>
     </div>
+    </StudioFrame>
   );
 }

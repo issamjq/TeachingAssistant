@@ -13,49 +13,45 @@ import {
   Save, Download, Play, Paperclip, Send, Check,
 } from "lucide-react";
 import SlideArt from "../../SlideArt";
-import { deck, lesson, prompt, quiz, run, teacher, KIND_LABEL } from "../../fixture";
+import { KIND_LABEL, SESSIONS } from "../../fixture";
+import StudioFrame from "../../StudioFrame";
 import s from "./Canvas.module.css";
 
 const LETTER = ["A", "B", "C", "D"];
 type Tab = "lesson" | "deck" | "quiz";
 
-const TABS: { id: Tab; label: string; icon: typeof FileText; count: string }[] = [
-  { id: "lesson", label: "Lesson plan", icon: FileText, count: `${lesson.phases.length}` },
-  { id: "deck", label: "Deck", icon: Layers, count: `${deck.slides.length}` },
-  { id: "quiz", label: "Quiz", icon: GraduationCap, count: `${quiz.questions.length}` },
-];
+const TAB_ICON = { plan: FileText, deck: Layers, check: GraduationCap };
 
 export default function Canvas() {
+  const [session, setSession] = useState(0);
   const [tab, setTab] = useState<Tab>("deck");
   const [i, setI] = useState(2);
-  const slide = deck.slides[i];
-  const pct = Math.round((teacher.creditsUsed / teacher.creditsTotal) * 100);
+  const S = SESSIONS[session];
+  const slide = S.deck.slides[Math.min(i, S.deck.slides.length - 1)];
+
+  // Built from the session, not from the module, so the labels follow it:
+  // the second conversation's tabs read Activity / Deck / Homework.
+  const TABS: { id: Tab; label: string; icon: typeof FileText; count: string }[] = [
+    { id: "lesson", label: KIND_LABEL[S.plan.kind], icon: TAB_ICON.plan, count: `${S.plan.phases.length}` },
+    { id: "deck", label: "Deck", icon: TAB_ICON.deck, count: `${S.deck.slides.length}` },
+    { id: "quiz", label: KIND_LABEL[S.check.kind], icon: TAB_ICON.check, count: `${S.check.questions.length}` },
+  ];
 
   return (
+    <StudioFrame
+      theme={s.theme}
+      session={session}
+      onSession={(n) => { setSession(n); setI(0); setTab("deck"); }}
+    >
     <div className={s.page}>
-      {/* ── chrome ────────────────────────────────────────────────── */}
+      {/* ── the session bar ───────────────────────────────────────── */}
       <header className={s.top}>
-        <span className={s.brand}>
-          <span className={s.dot}>
-            <Sparkles size={13} />
-          </span>
-          Murchid
-        </span>
         <span className={s.sessionName}>
-          <b>{lesson.title}</b> · {lesson.grade}
+          <b>{S.title}</b> · {S.grade}
         </span>
         <span className={s.status}>
           <span className={s.statusDot} />
-          3 outcomes ready · {run.totalSeconds}s
-        </span>
-        <span className={s.topRight}>
-          <span className={s.credits}>
-            {teacher.creditsTotal - teacher.creditsUsed} credits left
-            <span className={s.meter}>
-              <span className={s.meterFill} style={{ width: `${100 - pct}%` }} />
-            </span>
-          </span>
-          <span className={s.avatar}>{teacher.initials}</span>
+          {S.made.length} outcomes ready · {S.run.totalSeconds}s · {S.run.credits} credits
         </span>
       </header>
 
@@ -65,9 +61,9 @@ export default function Canvas() {
           <div className={s.thread}>
             <div className={s.userRow}>
               <div>
-                <div className={s.bubble}>{prompt.text}</div>
+                <div className={s.bubble}>{S.prompt.text}</div>
                 <div className={s.clips}>
-                  {prompt.attachments.map((a) => (
+                  {S.prompt.attachments.map((a) => (
                     <span key={a.name} className={s.clip}>
                       <Paperclip size={9} /> {a.name}
                     </span>
@@ -83,12 +79,12 @@ export default function Canvas() {
               <div className={s.botBody}>
                 <p className={s.said}>
                   I read both attachments and matched all three MoE outcomes. Here is a{" "}
-                  <b>{lesson.duration}</b> lesson in six phases, the deck to project alongside it,
-                  and a {quiz.questions.length}-question quiz you can set as homework tonight.
+                  <b>{S.plan.duration}</b> lesson in six phases, the deck to project alongside it,
+                  and a {S.check.questions.length}-question quiz you can set as homework tonight.
                 </p>
 
                 <div className={s.steps}>
-                  {run.stages.map((st) => (
+                  {S.run.stages.map((st) => (
                     <div key={st.label} className={s.step}>
                       <Check size={11} className={s.stepTick} />
                       <b>{st.label}</b>
@@ -112,15 +108,15 @@ export default function Canvas() {
                       </span>
                       <span className={s.pickText}>
                         <span className={s.pickTitle}>
-                          {t.id === "deck" ? deck.title : t.id === "quiz" ? quiz.title : lesson.title}
+                          {t.id === "deck" ? S.deck.title : t.id === "quiz" ? S.check.title : S.plan.title}
                         </span>
                         <span className={s.pickMeta}>
                           {t.label} ·{" "}
                           {t.id === "deck"
-                            ? `${deck.slides.length} slides`
+                            ? `${S.deck.slides.length} slides`
                             : t.id === "quiz"
-                              ? `${quiz.marks} marks · ${quiz.minutes} min`
-                              : `${lesson.phases.length} phases · ${lesson.duration}`}
+                              ? `${S.check.marks} marks · ${S.check.minutes} min`
+                              : `${S.plan.phases.length} phases · ${S.plan.duration}`}
                         </span>
                       </span>
                       <ChevronRight size={15} className={s.pickGo} />
@@ -208,14 +204,14 @@ export default function Canvas() {
                   <button
                     type="button"
                     className={s.nav}
-                    onClick={() => setI((v) => Math.min(deck.slides.length - 1, v + 1))}
-                    disabled={i === deck.slides.length - 1}
+                    onClick={() => setI((v) => Math.min(S.deck.slides.length - 1, v + 1))}
+                    disabled={i === S.deck.slides.length - 1}
                     aria-label="Next slide"
                   >
                     <ChevronRight size={15} />
                   </button>
                   <span className={s.counter}>
-                    Slide {slide.n} of {deck.slides.length}
+                    Slide {slide.n} of {S.deck.slides.length}
                   </span>
                   <span className={s.speaker}>
                     <b>Speaker notes</b>
@@ -224,7 +220,7 @@ export default function Canvas() {
                 </div>
 
                 <div className={s.film}>
-                  {deck.slides.map((sl, k) => (
+                  {S.deck.slides.map((sl, k) => (
                     <button key={sl.n} type="button" className={s.frame} data-on={k === i} onClick={() => setI(k)} aria-current={k === i}>
                       <SlideArt seed={sl.art} />
                       <span className={s.frameCap}>
@@ -240,19 +236,19 @@ export default function Canvas() {
             {tab === "lesson" && (
               <div className={s.doc}>
                 <div className={s.docHead}>
-                  <h2 className={s.docTitle}>{lesson.title}</h2>
+                  <h2 className={s.docTitle}>{S.plan.title}</h2>
                   <p className={s.docSub}>
-                    {lesson.grade} · {lesson.subject} · {lesson.duration}
+                    {S.plan.grade} · {S.plan.subject} · {S.plan.duration}
                   </p>
                   <div className={s.pills}>
-                    {lesson.materials.map((m) => (
+                    {S.plan.materials.map((m) => (
                       <span key={m} className={s.pill}>{m}</span>
                     ))}
                   </div>
                 </div>
 
                 <div className={s.tl}>
-                  {lesson.phases.map((p) => (
+                  {S.plan.phases.map((p) => (
                     <div key={p.n} className={s.tlItem}>
                       <div className={s.tlTop}>
                         <h3 className={s.tlName}>{p.name}</h3>
@@ -267,15 +263,15 @@ export default function Canvas() {
                 <div className={s.grid3}>
                   <div className={s.mini}>
                     <span className={s.miniKey}>Support</span>
-                    <span className={s.miniVal}>{lesson.differentiation.support}</span>
+                    <span className={s.miniVal}>{S.plan.differentiation.support}</span>
                   </div>
                   <div className={s.mini}>
                     <span className={s.miniKey}>Stretch</span>
-                    <span className={s.miniVal}>{lesson.differentiation.stretch}</span>
+                    <span className={s.miniVal}>{S.plan.differentiation.stretch}</span>
                   </div>
                   <div className={s.mini}>
                     <span className={s.miniKey}>Language</span>
-                    <span className={s.miniVal}>{lesson.differentiation.ell}</span>
+                    <span className={s.miniVal}>{S.plan.differentiation.ell}</span>
                   </div>
                 </div>
               </div>
@@ -284,12 +280,12 @@ export default function Canvas() {
             {tab === "quiz" && (
               <div className={s.doc}>
                 <div className={s.docHead}>
-                  <h2 className={s.docTitle}>{quiz.title}</h2>
+                  <h2 className={s.docTitle}>{S.check.title}</h2>
                   <p className={s.docSub}>
-                    {quiz.grade} · {quiz.marks} marks · {quiz.minutes} minutes · answer key shown
+                    {S.check.grade} · {S.check.marks} marks · {S.check.minutes} minutes · answer key shown
                   </p>
                 </div>
-                {quiz.questions.map((q, k) => (
+                {S.check.questions.map((q, k) => (
                   <article key={q.q} className={s.qCard}>
                     <div className={s.qTop}>
                       <span className={s.qNum}>{k + 1}</span>
@@ -316,5 +312,6 @@ export default function Canvas() {
         </section>
       </div>
     </div>
+    </StudioFrame>
   );
 }

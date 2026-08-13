@@ -1,3 +1,22 @@
+/* The shell in Aurora's material. It commits to dark — half the design
+   IS the light behind the glass — so the frame is given the same near-
+   black slate and the same mint, never the app's paper tokens. */
+.theme {
+  --f-bg: #07080f;
+  --f-panel: #0c0e1a;
+  --f-panel-2: #14172a;
+  --f-line: #1e2138;
+  --f-line-soft: #16192b;
+  --f-fg: #eef0f6;
+  --f-fg-dim: #7d8499;
+  --f-accent: #6ee7d0;
+  --f-accent-soft: #14342f;
+  --f-on-accent: #06202a;
+  --f-radius: 12px;
+  --f-nav-radius: 10px;
+  --f-hist-w: 254px;
+}
+
 /* =====================================================================
    03 · Aurora — dark, lit from behind
 
@@ -11,42 +30,43 @@
    ===================================================================== */
 
 .page {
-  --ground: #071316;
-  --glass: rgb(255 255 255 / 0.055);
-  --glass-line: rgb(255 255 255 / 0.11);
-  --lit: #8fd7d2;
-  --lit-deep: #17646c;
-  --text: #e7efee;
-  --text-dim: #93a8a8;
+  --ground: #07080f;
+  --glass: rgb(255 255 255 / 0.05);
+  --glass-line: rgb(255 255 255 / 0.13);
+  --lit: #6ee7d0;
+  --lit-2: #a78bfa;
+  --lit-deep: #1c8f80;
+  --text: #eef0f6;
+  --text-dim: #939aae;
 
-  --art-bg: #0c1e22;
-  --art-ink: #b9d4d2;
-  --art-accent: #7fd3ce;
-  --art-soft: #12333a;
+  --art-bg: #0e1020;
+  --art-ink: #b6bdd4;
+  --art-accent: #6ee7d0;
+  --art-soft: #1b1f3a;
 
   position: relative;
-  min-height: 100vh;
+  min-height: 100%;
   background: var(--ground);
   color: var(--text);
   font-family: var(--font-sans);
   overflow-x: hidden;
-  padding-bottom: 150px;
+  padding-bottom: 26px;
 }
 
 /* ── the light ────────────────────────────────────────────────────── */
 
-.field { position: fixed; inset: 0; pointer-events: none; overflow: hidden; }
-.blob { position: absolute; border-radius: 50%; filter: blur(90px); opacity: 0.5; }
-.b1 { width: 62vw; height: 62vw; left: -14vw; top: -18vw; background: radial-gradient(circle, #12656e 0%, transparent 68%); animation: drift1 26s ease-in-out infinite alternate; }
-.b2 { width: 52vw; height: 52vw; right: -12vw; top: 8vh; background: radial-gradient(circle, #1d7f78 0%, transparent 66%); animation: drift2 32s ease-in-out infinite alternate; }
-.b3 { width: 46vw; height: 46vw; left: 24vw; bottom: -18vw; background: radial-gradient(circle, #0d4a6b 0%, transparent 70%); animation: drift1 38s ease-in-out infinite alternate-reverse; }
+.field { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.blob { position: absolute; border-radius: 50%; filter: blur(100px); opacity: 0.42; }
+.b1 { width: 58vw; height: 58vw; left: -16vw; top: -20vw; background: radial-gradient(circle, #3b2f8f 0%, transparent 66%); animation: drift1 26s ease-in-out infinite alternate; }
+.b2 { width: 50vw; height: 50vw; right: -14vw; top: 4vh; background: radial-gradient(circle, #146f68 0%, transparent 64%); animation: drift2 32s ease-in-out infinite alternate; }
+.b3 { width: 44vw; height: 44vw; left: 26vw; bottom: -20vw; background: radial-gradient(circle, #6d3f9c 0%, transparent 68%); animation: drift1 38s ease-in-out infinite alternate-reverse; }
 @keyframes drift1 { to { transform: translate3d(7vw, 5vh, 0) scale(1.14); } }
 @keyframes drift2 { to { transform: translate3d(-6vw, 8vh, 0) scale(0.9); } }
 @media (prefers-reduced-motion: reduce) { .blob { animation: none; } }
 
 /* A fine grid over the light, so the dark has structure. */
 .mesh {
-  position: fixed;
+  position: absolute;
   inset: 0;
   pointer-events: none;
   background:
@@ -60,8 +80,7 @@
 /* ── floating nav ─────────────────────────────────────────────────── */
 
 .nav {
-  position: sticky;
-  top: 16px;
+  position: relative;
   z-index: 30;
   display: flex;
   align-items: center;
@@ -69,7 +88,7 @@
   margin: 16px 0 0;
   padding: 9px 9px 9px 16px;
   border-radius: 999px;
-  background: rgb(10 22 25 / 0.62);
+  background: rgb(11 12 24 / 0.66);
   border: 1px solid var(--glass-line);
   backdrop-filter: blur(18px) saturate(140%);
   box-shadow: 0 20px 50px -30px #000;
@@ -87,7 +106,7 @@
   color: var(--text-dim);
 }
 .navChip b { color: var(--lit); font-weight: 600; }
-.who { width: 30px; height: 30px; border-radius: 999px; background: linear-gradient(140deg, var(--lit), var(--lit-deep)); color: #04191c; display: grid; place-items: center; font-size: 11.5px; font-weight: 700; }
+.who { width: 30px; height: 30px; border-radius: 999px; background: linear-gradient(140deg, var(--lit), var(--lit-2)); color: #080a16; display: grid; place-items: center; font-size: 11.5px; font-weight: 700; }
 
 /* ── the brief ────────────────────────────────────────────────────── */
 
@@ -102,7 +121,7 @@
   line-height: 1.14;
   letter-spacing: -0.03em;
   margin: 16px 0 0;
-  background: linear-gradient(180deg, #ffffff 12%, #a9c6c4 100%);
+  background: linear-gradient(180deg, #ffffff 10%, #b7bdd6 100%);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
@@ -144,7 +163,7 @@
   border-radius: 18px;
   overflow: hidden;
   border: 1px solid var(--glass-line);
-  background: #0a1c20;
+  background: #0b0d1a;
   box-shadow: 0 40px 90px -44px #000;
   transition: transform 0.5s cubic-bezier(0.22, 0.8, 0.28, 1), opacity 0.5s;
   display: grid;
@@ -164,13 +183,13 @@
   pointer-events: none;
   /* A wash over the plate only, to seat it into the card. It no longer
      has to hide anything, so it is a fraction of what it was. */
-  background: linear-gradient(to top, rgb(4 14 16 / 0.5), rgb(4 14 16 / 0) 46%);
+  background: linear-gradient(to top, rgb(5 6 14 / 0.52), rgb(5 6 14 / 0) 46%);
 }
 .cardText {
   position: relative;
   z-index: 2;
   padding: clamp(13px, 1.9vw, 24px) clamp(16px, 2.6vw, 30px) clamp(15px, 2.2vw, 26px);
-  background: linear-gradient(to bottom, rgb(4 14 16 / 0.82), rgb(4 14 16 / 0.96));
+  background: linear-gradient(to bottom, rgb(9 10 21 / 0.86), rgb(7 8 16 / 0.97));
   border-top: 1px solid rgb(255 255 255 / 0.07);
 }
 .cardTitle {
@@ -180,10 +199,10 @@
   line-height: 1.07;
   letter-spacing: -0.026em;
   margin: 0 0 10px;
-  color: #f2f8f7;
+  color: #f4f5fa;
 }
 .cardBullets { list-style: none; margin: 0; padding: 0; display: grid; gap: 5px; }
-.cardBullets li { font-size: clamp(12px, 1.2vw, 15.5px); color: #bcd2d0; padding-inline-start: 15px; position: relative; }
+.cardBullets li { font-size: clamp(12px, 1.2vw, 15.5px); color: #c3c9dc; padding-inline-start: 15px; position: relative; }
 .cardBullets li::before { content: ""; position: absolute; inset-inline-start: 0; top: 0.6em; width: 7px; height: 2px; background: var(--lit); box-shadow: 0 0 8px var(--lit); }
 .glow { position: absolute; inset: -1px; border-radius: 18px; pointer-events: none; box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.16); }
 
@@ -227,7 +246,7 @@
   flex-shrink: 0;
   width: 44px; height: 44px;
   border-radius: 12px;
-  background: linear-gradient(150deg, rgb(143 215 210 / 0.22), rgb(23 100 108 / 0.12));
+  background: linear-gradient(150deg, rgb(110 231 208 / 0.2), rgb(167 139 250 / 0.16));
   border: 1px solid var(--glass-line);
   display: grid; place-items: center;
   font-size: 15px;
@@ -254,8 +273,8 @@
 }
 .opt[data-right="true"] {
   color: #eafffb;
-  border-color: rgb(143 215 210 / 0.45);
-  background: rgb(143 215 210 / 0.1);
+  border-color: rgb(110 231 208 / 0.5);
+  background: rgb(110 231 208 / 0.1);
   box-shadow: 0 0 22px -8px var(--lit);
 }
 .tick { color: var(--lit); }
@@ -266,7 +285,7 @@
 .statNum { font-family: var(--font-serif); font-size: clamp(26px, 3vw, 38px); font-weight: 300; color: var(--lit); line-height: 1; letter-spacing: -0.03em; }
 .statKey { font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--text-dim); margin-top: 7px; display: block; }
 .spark { display: flex; align-items: flex-end; gap: 3px; height: 46px; margin-top: 14px; }
-.sparkBar { flex: 1; border-radius: 2px 2px 0 0; background: linear-gradient(to top, rgb(143 215 210 / 0.15), var(--lit)); min-height: 3px; }
+.sparkBar { flex: 1; border-radius: 2px 2px 0 0; background: linear-gradient(to top, rgb(110 231 208 / 0.14), var(--lit)); min-height: 3px; }
 
 .shelfRow { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-top: 1px solid rgb(255 255 255 / 0.06); font-size: 12.5px; }
 .shelfRow:first-of-type { border-top: 0; }
@@ -276,13 +295,13 @@
 
 /* ── floating composer ────────────────────────────────────────────── */
 
-.dock { position: fixed; inset-inline: 0; bottom: 20px; z-index: 40; display: grid; place-items: center; padding: 0 16px; pointer-events: none; }
+.dock { position: sticky; bottom: 0; z-index: 40; display: grid; place-items: center; padding: 30px 16px 18px; margin-top: 34px; pointer-events: none; background: linear-gradient(to top, var(--ground) 0 54%, transparent); }
 .dockInner {
   pointer-events: auto;
   width: min(720px, 100%);
   border-radius: 22px;
   border: 1px solid var(--glass-line);
-  background: rgb(9 21 24 / 0.78);
+  background: rgb(11 12 24 / 0.82);
   backdrop-filter: blur(22px) saturate(150%);
   box-shadow: 0 30px 70px -30px #000, inset 0 1px 0 rgb(255 255 255 / 0.1);
   padding: 12px 14px;
@@ -298,14 +317,14 @@
   color: var(--text-dim);
   cursor: pointer;
 }
-.dockKind[data-on="true"] { background: rgb(143 215 210 / 0.16); border-color: rgb(143 215 210 / 0.4); color: var(--lit); }
+.dockKind[data-on="true"] { background: rgb(110 231 208 / 0.15); border-color: rgb(110 231 208 / 0.42); color: var(--lit); }
 .dockSend {
   margin-inline-start: auto;
   width: 34px; height: 34px;
   border-radius: 999px;
   border: 0;
-  background: linear-gradient(140deg, var(--lit), var(--lit-deep));
-  color: #04191c;
+  background: linear-gradient(140deg, var(--lit), var(--lit-2));
+  color: #080a16;
   display: grid; place-items: center;
   cursor: pointer;
   box-shadow: 0 0 26px -6px var(--lit);

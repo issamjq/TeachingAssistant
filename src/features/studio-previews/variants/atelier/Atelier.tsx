@@ -11,29 +11,37 @@
 import { useState } from "react";
 import SlideArt from "../../SlideArt";
 import {
-  classes, deck, lesson, prompt, pulse, quiz, recents, run, streak, teacher, KIND_LABEL,
+  classes, KIND_LABEL, KINDS, pulse, recents, SESSIONS, streak,
 } from "../../fixture";
+import StudioFrame from "../../StudioFrame";
 import s from "./Atelier.module.css";
 
 const LETTER = ["a", "b", "c", "d"];
-const KINDS = ["lesson_plan", "presentation", "quiz", "homework", "activity"] as const;
 
 export default function Atelier() {
+  const [session, setSession] = useState(0);
   const [i, setI] = useState(2);
-  const slide = deck.slides[i];
+  const S = SESSIONS[session];
+  // The two sessions have different-length decks, so the slide index has
+  // to survive a switch rather than index off the end of a shorter one.
+  const slide = S.deck.slides[Math.min(i, S.deck.slides.length - 1)];
   const peak = Math.max(...pulse);
 
   return (
+    <StudioFrame theme={s.theme} session={session} onSession={(n) => { setSession(n); setI(0); }}>
     <div className={s.page}>
       <div className={s.grain} aria-hidden="true" />
 
+      {/* Not a second app bar — the frame has one. This is the running
+          head a printed journal carries: which piece you are inside, and
+          what it is for. */}
       <header className={s.masthead}>
         <span className={s.mark}>
-          Murchid <em>Studio</em>
+          {S.subject} <em>№ {String(session + 1).padStart(2, "0")}</em>
         </span>
         <span className={s.mastRule} aria-hidden="true" />
         <span className={s.mastMeta}>
-          {teacher.name} · {teacher.role} · {teacher.creditsTotal - teacher.creditsUsed} credits
+          {S.title} · {S.grade}
         </span>
       </header>
 
@@ -41,7 +49,7 @@ export default function Atelier() {
         {/* ── margin rail ─────────────────────────────────────────── */}
         <aside className={s.rail}>
           <p className={s.railHead}>How it was made</p>
-          {run.stages.map((st) => (
+          {S.run.stages.map((st) => (
             <div key={st.label} className={s.stage}>
               <span className={s.stageTick}>✓</span>
               <span>
@@ -55,7 +63,7 @@ export default function Atelier() {
 
           <div className={s.railBlock}>
             <span className={s.railKey}>Grounded in</span>
-            {run.grounding.map((gd) => (
+            {S.run.grounding.map((gd) => (
               <span key={gd} className={s.ground}>{gd}</span>
             ))}
           </div>
@@ -85,21 +93,21 @@ export default function Atelier() {
         {/* ── the measure ─────────────────────────────────────────── */}
         <main>
           <section className={s.brief}>
-            <p className={s.briefLabel}>The brief · {prompt.at}</p>
-            <p className={s.briefText}>“{prompt.text}”</p>
+            <p className={s.briefLabel}>The brief · {S.prompt.at}</p>
+            <p className={s.briefText}>“{S.prompt.text}”</p>
             <div className={s.briefMeta}>
-              {prompt.attachments.map((a) => (
+              {S.prompt.attachments.map((a) => (
                 <span key={a.name} className={s.tag}>
                   {a.name} <b>{a.pages}pp</b>
                 </span>
               ))}
-              {prompt.skills.map((sk) => (
+              {S.prompt.skills.map((sk) => (
                 <span key={sk} className={s.tag}>
                   Skill · <b>{sk}</b>
                 </span>
               ))}
               <span className={s.tag}>
-                {run.totalSeconds}s · <b>{run.credits} credits</b>
+                {S.run.totalSeconds}s · <b>{S.run.credits} credits</b>
               </span>
             </div>
           </section>
@@ -108,20 +116,20 @@ export default function Atelier() {
           <section className={s.plate}>
             <div className={s.plateHead}>
               <span className={s.plateNum}>Plate 01</span>
-              <span className={s.plateKind}>{KIND_LABEL.lesson_plan}</span>
+              <span className={s.plateKind}>{KIND_LABEL[S.plan.kind]}</span>
             </div>
-            <h2 className={s.plateTitle}>{lesson.title}</h2>
+            <h2 className={s.plateTitle}>{S.plan.title}</h2>
             <p className={s.plateSub}>
-              {lesson.grade} · {lesson.subject} · {lesson.duration} · {lesson.materials.length} materials
+              {S.plan.grade} · {S.plan.subject} · {S.plan.duration} · {S.plan.materials.length} materials
             </p>
 
             <ol className={s.outcomes}>
-              {lesson.outcomes.map((o) => (
+              {S.plan.outcomes.map((o) => (
                 <li key={o} className={s.outcome}>{o}</li>
               ))}
             </ol>
 
-            {lesson.phases.map((p) => (
+            {S.plan.phases.map((p) => (
               <article key={p.n} className={s.phase}>
                 <div className={s.phaseMin}>
                   {p.minutes}
@@ -141,15 +149,15 @@ export default function Atelier() {
             <div className={s.diff}>
               <div className={s.diffCell}>
                 <span className={s.diffKey}>Support</span>
-                <span className={s.diffVal}>{lesson.differentiation.support}</span>
+                <span className={s.diffVal}>{S.plan.differentiation.support}</span>
               </div>
               <div className={s.diffCell}>
                 <span className={s.diffKey}>Stretch</span>
-                <span className={s.diffVal}>{lesson.differentiation.stretch}</span>
+                <span className={s.diffVal}>{S.plan.differentiation.stretch}</span>
               </div>
               <div className={s.diffCell}>
                 <span className={s.diffKey}>Language</span>
-                <span className={s.diffVal}>{lesson.differentiation.ell}</span>
+                <span className={s.diffVal}>{S.plan.differentiation.ell}</span>
               </div>
             </div>
           </section>
@@ -159,11 +167,11 @@ export default function Atelier() {
             <div className={s.plateHead}>
               <span className={s.plateNum}>Plate 02</span>
               <span className={s.plateKind}>
-                {KIND_LABEL.presentation} · {deck.slides.length} slides
+                {KIND_LABEL[S.deck.kind]} · {S.deck.slides.length} slides
               </span>
             </div>
-            <h2 className={s.plateTitle}>{deck.title}</h2>
-            <p className={s.plateSub}>{deck.subtitle}</p>
+            <h2 className={s.plateTitle}>{S.deck.title}</h2>
+            <p className={s.plateSub}>{S.deck.subtitle}</p>
 
             <figure className={s.figure} style={{ marginTop: 20 }}>
               <SlideArt seed={slide.art} className={s.plateArt} />
@@ -188,7 +196,7 @@ export default function Atelier() {
             </div>
 
             <div className={s.strip}>
-              {deck.slides.map((sl, k) => (
+              {S.deck.slides.map((sl, k) => (
                 <button
                   key={sl.n}
                   type="button"
@@ -209,14 +217,14 @@ export default function Atelier() {
             <div className={s.plateHead}>
               <span className={s.plateNum}>Plate 03</span>
               <span className={s.plateKind}>
-                {KIND_LABEL.quiz} · {quiz.marks} marks · {quiz.minutes} min
+                {KIND_LABEL[S.check.kind]} · {S.check.marks} marks · {S.check.minutes} min
               </span>
             </div>
-            <h2 className={s.plateTitle}>{quiz.title}</h2>
-            <p className={s.plateSub}>Answer key marked. {quiz.grade}.</p>
+            <h2 className={s.plateTitle}>{S.check.title}</h2>
+            <p className={s.plateSub}>Answer key marked. {S.check.grade}.</p>
 
             <div style={{ marginTop: 18 }}>
-              {quiz.questions.map((q, k) => (
+              {S.check.questions.map((q, k) => (
                 <article key={q.q} className={s.q}>
                   <span className={s.qNum}>{k + 1}</span>
                   <div>
@@ -268,5 +276,6 @@ export default function Atelier() {
         <p className={s.disclaimer}>Murchid drafts; you decide. Check anything before it reaches a class.</p>
       </div>
     </div>
+    </StudioFrame>
   );
 }

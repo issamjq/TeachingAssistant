@@ -1,3 +1,22 @@
+/* The shell in Focus's material — and the one variant that runs the
+   sidebar as icons only. A labelled rail is thirteen more words competing
+   with a design whose whole argument is that there are almost none. */
+.theme {
+  --f-bg: #eceae4;
+  --f-panel: #f4f3ef;
+  --f-panel-2: #e8e6df;
+  --f-line: #dcdbd6;
+  --f-line-soft: #e6e4de;
+  --f-fg: #101718;
+  --f-fg-dim: #8b9295;
+  --f-accent: #16646c;
+  --f-accent-soft: #dfe9e9;
+  --f-on-accent: #f4f3ef;
+  --f-radius: 6px;
+  --f-nav-radius: 6px;
+  --f-hist-w: 250px;
+}
+
 /* =====================================================================
    07 · Focus — almost nothing
 
@@ -19,11 +38,11 @@
   --art-soft: #dfe4de;
   --measure: 640px;
 
-  min-height: 100vh;
+  min-height: 100%;
   background: var(--p-paper-cool);
   color: var(--p-ink);
   font-family: var(--font-sans);
-  padding-bottom: 190px;
+  padding-bottom: 30px;
 }
 
 /* ── bar ──────────────────────────────────────────────────────────── */
@@ -209,8 +228,9 @@
 /* ── the composer, which is a rule ────────────────────────────────── */
 
 .dock {
-  position: fixed;
-  inset-inline: 0;
+  position: sticky;
+  z-index: 12;
+  margin-top: 40px;
   bottom: 0;
   /* The gradient must be OPAQUE everywhere the composer's own text sits,
      or the page scrolling underneath reads straight through it — the

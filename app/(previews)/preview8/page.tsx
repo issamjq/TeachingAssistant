@@ -1,16 +1,16 @@
 import type { Metadata } from "next";
-import Aurora from "@/features/studio-previews/variants/aurora/Aurora";
+import Ribbon from "@/features/studio-previews/variants/ribbon/Ribbon";
 
-// Studio design 3 of 10 — "Aurora". Listed at /preview.
+// Studio design 8 of 10 — "Ribbon". Listed at /preview.
 //
 // Renders the two fixed sessions in
 // src/features/studio-previews/fixture.ts inside the shared studio
 // chrome. Nothing here fetches, generates or saves.
 export const metadata: Metadata = {
-  title: "Murchid Studio — Aurora (design 3)",
+  title: "Murchid Studio — Ribbon (design 8)",
   robots: { index: false, follow: false },
 };
 
-export default function Preview3Page() {
-  return <Aurora />;
+export default function Preview8Page() {
+  return <Ribbon />;
 }

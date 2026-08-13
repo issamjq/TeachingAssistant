@@ -1,3 +1,21 @@
+/* The shell in Atelier's material: the frame's own tokens pointed at
+   warm paper, hairline rules and the red the marginalia already uses. */
+.theme {
+  --f-bg: #e8e7e2;
+  --f-panel: #eeece6;
+  --f-panel-2: #e2e0d8;
+  --f-line: #cdcdc6;
+  --f-line-soft: #dcdbd6;
+  --f-fg: #101718;
+  --f-fg-dim: #6a7477;
+  --f-accent: #16646c;
+  --f-accent-soft: #d8e4e4;
+  --f-on-accent: #f4f3ef;
+  --f-radius: 3px;
+  --f-nav-radius: 3px;
+  --f-label-spacing: 0.2em;
+}
+
 /* =====================================================================
    01 · Atelier — the studio as a printed journal
 
@@ -13,17 +31,19 @@
   --art-accent: var(--p-accent);
   --art-soft: #dcdfd6;
 
-  min-height: 100vh;
+  /* A pane inside the frame now, not the document — so it fills its
+     column and lets the frame own the viewport height. */
+  min-height: 100%;
   background: var(--p-paper);
   color: var(--p-ink);
   font-family: var(--font-sans);
-  padding-bottom: 180px;
+  padding-bottom: 30px;
   position: relative;
 }
 
 /* Paper tooth. Two hairline gradients, not an image. */
 .grain {
-  position: fixed;
+  position: absolute;
   inset: 0;
   pointer-events: none;
   opacity: 0.5;
@@ -231,7 +251,7 @@
 .figure { margin: 0; }
 .plateArt {
   width: 100%;
-  aspect-ratio: 16 / 10;
+  aspect-ratio: 400 / 260;
   display: block;
   border: 1px solid var(--p-ink);
   background: var(--art-bg);
@@ -304,7 +324,7 @@
   position: relative;
   transition: border-color 0.18s, transform 0.18s;
 }
-.thumb svg { width: 100%; aspect-ratio: 16 / 10; display: block; }
+.thumb svg { width: 100%; aspect-ratio: 400 / 260; display: block; }
 .thumb[data-on="true"] { border-color: var(--p-ink); transform: translateY(-3px); }
 .thumb[data-on="true"]::after {
   content: "";
@@ -367,11 +387,12 @@
 /* ── composer ─────────────────────────────────────────────────────── */
 
 .composerWrap {
-  position: fixed;
-  inset-inline: 0;
+  position: sticky;
   bottom: 0;
-  padding: 0 clamp(16px, 4vw, 40px) 18px;
-  background: linear-gradient(to top, var(--p-paper) 58%, transparent);
+  z-index: 15;
+  margin-top: 26px;
+  padding: 22px clamp(16px, 4vw, 40px) 18px;
+  background: linear-gradient(to top, var(--p-paper) 0 62%, transparent);
   pointer-events: none;
 }
 .composer {

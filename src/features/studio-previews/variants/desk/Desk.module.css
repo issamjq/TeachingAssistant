@@ -1,3 +1,21 @@
+/* The shell in Desk's material: a painted cabinet beside the table
+   rather than another sheet of paper on it, so the objects stay the only
+   things on screen that look pick-up-able. */
+.theme {
+  --f-bg: #cbc5b6;
+  --f-panel: #e6e1d5;
+  --f-panel-2: #d8d2c3;
+  --f-line: #b9b2a1;
+  --f-line-soft: #cbc5b6;
+  --f-fg: #23282a;
+  --f-fg-dim: #6d6a5e;
+  --f-accent: #a0453c;
+  --f-accent-soft: #e5d4cf;
+  --f-on-accent: #faf8f2;
+  --f-radius: 4px;
+  --f-nav-radius: 4px;
+}
+
 /* =====================================================================
    06 · Desk — things on a table
 
@@ -19,10 +37,10 @@
   --tape: rgb(224 214 186 / 0.75);
   --card: #faf8f2;
 
-  min-height: 100vh;
+  min-height: 100%;
   color: var(--p-ink);
   font-family: var(--font-sans);
-  padding: clamp(18px, 3vw, 40px) clamp(14px, 3vw, 40px) 150px;
+  padding: clamp(18px, 3vw, 40px) clamp(14px, 3vw, 40px) 24px;
   background:
     radial-gradient(120% 90% at 12% 0%, rgb(255 255 255 / 0.5), transparent 60%),
     repeating-linear-gradient(96deg, rgb(16 23 24 / 0.022) 0 2px, transparent 2px 7px),
@@ -145,7 +163,7 @@
   box-shadow: 0 2px 4px rgb(16 23 24 / 0.16), 0 26px 46px -26px rgb(16 23 24 / 0.7);
   position: relative;
 }
-.bigPrint svg { width: 100%; aspect-ratio: 4 / 3; display: block; }
+.bigPrint svg { width: 100%; aspect-ratio: 400 / 260; display: block; }
 .printCap { padding: 14px 4px 18px; }
 .printNum { font-size: 10.5px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--p-accent); }
 .printTitle { font-family: var(--font-serif); font-weight: 400; font-size: clamp(20px, 2.4vw, 27px); letter-spacing: -0.022em; margin: 6px 0 9px; }
@@ -176,7 +194,7 @@
 .smallPrint:nth-child(even) { transform: rotate(1.3deg); }
 .smallPrint:hover { transform: rotate(0deg) translateY(-4px); box-shadow: 0 2px 4px rgb(16 23 24 / 0.16), 0 20px 30px -18px rgb(16 23 24 / 0.7); }
 .smallPrint[data-on="true"] { outline: 2px solid var(--p-accent); outline-offset: 2px; transform: rotate(0deg) translateY(-3px); }
-.smallPrint svg { width: 100%; aspect-ratio: 4 / 3; display: block; }
+.smallPrint svg { width: 100%; aspect-ratio: 400 / 260; display: block; }
 .smallCap { display: block; font-size: 10px; padding: 6px 2px 8px; color: var(--p-muted); line-height: 1.35; }
 .smallCap b { color: var(--p-ink); font-weight: 600; }
 
@@ -264,11 +282,13 @@
 /* ── composer, a pad at the bottom ────────────────────────────────── */
 
 .pad {
-  position: fixed;
-  inset-inline: 0;
+  position: sticky;
   bottom: 0;
-  padding: 0 clamp(14px, 3vw, 40px) 20px;
+  z-index: 12;
+  margin-top: 30px;
+  padding: 26px clamp(14px, 3vw, 40px) 20px;
   pointer-events: none;
+  background: linear-gradient(to top, #cec8ba 0 58%, transparent);
 }
 .padInner {
   pointer-events: auto;

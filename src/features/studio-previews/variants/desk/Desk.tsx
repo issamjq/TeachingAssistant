@@ -10,13 +10,11 @@
 import { useState } from "react";
 import { Paperclip, Send } from "lucide-react";
 import SlideArt from "../../SlideArt";
-import {
-  deck, lesson, prompt, pulse, quiz, run, streak, teacher, KIND_LABEL,
-} from "../../fixture";
+import { KIND_LABEL, KINDS, pulse, SESSIONS, streak, teacher } from "../../fixture";
+import StudioFrame from "../../StudioFrame";
 import s from "./Desk.module.css";
 
 const LETTER = ["a", "b", "c", "d"];
-const KINDS = ["lesson_plan", "presentation", "quiz", "homework", "activity"] as const;
 
 /** A hand-drawn tick, so the marking does not look typeset. */
 function Tick() {
@@ -28,28 +26,31 @@ function Tick() {
 }
 
 export default function Desk() {
+  const [session, setSession] = useState(0);
   const [i, setI] = useState(2);
-  const slide = deck.slides[i];
+  const S = SESSIONS[session];
+  const slide = S.deck.slides[Math.min(i, S.deck.slides.length - 1)];
   const peak = Math.max(...pulse);
 
   return (
+    <StudioFrame theme={s.theme} session={session} onSession={(n) => { setSession(n); setI(0); }}>
     <div className={s.page}>
       {/* ── the tray ──────────────────────────────────────────────── */}
       <div className={s.tray}>
         <div className={s.note}>
           <span className={s.tape} aria-hidden="true" />
           <p className={s.noteKey}>
-            {teacher.name} · {prompt.at}
+            {teacher.name} · {S.prompt.at}
           </p>
-          <p className={s.noteText}>{prompt.text}</p>
+          <p className={s.noteText}>{S.prompt.text}</p>
           <div className={s.clips}>
-            {prompt.attachments.map((a) => (
+            {S.prompt.attachments.map((a) => (
               <span key={a.name} className={s.pdf}>
                 <Paperclip size={11} />
                 {a.name} · {a.pages}pp
               </span>
             ))}
-            {prompt.skills.map((sk) => (
+            {S.prompt.skills.map((sk) => (
               <span key={sk} className={s.pdf}>{sk}</span>
             ))}
           </div>
@@ -71,7 +72,7 @@ export default function Desk() {
         <div className={s.stamp}>
           Ready
           <span>
-            {run.totalSeconds}s · {run.credits} credits
+            {S.run.totalSeconds}s · {S.run.credits} credits
           </span>
         </div>
       </div>
@@ -79,10 +80,10 @@ export default function Desk() {
       {/* ── the deck, as prints ───────────────────────────────────── */}
       <section className={s.section}>
         <div className={s.label}>
-          <h2 className={s.labelText}>{deck.title}</h2>
+          <h2 className={s.labelText}>{S.deck.title}</h2>
           <span className={s.labelRule} />
           <span className={s.labelMeta}>
-            {KIND_LABEL.presentation} · {deck.slides.length} slides
+            {KIND_LABEL[S.deck.kind]} · {S.deck.slides.length} slides
           </span>
         </div>
 
@@ -91,7 +92,7 @@ export default function Desk() {
             <SlideArt seed={slide.art} />
             <figcaption className={s.printCap}>
               <span className={s.printNum}>
-                Slide {slide.n} of {deck.slides.length}
+                Slide {slide.n} of {S.deck.slides.length}
               </span>
               <h3 className={s.printTitle}>{slide.title}</h3>
               <ul className={s.printBullets}>
@@ -104,7 +105,7 @@ export default function Desk() {
           </figure>
 
           <div className={s.stripCol}>
-            {deck.slides.map((sl, k) => (
+            {S.deck.slides.map((sl, k) => (
               <button key={sl.n} type="button" className={s.smallPrint} data-on={k === i} onClick={() => setI(k)} aria-current={k === i}>
                 <SlideArt seed={sl.art} />
                 <span className={s.smallCap}>
@@ -119,15 +120,15 @@ export default function Desk() {
       {/* ── the plan, as index cards ──────────────────────────────── */}
       <section className={s.section}>
         <div className={s.label}>
-          <h2 className={s.labelText}>{lesson.title}</h2>
+          <h2 className={s.labelText}>{S.plan.title}</h2>
           <span className={s.labelRule} />
           <span className={s.labelMeta}>
-            {lesson.duration} · {lesson.grade}
+            {S.plan.duration} · {S.plan.grade}
           </span>
         </div>
 
         <div className={s.cards}>
-          {lesson.phases.map((p) => (
+          {S.plan.phases.map((p) => (
             <article key={p.n} className={s.card}>
               <span className={s.pin} aria-hidden="true" />
               <div className={s.cardTop}>
@@ -148,20 +149,20 @@ export default function Desk() {
           <h2 className={s.labelText}>Marked copy</h2>
           <span className={s.labelRule} />
           <span className={s.labelMeta}>
-            {KIND_LABEL.quiz} · {quiz.marks} marks
+            {KIND_LABEL[S.check.kind]} · {S.check.marks} marks
           </span>
         </div>
 
         <div className={s.paper}>
           <span className={s.clipTop} aria-hidden="true" />
           <div className={s.paperHead}>
-            <h3 className={s.paperTitle}>{quiz.title}</h3>
+            <h3 className={s.paperTitle}>{S.check.title}</h3>
             <span className={s.paperMeta}>
-              {quiz.grade} · {quiz.minutes} minutes · teacher copy
+              {S.check.grade} · {S.check.minutes} minutes · teacher copy
             </span>
           </div>
 
-          {quiz.questions.map((q, k) => (
+          {S.check.questions.map((q, k) => (
             <article key={q.q} className={s.q}>
               <div className={s.qTop}>
                 <span className={s.qN}>{k + 1}.</span>
@@ -200,5 +201,6 @@ export default function Desk() {
         </div>
       </div>
     </div>
+    </StudioFrame>
   );
 }

@@ -12,12 +12,12 @@
 import { useState } from "react";
 import SlideArt from "../../SlideArt";
 import {
-  deck, lesson, prompt, pulse, quiz, recents, run, streak, teacher, KIND_LABEL,
+  KIND_LABEL, KINDS, pulse, recents, SESSIONS, streak, teacher,
 } from "../../fixture";
+import StudioFrame from "../../StudioFrame";
 import s from "./Focus.module.css";
 
 const LETTER = ["a", "b", "c", "d"];
-const KINDS = ["lesson_plan", "presentation", "quiz", "homework", "activity"] as const;
 
 /** Fourteen days as one line, because a bar chart would be a container. */
 function PulseLine() {
@@ -36,10 +36,13 @@ function PulseLine() {
 }
 
 export default function Focus() {
+  const [session, setSession] = useState(0);
   const [i, setI] = useState(2);
-  const slide = deck.slides[i];
+  const S = SESSIONS[session];
+  const slide = S.deck.slides[Math.min(i, S.deck.slides.length - 1)];
 
   return (
+    <StudioFrame theme={s.theme} session={session} onSession={(n) => { setSession(n); setI(0); }} rail="icons">
     <div className={s.page}>
       <div className={s.bar}>
         <span className={s.barMark}>Murchid Studio</span>
@@ -53,18 +56,18 @@ export default function Focus() {
       <header className={s.wrap}>
         <div className={s.head}>
           <p className={s.time}>
-            {prompt.at} · {teacher.name}
+            {S.prompt.at} · {teacher.name}
           </p>
-          <h1 className={s.brief}>{prompt.text}</h1>
+          <h1 className={s.brief}>{S.prompt.text}</h1>
           <div className={s.briefMeta}>
             <span>
-              Read <b>{prompt.attachments.map((a) => a.name).join(", ")}</b>
+              Read <b>{S.prompt.attachments.map((a) => a.name).join(", ")}</b>
             </span>
             <span>
-              Grounded in <b>{run.grounding.join(" and ")}</b>
+              Grounded in <b>{S.run.grounding.join(" and ")}</b>
             </span>
             <span>
-              Three outcomes in <b>{run.totalSeconds} seconds</b>, {run.credits} credits
+              Three outcomes in <b>{S.run.totalSeconds} seconds</b>, {S.run.credits} credits
             </span>
           </div>
         </div>
@@ -76,11 +79,11 @@ export default function Focus() {
           <span className={s.ruleN}>I</span>
           <span className={s.ruleLine} />
           <span className={s.ruleWhat}>
-            {KIND_LABEL.presentation} · {deck.slides.length} slides
+            {KIND_LABEL[S.deck.kind]} · {S.deck.slides.length} slides
           </span>
         </div>
-        <h2 className={s.h2}>{deck.title}</h2>
-        <p className={s.sub}>{deck.subtitle}</p>
+        <h2 className={s.h2}>{S.deck.title}</h2>
+        <p className={s.sub}>{S.deck.subtitle}</p>
 
         <SlideArt seed={slide.art} className={s.plate} />
         <p className={s.plateCap}>
@@ -100,7 +103,7 @@ export default function Focus() {
         </p>
 
         <div className={s.nums}>
-          {deck.slides.map((sl, k) => (
+          {S.deck.slides.map((sl, k) => (
             <button key={sl.n} type="button" className={s.num} data-on={k === i} onClick={() => setI(k)} aria-label={`Slide ${sl.n} — ${sl.title}`} aria-current={k === i}>
               {String(sl.n).padStart(2, "0")}
             </button>
@@ -114,15 +117,15 @@ export default function Focus() {
           <span className={s.ruleN}>II</span>
           <span className={s.ruleLine} />
           <span className={s.ruleWhat}>
-            {KIND_LABEL.lesson_plan} · {lesson.duration}
+            {KIND_LABEL[S.plan.kind]} · {S.plan.duration}
           </span>
         </div>
-        <h2 className={s.h2}>{lesson.title}</h2>
+        <h2 className={s.h2}>{S.plan.title}</h2>
         <p className={s.sub}>
-          {lesson.grade} · {lesson.subject} · {lesson.outcomes.length} outcomes
+          {S.plan.grade} · {S.plan.subject} · {S.plan.outcomes.length} outcomes
         </p>
 
-        {lesson.phases.map((p) => (
+        {S.plan.phases.map((p) => (
           <article key={p.n} className={s.phase}>
             <div className={s.phaseMin}>
               {p.minutes}
@@ -139,15 +142,15 @@ export default function Focus() {
         <div className={s.diffs}>
           <div className={s.diffRow}>
             <span className={s.diffKey}>Support</span>
-            <span className={s.diffVal}>{lesson.differentiation.support}</span>
+            <span className={s.diffVal}>{S.plan.differentiation.support}</span>
           </div>
           <div className={s.diffRow}>
             <span className={s.diffKey}>Stretch</span>
-            <span className={s.diffVal}>{lesson.differentiation.stretch}</span>
+            <span className={s.diffVal}>{S.plan.differentiation.stretch}</span>
           </div>
           <div className={s.diffRow}>
             <span className={s.diffKey}>Language</span>
-            <span className={s.diffVal}>{lesson.differentiation.ell}</span>
+            <span className={s.diffVal}>{S.plan.differentiation.ell}</span>
           </div>
         </div>
       </section>
@@ -158,15 +161,15 @@ export default function Focus() {
           <span className={s.ruleN}>III</span>
           <span className={s.ruleLine} />
           <span className={s.ruleWhat}>
-            {KIND_LABEL.quiz} · {quiz.marks} marks
+            {KIND_LABEL[S.check.kind]} · {S.check.marks} marks
           </span>
         </div>
-        <h2 className={s.h2}>{quiz.title}</h2>
+        <h2 className={s.h2}>{S.check.title}</h2>
         <p className={s.sub}>
-          {quiz.minutes} minutes · the correct answer carries the rule
+          {S.check.minutes} minutes · the correct answer carries the rule
         </p>
 
-        {quiz.questions.map((q, k) => (
+        {S.check.questions.map((q, k) => (
           <article key={q.q} className={s.q}>
             <p className={s.qText}>
               <b>{String(k + 1).padStart(2, "0")}</b>
@@ -240,5 +243,6 @@ export default function Focus() {
         </div>
       </div>
     </div>
+    </StudioFrame>
   );
 }

@@ -1,3 +1,25 @@
+/* The shell in Canvas's material: the same crisp neutral the panes use,
+   so the frame reads as part of the product rather than a border round
+   a screenshot. */
+.theme {
+  --f-bg: #e0dfd9;
+  --f-panel: #f4f3ef;
+  --f-panel-2: #e6e5df;
+  --f-line: #cdcdc6;
+  --f-line-soft: #dcdbd6;
+  --f-fg: #101718;
+  --f-fg-dim: #646e72;
+  --f-accent: #16646c;
+  --f-accent-soft: #d3e2e3;
+  --f-on-accent: #f4f3ef;
+  --f-radius: 10px;
+  --f-nav-radius: 9px;
+  /* Four columns is a lot at 1440. Both rails give ground so the canvas
+     itself keeps the width it needs to be worth having. */
+  --f-rail-w: 214px;
+  --f-hist-w: 228px;
+}
+
 /* =====================================================================
    02 · Canvas — chat left, a permanent working canvas right
 
@@ -14,7 +36,7 @@
   --art-accent: var(--p-accent);
   --art-soft: #d8e4e2;
 
-  height: 100vh;
+  height: 100%;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
   background: var(--p-paper-warm);
@@ -25,18 +47,20 @@
 
 /* ── top chrome ───────────────────────────────────────────────────── */
 
+/* Not an app bar any more — the frame has one. This carries only what
+   the frame's bar cannot: which conversation is open, and what it made. */
 .top {
   display: flex;
   align-items: center;
   gap: 14px;
   padding: 0 16px;
-  height: 54px;
+  height: 42px;
   background: var(--p-surface);
   border-bottom: 1px solid var(--p-line);
 }
 .brand { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 14px; }
 .dot { width: 22px; height: 22px; border-radius: 7px; background: var(--p-accent); display: grid; place-items: center; color: var(--p-on-accent); font-size: 12px; }
-.sessionName { font-size: 13.5px; color: var(--p-ink-soft); padding-inline-start: 14px; border-inline-start: 1px solid var(--p-line); }
+.sessionName { font-size: 13px; color: var(--p-ink-soft); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sessionName b { color: var(--p-ink); font-weight: 600; }
 
 .status {
@@ -59,8 +83,8 @@
 
 /* ── the split ────────────────────────────────────────────────────── */
 
-.split { display: grid; grid-template-columns: 400px minmax(0, 1fr); min-height: 0; }
-@media (max-width: 1080px) { .split { grid-template-columns: 340px minmax(0, 1fr); } }
+.split { display: grid; grid-template-columns: 340px minmax(0, 1fr); min-height: 0; }
+@media (max-width: 1280px) { .split { grid-template-columns: 300px minmax(0, 1fr); } }
 @media (max-width: 840px) { .split { grid-template-columns: minmax(0, 1fr); } .chat { display: none; } }
 
 /* ── left · the conversation ──────────────────────────────────────── */

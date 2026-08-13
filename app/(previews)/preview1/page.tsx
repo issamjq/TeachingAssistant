@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
 import Atelier from "@/features/studio-previews/variants/atelier/Atelier";
 
-// Studio design 1 of 7 — "Atelier". Listed at /preview.
+// Studio design 1 of 10 — "Atelier". Listed at /preview.
 //
-// Renders the fixed session in src/features/studio-previews/fixture.ts.
-// Nothing here fetches, generates or saves.
+// Renders the two fixed sessions in
+// src/features/studio-previews/fixture.ts inside the shared studio
+// chrome. Nothing here fetches, generates or saves.
 export const metadata: Metadata = {
   title: "Murchid Studio — Atelier (design 1)",
   robots: { index: false, follow: false },

@@ -194,6 +194,170 @@ const PLATES: Record<string, React.ReactNode> = {
     </>
   ),
 
+
+  /* ── session two · states of matter ─────────────────────────────── */
+
+  // Three boxes of particles, packed to free.
+  "particles-three": (
+    <>
+      {[0, 1, 2].map((b) => (
+        <rect key={b} x={26 + b * 122} y="58" width="106" height="130" rx="10" fill={b === 0 ? SOFT : "none"} stroke={INK} strokeWidth="1.8" />
+      ))}
+      {/* solid — a locked lattice */}
+      {[0, 1, 2, 3].map((r) =>
+        [0, 1, 2, 3].map((c) => (
+          <circle key={`s${r}${c}`} cx={46 + c * 22} cy={78 + r * 30} r="7.5" fill={ACC} />
+        ))
+      )}
+      {/* liquid — touching but offset */}
+      {[[0, 0], [1, 0], [2, 0], [3, 0], [0.5, 1], [1.5, 1], [2.5, 1], [0, 2], [1, 2], [2, 2], [3, 2], [0.5, 3], [1.5, 3]].map(
+        ([c, r], i) => (
+          <circle key={`l${i}`} cx={168 + c * 22} cy={80 + r * 30} r="7.5" fill={ACC} opacity="0.82" />
+        )
+      )}
+      {/* gas — far apart */}
+      {[[10, 20], [62, 44], [30, 82], [76, 96], [16, 116], [66, 132]].map(([x, y], i) => (
+        <circle key={`g${i}`} cx={274 + x} cy={70 + y} r="7.5" fill={ACC} opacity="0.62" />
+      ))}
+      {["packed", "sliding", "free"].map((t, i) => (
+        <text key={t} x={79 + i * 122} y="212" textAnchor="middle" fontSize="12" fill={INK} opacity="0.6" fontFamily="ui-sans-serif, sans-serif">
+          {t}
+        </text>
+      ))}
+      <text x="200" y="40" textAnchor="middle" fontSize="11" fill={INK} opacity="0.5" letterSpacing="2.4" fontFamily="ui-sans-serif, sans-serif">
+        SAME STUFF
+      </text>
+    </>
+  ),
+
+  // The cards on the table, mid-sort.
+  "card-sort": (
+    <>
+      {[
+        [40, 60, -6], [118, 48, 3], [196, 58, -2], [274, 44, 5],
+        [56, 132, 4], [134, 144, -5], [212, 136, 2], [290, 128, -3],
+      ].map(([x, y, rot], i) => (
+        <g key={i} transform={`rotate(${rot} ${x + 34} ${y + 24})`}>
+          <rect x={x} y={y} width="68" height="48" rx="5" fill="var(--art-bg, #e3efef)" stroke={INK} strokeWidth="1.5" />
+          {[0, 1, 2, 3].map((d) => (
+            <circle
+              key={d}
+              cx={x + 16 + (d % 2) * (i % 3 === 0 ? 14 : i % 3 === 1 ? 22 : 34)}
+              cy={y + 18 + Math.floor(d / 2) * (i % 3 === 0 ? 14 : 18)}
+              r="4.5"
+              fill={ACC}
+              opacity={i % 3 === 2 ? 0.6 : 0.9}
+            />
+          ))}
+        </g>
+      ))}
+      <path d="M20 108 h360" stroke={INK} strokeWidth="1.2" strokeDasharray="5 6" opacity="0.35" />
+      <circle cx="352" cy="196" r="20" fill={ACC} opacity="0.2" />
+      <text x="352" y="201" textAnchor="middle" fontSize="14" fill={ACC} fontFamily="ui-sans-serif, sans-serif" fontWeight="700">?</text>
+    </>
+  ),
+
+  // One substance, three states, left to right.
+  "ice-water-steam": (
+    <>
+      <path d="M20 176 h360" stroke={INK} strokeWidth="1.5" opacity="0.5" />
+      {/* ice */}
+      <path d="M52 176 v-56 h64 v56 Z" fill={SOFT} stroke={INK} strokeWidth="2" />
+      <path d="M52 148 h64 M84 120 v56" stroke={INK} strokeWidth="1" opacity="0.45" />
+      {/* water */}
+      <path d="M168 176 v-30 q 32 -16 64 0 v30 Z" fill={ACC} opacity="0.55" />
+      <path d="M168 146 q 32 -16 64 0" stroke={ACC} strokeWidth="2.5" fill="none" />
+      <path d="M168 176 v-30 M232 176 v-30" stroke={INK} strokeWidth="1.5" opacity="0.5" />
+      {/* steam */}
+      {[0, 1, 2].map((i) => (
+        <path
+          key={i}
+          d={`M${292 + i * 22} 176 c -12 -22 12 -30 0 -52 c -10 -18 8 -26 2 -40`}
+          stroke={ACC}
+          strokeWidth="2.5"
+          fill="none"
+          strokeLinecap="round"
+          opacity={0.9 - i * 0.22}
+        />
+      ))}
+      {["ice", "water", "steam"].map((t, i) => (
+        <text key={t} x={84 + i * 116} y="200" textAnchor="middle" fontSize="13" fill={INK} opacity="0.65" fontFamily="ui-sans-serif, sans-serif">
+          {t}
+        </text>
+      ))}
+      <path d="M126 154 h30 M244 154 h30" stroke={ACC} strokeWidth="2" markerEnd="" />
+      <path d="M150 149 l7 5 l-7 5 M268 149 l7 5 l-7 5" stroke={ACC} strokeWidth="2" fill="none" />
+    </>
+  ),
+
+  // Heat as movement.
+  thermometer: (
+    <>
+      <rect x="176" y="34" width="30" height="150" rx="15" fill="var(--art-bg, #e3efef)" stroke={INK} strokeWidth="2" />
+      <circle cx="191" cy="196" r="26" fill={ACC} stroke={INK} strokeWidth="2" />
+      <rect x="184" y="88" width="14" height="98" rx="7" fill={ACC} />
+      {[0, 1, 2, 3, 4].map((i) => (
+        <path key={i} d={`M206 ${58 + i * 26} h14`} stroke={INK} strokeWidth="1.4" opacity="0.5" />
+      ))}
+      {[[70, 66], [104, 108], [62, 146], [110, 172]].map(([x, y], i) => (
+        <g key={i}>
+          <circle cx={x} cy={y} r="8" fill={ACC} opacity="0.85" />
+          <path d={`M${x + 12} ${y - 6} q 8 6 0 12`} stroke={ACC} strokeWidth="1.6" fill="none" opacity="0.6" />
+        </g>
+      ))}
+      {[[288, 58], [340, 92], [272, 122], [330, 154], [296, 190]].map(([x, y], i) => (
+        <g key={i}>
+          <circle cx={x} cy={y} r="8" fill={ACC} />
+          <path d={`M${x - 16} ${y - 10} l 10 6 M${x + 16} ${y + 10} l -10 -6`} stroke={ACC} strokeWidth="2" strokeLinecap="round" />
+        </g>
+      ))}
+      <text x="86" y="216" textAnchor="middle" fontSize="12" fill={INK} opacity="0.6" fontFamily="ui-sans-serif, sans-serif">slow</text>
+      <text x="308" y="222" textAnchor="middle" fontSize="12" fill={INK} opacity="0.6" fontFamily="ui-sans-serif, sans-serif">fast</text>
+    </>
+  ),
+
+  // The trap: same particles, wider apart — not bigger.
+  "spacing-trap": (
+    <>
+      {[0, 1].map((b) => (
+        <rect key={b} x={30 + b * 194} y="52" width="146" height="146" rx="10" fill={b ? "none" : SOFT} stroke={INK} strokeWidth="1.8" />
+      ))}
+      {[0, 1, 2].map((r) =>
+        [0, 1, 2].map((c) => (
+          <circle key={`a${r}${c}`} cx={58 + c * 45} cy={80 + r * 45} r="11" fill={ACC} />
+        ))
+      )}
+      {[0, 1, 2].map((r) =>
+        [0, 1, 2].map((c) => (
+          <circle key={`b${r}${c}`} cx={252 + c * 45} cy={80 + r * 45} r="11" fill={ACC} opacity="0.72" />
+        ))
+      )}
+      {/* the same radius, measured, on both sides */}
+      <path d="M47 80 h22 M241 80 h22" stroke={INK} strokeWidth="1.4" />
+      <path d="M47 74 v12 M69 74 v12 M241 74 v12 M263 74 v12" stroke={INK} strokeWidth="1.4" />
+      <path d="M186 125 h32" stroke={INK} strokeWidth="2" />
+      <path d="M210 118 l9 7 l-9 7" stroke={INK} strokeWidth="2" fill="none" />
+      <text x="103" y="220" textAnchor="middle" fontSize="12" fill={INK} opacity="0.62" fontFamily="ui-sans-serif, sans-serif">before</text>
+      <text x="297" y="220" textAnchor="middle" fontSize="12" fill={INK} opacity="0.62" fontFamily="ui-sans-serif, sans-serif">heated</text>
+      <text x="200" y="42" textAnchor="middle" fontSize="12" fill={ACC} fontFamily="ui-sans-serif, sans-serif" fontWeight="600">same size?</text>
+    </>
+  ),
+
+  // Explain it to someone at home.
+  "homework-slip": (
+    <>
+      <circle cx="126" cy="104" r="30" fill={ACC} />
+      <path d="M126 134 c -30 0 -46 20 -50 46 h100 c -4 -26 -20 -46 -50 -46 Z" fill={ACC} opacity="0.7" />
+      <circle cx="272" cy="118" r="24" fill="none" stroke={INK} strokeWidth="2" />
+      <path d="M272 142 c -24 0 -37 16 -41 38 h82 c -4 -22 -17 -38 -41 -38 Z" fill="none" stroke={INK} strokeWidth="2" />
+      <path d="M166 92 q 30 -18 62 -2" stroke={ACC} strokeWidth="2.5" fill="none" strokeLinecap="round" />
+      <path d="M222 84 l8 6 l-9 5" stroke={ACC} strokeWidth="2.5" fill="none" strokeLinecap="round" />
+      <rect x="152" y="26" width="120" height="42" rx="9" fill="var(--art-bg, #e3efef)" stroke={INK} strokeWidth="1.6" />
+      <path d="M168 40 h88 M168 54 h58" stroke={INK} strokeWidth="1.6" opacity="0.45" />
+      <path d="M200 68 l8 12 l10 -12 Z" fill="var(--art-bg, #e3efef)" stroke={INK} strokeWidth="1.6" />
+    </>
+  ),
+
   // The slip they hand back at the door.
   "exit-ticket": (
     <>

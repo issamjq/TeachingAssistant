@@ -14,21 +14,23 @@ export default function Gallery() {
       <header className={g.head}>
         <span className={g.eyebrow}>Studio · screen design</span>
         <h1 className={g.title}>
-          Seven studios, <em>one session.</em>
+          Ten studios, <em>two sessions.</em>
         </h1>
         <p className={g.lead}>
-          The AI studio at <code>/studio</code>, redrawn seven ways. Each one
-          renders an identical fixed session — a Grade 7 photosynthesis brief
-          with two attachments, and everything it came back with: a
-          six-phase lesson plan, an eight-slide deck with its artwork, a
-          six-question quiz with the answer key, and the usage data that
-          sits around the edges.
+          The AI studio at <code>/studio</code>, redrawn ten ways — the whole
+          screen, not the answer pane: the teacher&rsquo;s sidebar exactly as{" "}
+          <code>config/nav.ts</code> defines it, the top bar, and the
+          conversation rail. Every design carries the same chrome so what you
+          are choosing between is a design, never an information architecture.
         </p>
         <p className={g.note}>
-          Nothing here calls the model or the database. The content is
-          pinned in <code>fixture.ts</code>, so a difference you notice
-          between two of these pages is a design decision, never a
-          different answer.
+          Two conversations are open in the rail on every one of them, and
+          they are different <em>shapes</em> of work — a Grade 7 lesson plan,
+          eight-slide deck and quiz in the first; a Grade 6 card-sort
+          activity, six-slide deck and homework in the second. Click the
+          second one on any design to see it handle work it was not drawn
+          for. Nothing here calls the model or the database; the content is
+          pinned in <code>fixture.ts</code>.
         </p>
       </header>
 
@@ -69,7 +71,7 @@ export default function Gallery() {
       <footer className={g.foot}>
         <a className={g.footLink} href="/studio">Open the studio that ships today</a>
         <span className={g.footNote}>
-          All seven are noindex and read-only — nothing on them writes to your library.
+          All ten are noindex and read-only — nothing on them writes to your library.
         </span>
       </footer>
     </main>
