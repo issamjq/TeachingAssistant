@@ -2057,52 +2057,87 @@ input[type="radio"]:focus-visible {
   }
 }
 /* =====================================================================
-   The narrow-viewport rule for the studio's two left columns
+   The studio's sidebar, at its two widths
 
-   With the nav at 256px and the context panel at 288px, 544px of the
-   viewport is chrome before the work starts. Above 1152px that is
-   affordable; below it, it is not.
+   The rail has exactly two states and NEITHER of them is gone. Collapsed
+   means an icon rail, because the nav is how a teacher leaves this
+   screen — a collapse that removes it entirely trades a width problem
+   for a navigation one, and it forced a floating "show sidebar" button
+   into the content pane to undo itself.
 
-   So below 1152px — and ONLY below it — the nav drops to an icon rail
-   while the panel is open. This is deliberately expressed here rather
-   than in React state, for two reasons: it is keyed to the viewport
-   rather than to a control, so opening the panel can never shrink the
-   nav on a wide screen; and it cannot persist, so a teacher who opens
-   the panel on a small laptop and later docks to a monitor gets their
-   labels back without touching anything.
+   `data-rail` on the app root drives both the width and the presentation.
+   StudioShell sets it when the teacher collapses the rail, and also when
+   the viewport is between md and 1152px with the context panel open —
+   at that size 544px of chrome does not leave enough for the work. That
+   second case is derived from the VIEWPORT, never from the panel's
+   control: opening the panel on a wide screen changes nothing here, and
+   the state is not persisted, so docking a small laptop to a monitor
+   brings the labels back on its own.
 
-   The nav's width is otherwise never a function of the panel. See
-   src/features/studio-shell/ContextPanel.tsx for the reasoning.
+   See src/shared/shell/ContextPanel.tsx for why the two left columns
+   never resize each other.
    ===================================================================== */
 
-@media (min-width: 768px) and (max-width: 1151px) {
-  .murchid-studio-app[data-panel="open"] .murchid-sidebar {
-    width: 4.5rem;
+.murchid-sidebar-col {
+  width: 16rem;
+  transition: width 300ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.murchid-studio-app .murchid-sidebar { width: 16rem; }
+
+@media (prefers-reduced-motion: reduce) {
+  .murchid-sidebar-col { transition: none; }
+}
+
+@media (min-width: 768px) {
+  .murchid-studio-app[data-rail="icons"] .murchid-sidebar,
+  .murchid-studio-app[data-rail="icons"] .murchid-sidebar-col {
+    width: 4.75rem;
   }
-  .murchid-studio-app[data-panel="open"] .murchid-sidebar > div {
-    width: 4.5rem;
-    padding-inline: 8px 4px;
+  .murchid-studio-app[data-rail="icons"] .murchid-sidebar-col {
+    padding-inline: 10px 6px;
   }
 
-  /* Labels out, icons centred. The nav keeps its markup and its tab
-     order; only what is painted changes. */
-  .murchid-studio-app[data-panel="open"] .murchid-sidebar-item > span:last-child,
-  .murchid-studio-app[data-panel="open"] .murchid-sidebar-section-label,
-  .murchid-studio-app[data-panel="open"] .murchid-sidebar-brand,
-  .murchid-studio-app[data-panel="open"] .murchid-sidebar-account > *:not(:first-child),
-  .murchid-studio-app[data-panel="open"] .murchid-sidebar-action span {
+  /* Labels out, icons centred. The markup and the tab order are
+     untouched — only what is painted changes, so a screen reader still
+     hears every item's name and `title` gives sighted users the same on
+     hover. */
+  .murchid-studio-app[data-rail="icons"] .murchid-sidebar-item > span:last-child,
+  .murchid-studio-app[data-rail="icons"] .murchid-sidebar-section-label,
+  .murchid-studio-app[data-rail="icons"] .murchid-sidebar-brand,
+  .murchid-studio-app[data-rail="icons"] .murchid-sidebar-account > div,
+  .murchid-studio-app[data-rail="icons"] .murchid-sidebar-account > svg {
     display: none;
   }
-  .murchid-studio-app[data-panel="open"] .murchid-sidebar-item,
-  .murchid-studio-app[data-panel="open"] .murchid-sidebar-account,
-  .murchid-studio-app[data-panel="open"] .murchid-sidebar-action {
+
+  .murchid-studio-app[data-rail="icons"] .murchid-sidebar-item {
     justify-content: center;
     padding-inline: 0;
     gap: 0;
   }
-  .murchid-studio-app[data-panel="open"] .murchid-sidebar-section + .murchid-sidebar-section {
+  .murchid-studio-app[data-rail="icons"] .murchid-sidebar-account {
+    justify-content: center;
+    padding-inline: 0;
+  }
+  /* The section labels are gone, so the groups need a rule to stay
+     groups rather than one undifferentiated column of icons. */
+  .murchid-studio-app[data-rail="icons"] .murchid-sidebar-section + .murchid-sidebar-section {
     border-top: 1px solid color-mix(in oklab, var(--color-line) 60%, transparent);
     margin-top: 8px;
     padding-top: 8px;
+  }
+  /* The toggle is the only control left in the brand row, so it centres
+     rather than sitting where the logo left it. */
+  .murchid-studio-app[data-rail="icons"] .murchid-sidebar-toggle {
+    margin-inline: auto;
+    margin-top: 18px;
+  }
+  .murchid-studio-app[data-rail="icons"] .murchid-sidebar-pane nav {
+    padding-inline: 6px;
+  }
+  /* The 3px stripe is pinned to the left of a full-width row. Centred on
+     a 64px square it sits hard against the icon and says nothing the
+     active pill and its ring have not already said. */
+  .murchid-studio-app[data-rail="icons"] .murchid-sidebar-item::before {
+    display: none;
   }
 }

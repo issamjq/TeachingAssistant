@@ -54,6 +54,7 @@ import Avatar from "@/components/Avatar";
 import TeachingRail from "@/views/TeachingRail";
 import DeviceNotice from "./DeviceNotice";
 import { ContextPanelRegion, useContextPanelState } from "@/shared/shell/ContextPanel";
+import { useMediaQuery } from "@/shared/hooks/useMediaQuery";
 import {
   NAV_BY_ROLE,
   DEFAULT_ROUTE,
@@ -115,6 +116,13 @@ export default function StudioShell({ children }: { children: React.ReactNode })
   // rule that drops the nav to icons lives in CSS, keyed to the
   // viewport, so it can never affect a wide layout.
   const panel = useContextPanelState();
+  // Between md and 1152 the viewport cannot carry a labelled rail AND the
+  // context panel AND the work. Derived from the viewport, never from the
+  // panel's control: on a wide screen opening the panel changes nothing
+  // here, and this cannot persist, so docking to a monitor restores the
+  // labels without anyone touching a setting.
+  const tooNarrowForBoth = useMediaQuery("(min-width: 768px) and (max-width: 1151px)");
+  const railIcons = sidebarCollapsed || (tooNarrowForBoth && panel.present && !panel.collapsed);
   const t = useT();
   const pathname = usePathname();
   const router = useRouter();
@@ -300,11 +308,16 @@ export default function StudioShell({ children }: { children: React.ReactNode })
         <button
           type="button"
           onClick={toggleSidebar}
-          title="Hide sidebar"
-          aria-label="Hide sidebar"
-          className="hidden md:flex h-8 w-8 mt-3 rounded-md text-ink-soft hover:text-ink hover:bg-paper-warm items-center justify-center transition-colors"
+          title={sidebarCollapsed ? "Show labels" : "Shrink to icons"}
+          aria-label={sidebarCollapsed ? "Show sidebar labels" : "Shrink sidebar to icons"}
+          aria-expanded={!sidebarCollapsed}
+          className="murchid-sidebar-toggle hidden md:flex h-8 w-8 mt-3 rounded-md text-ink-soft hover:text-ink hover:bg-paper-warm items-center justify-center transition-colors"
         >
-          <PanelLeftClose size={16} className="rtl:rotate-180" />
+          {sidebarCollapsed ? (
+            <PanelLeftOpen size={16} className="rtl:rotate-180" />
+          ) : (
+            <PanelLeftClose size={16} className="rtl:rotate-180" />
+          )}
         </button>
       </div>
 
@@ -340,6 +353,9 @@ export default function StudioShell({ children }: { children: React.ReactNode })
                       className={`murchid-sidebar-item ${
                         isActive ? "murchid-sidebar-item-active" : ""
                       }`}
+                      /* The only thing identifying an item once the rail
+                         is icons-only. */
+                      title={navT(item.key, item.label)}
                       aria-current={isActive ? "page" : undefined}
                     >
                       <NavBadge letter={item.letter} icon={item.icon} />
@@ -413,26 +429,24 @@ export default function StudioShell({ children }: { children: React.ReactNode })
     <div
       className="murchid-studio-app murchid-studio-canvas h-[100dvh] flex text-ink font-sans overflow-hidden"
       data-panel={panel.present ? (panel.collapsed ? "closed" : "open") : "none"}
+      data-rail={railIcons ? "icons" : "full"}
     >
       {/* Renders nothing until this device has been superseded, at which
           point it says so over the top of whatever is behind it. */}
       <DeviceNotice onSignOut={signOutFully} />
 
-      {/* Desktop / iPad-landscape rail — collapsible, state persists.
-          Collapsing animates width 256px ↔ 0 (overflow-hidden clips the
-          fixed-width inner column so contents don't reflow mid-slide)
-          rather than snapping to display:none. */}
+      {/* Desktop / iPad-landscape rail. Collapsing goes to an ICON RAIL,
+          not to zero: the nav is how a teacher leaves this screen, and a
+          collapsed state that removes it entirely trades one problem for
+          a worse one. Width and the icons-only presentation are both
+          driven by `data-rail` on the app root — see globals.css. */}
       <aside
-        className={`murchid-sidebar flex-shrink-0 h-full overflow-hidden print:hidden hidden md:block transition-[width] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none ${
-          sidebarCollapsed ? "md:w-0" : "md:w-64"
-        }`}
+        className="murchid-sidebar flex-shrink-0 h-full overflow-hidden print:hidden hidden md:block transition-[width] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none"
       >
-        {/* The floating pane. The fixed-width inner column keeps the
-            contents from reflowing mid-slide while the aside animates;
-            the gutters live HERE, not on the aside — padding on a w-64
+        {/* The gutters live HERE, not on the aside — padding on a w-64
             aside around a w-64 column was 268px in a 256px clip, which
             silently cut the pane's right edge off. */}
-        <div className="w-64 h-full py-3 ps-3 pe-1.5">
+        <div className="murchid-sidebar-col h-full py-3 ps-3 pe-1.5">
           <div className="murchid-sidebar-pane">{sidebarBody}</div>
         </div>
       </aside>
@@ -497,22 +511,10 @@ export default function StudioShell({ children }: { children: React.ReactNode })
 
         <div
           className={`murchid-content-pane relative flex-1 overflow-y-auto px-4 pt-4 pb-6 sm:px-6 md:my-3 md:me-3 md:ms-1.5 md:pt-4 md:pb-3 md:pe-6 transition-[padding] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none ${
-            // The panel already supplies a gutter on this edge, so the
-            // deep inset the bare sidebar needs would double up.
-            panel.present ? "md:ps-6" : sidebarCollapsed ? "md:ps-16" : "md:ps-8"
+            // The panel supplies a gutter on this edge when it is there.
+            panel.present ? "md:ps-6" : "md:ps-8"
           }`}
         >
-          {sidebarCollapsed && (
-            <button
-              type="button"
-              onClick={toggleSidebar}
-              title="Show sidebar"
-              aria-label="Show sidebar"
-              className="hidden md:flex absolute top-3 start-3 z-20 h-9 w-9 rounded-md text-ink-soft hover:text-ink hover:bg-paper-warm items-center justify-center transition print:hidden"
-            >
-              <PanelLeftOpen size={16} className="rtl:rotate-180" />
-            </button>
-          )}
           {TEACHING_RAIL_SECTIONS.has(section) ? (
             <div className="lg:flex lg:gap-6 h-full">
               <div className="flex-1 min-w-0">{children}</div>
