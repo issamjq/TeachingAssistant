@@ -2,6 +2,7 @@ import { LanguageProvider } from "@/shared/i18n";
 import { RouterBridge } from "@/lib/route";
 import AssistantMount from "@/features/assistant/AssistantMount";
 import StudioShell from "@/features/studio-shell/StudioShell";
+import { ContextPanelProvider } from "@/shared/shell/ContextPanel";
 
 // Route group for the authenticated teacher workspace. `(studio)` adds no
 // path segment — /quizzes stays /quizzes.
@@ -21,7 +22,12 @@ export default function StudioLayout({
   return (
     <LanguageProvider>
       <RouterBridge />
-      <StudioShell>{children}</StudioShell>
+      {/* The second left column is a shell-level slot: the provider has to
+          sit outside StudioShell so a section rendered as `children` can
+          register content the shell renders beside the nav. */}
+      <ContextPanelProvider>
+        <StudioShell>{children}</StudioShell>
+      </ContextPanelProvider>
       {/* The floating assistant. It carries the accessibility controls as
           one of its tabs, so this single mount covers both. */}
       <AssistantMount scope="studio" />

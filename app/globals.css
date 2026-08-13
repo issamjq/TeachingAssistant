@@ -2056,3 +2056,53 @@ input[type="radio"]:focus-visible {
     @apply font-sans;
   }
 }
+/* =====================================================================
+   The narrow-viewport rule for the studio's two left columns
+
+   With the nav at 256px and the context panel at 288px, 544px of the
+   viewport is chrome before the work starts. Above 1152px that is
+   affordable; below it, it is not.
+
+   So below 1152px — and ONLY below it — the nav drops to an icon rail
+   while the panel is open. This is deliberately expressed here rather
+   than in React state, for two reasons: it is keyed to the viewport
+   rather than to a control, so opening the panel can never shrink the
+   nav on a wide screen; and it cannot persist, so a teacher who opens
+   the panel on a small laptop and later docks to a monitor gets their
+   labels back without touching anything.
+
+   The nav's width is otherwise never a function of the panel. See
+   src/features/studio-shell/ContextPanel.tsx for the reasoning.
+   ===================================================================== */
+
+@media (min-width: 768px) and (max-width: 1151px) {
+  .murchid-studio-app[data-panel="open"] .murchid-sidebar {
+    width: 4.5rem;
+  }
+  .murchid-studio-app[data-panel="open"] .murchid-sidebar > div {
+    width: 4.5rem;
+    padding-inline: 8px 4px;
+  }
+
+  /* Labels out, icons centred. The nav keeps its markup and its tab
+     order; only what is painted changes. */
+  .murchid-studio-app[data-panel="open"] .murchid-sidebar-item > span:last-child,
+  .murchid-studio-app[data-panel="open"] .murchid-sidebar-section-label,
+  .murchid-studio-app[data-panel="open"] .murchid-sidebar-brand,
+  .murchid-studio-app[data-panel="open"] .murchid-sidebar-account > *:not(:first-child),
+  .murchid-studio-app[data-panel="open"] .murchid-sidebar-action span {
+    display: none;
+  }
+  .murchid-studio-app[data-panel="open"] .murchid-sidebar-item,
+  .murchid-studio-app[data-panel="open"] .murchid-sidebar-account,
+  .murchid-studio-app[data-panel="open"] .murchid-sidebar-action {
+    justify-content: center;
+    padding-inline: 0;
+    gap: 0;
+  }
+  .murchid-studio-app[data-panel="open"] .murchid-sidebar-section + .murchid-sidebar-section {
+    border-top: 1px solid color-mix(in oklab, var(--color-line) 60%, transparent);
+    margin-top: 8px;
+    padding-top: 8px;
+  }
+}

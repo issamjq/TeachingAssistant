@@ -28,7 +28,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   Send, Paperclip, X, Sparkles, Square, RotateCcw, Save, Check,
   FileText, GraduationCap, ClipboardList, Layers, Puzzle,
-  PanelRightOpen, PanelRightClose, Plus, Trash2, MessageSquare,
+  Plus, Trash2, MessageSquare, PanelLeftOpen, X as XIcon,
 } from "lucide-react";
 import { api } from "@/views/_shared";
 import { supabase } from "@/lib/supabaseClient";
@@ -42,6 +42,8 @@ import { SkillsPicker } from "./SkillsPicker";
 import {
   listSessions, createSession, appendMessage, loadSession, deleteSession, purgeOld, KEEP_DAYS,
 } from "./history";
+import { useContextPanelSlot } from "@/shared/shell/ContextPanel";
+import { useMediaQuery } from "@/shared/hooks/useMediaQuery";
 import s from "./Studio.module.css";
 
 const KINDS = [
@@ -116,7 +118,11 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
   // ── conversation history ───────────────────────────────────────────
   const [sessions, setSessions] = useState([]);
   const [sessionId, setSessionId] = useState(null);
-  const [railOpen, setRailOpen] = useState(true);
+  // Desktop history lives in the shell's context panel — the second left
+  // column — so its open/closed state and its width are the shell's, not
+  // this screen's. What stays local is the phone drawer, which the shell
+  // has no equivalent of.
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const [loadingThread, setLoadingThread] = useState(false);
   // The id the CURRENT send belongs to. State would be a render behind:
   // a thread is created and its first two turns saved inside one call,
@@ -150,9 +156,10 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
   // A narrow window opens with the rail closed: the studio is already
   // tight there, and a list of last week's work is not what a teacher
   // came for.
-  useEffect(() => {
-    if (typeof window !== "undefined" && window.innerWidth < 1100) setRailOpen(false);
-  }, []);
+  // Nothing to do on mount any more. The panel's width is the shell's
+  // business and it persists the teacher's choice across sections; the
+  // phone drawer starts closed. What used to live here force-closed the
+  // rail below 1100px on every visit, overriding that choice.
 
   const openSession = async (id) => {
     if (id === sessionId) return;
@@ -163,7 +170,7 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
       sessionRef.current = id;
       setTurns(turns_);
       setNotice(null);
-      if (window.innerWidth <= 720) setRailOpen(false);
+      setDrawerOpen(false);
     } catch (e) {
       setNotice(`Couldn't open that conversation: ${e.message}`);
     } finally {
@@ -179,7 +186,7 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
     setDraft("");
     setAttachments([]);
     setNotice(null);
-    if (window.innerWidth <= 720) setRailOpen(false);
+    setDrawerOpen(false);
   };
 
   const removeSession = async (id, e) => {
@@ -537,19 +544,65 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
     return d.toLocaleDateString(undefined, { day: "numeric", month: "short" });
   };
 
-  return (
-    <div className={s.withRail} data-rail-open={railOpen}>
+  // Which home the conversation list gets. Below md the shell's context
+  // panel is not rendered at all, so the same list opens as a drawer.
+  const isDesktop = useMediaQuery("(min-width: 768px)");
+  const historySlot = useContextPanelSlot("Conversations", sessions.length);
 
-      <div className={s.chatSide}>
-        {!railOpen && (
-          <button
-            type="button" className={s.railToggle} onClick={() => setRailOpen(true)}
-            aria-label="Show conversation history" title="Recent conversations"
-          >
-            <PanelRightOpen size={17} />
-          </button>
+  // ONE list, rendered into whichever home applies. Extracting it is what
+  // lets the panel and the drawer stay honestly identical rather than two
+  // copies that drift.
+  const conversationList = (
+    <>
+      <button type="button" className={s.newChat} onClick={newChat}>
+        <Plus size={15} className="text-accent flex-shrink-0" /> New conversation
+      </button>
+      <div className={s.railList}>
+        {sessions.length === 0 ? (
+          <p className={s.railEmpty}>
+            Nothing yet. Conversations you have here are kept for {KEEP_DAYS} days — anything
+            you save goes to your library and stays.
+          </p>
+        ) : (
+          sessions.map((x) => (
+            // Two sibling buttons in a plain row, not a button inside a
+            // role="button". Nesting them made the row's accessible name
+            // swallow the delete label, so a screen reader announced one
+            // control offering both actions.
+            <div
+              key={x.session_id}
+              className={s.railItem}
+              data-on={x.session_id === sessionId}
+            >
+              <button
+                type="button"
+                className={s.railOpen}
+                onClick={() => { openSession(x.session_id); setDrawerOpen(false); }}
+                aria-current={x.session_id === sessionId ? "true" : undefined}
+              >
+                <MessageSquare size={13} className="text-muted flex-shrink-0 mt-0.5 self-start" />
+                <span className={s.railItemText}>
+                  <span className={s.railItemTitle}>{x.title || "Untitled"}</span>
+                  <span className={s.railItemWhen}>{when(x.updated_at || x.created_at)}</span>
+                </span>
+              </button>
+              <button
+                type="button"
+                className={s.railDel}
+                onClick={(e) => removeSession(x.session_id, e)}
+                aria-label={`Delete conversation: ${x.title || "Untitled"}`}
+              >
+                <Trash2 size={13} />
+              </button>
+            </div>
+          ))
         )}
-        <div className={s.shell}>
+      </div>
+    </>
+  );
+
+  return (
+    <div className={s.shell}>
       <div className={s.thread} ref={threadRef}>
         {empty ? (
           <div className={s.hero}>
@@ -813,69 +866,44 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
         </p>
       </div>
 
-        </div>
-      </div>
-
-      {railOpen && <div className={s.railScrim} onClick={() => setRailOpen(false)} aria-hidden="true" />}
-
-      {/* ── history ─────────────────────────────────────────────── */}
-      <aside className={s.rail} data-open={railOpen} aria-label="Recent conversations" aria-hidden={!railOpen}>
-        <div className={s.railPane}>
-          <div className={s.railHead}>
-            <span className={s.railTitle}>Recent</span>
-            <button
-              type="button" className={s.iconBtn} onClick={() => setRailOpen(false)}
-              aria-label="Hide conversation history" title="Hide history"
-            >
-              <PanelRightClose size={16} />
-            </button>
-          </div>
-          <button type="button" className={s.newChat} onClick={newChat}>
-            <Plus size={15} className="text-accent flex-shrink-0" /> New conversation
+      {/* ── conversations ───────────────────────────────────────────
+          One list, two homes. On a laptop it is portalled into the
+          shell's context panel so it sits beside the nav, in the same
+          place on every visit and at a width this screen does not
+          control. On a phone there is no room for a second column, so the
+          same component opens as a drawer over the thread. */}
+      {isDesktop ? (
+        historySlot.render(conversationList)
+      ) : (
+        <>
+          <button
+            type="button"
+            className={s.drawerBtn}
+            onClick={() => setDrawerOpen(true)}
+            aria-label="Show conversations"
+          >
+            <PanelLeftOpen size={16} />
+            <span>{sessions.length || ""}</span>
           </button>
-          <div className={s.railList}>
-            {sessions.length === 0 ? (
-              <p className={s.railEmpty}>
-                Nothing yet. Conversations you have here are kept for {KEEP_DAYS} days — anything
-                you save goes to your library and stays.
-              </p>
-            ) : (
-              sessions.map((x) => (
-                // Two sibling buttons in a plain row, not a button inside
-                // a role="button". Nesting them made the row's accessible
-                // name swallow the delete label, so a screen reader
-                // announced one control offering both actions.
-                <div
-                  key={x.session_id}
-                  className={s.railItem}
-                  data-on={x.session_id === sessionId}
-                >
-                  <button
-                    type="button"
-                    className={s.railOpen}
-                    onClick={() => openSession(x.session_id)}
-                    aria-current={x.session_id === sessionId ? "true" : undefined}
-                  >
-                    <MessageSquare size={13} className="text-muted flex-shrink-0 mt-0.5 self-start" />
-                    <span className={s.railItemText}>
-                      <span className={s.railItemTitle}>{x.title || "Untitled"}</span>
-                      <span className={s.railItemWhen}>{when(x.updated_at || x.created_at)}</span>
-                    </span>
-                  </button>
-                  <button
-                    type="button"
-                    className={s.railDel}
-                    onClick={(e) => removeSession(x.session_id, e)}
-                    aria-label={`Delete conversation: ${x.title || "Untitled"}`}
-                  >
-                    <Trash2 size={13} />
-                  </button>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-      </aside>
+          {drawerOpen && (
+            <div className={s.drawerScrim} onClick={() => setDrawerOpen(false)} aria-hidden="true" />
+          )}
+          <aside className={s.drawer} data-open={drawerOpen} aria-label="Conversations" aria-hidden={!drawerOpen}>
+            <div className={s.drawerHead}>
+              <span className={s.drawerTitle}>Conversations</span>
+              <button
+                type="button"
+                className={s.iconBtn}
+                onClick={() => setDrawerOpen(false)}
+                aria-label="Hide conversations"
+              >
+                <XIcon size={16} />
+              </button>
+            </div>
+            {conversationList}
+          </aside>
+        </>
+      )}
 
       {presenting && (
         <SlideFullscreen

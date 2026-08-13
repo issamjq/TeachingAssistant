@@ -469,79 +469,15 @@
 /* Grid, not flex, so the collapse animates grid-template-columns — the
    composited-friendly way to open a panel; animating the rail's own
    width forced a reflow every frame of the slide. */
-.withRail {
-  position: relative;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 274px;
-  height: 100%;
-  min-height: 0;
-  transition: grid-template-columns 0.24s cubic-bezier(0.22, 1, 0.36, 1);
-}
-.withRail[data-rail-open="false"] { grid-template-columns: minmax(0, 1fr) 0px; }
 
-.rail {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  transition: opacity 0.18s ease;
-  overflow: hidden;
-}
-.rail[data-open="false"] { opacity: 0; pointer-events: none; }
 @media (prefers-reduced-motion: reduce) {
-  .withRail, .rail { transition: none; }
+  
 }
 
 /* The pane itself — the sidebar's treatment, lighter than the canvas so
    it reads as a surface sitting on it. */
-.railPane {
-  position: relative;
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  width: 256px;
-  /* The spacing the rail's padding used to provide — margin on the pane
-     keeps the closed rail a true 0px (border-box padding can't shrink
-     below itself, which left a sliver). */
-  margin: 10px 10px 10px 6px;
-  border-radius: 20px;
-  overflow: hidden;
-  /* The main sidebar is a light pane on the dark canvas. Here the
-     surround is already the light content pane, so the same trick
-     inverted — a pane in the canvas tone, recessed rather than raised —
-     is what actually separates it. Same shape, same rows, visible. */
-  background: color-mix(in oklab, var(--p-paper) 80%, transparent);
-  border: 1px solid var(--p-line);
-  box-shadow: inset 0 1px 3px color-mix(in oklab, var(--p-ink) 7%, transparent);
-  backdrop-filter: blur(18px) saturate(120%);
-  -webkit-backdrop-filter: blur(18px) saturate(120%);
-}
-.railPane::before {
-  content: "";
-  position: absolute;
-  inset: 0 0 auto 0;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.55), transparent);
-  pointer-events: none;
-}
 
-.railHead {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 14px 10px 4px 16px;
-  flex-shrink: 0;
-}
 /* The sidebar's section label, verbatim: italic Fraunces, muted. */
-.railTitle {
-  font-family: var(--font-serif);
-  font-style: italic;
-  font-size: 13px;
-  color: var(--p-muted);
-  flex: 1;
-  white-space: nowrap;
-}
 
 .newChat {
   display: flex;
@@ -684,73 +620,6 @@
   padding: 6px 14px;
 }
 
-/* The way back in when it is collapsed. Trailing side, matching where
-   the pane will appear. */
-.railToggle {
-  position: absolute;
-  top: 10px;
-  inset-inline-end: 10px;
-  z-index: 5;
-  display: grid;
-  place-items: center;
-  width: 36px; height: 36px;
-  border-radius: 11px;
-  border: 1px solid var(--p-line);
-  background: color-mix(in oklab, var(--p-surface) 92%, transparent);
-  color: var(--p-ink-soft);
-  cursor: pointer;
-  backdrop-filter: blur(10px);
-  transition: border-color 0.15s ease, color 0.15s ease;
-}
-.railToggle:hover { border-color: var(--p-accent); color: var(--p-ink); }
-.railToggle:focus-visible { outline: 2px solid var(--p-accent); outline-offset: 2px; }
-
-.chatSide { flex: 1; min-width: 0; position: relative; display: flex; flex-direction: column; min-height: 0; }
-
-/* Only a drawer needs a scrim. */
-.railScrim { display: none; }
-
-/* On a phone the rail is a drawer over the thread — 260px of a 375px
-   screen is not a sidebar, it is the screen. It comes from the trailing
-   edge, the side its toggle sits on. */
-@media (max-width: 720px) {
-  /* The drawer overlays the thread, so its grid column stays collapsed
-     regardless of open state. */
-  .withRail, .withRail[data-rail-open="false"] {
-    grid-template-columns: minmax(0, 1fr) 0px;
-  }
-  .rail {
-    position: absolute;
-    inset-block: 8px;
-    inset-inline-end: 8px;
-    z-index: 30;
-    width: min(84vw, 300px);
-    transform: translateX(0);
-    transition: transform 0.24s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.18s ease;
-  }
-  .rail .railPane { margin: 0; }
-  /* Slides off the trailing edge it lives on — transform, not width. */
-  .rail[data-open="false"] { transform: translateX(calc(100% + 8px)); }
-  [dir="rtl"] .rail[data-open="false"] { transform: translateX(calc(-100% - 8px)); }
-  @media (prefers-reduced-motion: reduce) { .rail { transition: none; } }
-  /* Opaque as a drawer. Translucency reads as depth when there is a
-     pane behind it; over the thread itself it just makes the list
-     unreadable. */
-  .railPane {
-    width: min(84vw, 300px);
-    background: var(--p-surface);
-    box-shadow: -18px 0 44px -20px color-mix(in oklab, var(--p-ink) 45%, transparent);
-  }
-  .railScrim {
-    display: block;
-    position: absolute;
-    inset: 0;
-    z-index: 20;
-    background: color-mix(in oklab, var(--p-ink) 30%, transparent);
-  }
-}
-
-
 /* ── skills picker — which profiles ground this generation ─────────── */
 
 .skillsWrap { position: relative; }
@@ -838,4 +707,73 @@
   color: var(--p-accent);
   font: inherit;
   cursor: pointer;
+}
+
+/* ── conversations, on a phone ─────────────────────────────────────── */
+/* Below md the shell has no second column to give — the nav is already a
+   drawer there — so the same list opens over the thread. One component,
+   two homes; see StudioChat.jsx. */
+
+.drawerBtn {
+  position: fixed;
+  inset-inline-start: 12px;
+  bottom: 96px;
+  z-index: 30;
+  height: 44px;
+  min-width: 44px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid var(--p-line);
+  background: var(--p-paper-cool);
+  color: var(--p-ink);
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  box-shadow: 0 10px 24px -14px color-mix(in oklab, var(--p-ink) 60%, transparent);
+}
+@media (min-width: 768px) { .drawerBtn { display: none; } }
+
+.drawerScrim {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  background: color-mix(in oklab, var(--p-ink) 40%, transparent);
+  backdrop-filter: blur(2px);
+}
+
+.drawer {
+  position: fixed;
+  inset-block: 0;
+  inset-inline-start: 0;
+  z-index: 50;
+  width: min(84vw, 320px);
+  display: flex;
+  flex-direction: column;
+  background: var(--p-paper-cool);
+  border-inline-end: 1px solid var(--p-line);
+  box-shadow: 0 0 60px -10px color-mix(in oklab, var(--p-ink) 55%, transparent);
+  transform: translateX(-100%);
+  transition: transform 260ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+[dir="rtl"] .drawer { transform: translateX(100%); }
+.drawer[data-open="true"] { transform: translateX(0); }
+@media (prefers-reduced-motion: reduce) { .drawer { transition: none; } }
+@media (min-width: 768px) { .drawer, .drawerScrim { display: none; } }
+
+.drawerHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 10px 6px 16px;
+  flex-shrink: 0;
+}
+.drawerTitle {
+  flex: 1;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--p-muted);
 }

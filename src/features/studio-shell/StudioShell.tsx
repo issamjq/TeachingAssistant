@@ -53,6 +53,7 @@ import MurchidLogo from "@/components/MurchidLogo";
 import Avatar from "@/components/Avatar";
 import TeachingRail from "@/views/TeachingRail";
 import DeviceNotice from "./DeviceNotice";
+import { ContextPanelRegion, useContextPanelState } from "@/shared/shell/ContextPanel";
 import {
   NAV_BY_ROLE,
   DEFAULT_ROUTE,
@@ -109,6 +110,11 @@ export default function StudioShell({ children }: { children: React.ReactNode })
     () => readStorage(SIDEBAR_COLLAPSED_KEY) === "1"
   );
   const account = useAccount();
+  // Whether a section is filling the second left column, and whether it
+  // is open. Only used to set `data-panel` on the root — the responsive
+  // rule that drops the nav to icons lives in CSS, keyed to the
+  // viewport, so it can never affect a wide layout.
+  const panel = useContextPanelState();
   const t = useT();
   const pathname = usePathname();
   const router = useRouter();
@@ -404,7 +410,10 @@ export default function StudioShell({ children }: { children: React.ReactNode })
   );
 
   return (
-    <div className="murchid-studio-app murchid-studio-canvas h-[100dvh] flex text-ink font-sans overflow-hidden">
+    <div
+      className="murchid-studio-app murchid-studio-canvas h-[100dvh] flex text-ink font-sans overflow-hidden"
+      data-panel={panel.present ? (panel.collapsed ? "closed" : "open") : "none"}
+    >
       {/* Renders nothing until this device has been superseded, at which
           point it says so over the top of whatever is behind it. */}
       <DeviceNotice onSignOut={signOutFully} />
@@ -427,6 +436,11 @@ export default function StudioShell({ children }: { children: React.ReactNode })
           <div className="murchid-sidebar-pane">{sidebarBody}</div>
         </div>
       </aside>
+
+      {/* The second left column. Renders nothing unless the current
+          section has registered content for it — see ContextPanel.tsx for
+          why it sits here rather than inside the section. */}
+      <ContextPanelRegion />
 
       {/* Mobile / iPad-portrait drawer — slides in over a scrim. Identical
           nav to desktop; closes on any route change. */}
@@ -483,7 +497,9 @@ export default function StudioShell({ children }: { children: React.ReactNode })
 
         <div
           className={`murchid-content-pane relative flex-1 overflow-y-auto px-4 pt-4 pb-6 sm:px-6 md:my-3 md:me-3 md:ms-1.5 md:pt-4 md:pb-3 md:pe-6 transition-[padding] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none ${
-            sidebarCollapsed ? "md:ps-16" : "md:ps-8"
+            // The panel already supplies a gutter on this edge, so the
+            // deep inset the bare sidebar needs would double up.
+            panel.present ? "md:ps-6" : sidebarCollapsed ? "md:ps-16" : "md:ps-8"
           }`}
         >
           {sidebarCollapsed && (
