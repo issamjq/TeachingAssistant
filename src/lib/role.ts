@@ -20,6 +20,7 @@ export const ROLES: readonly Role[] = [
   "moe",
   "owner",
   "teacher",
+  "student",
 ];
 
 // Sub-role taxonomy per top-level role. Empty array = no sub-roles
@@ -31,6 +32,7 @@ export const SUB_ROLES: Record<Role, readonly SubRole[]> = {
   moe:         ["head", "inspector", "staff"],
   owner:       [],
   teacher:     [],
+  student:     [],
 };
 
 export const ROLE_LABELS: Record<Role, string> = {
@@ -40,6 +42,7 @@ export const ROLE_LABELS: Record<Role, string> = {
   super_admin: "Super admin",
   moe:         "MoE",
   owner:       "Owner",
+  student:     "Student",
 };
 
 export const SUB_ROLE_LABELS: Record<SubRole, string> = {
@@ -58,6 +61,7 @@ export const ROLE_DESCRIPTIONS: Record<Role, string> = {
   super_admin: "Pyramid top — manage account access for admin, MoE, owner, and teachers.",
   moe:         "Read-only dashboards and reports across schools. No studio access.",
   owner:       "Business owner — read-only dashboards for the metrics that matter.",
+  student:     "Your own work — assigned quizzes and homework, scores, and attendance.",
 };
 
 // Mirror of backend rolesGrantableBy(). The actor's role + sub_role

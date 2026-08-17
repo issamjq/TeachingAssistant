@@ -163,6 +163,14 @@ export async function resolve(
       if (a === "supabase" && method === "POST") return yes(await E.provisionTeacher());
       if (a === "claim-session" && method === "POST") return yes(await E.claimSession());
       if (a === "me" && method === "GET") return yes(await E.getProfile());
+      // A student claims their roster row by signing in with its email.
+      if (a === "link-student" && method === "POST") return yes(await E.linkStudent());
+      return { handled: false };
+
+    case "student":
+      // The student's own surface. student_dashboard() is definer-scoped to
+      // the caller's own rows, so no owner filter is needed here.
+      if (a === "dashboard" && method === "GET") return yes(await E.studentDashboard());
       return { handled: false };
 
     case "me":

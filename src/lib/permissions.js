@@ -161,6 +161,12 @@ export const ROLE_DEFAULTS = /** @type {Record<Role, PermissionMap>} */ ({
     "account.change_plan":  true,
     "account.invite_others": false,
   },
+  // A student is not a manager of anything — they see their own work only.
+  // None of the teacher/admin permission keys apply, so every one denies;
+  // their surface is gated by role, not by this matrix.
+  student: {
+    "account.edit_profile": true,
+  },
 });
 
 // Resolve the effective permissions for an account: per-account

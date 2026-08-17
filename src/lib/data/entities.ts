@@ -31,9 +31,35 @@ const notFound = () => Object.assign(new Error("Not found"), { status: 404 });
 /** /api/me — users ⨝ faculty ⨝ subscriptions ⨝ credits, flattened. */
 export async function getProfile() {
   const { userId, facultyId: fid } = await ident();
-  if (!fid) throw Object.assign(new Error("Your teaching profile hasn't been set up yet."), {
-    status: 404, code: "no_teacher_row",
-  });
+  if (!fid) {
+    // No faculty row — but this might be a student, not a brand-new teacher.
+    // A student becomes a user by claiming a roster row (link_student_account),
+    // which sets students.user_id; detect that here and answer with a student
+    // profile instead of the no_teacher_row that starts the sign-up funnel.
+    const { data: st } = await supabase
+      .from("students")
+      .select("id, first_name, last_name, email, grade, division, school_id")
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (st) {
+      return {
+        id: (st as any).id,
+        user_id: userId,
+        role: "student",
+        first_name: (st as any).first_name,
+        last_name: (st as any).last_name,
+        full_name: [(st as any).first_name, (st as any).last_name].filter(Boolean).join(" "),
+        email: (st as any).email,
+        grade: (st as any).grade,
+        section: (st as any).division,
+        school_id: (st as any).school_id,
+        onboarding_status: "complete",
+      };
+    }
+    throw Object.assign(new Error("Your teaching profile hasn't been set up yet."), {
+      status: 404, code: "no_teacher_row",
+    });
+  }
 
   // Apply a due monthly credit refresh before reading the balance, so the
   // number shown is the refreshed one on the first load past the boundary.
@@ -1156,4 +1182,26 @@ export async function claimSession() {
   const { recordAuthEvent } = await import("./superadmin");
   await recordAuthEvent("login").catch(() => {});
   return { ...profile, active_session_id };
+}
+
+// ── student ───────────────────────────────────────────────────────────
+//
+// A student is a roster row a teacher typed in; they become a signed-in
+// user by claiming that row with the email it carries. Both calls are
+// SECURITY DEFINER functions (db/tune.sql §34) — the browser cannot set
+// its own role or read grades RLS locks to the teacher.
+
+/** Claim the roster row for the signed-in email and mark the user a student. */
+export async function linkStudent() {
+  const { data, error } = await supabase.rpc("link_student_account");
+  if (error) throw error;
+  return data;
+}
+
+/** The student's own dashboard: assigned work, scores, attendance, marks. */
+export async function studentDashboard() {
+  const { data, error } = await supabase.rpc("student_dashboard");
+  if (error) throw error;
+  if (!data) throw Object.assign(new Error("No student profile."), { status: 404, code: "no_student" });
+  return data;
 }

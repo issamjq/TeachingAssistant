@@ -91,6 +91,16 @@ const MOE_NAV: NavSection[] = [
   { section: "Ministry", items: [{ key: "moe-console", label: "MoE console", letter: "M" }] },
 ];
 
+// A student sees their own world, nothing else.
+const STUDENT_NAV: NavSection[] = [
+  {
+    section: "My work",
+    items: [
+      { key: "student-dashboard", label: "Dashboard", icon: "dashboard" },
+    ],
+  },
+];
+
 const OWNER_NAV: NavSection[] = [
   { section: "Owner", items: [{ key: "owner-console", label: "Owner console", letter: "O" }] },
 ];
@@ -102,6 +112,7 @@ export const NAV_BY_ROLE: Record<Role, NavSection[]> = {
   super_admin: SUPERADMIN_NAV,
   moe: MOE_NAV,
   owner: OWNER_NAV,
+  student: STUDENT_NAV,
 };
 
 /** Landing section for each role when no section is specified. */
@@ -112,6 +123,7 @@ export const DEFAULT_ROUTE: Record<Role, string> = {
   super_admin: "superadmin-dashboard",
   moe: "moe-console",
   owner: "owner-console",
+  student: "student-dashboard",
 };
 
 // Sections that get the Outlook-style right rail (mini-calendar + upcoming
@@ -151,6 +163,7 @@ export const SECTIONS_BY_ROLE: Record<Role, Set<string>> = {
   super_admin: new Set(["superadmin-dashboard", "superadmin-console", "superadmin-students", "superadmin-orgs", "superadmin-costs", "account"]),
   moe: new Set(["moe-console", "account"]),
   owner: new Set(["owner-console", "account"]),
+  student: new Set(["student-dashboard", "account"]),
 };
 
 /** Where a nav key should navigate — some sections have a default sub-tab. */

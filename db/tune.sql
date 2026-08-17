@@ -1848,7 +1848,7 @@ AS $$
 DECLARE uid uuid;
 BEGIN
   PERFORM public.sa_require();
-  IF p_role NOT IN ('teacher','dev','super_admin','admin','moe','owner') THEN
+  IF p_role NOT IN ('teacher','dev','super_admin','admin','moe','owner','student') THEN
     RAISE EXCEPTION 'invalid role %', p_role USING ERRCODE = '22023';
   END IF;
   uid := public.sa_user_of(p_faculty);
@@ -2486,3 +2486,127 @@ GRANT EXECUTE ON FUNCTION public.sa_student_activity(int)      TO authenticated;
 GRANT EXECUTE ON FUNCTION public.sa_orgs_overview()            TO authenticated;
 GRANT EXECUTE ON FUNCTION public.sa_orgs(int)                  TO authenticated;
 GRANT EXECUTE ON FUNCTION public.sa_org_activity(int)          TO authenticated;
+
+
+-- ═══════════════════════════════════════════════════════════════════════
+-- 34. The student, as a signed-in role
+--
+-- Until now the only signed-in users were staff — provisioning always made
+-- a teacher. A student is different: they are a row a teacher typed into a
+-- roster, and they become a *user* by signing in with the email that row
+-- carries. These two functions are that bridge:
+--
+--   link_student_account()  claims the roster row for the signed-in email
+--                           and marks the user a student. SECURITY DEFINER
+--                           because it writes students.user_id and
+--                           users.role, which the browser cannot.
+--   student_dashboard()     the student's own world — assigned work with
+--                           their attempt, scores, attendance, marks —
+--                           reaching past the teacher-owner RLS on grades
+--                           and attendance to the caller's OWN rows only.
+-- ═══════════════════════════════════════════════════════════════════════
+
+-- Claim a roster row by matching the signed-in email. Idempotent: a second
+-- call for an already-linked user is a no-op that reports success.
+CREATE OR REPLACE FUNCTION public.link_student_account()
+RETURNS jsonb
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE uid uuid; em text; sid uuid;
+BEGIN
+  uid := (SELECT auth.uid());
+  IF uid IS NULL THEN RETURN jsonb_build_object('linked', false, 'reason', 'not_signed_in'); END IF;
+
+  IF EXISTS (SELECT 1 FROM students WHERE user_id = uid) THEN
+    RETURN jsonb_build_object('linked', true, 'already', true);
+  END IF;
+  -- A teacher is not a student — never convert one.
+  IF EXISTS (SELECT 1 FROM faculty WHERE user_id = uid) THEN
+    RETURN jsonb_build_object('linked', false, 'reason', 'is_teacher');
+  END IF;
+
+  em := lower((SELECT email FROM auth.users WHERE id = uid));
+  IF em IS NULL THEN RETURN jsonb_build_object('linked', false, 'reason', 'no_email'); END IF;
+
+  -- The oldest unclaimed roster row for this email. Unclaimed only: a row
+  -- already linked to someone else is off-limits.
+  SELECT id INTO sid FROM students
+    WHERE lower(email) = em AND user_id IS NULL
+    ORDER BY created_at LIMIT 1;
+  IF sid IS NULL THEN RETURN jsonb_build_object('linked', false, 'reason', 'no_match'); END IF;
+
+  UPDATE students SET user_id = uid, updated_at = now() WHERE id = sid;
+  INSERT INTO public.users (id, email) VALUES (uid, em) ON CONFLICT (id) DO NOTHING;
+  UPDATE public.users SET role = 'student', updated_at = now() WHERE id = uid;
+
+  RETURN jsonb_build_object('linked', true, 'student_id', sid);
+END $$;
+
+CREATE OR REPLACE FUNCTION public.student_dashboard()
+RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE sid uuid; out jsonb;
+BEGIN
+  sid := current_student_id();
+  IF sid IS NULL THEN RETURN NULL; END IF;
+
+  SELECT jsonb_build_object(
+    'student', (SELECT jsonb_build_object(
+        'id', st.id, 'first_name', st.first_name, 'last_name', st.last_name,
+        'grade', st.grade, 'section', st.division,
+        'school', (SELECT name FROM schools WHERE id = st.school_id)
+      ) FROM students st WHERE st.id = sid),
+
+    -- Everything assigned to a class this student is in, with their attempt.
+    'work', (
+      SELECT COALESCE(jsonb_agg(row_to_json(w) ORDER BY w.starts_at DESC NULLS LAST), '[]'::jsonb) FROM (
+        SELECT a.id AS assignment_id, gen.id AS work_id, gen.type,
+               COALESCE(gen.content->>'title', gen.content->>'name', 'Work') AS title,
+               a.starts_at, a.ends_at, c.name AS class_name,
+               qa.status, qa.score, qa.max_score, qa.submitted_at
+          FROM class_members cm
+          JOIN classes c      ON c.id = cm.class_id
+          JOIN assignments a  ON a.class_id = cm.class_id
+          JOIN ai_studio gen  ON gen.id = a.generation_id AND gen.deleted_at IS NULL
+          LEFT JOIN quiz_attempts qa ON qa.assignment_id = a.id AND qa.student_id = sid
+         WHERE cm.student_id = sid
+      ) w
+    ),
+
+    -- Graded attempts, newest first — the student's scoreline.
+    'scores', (
+      SELECT COALESCE(jsonb_agg(row_to_json(s2) ORDER BY s2.submitted_at DESC NULLS LAST), '[]'::jsonb) FROM (
+        SELECT qa.id, qa.score, qa.max_score, qa.submitted_at, gen.type,
+               COALESCE(gen.content->>'title', gen.content->>'name', 'Work') AS title
+          FROM quiz_attempts qa
+          LEFT JOIN assignments a ON a.id = qa.assignment_id
+          LEFT JOIN ai_studio gen ON gen.id = a.generation_id
+         WHERE qa.student_id = sid AND qa.score IS NOT NULL
+         ORDER BY qa.submitted_at DESC NULLS LAST LIMIT 20
+      ) s2
+    ),
+
+    'attendance', (
+      SELECT jsonb_build_object(
+        'present', count(*) FILTER (WHERE status = 'present'),
+        'absent',  count(*) FILTER (WHERE status = 'absent'),
+        'late',    count(*) FILTER (WHERE status = 'late'),
+        'total',   count(*)
+      ) FROM attendance WHERE student_id = sid
+    ),
+
+    -- Marks a teacher typed in (as opposed to scored work).
+    'grades', (
+      SELECT COALESCE(jsonb_agg(row_to_json(g) ORDER BY g.recorded_on DESC), '[]'::jsonb) FROM (
+        SELECT subject, term, label, score, max_score, recorded_on
+          FROM student_grades WHERE student_id = sid
+         ORDER BY recorded_on DESC LIMIT 20
+      ) g
+    )
+  ) INTO out;
+  RETURN out;
+END $$;
+
+GRANT EXECUTE ON FUNCTION public.link_student_account() TO authenticated;
+GRANT EXECUTE ON FUNCTION public.student_dashboard()    TO authenticated;

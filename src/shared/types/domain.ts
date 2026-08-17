@@ -14,13 +14,17 @@
 // ── Roles ────────────────────────────────────────────────────────────
 //
 // The pyramid: dev > super_admin > admin > moe > owner > teacher.
+// `student` sits outside the staff pyramid — it is the person taught, not
+// a manager of the platform — but it is a real signed-in role with its own
+// surface, so it belongs in the union.
 export type Role =
   | "dev"
   | "super_admin"
   | "admin"
   | "moe"
   | "owner"
-  | "teacher";
+  | "teacher"
+  | "student";
 
 // Sub-roles exist only for admin and moe. Every other role must have
 // sub_role === null (enforced by a DB CHECK generated from the backend map).
