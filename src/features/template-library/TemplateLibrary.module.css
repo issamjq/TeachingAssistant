@@ -364,6 +364,28 @@
   padding: 18px 20px;
 }
 
+/* Merged lesson scroll: plan → guide → notes, each under its own heading
+   so the three read as one document rather than three lost tabs. */
+.docPart + .docPart {
+  margin-block-start: 28px;
+  padding-block-start: 22px;
+  border-block-start: 1px solid color-mix(in oklab, var(--p-line) 75%, transparent);
+}
+.docPartHead {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  margin-block-end: 12px;
+  padding-block: 6px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--p-accent);
+  background: var(--p-bg, var(--p-surface));
+}
+
 .docBody {
   font-size: 14px;
   line-height: 1.7;

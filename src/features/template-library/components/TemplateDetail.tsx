@@ -9,14 +9,36 @@ import { Button } from "@/components/ui/button";
 import { api } from "@/shared/lib/apiClient";
 import { getTemplate, markUsed } from "../api";
 import { KIND_LABEL, IMPORT_PATH, IMPORT_DEST, LESSON_KINDS, STUDIO_KIND, subjectLabel } from "../labels";
-import type { TemplateDetail as Detail, TemplateSummary } from "../types";
+import type { TemplateDetail as Detail, TemplateDocument, TemplateSummary, DocKind } from "../types";
 import s from "../TemplateLibrary.module.css";
 
+// A leading `# Chapter` in a document repeats the drawer's own title (and,
+// in the merged lesson view, would repeat it three times over). Strip that
+// one line — our section headings already name each part.
+const stripLeadingH1 = (md: string) => (md || "").replace(/^\s*#\s+.*(?:\r?\n|$)/, "");
+
+// A tab in the drawer. The lesson family (plan + teaching guide + student
+// notes) collapses into ONE "Lesson" section shown as a single scroll with
+// headings, because to a teacher they are one thing. Every other kind is
+// its own section.
+interface Section {
+  key: string;
+  label: string;
+  kind: DocKind; // representative kind (for Studio / import routing)
+  docs: TemplateDocument[];
+  isLesson: boolean;
+}
+
+const quizQuestionsOf = (d: TemplateDocument): unknown[] | null => {
+  if (d.kind !== "quiz") return null;
+  const st = d.structured as { questions?: unknown } | null;
+  return Array.isArray(st?.questions) ? (st!.questions as unknown[]) : null;
+};
+
 // The card's documents, opened over the shelf. Bodies load here (a card
-// never carries them), each document a tab. Two ways out: import a
-// document straight into the matching library store (browser→Supabase,
-// works even while generation is cold), or open it in the Studio to
-// adapt it to your own class before saving.
+// never carries them). Two ways out of any section: import it into the
+// matching store (browser→Supabase, works even while generation is cold),
+// or open it in the Studio to adapt before saving.
 export function TemplateDetail({
   card,
   onClose,
@@ -57,63 +79,85 @@ export function TemplateDetail({
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  const docs = detail?.documents ?? [];
-  const doc = docs[tab];
-
   const title = detail?.chapter_title || card.chapter_title;
 
-  const structuredQuestions = useMemo(() => {
-    if (!doc || doc.kind !== "quiz") return null;
-    const st = doc.structured as { questions?: unknown } | null;
-    return Array.isArray(st?.questions) ? (st!.questions as unknown[]) : null;
-  }, [doc]);
+  // Group the documents into sections: the lesson family merged into one,
+  // everything else on its own — in document order, lesson pack first.
+  const sections = useMemo<Section[]>(() => {
+    const docs = detail?.documents ?? [];
+    const lessonDocs = LESSON_KINDS.flatMap((k) => docs.filter((d) => d.kind === k));
+    const others = docs.filter((d) => !LESSON_KINDS.includes(d.kind));
+    const out: Section[] = [];
+    if (lessonDocs.length) {
+      out.push({ key: "lesson", label: "Lesson", kind: "lesson_plan", docs: lessonDocs, isLesson: true });
+    }
+    for (const d of others) {
+      out.push({
+        key: `${d.kind}`,
+        label: d.title?.trim() || KIND_LABEL[d.kind] || d.kind,
+        kind: d.kind,
+        docs: [d],
+        isLesson: false,
+      });
+    }
+    return out;
+  }, [detail]);
 
-  const importDoc = async () => {
-    if (!doc) return;
-    const path = IMPORT_PATH[doc.kind];
-    if (!path) return;
+  const section: Section | undefined = sections[tab];
+
+  // Import every document in the active section. For the lesson pack that
+  // is the plan, its guide and its notes — three rows in Lessons, named so
+  // they are tellable apart. The row the teacher jumps to is the first.
+  const importSection = async () => {
+    if (!section) return;
     setImporting(true);
     setError(null);
-    // Lesson plan, teaching guide and student notes all land in Lessons,
-    // so a card's three of them would otherwise arrive with the same name.
-    // Keep the plan on the plain chapter title; tag the guide and notes so
-    // the three are tellable apart in the list.
-    const isLesson = LESSON_KINDS.includes(doc.kind);
-    const name =
-      doc.title?.trim() ||
-      (doc.kind === "lesson_plan" || !isLesson ? title : `${title} — ${KIND_LABEL[doc.kind]}`);
     try {
-      let created: { id?: string } | null = null;
-      if (doc.kind === "quiz" && structuredQuestions) {
-        created = await api("/api/quizzes/bulk", {
-          method: "POST",
-          body: { name, title: name, questions: structuredQuestions },
-        });
-      } else if (isLesson) {
-        // A lesson template is a rich Markdown document, not a handful of
-        // short fields — so keep it as `body_md`, which the lesson editor
-        // renders as a readable document. Dumping it into the one-line
-        // `main_activity` box (what we did before) was the wall of raw
-        // Markdown a teacher couldn't read.
-        created = await api(path, {
-          method: "POST",
-          body: { name, title: name, subject: card.subject, body_md: doc.content_md },
-        });
-      } else {
-        created = await api(path, {
-          method: "POST",
-          body: {
-            name,
-            title: name,
-            main_activity: doc.content_md,
-            instructions: doc.content_md,
-            body_md: doc.content_md,
-          },
-        });
+      let firstId: string | undefined;
+      for (const d of section.docs) {
+        const path = IMPORT_PATH[d.kind];
+        if (!path) continue;
+        // A lesson plan keeps the plain chapter title; its guide and notes
+        // carry their kind so a card's three don't collide in the list.
+        const name =
+          d.title?.trim() ||
+          (d.kind === "lesson_plan" || !LESSON_KINDS.includes(d.kind)
+            ? title
+            : `${title} — ${KIND_LABEL[d.kind]}`);
+        const questions = quizQuestionsOf(d);
+        let created: { id?: string } | null = null;
+        if (d.kind === "quiz" && questions) {
+          created = await api("/api/quizzes/bulk", {
+            method: "POST",
+            body: { name, title: name, questions },
+          });
+        } else if (LESSON_KINDS.includes(d.kind)) {
+          // A rich Markdown document, not a handful of short fields — keep
+          // it as body_md, which the lesson editor renders readably.
+          created = await api(path, {
+            method: "POST",
+            body: { name, title: name, subject: card.subject, body_md: d.content_md },
+          });
+        } else {
+          created = await api(path, {
+            method: "POST",
+            body: {
+              name,
+              title: name,
+              main_activity: d.content_md,
+              instructions: d.content_md,
+              body_md: d.content_md,
+            },
+          });
+        }
+        if (!firstId && created?.id) {
+          firstId = created.id;
+          const dest = IMPORT_DEST[d.kind];
+          if (dest) setSaved({ label: dest.label, target: dest.route(created.id) });
+        }
       }
       setImported((m) => ({ ...m, [tab]: true }));
-      const dest = IMPORT_DEST[doc.kind];
-      if (dest && created?.id) setSaved({ label: dest.label, target: dest.route(created.id) });
+      if (!firstId) setError("Nothing here could be imported.");
       // Count the import — best-effort, never blocks the save.
       markUsed(card.id).catch(() => {});
     } catch (e: any) {
@@ -123,16 +167,24 @@ export function TemplateDetail({
     }
   };
 
-  // Hand the document to the Studio to adapt. Reuses the assistant's
+  // The section's Markdown as one document — the lesson pack joined under
+  // its part headings, or the single document as-is.
+  const sectionMarkdown = (sec: Section): string =>
+    sec.isLesson
+      ? sec.docs.map((d) => `## ${KIND_LABEL[d.kind]}\n\n${stripLeadingH1(d.content_md)}`).join("\n\n")
+      : sec.docs[0]?.content_md || "";
+
+  // Hand the section to the Studio to adapt. Reuses the assistant's
   // one-navigation prefill channel: the composer seeds with the text and
   // the right format is preselected. Nothing generates until the teacher
-  // presses send — this is a starting point, not an auto-run.
+  // presses send — a starting point, not an auto-run.
   const openInStudio = () => {
-    if (!doc) return;
-    const kind = STUDIO_KIND[doc.kind];
-    const body = doc.content_md.slice(0, 6000);
+    if (!section) return;
+    const kind = STUDIO_KIND[section.kind];
+    const body = sectionMarkdown(section).slice(0, 6000);
+    const what = section.isLesson ? "lesson" : KIND_LABEL[section.kind].toLowerCase();
     const prompt =
-      `Adapt this ${KIND_LABEL[doc.kind].toLowerCase()} on "${title}" ` +
+      `Adapt this ${what} on "${title}" ` +
       `(Grade ${card.grade} ${subjectLabel(card.subject)}) for my class — keep the structure, ` +
       `adjust examples and difficulty to how I teach:\n\n${body}`;
     try {
@@ -148,17 +200,17 @@ export function TemplateDetail({
   };
 
   const downloadMd = () => {
-    if (!doc) return;
-    const blob = new Blob([doc.content_md], { type: "text/markdown" });
+    if (!section) return;
+    const blob = new Blob([sectionMarkdown(section)], { type: "text/markdown" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `${(doc.title || title).replace(/[^\w.-]+/g, "-").slice(0, 80)}.md`;
+    a.download = `${title.replace(/[^\w.-]+/g, "-").slice(0, 80)}-${section.key}.md`;
     a.click();
     URL.revokeObjectURL(url);
   };
 
-  const canImport = doc ? !!IMPORT_PATH[doc.kind] : false;
+  const canImport = section ? section.docs.some((d) => IMPORT_PATH[d.kind]) : false;
 
   return (
     <>
@@ -182,11 +234,11 @@ export function TemplateDetail({
           </button>
         </header>
 
-        {docs.length > 0 && (
+        {sections.length > 1 && (
           <div className={s.docTabs} role="tablist">
-            {docs.map((d, i) => (
+            {sections.map((sec, i) => (
               <button
-                key={`${d.kind}-${i}`}
+                key={sec.key}
                 type="button"
                 role="tab"
                 aria-selected={i === tab}
@@ -194,7 +246,7 @@ export function TemplateDetail({
                 data-on={i === tab}
                 onClick={() => setTab(i)}
               >
-                {d.title?.trim() || KIND_LABEL[d.kind] || d.kind}
+                {sec.label}
               </button>
             ))}
           </div>
@@ -210,12 +262,22 @@ export function TemplateDetail({
               Opening…
             </div>
           )}
-          {doc && (
-            <div className={s.docBody}>{renderMarkdown(doc.content_md || "")}</div>
-          )}
+          {section &&
+            (section.isLesson ? (
+              // The lesson family in one scroll: plan, then guide, then
+              // notes, each under its own heading.
+              section.docs.map((d, i) => (
+                <section key={`${d.kind}-${i}`} className={s.docPart}>
+                  <p className={s.docPartHead}>{KIND_LABEL[d.kind]}</p>
+                  <div className={s.docBody}>{renderMarkdown(stripLeadingH1(d.content_md))}</div>
+                </section>
+              ))
+            ) : (
+              <div className={s.docBody}>{renderMarkdown(section.docs[0]?.content_md || "")}</div>
+            ))}
         </div>
 
-        {doc && (
+        {section && (
           <footer className={s.drawerFoot}>
             {saved && (
               <div className={s.savedStrip}>
@@ -229,22 +291,26 @@ export function TemplateDetail({
               </div>
             )}
             {canImport ? (
-              <Button onClick={importDoc} disabled={importing || imported[tab]}>
+              <Button onClick={importSection} disabled={importing || imported[tab]}>
                 {imported[tab] ? (
                   <>
                     <Check size={15} /> Imported
                   </>
                 ) : importing ? (
                   "Importing…"
+                ) : section.isLesson ? (
+                  <>
+                    <Import size={15} /> Import to Lessons
+                  </>
                 ) : (
                   <>
-                    <Import size={15} /> Import {KIND_LABEL[doc.kind].toLowerCase()}
+                    <Import size={15} /> Import {KIND_LABEL[section.kind].toLowerCase()}
                   </>
                 )}
               </Button>
             ) : (
               <span className="text-[12.5px] text-muted">
-                {KIND_LABEL[doc.kind]} has no library store — open it in the Studio to keep it.
+                {KIND_LABEL[section.kind]} has no library store — open it in the Studio to keep it.
               </span>
             )}
             <Button variant="secondary" onClick={openInStudio}>
