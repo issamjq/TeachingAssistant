@@ -270,9 +270,17 @@ export function TemplateLibraryRoute() {
 
           {/* results */}
           {loading ? (
-            <div className={s.grid}>
-              {Array.from({ length: 6 }).map((_, i) => (
-                <div key={i} className={s.skel} />
+            <div className={s.table}>
+              <div className={s.thead} aria-hidden>
+                <span>Chapter</span>
+                <span>Grade</span>
+                <span>Subject</span>
+                <span>Docs</span>
+                <span>Used</span>
+                <span />
+              </div>
+              {Array.from({ length: 8 }).map((_, i) => (
+                <div key={i} className={s.skelRow} />
               ))}
             </div>
           ) : error ? (
@@ -294,7 +302,15 @@ export function TemplateLibraryRoute() {
             </section>
           ) : (
             <>
-              <div className={s.grid}>
+              <div className={s.table}>
+                <div className={s.thead} aria-hidden>
+                  <span>Chapter</span>
+                  <span>Grade</span>
+                  <span>Subject</span>
+                  <span>Docs</span>
+                  <span>Used</span>
+                  <span />
+                </div>
                 {items.map((card) => (
                   <TemplateCard key={card.id} card={card} onOpen={() => setOpen(card)} />
                 ))}

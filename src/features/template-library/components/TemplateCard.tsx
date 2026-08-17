@@ -1,11 +1,11 @@
-import { TrendingUp } from "lucide-react";
+import { ChevronRight, TrendingUp } from "lucide-react";
 import type { TemplateSummary } from "../types";
-import { KIND_LABEL, subjectLabel } from "../labels";
+import { subjectLabel } from "../labels";
 import s from "../TemplateLibrary.module.css";
 
-// One card in the shelf. Bodyless by design — the summary and the kinds
-// it carries are enough to decide whether to open it; the documents load
-// only when the drawer does.
+// One row in the shelf table. Bodyless by design — the title, summary
+// and a document count are enough to decide whether to open it; the
+// documents themselves load only when the drawer does.
 export function TemplateCard({
   card,
   onOpen,
@@ -13,38 +13,28 @@ export function TemplateCard({
   card: TemplateSummary;
   onOpen: () => void;
 }) {
+  const docs = card.doc_kinds.length;
   return (
-    <button type="button" className={s.card} onClick={onOpen}>
-      <div className={s.cardMetaTop}>
-        <span>Grade {card.grade}</span>
-        <span className={s.dot} aria-hidden />
-        <span>{subjectLabel(card.subject)}</span>
-        {card.stream && (
-          <>
-            <span className={s.dot} aria-hidden />
-            <span>{card.stream}</span>
-          </>
-        )}
+    <button type="button" className={s.row} onClick={onOpen}>
+      <div className={s.cellTitle}>
+        <span className={s.rowTitle}>{card.chapter_title}</span>
+        {card.summary && <span className={s.rowSummary}>{card.summary}</span>}
       </div>
 
-      <h3 className={s.cardTitle}>{card.chapter_title}</h3>
-      {card.summary && <p className={s.cardSummary}>{card.summary}</p>}
-
-      <div className={s.kindTags}>
-        {card.doc_kinds.map((k) => (
-          <span key={k} className={s.kindTag}>
-            {KIND_LABEL[k] ?? k}
-          </span>
-        ))}
+      <div className={s.cellGrade}>
+        <span className={s.gradeTag}>{card.grade === 0 ? "KG" : `G${card.grade}`}</span>
       </div>
 
-      <div className={s.cardFoot}>
-        <span className={s.useCount}>
-          <TrendingUp size={12} aria-hidden />
-          {card.use_count === 1 ? "Used once" : `Used ${card.use_count}×`}
-        </span>
-        {card.origin === "official" && <span className={s.originBadge}>Official</span>}
+      <div className={s.cellMuted}>{subjectLabel(card.subject)}</div>
+
+      <div className={s.cellMuted}>{docs === 1 ? "1 doc" : `${docs} docs`}</div>
+
+      <div className={s.cellUsed}>
+        <TrendingUp size={12} aria-hidden />
+        {card.use_count}
       </div>
+
+      <ChevronRight size={16} className={s.rowChevron} aria-hidden />
     </button>
   );
 }
