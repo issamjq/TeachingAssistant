@@ -49,7 +49,10 @@ export default function SuperAdminDashboard() {
       api(`/api/superadmin/signups?days=${days}`),
       api(`/api/superadmin/logins?days=${days}`),
       api(`/api/superadmin/recent-activity?limit=15`),
-      api("/api/admin/teachers"),
+      // A dashboard-only sub-admin may not hold the accounts capability;
+      // the newest-accounts panel is a nicety, so a refusal here degrades
+      // to an empty list rather than failing the whole dashboard.
+      api("/api/admin/teachers").catch(() => []),
       api("/api/auth/me"),
     ])
       .then(([overview, su, lo, act, accounts, me]) => {

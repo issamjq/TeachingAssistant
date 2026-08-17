@@ -66,6 +66,9 @@ import {
   SECTIONS_BY_ROLE,
   TEACHING_RAIL_SECTIONS,
   navTargetFor,
+  adminNav,
+  adminSections,
+  adminHome,
 } from "@/config/nav";
 
 const SIDEBAR_COLLAPSED_KEY = "murchid.sidebar.collapsed";
@@ -121,6 +124,8 @@ function NavBadge({ letter, icon }: { letter?: string; icon?: string }) {
 
 export default function StudioShell({ children }: { children: React.ReactNode }) {
   const [role, setRoleState] = useState<Role>(getRole);
+  // Resolved capability map from /api/me — drives a sub-admin's nav.
+  const [perms, setPerms] = useState<Record<string, boolean> | null>(null);
   const [navOpen, setNavOpen] = useState(false);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
@@ -144,9 +149,15 @@ export default function StudioShell({ children }: { children: React.ReactNode })
   const pathname = usePathname();
   const router = useRouter();
 
+  // A sub-admin's surfaces are whatever the super admin granted; everyone
+  // else's are the static per-role config. `perms` fills in from /api/me.
+  const isAdmin = role === "admin";
+  const allowedSections = isAdmin ? adminSections(perms) : SECTIONS_BY_ROLE[role];
+  const homeRoute = isAdmin ? adminHome(perms) : DEFAULT_ROUTE[role];
+
   // The section is the first path segment — the shell needs it for active
   // nav state and to decide whether the teaching rail shows.
-  const section = (pathname || "/").split("/").filter(Boolean)[0] || DEFAULT_ROUTE[role];
+  const section = (pathname || "/").split("/").filter(Boolean)[0] || homeRoute;
 
   const toggleSidebar = () => {
     setSidebarCollapsed((c) => {
@@ -176,8 +187,11 @@ export default function StudioShell({ children }: { children: React.ReactNode })
           return;
         }
         try {
-          const me = await api<Record<string, string>>("/api/me");
+          const me = await api<Record<string, any>>("/api/me");
           if (cancelled || !me) return;
+          // Keep the resolved capability map so the sub-admin nav reflects
+          // exactly what the super admin granted.
+          if (me.permissions && typeof me.permissions === "object") setPerms(me.permissions);
           const cur = account?.profile || {};
           const patch: Record<string, string> = {};
           if (me.first_name && cur.firstName !== me.first_name) patch.firstName = me.first_name;
@@ -254,13 +268,14 @@ export default function StudioShell({ children }: { children: React.ReactNode })
     []
   );
 
-  // Bounce sections that don't apply to the current role. Replace, not push,
-  // so the back button doesn't re-trigger the bounce.
+  // Bounce sections that don't apply to the current role (or that a
+  // sub-admin wasn't granted). Replace, not push, so the back button
+  // doesn't re-trigger the bounce.
   useEffect(() => {
-    if (!SECTIONS_BY_ROLE[role].has(section)) {
-      replace([DEFAULT_ROUTE[role]]);
+    if (!allowedSections.has(section)) {
+      replace([homeRoute]);
     }
-  }, [role, section]);
+  }, [role, section, perms]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Any route change closes the mobile drawer + account menu so the new
   // screen is visible immediately after tapping a nav item.
@@ -298,7 +313,7 @@ export default function StudioShell({ children }: { children: React.ReactNode })
   const roleKey = `account.${role}` as TranslationKey;
   const roleLabel = t(roleKey) === `account.${role}` ? ROLE_LABELS[role] : t(roleKey);
 
-  const nav = NAV_BY_ROLE[role];
+  const nav = isAdmin ? adminNav(perms) : NAV_BY_ROLE[role];
   const sidebarActive = section === "account" ? "account" : section;
   const handleNavClick = (key: string) => navigate(navTargetFor(key));
 

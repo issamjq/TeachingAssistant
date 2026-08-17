@@ -62,6 +62,22 @@ export default function AccountDrawer({ accountId, isSelf, onClose, onChanged })
   const [inspect, setInspect] = useState(null);
   const [inspecting, setInspecting] = useState(false);
 
+  // The VIEWER's own role + capabilities decide which controls appear. A
+  // super admin holds all of them; a delegated sub-admin sees only what
+  // they were granted, so a card that would 403 never renders.
+  const [myCaps, setMyCaps] = useState(null);
+  const [actorRole, setActorRole] = useState(null);
+  useEffect(() => {
+    let live = true;
+    api("/api/auth/me")
+      .then((me) => { if (live) { setMyCaps(me?.permissions || {}); setActorRole(me?.role || null); } })
+      .catch(() => {});
+    return () => { live = false; };
+  }, []);
+  const isSuper = actorRole === "super_admin" || actorRole === "dev";
+  const canBill = isSuper || !!myCaps?.["admin.billing"];
+  const canManage = isSuper || !!myCaps?.["admin.accounts"];
+
   // Fetch the full account on mount / id change. Cancel-on-unmount
   // guard so a quick close doesn't write stale data.
   useEffect(() => {
@@ -371,7 +387,7 @@ export default function AccountDrawer({ accountId, isSelf, onClose, onChanged })
                 extend / cancel / remove a plan, or set anything by hand.
                 Every button writes a table a teacher can never touch, through
                 the guarded RPCs. */}
-            {billing && (
+            {billing && canBill && (
               <section>
                 <div className="flex items-center justify-between mb-4">
                   <SectionHeader label="Billing controls" />
@@ -520,7 +536,9 @@ export default function AccountDrawer({ accountId, isSelf, onClose, onChanged })
 
             {/* Inspector — read-only window into the teacher's own work and
                 roster. The direct-Supabase model has no true impersonation
-                (that needs their session); this is the honest equivalent. */}
+                (that needs their session); this is the honest equivalent.
+                Needs the accounts capability. */}
+            {canManage && (
             <section>
               <div className="flex items-center justify-between mb-3">
                 <SectionHeader label="Inspect account" />
@@ -573,6 +591,7 @@ export default function AccountDrawer({ accountId, isSelf, onClose, onChanged })
                 </div>
               )}
             </section>
+            )}
 
             {/* Schools */}
             {account.schools && account.schools.length > 0 && (
@@ -594,10 +613,14 @@ export default function AccountDrawer({ accountId, isSelf, onClose, onChanged })
               </section>
             )}
 
-            {/* Permissions editor */}
+            {/* Permissions editor — granting capabilities is a super-admin
+                power (sa_set_permissions is super-only), so it shows only to
+                a super admin. For an admin account it edits the sub-admin
+                capabilities; for a teacher, their studio permissions. */}
+            {isSuper && (
             <section>
               <div className="flex items-center justify-between mb-4">
-                <SectionHeader label="Permissions" />
+                <SectionHeader label={account.role === "admin" ? "Sub-admin access" : "Permissions"} />
                 <button
                   onClick={resetAll}
                   className="font-mono text-[10px] uppercase tracking-wider text-muted hover:text-ink transition inline-flex items-center gap-1.5"
@@ -612,7 +635,9 @@ export default function AccountDrawer({ accountId, isSelf, onClose, onChanged })
               </p>
 
               <div className="space-y-6">
-                {PERMISSION_GROUPS.map((g) => (
+                {PERMISSION_GROUPS
+                  .filter((g) => (account.role === "admin" ? g.id === "admin" : g.id !== "admin"))
+                  .map((g) => (
                   <div key={g.id}>
                     <div className="flex items-center justify-between mb-2">
                       <h4 className="font-serif text-base text-ink">{g.label}</h4>
@@ -653,6 +678,7 @@ export default function AccountDrawer({ accountId, isSelf, onClose, onChanged })
                 ))}
               </div>
             </section>
+            )}
           </div>
         )}
 
@@ -660,7 +686,7 @@ export default function AccountDrawer({ accountId, isSelf, onClose, onChanged })
         {account && (
           <footer className="sticky bottom-0 bg-paper border-t border-line px-8 py-4 flex items-center justify-between">
             <div className="flex items-center gap-2">
-              {!isSelf && (
+              {!isSelf && canManage && (
                 <>
                   {account.status === "suspended" ? (
                     <Button variant="secondary" onClick={() => setStatus("active")}>

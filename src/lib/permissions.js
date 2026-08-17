@@ -67,6 +67,22 @@ export const PERMISSION_GROUPS = /** @type {PermissionGroup[]} */ ([
       { key: "account.invite_others", label: "Invite other users" },
     ],
   },
+  {
+    // Delegated sub-admin capabilities. Shown only for `admin` accounts (see
+    // the drawer). The super admin grants a subset; the SAME keys gate the
+    // SECURITY DEFINER RPCs server-side (admin_can() in db/tune.sql §36), so
+    // hiding a control here is UX, not the security boundary.
+    id: "admin",
+    label: "Sub-admin access",
+    roles: ["admin"],
+    description: "Which platform controls this admin can use.",
+    keys: [
+      { key: "admin.dashboard", label: "Platform dashboards (analytics)" },
+      { key: "admin.accounts",  label: "Manage accounts (suspend, role, delete)" },
+      { key: "admin.billing",   label: "Billing — credits & subscriptions" },
+      { key: "admin.platform",  label: "Platform settings — feature flags & credit costs" },
+    ],
+  },
 ]);
 
 // Flat catalog for validation (every legal key).
@@ -100,6 +116,12 @@ export const ROLE_DEFAULTS = /** @type {Record<Role, PermissionMap>} */ ({
     "account.edit_profile": true,
     "account.change_plan":  false,
     "account.invite_others": true,
+    // Sub-admin capability defaults — MUST match admin_can() in
+    // db/tune.sql §36. Dashboards + accounts on; billing + platform off.
+    "admin.dashboard":      true,
+    "admin.accounts":       true,
+    "admin.billing":        false,
+    "admin.platform":       false,
   },
   moe: {
     "studio.lesson_plans":  false,

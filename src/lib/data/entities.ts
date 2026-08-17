@@ -22,6 +22,7 @@
 import { supabase } from "@/lib/supabaseClient";
 import { clearIdent, facultyId, ident } from "./session";
 import { daysFromToday } from "../localDate";
+import { resolvePermissions } from "@/lib/permissions";
 
 const iso = () => new Date().toISOString();
 const notFound = () => Object.assign(new Error("Not found"), { status: 404 });
@@ -87,6 +88,11 @@ export async function getProfile() {
     phone: user.phone,
     avatar_url: user.avatar_url,
     role: user.role,
+    sub_role: user.sub_role,
+    // Resolved capability map — per-account overrides over role defaults.
+    // Drives what a delegated sub-admin sees and can reach; the RPCs
+    // re-check the same keys server-side.
+    permissions: resolvePermissions({ role: user.role, permissions: user.permissions }),
     onboarding_status: user.onboarding_status,
     staff_id: fac.staff_id,
     // The renames the screens do not know about.

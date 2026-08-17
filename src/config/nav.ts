@@ -60,14 +60,51 @@ const TEACHER_NAV: NavSection[] = [
   },
 ];
 
+// A sub-admin (the `admin` role) works the SAME platform surfaces as the
+// super admin, but only the ones the super admin granted them. Each surface
+// is gated by a capability (admin_can() in db/tune.sql §36); the nav below
+// is the full set, filtered per grant by adminNav() at render time.
+interface AdminSurface extends NavItem { cap: string; }
+export const ADMIN_SURFACES: AdminSurface[] = [
+  { cap: "admin.dashboard", key: "superadmin-dashboard", label: "Dashboard", icon: "dashboard" },
+  { cap: "admin.accounts",  key: "superadmin-console",   label: "Accounts", icon: "keys" },
+  { cap: "admin.dashboard", key: "superadmin-students",  label: "Students", icon: "students" },
+  { cap: "admin.dashboard", key: "superadmin-orgs",      label: "Organisations", icon: "orgs" },
+  { cap: "admin.platform",  key: "superadmin-costs",     label: "Credit costs", icon: "coins" },
+];
+
+// Defaults an admin has before the super admin customises anything —
+// mirrors ROLE_DEFAULTS.admin / admin_can(). Used until /api/me's resolved
+// permissions arrive, so the sidebar doesn't flash empty.
+export const DEFAULT_ADMIN_PERMS: Record<string, boolean> = {
+  "admin.dashboard": true,
+  "admin.accounts": true,
+  "admin.billing": false,
+  "admin.platform": false,
+};
+
+type Perms = Record<string, boolean> | null | undefined;
+const grantedSurfaces = (perms: Perms) =>
+  ADMIN_SURFACES.filter((s) => (perms || DEFAULT_ADMIN_PERMS)[s.cap]);
+
+/** The admin's sidebar — only the surfaces they were granted. */
+export function adminNav(perms: Perms): NavSection[] {
+  const items = grantedSurfaces(perms).map(({ key, label, icon }) => ({ key, label, icon }));
+  return items.length ? [{ section: "Admin", items }] : [];
+}
+/** URL sections a granted admin may reach (plus their own account). */
+export function adminSections(perms: Perms): Set<string> {
+  const set = new Set(grantedSurfaces(perms).map((s) => s.key));
+  set.add("account");
+  return set;
+}
+/** Where an admin lands — their first granted surface. */
+export function adminHome(perms: Perms): string {
+  return grantedSurfaces(perms)[0]?.key || "account";
+}
+
 const ADMIN_NAV: NavSection[] = [
-  {
-    section: "Admin",
-    items: [
-      { key: "admin-dashboard", label: "Dashboard", icon: "dashboard" },
-      { key: "admin-console", label: "Teachers", icon: "students" },
-    ],
-  },
+  { section: "Admin", items: ADMIN_SURFACES.map(({ key, label, icon }) => ({ key, label, icon })) },
 ];
 
 const DEV_NAV: NavSection[] = [
@@ -118,7 +155,7 @@ export const NAV_BY_ROLE: Record<Role, NavSection[]> = {
 /** Landing section for each role when no section is specified. */
 export const DEFAULT_ROUTE: Record<Role, string> = {
   teacher: "planner",
-  admin: "admin-dashboard",
+  admin: "superadmin-dashboard",
   dev: "dev-console",
   super_admin: "superadmin-dashboard",
   moe: "moe-console",
@@ -158,7 +195,10 @@ export const SECTIONS_BY_ROLE: Record<Role, Set<string>> = {
     "reports",
     "account",
   ]),
-  admin: new Set(["admin-dashboard", "admin-console", "account"]),
+  admin: new Set([
+    "superadmin-dashboard", "superadmin-console", "superadmin-students",
+    "superadmin-orgs", "superadmin-costs", "account",
+  ]),
   dev: new Set(["dev-console", "account"]),
   super_admin: new Set(["superadmin-dashboard", "superadmin-console", "superadmin-students", "superadmin-orgs", "superadmin-costs", "account"]),
   moe: new Set(["moe-console", "account"]),

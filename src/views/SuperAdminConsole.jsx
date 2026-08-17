@@ -307,13 +307,16 @@ export default function SuperAdminConsole() {
         </CardContent>
       </Card>
 
-      {/* Platform controls — feature flags + the audit trail. Both write /
-          read the tables a teacher can never touch, through the guarded
-          RPCs, so they live on the super admin's own console. */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-6">
-        <FeatureFlagsCard />
-        <AuditTrailCard />
-      </div>
+      {/* Platform controls — feature flags + the audit trail. Shown only
+          to a viewer who holds the matching capability, so a sub-admin
+          granted just "accounts" doesn't meet a card that would 403.
+          (A super admin holds every capability, so both show.) */}
+      {(me?.permissions?.["admin.platform"] || me?.permissions?.["admin.dashboard"]) && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-6">
+          {me?.permissions?.["admin.platform"] && <FeatureFlagsCard />}
+          {me?.permissions?.["admin.dashboard"] && <AuditTrailCard />}
+        </div>
+      )}
 
       {editing && (
         <AccountModal

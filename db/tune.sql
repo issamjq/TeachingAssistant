@@ -1546,6 +1546,84 @@ BEGIN
 END $$;
 GRANT EXECUTE ON FUNCTION public.sa_require() TO authenticated;
 
+-- ── delegated sub-admins ──────────────────────────────────────────────
+--
+-- A super admin can make someone an `admin` and grant them a SUBSET of the
+-- platform controls. The grant lives in users.permissions (the same JSONB
+-- the drawer already edits), keyed on capabilities:
+--
+--   admin.dashboard  platform analytics (dashboard, students, orgs)
+--   admin.accounts   the accounts console — view, suspend, role, delete
+--   admin.billing    credits & subscriptions
+--   admin.platform   feature flags & credit costs
+--
+-- dev / super_admin always pass. A plain teacher/student never does. An
+-- admin passes for a capability they were granted, or its default:
+-- dashboard + accounts are on out of the box (an admin manages accounts);
+-- billing and platform are off until explicitly granted. Keep these
+-- defaults in step with ROLE_DEFAULTS.admin in src/lib/permissions.js.
+CREATE OR REPLACE FUNCTION public.is_platform_admin()
+RETURNS boolean
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM users u
+     WHERE u.id = (SELECT auth.uid())
+       AND u.role IN ('super_admin', 'dev', 'admin')
+  );
+$$;
+
+CREATE OR REPLACE FUNCTION public.admin_can(p_cap text)
+RETURNS boolean
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE r text; perms jsonb;
+BEGIN
+  IF public.is_super_admin() THEN RETURN true; END IF;
+  SELECT role, permissions INTO r, perms FROM users WHERE id = (SELECT auth.uid());
+  IF r <> 'admin' THEN RETURN false; END IF;
+  RETURN COALESCE(
+    (perms ->> p_cap)::boolean,
+    p_cap IN ('admin.dashboard', 'admin.accounts')  -- admin role defaults
+  );
+END $$;
+
+CREATE OR REPLACE FUNCTION public.admin_can_any(p_caps text[])
+RETURNS boolean
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+  SELECT public.is_super_admin()
+      OR EXISTS (SELECT 1 FROM unnest(p_caps) c WHERE public.admin_can(c));
+$$;
+
+-- Guard: pass if the caller holds the capability, else 403.
+CREATE OR REPLACE FUNCTION public.sa_gate(p_cap text)
+RETURNS void
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+BEGIN
+  IF NOT public.admin_can(p_cap) THEN
+    RAISE EXCEPTION 'not authorized for %', p_cap USING ERRCODE = '42501';
+  END IF;
+END $$;
+
+-- Guard: pass if the caller holds ANY of the capabilities (shared reads).
+CREATE OR REPLACE FUNCTION public.sa_gate_any(p_caps text[])
+RETURNS void
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+BEGIN
+  IF NOT public.admin_can_any(p_caps) THEN
+    RAISE EXCEPTION 'not authorized' USING ERRCODE = '42501';
+  END IF;
+END $$;
+
+GRANT EXECUTE ON FUNCTION public.is_platform_admin()     TO authenticated;
+GRANT EXECUTE ON FUNCTION public.admin_can(text)         TO authenticated;
+GRANT EXECUTE ON FUNCTION public.admin_can_any(text[])   TO authenticated;
+GRANT EXECUTE ON FUNCTION public.sa_gate(text)           TO authenticated;
+GRANT EXECUTE ON FUNCTION public.sa_gate_any(text[])     TO authenticated;
+
 -- The one writer of audit_log. VOLATILE, DEFINER — reaches the table the
 -- client cannot. actor is always the caller; the subject cannot forge it.
 CREATE OR REPLACE FUNCTION public.sa_write_audit(
@@ -1584,7 +1662,7 @@ LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp
 AS $$
 DECLARE out jsonb;
 BEGIN
-  PERFORM public.sa_require();
+  PERFORM public.sa_gate_any(ARRAY['admin.accounts','admin.dashboard']);
   SELECT jsonb_build_object(
     'active_teachers',    count(*) FILTER (WHERE role = 'teacher' AND COALESCE(status,'active') = 'active'),
     'suspended_teachers', count(*) FILTER (WHERE role = 'teacher' AND status = 'suspended'),
@@ -1608,7 +1686,7 @@ LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp
 AS $$
 DECLARE out jsonb;
 BEGIN
-  PERFORM public.sa_require();
+  PERFORM public.sa_gate_any(ARRAY['admin.accounts','admin.dashboard']);
   SELECT COALESCE(jsonb_agg(row_to_json(t) ORDER BY t.created_at DESC), '[]'::jsonb) INTO out
   FROM (
     SELECT id, user_id, first_name, last_name, email, role, sub_role, status,
@@ -1627,7 +1705,7 @@ LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp
 AS $$
 DECLARE out jsonb;
 BEGIN
-  PERFORM public.sa_require();
+  PERFORM public.sa_gate_any(ARRAY['admin.accounts','admin.dashboard']);
   SELECT to_jsonb(a) - 'majors' - 'grade_levels'
          || jsonb_build_object(
               'permissions', COALESCE(u.permissions, '{}'::jsonb),
@@ -1675,7 +1753,7 @@ LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp
 AS $$
 DECLARE out jsonb;
 BEGIN
-  PERFORM public.sa_require();
+  PERFORM public.sa_gate('admin.dashboard');
   SELECT jsonb_build_object(
     'accounts', jsonb_build_object(
       'total', (SELECT count(*) FROM accounts),
@@ -1746,7 +1824,7 @@ LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp
 AS $$
 DECLARE out jsonb; n int := LEAST(GREATEST(COALESCE(p_days,30), 1), 365);
 BEGIN
-  PERFORM public.sa_require();
+  PERFORM public.sa_gate('admin.dashboard');
   SELECT COALESCE(jsonb_agg(jsonb_build_object('day', to_char(d, 'YYYY-MM-DD'), 'n', c) ORDER BY d), '[]'::jsonb)
     INTO out
   FROM (
@@ -1766,7 +1844,7 @@ LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp
 AS $$
 DECLARE out jsonb; n int := LEAST(GREATEST(COALESCE(p_days,30), 1), 365);
 BEGIN
-  PERFORM public.sa_require();
+  PERFORM public.sa_gate('admin.dashboard');
   SELECT COALESCE(jsonb_agg(jsonb_build_object('day', to_char(d, 'YYYY-MM-DD'), 'n', c) ORDER BY d), '[]'::jsonb)
     INTO out
   FROM (
@@ -1786,7 +1864,7 @@ LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp
 AS $$
 DECLARE out jsonb; n int := LEAST(GREATEST(COALESCE(p_limit,15), 1), 100);
 BEGIN
-  PERFORM public.sa_require();
+  PERFORM public.sa_gate('admin.dashboard');
   SELECT COALESCE(jsonb_agg(row_to_json(t)), '[]'::jsonb) INTO out
   FROM (
     SELECT a.id, a.action,
@@ -1809,7 +1887,7 @@ LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp
 AS $$
 DECLARE out jsonb;
 BEGIN
-  PERFORM public.sa_require();
+  PERFORM public.sa_gate('admin.platform');
   SELECT COALESCE(jsonb_agg(row_to_json(t) ORDER BY t.key), '[]'::jsonb) INTO out
   FROM (SELECT key, enabled, description, updated_at FROM feature_flags) t;
   RETURN out;
@@ -1825,7 +1903,7 @@ LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp
 AS $$
 DECLARE uid uuid;
 BEGIN
-  PERFORM public.sa_require();
+  PERFORM public.sa_gate('admin.accounts');
   IF p_status NOT IN ('active','suspended','deleted') THEN
     RAISE EXCEPTION 'invalid status %', p_status USING ERRCODE = '22023';
   END IF;
@@ -1845,14 +1923,26 @@ CREATE OR REPLACE FUNCTION public.sa_set_role(p_faculty uuid, p_role text, p_sub
 RETURNS jsonb
 LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp
 AS $$
-DECLARE uid uuid;
+DECLARE uid uuid; target_role text;
 BEGIN
-  PERFORM public.sa_require();
+  PERFORM public.sa_gate('admin.accounts');
   IF p_role NOT IN ('teacher','dev','super_admin','admin','moe','owner','student') THEN
     RAISE EXCEPTION 'invalid role %', p_role USING ERRCODE = '22023';
   END IF;
   uid := public.sa_user_of(p_faculty);
   IF uid IS NULL THEN RAISE EXCEPTION 'account not found'; END IF;
+  -- Escalation guard: only a super admin may create staff or touch a staff
+  -- account. A delegated sub-admin may reassign ordinary users
+  -- (teacher/student) but cannot mint another admin or demote a colleague.
+  IF NOT public.is_super_admin() THEN
+    IF p_role NOT IN ('teacher','student') THEN
+      RAISE EXCEPTION 'only a super admin can grant staff roles' USING ERRCODE = '42501';
+    END IF;
+    SELECT role INTO target_role FROM users WHERE id = uid;
+    IF target_role IN ('dev','super_admin','admin','moe','owner') THEN
+      RAISE EXCEPTION 'only a super admin can change a staff account' USING ERRCODE = '42501';
+    END IF;
+  END IF;
   UPDATE users SET role = p_role, sub_role = NULLIF(p_sub_role, ''), updated_at = now() WHERE id = uid;
   PERFORM public.sa_write_audit('admin.teacher.role_update', 'users', uid,
                                 jsonb_build_object('role', p_role, 'sub_role', p_sub_role));
@@ -1870,7 +1960,7 @@ LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp
 AS $$
 DECLARE uid uuid;
 BEGIN
-  PERFORM public.sa_require();
+  PERFORM public.sa_gate('admin.accounts');
   uid := public.sa_user_of(p_faculty);
   IF uid IS NULL THEN RAISE EXCEPTION 'account not found'; END IF;
   IF uid = (SELECT auth.uid()) THEN
@@ -1903,7 +1993,7 @@ RETURNS jsonb
 LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp
 AS $$
 BEGIN
-  PERFORM public.sa_require();
+  PERFORM public.sa_gate('admin.billing');
   INSERT INTO credits (faculty_id, balance, monthly_allowance)
   VALUES (p_faculty, GREATEST(COALESCE(p_balance,0), 0), GREATEST(COALESCE(p_allowance,0), 0))
   ON CONFLICT (faculty_id) DO UPDATE
@@ -1920,7 +2010,7 @@ RETURNS jsonb
 LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp
 AS $$
 BEGIN
-  PERFORM public.sa_require();
+  PERFORM public.sa_gate('admin.billing');
   IF p_plan IS NOT NULL AND p_plan NOT IN ('trial','monthly','quarterly','annual') THEN
     RAISE EXCEPTION 'invalid plan %', p_plan USING ERRCODE = '22023';
   END IF;
@@ -1944,7 +2034,7 @@ RETURNS jsonb
 LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp
 AS $$
 BEGIN
-  PERFORM public.sa_require();
+  PERFORM public.sa_gate('admin.platform');
   UPDATE feature_flags SET enabled = COALESCE(p_enabled, false), updated_at = now() WHERE key = p_key;
   IF NOT FOUND THEN RAISE EXCEPTION 'unknown flag %', p_key; END IF;
   PERFORM public.sa_write_audit('superadmin.flag.update', 'feature_flags', NULL,
@@ -1963,7 +2053,7 @@ LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp
 AS $$
 DECLARE out jsonb; n int := LEAST(GREATEST(COALESCE(p_limit,40), 1), 200);
 BEGIN
-  PERFORM public.sa_require();
+  PERFORM public.sa_gate('admin.accounts');
   SELECT jsonb_build_object(
     'work', (
       SELECT COALESCE(jsonb_agg(row_to_json(t)), '[]'::jsonb) FROM (
@@ -2041,7 +2131,7 @@ LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp
 AS $$
 DECLARE new_balance numeric;
 BEGIN
-  PERFORM public.sa_require();
+  PERFORM public.sa_gate('admin.billing');
   INSERT INTO credits (faculty_id, balance, monthly_allowance)
   VALUES (p_faculty, GREATEST(COALESCE(p_delta, 0), 0), 200)
   ON CONFLICT (faculty_id) DO UPDATE
@@ -2062,7 +2152,7 @@ LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp
 AS $$
 DECLARE d int; st text; ends timestamptz;
 BEGIN
-  PERFORM public.sa_require();
+  PERFORM public.sa_gate('admin.billing');
   IF p_plan NOT IN ('trial','monthly','quarterly','annual') THEN
     RAISE EXCEPTION 'invalid plan %', p_plan USING ERRCODE = '22023';
   END IF;
@@ -2087,7 +2177,7 @@ LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp
 AS $$
 DECLARE base timestamptz; ends timestamptz;
 BEGIN
-  PERFORM public.sa_require();
+  PERFORM public.sa_gate('admin.billing');
   SELECT GREATEST(COALESCE(current_period_end, now()), now()) INTO base
     FROM subscriptions WHERE faculty_id = p_faculty;
   base := COALESCE(base, now());
@@ -2111,7 +2201,7 @@ RETURNS jsonb
 LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp
 AS $$
 BEGIN
-  PERFORM public.sa_require();
+  PERFORM public.sa_gate('admin.billing');
   UPDATE subscriptions SET status = 'canceled', current_period_end = now() WHERE faculty_id = p_faculty;
   PERFORM public.sa_write_audit('superadmin.subscription.cancel', 'subscriptions', p_faculty, NULL);
   RETURN jsonb_build_object('ok', true);
@@ -2124,7 +2214,7 @@ RETURNS jsonb
 LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp
 AS $$
 BEGIN
-  PERFORM public.sa_require();
+  PERFORM public.sa_gate('admin.billing');
   DELETE FROM subscriptions WHERE faculty_id = p_faculty;
   PERFORM public.sa_write_audit('superadmin.subscription.remove', 'subscriptions', p_faculty, NULL);
   RETURN jsonb_build_object('ok', true);
@@ -2284,7 +2374,7 @@ LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp
 AS $$
 DECLARE out jsonb;
 BEGIN
-  PERFORM public.sa_require();
+  PERFORM public.sa_gate('admin.platform');
   SELECT COALESCE(jsonb_agg(row_to_json(t) ORDER BY t.feature), '[]'::jsonb) INTO out
     FROM (SELECT feature, cost, label FROM ai_credit_costs) t;
   RETURN out;
@@ -2295,7 +2385,7 @@ RETURNS jsonb
 LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp
 AS $$
 BEGIN
-  PERFORM public.sa_require();
+  PERFORM public.sa_gate('admin.platform');
   UPDATE ai_credit_costs SET cost = GREATEST(COALESCE(p_cost, 0), 0), updated_at = now()
     WHERE feature = p_feature;
   IF NOT FOUND THEN RAISE EXCEPTION 'unknown feature %', p_feature USING ERRCODE = '22023'; END IF;
@@ -2330,7 +2420,7 @@ LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp
 AS $$
 DECLARE out jsonb;
 BEGIN
-  PERFORM public.sa_require();
+  PERFORM public.sa_gate('admin.dashboard');
   SELECT jsonb_build_object(
     'total',        (SELECT count(*) FROM students),
     'with_account', (SELECT count(*) FROM students WHERE user_id IS NOT NULL),
@@ -2361,7 +2451,7 @@ LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp
 AS $$
 DECLARE out jsonb; n int := LEAST(GREATEST(COALESCE(p_limit,100),1), 500); q text := NULLIF(TRIM(COALESCE(p_search,'')), '');
 BEGIN
-  PERFORM public.sa_require();
+  PERFORM public.sa_gate('admin.dashboard');
   SELECT COALESCE(jsonb_agg(row_to_json(t)), '[]'::jsonb) INTO out FROM (
     SELECT st.id, st.first_name, st.last_name, st.grade, st.division AS section,
            sc.name AS school, sc.emirate,
@@ -2388,7 +2478,7 @@ LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp
 AS $$
 DECLARE out jsonb; n int := LEAST(GREATEST(COALESCE(p_limit,20),1), 100);
 BEGIN
-  PERFORM public.sa_require();
+  PERFORM public.sa_gate('admin.dashboard');
   SELECT COALESCE(jsonb_agg(row_to_json(t)), '[]'::jsonb) INTO out FROM (
     SELECT qa.id, qa.status, qa.submitted_at, qa.score, qa.max_score,
            st.first_name, st.last_name, st.grade,
@@ -2413,7 +2503,7 @@ LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp
 AS $$
 DECLARE out jsonb;
 BEGIN
-  PERFORM public.sa_require();
+  PERFORM public.sa_gate('admin.dashboard');
   SELECT jsonb_build_object(
     -- An "organisation" that matters is one with at least one teacher or
     -- student on the platform, not every row in the catalog.
@@ -2440,7 +2530,7 @@ LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp
 AS $$
 DECLARE out jsonb; n int := LEAST(GREATEST(COALESCE(p_limit,100),1), 500);
 BEGIN
-  PERFORM public.sa_require();
+  PERFORM public.sa_gate('admin.dashboard');
   SELECT COALESCE(jsonb_agg(row_to_json(t)), '[]'::jsonb) INTO out FROM (
     SELECT s.id, s.name, s.emirate, s.curriculum,
            (SELECT count(*) FROM faculty f WHERE f.school_id = s.id) AS teachers,
@@ -2463,7 +2553,7 @@ LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp
 AS $$
 DECLARE out jsonb; n int := LEAST(GREATEST(COALESCE(p_limit,20),1), 100);
 BEGIN
-  PERFORM public.sa_require();
+  PERFORM public.sa_gate('admin.dashboard');
   SELECT COALESCE(jsonb_agg(row_to_json(t)), '[]'::jsonb) INTO out FROM (
     SELECT a.id, a.type, a.created_at,
            COALESCE(a.content->>'title', a.content->>'name', 'Untitled') AS title,
