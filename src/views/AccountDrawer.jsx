@@ -15,9 +15,9 @@
 // and lets you toggle to override.
 
 import React, { useEffect, useState, useMemo } from "react";
-import { X, Save, RotateCcw, Pause, Play, Pencil, Trash2 } from "lucide-react";
+import { X, Save, RotateCcw, Pause, Play, Coins, Eye, FileText, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { api } from "./_shared";
+import { api, Field, inputClasses, selectClasses } from "./_shared";
 import {
   PERMISSION_GROUPS, ROLE_DEFAULTS, resolvePermissions, PERMISSION_KEYS,
 } from "../lib/permissions";
@@ -30,6 +30,15 @@ const STATUS_LABEL = {
   deleted: "Deleted",
 };
 
+// Small pill buttons for the one-click billing actions. Disabled state
+// dims rather than blocks the eye.
+const chipBtn =
+  "font-mono text-[10px] uppercase tracking-wider px-3 py-1.5 rounded-full border border-line " +
+  "bg-paper text-ink-soft hover:border-ink hover:text-ink transition disabled:opacity-50";
+const dangerChip =
+  "font-mono text-[10px] uppercase tracking-wider px-3 py-1.5 rounded-full border border-line " +
+  "bg-paper text-ink-soft hover:border-accent hover:text-accent transition disabled:opacity-50";
+
 export default function AccountDrawer({ accountId, isSelf, onClose, onChanged }) {
   const [account, setAccount] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -37,6 +46,21 @@ export default function AccountDrawer({ accountId, isSelf, onClose, onChanged })
   const [overrides, setOverrides] = useState({});
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
+
+  // Billing editor — credits balance / allowance and the subscription.
+  // These write the tables a teacher can never write themselves, through
+  // the guarded RPCs, so the super admin can comp a plan or top up credits.
+  const [billing, setBilling] = useState(null);
+  const [billingDirty, setBillingDirty] = useState(false);
+  const [savingBilling, setSavingBilling] = useState(false);
+  const [actionBusy, setActionBusy] = useState(false);
+  const [grantAmount, setGrantAmount] = useState("");
+
+  // Read-only inspector — the honest form of "impersonation" here. The
+  // super admin cannot take over the teacher's session, but can see
+  // exactly what work and roster they hold, via a definer read.
+  const [inspect, setInspect] = useState(null);
+  const [inspecting, setInspecting] = useState(false);
 
   // Fetch the full account on mount / id change. Cancel-on-unmount
   // guard so a quick close doesn't write stale data.
@@ -105,6 +129,119 @@ export default function AccountDrawer({ accountId, isSelf, onClose, onChanged })
       alert(`Save failed: ${e.message}`);
     } finally {
       setSaving(false);
+    }
+  };
+
+  // Seed the billing form from the loaded account. Kept separate from the
+  // permission overrides so saving one doesn't touch the other.
+  useEffect(() => {
+    if (!account) return;
+    setBilling({
+      balance: account.credits_balance ?? "",
+      allowance: account.credits_allowance ?? "",
+      plan: account.subscription_plan || "",
+      status: account.subscription_status || "",
+      ends_at: account.subscription_ends_at ? account.subscription_ends_at.slice(0, 10) : "",
+    });
+    setBillingDirty(false);
+  }, [account]);
+
+  const setBillingField = (k, v) => {
+    setBilling((b) => ({ ...b, [k]: v }));
+    setBillingDirty(true);
+  };
+
+  const saveBilling = async () => {
+    if (!accountId || !billing) return;
+    setSavingBilling(true);
+    try {
+      await api(`/api/superadmin/account/${accountId}/credits`, {
+        method: "PATCH",
+        body: {
+          balance: billing.balance === "" ? null : Number(billing.balance),
+          allowance: billing.allowance === "" ? null : Number(billing.allowance),
+        },
+      });
+      await api(`/api/superadmin/account/${accountId}/subscription`, {
+        method: "PATCH",
+        body: {
+          plan: billing.plan || null,
+          status: billing.status || null,
+          ends_at: billing.ends_at ? new Date(billing.ends_at).toISOString() : null,
+        },
+      });
+      setBillingDirty(false);
+      onChanged && onChanged();
+      const r = await api(`/api/superadmin/account/${accountId}`);
+      setAccount(r);
+    } catch (e) {
+      alert(`Billing update failed: ${e.message}`);
+    } finally {
+      setSavingBilling(false);
+    }
+  };
+
+  // Re-pull the account after any billing action so the numbers on screen
+  // are the ones now in the database, not the ones before the click.
+  const refreshAccount = async () => {
+    onChanged && onChanged();
+    const r = await api(`/api/superadmin/account/${accountId}`);
+    setAccount(r);
+  };
+
+  // Generic runner for the one-click billing actions (grant, activate,
+  // extend, cancel, remove). Confirms destructive ones, refreshes after.
+  const runAction = async (fn, confirmMsg) => {
+    if (!accountId) return;
+    if (confirmMsg && !confirm(confirmMsg)) return;
+    setActionBusy(true);
+    try {
+      await fn();
+      await refreshAccount();
+    } catch (e) {
+      alert(`Failed: ${e.message}`);
+    } finally {
+      setActionBusy(false);
+    }
+  };
+
+  const grantCredits = (delta) =>
+    runAction(() =>
+      api(`/api/superadmin/account/${accountId}/grant-credits`, { method: "POST", body: { delta } })
+    );
+
+  const activatePlan = (plan) =>
+    runAction(() =>
+      api(`/api/superadmin/account/${accountId}/activate-plan`, { method: "POST", body: { plan } })
+    );
+
+  const extendSub = (days) =>
+    runAction(() =>
+      api(`/api/superadmin/account/${accountId}/extend`, { method: "POST", body: { days } })
+    );
+
+  const cancelSub = () =>
+    runAction(
+      () => api(`/api/superadmin/account/${accountId}/cancel-subscription`, { method: "POST" }),
+      "Cancel this subscription? Writes stop; they can still read their work."
+    );
+
+  const removeSub = () =>
+    runAction(
+      () => api(`/api/superadmin/account/${accountId}/subscription`, { method: "DELETE" }),
+      "Remove the subscription row entirely? They'll be on no plan at all."
+    );
+
+  const loadInspect = async () => {
+    if (!accountId) return;
+    setInspecting(true);
+    try {
+      const data = await api(`/api/superadmin/account/${accountId}/content`);
+      setInspect(data);
+    } catch (e) {
+      alert(`Could not load content: ${e.message}`);
+    } finally {
+      setInspecting(false);
     }
   };
 
@@ -230,6 +367,144 @@ export default function AccountDrawer({ accountId, isSelf, onClose, onChanged })
               </dl>
             </section>
 
+            {/* Billing controls — the full toolkit: grant tokens, upgrade /
+                extend / cancel / remove a plan, or set anything by hand.
+                Every button writes a table a teacher can never touch, through
+                the guarded RPCs. */}
+            {billing && (
+              <section>
+                <div className="flex items-center justify-between mb-4">
+                  <SectionHeader label="Billing controls" />
+                  <span className="font-mono text-[10px] uppercase tracking-wider text-muted inline-flex items-center gap-1.5">
+                    <Coins size={11} /> super admin
+                  </span>
+                </div>
+
+                {/* Credits / tokens */}
+                <div className="bg-paper-warm rounded-xl p-4 mb-4">
+                  <div className="flex items-baseline justify-between mb-3">
+                    <p className="font-mono text-[10px] uppercase tracking-wider text-muted">Tokens (credits)</p>
+                    <p className="font-serif text-2xl text-ink leading-none">
+                      {account.credits_balance ?? "—"}
+                      <span className="font-mono text-[10px] text-muted ml-2">
+                        / {account.credits_allowance ?? "—"} monthly
+                      </span>
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2 mb-3">
+                    {[100, 500, 1000].map((n) => (
+                      <button key={n} disabled={actionBusy} onClick={() => grantCredits(n)} className={chipBtn}>
+                        + {n}
+                      </button>
+                    ))}
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="number"
+                        placeholder="amount"
+                        value={grantAmount}
+                        onChange={(e) => setGrantAmount(e.target.value)}
+                        className="w-24 px-3 py-1.5 rounded-full border border-line bg-paper text-ink text-sm outline-none focus:border-ink"
+                      />
+                      <button
+                        disabled={actionBusy || !grantAmount}
+                        onClick={() => { grantCredits(Number(grantAmount)); setGrantAmount(""); }}
+                        className={chipBtn}
+                      >
+                        Grant
+                      </button>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-[1fr_1fr_auto] items-end gap-3">
+                    <Field label="Set balance">
+                      <input type="number" min="0" className={inputClasses}
+                        value={billing.balance}
+                        onChange={(e) => setBillingField("balance", e.target.value)} />
+                    </Field>
+                    <Field label="Monthly allowance">
+                      <input type="number" min="0" className={inputClasses}
+                        value={billing.allowance}
+                        onChange={(e) => setBillingField("allowance", e.target.value)} />
+                    </Field>
+                    <Button variant="secondary" onClick={saveBilling} disabled={!billingDirty || savingBilling}>
+                      <Save size={13} className="mr-1.5" /> {savingBilling ? "Saving…" : "Set"}
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Subscription / plan */}
+                <div className="bg-paper-warm rounded-xl p-4">
+                  <div className="flex items-baseline justify-between mb-3">
+                    <p className="font-mono text-[10px] uppercase tracking-wider text-muted">Subscription</p>
+                    <p className="font-mono text-[11px] text-ink">
+                      {account.subscription_plan || "no plan"} · {account.subscription_status || "—"}
+                      {account.subscription_ends_at && (
+                        <span className="text-muted"> · ends {new Date(account.subscription_ends_at).toLocaleDateString()}</span>
+                      )}
+                    </p>
+                  </div>
+
+                  {/* One-click upgrade to a plan for its natural duration */}
+                  <p className="font-mono text-[9px] uppercase tracking-wider text-muted mb-2">Activate plan</p>
+                  <div className="flex flex-wrap gap-2 mb-3">
+                    {["trial", "monthly", "quarterly", "annual"].map((p) => (
+                      <button key={p} disabled={actionBusy} onClick={() => activatePlan(p)} className={chipBtn}>
+                        {p}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Extend the current period */}
+                  <p className="font-mono text-[9px] uppercase tracking-wider text-muted mb-2">Extend</p>
+                  <div className="flex flex-wrap gap-2 mb-4">
+                    {[30, 90, 365].map((d) => (
+                      <button key={d} disabled={actionBusy} onClick={() => extendSub(d)} className={chipBtn}>
+                        + {d}d
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Set anything by hand */}
+                  <div className="grid grid-cols-3 gap-3 mb-4">
+                    <Field label="Plan">
+                      <select className={selectClasses} value={billing.plan}
+                        onChange={(e) => setBillingField("plan", e.target.value)}>
+                        <option value="">— unchanged —</option>
+                        {["trial", "monthly", "quarterly", "annual"].map((p) => (
+                          <option key={p} value={p}>{p}</option>
+                        ))}
+                      </select>
+                    </Field>
+                    <Field label="Status">
+                      <select className={selectClasses} value={billing.status}
+                        onChange={(e) => setBillingField("status", e.target.value)}>
+                        <option value="">— unchanged —</option>
+                        {["trialing", "active", "past_due", "canceled", "expired"].map((s) => (
+                          <option key={s} value={s}>{s}</option>
+                        ))}
+                      </select>
+                    </Field>
+                    <Field label="Ends at">
+                      <input type="date" className={inputClasses}
+                        value={billing.ends_at}
+                        onChange={(e) => setBillingField("ends_at", e.target.value)} />
+                    </Field>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button variant="secondary" onClick={saveBilling} disabled={!billingDirty || savingBilling}>
+                      <Save size={13} className="mr-1.5" /> {savingBilling ? "Saving…" : "Set fields"}
+                    </Button>
+                    <button disabled={actionBusy} onClick={cancelSub} className={dangerChip}>
+                      Cancel plan
+                    </button>
+                    <button disabled={actionBusy} onClick={removeSub} className={dangerChip}>
+                      Remove subscription
+                    </button>
+                  </div>
+                </div>
+              </section>
+            )}
+
             {/* Content footprint */}
             <section>
               <SectionHeader label="Content footprint" />
@@ -241,6 +516,62 @@ export default function AccountDrawer({ accountId, isSelf, onClose, onChanged })
                   </div>
                 ))}
               </div>
+            </section>
+
+            {/* Inspector — read-only window into the teacher's own work and
+                roster. The direct-Supabase model has no true impersonation
+                (that needs their session); this is the honest equivalent. */}
+            <section>
+              <div className="flex items-center justify-between mb-3">
+                <SectionHeader label="Inspect account" />
+                {!inspect && (
+                  <button
+                    onClick={loadInspect}
+                    disabled={inspecting}
+                    className="font-mono text-[10px] uppercase tracking-wider text-ink hover:text-accent transition inline-flex items-center gap-1.5"
+                  >
+                    <Eye size={12} /> {inspecting ? "Loading…" : "View their work"}
+                  </button>
+                )}
+              </div>
+              {inspect && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <p className="font-mono text-[10px] uppercase tracking-wider text-muted mb-2 inline-flex items-center gap-1.5">
+                      <FileText size={11} /> Work · {inspect.work?.length || 0}
+                    </p>
+                    <ul className="text-sm divide-y divide-line/60">
+                      {(inspect.work || []).length === 0 && (
+                        <li className="py-2 text-muted">No saved work.</li>
+                      )}
+                      {(inspect.work || []).map((w) => (
+                        <li key={w.id} className="py-2 flex items-center gap-2">
+                          <span className="text-ink truncate flex-1">{w.title}</span>
+                          <span className="font-mono text-[9px] uppercase tracking-wider text-muted">{w.type}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                  <div>
+                    <p className="font-mono text-[10px] uppercase tracking-wider text-muted mb-2 inline-flex items-center gap-1.5">
+                      <Users size={11} /> Students · {inspect.students?.length || 0}
+                    </p>
+                    <ul className="text-sm divide-y divide-line/60">
+                      {(inspect.students || []).length === 0 && (
+                        <li className="py-2 text-muted">No roster.</li>
+                      )}
+                      {(inspect.students || []).map((s) => (
+                        <li key={s.id} className="py-2 flex items-center gap-2">
+                          <span className="text-ink truncate flex-1">{s.first_name} {s.last_name}</span>
+                          <span className="font-mono text-[9px] uppercase tracking-wider text-muted">
+                            {s.grade}{s.section ? `·${s.section}` : ""}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              )}
             </section>
 
             {/* Schools */}

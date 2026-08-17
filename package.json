@@ -12,6 +12,7 @@
     "lint": "eslint .",
     "db:tune": "node db/tune.js",
     "db:seed": "node db/seed.js",
+    "db:superadmin": "node db/superadmin.js",
     "test:e2e": "playwright test routes navigation",
     "test:e2e:ui": "playwright test --ui",
     "test:visual": "playwright test visual --project=desktop",

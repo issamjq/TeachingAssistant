@@ -65,6 +65,11 @@ export default function PortalSignIn({ portal }: { portal: Portal }) {
   const [signingIn, setSigningIn] = useState(false);
   const [error, setError] = useState<PortalError | null>(null);
   const [checking, setChecking] = useState(true);
+  // Email + password — the credential path for a super admin provisioned
+  // by `npm run db:superadmin --password`, who has no Google identity.
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [emailBusy, setEmailBusy] = useState(false);
 
   // The studio reads localStorage for the sidebar / nav chip. Mirror enough
   // of the account row that the chip and avatar render correctly — canonical
@@ -197,6 +202,44 @@ export default function PortalSignIn({ portal }: { portal: Portal }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [portal.id]);
 
+  // Email + password. supabase-js resolves with a live session (no
+  // redirect), so unlike the OAuth path the post-sign-in resolution runs
+  // right here rather than back on mount: check /api/auth/me, and on the
+  // first sign-in (no_teacher_row) provision through completeSignIn.
+  const handleEmailPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email.trim() || !password) return;
+    setError(null);
+    setEmailBusy(true);
+    try {
+      const lib = await import("@/lib/supabaseAuth");
+      await lib.signInWithEmail(email.trim(), password);
+      try {
+        const me = await api<AccountRow>("/api/auth/me");
+        if (portal.allowedRoles.includes(me.role)) {
+          hydrateAccountFromRow(me);
+          exitToStudio();
+          return;
+        }
+        await lib.signOut().catch(() => {});
+        setError({ kind: "wrong_role", role: me.role });
+      } catch (err) {
+        if (err instanceof ApiError && err.code === "no_teacher_row") {
+          await completeSignIn();
+          return;
+        }
+        throw err;
+      }
+    } catch (err) {
+      setError({
+        kind: "unknown",
+        message: err instanceof Error ? err.message : String(err),
+      });
+    } finally {
+      setEmailBusy(false);
+    }
+  };
+
   // Kick off the provider redirect. Unlike Firebase's signInWithPopup,
   // this never resolves with a user — the browser navigates away to the
   // provider and comes back to this same route, where the mount effect
@@ -272,6 +315,43 @@ export default function PortalSignIn({ portal }: { portal: Portal }) {
               onClick={() => {}}
               disabled
             />
+          </div>
+
+          {/* Credential sign-in — for a super admin minted with a password
+              (npm run db:superadmin --password), who has no Google identity.
+              Kept below the providers and quiet: OAuth stays the default. */}
+          <div className="mb-6">
+            <div className="flex items-center gap-3 mb-4">
+              <span className="h-px flex-1 bg-line" />
+              <span className="font-mono text-[9px] uppercase tracking-[0.18em] text-muted">or with a password</span>
+              <span className="h-px flex-1 bg-line" />
+            </div>
+            <form onSubmit={handleEmailPassword} className="space-y-3">
+              <input
+                type="email"
+                autoComplete="username"
+                placeholder="Email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full px-4 py-3 rounded-xl border border-line bg-paper text-ink text-sm placeholder:text-muted focus:border-ink outline-none transition"
+              />
+              <input
+                type="password"
+                autoComplete="current-password"
+                placeholder="Password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full px-4 py-3 rounded-xl border border-line bg-paper text-ink text-sm placeholder:text-muted focus:border-ink outline-none transition"
+              />
+              <button
+                type="submit"
+                disabled={emailBusy || !email.trim() || !password}
+                className="w-full flex items-center justify-center gap-2 px-5 py-3.5 rounded-xl text-sm font-medium transition bg-ink text-paper hover:opacity-90 disabled:opacity-50"
+              >
+                {emailBusy ? t("portal.opening") : "Sign in"}
+                {!emailBusy && <ArrowRight size={14} />}
+              </button>
+            </form>
           </div>
 
           {error && (

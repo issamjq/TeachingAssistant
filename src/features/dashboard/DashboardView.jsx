@@ -484,6 +484,19 @@ export default function DashboardView({ onJump }) {
     return () => { live = false; };
   }, []);
 
+  // Live credit ring: an AI generation spends credits on the backend and
+  // announces the new balance (see lib/data/credits). Update the ring in
+  // place rather than re-fetching the whole dashboard on every generation.
+  useEffect(() => {
+    let off = () => {};
+    import("@/lib/data/credits").then(({ onCreditsChange }) => {
+      off = onCreditsChange((balance) => {
+        setData((d) => (d?.plan ? { ...d, plan: { ...d.plan, credits: balance } } : d));
+      });
+    });
+    return () => off();
+  }, []);
+
   const today = data?.today_lessons || [];
   const counts = data?.counts || {};
   const plan = data?.plan || null;

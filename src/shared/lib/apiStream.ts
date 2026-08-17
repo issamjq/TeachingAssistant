@@ -82,6 +82,14 @@ export async function streamSSE(
   let buffer = "";
   let streamError: ApiError | null = null;
 
+  // Credit metering, collected as the stream runs. `generate` is a batch,
+  // so it is charged per artifact (one per artifact_end, keyed on the kind
+  // from its artifact_start); single-output endpoints charge once on `done`.
+  // A refusal produces neither, so a declined request costs nothing.
+  const meterKinds: string[] = [];
+  let lastKind = "";
+  let sawDone = false;
+
   while (true) {
     const { done, value } = await reader.read();
     if (done) break;
@@ -112,8 +120,20 @@ export async function streamSSE(
         streamError = new ApiError(event.message || "The generator stopped.", 502, "stream_error");
         continue;
       }
+      if (event.type === "artifact_start" && typeof event.kind === "string") lastKind = event.kind;
+      else if (event.type === "artifact_end") meterKinds.push(lastKind);
+      else if (event.type === "done") sawDone = true;
       onEvent(event);
     }
+  }
+
+  // Bill for a successful generation — after the fact, because the model
+  // ran on the backend. Fire-and-forget: never let a metering hiccup turn
+  // a delivered answer into a thrown error.
+  if (!streamError) {
+    import("@/lib/data/credits")
+      .then((m) => m.meterStream(path, meterKinds, sawDone))
+      .catch(() => {});
   }
 
   if (streamError) throw streamError;

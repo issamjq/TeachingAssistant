@@ -28,13 +28,19 @@
 // =====================================================================
 import * as A from "./artifacts";
 import * as E from "./entities";
+import * as SA from "./superadmin";
 import { KIND_BY_PATH } from "./artifacts";
 
 export type Handled = { handled: true; data: unknown } | { handled: false };
 
 const SERVER_ONLY = [
   "/api/studio", "/api/onboarding", "/api/images",
-  "/api/admin", "/api/superadmin", "/api/owner", "/api/moe", "/api/dev",
+  // admin / superadmin are answered locally now (see ./superadmin.ts) —
+  // SECURITY DEFINER RPCs gated on is_super_admin() replace the backend
+  // endpoints. The one exception, creating an account, still needs the
+  // GoTrue admin key, so that single path returns { handled: false } from
+  // the resolver and falls through to the backend here.
+  "/api/owner", "/api/moe", "/api/dev",
   "/api/teachers",
   // The shared template library — curated CBSE materials the service
   // publishes and moderates. It lives on the API rather than in each
@@ -143,6 +149,14 @@ export async function resolve(
   }
 
   switch (root) {
+    // The privileged consoles. Every path here lands on a SECURITY DEFINER
+    // RPC that checks is_super_admin() first; account creation is the lone
+    // path that returns { handled: false } and falls through to the backend.
+    case "admin":
+      return SA.resolveAdmin(seg, method, body);
+    case "superadmin":
+      return SA.resolveSuperadmin(seg, method, body, q);
+
     case "auth":
       // Sign-in. Provisioning is a trigger and the device claim is an
       // RLS predicate, so neither needs a server any more.

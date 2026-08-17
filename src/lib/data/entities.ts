@@ -35,6 +35,11 @@ export async function getProfile() {
     status: 404, code: "no_teacher_row",
   });
 
+  // Apply a due monthly credit refresh before reading the balance, so the
+  // number shown is the refreshed one on the first load past the boundary.
+  // Best-effort — a missed refresh must never block the profile load.
+  await supabase.rpc("refresh_credits_if_due").then(() => {}, () => {});
+
   const [u, f, s, c] = await Promise.all([
     supabase.from("users").select("*").eq("id", userId).single(),
     supabase.from("faculty").select("*").eq("id", fid).single(),
@@ -684,6 +689,9 @@ function daysUntil(iso: string): number {
 /** Plan, status and days remaining. Null when there is no faculty row. */
 async function planSummary(fid: string | null) {
   if (!fid) return null;
+  // Same lazy refresh as getProfile — the dashboard's credit ring reads
+  // from here, so a due reset shows the moment the teacher opens it.
+  await supabase.rpc("refresh_credits_if_due").then(() => {}, () => {});
   const [sub, cr] = await Promise.all([
     supabase
       .from("subscriptions")
@@ -1126,6 +1134,10 @@ export async function provisionTeacher() {
   clearIdent();                       // the faculty id has just changed
   const { claimDevice } = await import("./device");
   const active_session_id = await claimDevice();
+  // Record the sign-up in the audit trail (best-effort — a failure here
+  // must never block provisioning). Feeds the super-admin signups chart.
+  const { recordAuthEvent } = await import("./superadmin");
+  await recordAuthEvent("signup").catch(() => {});
   return { ...(await getProfile()), active_session_id };
 }
 
@@ -1140,5 +1152,8 @@ export async function provisionTeacher() {
 export async function claimSession() {
   const profile = await getProfile();
   const { claimDevice } = await import("./device");
-  return { ...profile, active_session_id: await claimDevice() };
+  const active_session_id = await claimDevice();
+  const { recordAuthEvent } = await import("./superadmin");
+  await recordAuthEvent("login").catch(() => {});
+  return { ...profile, active_session_id };
 }

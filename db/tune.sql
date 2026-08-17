@@ -1453,3 +1453,859 @@ ALTER TABLE public.chatbot_messages ADD COLUMN IF NOT EXISTS artifact jsonb;
 -- The history list is "my studio threads, newest first".
 CREATE INDEX IF NOT EXISTS chatbot_sessions_scope_idx
   ON public.chatbot_sessions (user_id, page_scope, updated_at DESC);
+
+
+-- ═══════════════════════════════════════════════════════════════════════
+-- 30. The super admin, as a database surface
+--
+-- The privileged consoles (admin / super_admin) used to be endpoints on
+-- the separate backend, reachable only because that service holds a
+-- service-role key that bypasses RLS. This section moves the whole
+-- super-admin surface INTO the database, as SECURITY DEFINER functions —
+-- the same mechanism bulletin_board_public() and provision_faculty()
+-- already use to cross RLS for one specific, audited purpose.
+--
+-- Why this is safe without a service key in the browser:
+--
+--   * Every function's FIRST act is to check is_super_admin(), which
+--     reads the caller's OWN role from users. A teacher's token cannot
+--     make that return true, so a teacher calling sa_set_role() is
+--     rejected by the function body, not by hoping the UI hid the button.
+--   * The functions run as their owner (which owns the tables), so inside
+--     the guard they read every tenant's rows and write the five tables
+--     the browser is otherwise forbidden — credits, subscriptions,
+--     feature_flags, audit_log, and cross-account users. Outside the
+--     guard they do nothing.
+--   * audit_log stays unwritable from the client (RLS on, no policy).
+--     The only writer is sa_write_audit() below, called from inside each
+--     mutating function, so the trail records who did what and cannot be
+--     edited by the subject.
+--
+-- The reason the separate backend still exists after this is the handful
+-- of operations a definer function genuinely cannot do: creating an
+-- auth.users row (needs the GoTrue admin key) and hard-deleting an
+-- account. Those fall through to the backend; everything else is here.
+-- ═══════════════════════════════════════════════════════════════════════
+
+-- ── the role vocabulary the application actually assigns ───────────────
+--
+-- users_role_check was written (§8) before the role pyramid was read off
+-- role.ts: it allowed ('teacher','student','school_admin','superadmin')
+-- and would reject every value the app assigns — 'super_admin' (with the
+-- underscore), 'dev', 'admin', 'moe', 'owner'. Widen it to the UNION of
+-- both vocabularies so no existing row is invalidated and the app can set
+-- the real roles. NULL stays allowed (a brand-new account before a role
+-- is decided). Same drop-and-recreate §13 uses for the plan check.
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_constraint
+             WHERE conname = 'users_role_check'
+               AND connamespace = 'public'::regnamespace) THEN
+    ALTER TABLE public.users DROP CONSTRAINT users_role_check;
+  END IF;
+  ALTER TABLE public.users ADD CONSTRAINT users_role_check CHECK (
+    role IN (
+      -- the pyramid the app assigns
+      'teacher','dev','super_admin','admin','moe','owner',
+      -- legacy values that may already sit in rows
+      'student','school_admin','superadmin'
+    )
+  );
+END $$;
+
+
+-- ── is the caller a platform operator? ────────────────────────────────
+--
+-- SECURITY DEFINER so it reads users regardless of the device / owner
+-- gates on that table. `dev` is included on purpose: dev is the universal
+-- inspector and reaches every console (see portal.ts). No argument, no
+-- client input — the answer comes only from the caller's own row.
+CREATE OR REPLACE FUNCTION public.is_super_admin()
+RETURNS boolean
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM users u
+     WHERE u.id = (SELECT auth.uid())
+       AND u.role IN ('super_admin', 'dev')
+  );
+$$;
+GRANT EXECUTE ON FUNCTION public.is_super_admin() TO authenticated;
+
+-- Refuse anyone who is not a platform operator. Raised with errcode 42501
+-- (insufficient_privilege) so PostgREST answers 403 and the app's
+-- apiClient surfaces it as a clean "forbidden" rather than a 500.
+CREATE OR REPLACE FUNCTION public.sa_require()
+RETURNS void
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+BEGIN
+  IF NOT public.is_super_admin() THEN
+    RAISE EXCEPTION 'super admin only' USING ERRCODE = '42501';
+  END IF;
+END $$;
+GRANT EXECUTE ON FUNCTION public.sa_require() TO authenticated;
+
+-- The one writer of audit_log. VOLATILE, DEFINER — reaches the table the
+-- client cannot. actor is always the caller; the subject cannot forge it.
+CREATE OR REPLACE FUNCTION public.sa_write_audit(
+  p_action text, p_entity text, p_entity_id uuid, p_meta jsonb
+)
+RETURNS void
+LANGUAGE sql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+  INSERT INTO audit_log (actor_id, action, entity, entity_id, meta)
+  VALUES ((SELECT auth.uid()), p_action, p_entity, p_entity_id, p_meta);
+$$;
+-- Not granted to clients directly: it is only ever called from inside the
+-- guarded functions below, which run as owner.
+
+
+-- ── the faculty id → user id bridge the writes need ───────────────────
+--
+-- The console keys every action on the ACCOUNT id, which is the faculty
+-- row id (accounts.id = faculty.id). Role, status and permissions live on
+-- users, so a write has to hop faculty → user first. One helper rather
+-- than the same subquery in six places.
+CREATE OR REPLACE FUNCTION public.sa_user_of(p_faculty uuid)
+RETURNS uuid
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+  SELECT user_id FROM faculty WHERE id = p_faculty;
+$$;
+
+
+-- ── reads ─────────────────────────────────────────────────────────────
+
+-- /api/admin/stats
+CREATE OR REPLACE FUNCTION public.sa_stats()
+RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE out jsonb;
+BEGIN
+  PERFORM public.sa_require();
+  SELECT jsonb_build_object(
+    'active_teachers',    count(*) FILTER (WHERE role = 'teacher' AND COALESCE(status,'active') = 'active'),
+    'suspended_teachers', count(*) FILTER (WHERE role = 'teacher' AND status = 'suspended'),
+    'total_teachers',     count(*) FILTER (WHERE role = 'teacher'),
+    'lapsed',             count(*) FILTER (
+                            WHERE role = 'teacher'
+                              AND (subscription_status IS NULL
+                                   OR subscription_status IN ('expired','canceled')
+                                   OR (subscription_ends_at IS NOT NULL
+                                       AND subscription_ends_at < now())))
+  ) INTO out
+  FROM public.accounts;
+  RETURN out;
+END $$;
+
+-- /api/admin/teachers  — every account, newest first. The console filters
+-- by role client-side, so this returns all of them, not only teachers.
+CREATE OR REPLACE FUNCTION public.sa_accounts()
+RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE out jsonb;
+BEGIN
+  PERFORM public.sa_require();
+  SELECT COALESCE(jsonb_agg(row_to_json(t) ORDER BY t.created_at DESC), '[]'::jsonb) INTO out
+  FROM (
+    SELECT id, user_id, first_name, last_name, email, role, sub_role, status,
+           staff_id, last_login_at, created_at,
+           subscription_plan, subscription_status, subscription_ends_at
+      FROM public.accounts
+  ) t;
+  RETURN out;
+END $$;
+
+-- /api/superadmin/account/:id — one account, with content footprint,
+-- schools and the permission override map for the drawer.
+CREATE OR REPLACE FUNCTION public.sa_account(p_faculty uuid)
+RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE out jsonb;
+BEGIN
+  PERFORM public.sa_require();
+  SELECT to_jsonb(a) - 'majors' - 'grade_levels'
+         || jsonb_build_object(
+              'permissions', COALESCE(u.permissions, '{}'::jsonb),
+              'credits_balance', (SELECT balance FROM credits WHERE faculty_id = a.id),
+              'credits_allowance', (SELECT monthly_allowance FROM credits WHERE faculty_id = a.id),
+              'content', (
+                SELECT COALESCE(jsonb_object_agg(label, n), '{}'::jsonb) FROM (
+                  SELECT CASE type
+                           WHEN 'lesson_plan'  THEN 'Lessons'
+                           WHEN 'quiz'         THEN 'Quizzes'
+                           WHEN 'homework'     THEN 'Homework'
+                           WHEN 'presentation' THEN 'Presentations'
+                           WHEN 'activity'     THEN 'Activities'
+                           WHEN 'template'     THEN 'Templates'
+                           ELSE type
+                         END AS label,
+                         count(*) AS n
+                    FROM ai_studio
+                   WHERE faculty_id = a.id AND deleted_at IS NULL
+                   GROUP BY 1
+                ) c
+              ),
+              'schools', (
+                SELECT COALESCE(jsonb_agg(jsonb_build_object(
+                         'id', s.id, 'name', s.name, 'emirate', s.emirate,
+                         'is_primary', fs.is_primary)), '[]'::jsonb)
+                  FROM faculty_schools fs JOIN schools s ON s.id = fs.school_id
+                 WHERE fs.faculty_id = a.id
+              )
+            )
+    INTO out
+    FROM public.accounts a
+    JOIN users u ON u.id = a.user_id
+   WHERE a.id = p_faculty;
+  IF out IS NULL THEN
+    RAISE EXCEPTION 'account not found';
+  END IF;
+  RETURN out;
+END $$;
+
+-- /api/superadmin/overview — the whole dashboard object in one round trip.
+CREATE OR REPLACE FUNCTION public.sa_overview()
+RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE out jsonb;
+BEGIN
+  PERFORM public.sa_require();
+  SELECT jsonb_build_object(
+    'accounts', jsonb_build_object(
+      'total', (SELECT count(*) FROM accounts),
+      'by_role', (SELECT COALESCE(jsonb_object_agg(role, n), '{}'::jsonb)
+                    FROM (SELECT COALESCE(role,'teacher') AS role, count(*) n FROM accounts GROUP BY 1) r)
+    ),
+    'subscriptions', jsonb_build_object(
+      'active',    (SELECT count(*) FROM accounts WHERE subscription_status = 'active'),
+      'trial',     (SELECT count(*) FROM accounts WHERE subscription_status = 'trialing'),
+      'expired',   (SELECT count(*) FROM accounts WHERE subscription_status IN ('expired','canceled')),
+      'suspended', (SELECT count(*) FROM accounts WHERE status = 'suspended'),
+      'ending_30d',(SELECT count(*) FROM accounts
+                     WHERE subscription_ends_at IS NOT NULL
+                       AND subscription_ends_at BETWEEN now() AND now() + INTERVAL '30 days')
+    ),
+    'revenue', (
+      -- Monthly recurring, priced off src/lib/plans.js (per-month effective
+      -- AED). Only genuinely-active paid plans count; trials are 0. The
+      -- inner query is one row per plan (pm = that plan's monthly total);
+      -- the outer sum is MRR, the object_agg is the by-plan breakdown.
+      SELECT jsonb_build_object(
+        'mrr', COALESCE(sum(pm), 0),
+        'arr', COALESCE(sum(pm), 0) * 12,
+        'by_plan', COALESCE(jsonb_object_agg(plan, pm) FILTER (WHERE pm > 0), '{}'::jsonb)
+      )
+      FROM (
+        SELECT subscription_plan AS plan,
+               sum(CASE subscription_plan
+                     WHEN 'monthly'   THEN 29.99
+                     WHEN 'quarterly' THEN 26.99
+                     WHEN 'annual'    THEN 22.49
+                     ELSE 0 END) AS pm
+          FROM accounts
+         WHERE subscription_status = 'active'
+           AND subscription_plan IN ('monthly','quarterly','annual')
+         GROUP BY subscription_plan
+      ) p
+    ),
+    'activity', jsonb_build_object(
+      'new_signups_7d',  (SELECT count(*) FROM accounts WHERE created_at > now() - INTERVAL '7 days'),
+      'logged_in_today', (SELECT count(*) FROM users WHERE last_login_at::date = current_date)
+    ),
+    'content', (
+      SELECT COALESCE(jsonb_object_agg(label, n), '{}'::jsonb) FROM (
+        SELECT CASE type
+                 WHEN 'lesson_plan'  THEN 'Lessons'
+                 WHEN 'quiz'         THEN 'Quizzes'
+                 WHEN 'homework'     THEN 'Homework'
+                 WHEN 'presentation' THEN 'Presentations'
+                 WHEN 'activity'     THEN 'Activities'
+                 WHEN 'template'     THEN 'Templates'
+                 ELSE type END AS label,
+               count(*) AS n
+          FROM ai_studio WHERE deleted_at IS NULL GROUP BY 1
+        UNION ALL
+        SELECT 'Students', count(*) FROM students
+      ) c
+    )
+  ) INTO out;
+  RETURN out;
+END $$;
+
+-- /api/superadmin/signups?days= — daily new accounts, gaps filled so the
+-- line has a continuous x-axis. Derived from real created_at, not audit.
+CREATE OR REPLACE FUNCTION public.sa_signups(p_days int DEFAULT 30)
+RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE out jsonb; n int := LEAST(GREATEST(COALESCE(p_days,30), 1), 365);
+BEGIN
+  PERFORM public.sa_require();
+  SELECT COALESCE(jsonb_agg(jsonb_build_object('day', to_char(d, 'YYYY-MM-DD'), 'n', c) ORDER BY d), '[]'::jsonb)
+    INTO out
+  FROM (
+    SELECT gs::date AS d,
+           (SELECT count(*) FROM users u WHERE u.created_at::date = gs::date) AS c
+      FROM generate_series(current_date - (n - 1), current_date, INTERVAL '1 day') gs
+  ) s;
+  RETURN out;
+END $$;
+
+-- /api/superadmin/logins?days= — daily auth events from the audit trail.
+-- Sparse until record_auth_event() has run for a while; the chart shows a
+-- flat baseline rather than erroring.
+CREATE OR REPLACE FUNCTION public.sa_logins(p_days int DEFAULT 30)
+RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE out jsonb; n int := LEAST(GREATEST(COALESCE(p_days,30), 1), 365);
+BEGIN
+  PERFORM public.sa_require();
+  SELECT COALESCE(jsonb_agg(jsonb_build_object('day', to_char(d, 'YYYY-MM-DD'), 'n', c) ORDER BY d), '[]'::jsonb)
+    INTO out
+  FROM (
+    SELECT gs::date AS d,
+           (SELECT count(*) FROM audit_log a
+             WHERE a.action IN ('auth.login','auth.signup')
+               AND a.created_at::date = gs::date) AS c
+      FROM generate_series(current_date - (n - 1), current_date, INTERVAL '1 day') gs
+  ) s;
+  RETURN out;
+END $$;
+
+-- /api/superadmin/recent-activity?limit= — the audit feed, actor joined in.
+CREATE OR REPLACE FUNCTION public.sa_recent_activity(p_limit int DEFAULT 15)
+RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE out jsonb; n int := LEAST(GREATEST(COALESCE(p_limit,15), 1), 100);
+BEGIN
+  PERFORM public.sa_require();
+  SELECT COALESCE(jsonb_agg(row_to_json(t)), '[]'::jsonb) INTO out
+  FROM (
+    SELECT a.id, a.action,
+           a.entity    AS target_table,
+           a.entity_id AS target_id,
+           a.created_at,
+           u.first_name, u.last_name, u.email
+      FROM audit_log a
+      LEFT JOIN users u ON u.id = a.actor_id
+     ORDER BY a.created_at DESC
+     LIMIT n
+  ) t;
+  RETURN out;
+END $$;
+
+-- /api/superadmin/flags — feature flags, for the toggle panel.
+CREATE OR REPLACE FUNCTION public.sa_flags()
+RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE out jsonb;
+BEGIN
+  PERFORM public.sa_require();
+  SELECT COALESCE(jsonb_agg(row_to_json(t) ORDER BY t.key), '[]'::jsonb) INTO out
+  FROM (SELECT key, enabled, description, updated_at FROM feature_flags) t;
+  RETURN out;
+END $$;
+
+
+-- ── writes — each guards, mutates, then records the action ────────────
+
+-- PATCH /api/admin/teachers/:id/status
+CREATE OR REPLACE FUNCTION public.sa_set_status(p_faculty uuid, p_status text)
+RETURNS jsonb
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE uid uuid;
+BEGIN
+  PERFORM public.sa_require();
+  IF p_status NOT IN ('active','suspended','deleted') THEN
+    RAISE EXCEPTION 'invalid status %', p_status USING ERRCODE = '22023';
+  END IF;
+  uid := public.sa_user_of(p_faculty);
+  IF uid IS NULL THEN RAISE EXCEPTION 'account not found'; END IF;
+  IF uid = (SELECT auth.uid()) THEN
+    RAISE EXCEPTION 'cannot change your own status' USING ERRCODE = '42501';
+  END IF;
+  UPDATE users SET account_status = p_status, updated_at = now() WHERE id = uid;
+  PERFORM public.sa_write_audit('admin.teacher.' || p_status, 'users', uid,
+                                jsonb_build_object('faculty_id', p_faculty));
+  RETURN jsonb_build_object('id', p_faculty, 'status', p_status);
+END $$;
+
+-- PATCH /api/admin/teachers/:id/role
+CREATE OR REPLACE FUNCTION public.sa_set_role(p_faculty uuid, p_role text, p_sub_role text)
+RETURNS jsonb
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE uid uuid;
+BEGIN
+  PERFORM public.sa_require();
+  IF p_role NOT IN ('teacher','dev','super_admin','admin','moe','owner') THEN
+    RAISE EXCEPTION 'invalid role %', p_role USING ERRCODE = '22023';
+  END IF;
+  uid := public.sa_user_of(p_faculty);
+  IF uid IS NULL THEN RAISE EXCEPTION 'account not found'; END IF;
+  UPDATE users SET role = p_role, sub_role = NULLIF(p_sub_role, ''), updated_at = now() WHERE id = uid;
+  PERFORM public.sa_write_audit('admin.teacher.role_update', 'users', uid,
+                                jsonb_build_object('role', p_role, 'sub_role', p_sub_role));
+  RETURN jsonb_build_object('id', p_faculty, 'role', p_role, 'sub_role', NULLIF(p_sub_role, ''));
+END $$;
+
+-- DELETE /api/admin/teachers/:id — soft delete. A definer function cannot
+-- remove the auth.users row (that needs the GoTrue admin key), and erasing
+-- a tenant's every lesson from the browser is not something to do behind a
+-- single click, so this marks the account deleted and reversible. A hard
+-- delete stays a backend operation.
+CREATE OR REPLACE FUNCTION public.sa_delete_account(p_faculty uuid)
+RETURNS jsonb
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE uid uuid;
+BEGIN
+  PERFORM public.sa_require();
+  uid := public.sa_user_of(p_faculty);
+  IF uid IS NULL THEN RAISE EXCEPTION 'account not found'; END IF;
+  IF uid = (SELECT auth.uid()) THEN
+    RAISE EXCEPTION 'cannot delete your own account' USING ERRCODE = '42501';
+  END IF;
+  UPDATE users SET account_status = 'deleted', active_session_id = NULL, updated_at = now() WHERE id = uid;
+  PERFORM public.sa_write_audit('admin.teacher.delete', 'users', uid,
+                                jsonb_build_object('faculty_id', p_faculty, 'soft', true));
+  RETURN jsonb_build_object('ok', true, 'id', p_faculty);
+END $$;
+
+-- PATCH /api/superadmin/account/:id/permissions
+CREATE OR REPLACE FUNCTION public.sa_set_permissions(p_faculty uuid, p_perms jsonb)
+RETURNS jsonb
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE uid uuid;
+BEGIN
+  PERFORM public.sa_require();
+  uid := public.sa_user_of(p_faculty);
+  IF uid IS NULL THEN RAISE EXCEPTION 'account not found'; END IF;
+  UPDATE users SET permissions = COALESCE(p_perms, '{}'::jsonb), updated_at = now() WHERE id = uid;
+  PERFORM public.sa_write_audit('superadmin.permissions.update', 'users', uid, p_perms);
+  RETURN jsonb_build_object('ok', true);
+END $$;
+
+-- PATCH /api/superadmin/account/:id/credits
+CREATE OR REPLACE FUNCTION public.sa_adjust_credits(p_faculty uuid, p_balance numeric, p_allowance numeric)
+RETURNS jsonb
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+BEGIN
+  PERFORM public.sa_require();
+  INSERT INTO credits (faculty_id, balance, monthly_allowance)
+  VALUES (p_faculty, GREATEST(COALESCE(p_balance,0), 0), GREATEST(COALESCE(p_allowance,0), 0))
+  ON CONFLICT (faculty_id) DO UPDATE
+    SET balance = GREATEST(COALESCE(p_balance, credits.balance), 0),
+        monthly_allowance = GREATEST(COALESCE(p_allowance, credits.monthly_allowance), 0);
+  PERFORM public.sa_write_audit('superadmin.credits.update', 'credits', p_faculty,
+                                jsonb_build_object('balance', p_balance, 'allowance', p_allowance));
+  RETURN jsonb_build_object('ok', true);
+END $$;
+
+-- PATCH /api/superadmin/account/:id/subscription
+CREATE OR REPLACE FUNCTION public.sa_set_subscription(p_faculty uuid, p_plan text, p_status text, p_ends_at timestamptz)
+RETURNS jsonb
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+BEGIN
+  PERFORM public.sa_require();
+  IF p_plan IS NOT NULL AND p_plan NOT IN ('trial','monthly','quarterly','annual') THEN
+    RAISE EXCEPTION 'invalid plan %', p_plan USING ERRCODE = '22023';
+  END IF;
+  IF p_status IS NOT NULL AND p_status NOT IN ('trialing','active','past_due','canceled','expired') THEN
+    RAISE EXCEPTION 'invalid status %', p_status USING ERRCODE = '22023';
+  END IF;
+  INSERT INTO subscriptions (faculty_id, plan, status, current_period_start, current_period_end)
+  VALUES (p_faculty, COALESCE(p_plan,'trial'), COALESCE(p_status,'active'), now(), p_ends_at)
+  ON CONFLICT (faculty_id) DO UPDATE
+    SET plan = COALESCE(p_plan, subscriptions.plan),
+        status = COALESCE(p_status, subscriptions.status),
+        current_period_end = COALESCE(p_ends_at, subscriptions.current_period_end);
+  PERFORM public.sa_write_audit('superadmin.subscription.update', 'subscriptions', p_faculty,
+                                jsonb_build_object('plan', p_plan, 'status', p_status, 'ends_at', p_ends_at));
+  RETURN jsonb_build_object('ok', true);
+END $$;
+
+-- PATCH /api/superadmin/flags/:key
+CREATE OR REPLACE FUNCTION public.sa_set_flag(p_key text, p_enabled boolean)
+RETURNS jsonb
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+BEGIN
+  PERFORM public.sa_require();
+  UPDATE feature_flags SET enabled = COALESCE(p_enabled, false), updated_at = now() WHERE key = p_key;
+  IF NOT FOUND THEN RAISE EXCEPTION 'unknown flag %', p_key; END IF;
+  PERFORM public.sa_write_audit('superadmin.flag.update', 'feature_flags', NULL,
+                                jsonb_build_object('key', p_key, 'enabled', p_enabled));
+  RETURN jsonb_build_object('key', p_key, 'enabled', p_enabled);
+END $$;
+
+-- A read-only window into one teacher's own work, for the drawer's
+-- "inspect" — the honest form of impersonation in a direct-Supabase app.
+-- The super admin cannot BECOME the teacher (that needs their session),
+-- but this definer read shows exactly what they have, which is what
+-- support and debugging actually need.
+CREATE OR REPLACE FUNCTION public.sa_account_content(p_faculty uuid, p_limit int DEFAULT 40)
+RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE out jsonb; n int := LEAST(GREATEST(COALESCE(p_limit,40), 1), 200);
+BEGIN
+  PERFORM public.sa_require();
+  SELECT jsonb_build_object(
+    'work', (
+      SELECT COALESCE(jsonb_agg(row_to_json(t)), '[]'::jsonb) FROM (
+        SELECT id, type,
+               COALESCE(content->>'title', content->>'name', 'Untitled') AS title,
+               status, updated_at
+          FROM ai_studio
+         WHERE faculty_id = p_faculty AND deleted_at IS NULL
+         ORDER BY updated_at DESC LIMIT n
+      ) t
+    ),
+    'students', (
+      SELECT COALESCE(jsonb_agg(row_to_json(t)), '[]'::jsonb) FROM (
+        SELECT id, first_name, last_name, grade, division AS section
+          FROM students WHERE created_by = p_faculty
+         ORDER BY grade, division, last_name LIMIT n
+      ) t
+    )
+  ) INTO out;
+  RETURN out;
+END $$;
+
+-- Any authenticated user records their OWN sign-in / sign-up. Not guarded
+-- by is_super_admin — the actor is always auth.uid(), so there is nothing
+-- to escalate. This is what gives the logins / signups charts real data
+-- going forward, without the browser touching audit_log directly.
+CREATE OR REPLACE FUNCTION public.record_auth_event(p_kind text)
+RETURNS void
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+BEGIN
+  IF p_kind NOT IN ('login','signup') THEN RETURN; END IF;
+  IF (SELECT auth.uid()) IS NULL THEN RETURN; END IF;
+  INSERT INTO audit_log (actor_id, action, entity, entity_id)
+  VALUES ((SELECT auth.uid()), 'auth.' || p_kind, 'users', (SELECT auth.uid()));
+  -- Stamp last_login_at so "active today" and every account's "last login"
+  -- column read from real data. Writes the caller's OWN row only.
+  UPDATE users SET last_login_at = now() WHERE id = (SELECT auth.uid());
+END $$;
+
+GRANT EXECUTE ON FUNCTION public.sa_stats()                              TO authenticated;
+GRANT EXECUTE ON FUNCTION public.sa_accounts()                           TO authenticated;
+GRANT EXECUTE ON FUNCTION public.sa_account(uuid)                        TO authenticated;
+GRANT EXECUTE ON FUNCTION public.sa_overview()                           TO authenticated;
+GRANT EXECUTE ON FUNCTION public.sa_signups(int)                         TO authenticated;
+GRANT EXECUTE ON FUNCTION public.sa_logins(int)                          TO authenticated;
+GRANT EXECUTE ON FUNCTION public.sa_recent_activity(int)                 TO authenticated;
+GRANT EXECUTE ON FUNCTION public.sa_flags()                              TO authenticated;
+GRANT EXECUTE ON FUNCTION public.sa_set_status(uuid, text)               TO authenticated;
+GRANT EXECUTE ON FUNCTION public.sa_set_role(uuid, text, text)           TO authenticated;
+GRANT EXECUTE ON FUNCTION public.sa_delete_account(uuid)                 TO authenticated;
+GRANT EXECUTE ON FUNCTION public.sa_set_permissions(uuid, jsonb)         TO authenticated;
+GRANT EXECUTE ON FUNCTION public.sa_adjust_credits(uuid, numeric, numeric) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.sa_set_subscription(uuid, text, text, timestamptz) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.sa_set_flag(text, boolean)              TO authenticated;
+GRANT EXECUTE ON FUNCTION public.sa_account_content(uuid, int)           TO authenticated;
+GRANT EXECUTE ON FUNCTION public.record_auth_event(text)                 TO authenticated;
+
+
+-- ═══════════════════════════════════════════════════════════════════════
+-- 31. Fuller subscription + credit control for the super admin
+--
+-- §30 could SET a credit balance and a subscription's fields absolutely.
+-- These add the operations a head-of-project actually reaches for: grant
+-- MORE tokens (a delta, not a replacement), upgrade a plan for its real
+-- duration, extend a period, cancel, or remove a subscription outright.
+-- All guarded and audited, same as everything else in §30.
+-- ═══════════════════════════════════════════════════════════════════════
+
+-- Grant (or deduct, with a negative delta) credits. "Give more tokens."
+-- Distinct from sa_adjust_credits, which sets the balance absolutely.
+CREATE OR REPLACE FUNCTION public.sa_grant_credits(p_faculty uuid, p_delta numeric)
+RETURNS jsonb
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE new_balance numeric;
+BEGIN
+  PERFORM public.sa_require();
+  INSERT INTO credits (faculty_id, balance, monthly_allowance)
+  VALUES (p_faculty, GREATEST(COALESCE(p_delta, 0), 0), 200)
+  ON CONFLICT (faculty_id) DO UPDATE
+    SET balance = GREATEST(credits.balance + COALESCE(p_delta, 0), 0)
+  RETURNING balance INTO new_balance;
+  PERFORM public.sa_write_audit('superadmin.credits.grant', 'credits', p_faculty,
+                                jsonb_build_object('delta', p_delta, 'balance', new_balance));
+  RETURN jsonb_build_object('ok', true, 'balance', new_balance);
+END $$;
+
+-- Activate / upgrade a plan for its NATURAL duration (the same day counts
+-- src/lib/plans.js uses: trial 7, monthly 30, quarterly 90, annual 365).
+-- One click puts a teacher on a plan with a correct end date, rather than
+-- the operator computing it by hand.
+CREATE OR REPLACE FUNCTION public.sa_activate_plan(p_faculty uuid, p_plan text)
+RETURNS jsonb
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE d int; st text; ends timestamptz;
+BEGIN
+  PERFORM public.sa_require();
+  IF p_plan NOT IN ('trial','monthly','quarterly','annual') THEN
+    RAISE EXCEPTION 'invalid plan %', p_plan USING ERRCODE = '22023';
+  END IF;
+  d := CASE p_plan WHEN 'trial' THEN 7 WHEN 'monthly' THEN 30
+                   WHEN 'quarterly' THEN 90 WHEN 'annual' THEN 365 END;
+  st := CASE WHEN p_plan = 'trial' THEN 'trialing' ELSE 'active' END;
+  ends := now() + make_interval(days => d);
+  INSERT INTO subscriptions (faculty_id, plan, status, current_period_start, current_period_end)
+  VALUES (p_faculty, p_plan, st, now(), ends)
+  ON CONFLICT (faculty_id) DO UPDATE
+    SET plan = p_plan, status = st, current_period_start = now(), current_period_end = ends;
+  PERFORM public.sa_write_audit('superadmin.subscription.activate', 'subscriptions', p_faculty,
+                                jsonb_build_object('plan', p_plan, 'ends_at', ends));
+  RETURN jsonb_build_object('ok', true, 'plan', p_plan, 'status', st, 'ends_at', ends);
+END $$;
+
+-- Extend the current period by N days, counting from the later of its end
+-- and now — so it tops up a live plan and revives an expired one.
+CREATE OR REPLACE FUNCTION public.sa_extend_subscription(p_faculty uuid, p_days int)
+RETURNS jsonb
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE base timestamptz; ends timestamptz;
+BEGIN
+  PERFORM public.sa_require();
+  SELECT GREATEST(COALESCE(current_period_end, now()), now()) INTO base
+    FROM subscriptions WHERE faculty_id = p_faculty;
+  base := COALESCE(base, now());
+  ends := base + make_interval(days => GREATEST(COALESCE(p_days, 0), 0));
+  INSERT INTO subscriptions (faculty_id, plan, status, current_period_start, current_period_end)
+  VALUES (p_faculty, 'monthly', 'active', now(), ends)
+  ON CONFLICT (faculty_id) DO UPDATE
+    SET current_period_end = ends,
+        status = CASE WHEN subscriptions.status IN ('canceled','expired')
+                      THEN 'active' ELSE subscriptions.status END;
+  PERFORM public.sa_write_audit('superadmin.subscription.extend', 'subscriptions', p_faculty,
+                                jsonb_build_object('days', p_days, 'ends_at', ends));
+  RETURN jsonb_build_object('ok', true, 'ends_at', ends);
+END $$;
+
+-- Cancel: keep the row for history, mark it canceled. Writes stop at the
+-- next attempt (subscription_active() fails); reads keep working, which is
+-- the deliberate READ-vs-WRITE split from §27.
+CREATE OR REPLACE FUNCTION public.sa_cancel_subscription(p_faculty uuid)
+RETURNS jsonb
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+BEGIN
+  PERFORM public.sa_require();
+  UPDATE subscriptions SET status = 'canceled', current_period_end = now() WHERE faculty_id = p_faculty;
+  PERFORM public.sa_write_audit('superadmin.subscription.cancel', 'subscriptions', p_faculty, NULL);
+  RETURN jsonb_build_object('ok', true);
+END $$;
+
+-- Remove: delete the subscription row entirely. The teacher is then on no
+-- plan at all until re-subscribed (or comped again).
+CREATE OR REPLACE FUNCTION public.sa_remove_subscription(p_faculty uuid)
+RETURNS jsonb
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+BEGIN
+  PERFORM public.sa_require();
+  DELETE FROM subscriptions WHERE faculty_id = p_faculty;
+  PERFORM public.sa_write_audit('superadmin.subscription.remove', 'subscriptions', p_faculty, NULL);
+  RETURN jsonb_build_object('ok', true);
+END $$;
+
+GRANT EXECUTE ON FUNCTION public.sa_grant_credits(uuid, numeric)      TO authenticated;
+GRANT EXECUTE ON FUNCTION public.sa_activate_plan(uuid, text)         TO authenticated;
+GRANT EXECUTE ON FUNCTION public.sa_extend_subscription(uuid, int)    TO authenticated;
+GRANT EXECUTE ON FUNCTION public.sa_cancel_subscription(uuid)         TO authenticated;
+GRANT EXECUTE ON FUNCTION public.sa_remove_subscription(uuid)         TO authenticated;
+
+
+-- ═══════════════════════════════════════════════════════════════════════
+-- 32. AI credit consumption + the monthly refresh
+--
+-- Using an AI feature spends credits, and the allowance replenishes on the
+-- billing cycle. Both are writes to `credits`, which the browser can never
+-- make directly — so, like everything else privileged here, they are
+-- SECURITY DEFINER functions. The safety argument is different from the
+-- super-admin ones though: these act ONLY on the CALLER'S OWN row
+-- (current_faculty_id()) and can only *reduce* the balance or reset it to
+-- the allowance — never inflate it — so any authenticated teacher may call
+-- them for themselves.
+--
+-- The per-feature cost is read from a table, not passed by the client, so
+-- the browser cannot understate what an action costs.
+-- ═══════════════════════════════════════════════════════════════════════
+
+ALTER TABLE public.credits    ADD COLUMN IF NOT EXISTS next_refresh_at timestamptz;
+ALTER TABLE public.usage_logs ADD COLUMN IF NOT EXISTS feature text;
+ALTER TABLE public.usage_logs ADD COLUMN IF NOT EXISTS credits integer;
+
+-- What each AI action costs, in credits. Server-authoritative; the super
+-- admin edits it through sa_set_credit_cost. Readable by everyone so the
+-- studio can show "this costs N" and grey a button out before spending.
+CREATE TABLE IF NOT EXISTS public.ai_credit_costs (
+  feature    text PRIMARY KEY,
+  cost       integer NOT NULL DEFAULT 1,
+  label      text,
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+INSERT INTO public.ai_credit_costs (feature, cost, label) VALUES
+  ('lesson_plan',  10, 'Lesson plan'),
+  ('quiz',         10, 'Quiz'),
+  ('homework',      8, 'Homework'),
+  ('presentation', 12, 'Presentation'),
+  ('activity',      6, 'Activity'),
+  ('template',      6, 'Template'),
+  ('regenerate',    3, 'Regenerate a section'),
+  ('quiz_tweak',    2, 'Quiz tweak'),
+  ('goal_plan',    15, 'Goal plan'),
+  ('bulletin',      2, 'Bulletin draft'),
+  ('skill_profile', 5, 'Skill profile'),
+  ('chat',          1, 'Assistant message')
+ON CONFLICT (feature) DO NOTHING;
+
+ALTER TABLE public.ai_credit_costs ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS ai_credit_costs_read ON public.ai_credit_costs;
+CREATE POLICY ai_credit_costs_read ON public.ai_credit_costs
+  FOR SELECT TO authenticated USING (true);
+-- No write policy: edited only through sa_set_credit_cost (definer).
+
+-- Replenish the allowance when a billing period has elapsed. Called lazily
+-- (getProfile runs it), so "the counts refresh on those days" happens the
+-- first time the teacher loads on or after the boundary — no cron needed.
+-- Resets to monthly_allowance (a quota, not an accumulation); a super-admin
+-- one-off grant therefore lasts until the next refresh, while a raised
+-- monthly_allowance recurs every month.
+CREATE OR REPLACE FUNCTION public.refresh_credits_if_due()
+RETURNS jsonb
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE fid uuid; v_balance int; v_allow int; v_next timestamptz; anchor timestamptz; did boolean := false;
+BEGIN
+  fid := current_faculty_id();
+  IF fid IS NULL THEN RETURN NULL; END IF;
+  SELECT balance, monthly_allowance, next_refresh_at INTO v_balance, v_allow, v_next
+    FROM credits WHERE faculty_id = fid;
+  IF NOT FOUND THEN RETURN NULL; END IF;
+
+  IF v_next IS NULL THEN
+    -- First run: anchor to the plan's period-start day if there is one, so
+    -- the refresh lands on the same day the plan renews; else the credit
+    -- row's own creation day. Advance to the next boundary after now.
+    SELECT current_period_start INTO anchor FROM subscriptions WHERE faculty_id = fid;
+    anchor := COALESCE(anchor, now());
+    WHILE anchor <= now() LOOP anchor := anchor + INTERVAL '1 month'; END LOOP;
+    UPDATE credits SET next_refresh_at = anchor WHERE faculty_id = fid;
+    v_next := anchor;
+  ELSIF now() >= v_next THEN
+    anchor := v_next;
+    WHILE anchor <= now() LOOP anchor := anchor + INTERVAL '1 month'; END LOOP;
+    UPDATE credits SET balance = monthly_allowance, next_refresh_at = anchor, updated_at = now()
+      WHERE faculty_id = fid;
+    v_balance := v_allow;
+    v_next := anchor;
+    did := true;
+  END IF;
+
+  RETURN jsonb_build_object('balance', v_balance, 'allowance', v_allow,
+                            'next_refresh_at', v_next, 'refreshed', did);
+END $$;
+
+-- Spend credits for one AI action. Refreshes first (so a due reset happens
+-- before the charge), looks the cost up server-side, and refuses rather
+-- than going negative — returning {ok:false, insufficient:true} so the UI
+-- can say "out of credits" instead of erroring. Records the spend in
+-- usage_logs. Every AI feature calls this on a successful generation.
+CREATE OR REPLACE FUNCTION public.consume_credits(p_feature text, p_ref uuid DEFAULT NULL)
+RETURNS jsonb
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE fid uuid; v_cost int; v_balance int; v_new int;
+BEGIN
+  fid := current_faculty_id();
+  IF fid IS NULL THEN RAISE EXCEPTION 'no teaching profile' USING ERRCODE = '42501'; END IF;
+  PERFORM public.refresh_credits_if_due();
+
+  SELECT cost INTO v_cost FROM ai_credit_costs WHERE feature = p_feature;
+  v_cost := COALESCE(v_cost, 1);  -- unknown feature costs the minimum
+
+  SELECT balance INTO v_balance FROM credits WHERE faculty_id = fid;
+  IF v_balance IS NULL OR v_balance < v_cost THEN
+    RETURN jsonb_build_object('ok', false, 'insufficient', true,
+                              'balance', COALESCE(v_balance, 0), 'cost', v_cost);
+  END IF;
+
+  v_new := v_balance - v_cost;
+  UPDATE credits SET balance = v_new, updated_at = now() WHERE faculty_id = fid;
+  INSERT INTO usage_logs (user_id, operation, feature, credits, created_at)
+  VALUES ((SELECT auth.uid()), 'ai.' || p_feature, p_feature, v_cost, now());
+
+  RETURN jsonb_build_object('ok', true, 'balance', v_new, 'spent', v_cost, 'cost', v_cost);
+END $$;
+
+-- The studio's credit widget: current balance, allowance, next refresh, and
+-- the whole cost table in one call.
+CREATE OR REPLACE FUNCTION public.credits_status()
+RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE fid uuid; out jsonb;
+BEGIN
+  fid := current_faculty_id();
+  IF fid IS NULL THEN RETURN NULL; END IF;
+  SELECT jsonb_build_object(
+    'balance', c.balance, 'allowance', c.monthly_allowance, 'next_refresh_at', c.next_refresh_at,
+    'costs', (SELECT COALESCE(jsonb_object_agg(feature, cost), '{}'::jsonb) FROM ai_credit_costs)
+  ) INTO out FROM credits c WHERE c.faculty_id = fid;
+  RETURN out;
+END $$;
+
+-- Super admin: read + edit the cost table.
+CREATE OR REPLACE FUNCTION public.sa_credit_costs()
+RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE out jsonb;
+BEGIN
+  PERFORM public.sa_require();
+  SELECT COALESCE(jsonb_agg(row_to_json(t) ORDER BY t.feature), '[]'::jsonb) INTO out
+    FROM (SELECT feature, cost, label FROM ai_credit_costs) t;
+  RETURN out;
+END $$;
+
+CREATE OR REPLACE FUNCTION public.sa_set_credit_cost(p_feature text, p_cost int)
+RETURNS jsonb
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+BEGIN
+  PERFORM public.sa_require();
+  UPDATE ai_credit_costs SET cost = GREATEST(COALESCE(p_cost, 0), 0), updated_at = now()
+    WHERE feature = p_feature;
+  IF NOT FOUND THEN RAISE EXCEPTION 'unknown feature %', p_feature USING ERRCODE = '22023'; END IF;
+  PERFORM public.sa_write_audit('superadmin.credit_cost.update', 'ai_credit_costs', NULL,
+                                jsonb_build_object('feature', p_feature, 'cost', p_cost));
+  RETURN jsonb_build_object('feature', p_feature, 'cost', p_cost);
+END $$;
+
+GRANT EXECUTE ON FUNCTION public.refresh_credits_if_due()          TO authenticated;
+GRANT EXECUTE ON FUNCTION public.consume_credits(text, uuid)       TO authenticated;
+GRANT EXECUTE ON FUNCTION public.credits_status()                  TO authenticated;
+GRANT EXECUTE ON FUNCTION public.sa_credit_costs()                 TO authenticated;
+GRANT EXECUTE ON FUNCTION public.sa_set_credit_cost(text, int)     TO authenticated;
