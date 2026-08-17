@@ -105,40 +105,34 @@ export function TemplateDetail({
 
   const section: Section | undefined = sections[tab];
 
-  // Import every document in the active section. For the lesson pack that
-  // is the plan, its guide and its notes — three rows in Lessons, named so
-  // they are tellable apart. The row the teacher jumps to is the first.
+  // Import the active section. The lesson family is ONE lesson, so its
+  // plan, guide and notes import as a single merged document (the same
+  // scroll shown here) — not three rows the teacher then can't find
+  // together. Every other section is its own single import.
   const importSection = async () => {
     if (!section) return;
     setImporting(true);
     setError(null);
     try {
-      let firstId: string | undefined;
-      for (const d of section.docs) {
+      let created: { id?: string } | null = null;
+      if (section.isLesson) {
+        // One row, whole lesson: plan + guide + notes under their headings,
+        // stored as body_md so the lesson editor renders the full scroll.
+        created = await api(IMPORT_PATH.lesson_plan!, {
+          method: "POST",
+          body: { name: title, title, subject: card.subject, body_md: sectionMarkdown(section) },
+        });
+      } else {
+        const d = section.docs[0];
         const path = IMPORT_PATH[d.kind];
-        if (!path) continue;
-        // A lesson plan keeps the plain chapter title; its guide and notes
-        // carry their kind so a card's three don't collide in the list.
-        const name =
-          d.title?.trim() ||
-          (d.kind === "lesson_plan" || !LESSON_KINDS.includes(d.kind)
-            ? title
-            : `${title} — ${KIND_LABEL[d.kind]}`);
+        const name = d.title?.trim() || title;
         const questions = quizQuestionsOf(d);
-        let created: { id?: string } | null = null;
-        if (d.kind === "quiz" && questions) {
+        if (path && d.kind === "quiz" && questions) {
           created = await api("/api/quizzes/bulk", {
             method: "POST",
             body: { name, title: name, questions },
           });
-        } else if (LESSON_KINDS.includes(d.kind)) {
-          // A rich Markdown document, not a handful of short fields — keep
-          // it as body_md, which the lesson editor renders readably.
-          created = await api(path, {
-            method: "POST",
-            body: { name, title: name, subject: card.subject, body_md: d.content_md },
-          });
-        } else {
+        } else if (path) {
           created = await api(path, {
             method: "POST",
             body: {
@@ -150,14 +144,14 @@ export function TemplateDetail({
             },
           });
         }
-        if (!firstId && created?.id) {
-          firstId = created.id;
-          const dest = IMPORT_DEST[d.kind];
-          if (dest) setSaved({ label: dest.label, target: dest.route(created.id) });
-        }
+      }
+      if (!created?.id) {
+        setError("Couldn't import that.");
+        return;
       }
       setImported((m) => ({ ...m, [tab]: true }));
-      if (!firstId) setError("Nothing here could be imported.");
+      const dest = IMPORT_DEST[section.kind];
+      if (dest) setSaved({ label: dest.label, target: dest.route(created.id) });
       // Count the import — best-effort, never blocks the save.
       markUsed(card.id).catch(() => {});
     } catch (e: any) {
