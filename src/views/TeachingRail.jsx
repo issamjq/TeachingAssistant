@@ -12,6 +12,14 @@ import { ChevronLeft, ChevronRight, CalendarDays, Plus } from "lucide-react";
 import { api } from "./_shared";
 import SchedulePopup from "./_schedule-popup";
 
+// Pin the locale for every formatted date. Left to the environment's
+// default (`undefined`), the server formats en-US ("August 17") while the
+// browser uses its own locale ("17 August") — an SSR/client mismatch that
+// makes React throw out and re-render this whole tree on hydration. A
+// fixed locale makes both sides agree; en-GB's day-month order also suits
+// the UAE audience.
+const DATE_LOCALE = "en-GB";
+
 const DAY_LABELS = ["M", "T", "W", "T", "F", "S", "S"];
 const MONTH_NAMES = [
   "January", "February", "March", "April", "May", "June",
@@ -182,8 +190,8 @@ export default function TeachingRail() {
         date: d,
         iso: isoKey(d),
         isToday,
-        label: isToday ? "Today" : isTomorrow ? "Tomorrow" : d.toLocaleDateString(undefined, { weekday: "long" }),
-        sub: d.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" }),
+        label: isToday ? "Today" : isTomorrow ? "Tomorrow" : d.toLocaleDateString(DATE_LOCALE, { weekday: "long" }),
+        sub: d.toLocaleDateString(DATE_LOCALE, { weekday: "long", day: "numeric", month: "long" }),
         events: (eventsByDate.get(isoKey(d)) || []).sort((a, b) =>
           (a.time || "").localeCompare(b.time || "")
         ),
@@ -278,7 +286,7 @@ export default function TeachingRail() {
                 key={i}
                 type="button"
                 onClick={() => onPickDay(d)}
-                aria-label={d.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric", year: "numeric" })}
+                aria-label={d.toLocaleDateString(DATE_LOCALE, { weekday: "long", month: "long", day: "numeric", year: "numeric" })}
                 aria-pressed={isSelected}
                 className="aspect-square flex flex-col items-center justify-center focus:outline-none"
               >
