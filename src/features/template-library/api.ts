@@ -31,8 +31,18 @@ function qs(params: Record<string, unknown>): string {
 export const getFilters = (curriculum = "cbse", language: "en" | "ar" = "en") =>
   api<LibraryFilters>(`/api/library/filters${qs({ curriculum, language })}`);
 
-export const listTemplates = (query: TemplateQuery = {}) =>
-  api<TemplatePage>(`/api/library/templates${qs(query as Record<string, unknown>)}`);
+export const listTemplates = async (query: TemplateQuery = {}): Promise<TemplatePage> => {
+  const page = await api<TemplatePage>(
+    `/api/library/templates${qs(query as Record<string, unknown>)}`,
+  );
+  // `has_more` is derived defensively: if the service ever omits it, fall
+  // back to whether the window we asked for reached the total, so "Load
+  // more" never hides pages that exist (or offers a page that doesn't).
+  return {
+    ...page,
+    has_more: page.has_more ?? page.offset + (page.items?.length ?? 0) < page.total,
+  };
+};
 
 export const getTemplate = (id: string) =>
   api<TemplateDetail>(`/api/library/templates/${id}`);
@@ -43,8 +53,16 @@ export const markUsed = (id: string) =>
 
 /* ── teacher submissions ─────────────────────────────────────────── */
 
-export const listSubmissions = (status?: SubmissionStatus) =>
-  api<Submission[]>(`/api/library/submissions${qs({ status })}`);
+// The service returns submissions as a paginated `{ total, items }` object
+// — the same envelope as templates — not the bare array the API reference
+// once showed. Unwrap here so callers get the array they expect (and a
+// bare array, should the service ever send one, still works).
+export const listSubmissions = async (status?: SubmissionStatus): Promise<Submission[]> => {
+  const res = await api<Submission[] | { items?: Submission[] }>(
+    `/api/library/submissions${qs({ status })}`,
+  );
+  return Array.isArray(res) ? res : res?.items ?? [];
+};
 
 export const createSubmission = (body: SubmissionInput) =>
   api<{ id: string; status: SubmissionStatus }>("/api/library/submissions", {
