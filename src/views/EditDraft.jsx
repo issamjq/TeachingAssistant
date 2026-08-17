@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Save, CheckCircle2, Trash2, Plus } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -57,6 +57,11 @@ export default function EditDraft({ draft: initial, onClose, onMarkReady }) {
   const [saving, setSaving] = useState(false);
   const [savedAt, setSavedAt] = useState(null);
   const [err, setErr] = useState(null);
+  // A short-lived "Saved ✓" flash so a click on Save has an unmistakable
+  // outcome — the header timestamp alone was too quiet to notice.
+  const [justSaved, setJustSaved] = useState(false);
+  const savedTimer = useRef(null);
+  useEffect(() => () => clearTimeout(savedTimer.current), []);
   // Document lessons open in a readable rendered view; this toggles to the
   // raw Markdown for editing.
   const [editingDoc, setEditingDoc] = useState(false);
@@ -91,6 +96,9 @@ export default function EditDraft({ draft: initial, onClose, onMarkReady }) {
         setDraftId(saved.id);
       }
       setSavedAt(new Date());
+      setJustSaved(true);
+      clearTimeout(savedTimer.current);
+      savedTimer.current = setTimeout(() => setJustSaved(false), 2500);
     } catch (e) {
       setErr(e.message);
     } finally {
@@ -119,12 +127,20 @@ export default function EditDraft({ draft: initial, onClose, onMarkReady }) {
           <h2 className="font-serif text-4xl font-medium text-ink">
             {form.name || <em className="italic font-light text-accent">Untitled lesson</em>}
           </h2>
-          <p className="text-muted mt-2 font-mono text-[10px] uppercase tracking-wider">
-            {savedAt
-              ? `Saved ${savedAt.toLocaleTimeString()}`
-              : err
-              ? <span className="text-accent">{err}</span>
-              : draftId ? "Loaded from Neon" : "Unsaved — click Save to persist"}
+          <p className="text-muted mt-2 font-mono text-[10px] uppercase tracking-wider inline-flex items-center gap-1.5">
+            {err ? (
+              <span className="text-accent">{err}</span>
+            ) : justSaved ? (
+              <span className="text-ink inline-flex items-center gap-1.5">
+                <CheckCircle2 size={12} className="text-accent" /> All changes saved
+              </span>
+            ) : savedAt ? (
+              `Saved ${savedAt.toLocaleTimeString()}`
+            ) : draftId ? (
+              "Saved to your account"
+            ) : (
+              "Unsaved — click Save to keep it"
+            )}
           </p>
         </div>
         <div className="flex gap-3 items-center">
@@ -136,7 +152,11 @@ export default function EditDraft({ draft: initial, onClose, onMarkReady }) {
           )}
           <Button variant="secondary" onClick={onClose} disabled={saving}>Close</Button>
           <Button variant="secondary" onClick={() => persist()} disabled={saving}>
-            <Save size={14} className="mr-2" /> {saving ? "Saving…" : "Save"}
+            {justSaved && !saving ? (
+              <><CheckCircle2 size={14} className="mr-2 text-accent" /> Saved</>
+            ) : (
+              <><Save size={14} className="mr-2" /> {saving ? "Saving…" : "Save"}</>
+            )}
           </Button>
           <Button onClick={markReady} disabled={saving}>
             <CheckCircle2 size={14} className="mr-2" /> Mark ready
