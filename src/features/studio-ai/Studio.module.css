@@ -316,7 +316,10 @@
   line-height: 1.55;
   color: var(--p-ink);
   padding: 13px 16px 4px;
-  max-height: 200px;
+  /* Grows with its content (JS caps the height at COMPOSER_MAX_H, the
+     same 240px), then scrolls so a long paragraph stays readable. */
+  max-height: 240px;
+  overflow-y: auto;
 }
 .input::placeholder { color: var(--p-muted); }
 

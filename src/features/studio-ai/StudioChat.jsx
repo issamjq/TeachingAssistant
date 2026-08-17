@@ -61,6 +61,10 @@ const STARTERS = [
   { kind: "homework",     text: "Reading-comprehension homework on a short story for Grade 6 English." },
 ];
 
+// The composer grows with its text up to here, then scrolls — about ten
+// lines, enough to read a full paragraph back before sending.
+const COMPOSER_MAX_H = 240;
+
 const safeName = (name) =>
   name.normalize("NFKD").replace(/[^\w.-]+/g, "-").replace(/-+/g, "-").slice(-80) || "file";
 
@@ -137,6 +141,17 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
     refreshSessions();
     purgeOld();
   }, [refreshSessions]);
+
+  // Grow the composer with what's in it, up to a readable ceiling then
+  // scroll. Driven off `draft` rather than the keystroke so it stays
+  // right for every way the text changes — typing, a starter chip, an
+  // assistant hand-off, and the shrink back to one line after a send.
+  useEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, COMPOSER_MAX_H)}px`;
+  }, [draft]);
 
   // The assistant's "make me a …" hand-off: seed the composer with the
   // action's payload so the teacher lands mid-thought rather than at a
@@ -807,11 +822,7 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
                 ? `Describe the ${KIND_META[kinds[0]]?.label.toLowerCase() || "thing"} you need…`
                 : `Describe it once — you'll get ${kinds.map((v) => KIND_META[v]?.label.toLowerCase()).join(" + ")}…`
             }
-            onChange={(e) => {
-              setDraft(e.target.value);
-              e.target.style.height = "auto";
-              e.target.style.height = `${Math.min(e.target.scrollHeight, 200)}px`;
-            }}
+            onChange={(e) => setDraft(e.target.value)}
             onKeyDown={(e) => {
               // Enter sends, Shift+Enter breaks — on a desktop. On a
               // phone Enter is a newline, because there is a send button
