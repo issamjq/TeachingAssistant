@@ -29,6 +29,15 @@ export function lessonPlanToDoc(d = {}, t) {
     blocks.push({ type: "heading", text: L("lp.main", "Main activity") });
     blocks.push({ type: "paragraph", text: d.main_activity });
   }
+  // A document-style lesson (imported from the library, or AI-generated)
+  // keeps its whole body as Markdown rather than the structured fields
+  // above. Split it into paragraphs so the export isn't one wall of text.
+  if (d.body_md && String(d.body_md).trim()) {
+    for (const para of String(d.body_md).split(/\n{2,}/)) {
+      const text = para.trim();
+      if (text) blocks.push({ type: "paragraph", text });
+    }
+  }
   if (d.conclusion && String(d.conclusion).trim()) {
     blocks.push({ type: "heading", text: L("lp.conclusion", "Conclusion / wrap-up") });
     blocks.push({ type: "paragraph", text: d.conclusion });

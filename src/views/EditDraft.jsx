@@ -7,7 +7,12 @@ import { Button } from "@/components/ui/button";
 import { ExportMenu } from "@/components/ui/export-menu";
 import { Field, AttachmentsList, inputClasses, selectClasses, api, useTeacherClasses, DatePicker, AudienceSelect } from "./_shared";
 import { lessonPlanToDoc } from "../lib/toDoc";
+import { renderMarkdown } from "../lib/markdown";
 import { useT } from "../lib/i18n";
+
+// A leading `# Title` in the document body repeats the lesson name shown
+// in the header — strip that one line so it isn't printed twice.
+const stripLeadingH1 = (md) => String(md || "").replace(/^\s*#\s+.*(?:\r?\n|$)/, "");
 
 const STATUSES = ["In progress", "Ready to use", "Blocked", "Paused"];
 
@@ -44,10 +49,17 @@ export default function EditDraft({ draft: initial, onClose, onMarkReady }) {
     main_activity: initial?.main_activity || "",
     conclusion: initial?.conclusion || "",
     assessment_method: initial?.assessment_method || "",
+    // Document-style lessons (imported from the library, AI-generated)
+    // carry their whole body as Markdown here instead of the structured
+    // intro/main/conclusion fields.
+    body_md: initial?.body_md || "",
   }));
   const [saving, setSaving] = useState(false);
   const [savedAt, setSavedAt] = useState(null);
   const [err, setErr] = useState(null);
+  // Document lessons open in a readable rendered view; this toggles to the
+  // raw Markdown for editing.
+  const [editingDoc, setEditingDoc] = useState(false);
 
   // If we got handed a real id, refresh from the server (in case the row was
   // edited elsewhere since the list was loaded).
@@ -179,6 +191,36 @@ export default function EditDraft({ draft: initial, onClose, onMarkReady }) {
             </CardContent>
           </Card>
 
+          {form.body_md && (
+            <Card>
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted">Lesson</p>
+                  <button
+                    type="button"
+                    onClick={() => setEditingDoc((v) => !v)}
+                    className="text-accent hover:text-ink font-serif italic text-sm border-b border-accent hover:border-ink transition"
+                  >
+                    {editingDoc ? "Done editing" : "Edit the text"}
+                  </button>
+                </div>
+                {editingDoc ? (
+                  <textarea
+                    rows={22}
+                    className={`${inputClasses} font-mono text-xs leading-relaxed`}
+                    value={form.body_md}
+                    onChange={(e) => set("body_md", e.target.value)}
+                    aria-label="Lesson document, editable Markdown"
+                  />
+                ) : (
+                  <article className="max-w-[68ch]">
+                    {renderMarkdown(stripLeadingH1(form.body_md))}
+                  </article>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
           <Card>
             <CardContent className="p-6">
               <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-4">Learning objectives</p>
@@ -209,6 +251,7 @@ export default function EditDraft({ draft: initial, onClose, onMarkReady }) {
             </CardContent>
           </Card>
 
+          {!form.body_md && (
           <Card>
             <CardContent className="p-6">
               <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-4">Lesson body</p>
@@ -228,6 +271,7 @@ export default function EditDraft({ draft: initial, onClose, onMarkReady }) {
               </div>
             </CardContent>
           </Card>
+          )}
 
           <Card>
             <CardContent className="p-6">

@@ -82,6 +82,16 @@ export function TemplateDetail({
           method: "POST",
           body: { name, title: name, questions: structuredQuestions },
         });
+      } else if (doc.kind === "lesson_plan") {
+        // A lesson template is a rich Markdown document, not a handful of
+        // short fields — so keep it as `body_md`, which the lesson editor
+        // renders as a readable document. Dumping it into the one-line
+        // `main_activity` box (what we did before) was the wall of raw
+        // Markdown a teacher couldn't read.
+        created = await api(path, {
+          method: "POST",
+          body: { name, title: name, subject: card.subject, body_md: doc.content_md },
+        });
       } else {
         created = await api(path, {
           method: "POST",
@@ -90,6 +100,7 @@ export function TemplateDetail({
             title: name,
             main_activity: doc.content_md,
             instructions: doc.content_md,
+            body_md: doc.content_md,
           },
         });
       }
