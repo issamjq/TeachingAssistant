@@ -8,7 +8,7 @@ import { PREFILL_KEY } from "@/shared/lib/assistantPrefill";
 import { Button } from "@/components/ui/button";
 import { api } from "@/shared/lib/apiClient";
 import { getTemplate, markUsed } from "../api";
-import { KIND_LABEL, IMPORT_PATH, IMPORT_DEST, STUDIO_KIND, subjectLabel } from "../labels";
+import { KIND_LABEL, IMPORT_PATH, IMPORT_DEST, LESSON_KINDS, STUDIO_KIND, subjectLabel } from "../labels";
 import type { TemplateDetail as Detail, TemplateSummary } from "../types";
 import s from "../TemplateLibrary.module.css";
 
@@ -74,7 +74,14 @@ export function TemplateDetail({
     if (!path) return;
     setImporting(true);
     setError(null);
-    const name = doc.title?.trim() || title;
+    // Lesson plan, teaching guide and student notes all land in Lessons,
+    // so a card's three of them would otherwise arrive with the same name.
+    // Keep the plan on the plain chapter title; tag the guide and notes so
+    // the three are tellable apart in the list.
+    const isLesson = LESSON_KINDS.includes(doc.kind);
+    const name =
+      doc.title?.trim() ||
+      (doc.kind === "lesson_plan" || !isLesson ? title : `${title} — ${KIND_LABEL[doc.kind]}`);
     try {
       let created: { id?: string } | null = null;
       if (doc.kind === "quiz" && structuredQuestions) {
@@ -82,7 +89,7 @@ export function TemplateDetail({
           method: "POST",
           body: { name, title: name, questions: structuredQuestions },
         });
-      } else if (doc.kind === "lesson_plan") {
+      } else if (isLesson) {
         // A lesson template is a rich Markdown document, not a handful of
         // short fields — so keep it as `body_md`, which the lesson editor
         // renders as a readable document. Dumping it into the one-line

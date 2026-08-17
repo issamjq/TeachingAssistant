@@ -14,15 +14,21 @@ export const KIND_LABEL: Record<DocKind, string> = {
 };
 
 // Which library kinds map onto one of the teacher's own artifact stores,
-// and where. teaching_guide / student_notes have no dedicated store, so
-// they are Studio-only (below) rather than importable.
+// and where. A lesson plan, its teaching guide and its student notes are
+// all "Lessons" — they import into the same drafts store and live in the
+// Lessons section together, distinguished by name, not kept apart.
 export const IMPORT_PATH: Partial<Record<DocKind, string>> = {
   lesson_plan: "/api/drafts",
+  teaching_guide: "/api/drafts",
+  student_notes: "/api/drafts",
   quiz: "/api/quizzes",
   homework: "/api/homework",
   presentation: "/api/presentations",
   activity: "/api/activities",
 };
+
+/** The lesson family — every kind the Lessons section holds. */
+export const LESSON_KINDS: DocKind[] = ["lesson_plan", "teaching_guide", "student_notes"];
 
 // Where an imported document lands, and how to get there. The four list
 // sections open to their own list (the fresh row sorts to the top);
@@ -32,6 +38,8 @@ export const IMPORT_DEST: Partial<
   Record<DocKind, { label: string; route: (id: string) => string[] }>
 > = {
   lesson_plan: { label: "Lessons", route: (id) => ["lesson-plans", "edit", id] },
+  teaching_guide: { label: "Lessons", route: (id) => ["lesson-plans", "edit", id] },
+  student_notes: { label: "Lessons", route: (id) => ["lesson-plans", "edit", id] },
   quiz: { label: "Quizzes & exams", route: () => ["quizzes"] },
   homework: { label: "Homework", route: () => ["homework"] },
   presentation: { label: "Presentations", route: () => ["presentations"] },
