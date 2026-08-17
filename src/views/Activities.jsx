@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import { useAutoRefresh } from "@/shared/hooks/useAutoRefresh";
 import { ListChecks, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -41,13 +42,15 @@ export default function Activities({ onOpenActivity }) {
   }, [items, sortKey]);
   const visibleItems = filterByDateScope(sortedItems, scopeRange, (a) => a.scheduled_for);
 
-  const reload = () => {
-    setLoading(true);
+  const reload = (silent = false) => {
+    if (!silent) setLoading(true);
     api("/api/activities")
       .then((data) => { setItems(data); setLoading(false); })
-      .catch((err) => { setError(err.message); setLoading(false); });
+      .catch((err) => { if (!silent) setError(err.message); setLoading(false); });
   };
   useEffect(reload, []);
+  // Keep the list live: revalidate on focus, tab-visible, and a gentle poll.
+  useAutoRefresh(() => reload(true));
 
   const activityExport = (a) => (
     <ExportMenu

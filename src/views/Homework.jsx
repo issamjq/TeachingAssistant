@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import { useAutoRefresh } from "@/shared/hooks/useAutoRefresh";
 import { Pencil, Trash2 } from "lucide-react";
 import {
   ConfirmDelete, SortHeader, useSortable, api, fmtRowTimestamp,
@@ -25,13 +26,15 @@ export default function Homework({ onOpenHomework }) {
   const [sortKey, setSortKey] = useState("due_date-asc");
   const [scope, setScope, scopeRange] = useDateScope();
 
-  const reload = () => {
-    setLoading(true);
+  const reload = (silent = false) => {
+    if (!silent) setLoading(true);
     api("/api/homework")
       .then((data) => { setItems(data); setLoading(false); })
-      .catch((err) => { setError(err.message); setLoading(false); });
+      .catch((err) => { if (!silent) setError(err.message); setLoading(false); });
   };
   useEffect(reload, []);
+  // Keep the list live: revalidate on focus, tab-visible, and a gentle poll.
+  useAutoRefresh(() => reload(true));
 
   const [sortField, sortDir] = sortKey.split("-");
   const { sorted: sortedAll, sort, toggle, setSort } = useSortable(items, {

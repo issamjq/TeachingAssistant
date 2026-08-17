@@ -10,6 +10,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight, CalendarDays, Plus } from "lucide-react";
 import { api } from "./_shared";
+import { useAutoRefresh } from "@/shared/hooks/useAutoRefresh";
 import SchedulePopup from "./_schedule-popup";
 
 // Pin the locale for every formatted date. Left to the environment's
@@ -143,6 +144,9 @@ export default function TeachingRail() {
     });
   };
   useEffect(reloadEvents, []);
+  // reloadEvents never flips a skeleton, so it's already a silent refetch —
+  // keep the rail's upcoming days fresh without a manual reload.
+  useAutoRefresh(reloadEvents);
 
   // Teacher's grades + sections feed the popup's dropdowns so the
   // form only offers what this teacher actually teaches.

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import { useAutoRefresh } from "@/shared/hooks/useAutoRefresh";
 import { Play, Pencil, Trash2 } from "lucide-react";
 import { ConfirmDelete, api, timeAgo, fmtRowTimestamp } from "./_shared";
 import {
@@ -39,13 +40,15 @@ export default function Presentations({ onOpenPresentation }) {
   }, [items, sortKey]);
   const visibleItems = filterByDateScope(sortedItems, scopeRange, (p) => p.scheduled_for);
 
-  const reload = () => {
-    setLoading(true);
+  const reload = (silent = false) => {
+    if (!silent) setLoading(true);
     api("/api/presentations")
       .then((data) => { setItems(data); setLoading(false); })
-      .catch((err) => { setError(err.message); setLoading(false); });
+      .catch((err) => { if (!silent) setError(err.message); setLoading(false); });
   };
   useEffect(reload, []);
+  // Keep the list live: revalidate on focus, tab-visible, and a gentle poll.
+  useAutoRefresh(() => reload(true));
 
   const presExport = (p) => (
     <ExportMenu

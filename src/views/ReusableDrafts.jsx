@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useMemo, useEffect } from "react";
+import { useAutoRefresh } from "@/shared/hooks/useAutoRefresh";
 import { Search, AlertTriangle, Info } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -40,13 +41,15 @@ export default function ReusableDrafts({ onEditDraft, onNewLesson }) {
   const [sortKey, setSortKey] = useState("last_edited-desc");
   const [scope, setScope, scopeRange] = useDateScope();
 
-  const reload = () => {
-    setLoading(true);
+  const reload = (silent = false) => {
+    if (!silent) setLoading(true);
     api("/api/drafts")
       .then((data) => { setDrafts(data); setLoading(false); })
-      .catch((err) => { setError(err.message); setLoading(false); });
+      .catch((err) => { if (!silent) setError(err.message); setLoading(false); });
   };
   useEffect(reload, []);
+  // Keep the list live: revalidate on focus, tab-visible, and a gentle poll.
+  useAutoRefresh(() => reload(true));
 
   const subjectOptions = useMemo(() => {
     const set = new Set([...MAJORS, ...drafts.map((d) => d.subject).filter(Boolean)]);
