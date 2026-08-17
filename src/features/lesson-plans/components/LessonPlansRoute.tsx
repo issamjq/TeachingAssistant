@@ -2,42 +2,43 @@
 
 import { useEffect } from "react";
 import { navigate, replace } from "@/lib/route";
+import ReusableDrafts from "@/views/ReusableDrafts";
 import TemplatesLibrary from "@/views/TemplatesLibrary";
 import NewTemplate from "@/views/NewTemplate";
 import EditDraft from "@/views/EditDraft";
 import { cloneTemplateToDraft, type Template } from "../api";
 
 // Sub-route dispatcher for /lesson-plans:
-//   /lesson-plans/templates      → library (also the default)
-//   /lesson-plans/newTemplate    → template editor
+//   /lesson-plans                → the teacher's own saved lessons (default)
 //   /lesson-plans/new            → draft editor, empty
-//   /lesson-plans/edit/:id       → draft editor for that draft
+//   /lesson-plans/edit/:id       → draft editor for that lesson
+//   /lesson-plans/templates      → the in-section starter-template library
+//   /lesson-plans/newTemplate    → template editor
 //
-// Anything else redirects to the templates library — this includes the old
-// "drafts" tab, which was removed but may still be bookmarked.
+// The default landed on the template library before, which is why a
+// just-saved or just-imported lesson seemed to vanish — the list that
+// holds it was never wired in. The teacher's lessons are the default now;
+// the broader curated shelf lives in the Template library section.
 
+const goList = () => navigate(["lesson-plans"]);
 const goTemplates = () => navigate(["lesson-plans", "templates"]);
 
 export default function LessonPlansRoute({ slug = [] }: { slug?: string[] }) {
   const [sub, id] = slug;
-  const view = sub || "templates";
+  const view = sub || "list";
   const isKnownView =
+    view === "list" ||
     view === "templates" ||
     view === "newTemplate" ||
     view === "new" ||
     view === "edit";
 
-  // Redirect from an effect, not during render — navigating while rendering
-  // is a React no-no and App.jsx's version ran on every render pass.
+  // Redirect from an effect, not during render.
   useEffect(() => {
-    if (!isKnownView) replace(["lesson-plans", "templates"]);
+    if (!isKnownView) replace(["lesson-plans"]);
   }, [isKnownView]);
 
   if (!isKnownView) return null;
-
-  if (view === "newTemplate") {
-    return <NewTemplate onCancel={goTemplates} onSave={goTemplates} />;
-  }
 
   if (view === "new" || view === "edit") {
     return (
@@ -50,23 +51,39 @@ export default function LessonPlansRoute({ slug = [] }: { slug?: string[] }) {
         // Number() coercion turned every id into NaN — breaking both this
         // editor and the "Use template" clone that navigates straight here.
         draft={view === "edit" && id ? { id } : null}
-        onClose={goTemplates}
-        onMarkReady={goTemplates}
+        // Close and Mark-ready both return to the lessons list, so the
+        // teacher lands where their saved lesson actually shows.
+        onClose={goList}
+        onMarkReady={goList}
       />
     );
   }
 
+  if (view === "newTemplate") {
+    return <NewTemplate onCancel={goTemplates} onSave={goTemplates} />;
+  }
+
+  if (view === "templates") {
+    return (
+      <TemplatesLibrary
+        onNewTemplate={() => navigate(["lesson-plans", "newTemplate"])}
+        onUseTemplate={async (t: Template) => {
+          try {
+            const draft = await cloneTemplateToDraft(t);
+            navigate(["lesson-plans", "edit", draft.id]);
+          } catch (e) {
+            alert(`Could not clone template: ${(e as Error).message}`);
+          }
+        }}
+      />
+    );
+  }
+
+  // Default: the teacher's saved lessons.
   return (
-    <TemplatesLibrary
-      onNewTemplate={() => navigate(["lesson-plans", "newTemplate"])}
-      onUseTemplate={async (t: Template) => {
-        try {
-          const draft = await cloneTemplateToDraft(t);
-          navigate(["lesson-plans", "edit", draft.id]);
-        } catch (e) {
-          alert(`Could not clone template: ${(e as Error).message}`);
-        }
-      }}
+    <ReusableDrafts
+      onEditDraft={(d: { id: string | number }) => navigate(["lesson-plans", "edit", d.id])}
+      onNewLesson={() => navigate(["lesson-plans", "new"])}
     />
   );
 }

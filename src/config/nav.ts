@@ -152,7 +152,8 @@ export const SECTIONS_BY_ROLE: Record<Role, Set<string>> = {
 
 /** Where a nav key should navigate — some sections have a default sub-tab. */
 export function navTargetFor(key: string): string[] {
-  if (key === "lesson-plans") return ["lesson-plans", "templates"];
+  // Lessons lands on the teacher's own saved lessons now — the in-section
+  // template list was superseded by the Template library section.
   if (key === "database") return ["database", "students"];
   return [key];
 }
