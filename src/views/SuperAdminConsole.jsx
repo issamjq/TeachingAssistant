@@ -11,7 +11,7 @@
 // /api/admin/*; super_admin is the only one with full grant scope below.
 
 import React, { useEffect, useMemo, useState } from "react";
-import { Plus, Pause, Play, Trash2, Pencil, Flag, Activity, Coins } from "lucide-react";
+import { Plus, Pause, Play, Trash2, Pencil, Flag, Activity } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -315,11 +315,6 @@ export default function SuperAdminConsole() {
         <AuditTrailCard />
       </div>
 
-      {/* AI credit costs — what each generation charges a teacher. */}
-      <div className="mt-4">
-        <CreditCostsCard />
-      </div>
-
       {editing && (
         <AccountModal
           row={editing === "new" ? null : editing}
@@ -454,68 +449,6 @@ function AuditTrailCard() {
             </li>
           ))}
         </ul>
-      </CardContent>
-    </Card>
-  );
-}
-
-// AI credit costs — what each generation charges. Server-authoritative
-// (the browser can't understate a cost), edited here through the guarded
-// sa_set_credit_cost RPC.
-function CreditCostsCard() {
-  const [costs, setCosts] = useState(null);
-  const [error, setError] = useState(null);
-  const [busy, setBusy] = useState(null);
-
-  const reload = () =>
-    api("/api/superadmin/credit-costs").then(setCosts).catch((e) => setError(e.message));
-  useEffect(() => { reload(); }, []);
-
-  const save = async (feature, cost) => {
-    setBusy(feature);
-    try {
-      await api(`/api/superadmin/credit-costs/${feature}`, { method: "PATCH", body: { cost: Number(cost) } });
-      setCosts((rows) => rows.map((r) => (r.feature === feature ? { ...r, cost: Number(cost) } : r)));
-    } catch (e) {
-      alert(`Could not save: ${e.message}`);
-    } finally {
-      setBusy(null);
-    }
-  };
-
-  return (
-    <Card>
-      <CardContent>
-        <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-4 inline-flex items-center gap-2.5">
-          <span className="w-6 h-px bg-accent" /> <Coins size={12} /> AI credit costs
-        </p>
-        <p className="text-xs text-muted mb-4">
-          Credits charged per AI generation. Applies to every teacher; changes take effect immediately.
-        </p>
-        {error && <p className="text-sm text-accent mb-3">{error}</p>}
-        {!costs && !error && (
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-            {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-14 w-full rounded-lg" />)}
-          </div>
-        )}
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-          {(costs || []).map((c) => (
-            <div key={c.feature} className="bg-paper-warm rounded-lg p-3">
-              <p className="font-mono text-[9px] uppercase tracking-wider text-muted truncate">{c.label || c.feature}</p>
-              <div className="flex items-center gap-1.5 mt-1.5">
-                <input
-                  type="number"
-                  min="0"
-                  defaultValue={c.cost}
-                  disabled={busy === c.feature}
-                  onBlur={(e) => { if (Number(e.target.value) !== c.cost) save(c.feature, e.target.value); }}
-                  className="w-16 px-2 py-1 rounded-md border border-line bg-paper text-ink text-sm outline-none focus:border-ink"
-                />
-                <span className="font-mono text-[9px] uppercase tracking-wider text-muted">credits</span>
-              </div>
-            </div>
-          ))}
-        </div>
       </CardContent>
     </Card>
   );

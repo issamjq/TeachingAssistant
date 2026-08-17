@@ -38,6 +38,7 @@ import {
   BarChart3,
   KeyRound,
   GraduationCap,
+  Coins,
   type LucideIcon,
 } from "lucide-react";
 import { getRole, onRoleChange, ROLE_LABELS } from "@/lib/role";
@@ -96,6 +97,7 @@ const NAV_ICON: Record<string, LucideIcon> = {
   skills: GraduationCap,
   reports: BarChart3,
   keys: KeyRound,
+  coins: Coins,
 };
 
 function NavBadge({ letter, icon }: { letter?: string; icon?: string }) {
