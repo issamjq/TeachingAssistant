@@ -102,7 +102,9 @@ function mapRecord(raw) {
       const iso = toISODate(value);
       if (iso) out.date_of_birth = iso;
     } else {
-      out[field] = value;
+      // Excel hands back numbers/dates/booleans, not just strings; the DB
+      // columns are text, so coerce everything to a string.
+      out[field] = typeof value === "string" ? value : String(value);
     }
   }
   return out;
@@ -178,10 +180,14 @@ export async function parseRosterFile(file) {
 
   if (isExcel) {
     format = "excel";
-    const XLSX = await import("xlsx"); // lazy — the parser is only pulled on demand
-    const wb = XLSX.read(await file.arrayBuffer(), { type: "array", cellDates: false });
-    const sheet = wb.Sheets[wb.SheetNames[0]];
-    records = XLSX.utils.sheet_to_json(sheet, { defval: "", raw: false });
+    // read-excel-file: a small, maintained, browser-safe .xlsx reader with
+    // no known advisories (SheetJS's npm build is frozen on a vulnerable
+    // version). Lazy — the reader is only pulled when an Excel file is picked.
+    // It returns the first sheet as an array of rows (arrays of cells), which
+    // gridToRecords already understands.
+    const readXlsxFile = (await import("read-excel-file")).default;
+    const grid = await readXlsxFile(file);
+    records = gridToRecords((grid || []).map((row) => (row || []).map((c) => (c == null ? "" : c))));
   } else if (isPdf) {
     format = "pdf";
     const { extractPdfText } = await import("@/features/onboarding/extractText");

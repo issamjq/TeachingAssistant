@@ -37,6 +37,25 @@ const ageYears = (dob) => {
 
 const fullName = (s) => `${s.first_name} ${s.last_name}`;
 
+// Turn whatever the data layer threw into a sentence a teacher can act on.
+// Raw Postgres/PostgREST messages ("new row violates row-level security…")
+// mean nothing to them; these do. A 400 is one of our own validation
+// messages, which are already written for a person, so it is shown as-is.
+function friendlyError(e, fallback) {
+  const status = e?.status;
+  const code = e?.code;
+  if (status === 402 || code === "subscription_expired")
+    return "Your Murchid plan has lapsed, so changes can’t be saved right now. Renew to continue.";
+  if (status === 403 || code === "42501")
+    return "You don’t have permission to do that.";
+  if (status === 401 || code === "session_superseded")
+    return "You’ve been signed out — please sign in again.";
+  if (code === "no_backend")
+    return "That part of Murchid isn’t connected yet.";
+  if (status === 400 && e?.message) return e.message;
+  return fallback;
+}
+
 export default function DatabaseStudents() {
   const [students, setStudents] = useState([]);
   const [mySchools, setMySchools] = useState([]);
@@ -155,7 +174,7 @@ export default function DatabaseStudents() {
       const updated = await api(`/api/students/${s.id}/invite`, { method: "POST" });
       setStudents((rows) => rows.map((r) => (r.id === s.id ? updated : r)));
     } catch (e) {
-      alert(`Could not invite: ${e.message}`);
+      alert(friendlyError(e, "Couldn’t invite this student right now. Please try again."));
     }
   };
 
@@ -436,9 +455,9 @@ function ImportStudentsModal({ onClose, onImported }) {
       const { rows: parsed, note: n } = await parseRosterFile(file);
       setRows(parsed);
       if (n) setNote(n);
-      if (!parsed.length) setErr("No student rows found. Check the file has a header row and try the sample format.");
-    } catch (e) {
-      setErr(`Could not read the file: ${e.message}`);
+      if (!parsed.length) setErr("No students found in that file. Make sure the first row is a header (like the sample) and each student is on its own line.");
+    } catch {
+      setErr("We couldn’t read that file. Please use a CSV or Excel file laid out like the sample — you can download it above.");
     } finally {
       setParsing(false);
     }
@@ -451,7 +470,7 @@ function ImportStudentsModal({ onClose, onImported }) {
       const res = await api("/api/students/bulk", { method: "POST", body: { students: rows } });
       onImported(res.students || []);
     } catch (e) {
-      setErr(e.message);
+      setErr(friendlyError(e, "Some students couldn’t be saved. Check the file matches the sample format, then try again."));
       setSaving(false);
     }
   };
