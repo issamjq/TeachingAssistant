@@ -80,6 +80,8 @@ const SUPERADMIN_NAV: NavSection[] = [
     items: [
       { key: "superadmin-dashboard", label: "Dashboard", icon: "dashboard" },
       { key: "superadmin-console", label: "Account access", icon: "keys" },
+      { key: "superadmin-students", label: "Students", icon: "students" },
+      { key: "superadmin-orgs", label: "Organisations", icon: "orgs" },
       { key: "superadmin-costs", label: "Credit costs", icon: "coins" },
     ],
   },
@@ -146,7 +148,7 @@ export const SECTIONS_BY_ROLE: Record<Role, Set<string>> = {
   ]),
   admin: new Set(["admin-dashboard", "admin-console", "account"]),
   dev: new Set(["dev-console", "account"]),
-  super_admin: new Set(["superadmin-dashboard", "superadmin-console", "superadmin-costs", "account"]),
+  super_admin: new Set(["superadmin-dashboard", "superadmin-console", "superadmin-students", "superadmin-orgs", "superadmin-costs", "account"]),
   moe: new Set(["moe-console", "account"]),
   owner: new Set(["owner-console", "account"]),
 };

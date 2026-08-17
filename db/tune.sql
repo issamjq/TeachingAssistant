@@ -2309,3 +2309,180 @@ GRANT EXECUTE ON FUNCTION public.consume_credits(text, uuid)       TO authentica
 GRANT EXECUTE ON FUNCTION public.credits_status()                  TO authenticated;
 GRANT EXECUTE ON FUNCTION public.sa_credit_costs()                 TO authenticated;
 GRANT EXECUTE ON FUNCTION public.sa_set_credit_cost(text, int)     TO authenticated;
+
+
+-- ═══════════════════════════════════════════════════════════════════════
+-- 33. Students & organisations — the two surfaces the super admin lacked
+--
+-- The consoles cover ACCOUNTS (teachers and staff). The people those
+-- teachers teach — students — and the places they teach at —
+-- organisations (schools) — had no cross-tenant view. These RPCs build
+-- both, plus the "what are they doing" activity each surface needs:
+-- students' quiz attempts and submissions, organisations' content output.
+-- All is_super_admin() gated, all read-only.
+-- ═══════════════════════════════════════════════════════════════════════
+
+-- ── students ──────────────────────────────────────────────────────────
+
+CREATE OR REPLACE FUNCTION public.sa_students_overview()
+RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE out jsonb;
+BEGIN
+  PERFORM public.sa_require();
+  SELECT jsonb_build_object(
+    'total',        (SELECT count(*) FROM students),
+    'with_account', (SELECT count(*) FROM students WHERE user_id IS NOT NULL),
+    'roster_only',  (SELECT count(*) FROM students WHERE user_id IS NULL),
+    'active_7d',    (SELECT count(DISTINCT student_id) FROM quiz_attempts
+                       WHERE submitted_at > now() - INTERVAL '7 days'),
+    'submissions_total', (SELECT count(*) FROM quiz_attempts WHERE submitted_at IS NOT NULL),
+    'avg_pct', (SELECT round(avg(score / NULLIF(max_score, 0) * 100)::numeric, 0)
+                  FROM quiz_attempts WHERE score IS NOT NULL AND max_score > 0),
+    'by_grade', (SELECT COALESCE(jsonb_object_agg(g, n), '{}'::jsonb) FROM (
+                   SELECT COALESCE(NULLIF(grade, ''), 'Ungraded') AS g, count(*) n
+                     FROM students GROUP BY 1 ORDER BY 2 DESC LIMIT 12) x),
+    'by_school', (SELECT COALESCE(jsonb_object_agg(name, n), '{}'::jsonb) FROM (
+                    SELECT COALESCE(sc.name, 'Unassigned') AS name, count(*) n
+                      FROM students st LEFT JOIN schools sc ON sc.id = st.school_id
+                     GROUP BY 1 ORDER BY 2 DESC LIMIT 6) y),
+    'submissions', (SELECT COALESCE(jsonb_agg(jsonb_build_object('day', to_char(d,'YYYY-MM-DD'),'n',c) ORDER BY d), '[]'::jsonb)
+                      FROM (SELECT gs::date d,
+                                   (SELECT count(*) FROM quiz_attempts q WHERE q.submitted_at::date = gs::date) c
+                              FROM generate_series(current_date - 13, current_date, INTERVAL '1 day') gs) s)
+  ) INTO out;
+  RETURN out;
+END $$;
+
+CREATE OR REPLACE FUNCTION public.sa_students(p_limit int DEFAULT 100, p_search text DEFAULT NULL)
+RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE out jsonb; n int := LEAST(GREATEST(COALESCE(p_limit,100),1), 500); q text := NULLIF(TRIM(COALESCE(p_search,'')), '');
+BEGIN
+  PERFORM public.sa_require();
+  SELECT COALESCE(jsonb_agg(row_to_json(t)), '[]'::jsonb) INTO out FROM (
+    SELECT st.id, st.first_name, st.last_name, st.grade, st.division AS section,
+           sc.name AS school, sc.emirate,
+           st.user_id IS NOT NULL AS has_account,
+           (SELECT count(*) FROM quiz_attempts qa WHERE qa.student_id = st.id) AS attempts,
+           (SELECT round(avg(qa.score / NULLIF(qa.max_score,0) * 100)::numeric, 0)
+              FROM quiz_attempts qa WHERE qa.student_id = st.id AND qa.score IS NOT NULL) AS avg_pct,
+           (SELECT max(qa.submitted_at) FROM quiz_attempts qa WHERE qa.student_id = st.id) AS last_activity
+      FROM students st LEFT JOIN schools sc ON sc.id = st.school_id
+     WHERE q IS NULL
+        OR st.first_name ILIKE '%'||q||'%' OR st.last_name ILIKE '%'||q||'%'
+        OR sc.name ILIKE '%'||q||'%'
+     ORDER BY last_activity DESC NULLS LAST, st.created_at DESC
+     LIMIT n
+  ) t;
+  RETURN out;
+END $$;
+
+-- What students are doing: recent graded/submitted attempts, with the
+-- work they were sitting and how they scored.
+CREATE OR REPLACE FUNCTION public.sa_student_activity(p_limit int DEFAULT 20)
+RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE out jsonb; n int := LEAST(GREATEST(COALESCE(p_limit,20),1), 100);
+BEGIN
+  PERFORM public.sa_require();
+  SELECT COALESCE(jsonb_agg(row_to_json(t)), '[]'::jsonb) INTO out FROM (
+    SELECT qa.id, qa.status, qa.submitted_at, qa.score, qa.max_score,
+           st.first_name, st.last_name, st.grade,
+           COALESCE(a.content->>'title', a.content->>'name', 'work') AS work_title,
+           a.type AS work_type
+      FROM quiz_attempts qa
+      JOIN students st ON st.id = qa.student_id
+      LEFT JOIN assignments asg ON asg.id = qa.assignment_id
+      LEFT JOIN ai_studio a ON a.id = asg.generation_id
+     WHERE qa.submitted_at IS NOT NULL
+     ORDER BY qa.submitted_at DESC
+     LIMIT n
+  ) t;
+  RETURN out;
+END $$;
+
+-- ── organisations (schools) ───────────────────────────────────────────
+
+CREATE OR REPLACE FUNCTION public.sa_orgs_overview()
+RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE out jsonb;
+BEGIN
+  PERFORM public.sa_require();
+  SELECT jsonb_build_object(
+    -- An "organisation" that matters is one with at least one teacher or
+    -- student on the platform, not every row in the catalog.
+    'active_orgs', (SELECT count(*) FROM schools s
+                     WHERE EXISTS (SELECT 1 FROM faculty f WHERE f.school_id = s.id)
+                        OR EXISTS (SELECT 1 FROM students st WHERE st.school_id = s.id)),
+    'catalog',      (SELECT count(*) FROM schools),
+    'teachers',     (SELECT count(*) FROM faculty WHERE school_id IS NOT NULL),
+    'students',     (SELECT count(*) FROM students WHERE school_id IS NOT NULL),
+    'unaffiliated_teachers', (SELECT count(*) FROM faculty WHERE school_id IS NULL),
+    'by_emirate', (SELECT COALESCE(jsonb_object_agg(em, n), '{}'::jsonb) FROM (
+                     SELECT COALESCE(NULLIF(s.emirate,''), 'Other') AS em, count(*) n
+                       FROM schools s
+                      WHERE EXISTS (SELECT 1 FROM faculty f WHERE f.school_id = s.id)
+                         OR EXISTS (SELECT 1 FROM students st WHERE st.school_id = s.id)
+                      GROUP BY 1 ORDER BY 2 DESC LIMIT 8) x)
+  ) INTO out;
+  RETURN out;
+END $$;
+
+CREATE OR REPLACE FUNCTION public.sa_orgs(p_limit int DEFAULT 100)
+RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE out jsonb; n int := LEAST(GREATEST(COALESCE(p_limit,100),1), 500);
+BEGIN
+  PERFORM public.sa_require();
+  SELECT COALESCE(jsonb_agg(row_to_json(t)), '[]'::jsonb) INTO out FROM (
+    SELECT s.id, s.name, s.emirate, s.curriculum,
+           (SELECT count(*) FROM faculty f WHERE f.school_id = s.id) AS teachers,
+           (SELECT count(*) FROM students st WHERE st.school_id = s.id) AS students,
+           (SELECT count(*) FROM ai_studio a JOIN faculty f2 ON f2.id = a.faculty_id
+             WHERE f2.school_id = s.id AND a.deleted_at IS NULL) AS content
+      FROM schools s
+     WHERE EXISTS (SELECT 1 FROM faculty f WHERE f.school_id = s.id)
+        OR EXISTS (SELECT 1 FROM students st WHERE st.school_id = s.id)
+     ORDER BY teachers DESC, students DESC
+     LIMIT n
+  ) t;
+  RETURN out;
+END $$;
+
+-- What organisations are doing: the most recent work their teachers made.
+CREATE OR REPLACE FUNCTION public.sa_org_activity(p_limit int DEFAULT 20)
+RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE out jsonb; n int := LEAST(GREATEST(COALESCE(p_limit,20),1), 100);
+BEGIN
+  PERFORM public.sa_require();
+  SELECT COALESCE(jsonb_agg(row_to_json(t)), '[]'::jsonb) INTO out FROM (
+    SELECT a.id, a.type, a.created_at,
+           COALESCE(a.content->>'title', a.content->>'name', 'Untitled') AS title,
+           u.first_name, u.last_name,
+           COALESCE(sc.name, f.organization, 'Independent') AS org
+      FROM ai_studio a
+      JOIN faculty f ON f.id = a.faculty_id
+      LEFT JOIN users u ON u.id = f.user_id
+      LEFT JOIN schools sc ON sc.id = f.school_id
+     WHERE a.deleted_at IS NULL
+     ORDER BY a.created_at DESC
+     LIMIT n
+  ) t;
+  RETURN out;
+END $$;
+
+GRANT EXECUTE ON FUNCTION public.sa_students_overview()        TO authenticated;
+GRANT EXECUTE ON FUNCTION public.sa_students(int, text)        TO authenticated;
+GRANT EXECUTE ON FUNCTION public.sa_student_activity(int)      TO authenticated;
+GRANT EXECUTE ON FUNCTION public.sa_orgs_overview()            TO authenticated;
+GRANT EXECUTE ON FUNCTION public.sa_orgs(int)                  TO authenticated;
+GRANT EXECUTE ON FUNCTION public.sa_org_activity(int)          TO authenticated;

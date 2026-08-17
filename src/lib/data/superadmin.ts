@@ -91,6 +91,20 @@ export async function resolveSuperadmin(
       return yes(await rpc("sa_set_credit_cost", { p_feature: b, p_cost: Number(body?.cost) || 0 }));
   }
 
+  // Students — the people teachers teach, and what they're doing.
+  if (a === "students-overview" && method === "GET") return yes(await rpc("sa_students_overview"));
+  if (a === "students" && method === "GET")
+    return yes(await rpc("sa_students", { p_limit: int(q.get("limit"), 100), p_search: q.get("search") }));
+  if (a === "student-activity" && method === "GET")
+    return yes(await rpc("sa_student_activity", { p_limit: int(q.get("limit"), 20) }));
+
+  // Organisations (schools) — where teaching happens, and their output.
+  if (a === "orgs-overview" && method === "GET") return yes(await rpc("sa_orgs_overview"));
+  if (a === "orgs" && method === "GET")
+    return yes(await rpc("sa_orgs", { p_limit: int(q.get("limit"), 100) }));
+  if (a === "org-activity" && method === "GET")
+    return yes(await rpc("sa_org_activity", { p_limit: int(q.get("limit"), 20) }));
+
   if (a === "account" && b) {
     if (!c && method === "GET") return yes(await rpc("sa_account", { p_faculty: b }));
     if (c === "content" && method === "GET")
