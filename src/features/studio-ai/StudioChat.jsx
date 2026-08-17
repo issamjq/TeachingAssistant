@@ -34,10 +34,17 @@ import { api } from "@/views/_shared";
 import { supabase } from "@/lib/supabaseClient";
 import { facultyId } from "@/lib/data/session";
 import { parseSections, renderMarkdown } from "@/lib/markdown";
+import { MAJORS } from "@/lib/enums";
 import {
   ArtifactCard, QuizViewer, SlideViewer, SlideFullscreen, DocViewer, KIND_META,
+  slidesFromMarkdown,
 } from "./artifacts";
 import { RewritableBody } from "./RewritableBody";
+import { FinaliseAndSchedule } from "./FinaliseAndSchedule";
+import { missingFrom, askFor, declined } from "./missingDetails";
+import {
+  isRework, isScheduleOnly, targetedKinds, asksToReschedule, namesNewWork, kindNamedIn,
+} from "./revision";
 import { SkillsPicker } from "./SkillsPicker";
 import {
   listSessions, createSession, appendMessage, loadSession, deleteSession, purgeOld, KEEP_DAYS,
@@ -79,20 +86,250 @@ const safeName = (name) =>
  * renders as nothing at all unless it is flattened first — which is
  * exactly how every generated deck once fell through to plain markdown.
  */
+/**
+ * One question, whatever the model decided to call its fields.
+ *
+ * The schema asks for `prompt`, `choices` and `correct_answer`; answers have
+ * come back as `question`, `question_text`, `options` and `answer` — the same
+ * paper described in four vocabularies, none of which the viewer or the quiz
+ * builder read. A quiz then rendered as a column of question numbers with no
+ * questions in it, and saved to the library in that state.
+ *
+ * A list of aliases is never finished, so it is applied in ONE place, on the
+ * way in, and everything downstream — the chat viewer, the builder, the row
+ * in the database — sees a single shape.
+ */
+function normaliseQuestion(q, i) {
+  if (!q || typeof q !== "object") return null;
+  const str = (v) => (typeof v === "string" ? v.trim() : "");
+
+  const prompt =
+    str(q.prompt) || str(q.question) || str(q.question_text) || str(q.text) || str(q.stem);
+  if (!prompt) return null;
+
+  const choices = [q.choices, q.options, q.answers, q.alternatives].find(Array.isArray);
+  const answer = str(q.correct_answer) || str(q.answer) || str(q.correct) || str(q.correct_option);
+
+  return {
+    ...q,
+    position: typeof q.position === "number" ? q.position : i + 1,
+    prompt,
+    ...(choices ? { choices } : {}),
+    ...(answer ? { correct_answer: answer } : {}),
+  };
+}
+
 function normaliseArtifact(raw) {
   if (!raw || typeof raw !== "object") return null;
   if (Array.isArray(raw)) return { slides: raw };
-  if (raw.quiz) return raw.quiz;
+  if (raw.quiz) return normaliseArtifact(raw.quiz);
   if (raw.content && typeof raw.content === "object") return normaliseArtifact(raw.content);
-  if (raw.slides || raw.questions) return raw;
+  if (Array.isArray(raw.questions)) {
+    const questions = raw.questions.map(normaliseQuestion).filter(Boolean);
+    // No readable question is not a quiz. Dropping the structured form lets
+    // the markdown — which is complete — be what she reads and what is saved.
+    return questions.length ? { ...raw, questions } : null;
+  }
+  if (raw.slides) return raw;
   return null;
 }
 
+/**
+ * What can take a slot on the timetable, and what to call it.
+ *
+ * A teaching guide and student notes belong to a lesson and are reached
+ * through it, so they never take a slot of their own — but a batch that
+ * contains them is still a lesson, and the lesson is what gets finalised.
+ */
+const SCHEDULABLE_KINDS = ["lesson_plan", "quiz", "homework", "presentation", "activity"];
+
+/**
+ * The order a lesson's documents are read in.
+ *
+ * A partial edit regenerates one of them, so the parts arrive out of order and
+ * the merged library copy came back with the notes above the plan. This is the
+ * same order the generator emits them in.
+ */
+const DOC_ORDER = ["lesson_plan", "teaching_guide", "student_notes"];
+/**
+ * What the section holding each kind is called.
+ *
+ * Adding an "s" to the noun is how "quiz" became "Quizs" in a confirmation
+ * line and "Open quizs" on a button. English plurals are not a rule you can
+ * derive from three examples, and these are the only five that exist.
+ */
+const SECTION_FOR_KIND = {
+  lesson_plan: "Lessons",
+  quiz: "Quizzes",
+  homework: "Homework",
+  presentation: "Presentations",
+  activity: "Activities",
+};
+
+const NOUN_FOR_KIND = {
+  lesson_plan: "lesson",
+  quiz: "quiz",
+  homework: "homework",
+  presentation: "presentation",
+  activity: "activity",
+};
+
+/**
+ * The facts a generated document states about itself.
+ *
+ * Every kind opens with a title and then one line of values separated by
+ * "·" — "Butterfly · Grade 4 · 45 minutes · Unit 3". The library cards read
+ * subject, grade and duration off the stored row, and nothing ever wrote
+ * them, so a saved lesson arrived in its section as a title above a row of
+ * dashes and she could not tell one from another.
+ *
+ * Read here rather than asked of a model: the line is already written, and
+ * parsing it is exact and free. The subject is only taken when the segment
+ * is a subject we know — a lesson plan often leads with its topic
+ * ("Butterfly"), and recording that as the subject would be worse than
+ * leaving it blank for the scheduler to fill in properly.
+ */
+function statedFacts(text) {
+  const line = (text || "")
+    .split(/\r?\n/)
+    .slice(0, 8)
+    .find((l) => l.includes("·") && !/^#/.test(l));
+  if (!line) return {};
+
+  const parts = line.replace(/\*\*/g, "").split("·").map((p) => p.trim()).filter(Boolean);
+  const out = {};
+
+  for (const part of parts) {
+    const grade = part.match(/^grade\s+(.+)$/i);
+    if (grade) { out.grade = grade[1].trim(); continue; }
+    const mins = part.match(/^(\d{1,3})\s*min/i);
+    if (mins) { out.duration_minutes = Number(mins[1]); out.duration = Number(mins[1]); continue; }
+    if (!out.subject && KNOWN_SUBJECTS.has(part.toLowerCase())) out.subject = part;
+  }
+  return out;
+}
+
+const KNOWN_SUBJECTS = new Set(MAJORS.map((m) => m.toLowerCase()));
+
+/**
+ * Should this turn carry the finalise offer, and over which documents?
+ *
+ * Returns null unless `turn` is the LAST finished assistant turn of its
+ * batch AND that batch contains something schedulable. A batch is whatever
+ * one request produced: three documents for a lesson, one for a quiz, and
+ * whatever a rework happened to regenerate.
+ *
+ * Turns restored from history have no batch id, so they fall back to standing
+ * alone — an old thread still offers to finalise the document she is looking
+ * at rather than silently offering nothing.
+ */
+function batchOffer(turns, turn, index) {
+  // History is a record, not an open decision. Anything reopened from a past
+  // conversation is read-only as far as saving goes.
+  if (turn.restored) return null;
+  const inBatch = turn.batchId
+    ? turns.filter((x) => x.role === "assistant" && x.batchId === turn.batchId)
+    : [turn];
+
+  /**
+   * Not until the whole batch has landed.
+   *
+   * A lesson streams as three documents one after another. Offering as soon
+   * as the FIRST one finished put the button under the lesson plan while the
+   * guide and the notes were still arriving — it then jumped down the thread
+   * as each one completed, and pressing it early would have kept a third of
+   * a lesson.
+   */
+  if (inBatch.some((x) => !x.done)) return null;
+
+  // Under the last document of the batch, which is where she finishes reading.
+  if (turns.indexOf(inBatch[inBatch.length - 1]) !== index) return null;
+
+  /**
+   * Only the newest generation is on offer.
+   *
+   * Reworking without saving first left the superseded batch still showing
+   * its own button, so the thread had two "save lesson & schedule" — one for
+   * the version she had just replaced. Whichever she pressed, the other stayed
+   * there inviting her to file the old one beside it.
+   */
+  const newest = [...turns].reverse().find((x) => x.role === "assistant" && x.done && !x.restored);
+  if (newest && turns.indexOf(newest) !== index) return null;
+
+  /**
+   * Nothing is offered while anything is still arriving.
+   *
+   * Without this the previous batch keeps its button through the whole of the
+   * next generation — the one moment it is certainly not what she wants to
+   * keep — and it disappears from under her the instant the new documents
+   * land. Buttons that move while she is reaching for them are worse than
+   * buttons that wait.
+   */
+  if (turns.some((x) => x.streaming)) return null;
+
+  /**
+   * A partial edit is still a lesson.
+   *
+   * Reworking only the student notes produces a batch with nothing schedulable
+   * in it, and the offer disappeared entirely — she was left with a rewritten
+   * document and no way to keep it. The parts that were deliberately left
+   * alone count towards what this batch adds up to.
+   */
+  const carried = inBatch.find((x) => x.carryOver)?.carryOver || [];
+  const present = [...inBatch.map((x) => x.kind), ...carried.map((c) => c.kind)];
+  const primaryKind = SCHEDULABLE_KINDS.find((k) => present.includes(k));
+  if (!primaryKind) return null;
+
+  return {
+    turns: inBatch,
+    primaryKind,
+    label: NOUN_FOR_KIND[primaryKind] || "work",
+    section: SECTION_FOR_KIND[primaryKind] || "your library",
+  };
+}
+
+/** Is this document covered by a batch offer somewhere in the thread? */
+function inBatchOffer(turns, turn) {
+  if (!turn.batchId) return false;
+  // Deliberately not waiting for `done`: a Save that appears on each document
+  // as it streams and then vanishes when the batch finishes is three buttons
+  // she was never meant to press.
+  const inBatch = turns.filter((x) => x.role === "assistant" && x.batchId === turn.batchId);
+  return inBatch.length > 0 && SCHEDULABLE_KINDS.some((k) => inBatch.some((x) => x.kind === k));
+}
+
+/**
+ * A heading as a name, with the markdown taken off.
+ *
+ * Generators emphasise their own titles — "## **Fraction Bazaar**" — and the
+ * stars went into the library as part of the name, so a card was filed under
+ * `**Fraction Bazaar**` and sorted under an asterisk.
+ */
+function cleanTitle(raw) {
+  return String(raw || "")
+    .replace(/\*\*/g, "")
+    .replace(/[*_`]/g, "")
+    .replace(/[\s—–-]+$/, "")
+    .trim();
+}
+
 function titleOf(kind, text, structured) {
-  if (structured?.title) return structured.title;
+  if (structured?.title) return cleanTitle(structured.title);
   const heading = (text || "").split(/\r?\n/).find((l) => /^#{1,3}\s+/.test(l));
-  if (heading) return heading.replace(/^#+\s*/, "").trim();
-  const first = (text || "").trim().split(/\r?\n/)[0];
+  if (heading) {
+    /**
+     * The name, not the whole header line.
+     *
+     * A quiz opens with "Cyber Security · Grade 10 · 15 marks · 45 minutes",
+     * and taking the heading whole put that entire string on the library card
+     * where a title goes — beside a card already showing the grade, the marks
+     * and the duration in its own fields. The part before the first "·" is
+     * what the thing is called; the rest is the metadata the card reads off
+     * the row.
+     */
+    return cleanTitle(heading.replace(/^#+\s*/, "").split("·")[0]);
+  }
+  const first = cleanTitle((text || "").trim().split(/\r?\n/)[0]);
   return first?.slice(0, 80) || KIND_META[kind]?.label || "Untitled";
 }
 
@@ -120,6 +357,37 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
   const [uploading, setUploading] = useState(false);
   const [notice, setNotice] = useState(null);
   const [presenting, setPresenting] = useState(null);
+  /** What she is typing into an unanswered "before I write it" question. */
+  const [askDraft, setAskDraft] = useState({});
+  /**
+   * The last batch she kept in this conversation.
+   *
+   * What makes "make it grade 5" update the lesson she already saved instead
+   * of filing a second, near-identical card beside it.
+   */
+  const [lastKept, setLastKept] = useState(null);
+  /** The last request actually generated in this thread. */
+  const lastPrompt = useRef("");
+  /**
+   * The primary document of the last generation, kept so a rework can be told
+   * what it is reworking.
+   */
+  const lastDoc = useRef(null);
+  /**
+   * Every document of the last complete generation, by kind.
+   *
+   * A lesson is three documents and a teacher usually wants one of them
+   * changed — clearer notes, a stronger guide — not all three rewritten. To
+   * regenerate one and still save a whole lesson, the other two have to be
+   * held somewhere; this is where. Filled while generating and again when a
+   * thread is reopened, so an old conversation supports the same edit.
+   */
+  const lastBatch = useRef(null);
+  /**
+   * The row waiting for a new slot, while the scheduler's question is on
+   * screen. Cleared the moment it is booked or the thread moves on.
+   */
+  const awaitingSlot = useRef(null);
 
   // ── conversation history ───────────────────────────────────────────
   const [sessions, setSessions] = useState([]);
@@ -200,6 +468,76 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
       setTurns(turns_);
       setNotice(null);
       setDrawerOpen(false);
+
+      /**
+       * Reconnect the thread to the card it already produced.
+       *
+       * A teacher opens yesterday's conversation and asks for a change. The
+       * component's memory of what it saved died with the page, so the rework
+       * would have been filed as a brand-new lesson beside the one she is
+       * looking at. The batch id survives on both sides, so the link is
+       * simply looked up again.
+       */
+      /**
+       * The document a later rework will be reworking.
+       *
+       * Only ever set while generating, so a reopened thread had none — and a
+       * rework then went to the model carrying nothing but "add a hands-on
+       * activity". With no topic in the request it invented one, and a
+       * conversation about the solar system came back as cellular
+       * respiration. Restored from the transcript for the same reason it is
+       * kept live.
+       */
+      const lastPrimary = [...turns_]
+        .reverse()
+        .find((t) => t.role === "assistant" && SCHEDULABLE_KINDS.includes(t.kind));
+      lastDoc.current = lastPrimary
+        ? { title: titleOf(lastPrimary.kind, lastPrimary.text, lastPrimary.structured), text: lastPrimary.text }
+        : null;
+
+      lastPrompt.current = [...turns_].reverse().find((t) => t.role === "user")?.text || "";
+
+      /**
+       * The newest version of each document in the thread.
+       *
+       * Walked newest-first so a part she already reworked wins over the
+       * original it replaced — otherwise reworking the notes twice would save
+       * the second set of notes beside the FIRST guide and plan.
+       */
+      lastBatch.current = null;
+      // A reopened thread is not mid-question.
+      awaitingSlot.current = null;
+      for (const t of [...turns_].reverse()) {
+        if (t.role !== "assistant" || !t.kind || !t.text) continue;
+        lastBatch.current = lastBatch.current || {};
+        if (!lastBatch.current[t.kind]) {
+          lastBatch.current[t.kind] = { kind: t.kind, text: t.text, structured: t.structured ?? null };
+        }
+      }
+
+      /**
+       * Try every batch in the thread, newest first.
+       *
+       * Only one of them owns the library card: a rework moves the rows onto
+       * its own batch, and an abandoned generation leaves a batch behind that
+       * was never kept. Asking only about the newest found nothing whenever
+       * the last thing she did was regenerate without saving — and the thread
+       * then behaved as if it had never produced a lesson at all.
+       */
+      const batches = [
+        ...new Set([...turns_].reverse().map((t) => t.batchId).filter(Boolean)),
+      ];
+      setLastKept(null);
+      (async () => {
+        for (const b of batches) {
+          try {
+            const found = await api(`/api/drafts/saved-for-batch/${b}`);
+            if (found) return setLastKept(found);
+          } catch {
+            /* try the next one */
+          }
+        }
+      })();
     } catch (e) {
       setNotice(`Couldn't open that conversation: ${e.message}`);
     } finally {
@@ -216,6 +554,11 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
     setAttachments([]);
     setNotice(null);
     setDrawerOpen(false);
+    lastBatch.current = null;
+    lastDoc.current = null;
+    lastPrompt.current = "";
+    awaitingSlot.current = null;
+    setLastKept(null);
   };
 
   const removeSession = async (id, e) => {
@@ -292,12 +635,295 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
     }
   };
 
-  const send = useCallback(async (text, useKind) => {
+  /**
+   * The library row for a document, found by what it is called.
+   *
+   * A fallback for the batch link, not a replacement: titles are not unique
+   * and the newest match is the best guess available. Only ever used to MOVE
+   * a lesson, where the worst case is the wrong row changing time — recoverable
+   * in one sentence — against regenerating three documents, which is not.
+   */
+  const keptIdByTitle = async (title) => {
+    const wanted = String(title || "").trim().toLowerCase();
+    if (!wanted) return null;
+    try {
+      const rows = await api("/api/drafts");
+      const list = Array.isArray(rows) ? rows : rows?.items || [];
+      const hit = list.find(
+        (r) => String(r.name || r.title || "").trim().toLowerCase() === wanted,
+      );
+      return hit?.id || null;
+    } catch {
+      return null;
+    }
+  };
+
+  const send = useCallback(async (text, useKind, opts = {}) => {
     const prompt = (text ?? draft).trim();
     if (!prompt || busy) return;
-    // A caller-supplied kind (starters, "ask for a change") targets one
-    // format; otherwise the composer's whole selection goes as a batch.
-    const ks = useKind ? [useKind] : kinds;
+
+    /**
+     * Ask before writing, not after.
+     *
+     * A prompt like "a lesson on volcanoes" names a topic and nothing else,
+     * and the generator fills the rest in silently — it produced "Science ·
+     * Grade 9 · 45 minutes" for exactly that. The grade decides the reading
+     * level and the difficulty of every question, so a wrong guess means
+     * regenerating the whole lesson. One short question here costs her a
+     * sentence and saves that.
+     *
+     * `opts.skipAsk` is set when this call IS the answer coming back.
+     */
+    /**
+     * Only ask on a genuinely new request.
+     *
+     * A rework — "make it simpler for grade 3" — is answered by the
+     * conversation it sits in: the subject and the length were settled when
+     * the first version was written. Asking again reads as the studio having
+     * forgotten what she just told it, which is exactly the nagging this
+     * question was added to avoid.
+     */
+    /**
+     * Moving a lesson is not rewriting it.
+     *
+     * "Move it to Thursday at 2pm" asks for a different slot and nothing
+     * else. Running it through the generator rewrote three documents she had
+     * already approved — a wait, a chunk of the day's quota, and new wording
+     * nobody asked for. The timetable row is the only thing that changes, so
+     * it is the only thing touched.
+     */
+    /**
+     * She is answering "when should it run?" — so this is a slot, not a brief.
+     *
+     * Set when the scheduler asked for a new time and nothing else. Without it
+     * "thursday 8 to 9" is a prompt with no topic in it, and the generator
+     * wrote whatever it liked.
+     */
+    // A pending slot question does not outrank her asking for something new:
+    // "actually make me a quiz on fractions" is a brief, not a time.
+    const movingId = namesNewWork(prompt) ? null : awaitingSlot.current;
+    const wantsMove =
+      !opts.skipAsk && (isScheduleOnly(prompt) || asksToReschedule(prompt));
+
+    if (movingId || (wantsMove && (lastKept?.id || lastDoc.current))) {
+      /**
+       * Which row is being moved.
+       *
+       * Normally the batch link answers that — but it is looked up
+       * asynchronously when a thread is reopened, and it comes back empty
+       * whenever the batch id did not survive the transcript. Falling through
+       * to the generator at that point rewrites three documents to change a
+       * time, which is the one outcome this whole branch exists to prevent.
+       * So when the link is missing the lesson is found by the title it is
+       * filed under instead.
+       */
+      const keptId =
+        movingId || lastKept?.id || (await keptIdByTitle(lastDoc.current?.title));
+      if (!keptId) {
+        setNotice("I couldn't find that in your library to move it.");
+        return;
+      }
+      /**
+       * What to call it in the reply. "The lesson itself is unchanged" was
+       * printed over a quiz, which reads as the studio having moved something
+       * else entirely.
+       */
+      const movedNoun =
+        NOUN_FOR_KIND[
+          SCHEDULABLE_KINDS.find((kind) => lastBatch.current?.[kind]) || "lesson_plan"
+        ] || "work";
+
+      setDraft("");
+      setTurns((t) => [...t, { role: "user", text: prompt }, { role: "note", text: "Moving it…" }]);
+
+      /**
+       * A move is part of the conversation, so it has to survive being closed.
+       *
+       * These turns were only ever pushed into React state. Reopening the
+       * thread showed the documents with no sign she had ever moved them —
+       * the question, her answer and the confirmation all gone, and the
+       * timetable disagreeing with a transcript that never mentioned a change.
+       */
+      const remember = (text) => {
+        if (!sessionRef.current) return;
+        appendMessage(sessionRef.current, { role: "assistant", text, kind: "note" });
+      };
+      if (sessionRef.current) appendMessage(sessionRef.current, { role: "user", text: prompt });
+
+      try {
+        const reply = await api("/api/studio/schedule", {
+          method: "POST",
+          // `must_move` so a request with no time in it comes back as a
+          // question about the new slot rather than as "nothing changed".
+          body: { draft_id: keptId, answer: prompt, confirm: true, must_move: true },
+        });
+
+        /**
+         * It needs a time it does not have.
+         *
+         * A quiz is booked between two hours and she may have given neither,
+         * so the scheduler asks. Her next message is the answer — remembered
+         * here, because on its own "thursday 8 to 9" looks like a request to
+         * write something rather than a slot for something already written.
+         */
+        if (reply?.status === "needs_input") {
+          awaitingSlot.current = keptId;
+          const asked = reply.question || "When should it run?";
+          setTurns((t) =>
+            t.map((x, i) => (i === t.length - 1 ? { ...x, text: asked } : x)),
+          );
+          remember(asked);
+          return;
+        }
+        awaitingSlot.current = null;
+        const entry = reply?.entry;
+        const movedDay = entry
+          ? new Date(`${entry.date}T00:00:00`).toLocaleDateString("en-GB", {
+              weekday: "long", day: "numeric", month: "long",
+            })
+          : "";
+        // Homework carries a date and no hours, so there is nothing to append.
+        const movedAt = entry?.start_time
+          ? `, ${String(entry.start_time).slice(0, 5)}${
+              entry.end_time ? `\u2013${String(entry.end_time).slice(0, 5)}` : ""
+            }`
+          : "";
+        const said = entry
+          ? `Moved to ${movedDay}${movedAt}. The ${movedNoun} itself is unchanged.`
+          : "That could not be moved.";
+        setTurns((t) =>
+          t.map((x, i) => (i === t.length - 1 ? { ...x, text: said } : x)),
+        );
+        remember(said);
+
+        /**
+         * The card has to move with the timetable.
+         *
+         * Rescheduling from the chat wrote the new slot to `schedule_entries`
+         * and stopped there, so the library card went on showing the day it
+         * was first booked for. Two screens, two answers, and the one she
+         * looks at most was the wrong one.
+         */
+        if (entry) {
+          const movedKind =
+            SCHEDULABLE_KINDS.find((kind) => lastBatch.current?.[kind]) || "lesson_plan";
+          await stampCardFields(movedKind, keptId, entry);
+        }
+        refreshSessions();
+      } catch (e) {
+        setTurns((t) =>
+          t.map((x, i) => (i === t.length - 1 ? { ...x, text: `Could not move it: ${e.message}` } : x)),
+        );
+      }
+      return;
+    }
+
+    /**
+     * Is this thread already carrying work?
+     *
+     * The rework test used to hang on `lastPrompt`, which is the text of the
+     * last request — and a thread reopened, or one whose last message was a
+     * reschedule, can have documents on screen and nothing in that variable.
+     * The studio then treated an edit as a cold start and asked her for the
+     * grade, the subject and the length of a quiz she was looking at.
+     *
+     * What actually settles it is whether anything has been generated here.
+     * If it has, a follow-up belongs to it unless she names new work.
+     */
+    const priorWork = !!(lastDoc.current || lastBatch.current);
+    const reworking =
+      priorWork || lastPrompt.current
+        ? isRework({
+            previous: { title: "", prompt: lastPrompt.current || "" },
+            prompt,
+            title: "",
+          })
+        : false;
+
+    /**
+     * What she asked for, when she said it in the request itself.
+     *
+     * Outranks the composer's kind row, which resets to "Lesson" on every page
+     * load: a teacher who types "now a quiz on photosynthesis" has named the
+     * kind more clearly than a chip she never touched.
+     */
+    const spoken = opts.skipAsk ? null : kindNamedIn(prompt);
+
+    if (!opts.skipAsk && !reworking) {
+      // What is missing depends on what she is making: a quiz is booked
+      // between two times, a lesson takes a period.
+      const missing = missingFrom(prompt, spoken ? [spoken] : useKind ? [useKind] : kinds);
+      if (missing.length) {
+        setDraft("");
+        setTurns((t) => [
+          ...t,
+          { role: "user", text: prompt, attachments },
+          { role: "ask", question: askFor(missing), pending: prompt, kind: useKind || spoken || null },
+        ]);
+        return;
+      }
+    }
+    /**
+     * Rewrite only what she asked about.
+     *
+     * "Make the student notes simpler" names one of the three documents. Sending
+     * that as a full lesson request rewrote the plan and the guide too — minutes
+     * of waiting for two documents she had already approved, and new wording in
+     * both that she then had to re-read to check nothing had drifted.
+     *
+     * Only kinds this thread has actually produced qualify; a request for the
+     * guide in a conversation that only ever made notes falls back to a normal
+     * generation rather than an edit of something that does not exist. And
+     * naming ALL of them is not a partial edit — that is the whole lesson,
+     * which the existing path already handles.
+     */
+    const named = reworking ? targetedKinds(prompt) : [];
+    const held = lastBatch.current;
+    const partial = held
+      ? named.filter((kind) => held[kind])
+      : [];
+    const untouched = partial.length
+      ? Object.values(held).filter((d) => !partial.includes(d.kind))
+      : [];
+    const isPartial = partial.length > 0 && untouched.length > 0;
+
+    /**
+     * A part edit belongs to the card that part came from.
+     *
+     * Editing one document of a lesson is never the creation of a lesson, so
+     * the save that follows has to replace the row already in the library —
+     * with its subject, its grade, its length and the slot it holds on the
+     * timetable all intact. That only happens when the widget is told which
+     * card it is updating, and in a reopened thread that link is looked up in
+     * the background and may not have arrived yet. Waiting for it here is the
+     * difference between updating her lesson and filing a duplicate beside it.
+     */
+    if (isPartial && !lastKept?.id) {
+      const keptId = await keptIdByTitle(lastDoc.current?.title);
+      if (keptId) {
+        setLastKept({ batchId: null, id: keptId, title: lastDoc.current?.title || "", prompt: "" });
+      }
+    }
+
+    /**
+     * A rework rewrites what the thread already holds.
+     *
+     * The composer's kind row resets to "Lesson" on every page load, so
+     * reopening a quiz and asking for a better question 9 came back as a
+     * lesson plan about cyber security — the right topic in entirely the
+     * wrong document. What she is editing decides the format; the composer
+     * only decides it for genuinely new work.
+     */
+    const heldKinds = held ? Object.keys(held) : [];
+    const ks = isPartial
+      ? partial
+      : reworking && heldKinds.length && !useKind
+        ? heldKinds
+        : useKind
+          ? [useKind]
+          : spoken
+            ? [spoken]
+            : kinds;
     const k = ks[0];
     const atts = attachments;
 
@@ -308,9 +934,78 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
     forceScroll.current = true;
     setTurns((t) => [
       ...t,
-      { role: "user", text: prompt, attachments: atts },
+      // Her message is already in the thread when this call is the answer to
+      // a "before I write it" question — posting it again would show the same
+      // request twice, once bare and once with the details bolted on.
+      ...(opts.skipAsk ? [] : [{ role: "user", text: prompt, attachments: atts }]),
       { role: "assistant", kind: k, text: "", streaming: true },
     ]);
+
+    // Remembered so the next message can be recognised as a rework of it.
+    lastPrompt.current = prompt;
+    // A fresh generation replaces the set; a partial edit adds to it. Without
+    // this, a quiz written after a lesson kept the lesson's three documents
+    // around and "improve the notes" edited a lesson no longer on screen.
+    if (!isPartial) lastBatch.current = null;
+
+    /**
+     * A rework has to carry what it is reworking.
+     *
+     * `/api/studio/generate` is stateless — it holds no history and is handed
+     * one prompt. "Make it simpler for grade 3" on its own names no topic at
+     * all, so the model filled the gap and produced a Grade 3 MATHS lesson in
+     * the middle of a conversation about magnets. The teacher sees a thread
+     * and reasonably assumes the studio can see it too.
+     *
+     * So the previous document goes with the instruction: the topic to keep,
+     * and the version to change.
+     */
+    /**
+     * A partial edit carries the part being edited, not the lesson plan.
+     *
+     * The generator is handed one prompt per document it writes, and for these
+     * it must see the version it is replacing — handing it the plan instead
+     * produced a second lesson plan under the heading "student notes".
+     *
+     * The rest of the lesson is described but not sent to be rewritten: it is
+     * what keeps the new version consistent with the documents staying put.
+     */
+    const carried = isPartial
+      ? [
+          `This is a revision of one part of an existing lesson on "${lastDoc.current?.title || ""}".`,
+          "Keep that exact topic, subject, grade and length.",
+          `The rest of the lesson (${untouched.map((d) => KIND_META[d.kind]?.label || d.kind).join(", ")}) is NOT being changed, so this must stay consistent with it.`,
+          "",
+          "The existing version of the part to change:",
+          partial.map((kind) => held[kind].text).join("\n\n").slice(0, 6000),
+          "",
+          `Now rewrite ONLY this part, applying this change: ${prompt}`,
+        ].join("\n")
+      : reworking && lastDoc.current
+      ? [
+          `This is a revision of an existing ${NOUN_FOR_KIND[ks[0]] || "document"} on "${lastDoc.current.title}".`,
+          /**
+           * Everything she did not ask to change, stays.
+           *
+           * This pinned the topic and the subject and said nothing about the
+           * grade — so "make it more hands-on" came back as a Grade 9 activity
+           * for a Grade 5 class. The card kept the right grade and the document
+           * inside it disagreed, which is worse than either being wrong.
+           */
+          "Keep the same topic, subject, grade, section and length.",
+          "Change ONLY what the instruction at the end asks for.",
+          "",
+          "The existing version:",
+          lastDoc.current.text.slice(0, 6000),
+          "",
+          // The instruction goes LAST, where a model weights it most, and is
+          // stated as a requirement rather than as context. Buried above the
+          // document, "make it simpler for grade 3" was read as a description
+          // of the old version and the header came back still saying Grade 5.
+          `Now rewrite the whole lesson applying this change: ${prompt}`,
+          "Every part must reflect the change, including the title line stating subject, grade and duration.",
+        ].join("\n")
+      : prompt;
 
     const controller = new AbortController();
     abortRef.current = controller;
@@ -347,6 +1042,10 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
       // below rolls a new bubble per artifact, and each renders as its
       // own reply with its own viewer and Save.
       let acc = "", structured = null, savedId = null;
+      // Every artifact in one request shares this. Without it the three
+      // documents of a lesson are three unrelated rows, and nothing can find
+      // the guide and the notes that belong to a plan.
+      let curBatch = null;
       let curKind = k;
       let open = true; // the placeholder bubble pushed at send time
 
@@ -356,15 +1055,35 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
         return n;
       });
       const finalizeTurn = () => {
-        patchLast({ text: acc, structured, streaming: false, done: true, stage: null });
-        appendMessage(sid, { role: "assistant", text: acc, kind: curKind, structured });
+        // The plan (or the quiz, or whatever takes the slot) is what a later
+        // rework needs to see; the guide and the notes follow from it.
+        if (SCHEDULABLE_KINDS.includes(curKind)) {
+          lastDoc.current = { title: titleOf(curKind, acc, structured), text: acc };
+        }
+        // The set this thread now holds, so the NEXT edit can be partial too.
+        lastBatch.current = { ...(lastBatch.current || {}), [curKind]: { kind: curKind, text: acc, structured } };
+        /**
+         * The documents this run deliberately did not rewrite.
+         *
+         * Carried on the turn rather than looked up at save time: by then the
+         * ref has moved on, and a lesson would be filed with only the part she
+         * edited — the other two silently dropped from the card.
+         */
+        patchLast({
+          text: acc, structured, streaming: false, done: true, stage: null,
+          batchId: curBatch, prompt,
+          ...(isPartial ? { carryOver: untouched } : {}),
+        });
+        // The batch id travels with the turn, so reopening this thread
+        // tomorrow can still find the library card it produced.
+        appendMessage(sid, { role: "assistant", text: acc, kind: curKind, structured, batchId: curBatch });
         open = false;
       };
       const startTurn = (kindNext) => {
         curKind = kindNext || curKind;
         acc = "";
         structured = null;
-        setTurns((t) => [...t, { role: "assistant", kind: curKind, text: "", streaming: true }]);
+        setTurns((t) => [...t, { role: "assistant", kind: curKind, text: "", streaming: true, batchId: curBatch }]);
         open = true;
       };
 
@@ -373,7 +1092,7 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
         refusalAsAnswer: true,
         body: {
           kinds: ks,
-          prompt,
+          prompt: carried,
           materials: atts.map((a) => ({ id: a.id, name: a.name })),
           // Explicit only when the teacher narrowed the pick — "all
           // selected" omits the field so the service's assignment-aware
@@ -384,6 +1103,10 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
           switch (ev.type) {
             case "batch":
             case "unread": {
+              if (ev.batch_id) {
+                curBatch = ev.batch_id;
+                patchLast({ batchId: curBatch });
+              }
               // Files the service could not read did not shape the
               // answer. Say so now, not after the teacher wonders why
               // the chapter was ignored.
@@ -479,31 +1202,194 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
     }
   }, [draft, busy, kinds, attachments, refreshSessions]);
 
-  /** Keep an artifact. Goes browser → Supabase, so it works today. */
-  const saveArtifact = async (turn, index) => {
-    const body = { name: titleOf(turn.kind, turn.text, turn.structured), title: titleOf(turn.kind, turn.text, turn.structured) };
-    const path = {
-      lesson_plan: "/api/drafts", quiz: "/api/quizzes", homework: "/api/homework",
-      presentation: "/api/presentations", activity: "/api/activities",
-    }[turn.kind] || "/api/drafts";
+  /**
+   * Where each kind is stored.
+   *
+   * The guide and the notes used to fall through to `/api/drafts`, which
+   * filed them as lesson plans — one lesson became three near-identical
+   * entries in the library, none of them labelled for what it was.
+   */
+  const PATH_FOR_KIND = {
+    lesson_plan: "/api/drafts",
+    teaching_guide: "/api/teaching-guides",
+    student_notes: "/api/student-notes",
+    quiz: "/api/quizzes",
+    homework: "/api/homework",
+    presentation: "/api/presentations",
+    activity: "/api/activities",
+  };
+
+  /**
+   * Keep a whole generation as ONE library row.
+   *
+   * A lesson arrives as three documents, and storing three rows put three
+   * near-identical entries in her Lessons list where one lesson belonged —
+   * and the editor, opening the first, showed a third of what she made. The
+   * import path already merges the family into a single `body_md` under its
+   * part headings; the studio writes the same shape, so a lesson looks the
+   * same however it got there.
+   *
+   * `replaceId` rewrites the row she already has instead of adding another —
+   * that is what makes a rework update her card rather than duplicate it.
+   */
+  const stripH1 = (md) => String(md || "").replace(/^\s*#\s+.*(\r?\n)+/, "");
+
+  /**
+   * Put what the scheduler worked out back onto the row.
+   *
+   * The lesson editor and the library card read subject, grade, duration and
+   * the planned date straight off the row. The document states some of it and
+   * the scheduler reads the rest out of her words, so once a slot exists the
+   * same values are written where the screens look — otherwise a scheduled
+   * lesson opens with an empty Subject and no date on it.
+   *
+   * Fields the scheduler could not determine are left alone, never blanked.
+   */
+  const stampCardFields = async (kind, artifactId, entry) => {
+    const path = PATH_FOR_KIND[SCHEDULABLE_KINDS.includes(kind) ? kind : "lesson_plan"];
+    if (!path || !artifactId || !entry) return;
+
+    const mins = (t) => (t ? Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5)) : null);
+    const span = mins(entry.end_time) - mins(entry.start_time);
+
+    /**
+     * Homework is filed by when it is DUE.
+     *
+     * Its card and the day rail both read `due_date`; writing `scheduled_for`
+     * put the date on the row where nothing looks for it, so a piece of
+     * homework booked for Friday showed no date at all in the library.
+     */
+    const dated = kind === "homework"
+      ? { due_date: entry.date }
+      : { scheduled_for: entry.date, planned_date: entry.date };
+
+    const body = {
+      ...(entry.date ? dated : {}),
+      ...(entry.start_time ? { start_time: entry.start_time.slice(0, 5) } : {}),
+      ...(entry.end_time ? { end_time: entry.end_time.slice(0, 5) } : {}),
+      ...(entry.subject ? { subject: entry.subject } : {}),
+      ...(entry.grade ? { grade: entry.grade } : {}),
+      ...(entry.section ? { section: entry.section } : {}),
+      ...(span > 0 ? { duration_minutes: span, duration: span } : {}),
+    };
+    if (!Object.keys(body).length) return;
 
     try {
-      if (turn.kind === "quiz" && turn.structured?.questions) {
-        await api("/api/quizzes/bulk", { method: "POST", body: { ...body, questions: turn.structured.questions } });
-      } else {
-        await api(path, {
+      await api(`${path}/${artifactId}`, { method: "PATCH", body });
+    } catch (e) {
+      // The booking itself succeeded; the card catching up is cosmetic.
+      console.warn("[studio] could not stamp the schedule onto the card:", e.message);
+    }
+  };
+
+  const storeBatch = async (batchTurns, replaceId) => {
+    /**
+     * The whole lesson, not just the parts this run rewrote.
+     *
+     * A partial edit regenerates one document and leaves the others exactly as
+     * they were — but the library holds a lesson as one merged row, so saving
+     * only what changed would replace a three-part lesson with a single page.
+     * The parts that were left alone are folded back in here, in the order the
+     * documents are meant to be read.
+     */
+    const carried = batchTurns.find((t) => t.carryOver)?.carryOver || [];
+    const byKind = new Map();
+    for (const d of carried) byKind.set(d.kind, d);
+    // The regenerated version wins wherever both exist.
+    for (const t of batchTurns) byKind.set(t.kind, t);
+    const parts = [
+      ...DOC_ORDER.filter((k) => byKind.has(k)).map((k) => byKind.get(k)),
+      ...[...byKind.values()].filter((d) => !DOC_ORDER.includes(d.kind)),
+    ];
+
+    const primary =
+      SCHEDULABLE_KINDS.map((k) => parts.find((t) => t.kind === k)).find(Boolean) || parts[0];
+    if (!primary) return null;
+
+    const title = titleOf(primary.kind, primary.text, primary.structured);
+    const path = PATH_FOR_KIND[primary.kind] || "/api/drafts";
+
+    // One document when there are several parts; the part itself when there
+    // is only one. The headings are the same ones the import path writes.
+    const body_md =
+      parts.length > 1
+        ? parts
+            .map((t) => `## ${KIND_META[t.kind]?.label || t.kind}\n\n${stripH1(t.text)}`)
+            .join("\n\n")
+        : primary.text;
+
+    const payload = {
+      name: title,
+      title,
+      body_md,
+      main_activity: body_md,
+      instructions: body_md,
+      /**
+       * A deck is saved as slides, however it was rendered.
+       *
+       * The structured pass is a second model call and it is sometimes
+       * refused or comes back hollow — the chat copes, because it reads the
+       * markdown instead. The library did not: the row went in with no slides
+       * on it, so a deck that looked right in the conversation opened empty
+       * from Presentations. Read from the markdown here for the same reason
+       * and by the same rule.
+       */
+      slides:
+        primary.structured?.slides ??
+        (primary.kind === "presentation" ? slidesFromMarkdown(primary.text) : undefined),
+      // What the document says about itself, so the card has something to
+      // show the moment it is saved.
+      ...statedFacts(primary.text),
+      // From a live turn, never from a carried-forward document: those are
+      // copies of earlier text and hold neither the batch that produced this
+      // save nor the words that asked for it.
+      ...(batchTurns[0]?.batchId ? { batch_id: batchTurns[0].batchId } : {}),
+      ...(batchTurns[0]?.prompt ? { prompt_text: batchTurns[0].prompt } : {}),
+    };
+
+    try {
+      let saved;
+      if (replaceId) {
+        saved = await api(`${path}/${replaceId}`, { method: "PATCH", body: payload });
+        saved = saved ?? { id: replaceId };
+        /**
+         * A quiz is its questions, and they are stored beside the body.
+         *
+         * The PATCH above rewrites the text; without this the row kept the
+         * ORIGINAL question list, so a teacher who asked for harder questions
+         * got a card that said harder and still asked the easy ones.
+         */
+        if (primary.kind === "quiz" && primary.structured?.questions) {
+          await api(`${path}/${replaceId}/sync`, {
+            method: "POST",
+            body: { questions: primary.structured.questions },
+          }).catch((e) => console.warn("[studio] questions not replaced:", e.message));
+        }
+      } else if (primary.kind === "quiz" && primary.structured?.questions) {
+        const totalMarks = primary.structured.questions.reduce(
+          (sum, q) => sum + (Number(q?.marks) || 0),
+          0,
+        );
+        saved = await api("/api/quizzes/bulk", {
           method: "POST",
           body: {
-            ...body,
-            main_activity: turn.text,
-            instructions: turn.text,
-            slides: turn.structured?.slides ?? undefined,
+            ...payload,
+            ...(totalMarks > 0 ? { total_marks: totalMarks } : {}),
+            questions: primary.structured.questions,
           },
         });
+      } else {
+        saved = await api(path, { method: "POST", body: payload });
       }
-      setTurns((t) => t.map((x, i) => (i === index ? { ...x, saved: true } : x)));
+
+      const ids = new Set(batchTurns);
+      setTurns((t) =>
+        t.map((x) => (ids.has(x) ? { ...x, saved: true, artifactId: saved?.id } : x)),
+      );
+      return saved;
     } catch (e) {
       setNotice(`Couldn't save that: ${e.message}`);
+      return null;
     }
   };
 
@@ -658,6 +1544,76 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
         ) : (
           <div className={s.threadInner}>
             {turns.map((turn, i) => {
+              /**
+               * The one question asked before writing anything.
+               *
+               * Rendered as a turn rather than a modal so it reads as the
+               * studio talking back, which is what the rest of this screen
+               * is. Answering it replaces the turn with the real generation.
+               */
+              /** A short statement from the studio — no document attached. */
+              if (turn.role === "note") {
+                return (
+                  <div key={i} className={s.turn}>
+                    <span className={s.avatar}><Sparkles size={15} /></span>
+                    <p className="flex-1 min-w-0 text-[13px] text-ink">{turn.text}</p>
+                  </div>
+                );
+              }
+
+              if (turn.role === "ask") {
+                return (
+                  <div key={i} className={s.turn}>
+                    <span className={s.avatar}><Sparkles size={15} /></span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[13px] text-ink">{turn.question}</p>
+                      {turn.answered ? (
+                        <p className="text-[12px] text-muted mt-1">{turn.answered}</p>
+                      ) : (
+                        <form
+                          className="flex flex-wrap gap-2 mt-2"
+                          onSubmit={(e) => {
+                            e.preventDefault();
+                            const value = (askDraft[i] || "").trim();
+                            if (!value) return;
+                            setTurns((t) => t.map((x, j) => (j === i ? { ...x, answered: value } : x)));
+                            // Her answer is folded into the request, so the
+                            // generator sees one brief rather than a
+                            // conversation it has no memory of.
+                            const merged = declined(value)
+                              ? turn.pending
+                              : `${turn.pending} (${value})`;
+                            send(merged, turn.kind || undefined, { skipAsk: true });
+                          }}
+                        >
+                          <input
+                            autoFocus
+                            value={askDraft[i] || ""}
+                            onChange={(e) => setAskDraft((d) => ({ ...d, [i]: e.target.value }))}
+                            placeholder="Grade 5 science, one period"
+                            aria-label="The details for this request"
+                            className="flex-1 min-w-[200px] rounded-md border border-line bg-paper px-2.5 py-1.5 text-[13px] text-ink"
+                          />
+                          <button type="submit" className={s.chipBtn} data-primary>
+                            Generate
+                          </button>
+                          <button
+                            type="button"
+                            className={s.chipBtn}
+                            onClick={() => {
+                              setTurns((t) => t.map((x, j) => (j === i ? { ...x, answered: "You decide" } : x)));
+                              send(turn.pending, turn.kind || undefined, { skipAsk: true });
+                            }}
+                          >
+                            You decide
+                          </button>
+                        </form>
+                      )}
+                    </div>
+                  </div>
+                );
+              }
+
               if (turn.role === "user") {
                 return (
                   <div key={i} className={s.turn} data-role="user">
@@ -690,7 +1646,17 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
               }
 
               const meta = KIND_META[turn.kind] || {};
-              const slides = turn.structured?.slides;
+              /**
+               * The structured deck when there is one, the markdown read as a
+               * deck when there is not — a presentation should never render as
+               * a wall of blockquotes just because a second model call came
+               * back thin.
+               */
+              const slides =
+                turn.structured?.slides ??
+                (turn.kind === "presentation" && turn.done
+                  ? slidesFromMarkdown(turn.text)
+                  : undefined);
               const questions = turn.structured?.questions;
               const showArtifact = turn.done && (slides || questions || turn.text);
 
@@ -724,15 +1690,39 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
                         kind={turn.kind}
                         title={titleOf(turn.kind, turn.text, turn.structured)}
                         actions={
-                          <button
-                            type="button"
-                            className={s.chipBtn}
-                            data-primary={!turn.saved}
-                            disabled={turn.saved}
-                            onClick={() => saveArtifact(turn, i)}
-                          >
-                            {turn.saved ? <><Check size={13} /> Saved</> : <><Save size={13} /> Save</>}
-                          </button>
+                          /* One generation, one action. A lesson arrives as
+                             three documents and a Save on each read as three
+                             separate things to keep — she had to press all
+                             three and could still end up with two thirds of a
+                             lesson. The batch's own "Verify and finalise"
+                             below keeps everything at once, so the per-card
+                             button only appears where there is no batch
+                             offer to replace it. */
+                          inBatchOffer(turns, turn) ? (
+                            turn.saved ? (
+                              <span className={s.chipBtn} aria-disabled="true">
+                                <Check size={13} /> Saved
+                              </span>
+                            ) : null
+                          ) : (
+                            <button
+                              type="button"
+                              className={s.chipBtn}
+                              data-primary={!turn.saved}
+                              disabled={turn.saved}
+                              onClick={() =>
+                                storeBatch(
+                                  turn.batchId
+                                    ? turns.filter(
+                                        (x) => x.role === "assistant" && x.done && x.batchId === turn.batchId,
+                                      )
+                                    : [turn],
+                                )
+                              }
+                            >
+                              {turn.saved ? <><Check size={13} /> Saved</> : <><Save size={13} /> Save</>}
+                            </button>
+                          )
                         }
                       >
                         {slides ? (
@@ -755,6 +1745,63 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
                       </ArtifactCard>
                     )}
 
+                    {/* Offered on the LAST finished document of a batch, so a
+                        lesson is finalised once — after all three have
+                        arrived — rather than on whichever card she happens to
+                        be looking at.
+
+                        Keyed off the batch rather than off a particular kind:
+                        asking for a change regenerates a batch that may be
+                        one document or three, and pinning the offer to
+                        `student_notes` meant a reworked draft finished with
+                        no way to keep or schedule it at all. */}
+                    {turn.done && batchOffer(turns, turn, i) && (
+                      <FinaliseAndSchedule
+                        primaryKind={batchOffer(turns, turn, i).primaryKind}
+                        label={batchOffer(turns, turn, i).label}
+                        section={batchOffer(turns, turn, i).section}
+                        turns={batchOffer(turns, turn, i).turns}
+                        replaces={
+                          lastKept &&
+                          /**
+                           * Never a rework of itself.
+                           *
+                           * Saving a batch records it as the last kept work.
+                           * Its own widget then re-rendered, compared the
+                           * batch against itself, scored a perfect match and
+                           * offered to "update" the lesson it had just
+                           * written — so a finished card sprouted a live
+                           * button again, above whatever she generated next.
+                           */
+                          lastKept.batchId !== turn.batchId &&
+                          isRework({
+                            previous: lastKept,
+                            prompt: turn.prompt,
+                            title: titleOf(turn.kind, turn.text, turn.structured),
+                          })
+                            ? lastKept
+                            : null
+                        }
+                        onKept={({ primaryId: keptId }) => {
+                          const offer = batchOffer(turns, turn, i);
+                          const primary =
+                            offer.turns.find((x) => x.kind === offer.primaryKind) || turn;
+                          setLastKept({
+                            batchId: turn.batchId ?? null,
+                            // Short enough to read inside a button. The raw
+                            // heading can run to the whole metadata line.
+                            title: titleOf(primary.kind, primary.text, primary.structured)
+                              .replace(/\s*·.*$/, "")
+                              .slice(0, 48),
+                            prompt: turn.prompt || "",
+                            id: keptId,
+                          });
+                        }}
+                        save={(batchTurns, replaceId) => storeBatch(batchTurns, replaceId)}
+                        onScheduled={(artifactId, entry) => stampCardFields(turn.kind, artifactId, entry)}
+                      />
+                    )}
+
                     {turn.stopped && (
                       <p className="text-[12px] text-muted mt-2">Stopped.</p>
                     )}
@@ -763,7 +1810,15 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
                       <div className="flex flex-wrap gap-2 mt-2.5">
                         <button
                           type="button" className={s.chipBtn}
-                          onClick={() => send(`Rework that: `, turn.kind)}
+                          /* Puts the request in the composer instead of
+                             firing it. It used to send "Rework that:" the
+                             instant she clicked, so there was no moment at
+                             which she could say WHAT to change — the model
+                             got a bare instruction and guessed. */
+                          onClick={() => {
+                            setDraft("Rework that: ");
+                            document.querySelector("textarea")?.focus();
+                          }}
                         >
                           <RotateCcw size={13} /> Ask for a change
                         </button>
@@ -792,7 +1847,7 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
                             type="button" className={s.chipBtn}
                             onClick={() => { window.location.href = `/${meta.section}`; }}
                           >
-                            Open {meta.label.toLowerCase()}s
+                            Open {(SECTION_FOR_KIND[turn.kind] || `${meta.label}s`).toLowerCase()}
                           </button>
                         )}
                       </div>

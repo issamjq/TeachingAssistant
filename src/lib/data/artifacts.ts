@@ -15,12 +15,18 @@ import { supabase } from "@/lib/supabaseClient";
 import { facultyId } from "./session";
 
 export type Kind =
-  | "lesson_plan" | "quiz" | "homework"
+  | "lesson_plan" | "teaching_guide" | "student_notes" | "quiz" | "homework"
   | "presentation" | "activity" | "template";
 
 /** Route segment → stored type. The screens' words on the left. */
 export const KIND_BY_PATH: Record<string, Kind> = {
   drafts: "lesson_plan",
+  // A lesson is three documents. The studio has always generated the guide
+  // and the notes alongside the plan, and neither had a route — so both fell
+  // through to /api/drafts and were stored as `lesson_plan`, putting three
+  // identical-looking entries in the library where one lesson belonged.
+  "teaching-guides": "teaching_guide",
+  "student-notes": "student_notes",
   quizzes: "quiz",
   homework: "homework",
   presentations: "presentation",
@@ -28,8 +34,11 @@ export const KIND_BY_PATH: Record<string, Kind> = {
   templates: "template",
 };
 
+/** The three documents of one lesson, in the order a teacher reads them. */
+export const LESSON_KINDS: Kind[] = ["lesson_plan", "teaching_guide", "student_notes"];
+
 const COLS =
-  "id, type, status, content, model_used, tokens_in, tokens_out, created_at, updated_at, deleted_at";
+  "id, type, status, content, batch_id, prompt_text, model_used, tokens_in, tokens_out, created_at, updated_at, deleted_at";
 
 type Row = {
   id: string; type: string; status: string; content: Record<string, any> | null;
@@ -104,7 +113,16 @@ function normaliseStatus(value: unknown): string | undefined {
 }
 
 /** Split an incoming flat body into real columns and content keys. */
-const REAL = new Set(["status", "model_used", "tokens_in", "tokens_out", "skill_id", "batch_id"]);
+/**
+ * `prompt_text` joins these because what she asked for is part of the record.
+ *
+ * The column has always existed and nothing ever wrote it, so a saved artifact
+ * carried no memory of the request that produced it — and anything reading the
+ * row later has to ask her again for something she already typed.
+ */
+const REAL = new Set([
+  "status", "model_used", "tokens_in", "tokens_out", "skill_id", "batch_id", "prompt_text",
+]);
 function split(body: Record<string, any> = {}) {
   const cols: Record<string, any> = {};
   const content: Record<string, any> = {};
@@ -132,6 +150,61 @@ export async function list(kind: Kind, { trash = false } = {}) {
   return (data as Row[]).map(flatten);
 }
 
+/**
+ * Every document generated in the same breath as this one.
+ *
+ * A lesson plan, its teaching guide and its student notes come out of one
+ * request sharing a `batch_id`, and the lesson card has to show all three as
+ * its resources. Looked up from the plan's own id rather than the batch id,
+ * because the card only ever knows the plan — and a row saved before batches
+ * were recorded still returns itself, so an older lesson opens with one
+ * document instead of coming up empty.
+ */
+export async function batchOf(id: string) {
+  const { data: one, error: readErr } = await supabase
+    .from("ai_studio").select(COLS)
+    .eq("id", id).is("deleted_at", null).maybeSingle();
+  if (readErr) throw readErr;
+  if (!one) throw notFound();
+
+  const batch = (one as Row).batch_id as string | null;
+  if (!batch) return [flatten(one as Row)];
+
+  const { data, error } = await supabase
+    .from("ai_studio").select(COLS)
+    .eq("batch_id", batch).is("deleted_at", null)
+    .order("created_at", { ascending: true });
+  if (error) throw error;
+
+  // Reading order, not insertion order: whichever document she saved first,
+  // the plan comes before the guide before the notes.
+  return (data as Row[])
+    .map(flatten)
+    .sort((a, b) => LESSON_KINDS.indexOf(a!.type) - LESSON_KINDS.indexOf(b!.type));
+}
+
+/**
+ * The saved rows for one generation batch, keyed by kind.
+ *
+ * Lets a conversation reopened tomorrow still know which library card it
+ * produced. Both halves already record the batch — the transcript keeps it on
+ * the turn, the library keeps it on the row — so the link survives a reload
+ * without storing anything new.
+ */
+export async function savedForBatch(batchId: string) {
+  const { data, error } = await supabase
+    .from("ai_studio").select(COLS)
+    .eq("batch_id", batchId).is("deleted_at", null)
+    .order("updated_at", { ascending: false });
+  if (error) throw error;
+
+  const rows = (data as Row[]).map(flatten) as Record<string, any>[];
+  const row = rows.find((r) => LESSON_KINDS.includes(r.type)) ?? rows[0];
+  return row
+    ? { batchId, id: row.id, title: row.name || row.title || "", prompt: row.prompt_text || "" }
+    : null;
+}
+
 export async function get(kind: Kind, id: string) {
   const { data, error } = await supabase
     .from("ai_studio").select(COLS)
@@ -146,7 +219,12 @@ export async function create(kind: Kind, body: Record<string, any>) {
   const { cols, content } = split(body);
   const { data, error } = await supabase
     .from("ai_studio")
-    .insert({ faculty_id: fid, type: kind, status: cols.status ?? "complete", content })
+    // `...cols` matters: `split` sorts the body into real columns and jsonb,
+    // and every real column except `status` used to be dropped on the floor
+    // here. `batch_id` is the one that showed — with no value sent, the
+    // column's `gen_random_uuid()` default gave each document its own batch,
+    // so the three parts of one lesson became three unrelated rows.
+    .insert({ ...cols, faculty_id: fid, type: kind, status: cols.status ?? "complete", content })
     .select(COLS).single();
   if (error) throw error;
   return flatten(data as Row);
@@ -165,7 +243,17 @@ export async function update(kind: Kind, id: string, body: Record<string, any>) 
   if (readErr) throw readErr;
   if (!cur) throw notFound();
 
+  /**
+   * `...cols` matters here for the same reason it does on insert.
+   *
+   * This applied `status` and dropped every other real column on the floor.
+   * The one that showed was `prompt_text`: reworking a lesson rewrote its
+   * documents but left the row still carrying the ORIGINAL request, so the
+   * scheduler read "a grade 5 science lesson on magnets" and asked her for a
+   * time she had just given in "move it to friday at 2pm".
+   */
   const patch: Record<string, any> = {
+    ...cols,
     content: { ...(cur.content || {}), ...content },
     updated_at: new Date().toISOString(),
   };

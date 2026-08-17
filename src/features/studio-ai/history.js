@@ -72,7 +72,23 @@ export function appendMessage(sessionId, turn) {
       role: turn.role === "user" ? "user" : "assistant",
       content: turn.text || "",
       kind: turn.kind || null,
-      artifact: turn.structured ?? null,
+      /**
+       * The batch id rides along inside `artifact`.
+       *
+       * A lesson is three documents that only belong together because they
+       * share a batch. Reloading the page dropped that, so a restored thread
+       * showed three unrelated documents: the per-document Save buttons came
+       * back and the single "save & schedule" offer jumped to the first card
+       * instead of sitting after the last.
+       *
+       * Stored in the existing jsonb rather than as a new column, because
+       * this is the shape the row already carries and a migration for one
+       * identifier is not worth the schema churn.
+       */
+      artifact:
+        turn.structured || turn.batchId
+          ? { ...(turn.structured ? { structured: turn.structured } : {}), batch_id: turn.batchId ?? null }
+          : null,
     })
     .then(({ error }) => {
       if (error) console.warn("[studio] turn not saved:", error.message);
@@ -95,13 +111,33 @@ export async function loadSession(sessionId) {
     .limit(200);
   if (error) throw error;
   return (data || []).map((m) => ({
-    role: m.role === "user" ? "user" : "assistant",
+    /**
+     * A note is not a document.
+     *
+     * "Moved to Thursday, 13:00" is stored as an assistant turn because that
+     * is what the column allows, but restoring it as one put a one-line
+     * sentence inside an artifact card with a Save button under it. It goes
+     * back to the plain note the chat renders it as.
+     */
+    role: m.role === "user" ? "user" : m.kind === "note" ? "note" : "assistant",
     text: m.content || "",
-    kind: m.kind || undefined,
-    structured: m.artifact || null,
+    kind: m.kind === "note" ? undefined : m.kind || undefined,
+    batchId: m.artifact?.batch_id ?? undefined,
+    // The wrapper is storage, not content: a viewer looking for `.slides`
+    // or `.questions` must not be handed the envelope they arrived in.
+    structured: m.artifact?.structured ?? (m.artifact?.batch_id ? null : m.artifact) ?? null,
     // Reopened turns are finished by definition, so they render as
     // artifacts rather than as something mid-stream.
     done: m.role !== "user",
+    /**
+     * Loaded from history, not made just now.
+     *
+     * A restored turn cannot know whether it was ever kept — that lives on
+     * the row in the library, not in the transcript. Offering "save &
+     * schedule" on it again is how a lesson she filed yesterday grew a live
+     * button today, and pressing it would have written a second copy.
+     */
+    restored: m.role !== "user",
   }));
 }
 
