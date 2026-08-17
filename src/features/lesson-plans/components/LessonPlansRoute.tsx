@@ -45,7 +45,11 @@ export default function LessonPlansRoute({ slug = [] }: { slug?: string[] }) {
         // EditDraft fetches the latest from /api/drafts/:id on mount, so the
         // id alone is enough and the view survives a refresh. With no id it
         // POSTs a fresh draft on first save (same as QuizBuilder).
-        draft={view === "edit" && id ? { id: Number(id) } : null}
+        //
+        // Pass the id through as-is: rows are Supabase UUIDs now, so the old
+        // Number() coercion turned every id into NaN — breaking both this
+        // editor and the "Use template" clone that navigates straight here.
+        draft={view === "edit" && id ? { id } : null}
         onClose={goTemplates}
         onMarkReady={goTemplates}
       />

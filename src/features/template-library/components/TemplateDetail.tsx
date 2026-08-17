@@ -1,14 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { X, Download, Import, Sparkles, Check } from "lucide-react";
+import { X, Download, Import, Sparkles, Check, ArrowRight } from "lucide-react";
 import { renderMarkdown } from "@/lib/markdown";
 import { navigate } from "@/lib/route";
 import { PREFILL_KEY } from "@/shared/lib/assistantPrefill";
 import { Button } from "@/components/ui/button";
 import { api } from "@/shared/lib/apiClient";
 import { getTemplate, markUsed } from "../api";
-import { KIND_LABEL, IMPORT_PATH, STUDIO_KIND, subjectLabel } from "../labels";
+import { KIND_LABEL, IMPORT_PATH, IMPORT_DEST, STUDIO_KIND, subjectLabel } from "../labels";
 import type { TemplateDetail as Detail, TemplateSummary } from "../types";
 import s from "../TemplateLibrary.module.css";
 
@@ -29,6 +29,9 @@ export function TemplateDetail({
   const [tab, setTab] = useState(0);
   const [importing, setImporting] = useState(false);
   const [imported, setImported] = useState<Record<number, boolean>>({});
+  // Where the last import landed, so the teacher can jump straight to it —
+  // an import you can't find is no import at all.
+  const [saved, setSaved] = useState<{ label: string; target: string[] } | null>(null);
 
   // The parent remounts this per card (key={card.id}), so state starts
   // fresh every open — no synchronous reset needed here.
@@ -73,13 +76,14 @@ export function TemplateDetail({
     setError(null);
     const name = doc.title?.trim() || title;
     try {
+      let created: { id?: string } | null = null;
       if (doc.kind === "quiz" && structuredQuestions) {
-        await api("/api/quizzes/bulk", {
+        created = await api("/api/quizzes/bulk", {
           method: "POST",
           body: { name, title: name, questions: structuredQuestions },
         });
       } else {
-        await api(path, {
+        created = await api(path, {
           method: "POST",
           body: {
             name,
@@ -90,6 +94,8 @@ export function TemplateDetail({
         });
       }
       setImported((m) => ({ ...m, [tab]: true }));
+      const dest = IMPORT_DEST[doc.kind];
+      if (dest && created?.id) setSaved({ label: dest.label, target: dest.route(created.id) });
       // Count the import — best-effort, never blocks the save.
       markUsed(card.id).catch(() => {});
     } catch (e: any) {
@@ -193,6 +199,17 @@ export function TemplateDetail({
 
         {doc && (
           <footer className={s.drawerFoot}>
+            {saved && (
+              <div className={s.savedStrip}>
+                <span className="inline-flex items-center gap-1.5 text-[13px]">
+                  <Check size={15} className="text-accent" aria-hidden />
+                  Saved to <b className="font-medium">{saved.label}</b>
+                </span>
+                <Button size="sm" onClick={() => navigate(saved.target)}>
+                  View in {saved.label} <ArrowRight size={14} />
+                </Button>
+              </div>
+            )}
             {canImport ? (
               <Button onClick={importDoc} disabled={importing || imported[tab]}>
                 {imported[tab] ? (

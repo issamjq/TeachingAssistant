@@ -24,6 +24,20 @@ export const IMPORT_PATH: Partial<Record<DocKind, string>> = {
   activity: "/api/activities",
 };
 
+// Where an imported document lands, and how to get there. The four list
+// sections open to their own list (the fresh row sorts to the top);
+// lesson plans have no list, so they open straight in the draft editor
+// by id — the one surface that shows a single saved lesson.
+export const IMPORT_DEST: Partial<
+  Record<DocKind, { label: string; route: (id: string) => string[] }>
+> = {
+  lesson_plan: { label: "Lessons", route: (id) => ["lesson-plans", "edit", id] },
+  quiz: { label: "Quizzes & exams", route: () => ["quizzes"] },
+  homework: { label: "Homework", route: () => ["homework"] },
+  presentation: { label: "Presentations", route: () => ["presentations"] },
+  activity: { label: "Activities", route: () => ["activities"] },
+};
+
 // The Studio understands these five kinds. A guide or notes opens there
 // as a lesson — the closest editable shape.
 export const STUDIO_KIND: Record<DocKind, string> = {

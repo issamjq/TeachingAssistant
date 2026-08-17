@@ -408,6 +408,21 @@
   background: color-mix(in oklab, var(--p-surface) 60%, transparent);
 }
 
+/* The "Saved to Lessons — View →" confirmation. flex-basis 100% forces it
+   onto its own line above the action buttons in the wrapping footer. */
+.savedStrip {
+  flex-basis: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 8px 8px 14px;
+  border-radius: 12px;
+  background: color-mix(in oklab, var(--p-accent) 8%, var(--p-surface));
+  border: 1px solid color-mix(in oklab, var(--p-accent) 24%, transparent);
+  animation: fade 200ms ease both;
+}
+
 /* ── submissions ─────────────────────────────────────────────────── */
 
 .subRow {
