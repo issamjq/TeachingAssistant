@@ -22,6 +22,7 @@ export const EN = {
   "nav.support": "Support",
   "nav.logout": "Log out",
   "nav.goals": "Goal planner",
+  "nav.library": "Template library",
   "nav.planner": "Scheduler",
   "nav.bulletin-board": "Bulletin board",
   "nav.lesson-plans": "Lessons",

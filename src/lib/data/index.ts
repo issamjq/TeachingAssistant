@@ -36,6 +36,11 @@ const SERVER_ONLY = [
   "/api/studio", "/api/onboarding", "/api/images",
   "/api/admin", "/api/superadmin", "/api/owner", "/api/moe", "/api/dev",
   "/api/teachers",
+  // The shared template library — curated CBSE materials the service
+  // publishes and moderates. It lives on the API rather than in each
+  // teacher's Supabase rows, so a cold service degrades to "not
+  // connected yet" instead of a bare 404.
+  "/api/library",
   // Most of /api/auth moved: provisioning is a database trigger and the
   // device claim is a policy, so only the parts that need a mail sender
   // and a bcrypt secret are left.

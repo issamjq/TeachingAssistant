@@ -20,6 +20,7 @@ export const AR: Partial<Record<TranslationKey, string>> = {
   "nav.support": "الدعم",
   "nav.logout": "تسجيل الخروج",
   "nav.goals": "مخطّط الأهداف",
+  "nav.library": "مكتبة القوالب",
   "nav.planner": "المجدوِل",
   "nav.bulletin-board": "لوحة الإعلانات",
   "nav.lesson-plans": "الدروس",

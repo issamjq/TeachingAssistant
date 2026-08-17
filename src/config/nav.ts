@@ -41,6 +41,7 @@ const TEACHER_NAV: NavSection[] = [
     items: [
       { key: "planner", label: "Scheduler", icon: "scheduler" },
       { key: "goals", label: "Goal planner", icon: "goals" },
+      { key: "library", label: "Template library", icon: "library" },
       { key: "lesson-plans", label: "Lessons", icon: "lessons" },
       { key: "quizzes", label: "Quizzes & exams", icon: "quizzes" },
       { key: "homework", label: "Homework", icon: "homework" },
@@ -129,6 +130,7 @@ export const SECTIONS_BY_ROLE: Record<Role, Set<string>> = {
     "studio",
     "planner",
     "goals",
+    "library",
     "bulletin-board",
     "lesson-plans",
     "schedule",
