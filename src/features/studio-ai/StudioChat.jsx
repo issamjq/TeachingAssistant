@@ -61,9 +61,11 @@ const STARTERS = [
   { kind: "homework",     text: "Reading-comprehension homework on a short story for Grade 6 English." },
 ];
 
-// The composer grows with its text up to here, then scrolls — about ten
-// lines, enough to read a full paragraph back before sending.
-const COMPOSER_MAX_H = 240;
+// The composer grows with its text up to a slice of the viewport, then
+// scrolls: enough to read a pasted paragraph or a template dropped in
+// from the library, capped so the thread and send bar stay on screen.
+const COMPOSER_MAX_VH = 0.45; // up to 45% of the window height…
+const COMPOSER_MAX_H = 520;   // …but never taller than this
 
 const safeName = (name) =>
   name.normalize("NFKD").replace(/[^\w.-]+/g, "-").replace(/-+/g, "-").slice(-80) || "file";
@@ -142,16 +144,28 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
     purgeOld();
   }, [refreshSessions]);
 
-  // Grow the composer with what's in it, up to a readable ceiling then
-  // scroll. Driven off `draft` rather than the keystroke so it stays
-  // right for every way the text changes — typing, a starter chip, an
-  // assistant hand-off, and the shrink back to one line after a send.
-  useEffect(() => {
+  // Grow the composer with what's in it, then scroll. The ceiling is a
+  // slice of the viewport (not a fixed 240px) so a small paragraph takes
+  // a few lines while a whole template dropped in from the library — or a
+  // big paste — opens tall enough to actually read, capped so the thread
+  // and send bar are never pushed off screen.
+  const autosize = useCallback(() => {
     const el = inputRef.current;
     if (!el) return;
+    const max = Math.min(window.innerHeight * COMPOSER_MAX_VH, COMPOSER_MAX_H);
     el.style.height = "auto";
-    el.style.height = `${Math.min(el.scrollHeight, COMPOSER_MAX_H)}px`;
-  }, [draft]);
+    el.style.height = `${Math.min(el.scrollHeight, max)}px`;
+  }, []);
+
+  // Driven off `draft` rather than the keystroke so it's right for every
+  // way the text arrives — typing, a starter chip, an assistant or
+  // template hand-off, a paste, and the shrink back after a send.
+  useEffect(() => { autosize(); }, [draft, autosize]);
+  // Keep the ceiling honest when the window is resized.
+  useEffect(() => {
+    window.addEventListener("resize", autosize);
+    return () => window.removeEventListener("resize", autosize);
+  }, [autosize]);
 
   // The assistant's "make me a …" hand-off: seed the composer with the
   // action's payload so the teacher lands mid-thought rather than at a

@@ -302,8 +302,12 @@
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 .composer:focus-within {
+  /* An accent border that follows the composer's own 22px curve, plus a
+     soft accent-tinted lift — no hard square-cornered glow ring. */
   border-color: var(--p-accent);
-  box-shadow: 0 0 0 3px color-mix(in oklab, var(--p-accent) 14%, transparent);
+  box-shadow:
+    0 6px 22px -12px color-mix(in oklab, var(--p-accent) 30%, transparent),
+    0 0 0 1px color-mix(in oklab, var(--p-accent) 40%, transparent);
 }
 .input {
   width: 100%;
@@ -316,9 +320,11 @@
   line-height: 1.55;
   color: var(--p-ink);
   padding: 13px 16px 4px;
-  /* Grows with its content (JS caps the height at COMPOSER_MAX_H, the
-     same 240px), then scrolls so a long paragraph stays readable. */
-  max-height: 240px;
+  /* Grows with its content, then scrolls. Ceiling mirrors the JS cap
+     (COMPOSER_MAX_VH / COMPOSER_MAX_H): up to 45% of the viewport, never
+     past 520px — so a pasted paragraph or a template opens tall enough
+     to read without pushing the thread and send bar off screen. */
+  max-height: min(45vh, 520px);
   overflow-y: auto;
 }
 .input::placeholder { color: var(--p-muted); }
