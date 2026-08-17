@@ -2610,3 +2610,75 @@ END $$;
 
 GRANT EXECUTE ON FUNCTION public.link_student_account() TO authenticated;
 GRANT EXECUTE ON FUNCTION public.student_dashboard()    TO authenticated;
+
+
+-- ═══════════════════════════════════════════════════════════════════════
+-- 35. Invite-gated student login + the subject a student is taught
+--
+-- Only a student the teacher has INVITED may claim an account — an email
+-- match alone is not enough, or anyone who guessed a classmate's address
+-- could sign in as them. `invite_status` is that gate:
+--
+--   none     on the roster, not yet invited (cannot log in)
+--   invited  the teacher opened the door; a matching email may claim it
+--   active   claimed — user_id is set, the student has signed in
+--
+-- `subject` is what this teacher teaches the student, carried on the roster
+-- row and pre-filling the gradebook. Grade and section already exist.
+-- ═══════════════════════════════════════════════════════════════════════
+
+ALTER TABLE public.students ADD COLUMN IF NOT EXISTS subject       text;
+ALTER TABLE public.students ADD COLUMN IF NOT EXISTS invite_status text NOT NULL DEFAULT 'none';
+ALTER TABLE public.students ADD COLUMN IF NOT EXISTS invited_at    timestamptz;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint
+                 WHERE conname = 'students_invite_status_check'
+                   AND connamespace = 'public'::regnamespace) THEN
+    ALTER TABLE public.students ADD CONSTRAINT students_invite_status_check
+      CHECK (invite_status IN ('none','invited','active'));
+  END IF;
+END $$;
+
+-- Re-create the linker with the invite gate. Distinguishes "no roster row
+-- for this email" from "there is one, but you weren't invited", so the
+-- sign-in page can say which.
+CREATE OR REPLACE FUNCTION public.link_student_account()
+RETURNS jsonb
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE uid uuid; em text; sid uuid;
+BEGIN
+  uid := (SELECT auth.uid());
+  IF uid IS NULL THEN RETURN jsonb_build_object('linked', false, 'reason', 'not_signed_in'); END IF;
+
+  IF EXISTS (SELECT 1 FROM students WHERE user_id = uid) THEN
+    RETURN jsonb_build_object('linked', true, 'already', true);
+  END IF;
+  IF EXISTS (SELECT 1 FROM faculty WHERE user_id = uid) THEN
+    RETURN jsonb_build_object('linked', false, 'reason', 'is_teacher');
+  END IF;
+
+  em := lower((SELECT email FROM auth.users WHERE id = uid));
+  IF em IS NULL THEN RETURN jsonb_build_object('linked', false, 'reason', 'no_email'); END IF;
+
+  -- Invited AND unclaimed only.
+  SELECT id INTO sid FROM students
+    WHERE lower(email) = em AND user_id IS NULL AND invite_status = 'invited'
+    ORDER BY created_at LIMIT 1;
+
+  IF sid IS NULL THEN
+    -- Is there a roster row for this email that simply wasn't invited?
+    IF EXISTS (SELECT 1 FROM students WHERE lower(email) = em AND user_id IS NULL) THEN
+      RETURN jsonb_build_object('linked', false, 'reason', 'not_invited');
+    END IF;
+    RETURN jsonb_build_object('linked', false, 'reason', 'no_match');
+  END IF;
+
+  UPDATE students SET user_id = uid, invite_status = 'active', updated_at = now() WHERE id = sid;
+  INSERT INTO public.users (id, email) VALUES (uid, em) ON CONFLICT (id) DO NOTHING;
+  UPDATE public.users SET role = 'student', updated_at = now() WHERE id = uid;
+
+  RETURN jsonb_build_object('linked', true, 'student_id', sid);
+END $$;

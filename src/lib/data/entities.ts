@@ -155,16 +155,20 @@ export async function updateProfile(patch: Record<string, any>) {
 
 const STUDENT_COLS =
   "id, student_code, first_name, last_name, student_id, date_of_birth, gender, grade, " +
-  "division, email, phone, nationality, address, primary_guardian_name, " +
+  "division, subject, email, phone, nationality, address, primary_guardian_name, " +
   "primary_guardian_relationship, primary_guardian_email, primary_guardian_phone, " +
   "secondary_guardian_name, secondary_guardian_relationship, secondary_guardian_email, " +
-  "secondary_guardian_phone, enrollment_date, notes, school_id, user_id, created_at, updated_at";
+  "secondary_guardian_phone, enrollment_date, notes, school_id, user_id, " +
+  "invite_status, invited_at, created_at, updated_at";
 
 const outStudent = (r: any) => (r ? { ...r, section: r.division } : r);
 const inStudent = (b: Record<string, any>) => {
   const o = { ...b };
   if ("section" in o) { o.division = o.section; delete o.section; }
   delete o.id; delete o.created_by; delete o.student_code;
+  // Never client-settable through a plain create/update: linking an
+  // account and opening the invite gate go through their own paths.
+  delete o.user_id; delete o.invite_status; delete o.invited_at;
   return o;
 };
 
@@ -189,6 +193,46 @@ export async function createStudent(body: Record<string, any>) {
     .from("students").insert({ ...inStudent(body), created_by: fid })
     .select(STUDENT_COLS).single();
   if (error) throw error;
+  return outStudent(data);
+}
+
+/**
+ * Bulk-add students from an imported file (CSV / Excel / PDF), in one
+ * insert. Rows missing a first name are dropped rather than failing the
+ * whole batch — a stray blank line in a spreadsheet must not sink 200 good
+ * rows. Returns the created students in the screen's shape.
+ */
+export async function bulkCreateStudents(rows: Record<string, any>[]) {
+  const fid = await facultyId();
+  const clean = (Array.isArray(rows) ? rows : [])
+    .map((r) => ({ ...inStudent(r), created_by: fid }))
+    .filter((r: any) => (r.first_name || "").toString().trim());
+  if (!clean.length) {
+    throw Object.assign(new Error("Nothing to import — no rows had a first name."), { status: 400 });
+  }
+  const { data, error } = await supabase.from("students").insert(clean).select(STUDENT_COLS);
+  if (error) throw error;
+  return { created: (data || []).length, students: (data || []).map(outStudent) };
+}
+
+/**
+ * Open the invite gate for a student: only then may someone signing in
+ * with that email claim the account. Requires an email to invite to.
+ */
+export async function inviteStudent(id: string) {
+  const { data: row, error: readErr } = await supabase
+    .from("students").select("email").eq("id", id).maybeSingle();
+  if (readErr) throw readErr;
+  if (!row) throw notFound();
+  if (!(row as any).email?.trim()) {
+    throw Object.assign(new Error("Add an email to this student before inviting them."), { status: 400 });
+  }
+  const { data, error } = await supabase
+    .from("students")
+    .update({ invite_status: "invited", invited_at: iso(), updated_at: iso() })
+    .eq("id", id).select(STUDENT_COLS).maybeSingle();
+  if (error) throw error;
+  if (!data) throw notFound();
   return outStudent(data);
 }
 

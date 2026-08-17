@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useMemo, useEffect } from "react";
-import { Search, Phone, Plus } from "lucide-react";
+import { Search, Phone, Plus, Upload, Mail, CheckCircle2, FileDown, FileSpreadsheet } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { GRADE_LEVELS, NATIONALITIES } from "../lib/enums";
@@ -19,6 +19,7 @@ import {
   DatePicker,
 } from "./_shared";
 import { takePrefill } from "@/shared/lib/assistantPrefill";
+import { parseRosterFile, downloadSample, SAMPLE_HEADERS } from "@/features/students/importStudents";
 
 const initials = (first, last) =>
   `${(first || "")[0] || ""}${(last || "")[0] || ""}`.toUpperCase();
@@ -48,6 +49,7 @@ export default function DatabaseStudents() {
   const [editing, setEditing] = useState(null); // student row being edited, or "new"
   const [deleting, setDeleting] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [importing, setImporting] = useState(false);
   // The assistant's "add a student called…" hand-off: collect the parked
   // payload once, open the new-student form with what it knew. The
   // teacher still confirms — the assistant never saves.
@@ -147,6 +149,22 @@ export default function DatabaseStudents() {
     setEditing(null);
   };
 
+  // Open the invite gate — only an invited student may claim an account.
+  const invite = async (s) => {
+    try {
+      const updated = await api(`/api/students/${s.id}/invite`, { method: "POST" });
+      setStudents((rows) => rows.map((r) => (r.id === s.id ? updated : r)));
+    } catch (e) {
+      alert(`Could not invite: ${e.message}`);
+    }
+  };
+
+  // Import lands as a batch of created rows — prepend them all.
+  const onImported = (created) => {
+    if (created?.length) setStudents((rows) => [...created, ...rows]);
+    setImporting(false);
+  };
+
   return (
     <div>
       <div className="mb-8 flex flex-col md:flex-row md:items-end md:justify-between gap-4">
@@ -161,9 +179,14 @@ export default function DatabaseStudents() {
             Only kids in the grades you teach. No one else&rsquo;s class is visible.
           </p>
         </div>
-        <Button onClick={() => setEditing("new")}>
-          <Plus size={15} className="mr-2" /> New student
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="secondary" onClick={() => setImporting(true)}>
+            <Upload size={15} className="mr-2" /> Import
+          </Button>
+          <Button onClick={() => setEditing("new")}>
+            <Plus size={15} className="mr-2" /> New student
+          </Button>
+        </div>
       </div>
 
       {/* Search + two filter selects. The selects use selectClasses
@@ -306,10 +329,13 @@ export default function DatabaseStudents() {
                         </div>
                       </td>
                       <td className="py-4 px-5">
-                        <RowActions
-                          onEdit={() => setEditing(s)}
-                          onDelete={() => setDeleting(s)}
-                        />
+                        <div className="flex items-center gap-3 justify-end">
+                          <InviteControl s={s} onInvite={() => invite(s)} />
+                          <RowActions
+                            onEdit={() => setEditing(s)}
+                            onDelete={() => setDeleting(s)}
+                          />
+                        </div>
                       </td>
                     </tr>
                   );
@@ -342,6 +368,10 @@ export default function DatabaseStudents() {
         />
       )}
 
+      {importing && (
+        <ImportStudentsModal onClose={() => setImporting(false)} onImported={onImported} />
+      )}
+
       <ConfirmDelete
         open={!!deleting}
         onClose={() => setDeleting(null)}
@@ -358,6 +388,172 @@ export default function DatabaseStudents() {
   );
 }
 
+// Invite gate per row: a student can log in only once invited, and only
+// then with a matching email. Shows where they are: not invited (a button),
+// invited (waiting to be claimed), or active (they've signed in).
+function InviteControl({ s, onInvite }) {
+  if (s.invite_status === "active") {
+    return (
+      <span title="Signed in" className="font-mono text-[9px] uppercase tracking-wider text-sage inline-flex items-center gap-1">
+        <CheckCircle2 size={11} /> Active
+      </span>
+    );
+  }
+  if (s.invite_status === "invited") {
+    return (
+      <span title="Invited — can claim their account by signing in with their email" className="font-mono text-[9px] uppercase tracking-wider text-gold inline-flex items-center gap-1">
+        <Mail size={11} /> Invited
+      </span>
+    );
+  }
+  return (
+    <button
+      type="button"
+      onClick={onInvite}
+      disabled={!s.email}
+      title={s.email ? "Invite this student to log in" : "Add an email before inviting"}
+      className="font-mono text-[9px] uppercase tracking-wider text-ink-soft hover:text-accent inline-flex items-center gap-1 transition disabled:opacity-40 disabled:hover:text-ink-soft"
+    >
+      <Mail size={11} /> Invite
+    </button>
+  );
+}
+
+// Bulk import from a CSV / Excel / PDF roster. Parses in the browser,
+// previews what it found, and creates the lot on confirm.
+function ImportStudentsModal({ onClose, onImported }) {
+  const [rows, setRows] = useState(null);
+  const [fileName, setFileName] = useState("");
+  const [note, setNote] = useState(null);
+  const [parsing, setParsing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState(null);
+
+  const onFile = async (file) => {
+    if (!file) return;
+    setErr(null); setNote(null); setRows(null); setParsing(true); setFileName(file.name);
+    try {
+      const { rows: parsed, note: n } = await parseRosterFile(file);
+      setRows(parsed);
+      if (n) setNote(n);
+      if (!parsed.length) setErr("No student rows found. Check the file has a header row and try the sample format.");
+    } catch (e) {
+      setErr(`Could not read the file: ${e.message}`);
+    } finally {
+      setParsing(false);
+    }
+  };
+
+  const doImport = async () => {
+    if (!rows?.length) return;
+    setSaving(true); setErr(null);
+    try {
+      const res = await api("/api/students/bulk", { method: "POST", body: { students: rows } });
+      onImported(res.students || []);
+    } catch (e) {
+      setErr(e.message);
+      setSaving(false);
+    }
+  };
+
+  const preview = (rows || []).slice(0, 20);
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      eyebrow="Import"
+      title="Import students from a file"
+      wide
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose} disabled={saving}>Cancel</Button>
+          <Button onClick={doImport} disabled={saving || !rows?.length}>
+            {saving ? "Importing…" : rows?.length ? `Import ${rows.length} student${rows.length === 1 ? "" : "s"}` : "Import"}
+          </Button>
+        </>
+      }
+    >
+      {err && <div className="mb-4 bg-paper border border-accent rounded-lg p-3"><p className="text-sm text-accent">{err}</p></div>}
+
+      {/* Format guide + sample */}
+      <div className="bg-paper-warm border border-line rounded-lg p-4 mb-5">
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <p className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted mb-2 inline-flex items-center gap-1.5">
+              <FileSpreadsheet size={12} /> Expected columns
+            </p>
+            <p className="text-sm text-ink-soft">
+              A header row, then one student per line. Recognised columns (any order, extras ignored):
+            </p>
+            <p className="font-mono text-[11px] text-ink mt-2 break-words">{SAMPLE_HEADERS.join(" · ")}</p>
+            <p className="text-xs text-muted mt-2">
+              Only <span className="text-ink">first name</span> is required. An <span className="text-ink">email</span> is
+              what a student later signs in with — add it now so you can invite them. CSV or Excel are exact; PDF is best-effort.
+            </p>
+          </div>
+          <button
+            onClick={downloadSample}
+            className="flex-shrink-0 font-mono text-[10px] uppercase tracking-wider text-ink hover:text-accent inline-flex items-center gap-1.5 border border-line hover:border-accent rounded-lg px-3 py-2 transition"
+          >
+            <FileDown size={13} /> Sample CSV
+          </button>
+        </div>
+      </div>
+
+      {/* File picker */}
+      <label className="block border-2 border-dashed border-line rounded-xl p-6 text-center cursor-pointer hover:border-ink transition mb-4">
+        <input
+          type="file"
+          accept=".csv,.xlsx,.xls,.pdf,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/pdf"
+          className="hidden"
+          onChange={(e) => onFile(e.target.files?.[0])}
+        />
+        <Upload size={20} className="mx-auto text-muted mb-2" />
+        <p className="text-sm text-ink">{fileName || "Choose a CSV, Excel or PDF file"}</p>
+        <p className="font-mono text-[10px] uppercase tracking-wider text-muted mt-1">
+          {parsing ? "Reading…" : "click to browse"}
+        </p>
+      </label>
+
+      {note && <p className="text-xs text-gold mb-3">{note}</p>}
+
+      {/* Preview */}
+      {rows && rows.length > 0 && (
+        <div>
+          <p className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted mb-2">
+            Preview — {rows.length} student{rows.length === 1 ? "" : "s"} found{rows.length > preview.length ? ` (showing ${preview.length})` : ""}
+          </p>
+          <div className="overflow-x-auto border border-line rounded-lg">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="font-mono text-[9px] uppercase tracking-wider text-muted border-b border-line bg-paper-warm">
+                  <th className="text-left py-2 px-3 font-medium">Name</th>
+                  <th className="text-left py-2 font-medium">ID</th>
+                  <th className="text-left py-2 font-medium">Grade·Sec</th>
+                  <th className="text-left py-2 font-medium">Subject</th>
+                  <th className="text-left py-2 px-3 font-medium">Email</th>
+                </tr>
+              </thead>
+              <tbody>
+                {preview.map((r, i) => (
+                  <tr key={i} className="border-b border-line/60 last:border-0">
+                    <td className="py-2 px-3 text-ink">{[r.first_name, r.last_name].filter(Boolean).join(" ") || "—"}</td>
+                    <td className="py-2 font-mono text-[11px] text-ink-soft">{r.student_id || "—"}</td>
+                    <td className="py-2 text-ink-soft text-xs">{r.grade || "—"}{r.section ? `·${r.section}` : ""}</td>
+                    <td className="py-2 text-ink-soft text-xs">{r.subject || "—"}</td>
+                    <td className="py-2 px-3 text-ink-soft text-xs">{r.email || "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </Modal>
+  );
+}
+
 const EMPTY_STUDENT = {
   first_name: "",
   last_name: "",
@@ -366,6 +562,7 @@ const EMPTY_STUDENT = {
   gender: "",
   grade: "",
   section: "",
+  subject: "",
   email: "",
   phone: "",
   nationality: "",
@@ -500,6 +697,10 @@ function StudentEditModal({ initial, prefill = null, onClose, onSaved }) {
         <Field label="Section">
           <input className={inputClasses} value={form.section}
             onChange={(e) => set("section", e.target.value)} required />
+        </Field>
+        <Field label="Subject" hint="what you teach them">
+          <input className={inputClasses} value={form.subject}
+            onChange={(e) => set("subject", e.target.value)} placeholder="e.g. Mathematics" />
         </Field>
         <Field label="Enrollment date">
           <DatePicker value={form.enrollment_date} onChange={(v) => set("enrollment_date", v)} />
