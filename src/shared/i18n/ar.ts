@@ -101,6 +101,7 @@ export const AR: Partial<Record<TranslationKey, string>> = {
   "accountMenu.language": "اللغة",
   "accountMenu.help": "الحصول على مساعدة",
   "accountMenu.upgrade": "ترقية الخطة",
+  "accountMenu.viewAs": "العرض بصفة",
   "accountMenu.logout": "تسجيل الخروج",
   // help popover
   "help.eyebrow": "تحتاج إلى دعم؟",

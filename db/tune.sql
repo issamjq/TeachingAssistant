@@ -2950,3 +2950,258 @@ BEGIN
       public.platform_owner_email(), public.platform_owner_email();
   END IF;
 END $$;
+
+
+-- =====================================================================
+-- 37. More than one role, and more than one teacher
+-- =====================================================================
+--
+-- Two limits with the same shape: the product assumed a person is exactly
+-- one thing.
+--
+-- **A person can hold several roles.** A teacher who is also studying, an
+-- admin who is also a student, a teacher who also administers. Rather than
+-- add a roles array that can disagree with the rest of the schema, the set
+-- is DERIVED from what is already true and already enforced:
+--
+--     teacher   ← a faculty row exists for this user
+--     student   ← at least one students row is claimed by this user
+--     admin · moe · owner · super_admin · dev   ← users.role
+--
+-- Every combination asked for falls out of that, and there is nothing to
+-- keep in sync: is_super_admin() still reads users.role, current_faculty_id()
+-- still finds the faculty row, and current_student_ids() still finds the
+-- roster rows. my_roles() only reports what those already decide.
+--
+-- **A student can be invited by several teachers.** link_student_account()
+-- claimed one row (`ORDER BY created_at LIMIT 1`), so a student on three
+-- teachers' rosters saw one teacher's world and the other two invitations
+-- did nothing. It now claims every invited row for that email, and the
+-- dashboard reads across all of them.
+
+
+-- ── every roster row this user has claimed ────────────────────────────
+--
+-- The set form of current_student_id(). DEFINER so it is readable under
+-- the policies that are themselves written in terms of it.
+CREATE OR REPLACE FUNCTION public.current_student_ids()
+RETURNS SETOF uuid
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+  SELECT id FROM students WHERE user_id = (SELECT auth.uid());
+$$;
+GRANT EXECUTE ON FUNCTION public.current_student_ids() TO authenticated;
+
+-- current_student_id() stays, and stays singular: policies authored in the
+-- Supabase console are written in terms of it and this file cannot see them.
+-- It answers with the PRIMARY row — the first a teacher created — so those
+-- policies keep working unchanged rather than breaking on a student who now
+-- holds three rows. Everything in this file uses the set.
+CREATE OR REPLACE FUNCTION public.current_student_id()
+RETURNS uuid
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+  SELECT id FROM students WHERE user_id = (SELECT auth.uid())
+   ORDER BY created_at LIMIT 1;
+$$;
+GRANT EXECUTE ON FUNCTION public.current_student_id() TO authenticated;
+
+-- The attempt policy has to see all of them, or a student can sit the work
+-- their first teacher set and nothing from the other two.
+DROP POLICY IF EXISTS quiz_attempts_student ON public.quiz_attempts;
+CREATE POLICY quiz_attempts_student ON public.quiz_attempts
+  FOR ALL TO authenticated
+  USING (student_id IN (SELECT public.current_student_ids()))
+  WITH CHECK (student_id IN (SELECT public.current_student_ids()));
+
+
+-- ── the roles this user actually holds ────────────────────────────────
+--
+-- Ordered by the pyramid (dev > super_admin > admin > moe > owner >
+-- teacher > student) so the first element is the most privileged, which is
+-- what a UI should offer first.
+CREATE OR REPLACE FUNCTION public.my_roles()
+RETURNS text[]
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+  SELECT COALESCE(array_agg(r ORDER BY rank), ARRAY['teacher']::text[])
+    FROM (
+      SELECT DISTINCT ON (r) r,
+             array_position(
+               ARRAY['dev','super_admin','admin','moe','owner','teacher','student'], r
+             ) AS rank
+        FROM (
+          SELECT u.role AS r FROM users u WHERE u.id = (SELECT auth.uid())
+          UNION ALL
+          SELECT 'teacher' WHERE EXISTS (
+            SELECT 1 FROM faculty f WHERE f.user_id = (SELECT auth.uid()))
+          UNION ALL
+          SELECT 'student' WHERE EXISTS (
+            SELECT 1 FROM students s WHERE s.user_id = (SELECT auth.uid()))
+        ) candidates
+       WHERE r IN ('dev','super_admin','admin','moe','owner','teacher','student')
+    ) ranked;
+$$;
+GRANT EXECUTE ON FUNCTION public.my_roles() TO authenticated;
+
+
+-- ── claim EVERY invitation, not the oldest one ────────────────────────
+--
+-- Three changes from §35:
+--
+--   * every invited, unclaimed row for this email is claimed, so a student
+--     on several teachers' rosters gets all of them;
+--   * a teacher is no longer refused. Holding a faculty row used to end the
+--     call with `is_teacher`, which is exactly the both-at-once case this
+--     section exists to allow;
+--   * the role is only taken if it is still free. users.role is the slot for
+--     an ASSIGNED role, and a teacher or an admin who is also a student must
+--     not lose theirs to a claim — my_roles() reports both regardless.
+--
+-- Re-runnable: a student who is invited again later calls this again and
+-- picks up only the new rows.
+CREATE OR REPLACE FUNCTION public.link_student_account()
+RETURNS jsonb
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE uid uuid; em text; claimed int; held int;
+BEGIN
+  uid := (SELECT auth.uid());
+  IF uid IS NULL THEN RETURN jsonb_build_object('linked', false, 'reason', 'not_signed_in'); END IF;
+
+  em := lower((SELECT email FROM auth.users WHERE id = uid));
+  IF em IS NULL THEN RETURN jsonb_build_object('linked', false, 'reason', 'no_email'); END IF;
+
+  UPDATE students
+     SET user_id = uid, invite_status = 'active', updated_at = now()
+   WHERE lower(email) = em AND user_id IS NULL AND invite_status = 'invited';
+  GET DIAGNOSTICS claimed = ROW_COUNT;
+
+  SELECT count(*) INTO held FROM students WHERE user_id = uid;
+
+  IF held = 0 THEN
+    -- Nothing claimed and nothing held. Say which, so the sign-in page can
+    -- tell "your teacher hasn't invited you yet" from "we don't know you".
+    IF EXISTS (SELECT 1 FROM students WHERE lower(email) = em AND user_id IS NULL) THEN
+      RETURN jsonb_build_object('linked', false, 'reason', 'not_invited');
+    END IF;
+    RETURN jsonb_build_object('linked', false, 'reason', 'no_match');
+  END IF;
+
+  INSERT INTO public.users (id, email) VALUES (uid, em) ON CONFLICT (id) DO NOTHING;
+  UPDATE public.users u
+     SET role = 'student', updated_at = now()
+   WHERE u.id = uid
+     AND u.role = 'teacher'                    -- still the sign-up default
+     AND NOT EXISTS (SELECT 1 FROM faculty f WHERE f.user_id = uid);
+
+  RETURN jsonb_build_object(
+    'linked', true, 'claimed', claimed, 'rows', held,
+    'student_id', public.current_student_id()
+  );
+END $$;
+GRANT EXECUTE ON FUNCTION public.link_student_account() TO authenticated;
+
+
+-- ── one dashboard across every teacher who invited them ───────────────
+--
+-- Reads over current_student_ids() rather than one id, and carries the
+-- subject and the teacher on each row — with three teachers in one list,
+-- "Unit 4 quiz" is not enough to know whose it is.
+CREATE OR REPLACE FUNCTION public.student_dashboard()
+RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE out jsonb; n int;
+BEGIN
+  SELECT count(*) INTO n FROM students WHERE user_id = (SELECT auth.uid());
+  IF n = 0 THEN RETURN NULL; END IF;
+
+  SELECT jsonb_build_object(
+    -- Identity comes from the primary row; name, grade and school are the
+    -- student's own, not any one teacher's view of them.
+    'student', (
+      SELECT jsonb_build_object(
+        'id', st.id, 'first_name', st.first_name, 'last_name', st.last_name,
+        'grade', st.grade, 'section', st.division,
+        'school', (SELECT name FROM schools WHERE id = st.school_id)
+      ) FROM students st WHERE st.id = public.current_student_id()
+    ),
+
+    -- Who they are enrolled with, and for what. The list a student needs to
+    -- make sense of a merged view.
+    'teachers', (
+      SELECT COALESCE(jsonb_agg(row_to_json(t) ORDER BY t.subject NULLS LAST), '[]'::jsonb) FROM (
+        SELECT st.id AS student_row_id, st.subject, st.grade, st.division AS section,
+               TRIM(COALESCE(u.first_name,'') || ' ' || COALESCE(u.last_name,'')) AS teacher,
+               (SELECT name FROM schools WHERE id = st.school_id) AS school
+          FROM students st
+          LEFT JOIN faculty f ON f.id = st.created_by
+          LEFT JOIN users   u ON u.id = f.user_id
+         WHERE st.id IN (SELECT public.current_student_ids())
+      ) t
+    ),
+
+    'work', (
+      SELECT COALESCE(jsonb_agg(row_to_json(w) ORDER BY w.starts_at DESC NULLS LAST), '[]'::jsonb) FROM (
+        SELECT a.id AS assignment_id, gen.id AS work_id, gen.type,
+               COALESCE(gen.content->>'title', gen.content->>'name', 'Work') AS title,
+               a.starts_at, a.ends_at, c.name AS class_name,
+               -- Which roster row this reached them through. Two teachers
+               -- could set work in the same class, so the assignment id
+               -- alone is not a key for the merged list.
+               cm.student_id AS student_row_id,
+               st.subject,
+               TRIM(COALESCE(u.first_name,'') || ' ' || COALESCE(u.last_name,'')) AS teacher,
+               qa.status, qa.score, qa.max_score, qa.submitted_at
+          FROM class_members cm
+          JOIN students     st ON st.id = cm.student_id
+          JOIN classes      c  ON c.id  = cm.class_id
+          JOIN assignments  a  ON a.class_id = cm.class_id
+          JOIN ai_studio    gen ON gen.id = a.generation_id AND gen.deleted_at IS NULL
+          LEFT JOIN faculty f  ON f.id = gen.faculty_id
+          LEFT JOIN users   u  ON u.id = f.user_id
+          LEFT JOIN quiz_attempts qa
+                 ON qa.assignment_id = a.id AND qa.student_id = cm.student_id
+         WHERE cm.student_id IN (SELECT public.current_student_ids())
+      ) w
+    ),
+
+    'scores', (
+      SELECT COALESCE(jsonb_agg(row_to_json(s2) ORDER BY s2.submitted_at DESC NULLS LAST), '[]'::jsonb) FROM (
+        SELECT qa.id, qa.score, qa.max_score, qa.submitted_at, gen.type, st.subject,
+               COALESCE(gen.content->>'title', gen.content->>'name', 'Work') AS title
+          FROM quiz_attempts qa
+          JOIN students st ON st.id = qa.student_id
+          LEFT JOIN assignments a ON a.id = qa.assignment_id
+          LEFT JOIN ai_studio gen ON gen.id = a.generation_id
+         WHERE qa.student_id IN (SELECT public.current_student_ids())
+           AND qa.score IS NOT NULL
+         ORDER BY qa.submitted_at DESC NULLS LAST LIMIT 40
+      ) s2
+    ),
+
+    -- Attendance is per teacher — one may mark it and another may not — so
+    -- the total is the sum, and it is the honest one only when read across
+    -- every roster row.
+    'attendance', (
+      SELECT jsonb_build_object(
+        'present', count(*) FILTER (WHERE status = 'present'),
+        'absent',  count(*) FILTER (WHERE status = 'absent'),
+        'late',    count(*) FILTER (WHERE status = 'late'),
+        'total',   count(*)
+      ) FROM attendance WHERE student_id IN (SELECT public.current_student_ids())
+    ),
+
+    'grades', (
+      SELECT COALESCE(jsonb_agg(row_to_json(g) ORDER BY g.recorded_on DESC), '[]'::jsonb) FROM (
+        SELECT sg.subject, sg.term, sg.label, sg.score, sg.max_score, sg.recorded_on
+          FROM student_grades sg
+         WHERE sg.student_id IN (SELECT public.current_student_ids())
+         ORDER BY sg.recorded_on DESC LIMIT 40
+      ) g
+    )
+  ) INTO out;
+  RETURN out;
+END $$;
+GRANT EXECUTE ON FUNCTION public.student_dashboard() TO authenticated;

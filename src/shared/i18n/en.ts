@@ -107,6 +107,7 @@ export const EN = {
   "accountMenu.language": "Language",
   "accountMenu.help": "Get help",
   "accountMenu.upgrade": "Upgrade plan",
+  "accountMenu.viewAs": "View as",
   "accountMenu.logout": "Log out",
   // help popover
   "help.eyebrow": "Need support?",

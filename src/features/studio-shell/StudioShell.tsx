@@ -42,7 +42,7 @@ import {
   Building2,
   type LucideIcon,
 } from "lucide-react";
-import { clearRole, getRole, onRoleChange, ROLE_LABELS, syncRoleFromServer } from "@/lib/role";
+import { asRoles, clearRole, getRole, onRoleChange, ROLE_LABELS, setRole, syncRoleFromServer } from "@/lib/role";
 import { api, ApiError } from "@/shared/lib/apiClient";
 import { navigate, replace, clearRoute } from "@/lib/route";
 import { useT } from "@/shared/i18n";
@@ -124,6 +124,10 @@ function NavBadge({ letter, icon }: { letter?: string; icon?: string }) {
 
 export default function StudioShell({ children }: { children: React.ReactNode }) {
   const [role, setRoleState] = useState<Role>(getRole);
+  // Every role this account holds, from /api/me. One entry is the ordinary
+  // case and the switcher stays hidden; more than one means the person is
+  // genuinely both things and gets to choose which interface they are in.
+  const [heldRoles, setHeldRoles] = useState<Role[]>([]);
   // Resolved capability map from /api/me — drives a sub-admin's nav.
   const [perms, setPerms] = useState<Record<string, boolean> | null>(null);
   const [navOpen, setNavOpen] = useState(false);
@@ -194,7 +198,8 @@ export default function StudioShell({ children }: { children: React.ReactNode })
           // sign-ins and never cleared, so it outlived the account that
           // wrote it — see syncRoleFromServer. Role first, then the
           // capabilities that refine it.
-          syncRoleFromServer(me.role);
+          syncRoleFromServer(me.role, me.roles);
+          setHeldRoles(asRoles(me.roles));
           // Keep the resolved capability map so the sub-admin nav reflects
           // exactly what the super admin granted.
           if (me.permissions && typeof me.permissions === "object") setPerms(me.permissions);
@@ -461,6 +466,9 @@ export default function StudioShell({ children }: { children: React.ReactNode })
           }}
           onUpgrade={() => navigate(["signup"])}
           onLogout={signOutFully}
+          roles={heldRoles}
+          activeRole={role}
+          onSwitchRole={setRole}
         />
       </div>
     </>

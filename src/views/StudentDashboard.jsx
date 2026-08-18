@@ -60,6 +60,13 @@ export default function StudentDashboard() {
   }
 
   const s = data.student || {};
+  // A student can be on several teachers' rosters — each is a separate row
+  // with its own subject. One dashboard shows all of it, so the subject and
+  // the teacher have to travel with each item or "Unit 4 quiz" tells them
+  // nothing about whose it is. With a single teacher none of that is worth
+  // the column, and it is hidden.
+  const teachers = data.teachers || [];
+  const multi = teachers.length > 1;
 
   return (
     <div className="space-y-6 md:space-y-8">
@@ -74,6 +81,24 @@ export default function StudentDashboard() {
           {[s.grade && `Grade ${s.grade}`, s.section, s.school].filter(Boolean).join(" · ") || "Your assigned work at a glance."}
         </p>
       </div>
+
+      {multi && (
+        <div className="flex flex-wrap gap-2">
+          {teachers.map((t) => (
+            <span
+              key={t.student_row_id}
+              className="inline-flex items-baseline gap-2 rounded-lg border border-line bg-paper px-3 py-1.5"
+            >
+              <span className="font-mono text-[10px] uppercase tracking-wider text-ink">
+                {t.subject || "Class"}
+              </span>
+              {t.teacher && (
+                <span className="font-serif italic text-[12px] text-muted">{t.teacher}</span>
+              )}
+            </span>
+          ))}
+        </div>
+      )}
 
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
         <Kpi icon={<BookOpen size={14} />} label="Assigned" value={kpis.assigned} sub="pieces of work" />
@@ -95,13 +120,17 @@ export default function StudentDashboard() {
       {/* Assigned work with status */}
       <Card>
         <CardContent>
-          <ChartHeader label="Work" sub="Everything assigned to your classes" />
+          <ChartHeader
+            label="Work"
+            sub={multi ? "Everything assigned to you, across all your teachers" : "Everything assigned to your classes"}
+          />
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted border-b border-line">
                   <th className="text-left py-3 px-2 font-medium">Title</th>
                   <th className="text-left py-3 font-medium">Type</th>
+                  {multi && <th className="text-left py-3 font-medium">Subject</th>}
                   <th className="text-left py-3 font-medium">Class</th>
                   <th className="text-left py-3 font-medium">Due</th>
                   <th className="text-left py-3 font-medium">Status</th>
@@ -113,9 +142,15 @@ export default function StudentDashboard() {
                   const p = pct(w.score, w.max_score);
                   const done = !!w.submitted_at;
                   return (
-                    <tr key={w.assignment_id} className="border-b border-line/60 last:border-0 hover:bg-paper-warm transition">
+                    <tr key={`${w.student_row_id}:${w.assignment_id}`} className="border-b border-line/60 last:border-0 hover:bg-paper-warm transition">
                       <td className="py-3 px-2 text-ink">{w.title}</td>
                       <td className="py-3 text-muted text-xs">{w.type}</td>
+                      {multi && (
+                        <td className="py-3 text-muted text-xs">
+                          {w.subject || "—"}
+                          {w.teacher && <span className="block font-serif italic">{w.teacher}</span>}
+                        </td>
+                      )}
                       <td className="py-3 text-muted text-xs">{w.class_name || "—"}</td>
                       <td className="py-3 text-muted text-xs">{w.ends_at ? new Date(w.ends_at).toLocaleDateString() : "—"}</td>
                       <td className="py-3">
@@ -130,7 +165,7 @@ export default function StudentDashboard() {
                   );
                 })}
                 {work.length === 0 && (
-                  <tr><td colSpan={6} className="py-12 text-center text-muted">No work assigned yet.</td></tr>
+                  <tr><td colSpan={multi ? 7 : 6} className="py-12 text-center text-muted">No work assigned yet.</td></tr>
                 )}
               </tbody>
             </table>
@@ -142,7 +177,7 @@ export default function StudentDashboard() {
       {grades.length > 0 && (
         <Card>
           <CardContent>
-            <ChartHeader label="Marks" sub="Recorded by your teacher" />
+            <ChartHeader label="Marks" sub={multi ? "Recorded by your teachers" : "Recorded by your teacher"} />
             <ul className="divide-y divide-line/60">
               {grades.map((g, i) => (
                 <li key={i} className="py-3 flex items-center gap-3 text-sm">

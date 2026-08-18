@@ -78,3 +78,45 @@ is the failure a teacher adding a class will actually hit, so:
 **Configure a custom SMTP provider** (Project settings → Authentication →
 SMTP) before real classes arrive. Nothing in the code changes when you
 do.
+
+## Signing in without the email
+
+The email is a convenience, not the mechanism. What lets a student in is
+`invite_status = 'invited'` on a roster row carrying their address — so a
+student whose invite never arrived, or who never opened it, signs in with
+that same address and gets their dashboard.
+
+That works at **both** doors now:
+
+- `/student` already called `link_student_account()` on an unrecognised
+  session.
+- The main funnel did not. A 404 from `/api/auth/claim-session` means no
+  *teacher* row, which the landing page read as "new user" and turned an
+  invited student into a teacher. It now tries the student link first,
+  and only falls through to the sign-up funnel when that finds nothing.
+
+## Invited by several teachers (§37)
+
+A student on three teachers' rosters is three `students` rows, one per
+teacher, each with its own `subject`, grade and section. Previously
+`link_student_account()` claimed one (`ORDER BY created_at LIMIT 1`), so
+two of the three invitations did nothing.
+
+It now claims **every** invited, unclaimed row for the address, and is
+re-runnable — a student invited by a fourth teacher next term calls the
+same function and picks up only the new row. Holding a faculty row no
+longer refuses the call either; that was the teacher-and-student case.
+
+`current_student_ids()` is the set form of `current_student_id()`.
+The singular one stays, and stays singular, because RLS policies authored
+in the Supabase console are written in terms of it and this repo cannot
+see them — it now answers with the **primary** row (the first a teacher
+created) so those policies keep working rather than breaking on a student
+who holds three. Everything in `tune.sql` uses the set, including the
+`quiz_attempts` student policy.
+
+`student_dashboard()` reads across all of them and carries the subject
+and teacher on each item, because in a merged list "Unit 4 quiz" does not
+say whose it is. The dashboard shows a strip of subjects and a Subject
+column only when there is more than one teacher; with one, nothing
+changes.

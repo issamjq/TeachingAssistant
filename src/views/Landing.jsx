@@ -2900,6 +2900,44 @@ export default function Landing({ onOpenStudio, heroVariant = null, initialPage 
           return;
         }
       }
+
+      // ── Invited student ───────────────────────────────────────────
+      //
+      // A 404 means no TEACHER row — it does not mean nobody knows this
+      // person. A student whose teacher invited them but whose email
+      // never arrived (or who never opened it) signs in here, at the
+      // front door, with the same address that is on the roster. Falling
+      // through would hand them the teacher funnel and make them one.
+      //
+      // link_student_account() claims every invited row for the address,
+      // so this also works for a student several teachers invited. It is
+      // the same call /student makes; the invite email is a convenience,
+      // not the mechanism.
+      try {
+        const linked = await apiFetch("/api/auth/link-student", { method: "POST" });
+        if (linked?.linked) {
+          const me = await apiFetch("/api/auth/me");
+          setAccount({
+            provider,
+            // A student has no plan and nothing on their surface reads one.
+            plan: "trial",
+            role: "student",
+            profile: {
+              firstName: me?.first_name || merged.firstName || "",
+              lastName:  me?.last_name  || merged.lastName  || "",
+              email:     me?.email      || merged.email     || "",
+              avatarUrl: merged.avatarUrl || "",
+            },
+          });
+          setLocalRole("student");
+          onOpenStudio("student-dashboard");
+          return;
+        }
+      } catch (e) {
+        // Not a student either — carry on into the funnel, which is the
+        // right answer for an actual new teacher.
+        console.warn("[auth] student link check failed:", e);
+      }
     }
     // ── New user ────────────────────────────────────────────────────
     // A social sign-in already told us who they are, so there is nothing

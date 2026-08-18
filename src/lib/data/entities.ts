@@ -30,6 +30,21 @@ const notFound = () => Object.assign(new Error("Not found"), { status: 404 });
 // ── profile ───────────────────────────────────────────────────────────
 
 /** /api/me — users ⨝ faculty ⨝ subscriptions ⨝ credits, flattened. */
+/**
+ * Every role this account holds, most privileged first.
+ *
+ * Derived in the database (db/tune.sql §37) from what is already true —
+ * a faculty row makes you a teacher, a claimed roster row makes you a
+ * student, users.role carries an assigned one — so there is no roles list
+ * that can disagree with the rest of the schema. Best-effort: a profile
+ * that loads without it is single-role, which is what it was before.
+ */
+async function myRoles(fallback: string): Promise<string[]> {
+  const { data, error } = await supabase.rpc("my_roles");
+  if (error || !Array.isArray(data) || !data.length) return [fallback];
+  return data as string[];
+}
+
 export async function getProfile() {
   const { userId, facultyId: fid } = await ident();
   if (!fid) {
@@ -37,13 +52,20 @@ export async function getProfile() {
     // A student becomes a user by claiming a roster row (link_student_account),
     // which sets students.user_id; detect that here and answer with a student
     // profile instead of the no_teacher_row that starts the sign-up funnel.
-    const { data: st } = await supabase
+    //
+    // maybeSingle() would now throw: a student invited by three teachers holds
+    // three rows. The primary one — the first a teacher created — carries the
+    // identity, and student_dashboard() reads across all of them.
+    const { data: rows } = await supabase
       .from("students")
-      .select("id, first_name, last_name, email, grade, division, school_id")
+      .select("id, first_name, last_name, email, grade, division, subject, school_id")
       .eq("user_id", userId)
-      .maybeSingle();
+      .order("created_at")
+      .limit(1);
+    const st = rows?.[0];
     if (st) {
       return {
+        roles: await myRoles("student"),
         id: (st as any).id,
         user_id: userId,
         role: "student",
@@ -77,6 +99,10 @@ export async function getProfile() {
 
   const user: any = u.data, fac: any = f.data, sub: any = s.data, cr: any = c.data;
   return {
+    // Both at once is allowed: a teacher who is also on someone's roster
+    // holds "teacher" and "student", and the shell offers a switch between
+    // the two interfaces rather than picking one.
+    roles: await myRoles(user.role || "teacher"),
     id: fac.id,
     user_id: user.id,
     faculty_code: fac.faculty_code,

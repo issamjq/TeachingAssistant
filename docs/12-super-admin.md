@@ -190,3 +190,37 @@ another portal previews that role's UI (`portal.ts`,
 `clearRole()` now runs on all three sign-out paths — `StudioShell`'s
 `signOutFully`, `Landing`'s `handleSignOut`, and `apiClient`'s forced
 sign-out on `session_superseded`.
+
+## Holding more than one role (§37)
+
+A person can be several things at once — a teacher who is also studying,
+an admin who is also a student, a teacher who also administers. Rather
+than add a `roles` array that can disagree with the rest of the schema,
+the set is **derived from what is already true and already enforced**:
+
+| Role | Comes from |
+|---|---|
+| `teacher` | a `faculty` row exists for this user |
+| `student` | at least one `students` row is claimed by this user |
+| `admin` · `moe` · `owner` · `super_admin` · `dev` | `users.role` |
+
+`my_roles()` only reports what those already decide, so there is nothing
+to keep in sync: `is_super_admin()` still reads `users.role`,
+`current_faculty_id()` still finds the faculty row,
+`current_student_ids()` still finds the roster rows. Granting someone
+`teacher` means giving them a faculty row; granting `student` means
+inviting them.
+
+`users.role` is the slot for an **assigned** role and the primary one —
+what the shell lands on when no choice has been made. It is why
+`link_student_account()` only takes that slot when it is still the
+sign-up default `teacher` and there is no faculty row behind it: an admin
+or a real teacher who is also on a roster must not lose their assignment
+to a claim.
+
+**Switching.** One interface is active at a time. `/api/me` returns
+`roles`, and `syncRoleFromServer(primary, roles)` keeps whichever role
+the browser already chose **as long as it is still in the set** — so the
+choice survives a reload, and a revoked role drops back to the primary on
+the next sign-in. The switcher itself is a row in the account menu,
+hidden entirely when there is only one role.

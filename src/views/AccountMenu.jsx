@@ -11,8 +11,9 @@
 // and Escape — same pattern as the rest of the app's popovers — so it
 // can't get into a half-closed state from event-listener races.
 import React, { useEffect } from "react";
-import { Settings, Globe, HelpCircle, Sparkles, LogOut, Check } from "lucide-react";
+import { Settings, Globe, HelpCircle, Sparkles, LogOut, Check, Repeat } from "lucide-react";
 import { useT, useI18n } from "../lib/i18n";
+import { ROLE_LABELS } from "../lib/role";
 
 export default function AccountMenu({
   open,
@@ -23,6 +24,9 @@ export default function AccountMenu({
   onLogout,
   showUpgrade,
   user,
+  roles = [],
+  activeRole,
+  onSwitchRole,
 }) {
   const t = useT();
   const { lang, setLang } = useI18n();
@@ -53,6 +57,37 @@ export default function AccountMenu({
         {user?.email && (
           <div className="px-4 py-3 border-b border-line">
             <p className="text-[12px] text-muted truncate">{user.email}</p>
+          </div>
+        )}
+
+        {/* Someone can hold more than one role — a teacher who is also on a
+            roster, an admin who also teaches. One interface is active at a
+            time and this is where it changes; the shell follows the choice
+            to that role's home. Hidden entirely in the ordinary case. */}
+        {roles.length > 1 && (
+          <div className="px-4 py-3 border-b border-line">
+            <p className="font-mono text-[9px] uppercase tracking-[0.18em] text-muted mb-2 flex items-center gap-1.5">
+              <Repeat size={11} /> {t("accountMenu.viewAs")}
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {roles.map((r) => (
+                <button
+                  key={r}
+                  type="button"
+                  role="menuitemradio"
+                  aria-checked={r === activeRole}
+                  onClick={() => { if (r !== activeRole) { onClose(); onSwitchRole?.(r); } }}
+                  className={
+                    "font-mono text-[10px] uppercase tracking-wider rounded-md border px-2 py-1 transition " +
+                    (r === activeRole
+                      ? "border-accent text-accent bg-accent-soft"
+                      : "border-line text-ink-soft hover:border-accent hover:text-accent")
+                  }
+                >
+                  {ROLE_LABELS[r] || r}
+                </button>
+              ))}
+            </div>
           </div>
         )}
 

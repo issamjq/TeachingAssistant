@@ -122,17 +122,33 @@ export const clearRole = (): void => {
  * local value would break that preview on the next /api/me, so a dev
  * keeps whatever they picked.
  */
-export const syncRoleFromServer = (serverRole: unknown): void => {
+export const syncRoleFromServer = (
+  serverRole: unknown,
+  serverRoles?: unknown
+): void => {
   if (serverRole === "dev") return;
-  const next: Role = isRole(serverRole) ? serverRole : "teacher";
+  const held = asRoles(serverRoles);
+  const primary: Role = isRole(serverRole) ? serverRole : held[0] || "teacher";
+
+  // Several roles: the one already chosen wins, so long as it is still one
+  // of them. That is what makes the switcher stick — a teacher who is also
+  // a student and picked the student view keeps it across reloads — and the
+  // moment a role is taken away the browser falls back to the primary.
+  const stored = getRole();
+  const next: Role = held.length > 1 && held.includes(stored) ? stored : primary;
+
   // Compare against the *effective* role, not the raw key. On a browser
   // that has never stored one the key is absent while getRole() already
   // answers "teacher" — announcing a change there would bounce a teacher
   // who deep-linked to /planner back to /dashboard on every sign-in.
-  const changed = getRole() !== next;
+  const changed = stored !== next;
   writeStorage(KEY, next);
   if (changed) listeners.forEach((fn) => fn(next));
 };
+
+/** Narrow an untrusted list (an /api/me payload) to real Roles. */
+export const asRoles = (v: unknown): Role[] =>
+  Array.isArray(v) ? v.filter(isRole) : [];
 
 export const onRoleChange = (fn: RoleListener): (() => void) => {
   listeners.add(fn);
