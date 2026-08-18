@@ -225,12 +225,178 @@
   margin-bottom: 12px;
 }
 .slideBody { flex: 1; min-height: 0; overflow-y: auto; }
+/* A title, a question and a statement fill the slide rather than sitting at
+   the top of one — the difference between a deck and a document. */
+.slideBody[data-center="true"] {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+.slideTitle[data-hero="true"] {
+  font-size: clamp(20px, 3.4vw, 34px);
+  text-align: center;
+  margin: auto auto 0;
+  padding-top: 8%;
+}
+.slide[data-layout="title"], .slide[data-layout="question"] {
+  background:
+    radial-gradient(120% 90% at 100% 0%,
+      color-mix(in srgb, var(--p-accent) 14%, transparent) 0%, transparent 60%),
+    var(--p-surface);
+}
+.statement {
+  font-family: var(--font-serif);
+  font-size: clamp(15px, 2.1vw, 24px);
+  line-height: 1.35;
+  color: var(--p-ink);
+  max-width: 24ch;
+  margin: 0 auto;
+}
+
+/* ── the drawn diagram ────────────────────────────────────────────── */
+
+/*
+ * One data shape, several arrangements.
+ *
+ * These are the difference between a slide about a process and a slide that
+ * IS the process. All CSS: there is no image model here, and a described
+ * picture is not a picture — real structure on the screen is.
+ */
+.stepsWrap { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
+.stepCard {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 8px 11px;
+  border-radius: 8px;
+  border: 1px solid var(--p-line);
+  background: color-mix(in srgb, var(--p-accent) 4%, transparent);
+}
+.stepNum {
+  flex: 0 0 auto;
+  width: 22px; height: 22px;
+  display: grid; place-items: center;
+  border-radius: 50%;
+  background: var(--p-accent);
+  color: var(--p-on-accent);
+  font-family: var(--font-mono, ui-monospace);
+  font-size: 11px;
+  font-weight: 600;
+}
+.stepLabel { font-size: clamp(12px, 1.35vw, 14.5px); font-weight: 600; color: var(--p-ink); }
+.stepDetail { font-size: clamp(11px, 1.2vw, 13px); color: var(--p-ink-soft); line-height: 1.45; margin-top: 2px; }
+
+.cycleWrap {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 4px;
+  margin-top: 4px;
+}
+.cycleNode {
+  flex: 1 1 0;
+  min-width: 92px;
+  position: relative;
+  padding: 10px 16px 10px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--p-line);
+  background: var(--p-paper, transparent);
+  text-align: center;
+}
+.cycleDot {
+  display: inline-grid; place-items: center;
+  width: 20px; height: 20px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--p-accent) 16%, transparent);
+  color: var(--p-accent);
+  font-size: 10.5px; font-weight: 700;
+  margin-bottom: 4px;
+}
+.cycleLabel { font-size: clamp(11.5px, 1.25vw, 13.5px); font-weight: 600; color: var(--p-ink); }
+.cycleDetail { font-size: clamp(10.5px, 1.1vw, 12px); color: var(--p-ink-soft); line-height: 1.4; margin-top: 2px; }
+.cycleArrow {
+  position: absolute;
+  inset-inline-end: 2px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--p-accent);
+  font-size: 13px;
+}
+
+.compareWrap { display: grid; gap: 8px; margin-top: 4px; }
+.compareWrap[data-cols="2"] { grid-template-columns: 1fr 1fr; }
+.compareWrap[data-cols="3"] { grid-template-columns: repeat(3, 1fr); }
+.compareCol {
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--p-line);
+  border-top: 3px solid var(--p-accent);
+  background: var(--p-paper, transparent);
+}
+.compareCol:nth-child(2) { border-top-color: color-mix(in srgb, var(--p-accent) 45%, var(--p-line)); }
+.compareLabel { font-size: clamp(12px, 1.35vw, 14.5px); font-weight: 600; color: var(--p-ink); }
+.compareDetail { font-size: clamp(11px, 1.15vw, 12.5px); color: var(--p-ink-soft); line-height: 1.45; margin-top: 3px; }
+
+.partsWrap { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; margin-top: 4px; }
+.partCallout {
+  position: relative;
+  padding: 8px 10px 8px 16px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--p-accent) 5%, transparent);
+}
+.partPin {
+  position: absolute;
+  inset-inline-start: 6px; top: 13px;
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--p-accent);
+}
+.partLabel { font-size: clamp(11.5px, 1.3vw, 14px); font-weight: 600; color: var(--p-ink); }
+.partDetail { font-size: clamp(10.5px, 1.1vw, 12.5px); color: var(--p-ink-soft); line-height: 1.45; margin-top: 2px; }
+
+.statWrap { text-align: center; margin: auto 0; }
+.statNumber {
+  font-family: var(--font-serif);
+  font-size: clamp(34px, 7vw, 76px);
+  font-weight: 600;
+  line-height: 1;
+  color: var(--p-accent);
+}
+.statCaption {
+  font-size: clamp(12px, 1.4vw, 15px);
+  color: var(--p-ink-soft);
+  margin-top: 8px;
+  max-width: 30ch;
+  margin-inline: auto;
+}
 .slideBody li {
   font-size: clamp(12px, 1.3vw, 14px);
   line-height: 1.55;
   color: var(--p-ink-soft);
   margin: 5px 0;
 }
+/*
+ * The copy-this line.
+ *
+ * Given a rule and a tinted ground so it reads as the one thing on the slide
+ * that is meant to be written down, rather than a fourth bullet in a
+ * different font. The left border does the work at a glance; the background
+ * keeps it legible when the deck is projected.
+ */
+.slideNote {
+  margin-top: 14px;
+  padding: 10px 12px;
+  border-inline-start: 3px solid var(--p-accent, #1f6f6b);
+  border-radius: 0 6px 6px 0;
+  background: color-mix(in srgb, var(--p-accent, #1f6f6b) 7%, transparent);
+  font-size: clamp(12px, 1.35vw, 14.5px);
+  line-height: 1.5;
+  color: var(--p-ink);
+}
+.slideNote span { color: var(--p-muted); letter-spacing: 0.12em; }
+
 .slideRail {
   display: flex;
   align-items: center;
@@ -786,3 +952,24 @@
   text-transform: uppercase;
   color: var(--p-muted);
 }
+
+/*
+ * The diagram, at wall size.
+ *
+ * The preview sizes are tuned for a card inside a chat; projected, the same
+ * markup has to be read from the back of a classroom. Scaled here rather than
+ * duplicated so there is one diagram, in two sizes.
+ */
+.slideItemsBig .stepLabel,
+.slideItemsBig .compareLabel,
+.slideItemsBig .cycleLabel,
+.slideItemsBig .partLabel { font-size: clamp(16px, 1.9vw, 26px); }
+.slideItemsBig .stepDetail,
+.slideItemsBig .compareDetail,
+.slideItemsBig .cycleDetail,
+.slideItemsBig .partDetail { font-size: clamp(14px, 1.5vw, 20px); }
+.slideItemsBig .stepCard { padding: 13px 17px; gap: 14px; }
+.slideItemsBig .stepNum { width: 30px; height: 30px; font-size: 14px; }
+.slideItemsBig .compareCol, .slideItemsBig .cycleNode { padding: 15px 17px; }
+.slideItemsBig .statNumber { font-size: clamp(56px, 9vw, 120px); }
+.slideItemsBig .statCaption { font-size: clamp(15px, 1.7vw, 22px); }

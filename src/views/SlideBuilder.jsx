@@ -603,13 +603,36 @@ const BULLET_STYLE_VALUES = ["dot", "dash", "number", "none"];
 // now save and the legacy { title, body, image_url } shape.
 export function deckFromPresentation(p) {
   const slides = (p?.slides || []).map((s, i) => {
-    const bullets =
+    const written =
       Array.isArray(s.bullets) && s.bullets.length
         ? s.bullets
         : String(s.body || "")
             .split(/\n+/)
             .map((l) => l.replace(/^[•\-*]\s*/, "").trim())
             .filter(Boolean);
+
+    /**
+     * A studio deck keeps most of its content somewhere this presenter never
+     * looked.
+     *
+     * Slides generated in the AI Studio carry a drawn diagram as `items` and
+     * one copy-this line as `note`; a comparison of three states of matter is
+     * three items and no bullets at all. This adapter read `bullets` only, so
+     * presenting one of those decks — from the Present button or full screen —
+     * put the heading on the wall and nothing under it.
+     *
+     * Folded in rather than re-rendered: this presenter has its own themes,
+     * fonts and layouts, and the honest fix is to give it the content in the
+     * shape it already knows how to set.
+     */
+    const items = Array.isArray(s.items)
+      ? s.items
+          .filter((it) => it && (it.label || it.detail))
+          .map((it) => (it.detail ? `${it.label} — ${it.detail}` : String(it.label)))
+      : [];
+    // Last, because it is the line to leave the class with.
+    const note = typeof s.note === "string" && s.note.trim() ? [s.note.trim()] : [];
+    const bullets = [...written, ...items, ...note];
     let image = s.image || null;
     if (!image && s.image_url) image = { url: s.image_url, thumb: s.image_url };
     return {

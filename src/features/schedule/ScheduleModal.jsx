@@ -56,7 +56,9 @@ export default function ScheduleModal({ initial, prefill, onClose, onSaved }) {
 
   // When the user picks a lesson plan, prefill any empty fields from it.
   const linkDraft = (id) => {
-    const d = drafts.find((x) => x.id === Number(id));
+    // Compared as strings: draft ids are uuids now, and Number() on one is
+    // NaN, so linking a schedule entry to a lesson silently matched nothing.
+    const d = drafts.find((x) => String(x.id) === String(id));
     if (!d) { set("draft_id", null); return; }
     setForm((f) => ({
       ...f,

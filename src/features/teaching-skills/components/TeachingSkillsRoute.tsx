@@ -82,6 +82,21 @@ export function TeachingSkillsRoute() {
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [draft, setDraft] = useState("");
   const [hasDraft, setHasDraft] = useState(false);
+  /**
+   * Whether the browser has taken over from the server-rendered HTML.
+   *
+   * Speech recognition only exists in a browser, so `voice.canListen` is false
+   * on the server and true here — and anything rendered from it makes the
+   * first client render disagree with the HTML React is hydrating against.
+   * That is the hydration error the dev overlay reports: the microphone button
+   * and the "Voice answers work here" hint were both in the markup on one side
+   * and absent on the other.
+   *
+   * Set in an effect, which by definition runs after that first render, so the
+   * two always match and the voice affordances appear a tick later.
+   */
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
   const [reviewText, setReviewText] = useState("");
   const [skillName, setSkillName] = useState("How I teach");
@@ -405,7 +420,7 @@ export function TeachingSkillsRoute() {
                   onKeyDown={onKeyDown}
                 />
                 <div className={s.composerBar}>
-                  {voice.canListen && (
+                  {mounted && voice.canListen && (
                     <button
                       type="button"
                       className={s.iconBtn}
@@ -526,7 +541,7 @@ export function TeachingSkillsRoute() {
           <Button variant="onAccent" onClick={start}>
             {hasDraft ? "Resume the interview" : hasProfiles ? "Retake the interview" : "Start the interview"}
           </Button>
-          {voice.canListen && (
+          {mounted && voice.canListen && (
             <span className={s.loudHint}>
               <Mic size={13} /> Voice answers work here
             </span>

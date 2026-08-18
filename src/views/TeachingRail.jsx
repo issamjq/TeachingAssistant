@@ -95,16 +95,27 @@ export default function TeachingRail() {
       api("/api/activities"),
     ]).then((results) => {
       const get = (i) => (results[i].status === "fulfilled" ? results[i].value || [] : []);
-      const schedule = get(0)
-        .filter((r) => r.status !== "done")
-        .map((r) => ({
-          id: `schedule-${r.id}`,
-          kind: "schedule",
-          date: isoOnly(r.date),
-          title: r.title,
-          time: r.start_time ? String(r.start_time).slice(0, 5) : null,
-        }));
-      const quizzes = get(1)
+      const scheduleRows = get(0).filter((r) => r.status !== "done");
+      const schedule = scheduleRows.map((r) => ({
+        id: `schedule-${r.id}`,
+        kind: "schedule",
+        date: isoOnly(r.date),
+        title: r.title,
+        time: r.start_time ? String(r.start_time).slice(0, 5) : null,
+      }));
+
+      /**
+       * Work that already has a slot is listed once, by its slot.
+       *
+       * The studio books a quiz onto the timetable AND stamps the date onto
+       * the quiz itself, so both queries returned it — the same paper twice
+       * in one day, once at 09:00 and once with no time at all, reading as
+       * two sittings. The timetable row is the better of the two: it carries
+       * the hour.
+       */
+      const booked = new Set(scheduleRows.map((r) => r.draft_id).filter(Boolean));
+      const unbooked = (rows) => rows.filter((r) => !booked.has(r.id));
+      const quizzes = unbooked(get(1))
         .filter((q) => q.scheduled_for)
         .map((q) => ({
           id: `quiz-${q.id}`,
@@ -113,7 +124,7 @@ export default function TeachingRail() {
           title: q.title,
           time: null,
         }));
-      const homework = get(2)
+      const homework = unbooked(get(2))
         .filter((h) => h.due_date)
         .map((h) => ({
           id: `homework-${h.id}`,
@@ -122,7 +133,7 @@ export default function TeachingRail() {
           title: h.title,
           time: null,
         }));
-      const presentations = get(3)
+      const presentations = unbooked(get(3))
         .filter((p) => p.scheduled_for)
         .map((p) => ({
           id: `presentation-${p.id}`,
@@ -131,7 +142,7 @@ export default function TeachingRail() {
           title: p.title,
           time: null,
         }));
-      const activities = get(4)
+      const activities = unbooked(get(4))
         .filter((a) => a.scheduled_for)
         .map((a) => ({
           id: `activity-${a.id}`,

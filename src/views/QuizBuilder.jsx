@@ -28,6 +28,9 @@ export default function QuizBuilder({ quiz, onClose }) {
     total_marks: quiz?.total_marks || 0,
     status: quiz?.status || "Draft",
     scheduled_for: quiz?.scheduled_for ? quiz.scheduled_for.slice(0, 10) : "",
+    // "11:00:00" from Postgres, "11:00" from the studio — the input wants HH:MM.
+    start_time: quiz?.start_time ? String(quiz.start_time).slice(0, 5) : "",
+    end_time: quiz?.end_time ? String(quiz.end_time).slice(0, 5) : "",
     instructions: quiz?.instructions || "",
   });
   const [quizId, setQuizId] = useState(quiz?.id || null);
@@ -55,6 +58,8 @@ export default function QuizBuilder({ quiz, onClose }) {
         total_marks: row.total_marks ?? 0,
         status: row.status || "Draft",
         scheduled_for: row.scheduled_for ? String(row.scheduled_for).slice(0, 10) : "",
+        start_time: row.start_time ? String(row.start_time).slice(0, 5) : "",
+        end_time: row.end_time ? String(row.end_time).slice(0, 5) : "",
         instructions: row.instructions || "",
       });
     }).catch(() => {});
@@ -343,6 +348,27 @@ export default function QuizBuilder({ quiz, onClose }) {
                 <DatePicker value={meta.scheduled_for || ""} onChange={(v) => setMetaField("scheduled_for", v)} />
               </Field>
             </div>
+            {/* A quiz opens and it closes, and both times are on the
+                timetable. The studio has always collected them — it asks for
+                "the hours it runs" before writing a paper — and they were
+                stored on the row and shown nowhere, so a teacher opening the
+                quiz she had just scheduled found a date and no time on it. */}
+            <Field label="Starts">
+              <input
+                type="time"
+                className={inputClasses}
+                value={meta.start_time || ""}
+                onChange={(e) => setMetaField("start_time", e.target.value || null)}
+              />
+            </Field>
+            <Field label="Ends">
+              <input
+                type="time"
+                className={inputClasses}
+                value={meta.end_time || ""}
+                onChange={(e) => setMetaField("end_time", e.target.value || null)}
+              />
+            </Field>
             <div className="md:col-span-2">
               <Field label="Instructions to students">
                 <textarea rows={2} className={inputClasses} value={meta.instructions} onChange={(e) => setMetaField("instructions", e.target.value)} />

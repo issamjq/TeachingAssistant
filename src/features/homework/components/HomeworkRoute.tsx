@@ -18,7 +18,10 @@ export default function HomeworkRoute({ slug = [] }: { slug?: string[] }) {
   if (sub === "new" || sub === "edit") {
     return (
       <HomeworkBuilder
-        homework={sub === "edit" ? { id: Number(id) } : null}
+        /* The key is a uuid since these became `ai_studio` rows; Number()
+           on one is NaN, which opens an empty builder instead of the saved
+           work. See QuizzesRoute for the whole story. */
+        homework={sub === "edit" && id ? { id } : null}
         onClose={() => navigate(["homework"])}
       />
     );

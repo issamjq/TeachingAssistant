@@ -23,6 +23,9 @@ export default function ActivityBuilder({ activity, onClose }) {
     subject: activity?.subject || "",
     duration_minutes: activity?.duration_minutes || 15,
     scheduled_for: activity?.scheduled_for ? String(activity.scheduled_for).slice(0, 10) : "",
+    // "11:00:00" from Postgres, "11:00" from the studio — the input wants HH:MM.
+    start_time: activity?.start_time ? String(activity.start_time).slice(0, 5) : "",
+    end_time: activity?.end_time ? String(activity.end_time).slice(0, 5) : "",
     instructions: activity?.instructions || "",
     materials: Array.isArray(activity?.materials) ? activity.materials : [],
   });
@@ -39,6 +42,8 @@ export default function ActivityBuilder({ activity, onClose }) {
         subject: row.subject || "",
         duration_minutes: row.duration_minutes ?? 15,
         scheduled_for: row.scheduled_for ? String(row.scheduled_for).slice(0, 10) : "",
+        start_time: row.start_time ? String(row.start_time).slice(0, 5) : "",
+        end_time: row.end_time ? String(row.end_time).slice(0, 5) : "",
         instructions: row.instructions || "",
         materials: Array.isArray(row.materials) ? row.materials : [],
       });
@@ -115,6 +120,26 @@ export default function ActivityBuilder({ activity, onClose }) {
             </Field>
             <Field label="Scheduled for">
               <DatePicker value={form.scheduled_for} onChange={(v) => set("scheduled_for", v)} />
+            </Field>
+            {/* The studio asks what time an activity starts and how long it
+                runs, and books both onto the timetable. Without these the
+                teacher opened the activity she had just scheduled and found a
+                date with no hour on it. */}
+            <Field label="Starts">
+              <input
+                type="time"
+                className={inputClasses}
+                value={form.start_time || ""}
+                onChange={(e) => set("start_time", e.target.value || null)}
+              />
+            </Field>
+            <Field label="Ends">
+              <input
+                type="time"
+                className={inputClasses}
+                value={form.end_time || ""}
+                onChange={(e) => set("end_time", e.target.value || null)}
+              />
             </Field>
             <div className="md:col-span-2">
               <Field label="Instructions">

@@ -19,7 +19,16 @@ export default function QuizzesRoute({ slug = [] }: { slug?: string[] }) {
   if (sub === "new" || sub === "edit") {
     return (
       <QuizBuilder
-        quiz={sub === "edit" ? { id: Number(id) } : null}
+        /**
+         * The id goes through as it is.
+         *
+         * Quizzes lived in their own table with an integer key; they are rows
+         * in `ai_studio` now and the key is a uuid. `Number(id)` on a uuid is
+         * NaN, so opening a saved quiz asked the service for quiz NaN, got
+         * nothing, and rendered the empty "Build a quiz" form — every quiz in
+         * the library looked like it had lost its questions.
+         */
+        quiz={sub === "edit" && id ? { id } : null}
         onClose={() => navigate(["quizzes"])}
       />
     );

@@ -132,6 +132,13 @@ export async function resolve(
       return { handled: false };
     }
 
+    // /api/drafts/:id/batch — the plan plus the guide and notes written
+    // with it, when a lesson was stored as separate rows.
+    if (a && b === "batch" && method === "GET") return yes(await A.batchOf(a));
+    // /api/drafts/saved-for-batch/:batchId — what a reopened conversation
+    // already put in the library, so a rework updates it instead of copying it.
+    if (a === "saved-for-batch" && b && method === "GET") return yes(await A.savedForBatch(b));
+
     if (a === "trash" && method === "GET") return yes(await A.list(kind, { trash: true }));
     if (a && b === "restore" && method === "POST") return yes(await A.restore(kind, a));
     if (a && b === "forever" && method === "DELETE") return yes(await A.purge(kind, a));

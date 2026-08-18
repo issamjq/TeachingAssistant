@@ -112,3 +112,81 @@ npm run db:superadmin you@example.com --password '…'
 `('teacher','student','school_admin','superadmin')` and would have rejected
 `super_admin` (with the underscore) and the rest of the pyramid. Until
 `db:tune` runs with §30, no account can be set to `super_admin`.
+
+## Who gets the role (§36)
+
+**A sign-up is a teacher.** Nothing in the app writes `users.role` at
+sign-up — `provisionTeacher()` upserts a name and an avatar and stops —
+so the value came entirely from the live schema, and the live schema was
+handing every new Google account `super_admin`. Since `is_super_admin()`
+is a read of the caller's own `users.role`, that one default gave every
+visitor the cross-tenant consoles, billing, credit control and the audit
+trail.
+
+[`db/tune.sql` §36](../db/tune.sql) closes it in three places:
+
+| | |
+|---|---|
+| `role` column `DEFAULT 'teacher'` | a plain INSERT is a teacher |
+| `force_signup_role_on_users` (BEFORE INSERT) | **coerces** the role, so it wins over whatever `handle_new_user()` assigns — the console trigger's body does not need to be known to be overridden |
+| `guard_privilege_columns_on_users` (BEFORE UPDATE) | refuses a change to `role` / `sub_role` / `permissions` arriving from the browser |
+
+The UPDATE guard tests `current_user`, not `auth.uid()`. A write coming
+straight through PostgREST runs as `authenticated`; a SECURITY DEFINER
+body (`sa_set_role`, `sa_set_permissions`, `link_student_account`) runs
+as the function's owner, and the migration scripts run as `postgres`. So
+every legitimate writer passes and only the direct client write is
+refused — which is why that trigger function must stay SECURITY INVOKER.
+It means the RLS policies on `public.users` (authored in the Supabase
+console, invisible to this repo) no longer decide whether a teacher can
+promote themselves.
+
+**The one account.** `platform_owner_email()` names it —
+`amalcpaulson@gmail.com` — hardcoded on purpose. It is not
+configuration: it is the identity the platform trusts before anything
+has been granted, and reading it from an env var would make a deploy
+setting able to mint a super admin. That account is `super_admin` on
+sight, including on a first-ever sign-in. Everyone else is granted the
+role by an existing super admin (**Account access → change role**) or by
+`npm run db:superadmin`.
+
+Applying §36 also **demotes every other elevated account to `teacher`**
+— `super_admin`, the legacy `superadmin` spelling, and `dev`, which is
+in the list because `is_super_admin()` returns true for it too and a
+leftover dev account is the same hole under another name. It removes
+privilege, not data: no row is deleted, nothing else on the row changes,
+and re-running is a no-op. Grant the real ones back from the console.
+
+### The other half of it was in the browser
+
+The database fix above is necessary but was not sufficient. `murchid_role`
+in localStorage — read by `StudioShell` to pick the rail, the default
+route and `SECTIONS_BY_ROLE` — was **written only by the portal sign-ins
+and never cleared**. So it outlived the account that wrote it:
+
+- a super admin signs in on a browser → `murchid_role = "super_admin"`;
+- sign-out cleared the session, the account and the cached faculty id,
+  but not this;
+- the next account to sign in through the normal `/signin` funnel never
+  called `setRole` at all, so it opened the studio on the super-admin
+  rail and landed on `/superadmin-dashboard`.
+
+An account whose `role` is NULL hit the same thing from the other
+direction: `setRole()` ignores a value that is not a `Role`, so a null
+role did not reset the key — it **kept** whatever was already there.
+
+Nothing behind those screens was ever exposed: every `sa_*` RPC re-checks
+`is_super_admin()` in Postgres, so the console loaded empty and 403ing.
+A console a teacher can open is still a bug.
+
+`syncRoleFromServer()` in [`src/lib/role.ts`](../src/lib/role.ts) makes
+the account row the authority — called from `StudioShell`'s `/api/me`
+hydration, so it runs on every sign-in rather than only at the portal.
+Anything the server does not call a real role is a teacher. `dev` is the
+one exception, and it is this key's original purpose: a dev entering
+another portal previews that role's UI (`portal.ts`,
+`previewRoleForDev`) while staying `dev` server-side.
+
+`clearRole()` now runs on all three sign-out paths — `StudioShell`'s
+`signOutFully`, `Landing`'s `handleSignOut`, and `apiClient`'s forced
+sign-out on `session_superseded`.
