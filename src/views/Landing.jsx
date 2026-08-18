@@ -2804,10 +2804,36 @@ export default function Landing({ onOpenStudio, heroVariant = null, initialPage 
           subscriptionEndsAt: me.subscription_ends_at,
         });
         if (me.role) setLocalRole(me.role);
-      } catch {
+      } catch (e) {
         // No session / no teacher row / network error — fall through.
         // The landing CTAs default to the sign-up funnel, which is
         // the right behavior for an unauthenticated visitor.
+        //
+        // Except for one visitor it is not: an invited student who is
+        // already signed in and comes back to "/" has no teacher row, so
+        // this lands here and leaves them looking at a marketing page
+        // that offers to sign them up. Claim their roster row instead and
+        // let the CTAs take them to their own dashboard.
+        if (e?.status === 404 && !cancelled) {
+          try {
+            const linked = await apiFetch("/api/auth/link-student", { method: "POST" });
+            if (linked?.linked && !cancelled) {
+              const me2 = await apiFetch("/api/auth/me");
+              setAccount({
+                provider: pendingProvider || "google",
+                plan: "trial",
+                role: "student",
+                profile: {
+                  firstName: me2?.first_name || "",
+                  lastName:  me2?.last_name  || "",
+                  email:     me2?.email      || "",
+                  avatarUrl: "",
+                },
+              });
+              setLocalRole("student");
+            }
+          } catch { /* not a student either — the funnel is right */ }
+        }
       }
     })();
     return () => { cancelled = true; };

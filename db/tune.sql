@@ -3045,6 +3045,29 @@ $$;
 GRANT EXECUTE ON FUNCTION public.my_roles() TO authenticated;
 
 
+-- ── no more empty roles ───────────────────────────────────────────────
+--
+-- users.role allows NULL, and §30 called that "a brand-new account before
+-- a role is decided". In practice it is the account showing an empty role
+-- in the console and landing on the teacher dashboard, because every
+-- reader of a NULL role falls back to `teacher` — so the "undecided"
+-- state is indistinguishable from the decision, except that it displays
+-- as blank.
+--
+-- §36 already stops new rows arriving that way. This is the backlog.
+-- Everyone becomes a teacher, which is what they were being treated as;
+-- an invited student is corrected to `student` the next time they sign in,
+-- because link_student_account() takes the slot precisely when it holds
+-- the default and no faculty row sits behind it.
+DO $$
+DECLARE fixed int;
+BEGIN
+  UPDATE public.users SET role = 'teacher', updated_at = now() WHERE role IS NULL;
+  GET DIAGNOSTICS fixed = ROW_COUNT;
+  RAISE NOTICE 'roles: filled % empty role(s) with teacher', fixed;
+END $$;
+
+
 -- ── claim EVERY invitation, not the oldest one ────────────────────────
 --
 -- Three changes from §35:

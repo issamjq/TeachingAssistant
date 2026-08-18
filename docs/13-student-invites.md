@@ -165,7 +165,23 @@ The email is a convenience, not the mechanism. What lets a student in is
 student whose invite never arrived, or who never opened it, signs in with
 that same address and gets their dashboard.
 
-That works at **both** doors now:
+The check lives in **`provisionTeacher()`**, not in the funnel. That is
+the only place a `faculty` row is ever created, and a faculty row is what
+makes someone a teacher for good — so the question has to be asked before
+it is written. The landing page mints a teacher from two separate
+branches (the social fast-track, and the plan picker at the end of the
+email wizard); a check bolted onto one left the other open, and an
+invited student who signed up with the same address came out the far side
+a teacher with a trial, an empty studio and a blank role.
+
+> **Edge case, deliberately accepted.** Someone who is genuinely a
+> teacher *and* on another teacher's roster is diverted to the student
+> side when they sign up, because at that moment the two are
+> indistinguishable and the wrong guess is much more expensive in one
+> direction than the other. A super admin can grant them the faculty row
+> afterwards, and `my_roles()` then reports both.
+
+That works at **every** door now:
 
 - `/student` already called `link_student_account()` on an unrecognised
   session.
@@ -173,6 +189,27 @@ That works at **both** doors now:
   *teacher* row, which the landing page read as "new user" and turned an
   invited student into a teacher. It now tries the student link first,
   and only falls through to the sign-up funnel when that finds nothing.
+- Neither did a **return visit**. A student already signed in who comes
+  back to `/` got a 404 from `/api/auth/me`, which the page swallowed —
+  leaving them on a marketing site offering to sign them up. It now
+  claims their roster row and the CTAs take them to their dashboard.
+- And `onOpenStudio()` with no destination sent everyone to `planner`,
+  which belongs to a teacher. It follows the role's home instead, so a
+  student is not bounced out of a screen a moment after arriving.
+
+### The empty role
+
+`users.role` allows NULL, which §30 described as "a brand-new account
+before a role is decided". In practice it was the account showing a blank
+role in the console and landing on the teacher dashboard, because every
+reader of a NULL role falls back to `teacher` — the undecided state was
+indistinguishable from the decision, except that it displayed as nothing.
+
+§36 stops new rows arriving that way; §37 fills the backlog. Everyone
+becomes `teacher`, which is how they were already being treated, and an
+invited student is corrected to `student` the next time they sign in —
+`link_student_account()` takes the slot precisely when it still holds the
+default and no faculty row sits behind it.
 
 ## Invited by several teachers (§37)
 

@@ -1254,6 +1254,41 @@ export async function getBulletinShare() {
 export async function provisionTeacher() {
   const { userId } = await ident();
 
+  // ── Is this person actually an invited student? ────────────────────
+  //
+  // Asked HERE, before a faculty row exists, because this is the only
+  // place one is ever created — every door into the product ends up in
+  // this function. The landing page mints a teacher from two separate
+  // branches (the social fast-track and the plan picker at the end of the
+  // email wizard), and a check bolted onto one of them left the other
+  // wide open: a student who was invited, then signed up with the same
+  // address, came out the far side a teacher with a trial, an empty
+  // studio and no idea why.
+  //
+  // A faculty row is not easily undone — it is what makes someone a
+  // teacher for good — so the question has to be asked before it is
+  // written, not after.
+  //
+  // link_student_account() is its own guard: it claims only rows whose
+  // teacher actually opened the invite gate, and answers `linked: false`
+  // for everyone else. If the function is not deployed yet the call
+  // throws, and an unmigrated database must not stop teachers signing
+  // up — so that degrades to the old behaviour.
+  try {
+    const { data: claim } = await supabase.rpc("link_student_account");
+    if ((claim as any)?.linked) {
+      // Same shape the teacher branch returns, device claim included —
+      // the caller sets X-Session-Id from it, and a student who never got
+      // one would be a device the policies do not recognise.
+      clearIdent();
+      const { claimDevice } = await import("./device");
+      const active_session_id = await claimDevice().catch(() => null);
+      return { ...(await getProfile()), active_session_id };
+    }
+  } catch {
+    /* not deployed — carry on and provision a teacher, as before */
+  }
+
   // The auth trigger normally mirrors this, but it swallows its own
   // errors by design, so a missing row is possible and cheap to fix.
   const { data: auth } = await supabase.auth.getUser();
