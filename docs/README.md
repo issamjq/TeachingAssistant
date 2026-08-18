@@ -14,6 +14,9 @@ Full project documentation. Read in order if you're new; jump around once you ha
 | 08 | [Views](08-views.md) | Dashboard, Templates, Drafts, NewTemplate, NewDraft, EditDraft |
 | 09 | [Conventions](09-conventions.md) | Rules to follow when adding code |
 | 10 | [Roadmap](10-roadmap.md) | What's built, what's stubbed, what's next |
+| 11 | [Next.js migration](11-nextjs-migration.md) | **Current**: plan, phases, architecture |
+| 12 | [Super admin](12-super-admin.md) | The privileged console, and who gets the role |
+| 13 | [Student invites](13-student-invites.md) | The invite gate, the mail, and the two Supabase settings it needs |
 
 ## Project status
 

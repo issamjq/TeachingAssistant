@@ -199,6 +199,18 @@ export async function createStudent(body: Record<string, any>) {
     .from("students").insert({ ...inStudent(body), created_by: fid })
     .select(STUDENT_COLS).single();
   if (error) throw error;
+  // Adding a student with an email invites them in the same action —
+  // typing the address IS the intent to let them in. Best-effort: a
+  // student who exists but was not emailed is recoverable from the
+  // Invite button; a create that fails because the mailer is rate-limited
+  // is not what anyone asked for.
+  if ((data as any)?.email?.trim()) {
+    try {
+      return await inviteStudent((data as any).id);
+    } catch {
+      /* the row is saved; the row's Invite button opens the gate later */
+    }
+  }
   return outStudent(data);
 }
 
@@ -222,15 +234,25 @@ export async function bulkCreateStudents(rows: Record<string, any>[]) {
 }
 
 /**
- * Open the invite gate for a student: only then may someone signing in
- * with that email claim the account. Requires an email to invite to.
+ * Invite a student: open the gate, then email them the link that opens it.
+ *
+ * Both halves matter, and only the first used to happen. `invite_status`
+ * decides whether a matching email may claim the roster row at all
+ * (db/tune.sql §35) — but flipping it told nobody, so "Invite" moved a
+ * label from `Invite` to `Invited` and the student never heard.
+ *
+ * The gate is flipped FIRST. If the mail fails, the student can still get
+ * in the moment they reach /student on their own — a delivery problem
+ * must not also be an access problem. The error says which half failed so
+ * the teacher knows whether to resend or to send the link themselves.
  */
 export async function inviteStudent(id: string) {
   const { data: row, error: readErr } = await supabase
     .from("students").select("email").eq("id", id).maybeSingle();
   if (readErr) throw readErr;
   if (!row) throw notFound();
-  if (!(row as any).email?.trim()) {
+  const email = ((row as any).email || "").trim();
+  if (!email) {
     throw Object.assign(new Error("Add an email to this student before inviting them."), { status: 400 });
   }
   const { data, error } = await supabase
@@ -239,7 +261,27 @@ export async function inviteStudent(id: string) {
     .eq("id", id).select(STUDENT_COLS).maybeSingle();
   if (error) throw error;
   if (!data) throw notFound();
-  return outStudent(data);
+
+  // A failed send is reported ON the student, not as a thrown error. The
+  // gate is open either way, so throwing would lose the very row the
+  // screen needs to redraw — and would read as "the invite failed" when
+  // the half that governs access succeeded.
+  const { sendStudentInvite } = await import("../supabaseAuth");
+  let mailError: string | null = null;
+  try {
+    await sendStudentInvite(email);
+  } catch (e: any) {
+    // Supabase's built-in SMTP allows only a handful of messages an hour,
+    // which is the failure a teacher adding a whole class will actually
+    // hit. Name that one, rather than reporting it as a mystery.
+    const limited = /rate limit|too many requests|over_email_send_rate/i.test(
+      String(e?.message || "")
+    );
+    mailError = limited
+      ? `${email} can sign in now, but the email didn't go out — the mailer is rate-limited. Wait a few minutes and press Invite again.`
+      : `${email} can sign in now, but the invite email failed to send. Press Invite again to retry.`;
+  }
+  return { ...outStudent(data), invite_mail_error: mailError };
 }
 
 export async function updateStudent(id: string, body: Record<string, any>) {

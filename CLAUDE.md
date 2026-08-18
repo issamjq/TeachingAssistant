@@ -65,6 +65,8 @@ Full documentation lives in [`docs/`](docs/README.md). Read it before making non
 - [09 — Conventions](docs/09-conventions.md) — rules to follow when adding code
 - [10 — Roadmap](docs/10-roadmap.md) — what's stubbed, what's missing, what's next
 - [11 — Next.js migration](docs/11-nextjs-migration.md) — **current**: plan, phases, architecture
+- [12 — Super admin](docs/12-super-admin.md) — the privileged console, and who gets the role
+- [13 — Student invites](docs/13-student-invites.md) — the invite gate, the mail, and the two Supabase dashboard settings it depends on
 
 ⚠️ **Docs 01–10 drifted badly** (roadmap still claims there's no auth and no production deploy — both long since shipped) and 03/04 describe the Vite build. Trust the code and doc 11 over them until they're rewritten in Phase 5.
 

@@ -87,7 +87,15 @@ export default function StudentSignIn() {
     let cancelled = false;
     (async () => {
       try {
-        const { getCurrentUser } = await import("@/lib/supabaseAuth");
+        const { getCurrentUser, completeTokenHashSignIn } = await import("@/lib/supabaseAuth");
+        // An invite link clicked on the student's own device carries
+        // ?token_hash=…&type=… rather than the ?code=… this client's PKCE
+        // flow produces, because the verifier for a code lives in the
+        // browser that ASKED for the link — the teacher's. A token hash
+        // holds no device state, so it is verified here instead.
+        // detectSessionInUrl has already handled the same-device case by
+        // the time this runs, and this returns null when there is no hash.
+        await completeTokenHashSignIn().catch(() => null);
         const user = await getCurrentUser();
         if (cancelled) return;
         if (!user) return; // show the buttons

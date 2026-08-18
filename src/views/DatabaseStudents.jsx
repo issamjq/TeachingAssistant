@@ -166,13 +166,19 @@ export default function DatabaseStudents() {
     if (isNew) setStudents((rows) => [saved, ...rows]);
     else setStudents((rows) => rows.map((r) => (r.id === saved.id ? saved : r)));
     setEditing(null);
+    // A new student with an email is invited in the same action, so this
+    // is where a failed send surfaces for them too.
+    if (saved?.invite_mail_error) alert(saved.invite_mail_error);
   };
 
-  // Open the invite gate — only an invited student may claim an account.
+  // Invite: open the gate AND email them the link that opens it. The two
+  // can part company — Supabase's mailer is rate-limited — so the row is
+  // redrawn as invited either way and only the send is reported.
   const invite = async (s) => {
     try {
       const updated = await api(`/api/students/${s.id}/invite`, { method: "POST" });
       setStudents((rows) => rows.map((r) => (r.id === s.id ? updated : r)));
+      if (updated?.invite_mail_error) alert(updated.invite_mail_error);
     } catch (e) {
       alert(friendlyError(e, "Couldn’t invite this student right now. Please try again."));
     }
@@ -507,8 +513,11 @@ function ImportStudentsModal({ onClose, onImported }) {
             </p>
             <p className="font-mono text-[11px] text-ink mt-2 break-words">{SAMPLE_HEADERS.join(" · ")}</p>
             <p className="text-xs text-muted mt-2">
-              Only <span className="text-ink">first name</span> is required. An <span className="text-ink">email</span> is
-              what a student later signs in with — add it now so you can invite them. CSV or Excel are exact; PDF is best-effort.
+              Only <span className="text-ink">first name</span> is required here — an import is a roster, not the
+              full form. An <span className="text-ink">email</span> is what a student later signs in with; add it now
+              and you can invite them from the list. Imported students are <span className="text-ink">not</span> emailed
+              automatically: the mailer is rate-limited, so a class of thirty would deliver two. CSV or Excel are exact;
+              PDF is best-effort.
             </p>
           </div>
           <button
@@ -599,6 +608,25 @@ const EMPTY_STUDENT = {
   school_id: "",
 };
 
+// Every field in the student form says which it is: a star when it is
+// required, the word "optional" when it is not. Defaulting to "optional"
+// here rather than inside Field keeps the twenty other forms that share
+// Field exactly as they were.
+function SField({ required = false, hint, ...rest }) {
+  const tag = required ? hint : hint ? `optional · ${hint}` : "optional";
+  return <Field {...rest} required={required} hint={tag} />;
+}
+
+// What the form refuses to save without. `required` on a bare <input> does
+// nothing here — the footer's Save is a button, not a form submit — so the
+// stars would be a promise nothing kept without this list behind them.
+const REQUIRED_STUDENT_FIELDS = [
+  ["first_name", "First name"],
+  ["last_name", "Last name"],
+  ["grade", "Grade"],
+  ["section", "Section"],
+];
+
 function StudentEditModal({ initial, prefill = null, onClose, onSaved }) {
   const isNew = !initial;
   const [form, setForm] = useState(() => {
@@ -632,6 +660,25 @@ function StudentEditModal({ initial, prefill = null, onClose, onSaved }) {
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
 
   const submit = async () => {
+    const missing = REQUIRED_STUDENT_FIELDS
+      .filter(([k]) => !String(form[k] ?? "").trim())
+      .map(([, label]) => label);
+    if (missing.length) {
+      setErr(
+        missing.length === 1
+          ? `${missing[0]} is required.`
+          : `${missing.slice(0, -1).join(", ")} and ${missing[missing.length - 1]} are required.`
+      );
+      return;
+    }
+    // The email is optional, but a malformed one is worse than none: it is
+    // what the invite is sent to and what the student later signs in with,
+    // and both fail silently far from here.
+    const email = String(form.email ?? "").trim();
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setErr("That email address doesn't look right.");
+      return;
+    }
     setSaving(true);
     setErr(null);
     try {
@@ -671,22 +718,22 @@ function StudentEditModal({ initial, prefill = null, onClose, onSaved }) {
 
       <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-3">Basics</p>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-        <Field label="First name">
+        <SField label="First name" required>
           <input className={inputClasses} value={form.first_name}
             onChange={(e) => set("first_name", e.target.value)} required />
-        </Field>
-        <Field label="Last name">
+        </SField>
+        <SField label="Last name" required>
           <input className={inputClasses} value={form.last_name}
             onChange={(e) => set("last_name", e.target.value)} required />
-        </Field>
-        <Field label="Student ID">
+        </SField>
+        <SField label="Student ID">
           <input className={inputClasses} value={form.student_id}
             onChange={(e) => set("student_id", e.target.value)} />
-        </Field>
-        <Field label="Date of birth">
+        </SField>
+        <SField label="Date of birth">
           <DatePicker value={form.date_of_birth} onChange={(v) => set("date_of_birth", v)} />
-        </Field>
-        <Field label="Gender">
+        </SField>
+        <SField label="Gender">
           <select className={selectClasses} value={form.gender}
             onChange={(e) => set("gender", e.target.value)}>
             <option value="">—</option>
@@ -694,39 +741,39 @@ function StudentEditModal({ initial, prefill = null, onClose, onSaved }) {
             <option value="Female">Female</option>
             <option value="Other">Other</option>
           </select>
-        </Field>
-        <Field label="Nationality">
+        </SField>
+        <SField label="Nationality">
           <select className={selectClasses} value={form.nationality}
             onChange={(e) => set("nationality", e.target.value)}>
             <option value="">—</option>
             {NATIONALITIES.map((n) => <option key={n} value={n}>{n}</option>)}
           </select>
-        </Field>
+        </SField>
       </div>
 
       <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-3">Class</p>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        <Field label="Grade">
+        <SField label="Grade" required>
           <select className={selectClasses} value={form.grade}
             onChange={(e) => set("grade", e.target.value)} required>
             <option value="">—</option>
             {GRADE_LEVELS.map((g) => <option key={g} value={g}>{g}</option>)}
           </select>
-        </Field>
-        <Field label="Section">
+        </SField>
+        <SField label="Section" required>
           <input className={inputClasses} value={form.section}
             onChange={(e) => set("section", e.target.value)} required />
-        </Field>
-        <Field label="Subject" hint="what you teach them">
+        </SField>
+        <SField label="Subject" hint="what you teach them">
           <input className={inputClasses} value={form.subject}
             onChange={(e) => set("subject", e.target.value)} placeholder="e.g. Mathematics" />
-        </Field>
-        <Field label="Enrollment date">
+        </SField>
+        <SField label="Enrollment date">
           <DatePicker value={form.enrollment_date} onChange={(v) => set("enrollment_date", v)} />
-        </Field>
+        </SField>
         {mySchools.length > 0 && (
           <div className={mySchools.length === 1 ? "hidden" : "md:col-span-3"}>
-            <Field
+            <SField
               label="School"
               hint={mySchools.length === 1 ? "auto-assigned" : "pick which of your schools"}
             >
@@ -742,26 +789,26 @@ function StudentEditModal({ initial, prefill = null, onClose, onSaved }) {
                   </option>
                 ))}
               </select>
-            </Field>
+            </SField>
           </div>
         )}
       </div>
 
       <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-3">Contact</p>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-        <Field label="Email">
+        <SField label="Email" hint="they sign in with this">
           <input type="email" className={inputClasses} value={form.email}
             onChange={(e) => set("email", e.target.value)} />
-        </Field>
-        <Field label="Phone">
+        </SField>
+        <SField label="Phone">
           <input className={inputClasses} value={form.phone}
             onChange={(e) => set("phone", e.target.value)} />
-        </Field>
+        </SField>
         <div className="md:col-span-2">
-          <Field label="Address">
+          <SField label="Address">
             <input className={inputClasses} value={form.address}
               onChange={(e) => set("address", e.target.value)} />
-          </Field>
+          </SField>
         </div>
       </div>
 
@@ -769,50 +816,50 @@ function StudentEditModal({ initial, prefill = null, onClose, onSaved }) {
         Primary guardian
       </p>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-        <Field label="Name">
+        <SField label="Name">
           <input className={inputClasses} value={form.primary_guardian_name}
             onChange={(e) => set("primary_guardian_name", e.target.value)} />
-        </Field>
-        <Field label="Relationship">
+        </SField>
+        <SField label="Relationship">
           <input className={inputClasses} value={form.primary_guardian_relationship}
             onChange={(e) => set("primary_guardian_relationship", e.target.value)} />
-        </Field>
-        <Field label="Email">
+        </SField>
+        <SField label="Email">
           <input type="email" className={inputClasses} value={form.primary_guardian_email}
             onChange={(e) => set("primary_guardian_email", e.target.value)} />
-        </Field>
-        <Field label="Phone">
+        </SField>
+        <SField label="Phone">
           <input className={inputClasses} value={form.primary_guardian_phone}
             onChange={(e) => set("primary_guardian_phone", e.target.value)} />
-        </Field>
+        </SField>
       </div>
 
       <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-3">
         Secondary guardian (optional)
       </p>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-        <Field label="Name">
+        <SField label="Name">
           <input className={inputClasses} value={form.secondary_guardian_name}
             onChange={(e) => set("secondary_guardian_name", e.target.value)} />
-        </Field>
-        <Field label="Relationship">
+        </SField>
+        <SField label="Relationship">
           <input className={inputClasses} value={form.secondary_guardian_relationship}
             onChange={(e) => set("secondary_guardian_relationship", e.target.value)} />
-        </Field>
-        <Field label="Email">
+        </SField>
+        <SField label="Email">
           <input type="email" className={inputClasses} value={form.secondary_guardian_email}
             onChange={(e) => set("secondary_guardian_email", e.target.value)} />
-        </Field>
-        <Field label="Phone">
+        </SField>
+        <SField label="Phone">
           <input className={inputClasses} value={form.secondary_guardian_phone}
             onChange={(e) => set("secondary_guardian_phone", e.target.value)} />
-        </Field>
+        </SField>
       </div>
 
-      <Field label="Notes">
+      <SField label="Notes">
         <textarea rows={2} className={inputClasses} value={form.notes}
           onChange={(e) => set("notes", e.target.value)} />
-      </Field>
+      </SField>
     </Modal>
   );
 }

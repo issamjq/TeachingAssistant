@@ -190,6 +190,64 @@ export async function sendEmailLink(email) {
   );
 }
 
+/**
+ * Email a student the link that signs them in, from the teacher's client.
+ *
+ * This is the only mail this repo can send. Supabase Auth's mailer is
+ * reachable with the publishable key; everything else (Resend) lives on
+ * the separate backend and is still in test mode. So the invite IS the
+ * magic link — there is no separate "you've been added" notification.
+ *
+ * `shouldCreateUser` stays true on purpose: an invited student has no
+ * auth identity yet, and the row a teacher typed is not one. The account
+ * it mints is inert until link_student_account() claims a roster row for
+ * it (db/tune.sql §35), and it cannot become a teacher — §36's trigger
+ * makes the profile row a teacher by default, but with no faculty row
+ * behind it the studio never opens.
+ *
+ * Lands on /student, which resolves the session into a student and
+ * routes to their dashboard.
+ *
+ * Two things must be true in the Supabase dashboard for this to arrive:
+ *
+ *   1. the redirect URL is allowlisted (Authentication → URL configuration);
+ *   2. the **Magic Link template** points at `/student` with a token hash:
+ *
+ *        <a href="{{ .SiteURL }}/student?token_hash={{ .TokenHash }}&type=magiclink">
+ *
+ *      This client runs `flowType: "pkce"`, and the default template's
+ *      ConfirmationURL comes back as `?code=…`, which is worthless without
+ *      the verifier held in the browser that ASKED for it. That browser is
+ *      the teacher's; the student clicks on their own device. A token hash
+ *      carries no device state, so it survives the hop — see the
+ *      verifyOtp() branch in StudentSignIn.
+ *
+ * Supabase's built-in SMTP is rate-limited to a handful of messages an
+ * hour. Configure a custom SMTP provider before inviting a whole class.
+ */
+export async function sendStudentInvite(email) {
+  unwrap(
+    await supabase.auth.signInWithOtp({
+      email,
+      options: { emailRedirectTo: redirectTo("/student"), shouldCreateUser: true },
+    })
+  );
+}
+
+// Complete a cross-device magic link: ?token_hash=…&type=… carries no PKCE
+// verifier, so it is verified rather than exchanged. Returns the user, or
+// null when the URL holds no token hash (the same-device ?code= links are
+// already exchanged by detectSessionInUrl before anything calls here).
+export async function completeTokenHashSignIn(url) {
+  if (typeof window === "undefined") return null;
+  const u = new URL(url || window.location.href);
+  const token_hash = u.searchParams.get("token_hash");
+  const type = u.searchParams.get("type");
+  if (!token_hash || !type) return null;
+  const data = unwrap(await supabase.auth.verifyOtp({ token_hash, type }));
+  return normalizeUser(data.user ?? data.session?.user);
+}
+
 // Returns true if the current URL looks like a Supabase auth callback.
 // PKCE links come back as ?code=…; older/alternate links use
 // #access_token=… or ?token_hash=…&type=…. Accept all three.

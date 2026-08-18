@@ -99,11 +99,30 @@ export function fmtRowTimestamp(row) {
   return { label: "Created", value: timeAgo(created || updated), iso: created || updated };
 }
 
-export function Field({ label, children, hint = undefined }) {
+/**
+ * A labelled form field.
+ *
+ * `required` marks the label with a star. It is opt-in, and so is the
+ * "optional" counterpart a caller passes through `hint` — twenty other
+ * forms share this component and none of them should start annotating
+ * every input because one form does. A form that wants the full
+ * required/optional treatment says so per field (see DatabaseStudents).
+ *
+ * The star is decoration; it does not validate anything. The `required`
+ * attribute on a bare <input> is inert outside a real <form> submit, so
+ * a form that shows stars must also check the values before it saves.
+ */
+export function Field({ label, children, hint = undefined, required = false }) {
   return (
     <label className="block">
       <span className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted flex items-center justify-between gap-3 mb-2">
-        <span>{label}</span>
+        <span>
+          {label}
+          {required && (
+            <span className="text-accent ml-1" aria-hidden>*</span>
+          )}
+          {required && <span className="sr-only"> (required)</span>}
+        </span>
         {hint && <span className="normal-case tracking-normal font-serif italic">{hint}</span>}
       </span>
       {children}
