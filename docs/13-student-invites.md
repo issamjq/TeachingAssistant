@@ -87,6 +87,32 @@ A Resend key is a server secret — putting it behind `NEXT_PUBLIC_` would
 inline it into the browser bundle and hand every visitor the ability to
 send mail as you.
 
+> **Checked 2026-08-18.** The Resend key sends: a probe from Resend's
+> shared sender to their sandbox inbox was accepted. A send from
+> `no-reply@murchid.com` was refused with *"The murchid.com domain is not
+> verified"*. So the account and the pipe are fine and **domain
+> verification is the only thing between here and real delivery**.
+> `murchid.com` exists with DNS at GoDaddy, so this is a DNS task.
+
+### Why it has to be an SMTP provider
+
+Resend is not what sends the invite — **Supabase is**, and Resend is the
+SMTP server it hands the message to. That slot wants a host, a port and a
+credential.
+
+This rules out browser-side mail APIs such as EmailJS: they expose no
+SMTP endpoint, so there is nothing to put in Supabase's settings. And the
+reason Supabase must be the sender at all is that the invite is a **magic
+link** — an auth token only Supabase can mint. No third-party mailer can
+produce one.
+
+A different design is possible — send a plain "your teacher added you, go
+to /student and sign in" notification through any mail API, and let the
+student start their own sign-in — which would also sidestep the PKCE
+cross-device problem above. It costs the one-click link, and on the
+services that make it attractive it buys a *lower* monthly allowance than
+Resend's, not a higher one. It is not the design in the code.
+
 ### 1. Verify a sending domain (Resend)
 
 Resend → Domains → add your domain, then publish the DKIM/SPF records it
