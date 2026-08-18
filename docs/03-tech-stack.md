@@ -18,21 +18,21 @@ No router. View state lives in `src/App.jsx` as a plain `useState` machine. See 
 |---|---|---|
 | **express** | ^5.x | Single Express app under [`backend/`](../backend/) — standalone on Render in prod, mounted as Vite middleware in dev. |
 | **cors** | ^2.x | Enables Vercel → Render cross-origin requests. Open by default; lock down with `ALLOWED_ORIGINS`. |
-| **pg** | ^8.20.0 | Postgres client. Connects to Neon over SSL. |
+| **pg** | ^8.20.0 | Postgres client — **migration scripts only**. Connects to Supabase over TLS with the root CA pinned (`db/supabaseCa.js`). The app never uses it. |
 | **dotenv** | ^17.4.2 | Loads `DATABASE_URL` from `.env` for both Vite and `backend/db/init.js`. |
 
 `backend/app.js` exports `buildApp()` so the same routes serve both transports. See [API](07-api.md).
 
 ## Database
 
-**Neon Postgres** (serverless Postgres). Connection string in `.env`. Schema covers `templates`, `drafts`, `teachers`, `students`; see [Database](06-database.md).
+**Supabase** (Postgres + Auth + Row Level Security). The browser talks to it directly through `src/lib/data/`; `DATABASE_URL` in `.env` is for migrations only. *(Neon until the Supabase migration.)*
 
 ## Why these picks
 
 - **Vite + React + Tailwind v4** — fast iteration, minimal config, Tailwind v4 keeps brand tokens in one place (`src/index.css` `@theme`).
 - **No router** — single-screen studio with in-component view switching is enough; adding React Router is unjustified complexity right now.
 - **Vite middleware for API** — keeps dev-time everything in one process. Production will need a real backend; the middleware is intentionally a temporary shape.
-- **Neon Postgres** — managed, free tier, connects over plain `pg` driver, no ORM ceremony for a small schema.
+- **Supabase** — managed Postgres with Auth and RLS, which is what let the API layer be deleted: authorisation moved into policies rather than middleware.
 
 ## What is *not* in the stack
 

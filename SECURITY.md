@@ -5,6 +5,30 @@ what it **isn't**, the **threats we explicitly defend against**, and the
 **threats we knowingly accept or defer**. Anything not listed here is
 unaudited.
 
+> ## ⚠️ This document predates the Supabase migration and owes a rewrite
+>
+> Large parts of it describe a stack that no longer exists — an Express
+> API on Render, Firebase Admin verifying tokens in middleware, and Neon
+> Postgres. Three claims are now **inverted**, which is why this banner is
+> here rather than a quiet note:
+>
+> - **Row Level Security is not "planned, not done" — it is the whole
+>   authorisation layer.** There is no API in this repository. The browser
+>   reads and writes Supabase directly and the policies are what stop one
+>   teacher seeing another's rows. See [`db/tune.sql`](db/tune.sql).
+> - **Auth is Supabase, not Firebase.** No Firebase Admin SDK, no
+>   `requireAuth()` middleware, no `req.firebaseUser`.
+> - **The database is Supabase, not Neon.**
+>
+> What has not changed: `credits`, `subscriptions`, `usage_logs`,
+> `feature_flags` and `audit_log` are unwritable from the browser, and the
+> privileged surface is SECURITY DEFINER functions gated on
+> `is_super_admin()` — a teacher's token is refused by Postgres, not by
+> hoping the UI hid a button ([docs/12](docs/12-super-admin.md)).
+>
+> Treat every specific below as needing verification against the code
+> until this is rewritten in full.
+
 ## TL;DR
 
 - All `/api/*` requests require a Firebase ID token verified by the
@@ -66,8 +90,8 @@ unaudited.
 | Dependency-license audit | Not legally required at this stage. |
 | Real-time anomaly detection on the audit log | The audit log captures the data; no alerting yet. A nightly query into a Slack webhook is the planned mitigation. |
 | WAF rules (Cloudflare, AWS WAF) | Reverse-proxy layer at Vercel / Render is enough until traffic justifies more. |
-| Row-level security at the Postgres layer | Tenant isolation is enforced at the application layer. Adding RLS would be defence in depth — planned, not done. |
-| Encrypted-at-rest fields for PII (student records, guardian contacts) | Neon encrypts the disk; column-level encryption would require key management we don't have yet. |
+| ~~Row-level security at the Postgres layer~~ | **No longer deferred — this is now the primary authorisation layer.** Tenant isolation is enforced by policies in `db/tune.sql`, not by application code, and there is no application layer left to enforce it in. |
+| Encrypted-at-rest fields for PII (student records, guardian contacts) | Supabase encrypts the disk; column-level encryption would require key management we don't have yet. |
 | Stripe / payment integration | Out of scope — subscription state is admin-managed for now (`subscription_status`, `subscription_ends_at`). |
 | Replay-attack defence on the audit log via append-only Postgres triggers | Not implemented; the `audit_log` table is a regular table that admins with DB access can edit. The application never offers a DELETE endpoint for it. |
 
@@ -208,8 +232,13 @@ their vocabularies don't overlap with teacher-facing forms.
    their refresh tokens via Firebase Console → Authentication → Users
    → ⋮ → Revoke refresh tokens. All their sessions across all devices
    stop working within a minute.
-4. **DATABASE_URL**: rotate the Neon password (Neon dashboard → Roles
-   → reset password), update `.env` + Render env vars, redeploy.
+4. **DATABASE_URL**: rotate the database password (Supabase dashboard →
+   Project settings → Database → reset password) and update `.env`. It is
+   read only by the migration scripts — no deployment carries it, so
+   nothing needs redeploying.
+5. **Supabase publishable key**: it is public by design and carries no
+   privileges; leaking it is not an incident. The **secret** key
+   (`sb_secret_…`) is, and belongs in no file in this repository.
 
 ## Reporting a vulnerability
 

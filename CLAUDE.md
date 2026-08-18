@@ -56,7 +56,7 @@ Full documentation lives in [`docs/`](docs/README.md). Read it before making non
 
 - [01 — Overview](docs/01-overview.md) — what Murchid is, who it's for
 - [02 — Getting started](docs/02-getting-started.md) — env, scripts, prereqs
-- [03 — Tech stack](docs/03-tech-stack.md) — React 18, Tailwind v4 *(stale: says Vite + Neon; it's Next.js + Supabase now)*
+- [03 — Tech stack](docs/03-tech-stack.md) — React 18, Tailwind v4, Next.js, Supabase
 - [04 — Architecture](docs/04-architecture.md) — file layout, boot flow, view router *(pre-migration)*
 - [05 — Design system](docs/05-design-system.md) — brand tokens, fonts, patterns
 - [06 — Database](docs/06-database.md) — schema, status / subject values, seeds

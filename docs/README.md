@@ -6,7 +6,7 @@ Full project documentation. Read in order if you're new; jump around once you ha
 |---|-----|---------------|
 | 01 | [Overview](01-overview.md) | What Murchid is, who it's for, the product idea |
 | 02 | [Getting started](02-getting-started.md) | Prerequisites, install, env, scripts |
-| 03 | [Tech stack](03-tech-stack.md) | Vite 5, React 18, Tailwind v4, Neon Postgres, Lucide |
+| 03 | [Tech stack](03-tech-stack.md) | Next.js, React 18, Tailwind v4, Supabase, Lucide |
 | 04 | [Architecture](04-architecture.md) | File layout, boot flow, view router, sidebar nav |
 | 05 | [Design system](05-design-system.md) | Brand tokens, fonts, headings, eyebrows, pills, buttons |
 | 06 | [Database](06-database.md) | Schema, status/subject values, seed data, init script |

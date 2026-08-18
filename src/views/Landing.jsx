@@ -2209,8 +2209,8 @@ function AuthPage({ onSignUp, onPage, mode = "signup", onEnterStudio, notice }) 
 function OnboardingPage({ onChoosePlan, onPage }) {
   const t = useT();
   const cur = t("lp.plan.aed");
-  // Plan provisioning can take several seconds (Firebase token refresh
-  // + Neon insert + profile patch + per-school attach). Without a
+  // Plan provisioning can take several seconds (token refresh + the
+  // Supabase inserts + profile patch + per-school attach). Without a
   // visible loading state, users hammer the button and trigger
   // duplicate POSTs. We swallow further clicks once one is in flight,
   // and overlay a BrandLoader so the whole funnel reads as "working".

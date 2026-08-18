@@ -1,64 +1,68 @@
 # Murchid — Teacher Studio
 
-An AI lesson director for teachers (KG–G12). React-only, standalone studio app.
+An AI lesson director for teachers (KG–G12). Next.js App Router frontend
+on Supabase, with a marketing site and the teacher studio in one bundle.
 
 ## Quick start
 
 ```bash
-cp .env.example .env       # then paste your Neon DATABASE_URL into .env
 npm install
-npm run db:tune            # schema, indexes and policies on Supabase
-npm run db:seed            # UAE schools catalog + feature flags
-npm run dev                # http://localhost:3000
-npm run dev                # Vite on http://localhost:5173
+cp .env.example .env.local   # NEXT_PUBLIC_SUPABASE_* — what the app reads
+cp .env.example .env         # DATABASE_URL — migrations only
+npm run db:tune              # structure, indexes, RLS policies  (idempotent)
+npm run db:seed              # UAE schools catalog + feature flags
+npm run dev                  # http://localhost:3000
 ```
 
-## Deploying
+One process. Data comes from Supabase over PostgREST — there is no API
+server to start.
 
-The repo deploys as **two services**:
+**`DATABASE_URL` is a Supabase string**, from the dashboard → Connect →
+**Transaction pooler** (port 6543). Not the direct host: `db.<ref>.supabase.co`
+resolves to IPv6 only. Do not append `sslmode=require` — TLS is handled in
+[db/client.js](db/client.js) by pinning the Supabase root CA, and this `pg`
+version reads `sslmode=require` as `verify-full`, which then fails.
 
-- **Frontend** → Vercel (static `dist/`, configured by `vercel.json`).
-- **Data** → Supabase, read and written from the browser via [`src/lib/data/`](src/lib/data/), authorised by Row Level Security.
-- **Backend** → a separate project, for the few endpoints needing a secret. See [todo/backend-requirements.md](todo/backend-requirements.md).
+> This project ran on **Neon** before Supabase. If you have an older `.env`,
+> that connection string is still in it and `db:tune` will fail on its first
+> statement — `relation "public.users" does not exist`. The scripts now warn
+> when the host is not Supabase.
 
-### Backend on Render
+Checks: `npm run typecheck` · `npm run lint` · `npm run build` · `npm run test:e2e`
 
-1. https://dashboard.render.com → **New** → **Web Service** → connect this GitHub repo.
-2. Settings:
-   - **Environment**: Node
-   - **Branch**: `main`
-   - **Build command**: `npm install`
-   - **Start command**: `npm run start:backend`
-   - **Instance type**: Free
-3. **Environment variables**:
-   - `DATABASE_URL` — your Neon connection string (same one in your local `.env`).
-   - `ALLOWED_ORIGINS` — `https://<your-vercel-app>.vercel.app` (comma-separated if you have multiple). Leave unset only while testing.
-   - `PORT` — Render sets this automatically; do not add it.
-4. Deploy. Render gives you a URL like `https://murchid-api.onrender.com`. Hit `/healthz` to confirm it's up.
+Want data on screen? `npm run db:demo` fills the account in
+`TEST_ACCOUNT_EMAIL` with a term — roster, timetable, marks, attendance, a
+nine-week library — and creates a second, deliberately empty account for
+looking at empty states.
 
-> Free-tier Render web services sleep after 15 min idle and cold-start in ~30 s on the first request after waking.
+## How it fits together
 
-### Frontend on Vercel
+- **Frontend** → Vercel. Next.js App Router; `vercel.json` pins
+  `outputDirectory` to `.next` (the project's dashboard still carries `dist`
+  from the Vite era, and a dashboard override beats the framework default).
+- **Data** → Supabase, read and written **from the browser** through
+  [`src/lib/data/`](src/lib/data/). Authorisation is Row Level Security, not
+  application code. `credits`, `subscriptions`, `usage_logs`,
+  `feature_flags` and `audit_log` are deliberately not writable from the
+  client — a teacher cannot top up their own balance.
+- **The few endpoints that need a secret** — AI generation, CV parsing, the
+  assistant — live in a **separate repository**, deployed to Render. Set
+  `API_PROXY_TARGET` (**in Vercel too**) and `next.config.ts` rewrites
+  `/api/*` there server-side, so the browser stays same-origin. Leave it
+  unset and those paths 404 as themselves, which is the truth. See
+  [todo/backend-integration.md](todo/backend-integration.md).
 
-1. https://vercel.com/new → import the same repo.
-2. Vercel auto-detects Vite from `vercel.json`. No build override needed.
-3. **Environment variables**:
-   - `VITE_API_URL` — the Render URL from above (no trailing slash).
-4. Deploy. The landing page + studio both work end-to-end.
-
-If you change `VITE_API_URL` later, redeploy the frontend (Vite bakes env vars into the build at compile time).
+Migrations are never applied automatically. `db:tune` and `db:seed` are run
+deliberately, from a machine that can read the output.
 
 ## Documentation
 
-Full project docs live in [`docs/`](docs/README.md). Start there for anything beyond running the app:
+Full project docs live in [`docs/`](docs/README.md).
 
-- [Overview](docs/01-overview.md) — what Murchid is and who it's for
-- [Getting started](docs/02-getting-started.md) — prerequisites, env, scripts
-- [Tech stack](docs/03-tech-stack.md) — Vite 5, React 18, Tailwind v4, Neon Postgres
-- [Architecture](docs/04-architecture.md) — file layout, boot flow, view router
-- [Design system](docs/05-design-system.md) — brand tokens, fonts, component patterns
-- [Database](docs/06-database.md) — schema, seeds, init
-- [API](docs/07-api.md) — current endpoints, dev-only middleware
-- [Views](docs/08-views.md) — what each screen does
-- [Conventions](docs/09-conventions.md) — rules to follow when adding code
-- [Roadmap](docs/10-roadmap.md) — what's built, what's not, what's next
+- [11 — Next.js migration](docs/11-nextjs-migration.md) — **current**: plan, phases, architecture
+- [12 — Super admin](docs/12-super-admin.md) — the privileged console, roles, and who gets them
+- [13 — Student invites](docs/13-student-invites.md) — the invite gate, the mail, and the Supabase settings it needs
+
+⚠️ **Docs 01–10 predate the migration** and describe a Vite + Neon +
+Firebase stack that no longer exists. Trust the code and docs 11–13 until
+they are rewritten.

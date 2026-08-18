@@ -6,7 +6,7 @@
 
 # 06 — Database
 
-Four tables in Neon Postgres, created and seeded by `backend/db/init.js`. Idempotent — safe to re-run.
+> ⚠️ **Stale.** This describes the pre-migration Neon schema and `backend/db/init.js`, neither of which exists. The schema now lives in **Supabase**, authored in its console and adjusted by [`db/tune.sql`](../db/tune.sql) (`npm run db:tune`). Read tune.sql for what is actually there.
 
 ## Reference data — single source of truth
 

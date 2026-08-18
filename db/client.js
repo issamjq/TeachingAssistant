@@ -17,18 +17,19 @@ pg.types.setTypeParser(1082, (v) => v);
 // direct host. See lib/supabaseCa.js for why the obvious alternatives
 // (sslmode=require, rejectUnauthorized:false) don't work here.
 //
-// Only applied to Supabase hosts. Other providers (Neon) carry their own
-// sslmode in the connection string and are signed by public CAs already
-// in the system trust store — handing them the Supabase root would break
-// verification, so we leave their behaviour untouched.
+// Applied only when the host IS Supabase. Everything this project talks to
+// is, but the check stays deliberate: handing the Supabase root CA to some
+// other server would break verification rather than secure it, and the
+// guard below would rather warn about a wrong connection string than fail
+// on an unexplained TLS error.
 const connectionString = process.env.DATABASE_URL;
 const ssl = isSupabaseHost(connectionString)
   ? { ca: SUPABASE_CA, rejectUnauthorized: true }
   : undefined;
 
-// Single pg.Pool shared by every route handler. Render's web service is a
-// long-running process so a pool with the default size is the right shape;
-// in dev the same module instance gives us the same pool.
+// Single pg.Pool shared by the migration scripts. They are short-lived
+// processes that connect, apply, and end the pool; the default size is
+// more than they need and costs nothing.
 export const pool = new pg.Pool({ connectionString, ssl });
 
 // ── Say which database this is, before anything runs against it ───────
@@ -39,9 +40,9 @@ export const pool = new pg.Pool({ connectionString, ssl });
 // which reads like a broken migration rather than the truth: the
 // connection string is for a different database.
 //
-// The specific way to get here is a leftover: this project ran on Neon
-// before Supabase, and that string is still in older .env files. So name
-// the host rather than letting the SQL discover it.
+// The usual cause is a stale connection string in an old .env pointing at
+// a database from an earlier stack. So name the host at connect time
+// rather than letting the SQL discover it eight statements later.
 if (!connectionString) {
   console.error(
     "\n❌ DATABASE_URL is not set.\n" +
@@ -56,7 +57,7 @@ if (!isSupabaseHost(connectionString)) {
     `\n⚠️  DATABASE_URL points at ${host}, which is not a Supabase host.\n` +
     "   The schema these scripts adjust lives in Supabase — against anything\n" +
     "   else the first statement fails with 'relation public.users does not\n" +
-    "   exist'. If this is the old Neon database, replace the string:\n" +
-    "   Supabase dashboard → Connect → Transaction pooler (port 6543).\n"
+    "   exist'. Replace the string: Supabase dashboard → Connect →\n" +
+    "   Transaction pooler (port 6543).\n"
   );
 }
