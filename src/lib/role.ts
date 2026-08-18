@@ -9,7 +9,7 @@
 // The Role / SubRole unions live in shared/types/domain.ts so a typo like
 // "superadmin" fails to compile rather than silently failing a check.
 import type { Actor, Role, SubRole } from "../shared/types/domain";
-import { readStorage, writeStorage } from "../shared/lib/storage";
+import { readStorage, removeStorage, writeStorage } from "../shared/lib/storage";
 
 const KEY = "murchid_role";
 
@@ -90,6 +90,48 @@ export const setRole = (r: Role): void => {
   if (!isRole(r)) return;
   writeStorage(KEY, r);
   listeners.forEach((fn) => fn(r));
+};
+
+/** Forget the stored role. Called on sign-out — see syncRoleFromServer. */
+export const clearRole = (): void => {
+  removeStorage(KEY);
+};
+
+/**
+ * Make the account row the authority on what this browser may render.
+ *
+ * `murchid_role` was written only by the portal sign-ins, and read by
+ * everything. So it survived the account that wrote it: a super admin
+ * signing in left `super_admin` in localStorage, sign-out did not clear
+ * it, and the next account on that device — a teacher, or one whose role
+ * is NULL — opened the studio with the super-admin rail and landed on
+ * /superadmin-dashboard. setRole() made it worse by design: it ignores a
+ * value that is not a Role, so a null role did not reset the key, it
+ * *kept* whatever was there.
+ *
+ * The data behind those screens was never exposed — every sa_* RPC
+ * re-checks is_super_admin() in Postgres — but a console a teacher can
+ * open is a bug whether or not it is populated.
+ *
+ * So: anything the server does not call a real role is a teacher, and the
+ * key is written on every hydration rather than only at the portal.
+ *
+ * `dev` is the one exception, and it is the original purpose of this key:
+ * a dev entering another portal previews that role's UI (portal.ts,
+ * previewRoleForDev) while staying `dev` server-side. Overwriting the
+ * local value would break that preview on the next /api/me, so a dev
+ * keeps whatever they picked.
+ */
+export const syncRoleFromServer = (serverRole: unknown): void => {
+  if (serverRole === "dev") return;
+  const next: Role = isRole(serverRole) ? serverRole : "teacher";
+  // Compare against the *effective* role, not the raw key. On a browser
+  // that has never stored one the key is absent while getRole() already
+  // answers "teacher" — announcing a change there would bounce a teacher
+  // who deep-linked to /planner back to /dashboard on every sign-in.
+  const changed = getRole() !== next;
+  writeStorage(KEY, next);
+  if (changed) listeners.forEach((fn) => fn(next));
 };
 
 export const onRoleChange = (fn: RoleListener): (() => void) => {

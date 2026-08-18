@@ -42,7 +42,7 @@ import {
   Building2,
   type LucideIcon,
 } from "lucide-react";
-import { getRole, onRoleChange, ROLE_LABELS } from "@/lib/role";
+import { clearRole, getRole, onRoleChange, ROLE_LABELS, syncRoleFromServer } from "@/lib/role";
 import { api, ApiError } from "@/shared/lib/apiClient";
 import { navigate, replace, clearRoute } from "@/lib/route";
 import { useT } from "@/shared/i18n";
@@ -178,6 +178,11 @@ export default function StudioShell({ children }: { children: React.ReactNode })
         try {
           const me = await api<Record<string, string>>("/api/me");
           if (cancelled || !me) return;
+          // The account row decides which rail this browser renders. Until
+          // this call, `murchid_role` was written only by the portal
+          // sign-ins and never cleared, so it outlived the account that
+          // wrote it — see syncRoleFromServer.
+          syncRoleFromServer(me.role);
           const cur = account?.profile || {};
           const patch: Record<string, string> = {};
           if (me.first_name && cur.firstName !== me.first_name) patch.firstName = me.first_name;
@@ -226,6 +231,7 @@ export default function StudioShell({ children }: { children: React.ReactNode })
     clearSessionId();
     clearIdent();
     clearAccount();
+    clearRole();
     clearRoute();
     window.location.assign("/");
   };

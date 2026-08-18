@@ -156,3 +156,37 @@ in the list because `is_super_admin()` returns true for it too and a
 leftover dev account is the same hole under another name. It removes
 privilege, not data: no row is deleted, nothing else on the row changes,
 and re-running is a no-op. Grant the real ones back from the console.
+
+### The other half of it was in the browser
+
+The database fix above is necessary but was not sufficient. `murchid_role`
+in localStorage — read by `StudioShell` to pick the rail, the default
+route and `SECTIONS_BY_ROLE` — was **written only by the portal sign-ins
+and never cleared**. So it outlived the account that wrote it:
+
+- a super admin signs in on a browser → `murchid_role = "super_admin"`;
+- sign-out cleared the session, the account and the cached faculty id,
+  but not this;
+- the next account to sign in through the normal `/signin` funnel never
+  called `setRole` at all, so it opened the studio on the super-admin
+  rail and landed on `/superadmin-dashboard`.
+
+An account whose `role` is NULL hit the same thing from the other
+direction: `setRole()` ignores a value that is not a `Role`, so a null
+role did not reset the key — it **kept** whatever was already there.
+
+Nothing behind those screens was ever exposed: every `sa_*` RPC re-checks
+`is_super_admin()` in Postgres, so the console loaded empty and 403ing.
+A console a teacher can open is still a bug.
+
+`syncRoleFromServer()` in [`src/lib/role.ts`](../src/lib/role.ts) makes
+the account row the authority — called from `StudioShell`'s `/api/me`
+hydration, so it runs on every sign-in rather than only at the portal.
+Anything the server does not call a real role is a teacher. `dev` is the
+one exception, and it is this key's original purpose: a dev entering
+another portal previews that role's UI (`portal.ts`,
+`previewRoleForDev`) while staying `dev` server-side.
+
+`clearRole()` now runs on all three sign-out paths — `StudioShell`'s
+`signOutFully`, `Landing`'s `handleSignOut`, and `apiClient`'s forced
+sign-out on `session_superseded`.

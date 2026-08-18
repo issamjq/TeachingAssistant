@@ -3176,6 +3176,10 @@ export default function Landing({ onOpenStudio, heroVariant = null, initialPage 
     }
     clearSessionId();
     clearAccount();
+    // Drop the stored role too, or the next account to sign in on this
+    // browser inherits this one's rail — see lib/role.syncRoleFromServer.
+    const { clearRole } = await import("../lib/role");
+    clearRole();
     goPage("home");
   };
   const jump = (id) => {

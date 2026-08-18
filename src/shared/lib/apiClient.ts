@@ -49,14 +49,16 @@ async function handleSessionSuperseded(): Promise<void> {
   if (_supersedeHandled) return;
   _supersedeHandled = true;
   try {
-    const [{ clearSessionId }, { clearAccount }, { clearRoute }, fb] =
+    const [{ clearSessionId }, { clearAccount }, { clearRoute }, { clearRole }, fb] =
       await Promise.all([
         import("@/lib/session"),
         import("@/lib/account"),
         import("@/lib/route"),
+        import("@/lib/role"),
         import("@/lib/supabaseAuth"),
       ]);
     clearSessionId();
+    clearRole();
     try {
       await fb.signOut();
     } catch {
