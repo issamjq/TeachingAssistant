@@ -28,6 +28,37 @@ const nextConfig: NextConfig = {
     return [{ source: "/api/:path*", destination: `${API_TARGET}/api/:path*` }];
   },
 
+  // Response headers. The Express app used to set these with Helmet; when
+  // the API was deleted they went with it, and nothing replaced them —
+  // SECURITY.md went on describing a policy that no response carried.
+  //
+  // Deliberately NOT a Content-Security-Policy. A CSP for this app has to
+  // allow Google Fonts, Supabase over wss, the avatar and marketing image
+  // hosts, and the OAuth redirect origins; getting one wrong does not
+  // degrade, it blanks the page. It needs writing against a running app
+  // with a real Supabase project, which is a change worth making on its
+  // own and verifying in a preview deploy. The headers below cannot break
+  // a working page, so they should not wait for it.
+  //
+  // HSTS carries no `preload` and no `includeSubDomains`: both are
+  // effectively irreversible once a browser has cached them, and neither
+  // is ours to commit to on the strength of a config edit.
+  async headers() {
+    return [
+      {
+        source: "/:path*",
+        headers: [
+          { key: "Strict-Transport-Security", value: "max-age=31536000" },
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "X-Frame-Options", value: "SAMEORIGIN" },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          { key: "X-DNS-Prefetch-Control", value: "off" },
+          { key: "Cross-Origin-Opener-Policy", value: "same-origin-allow-popups" },
+        ],
+      },
+    ];
+  },
+
   // Next 16 removed `next lint` and the `eslint` config key — linting is
   // its own CI step now (see docs/11-nextjs-migration.md §6).
 

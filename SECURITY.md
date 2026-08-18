@@ -1,265 +1,187 @@
 # Murchid — Security policy
 
-This document is a living record of what the app's security model **is**,
-what it **isn't**, the **threats we explicitly defend against**, and the
-**threats we knowingly accept or defer**. Anything not listed here is
-unaudited.
+A living record of what the security model **is**, what it **isn't**, and
+what is knowingly deferred. Anything not listed here is unaudited.
 
-> ## ⚠️ This document predates the Supabase migration and owes a rewrite
->
-> Large parts of it describe a stack that no longer exists — an Express
-> API on Render, Firebase Admin verifying tokens in middleware, and Neon
-> Postgres. Three claims are now **inverted**, which is why this banner is
-> here rather than a quiet note:
->
-> - **Row Level Security is not "planned, not done" — it is the whole
->   authorisation layer.** There is no API in this repository. The browser
->   reads and writes Supabase directly and the policies are what stop one
->   teacher seeing another's rows. See [`db/tune.sql`](db/tune.sql).
-> - **Auth is Supabase, not Firebase.** No Firebase Admin SDK, no
->   `requireAuth()` middleware, no `req.firebaseUser`.
-> - **The database is Supabase, not Neon.**
->
-> What has not changed: `credits`, `subscriptions`, `usage_logs`,
-> `feature_flags` and `audit_log` are unwritable from the browser, and the
-> privileged surface is SECURITY DEFINER functions gated on
-> `is_super_admin()` — a teacher's token is refused by Postgres, not by
-> hoping the UI hid a button ([docs/12](docs/12-super-admin.md)).
->
-> Treat every specific below as needing verification against the code
-> until this is rewritten in full.
+Rewritten after the Supabase migration. The previous version described an
+Express API on Render verifying Firebase tokens in middleware against a
+Neon database — none of which exists any more, and it stated the opposite
+of the truth on the most important point (it called row-level security
+"planned, not done"; RLS is now the whole authorisation layer).
+
+## The shape of the system
+
+There is **no API server in this repository**. The browser reads and
+writes Supabase directly through [`src/lib/data/`](src/lib/data/) over
+PostgREST. What used to be middleware is now:
+
+| Concern | Where it lives now |
+|---|---|
+| Authentication | Supabase Auth (Google OAuth, email+password, magic link), PKCE flow |
+| Authorisation | Row Level Security policies on every table |
+| Privileged actions | `SECURITY DEFINER` Postgres functions, gated on the caller's own row |
+| Secrets | A **separate backend repository**, reached through a server-side rewrite |
+
+That last row is the reason the arrangement is defensible at all: the
+browser holds a publishable key and a user's access token, and nothing
+else. Every key that grants real power — the AI providers, the mail
+sender, the GoTrue admin key — is in a project this one cannot see.
 
 ## TL;DR
 
-- All `/api/*` requests require a Firebase ID token verified by the
-  Firebase Admin SDK on every call. No long-lived session tokens, no
-  cookies, no homemade JWTs.
-- Every teacher row is isolated by `teacher_id`. Cross-tenant reads and
-  writes are blocked at the route layer; the database is a defence in
-  depth, not the only line.
-- Helmet + strict CSP, CORS allowlist, per-IP rate limiting, request
-  timeout, body-size limits, and a sanitised error handler are wired
-  into the request pipeline before any route runs.
-- Every privileged action (sign-in, sign-up, plan change, admin
-  mutations, dev flag toggles, school removal) writes an append-only
-  row to `audit_log` with IP and user-agent.
+- Every request carries a Supabase access token (JWT, short-lived,
+  auto-refreshed by the SDK). Postgres verifies it; no application code
+  decides who you are.
+- Tenant isolation is **policies**, not route handlers. Read paths
+  deliberately do *not* filter by owner — the policy already does, and a
+  redundant `.eq("faculty_id", …)` would only be a second place to get it
+  wrong.
+- `credits`, `subscriptions`, `usage_logs`, `feature_flags` and
+  `audit_log` have RLS on and **no client policy**. A teacher cannot top
+  up their own balance or extend their own plan.
+- `users.role`, `sub_role` and `permissions` cannot be written by a
+  browser at all — a trigger refuses the write whichever PostgREST role
+  it arrives as.
+- The privileged consoles are `SECURITY DEFINER` functions whose first
+  act is to read the *caller's own* role. A teacher's token is refused by
+  the database, not by hoping the UI hid a button.
 
 ## Threat model
 
-### In scope (we defend)
+### Defended
 
-| Threat | Where it's stopped |
+| Threat | Mechanism |
 |---|---|
-| Stolen or forged auth tokens | Every `/api/*` call verifies a fresh Firebase ID token via `firebase-admin`. Forged tokens fail signature check; stolen tokens stop working ~1 hour after issue. |
-| Cross-tenant data reads (teacher A reads teacher B's students) | `requireAuth()` loads `req.teacher` from the verified UID; every `crudRouter({ teacherScoped: true })` query carries `WHERE teacher_id = $1` automatically. Child-resource handlers (quiz questions, scores, submissions, completions) verify the parent's ownership before any read or write. |
-| Cross-tenant data writes (teacher A overwriting teacher B's attendance row via ON CONFLICT) | Explicit `student_id` ownership check before every `INSERT … ON CONFLICT`. The `ON CONFLICT DO UPDATE` clauses now include `WHERE attendance.teacher_id = $1` so a stale row owned by another teacher can't be hijacked. |
-| Privilege escalation to admin / dev endpoints | `/api/admin/*` and `/api/dev/*` are mounted with `requireRole("admin")` / `requireRole("dev")`. A 403 is returned without leaking which role is needed. |
-| Self-lockout / self-deletion by admin | `PATCH /api/admin/teachers/:id/status` and `DELETE /api/admin/teachers/:id` refuse the operation when the target is the calling admin. |
-| Subscription bypass | `requireAuth()` rejects with `403 subscription_expired` when the teacher's `subscription_ends_at` is past or status is `expired` / `suspended`. The status is flipped to `'expired'` automatically on first detection so admin queries surface lapsed accounts. |
-| Brute-force / credential stuffing on auth endpoints | `express-rate-limit` caps `/api/auth/*` at 10 requests / 15 min / IP. The global limiter caps the rest at 300 req / 5 min / IP. |
-| Injection (SQL) | Every query in the codebase is parameterised (`$1`, `$2`, …). The few queries that interpolate user input into the SQL string (`/api/dev/inspect/:table`) use a hardcoded allowlist. |
-| Injection (XSS via stored content) | React auto-escapes JSX text. The two `innerHTML` writes (`SlideBuilder` rich-text editor and `export.docToHtml`) pass user content through `escapeHtml()` and only allow a whitelist of style attributes. |
-| Open CORS to phishing origins | `Access-Control-Allow-Origin` is set per-request from the explicit `ALLOWED_ORIGINS` env var. Production refuses to boot without it. |
-| Click-jacking | `X-Frame-Options: SAMEORIGIN` + CSP `frame-ancestors 'self'`. |
-| MIME-type sniffing | `X-Content-Type-Options: nosniff`. |
-| HTTP-only deployments | `Strict-Transport-Security: max-age=31536000; includeSubDomains; preload` in production. |
-| Schema enumeration via Postgres error messages | Error handler returns a sanitised generic message in production; full message + stack only land in the server log along with a short correlation id. |
-| Malformed / oversized request bodies | Global 2 MB JSON cap; helmet + body parser return 400 / 413 instead of 500. |
-| Stuck handlers pinning workers | 25-second per-request timeout; the connection is destroyed and a 504 is returned to the client. |
-| Boot-time misconfiguration | `validateEnv()` runs before `buildApp()`; missing `FIREBASE_ADMIN_KEY_B64`, malformed JSON, or `ALLOWED_ORIGINS` absent in production cause an immediate `process.exit(1)` with a readable log. |
-| Unauthorised IP needs blocking | Every login records `last_login_ip` + `last_user_agent` on the teacher row, and `auth.login` / `auth.signup` writes an `audit_log` row. Admin can SQL-flip `status='suspended'` to revoke. |
+| Reading another teacher's students, plans, marks | RLS policies keyed to `current_faculty_id()` |
+| A student reading another student's work | `current_student_ids()`, scoped to rows claimed by the caller |
+| A teacher granting themselves admin | `guard_privilege_columns` trigger (below) |
+| A teacher granting themselves credits or a plan | those tables have RLS on and no client policy |
+| Calling a super-admin function directly | `sa_require()` / `sa_gate()` re-check `is_super_admin()` inside every function body |
+| Editing the audit trail | `audit_log` has no client policy; its only writer is `sa_write_audit()`, called from inside the functions being audited |
+| A student claiming a classmate's account by guessing their email | the invite gate — `invite_status` must be `invited`, which only that student's teacher can set |
+| An account with no role defaulting to something powerful | `users.role` is `NOT NULL`; a sign-up is coerced to `teacher` |
+| One account used on many devices at once | `is_current_device()` against `users.active_session_id` |
+| An expired subscription still writing | `subscription_active()` in the write policies |
 
-### Defended at the platform (not by this codebase)
+### Deliberately not defended here
 
-| Threat | Mitigated by |
+| | Why |
 |---|---|
-| HTTPS termination | Vercel (frontend) + Render (backend) — both terminate TLS, neither permits HTTP. |
-| Token storage on the client | Firebase JS SDK keeps the refresh token in IndexedDB (origin-isolated, not accessible from another origin). The short-lived ID token lives in memory; we never store it in `localStorage`. |
-| DDoS at the edge | Vercel + Render front Cloudflare-style protection. Our in-app rate limit is the second line. |
-| Account password compromise | Firebase Auth handles password hashing and reset flows. We never see passwords; we never store them. |
-| Email verification | Firebase Auth flag (`email_verified` claim on the ID token). We can gate on it later by adding `if (!fb.email_verified)` in `requireAuth`. |
-| MFA / 2FA | Firebase Auth supports it; toggle in the Firebase Console when desired. No app-side change required. |
-| Service-account key rotation | Manual — see "What to do if a credential leaks" below. |
+| Anything the separate backend does | Different repository, different review. Its secrets never reach this one. |
+| Abuse of the publishable key | It is public by design and carries no privileges. Access is decided by RLS and by the token, not by hiding it. |
+| Formal pen-test, SAST/DAST | Not done. `npm audit` is the only static check in CI. |
+| Column-level encryption of student PII | Supabase encrypts the disk; column encryption needs key management this project does not have. |
+| Append-only audit log at the storage layer | `audit_log` is a regular table. A database compromise could rewrite history. |
+| Payment integrity | No Stripe yet; subscription state is admin-managed. |
 
-### Out of scope (knowingly deferred or accepted)
+## The privilege guard
 
-| Risk | Why it's deferred |
-|---|---|
-| Formal penetration test by a third party | Cost; defer until first paying customer or first 100 teachers. |
-| Static analysis (SAST) in CI | Not configured yet. `npm audit` is the only tool in the loop. |
-| Dependency-license audit | Not legally required at this stage. |
-| Real-time anomaly detection on the audit log | The audit log captures the data; no alerting yet. A nightly query into a Slack webhook is the planned mitigation. |
-| WAF rules (Cloudflare, AWS WAF) | Reverse-proxy layer at Vercel / Render is enough until traffic justifies more. |
-| ~~Row-level security at the Postgres layer~~ | **No longer deferred — this is now the primary authorisation layer.** Tenant isolation is enforced by policies in `db/tune.sql`, not by application code, and there is no application layer left to enforce it in. |
-| Encrypted-at-rest fields for PII (student records, guardian contacts) | Supabase encrypts the disk; column-level encryption would require key management we don't have yet. |
-| Stripe / payment integration | Out of scope — subscription state is admin-managed for now (`subscription_status`, `subscription_ends_at`). |
-| Replay-attack defence on the audit log via append-only Postgres triggers | Not implemented; the `audit_log` table is a regular table that admins with DB access can edit. The application never offers a DELETE endpoint for it. |
+`role`, `sub_role` and `permissions` are the columns that decide what an
+account may do, and they live on a row the account can otherwise edit
+(its own name, phone, avatar). A `BEFORE UPDATE` trigger refuses a change
+to any of the three when the write arrives as one of PostgREST's roles —
+`authenticated`, `anon` or `authenticator`.
 
-## Authentication & authorisation
+The test is `current_user`, **not** `auth.uid()`. A `SECURITY DEFINER`
+body runs as the function's owner and the migration scripts run as
+`postgres`, so every legitimate writer passes and only the direct client
+write is refused. This is why that one trigger function must stay
+`SECURITY INVOKER` — it needs to see the caller's real role.
 
-### Token shape
+> Naming only `authenticated` was a hole, and it was found by running the
+> SQL rather than by reading it: a request carrying **no token** runs as
+> `anon`, so the unauthenticated role could write the columns the
+> signed-in one could not. All three are named now. `service_role` is
+> deliberately absent — that key belongs to the backend, which is trusted.
 
-The client uses Firebase Web SDK (`signInWithPopup` for Google /
-Microsoft). On success the SDK gives us a short-lived ID token
-(JWT, ~1 hour) and a long-lived refresh token (rotated by Firebase).
+## What this document cannot tell you
 
-Every `api()` call reads the current ID token from
-`firebase/auth.currentUser.getIdToken()` and attaches it as
-`Authorization: Bearer <token>`. The SDK auto-refreshes when the
-token has expired.
+**Not every RLS policy is in this repository.** The schema was authored
+in the Supabase console and [`db/tune.sql`](db/tune.sql) adjusts it. The
+policies tune.sql owns are auditable by reading it; any policy created in
+the dashboard is not visible here, and no review done from this
+repository can vouch for it.
 
-### Server-side verification
+This is a real limitation, not a formality. It is why the privilege guard
+above exists as a trigger rather than as a policy: a trigger holds
+whatever the policies turn out to permit.
 
-`backend/lib/auth.js#requireAuth()` runs `verifyIdToken(token)` via
-the Firebase Admin SDK on EVERY request — signature, expiry, audience,
-and revocation are all checked. The decoded claims land on
-`req.firebaseUser`; the teacher row is loaded from Neon and attached
-to `req.teacher`.
+**Recommended:** export the live policy set
+(`SELECT * FROM pg_policies WHERE schemaname='public'`) and check it into
+this repo, so the authorisation layer can be reviewed in one place and
+diffed when it changes.
 
-### Trust boundary
+## Response headers
 
-Everything that touches the database (CRUD helpers, hand-written
-handlers) reads `req.teacher.id` for tenancy scoping. No code path
-trusts a `teacher_id` value from the request body except the admin
-routes, which check `req.teacher.role === 'admin'` first.
+Set in [`next.config.ts`](next.config.ts) and served on every path:
+`Strict-Transport-Security`, `X-Content-Type-Options`,
+`X-Frame-Options`, `Referrer-Policy`, `X-DNS-Prefetch-Control`,
+`Cross-Origin-Opener-Policy`.
 
-### Sign-out
+**There is no Content-Security-Policy, and that is the largest open gap
+in this document.** The Express app carried one; when the API was deleted
+it went with it and nothing replaced it. Writing one means allowing
+Google Fonts, Supabase over `wss:`, the avatar and marketing image hosts
+and the OAuth redirect origins — and a CSP that is wrong does not degrade,
+it blanks the page. It needs writing against a running app and verifying
+in a preview deploy.
 
-Sign-out clears the local mock account object AND calls Firebase
-`signOut()` so the refresh token is invalidated. A foreign sign-out
-(token revoked from another device) is caught by the
-`onAuthStateChanged` listener in `src/App.jsx` which then clears
-local state and routes back to landing.
-
-## Data isolation
-
-### Teacher rows
-
-- `teachers.firebase_uid` is `UNIQUE` (partial index, `WHERE NOT NULL`).
-- `teachers.email` has a non-unique index for the upsert in
-  `/api/auth/firebase`.
-- Seed teachers (e.g. `Sara Al-Mansoori`) have `firebase_uid = NULL`
-  and are unreachable through any real sign-in.
-
-### Owned-resource tables
-
-Every owned table carries a `teacher_id` column with a non-NULL,
-`ON DELETE CASCADE` foreign key to `teachers(id)`. The `crudRouter`
-helper stamps it from `req.teacher.id` on insert and includes
-`WHERE teacher_id = $N` on every read / update / delete.
-
-### Child-resource tables
-
-For tables that don't have their own `teacher_id` (e.g.
-`quiz_questions`, `quiz_scores`, `homework_submissions`,
-`activity_completions`, `attendance`), the route handler verifies the
-parent's ownership before any write. The `assertOwnsX(req, id)`
-helpers in `quizzes.js`, `homework.js`, `activities.js` exist for
-this. `attendance` and `quiz-scores` additionally verify
-`student.teacher_id = req.teacher.id` because their UNIQUE keys
-include `student_id`, so a foreign student would otherwise allow an
-`ON CONFLICT DO UPDATE` to overwrite another teacher's row.
-
-## Audit log
-
-Schema: `audit_log (id, teacher_id, action, target_table, target_id, ip, user_agent, detail, created_at)`.
-
-Recorded actions (the vocab is in `backend/lib/audit.js`):
-
-- `auth.signup`, `auth.login`, `auth.renew`
-- `admin.teacher.create`, `admin.teacher.active`,
-  `admin.teacher.suspended`, `admin.teacher.deleted`,
-  `admin.teacher.delete`
-- `dev.flag.toggle`
-- `school.remove`
-
-Reads: `GET /api/admin/audit?teacher_id=&action=&limit=` — admin role
-only. No DELETE endpoint exists; rows accumulate forever (retention
-is an ops decision, not an app one).
-
-PII discipline: `detail` is a small JSONB blob. Don't put names,
-emails, or contact info there — link by id and let the forensic
-query join back to the source row at read time.
-
-## Headers (production)
-
-```
-Strict-Transport-Security: max-age=31536000; includeSubDomains; preload
-Content-Security-Policy:    default-src 'self'; script-src 'self' https://apis.google.com https://www.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https://*.googleusercontent.com https://*.firebaseapp.com https://images.pexels.com; connect-src 'self' https://*.googleapis.com https://*.firebaseapp.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com; frame-src 'self' https://*.firebaseapp.com https://accounts.google.com https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'; upgrade-insecure-requests
-Referrer-Policy:            strict-origin-when-cross-origin
-X-Frame-Options:            SAMEORIGIN
-X-Content-Type-Options:     nosniff
-X-DNS-Prefetch-Control:     off
-```
-
-Dev mode allows `'unsafe-inline'` and `'unsafe-eval'` for scripts so
-Vite's HMR works. Production builds are strict.
+HSTS carries no `preload` and no `includeSubDomains`. Both are
+effectively irreversible once a browser caches them.
 
 ## Rate limits
 
-- Global: 300 req / 5 min / IP (skip `/healthz`)
-- Auth (`/api/auth/*`): 10 req / 15 min / IP
-- Response includes `RateLimit-*` headers (RFC 9239 draft) so a polite
-  client can self-throttle.
+Enforced by Supabase, not by this codebase: auth attempts, token
+refreshes and auth emails all have per-project caps configurable in the
+dashboard (Authentication → Rate limits). There is no application-level
+limiter, because there is no application server to put one in.
 
-`app.set("trust proxy", 1)` is set so Render's X-Forwarded-For chain
-is honoured — without it every request would look like
-`::ffff:10.0.0.1` and the limit would collapse the world into a
-single bucket.
+The one worth knowing: **auth emails per hour** is small by default and
+is what a teacher inviting a class will hit. See
+[docs/13](docs/13-student-invites.md).
 
 ## Input validation
 
-`backend/lib/validate.js` exports zod schemas for the auth endpoints,
-schools, students, and the `/api/me` profile patch. Each mutating
-route is wrapped in `validateBody(SchemaName)`; unknown keys are
-silently dropped (`.strip()`), wrong types / oversized / regex
-mismatches return `400 { error, issues: [{ path, message }] }`.
+Types are inferred from the backend's zod schemas
+(`src/shared/types/api.ts`), which makes a drifting contract a compile
+error — but that is a correctness gate, not a security boundary. The
+security boundary is the database: `CHECK` constraints, `NOT NULL`,
+foreign keys and the policies. Anything the browser sends that the schema
+rejects fails in Postgres, which is the only place it cannot be talked
+out of.
 
-Admin and dev routes have inline schemas in their own files because
-their vocabularies don't overlap with teacher-facing forms.
+## If a credential leaks
 
-## What to do if a credential leaks
-
-1. **Firebase admin service-account key**: Firebase Console → Project
-   settings → Service accounts → ⋮ on the key → Delete. Generate a
-   new one, paste the new base64 into `.env` locally and into Render
-   env vars, redeploy.
-2. **Microsoft client secret**: Azure portal → App registrations →
-   Murchid → Certificates & secrets → delete + create new → paste new
-   value into Firebase Console → Authentication → Sign-in method →
-   Microsoft → Save.
-3. **A user's Firebase session is suspected compromised**: revoke
-   their refresh tokens via Firebase Console → Authentication → Users
-   → ⋮ → Revoke refresh tokens. All their sessions across all devices
-   stop working within a minute.
-4. **DATABASE_URL**: rotate the database password (Supabase dashboard →
-   Project settings → Database → reset password) and update `.env`. It is
-   read only by the migration scripts — no deployment carries it, so
+1. **Supabase secret key** (`sb_secret_…`) — dashboard → Project settings
+   → API keys → rotate. It belongs in no file in this repository; if it
+   is in one, that is the incident.
+2. **`DATABASE_URL`** — dashboard → Project settings → Database → reset
+   password, update `.env`. Read only by the migration scripts, so
    nothing needs redeploying.
-5. **Supabase publishable key**: it is public by design and carries no
-   privileges; leaking it is not an incident. The **secret** key
-   (`sb_secret_…`) is, and belongs in no file in this repository.
+3. **Publishable key** — public by design, carries no privileges. Not an
+   incident.
+4. **Resend API key** — Resend → API Keys → revoke and reissue, then
+   update Supabase's SMTP settings. Use a send-only restricted key.
+5. **A user's session is suspected compromised** — Supabase dashboard →
+   Authentication → Users → revoke sessions. `active_session_id` also
+   means signing in anywhere else evicts the old device.
+6. **OAuth provider secret** — rotate at the provider, then paste into
+   Supabase → Authentication → Providers.
 
 ## Reporting a vulnerability
 
-Email **security@murchid** (replace with your real address) with:
-
-- A description of the issue
-- Steps to reproduce
-- The impact / what an attacker could do
-
-We aim to acknowledge within 3 business days and fix critical issues
-within 14 days. Please don't publicly disclose until we've had a chance
+Email the address on murchid.com with a description, steps to reproduce,
+and the impact. Please don't disclose publicly before we've had a chance
 to patch.
 
 ## Honest limits
 
-- **No formal pen-test has been done.** This document is the result of
-  an in-codebase audit, not an external assessment.
-- **No SAST / DAST tools run in CI** — `npm audit` is the only static
-  check. New advisories may not be patched immediately.
-- **Audit log is application-trusted, not append-only at the DB
-  level.** A database compromise could rewrite history.
-- **Subscription enforcement is purely DB-driven.** When real billing
-  lands, the source of truth shifts to Stripe webhooks; until then,
-  admins can extend / expire accounts via direct SQL.
+- **No external assessment has been done.** This is an in-codebase audit.
+- **Part of the authorisation layer is invisible from here** (see above).
+  That is the single biggest caveat on everything else in this document.
+- **No CSP.**
+- **No error tracking, logging or analytics of any kind is installed** —
+  so there is no detection. An attack would be reconstructed from
+  `audit_log` and Supabase's own logs, or not at all.
+- **The audit log is application-trusted**, not append-only at the
+  storage layer.
