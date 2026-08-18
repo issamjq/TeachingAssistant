@@ -43,7 +43,7 @@ import { RewritableBody } from "./RewritableBody";
 import { FinaliseAndSchedule } from "./FinaliseAndSchedule";
 import { missingFrom, askFor, declined } from "./missingDetails";
 import {
-  isRework, isScheduleOnly, targetedKinds, asksToReschedule, namesNewWork, kindNamedIn,
+  isRework, isScheduleOnly, targetedKinds, asksToReschedule, namesNewWork, kindsNamedIn,
 } from "./revision";
 import { SkillsPicker } from "./SkillsPicker";
 import {
@@ -847,18 +847,18 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
      * load: a teacher who types "now a quiz on photosynthesis" has named the
      * kind more clearly than a chip she never touched.
      */
-    const spoken = opts.skipAsk ? null : kindNamedIn(prompt);
+    const spoken = opts.skipAsk ? [] : kindsNamedIn(prompt);
 
     if (!opts.skipAsk && !reworking) {
       // What is missing depends on what she is making: a quiz is booked
       // between two times, a lesson takes a period.
-      const missing = missingFrom(prompt, spoken ? [spoken] : useKind ? [useKind] : kinds);
+      const missing = missingFrom(prompt, spoken.length ? spoken : useKind ? [useKind] : kinds);
       if (missing.length) {
         setDraft("");
         setTurns((t) => [
           ...t,
           { role: "user", text: prompt, attachments },
-          { role: "ask", question: askFor(missing), pending: prompt, kind: useKind || spoken || null },
+          { role: "ask", question: askFor(missing), pending: prompt, kind: useKind || (spoken.length === 1 ? spoken[0] : null) },
         ]);
         return;
       }
@@ -921,8 +921,8 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
         ? heldKinds
         : useKind
           ? [useKind]
-          : spoken
-            ? [spoken]
+          : spoken.length
+            ? spoken
             : kinds;
     const k = ks[0];
     const atts = attachments;
@@ -1404,6 +1404,38 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
       for (let j = index - 1; j >= 0; j--) if (turns[j]?.role === "user") return turns[j].text;
       return "";
     })();
+    /**
+     * The corrections are the method.
+     *
+     * Only the kept document and the prompt beside it were ever sent, so
+     * everything the teacher actually taught the studio was thrown away: she
+     * asks for homework, reads it, says "make the questions come from their own
+     * kitchen", reads it again, says "and one sentence of reasoning each" — and
+     * the third version is the one she keeps. What she asked to change, and
+     * what she stopped changing, states her standard far more plainly than the
+     * final document does on its own.
+     *
+     * The service already asks for this ("read them as the strongest signal in
+     * the input"); nothing was sending it. Earlier versions of the SAME kind in
+     * this conversation now go too, each under the instruction that produced
+     * it, oldest first, so the distillation can see the direction of travel.
+     */
+    const history = (() => {
+      const rounds = [];
+      for (let j = 0; j < index; j++) {
+        const t = turns[j];
+        if (t?.role !== "assistant" || t.kind !== turn.kind || !t.text) continue;
+        let asked = "";
+        for (let k = j - 1; k >= 0; k--) if (turns[k]?.role === "user") { asked = turns[k].text; break; }
+        rounds.push(
+          `### Earlier draft ${rounds.length + 1}\nShe asked: ${asked || "(the opening request)"}\n\n${t.text.slice(0, 2500)}`,
+        );
+      }
+      // Only the last two: the direction is what matters, and a long thread
+      // would crowd out the version she actually kept.
+      return rounds.slice(-2).join("\n\n");
+    })();
+
     const title = titleOf(turn.kind, turn.text, turn.structured);
     const label = (KIND_META[turn.kind]?.label || "material").toLowerCase();
     setTurns((t) => t.map((x, i) => (i === index ? { ...x, skillSaving: true } : x)));
@@ -1415,7 +1447,17 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
       await streamSSE("/api/studio/skill-profile", {
         body: {
           source: "artifact",
-          artifact: { kind: turn.kind, prompt: promptText, content: (turn.text || "").slice(0, 8000) },
+          artifact: {
+            kind: turn.kind,
+            prompt: promptText,
+            content: [
+              history &&
+                `## What came before, and what she asked to change\n\n${history}`,
+              `## The version she kept\nShe asked: ${promptText || "(not recorded)"}\n\n${(turn.text || "").slice(0, 6000)}`,
+            ]
+              .filter(Boolean)
+              .join("\n\n"),
+          },
         },
         onEvent: (ev) => {
           if (ev.type === "delta" && typeof ev.text === "string") acc += ev.text;
