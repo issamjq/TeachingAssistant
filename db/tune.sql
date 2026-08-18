@@ -334,6 +334,35 @@ CREATE POLICY notifications_own ON public.notifications
 -- subject to RLS.
 
 
+-- ── 8b. What each bucket will accept ──────────────────────────────────
+--
+-- The buckets were created in the dashboard, so their limits live only
+-- there — and `imports` was set up for the CSV roster importer: csv,
+-- excel and images. The Goal planner and the studio's material attach
+-- then shipped, both of which upload a syllabus or a textbook into the
+-- same bucket, and storage refused every one of them with "mime type
+-- application/pdf is not supported" — under a field whose own label
+-- reads "Syllabus or textbook — optional, PDFs".
+--
+-- Set here so the bucket agrees with the product, and so a fresh project
+-- comes up able to accept the files the UI offers to take. The size
+-- limit matches the 25 MB the studio composer already enforces in the
+-- browser; a real textbook does not fit in ten.
+UPDATE storage.buckets
+   SET allowed_mime_types = ARRAY[
+         'text/csv',
+         'application/vnd.ms-excel',
+         'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+         'image/png', 'image/jpeg', 'image/webp', 'image/gif',
+         'application/pdf',
+         'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+         'application/msword',
+         'text/plain'
+       ],
+       file_size_limit = 26214400
+ WHERE id = 'imports';
+
+
 -- ── 9. Let the browser actually use the storage buckets ───────────────
 --
 -- Five private buckets exist and NONE of them had a policy. Storage RLS

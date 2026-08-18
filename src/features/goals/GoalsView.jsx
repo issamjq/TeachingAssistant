@@ -31,14 +31,72 @@ import { supabase } from "@/lib/supabaseClient";
 import { facultyId } from "@/lib/data/session";
 import s from "./Goals.module.css";
 
-/** Weeks on offer. Days in the row, words on the buttons. */
-const TIMELINES = [
-  { days: 14, label: "2 weeks" },
-  { days: 28, label: "4 weeks" },
-  { days: 42, label: "6 weeks" },
-  { days: 84, label: "A term" },
-  { days: 168, label: "Two terms" },
-];
+/**
+ * How long she has, in her own words.
+ *
+ * This was five fixed buttons — 2 weeks, 4, 6, a term, two terms — and a
+ * teacher's real answer is almost never one of them. She has until the mocks
+ * on the 30th, or ten days, or three weeks before the trip. Forcing that into
+ * the nearest chip either lied to the planner or made her round her own term
+ * up by a fortnight.
+ *
+ * So she types it, and this reads it. Deliberately forgiving: anything it
+ * cannot parse falls back to six weeks rather than blocking her, and what it
+ * understood is echoed under the box so a misreading is visible before she
+ * commits to a plan built on it.
+ */
+export function daysFromTimeline(text) {
+  const t = String(text || "").toLowerCase().trim();
+  if (!t) return null;
+
+  const num = (m) => Number(m[1]);
+  let m;
+
+  if ((m = t.match(/(\d+)\s*(day|days)\b/))) return num(m);
+  if ((m = t.match(/(\d+)\s*(week|weeks|wk|wks)\b/))) return num(m) * 7;
+  if ((m = t.match(/(\d+)\s*(month|months)\b/))) return num(m) * 30;
+  if ((m = t.match(/(\d+)\s*(term|terms)\b/))) return num(m) * 84;
+
+  // "a week", "a term", "two weeks" — words where a teacher would use them.
+  const WORDS = { a: 1, an: 1, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10 };
+  if ((m = t.match(/\b(a|an|one|two|three|four|five|six|seven|eight|nine|ten)\s+(day|week|month|term)s?\b/))) {
+    const n = WORDS[m[1]] ?? 1;
+    return n * ({ day: 1, week: 7, month: 30, term: 84 })[m[2]];
+  }
+  if (/\bfortnight\b/.test(t)) return 14;
+  if (/\bterm\b/.test(t)) return 84;
+  if (/\bsemester\b/.test(t)) return 126;
+  if (/\byear\b/.test(t)) return 252;
+
+  /**
+   * A date she is working towards — "by 30 october", "until the 12th".
+   * Counted from today, because that is what "how long have I got" means.
+   */
+  const MONTHS = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
+  const mon = MONTHS.findIndex((x) => new RegExp(`\\b${x}`).test(t));
+  const dom = t.match(/\b(\d{1,2})(st|nd|rd|th)?\b/);
+  if (dom) {
+    const day = Number(dom[1]);
+    if (day >= 1 && day <= 31) {
+      const now = new Date();
+      let when = new Date(now.getFullYear(), mon >= 0 ? mon : now.getMonth(), day);
+      if (when < now) when = new Date(now.getFullYear() + (mon >= 0 ? 1 : 0), (mon >= 0 ? mon : now.getMonth() + 1), day);
+      const diff = Math.ceil((when - now) / 86_400_000);
+      if (diff > 0 && diff < 400) return diff;
+    }
+  }
+  return null;
+}
+
+/** Said back to her, so a misreading is caught before it becomes a plan. */
+function readableSpan(days) {
+  if (!days) return "";
+  if (days % 7 === 0 && days >= 7) {
+    const w = days / 7;
+    return `${days} days — about ${w} week${w === 1 ? "" : "s"}`;
+  }
+  return `${days} day${days === 1 ? "" : "s"}`;
+}
 
 const STATUS_LABEL = {
   processing: "awaiting plan",
@@ -82,7 +140,9 @@ async function uploadMaterial(file) {
 function NewGoal({ onCreated, onClose }) {
   const [title, setTitle] = useState("");
   const [brief, setBrief] = useState("");
-  const [days, setDays] = useState(42);
+  const [timeline, setTimeline] = useState("");
+  // Parsed as she types, so what the planner will be told is always on screen.
+  const days = daysFromTimeline(timeline);
   const [docs, setDocs] = useState([]);          // { id, file_name }
   const [busy, setBusy] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -115,7 +175,10 @@ function NewGoal({ onCreated, onClose }) {
     try {
       const goal = await api("/api/goals", {
         method: "POST",
-        body: { title, brief, timeline_days: days, material_ids: docs.map((d) => d.id) },
+        // Six weeks when she left it blank — the planner needs a number, and
+        // refusing to create the goal over an unparsed phrase would lose the
+        // brief and the upload she has already done.
+        body: { title, brief, timeline_days: days ?? 42, material_ids: docs.map((d) => d.id) },
       });
       onCreated(goal);
     } catch (err) {
@@ -172,22 +235,23 @@ function NewGoal({ onCreated, onClose }) {
         </div>
 
         <div>
-          <span className={s.label}>Timeline</span>
-          <div className={s.seg} role="radiogroup" aria-label="Timeline">
-            {TIMELINES.map((t) => (
-              <button
-                key={t.days}
-                type="button"
-                role="radio"
-                aria-checked={days === t.days}
-                className={s.segBtn}
-                data-on={days === t.days}
-                onClick={() => setDays(t.days)}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
+          <label className={s.label} htmlFor="goal-timeline">
+            How long have you got?
+          </label>
+          <input
+            id="goal-timeline"
+            className={s.field}
+            value={timeline}
+            onChange={(e) => setTimeline(e.target.value)}
+            placeholder='e.g. "2 weeks", "10 days", "until the mocks on 30 October"'
+          />
+          <p className="text-[12px] text-muted mt-1.5">
+            {days
+              ? `Planning for ${readableSpan(days)}.`
+              : timeline.trim()
+                ? "Not sure what that means — say it as days, weeks, or a date to work towards."
+                : "Days, weeks, a term, or the date you are working towards."}
+          </p>
         </div>
 
         <div>
@@ -238,7 +302,9 @@ function NewGoal({ onCreated, onClose }) {
             disabled={!title.trim() || busy}
             className="inline-flex items-center gap-2 h-11 px-6 rounded-full bg-accent text-on-accent text-sm font-medium hover:bg-accent-hover transition-colors cursor-pointer disabled:opacity-40"
           >
-            <Target size={15} /> {busy ? "Saving…" : "Create goal"}
+            {/* Says what it does now that it also plans — a button labelled
+                "create" that then spends a minute generating reads as a hang. */}
+            <Target size={15} /> {busy ? "Creating…" : "Create goal & plan it"}
           </button>
         </div>
       </div>
@@ -436,7 +502,20 @@ export default function GoalsView() {
       {creating && (
         <NewGoal
           onClose={() => setCreating(false)}
-          onCreated={(g) => { setGoals((x) => [g, ...(x || [])]); setCreating(false); }}
+          /**
+           * Creating a goal starts the plan.
+           *
+           * "Create goal" wrote the row and stopped, leaving a card that said
+           * "awaiting plan" beside a second button she had to find and press
+           * to get the thing she came for. Nobody creates a goal in order to
+           * not plan it. The card appears filled in and already working, and
+           * the button below stays for the retries that need it.
+           */
+          onCreated={(g) => {
+            setGoals((x) => [g, ...(x || [])]);
+            setCreating(false);
+            plan(g.id);
+          }}
         />
       )}
 

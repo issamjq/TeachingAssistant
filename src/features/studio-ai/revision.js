@@ -241,10 +241,23 @@ const KIND_WORDS = [
  * Only consulted when she NAMES new work: "make it shorter" names no kind and
  * belongs to whatever is already on screen.
  */
-export function kindNamedIn(prompt) {
+export function kindsNamedIn(prompt) {
   const t = String(prompt || "");
-  if (!NAMES_NEW_WORK.test(t)) return null;
-  return KIND_WORDS.find(([, re]) => re.test(t))?.[0] ?? null;
+  if (!NAMES_NEW_WORK.test(t)) return [];
+  /**
+   * All of them, not the first.
+   *
+   * "Homework and an activity on decimals" names two, and returning only the
+   * one that appears earliest silently dropped the other — the composer had
+   * both chips lit, the teacher asked for both, and one arrived.
+   */
+  return KIND_WORDS.filter(([, re]) => re.test(t)).map(([kind]) => kind);
+}
+
+/** The single kind she named, when she named exactly one. */
+export function kindNamedIn(prompt) {
+  const all = kindsNamedIn(prompt);
+  return all.length === 1 ? all[0] : null;
 }
 
 export function asksToReschedule(prompt) {
