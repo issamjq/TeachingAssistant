@@ -658,7 +658,13 @@ async function seedEmpty() {
     await q(
       `UPDATE public.users SET
          full_name = NULL, first_name = NULL, last_name = NULL, phone = NULL,
-         role = NULL, onboarding_status = 'pending', active_session_id = NULL
+         -- 'teacher', not NULL: what makes this account empty is having no
+         -- faculty row and a pending onboarding, not an absent role. A NULL
+         -- role rendered as a blank in the consoles and still landed on the
+         -- teacher dashboard, because every reader falls back to teacher —
+         -- so it was never a distinct state, only an unreadable one.
+         -- users.role is NOT NULL as of tune.sql §38.
+         role = 'teacher', onboarding_status = 'pending', active_session_id = NULL
        WHERE id = $1`,
       [existing.id],
     );

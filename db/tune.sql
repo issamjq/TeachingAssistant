@@ -3228,3 +3228,107 @@ BEGIN
   RETURN out;
 END $$;
 GRANT EXECUTE ON FUNCTION public.student_dashboard() TO authenticated;
+
+
+-- =====================================================================
+-- 38. No account without a role
+-- =====================================================================
+--
+-- §36 stopped new rows arriving blank and §37 filled the backlog, but
+-- both are policies about how rows are written. Nothing stopped the next
+-- one. Make it structural: the column refuses NULL, so a blank role is
+-- not a bug to be found later but a write that cannot happen.
+--
+-- Three things could still produce one, and all three are closed here.
+
+
+-- ── 1. sa_set_role accepted NULL ──────────────────────────────────────
+--
+-- The guard reads `IF p_role NOT IN (...)`. With p_role NULL that
+-- expression is NULL, not TRUE, so the exception never fired and the
+-- UPDATE below it wrote the NULL straight in. A super admin clearing the
+-- role field — or a client sending `role: undefined`, which becomes JSON
+-- null — blanked the account, and the console then displayed the blank it
+-- had just been given.
+--
+-- Same NULL-blindness in the delegated-admin guard further down, which is
+-- why the argument is rejected up front rather than patched per test.
+CREATE OR REPLACE FUNCTION public.sa_set_role(p_faculty uuid, p_role text, p_sub_role text)
+RETURNS jsonb
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE uid uuid; target_role text;
+BEGIN
+  PERFORM public.sa_gate('admin.accounts');
+  IF p_role IS NULL OR p_role NOT IN ('teacher','dev','super_admin','admin','moe','owner','student') THEN
+    RAISE EXCEPTION 'invalid role %', COALESCE(p_role, 'NULL') USING ERRCODE = '22023';
+  END IF;
+  uid := public.sa_user_of(p_faculty);
+  IF uid IS NULL THEN RAISE EXCEPTION 'account not found'; END IF;
+  -- Escalation guard: only a super admin may create staff or touch a staff
+  -- account. A delegated sub-admin may reassign ordinary users
+  -- (teacher/student) but cannot mint another admin or demote a colleague.
+  IF NOT public.is_super_admin() THEN
+    IF p_role NOT IN ('teacher','student') THEN
+      RAISE EXCEPTION 'only a super admin can grant staff roles' USING ERRCODE = '42501';
+    END IF;
+    SELECT role INTO target_role FROM users WHERE id = uid;
+    IF target_role IN ('dev','super_admin','admin','moe','owner') THEN
+      RAISE EXCEPTION 'only a super admin can change a staff account' USING ERRCODE = '42501';
+    END IF;
+  END IF;
+  UPDATE users SET role = p_role, sub_role = NULLIF(p_sub_role, ''), updated_at = now() WHERE id = uid;
+  PERFORM public.sa_write_audit('admin.teacher.role_update', 'users', uid,
+                                jsonb_build_object('role', p_role, 'sub_role', p_sub_role));
+  RETURN jsonb_build_object('id', p_faculty, 'role', p_role, 'sub_role', NULLIF(p_sub_role, ''));
+END $$;
+GRANT EXECUTE ON FUNCTION public.sa_set_role(uuid, text, text) TO authenticated;
+
+
+-- ── 2. an UPDATE could still clear it ─────────────────────────────────
+--
+-- force_signup_role() only fires on INSERT. Anything updating the row —
+-- a script, a console edit, a definer function — could set NULL, and the
+-- account went blank with nothing to say so. Coerce rather than refuse:
+-- the intent behind clearing a role has always been "back to the start",
+-- and the start is `teacher`.
+CREATE OR REPLACE FUNCTION public.keep_role_set()
+RETURNS trigger
+LANGUAGE plpgsql SET search_path = public, pg_temp
+AS $$
+BEGIN
+  IF NEW.role IS NULL THEN NEW.role := COALESCE(OLD.role, 'teacher'); END IF;
+  RETURN NEW;
+END $$;
+
+DROP TRIGGER IF EXISTS keep_role_set_on_users ON public.users;
+CREATE TRIGGER keep_role_set_on_users
+  BEFORE UPDATE ON public.users
+  FOR EACH ROW EXECUTE FUNCTION public.keep_role_set();
+
+
+-- ── 3. the column allowed it ──────────────────────────────────────────
+--
+-- The guarantee. Everything above is a rule that has to be remembered;
+-- this one is checked by Postgres on every write, including the ones
+-- nobody has written yet.
+--
+-- Runs last, after §37's backfill, so there is nothing left to reject.
+-- Re-runs are cheap: SET NOT NULL on an already-NOT NULL column is a
+-- no-op, and the sweep before it finds nothing.
+DO $$
+DECLARE blank int;
+BEGIN
+  UPDATE public.users SET role = 'teacher', updated_at = now() WHERE role IS NULL;
+  GET DIAGNOSTICS blank = ROW_COUNT;
+  IF blank > 0 THEN
+    RAISE NOTICE 'roles: % blank role(s) filled before locking the column', blank;
+  END IF;
+END $$;
+
+ALTER TABLE public.users ALTER COLUMN role SET NOT NULL;
+
+DO $$
+BEGIN
+  RAISE NOTICE 'roles: users.role is NOT NULL — a blank account can no longer be created';
+END $$;

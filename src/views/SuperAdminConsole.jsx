@@ -46,9 +46,15 @@ const roleBadgeStyles = {
 
 function RoleBadge({ role, subRole }) {
   const style = roleBadgeStyles[role] || roleBadgeStyles.teacher;
+  // users.role is NOT NULL from tune.sql §38, so a blank should be
+  // impossible. Until that migration is applied a database can still hold
+  // one, and an empty pill is the least useful thing to show about an
+  // account — it reads as a rendering fault rather than a state. Say what
+  // it is, so it can be found and fixed rather than squinted at.
+  const label = ROLE_LABELS[role] || role;
   return (
     <span className={`font-mono text-[10px] uppercase tracking-wider px-2.5 py-1 rounded-full border bg-paper ${style}`}>
-      {ROLE_LABELS[role] || role}
+      {label || "No role"}
       {subRole ? ` · ${SUB_ROLE_LABELS[subRole] || subRole}` : ""}
     </span>
   );

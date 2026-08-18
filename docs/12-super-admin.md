@@ -224,3 +224,35 @@ the browser already chose **as long as it is still in the set** — so the
 choice survives a reload, and a revoked role drops back to the primary on
 the next sign-in. The switcher itself is a row in the account menu,
 hidden entirely when there is only one role.
+
+### No account without a role (§38)
+
+§36 stops new rows arriving blank and §37 filled the backlog, but both
+are rules about how rows get written — neither stops the next one. §38
+makes it structural: **`users.role` is `NOT NULL`**, so a blank role is
+not a bug to find later but a write that cannot happen.
+
+Three things could produce one, and all three are closed:
+
+1. **`sa_set_role` accepted NULL.** Its guard read
+   `IF p_role NOT IN (...)`. With `p_role` NULL that expression is NULL,
+   not TRUE, so the exception never fired and the UPDATE below wrote the
+   NULL straight in. A super admin clearing the field — or a client
+   sending `role: undefined`, which becomes JSON null — blanked the
+   account, and the console then displayed the blank it had been handed.
+   The argument is now rejected up front, since the delegated-admin guard
+   further down was NULL-blind in the same way.
+2. **An UPDATE could still clear it.** `force_signup_role()` fires only
+   on INSERT. `keep_role_set()` now coerces a NULL on UPDATE back to the
+   previous role, or to `teacher` — the intent behind clearing a role has
+   always been "back to the start", and the start is `teacher`.
+3. **The column allowed it.** `ALTER COLUMN role SET NOT NULL`, after the
+   sweep, in the same transaction. This is the guarantee: the other two
+   are rules that have to be remembered, this one is checked by Postgres
+   on every write including the ones nobody has written yet.
+
+`db/seed-demo.js` set `role = NULL` on the deliberately-empty demo
+account and now sets `teacher`. What makes that account empty is having
+no faculty row and a pending onboarding, not an absent role — the NULL
+was never a distinct state, only an unreadable one, since every reader
+falls back to `teacher` anyway.
