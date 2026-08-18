@@ -132,11 +132,20 @@ trail.
 | `guard_privilege_columns_on_users` (BEFORE UPDATE) | refuses a change to `role` / `sub_role` / `permissions` arriving from the browser |
 
 The UPDATE guard tests `current_user`, not `auth.uid()`. A write coming
-straight through PostgREST runs as `authenticated`; a SECURITY DEFINER
-body (`sa_set_role`, `sa_set_permissions`, `link_student_account`) runs
-as the function's owner, and the migration scripts run as `postgres`. So
-every legitimate writer passes and only the direct client write is
-refused — which is why that trigger function must stay SECURITY INVOKER.
+straight through PostgREST runs as one of **its** roles —
+`authenticated`, `anon` or `authenticator`, all three named; a SECURITY
+DEFINER body (`sa_set_role`, `sa_set_permissions`,
+`link_student_account`) runs as the function's owner, and the migration
+scripts run as `postgres`. So every legitimate writer passes and only the
+direct client write is refused — which is why that trigger function must
+stay SECURITY INVOKER. `service_role` is deliberately absent: that key
+belongs to the separate backend, which is trusted.
+
+> Naming only `authenticated` was a real hole, found by testing rather
+> than by reading: a request carrying **no token** runs as `anon`, so the
+> unauthenticated role could write the columns the signed-in one could
+> not. Whether an RLS policy would have caught it first is not knowable
+> from this repository, which is the whole reason the guard exists.
 It means the RLS policies on `public.users` (authored in the Supabase
 console, invisible to this repo) no longer decide whether a teacher can
 promote themselves.

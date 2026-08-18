@@ -1271,9 +1271,15 @@ export async function provisionTeacher() {
   //
   // link_student_account() is its own guard: it claims only rows whose
   // teacher actually opened the invite gate, and answers `linked: false`
-  // for everyone else. If the function is not deployed yet the call
-  // throws, and an unmigrated database must not stop teachers signing
-  // up — so that degrades to the old behaviour.
+  // for everyone else.
+  //
+  // Anything other than a clear `linked: true` provisions a teacher, which
+  // is the safe default in both directions that matter: an unmigrated
+  // database (where the function does not exist yet, and rpc() reports an
+  // error rather than throwing) must not stop teachers signing up, and a
+  // transient failure must not either. The cost is that a student caught
+  // by that rare window becomes a teacher — recoverable by a super admin,
+  // where "no teacher can sign up today" is not.
   try {
     const { data: claim } = await supabase.rpc("link_student_account");
     if ((claim as any)?.linked) {

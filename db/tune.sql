@@ -2882,12 +2882,20 @@ CREATE TRIGGER force_signup_role_on_users
 -- this repo can read.
 --
 -- The test is `current_user`, not auth.uid(). A write arriving straight
--- from the browser through PostgREST runs as the `authenticated` role; a
+-- from the browser through PostgREST runs as one of ITS roles; a
 -- SECURITY DEFINER function body (sa_set_role, sa_set_permissions,
 -- link_student_account) runs as the function's owner, and the migration
 -- scripts run as postgres. So the legitimate writers all pass and only
 -- the direct client write is refused — which is exactly the distinction
 -- worth drawing, and why this function must stay SECURITY INVOKER.
+--
+-- All THREE PostgREST roles are named, not just `authenticated`. A request
+-- carrying no token runs as `anon`, and naming only the signed-in role
+-- left the unauthenticated one able to write the columns the signed-in
+-- one could not — an inversion nobody would choose. Whether an RLS policy
+-- would have stopped it first is not knowable from this repository, which
+-- is the whole reason this guard exists. `service_role` is deliberately
+-- absent: that key belongs to the separate backend, which is trusted.
 --
 -- 42501 (insufficient_privilege) so PostgREST answers 403 and apiClient
 -- surfaces a clean "forbidden" rather than a 500.
@@ -2896,7 +2904,7 @@ RETURNS trigger
 LANGUAGE plpgsql SET search_path = public, pg_temp
 AS $$
 BEGIN
-  IF current_user = 'authenticated'
+  IF current_user IN ('authenticated', 'anon', 'authenticator')
      AND (NEW.role        IS DISTINCT FROM OLD.role
        OR NEW.sub_role    IS DISTINCT FROM OLD.sub_role
        OR NEW.permissions IS DISTINCT FROM OLD.permissions)
