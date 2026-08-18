@@ -30,3 +30,33 @@ const ssl = isSupabaseHost(connectionString)
 // long-running process so a pool with the default size is the right shape;
 // in dev the same module instance gives us the same pool.
 export const pool = new pg.Pool({ connectionString, ssl });
+
+// ── Say which database this is, before anything runs against it ───────
+//
+// tune.sql does not build a schema; it ADJUSTS the one authored in the
+// Supabase console. Pointed anywhere else it fails on its first statement
+// with `relation "public.users" does not exist` at some character offset,
+// which reads like a broken migration rather than the truth: the
+// connection string is for a different database.
+//
+// The specific way to get here is a leftover: this project ran on Neon
+// before Supabase, and that string is still in older .env files. So name
+// the host rather than letting the SQL discover it.
+if (!connectionString) {
+  console.error(
+    "\n❌ DATABASE_URL is not set.\n" +
+    "   These scripts read .env (not .env.local). See .env.example — you want\n" +
+    "   the Supabase transaction pooler string, port 6543.\n"
+  );
+  process.exit(1);
+}
+if (!isSupabaseHost(connectionString)) {
+  const host = (connectionString.match(/@([^/?:]+)/) || [])[1] || "unknown host";
+  console.warn(
+    `\n⚠️  DATABASE_URL points at ${host}, which is not a Supabase host.\n` +
+    "   The schema these scripts adjust lives in Supabase — against anything\n" +
+    "   else the first statement fails with 'relation public.users does not\n" +
+    "   exist'. If this is the old Neon database, replace the string:\n" +
+    "   Supabase dashboard → Connect → Transaction pooler (port 6543).\n"
+  );
+}
