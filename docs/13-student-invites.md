@@ -75,9 +75,62 @@ is the failure a teacher adding a class will actually hit, so:
   way, and the screen still needs the row. The rate-limited case is
   named specifically rather than reported as a mystery.
 
-**Configure a custom SMTP provider** (Project settings → Authentication →
-SMTP) before real classes arrive. Nothing in the code changes when you
-do.
+**Configure a custom SMTP provider** before real classes arrive. Nothing
+in the code changes when you do — Supabase keeps sending the same magic
+link, through a different pipe.
+
+## Sending through Resend
+
+Resend is the provider this project uses. It is **configuration, not
+code**: no Resend key belongs in this repository, and none is read by it.
+A Resend key is a server secret — putting it behind `NEXT_PUBLIC_` would
+inline it into the browser bundle and hand every visitor the ability to
+send mail as you.
+
+### 1. Verify a sending domain (Resend)
+
+Resend → Domains → add your domain, then publish the DKIM/SPF records it
+gives you. **Until a domain is verified, Resend only delivers to the
+account owner's own address** — which is what "test mode" means in
+[todo/backend-integration.md](../todo/backend-integration.md), and why an
+invite to a student appears to send and never arrives.
+
+This is the actual gate on volume. Nothing else raises it.
+
+### 2. Point Supabase at it
+
+Supabase dashboard → Project settings → Authentication → **SMTP settings**
+→ enable custom SMTP:
+
+| | |
+|---|---|
+| Host | `smtp.resend.com` |
+| Port | `465` (TLS) — `587` also works |
+| Username | `resend` — literally that word, not an address |
+| Password | the Resend API key (`re_…`) |
+| Sender email | an address **on the verified domain** |
+| Sender name | Murchid |
+
+Use a **send-only** restricted key here, not a full-access one. Supabase
+needs nothing but the ability to send.
+
+### 3. Raise the auth rate limit — the step that is easy to miss
+
+Custom SMTP alone does **not** lift Supabase's own cap. Supabase →
+Authentication → **Rate limits** → *Emails sent per hour* still applies,
+and its default is small. Set it to whatever a real day looks like: a
+teacher inviting two classes is 60 messages in a few minutes.
+
+Both limits are real and independent — Resend's plan allowance, and
+Supabase's per-hour auth cap. The one you hit first is the one you feel.
+
+### 4. Then reconsider bulk invites
+
+Bulk import deliberately does not invite, because on the built-in mailer
+thirty rows delivered two. Once the two limits above are raised that
+reasoning no longer holds, and inviting a whole imported class becomes
+reasonable. It is a deliberate change, not an automatic one — see
+`bulkCreateStudents` in [src/lib/data/entities.ts](../src/lib/data/entities.ts).
 
 ## Signing in without the email
 
