@@ -112,3 +112,47 @@ npm run db:superadmin you@example.com --password '…'
 `('teacher','student','school_admin','superadmin')` and would have rejected
 `super_admin` (with the underscore) and the rest of the pyramid. Until
 `db:tune` runs with §30, no account can be set to `super_admin`.
+
+## Who gets the role (§35)
+
+**A sign-up is a teacher.** Nothing in the app writes `users.role` at
+sign-up — `provisionTeacher()` upserts a name and an avatar and stops —
+so the value came entirely from the live schema, and the live schema was
+handing every new Google account `super_admin`. Since `is_super_admin()`
+is a read of the caller's own `users.role`, that one default gave every
+visitor the cross-tenant consoles, billing, credit control and the audit
+trail.
+
+[`db/tune.sql` §35](../db/tune.sql) closes it in three places:
+
+| | |
+|---|---|
+| `role` column `DEFAULT 'teacher'` | a plain INSERT is a teacher |
+| `force_signup_role_on_users` (BEFORE INSERT) | **coerces** the role, so it wins over whatever `handle_new_user()` assigns — the console trigger's body does not need to be known to be overridden |
+| `guard_privilege_columns_on_users` (BEFORE UPDATE) | refuses a change to `role` / `sub_role` / `permissions` arriving from the browser |
+
+The UPDATE guard tests `current_user`, not `auth.uid()`. A write coming
+straight through PostgREST runs as `authenticated`; a SECURITY DEFINER
+body (`sa_set_role`, `sa_set_permissions`, `link_student_account`) runs
+as the function's owner, and the migration scripts run as `postgres`. So
+every legitimate writer passes and only the direct client write is
+refused — which is why that trigger function must stay SECURITY INVOKER.
+It means the RLS policies on `public.users` (authored in the Supabase
+console, invisible to this repo) no longer decide whether a teacher can
+promote themselves.
+
+**The one account.** `platform_owner_email()` names it —
+`amalcpaulson@gmail.com` — hardcoded on purpose. It is not
+configuration: it is the identity the platform trusts before anything
+has been granted, and reading it from an env var would make a deploy
+setting able to mint a super admin. That account is `super_admin` on
+sight, including on a first-ever sign-in. Everyone else is granted the
+role by an existing super admin (**Account access → change role**) or by
+`npm run db:superadmin`.
+
+Applying §35 also **demotes every other elevated account to `teacher`**
+— `super_admin`, the legacy `superadmin` spelling, and `dev`, which is
+in the list because `is_super_admin()` returns true for it too and a
+leftover dev account is the same hole under another name. It removes
+privilege, not data: no row is deleted, nothing else on the row changes,
+and re-running is a no-op. Grant the real ones back from the console.

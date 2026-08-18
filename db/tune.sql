@@ -2610,3 +2610,152 @@ END $$;
 
 GRANT EXECUTE ON FUNCTION public.link_student_account() TO authenticated;
 GRANT EXECUTE ON FUNCTION public.student_dashboard()    TO authenticated;
+
+
+-- =====================================================================
+-- 35. A sign-up is a teacher. Super admin is granted, never defaulted
+-- =====================================================================
+--
+-- Every new account — Google, email, anything — arrived as a
+-- `super_admin`. Nothing in the application asks for that: neither
+-- provisionTeacher() nor the sign-up funnel writes `role` at all, so the
+-- value comes from the live schema, either as the column's DEFAULT or
+-- from handle_new_user() (both authored in the Supabase console, neither
+-- visible in this repo). is_super_admin() is a read of the caller's own
+-- users.role, so that one default handed every visitor the cross-tenant
+-- consoles, billing, credit control and the audit trail.
+--
+-- Fixed in three places, because one is not enough:
+--
+--   * the column default, so a plain INSERT is a teacher;
+--   * a BEFORE INSERT trigger, which also overrides whatever the console
+--     trigger writes — we do not need to know its body to beat it;
+--   * a BEFORE UPDATE guard, so a teacher cannot promote themselves
+--     through PostgREST even if the users UPDATE policy lets them write
+--     their own row.
+--
+-- The one account that is a super admin is named here, in one place.
+
+
+-- ── the platform owner ────────────────────────────────────────────────
+--
+-- Hardcoded on purpose. This is not configuration: it is the single
+-- identity the platform trusts before anyone has been granted anything,
+-- and reading it from an env var would mean a deploy setting could mint
+-- a super admin. Everyone else is granted the role by an existing super
+-- admin (sa_set_role) or by `npm run db:superadmin`.
+CREATE OR REPLACE FUNCTION public.platform_owner_email()
+RETURNS text
+LANGUAGE sql IMMUTABLE
+AS $$ SELECT 'amalcpaulson@gmail.com'::text $$;
+
+
+ALTER TABLE public.users ALTER COLUMN role SET DEFAULT 'teacher';
+
+
+-- ── new rows: teacher, unless it is the owner ─────────────────────────
+--
+-- SECURITY INVOKER (the default) — it reads nothing privileged, and the
+-- UPDATE guard below genuinely needs the caller's real `current_user`.
+--
+-- Coerces rather than defaults, so it wins over handle_new_user() no
+-- matter what that trigger assigns. Roles other than teacher are set by
+-- a later UPDATE (link_student_account marks a student, sa_set_role
+-- grants the pyramid, db/superadmin.js promotes), which this does not
+-- touch.
+CREATE OR REPLACE FUNCTION public.force_signup_role()
+RETURNS trigger
+LANGUAGE plpgsql SET search_path = public, pg_temp
+AS $$
+BEGIN
+  IF lower(COALESCE(NEW.email, '')) = public.platform_owner_email() THEN
+    NEW.role := 'super_admin';
+  ELSE
+    NEW.role := 'teacher';
+  END IF;
+  RETURN NEW;
+END $$;
+
+DROP TRIGGER IF EXISTS force_signup_role_on_users ON public.users;
+CREATE TRIGGER force_signup_role_on_users
+  BEFORE INSERT ON public.users
+  FOR EACH ROW EXECUTE FUNCTION public.force_signup_role();
+
+
+-- ── existing rows: privilege is not self-service ──────────────────────
+--
+-- The RLS policies on public.users live in the Supabase console, so this
+-- file cannot see whether the UPDATE policy that lets a teacher edit
+-- their own name also lets them edit their own role. Assume it does and
+-- close it here, where the answer does not depend on a policy nobody in
+-- this repo can read.
+--
+-- The test is `current_user`, not auth.uid(). A write arriving straight
+-- from the browser through PostgREST runs as the `authenticated` role; a
+-- SECURITY DEFINER function body (sa_set_role, sa_set_permissions,
+-- link_student_account) runs as the function's owner, and the migration
+-- scripts run as postgres. So the legitimate writers all pass and only
+-- the direct client write is refused — which is exactly the distinction
+-- worth drawing, and why this function must stay SECURITY INVOKER.
+--
+-- 42501 (insufficient_privilege) so PostgREST answers 403 and apiClient
+-- surfaces a clean "forbidden" rather than a 500.
+CREATE OR REPLACE FUNCTION public.guard_privilege_columns()
+RETURNS trigger
+LANGUAGE plpgsql SET search_path = public, pg_temp
+AS $$
+BEGIN
+  IF current_user = 'authenticated'
+     AND (NEW.role        IS DISTINCT FROM OLD.role
+       OR NEW.sub_role    IS DISTINCT FROM OLD.sub_role
+       OR NEW.permissions IS DISTINCT FROM OLD.permissions)
+  THEN
+    RAISE EXCEPTION 'role is granted by a super admin, not set by the account'
+      USING ERRCODE = '42501';
+  END IF;
+  RETURN NEW;
+END $$;
+
+DROP TRIGGER IF EXISTS guard_privilege_columns_on_users ON public.users;
+CREATE TRIGGER guard_privilege_columns_on_users
+  BEFORE UPDATE ON public.users
+  FOR EACH ROW EXECUTE FUNCTION public.guard_privilege_columns();
+
+
+-- ── demote everyone the old default elevated ──────────────────────────
+--
+-- `dev` is in here with `super_admin` because is_super_admin() returns
+-- true for both — a leftover dev account is the same hole under another
+-- name. `superadmin` is the pre-§30 spelling. Demoted to teacher, which
+-- is what these accounts actually are: the owner grants the real ones
+-- back from the console.
+--
+-- This is the one statement in this file that rewrites existing rows. It
+-- removes privilege rather than data — no account is deleted, nothing
+-- else on the row changes, and re-running it is a no-op.
+DO $$
+DECLARE demoted int; owner_ok boolean;
+BEGIN
+  UPDATE public.users
+     SET role = 'teacher', updated_at = now()
+   WHERE role IN ('super_admin', 'dev', 'superadmin')
+     AND lower(COALESCE(email, '')) <> public.platform_owner_email();
+  GET DIAGNOSTICS demoted = ROW_COUNT;
+
+  UPDATE public.users
+     SET role = 'super_admin', updated_at = now()
+   WHERE lower(COALESCE(email, '')) = public.platform_owner_email()
+     AND role IS DISTINCT FROM 'super_admin';
+
+  SELECT EXISTS (SELECT 1 FROM public.users
+                  WHERE lower(COALESCE(email, '')) = public.platform_owner_email())
+    INTO owner_ok;
+
+  RAISE NOTICE 'super admin: demoted % account(s) to teacher', demoted;
+  IF owner_ok THEN
+    RAISE NOTICE 'super admin: % holds the role', public.platform_owner_email();
+  ELSE
+    RAISE NOTICE 'super admin: % has no account yet — it becomes super_admin on first sign-in, or run: npm run db:superadmin %',
+      public.platform_owner_email(), public.platform_owner_email();
+  END IF;
+END $$;
