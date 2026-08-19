@@ -130,6 +130,21 @@ const renderInline = (text, baseKey) => {
   return parts;
 };
 
+/**
+ * GFM tables.
+ *
+ * Every lesson and every set of student notes carries a key-words table, so
+ * this is not an edge case. Without it the rows fell through to the paragraph
+ * collapser at the bottom of renderMarkdown, which joins consecutive lines
+ * with a space — and a vocabulary table reached the teacher as one run of
+ * prose with the pipes still in it.
+ */
+const isTableRow = (line) => typeof line === "string" && /^\s*\|.*\|\s*$/.test(line);
+const isTableDivider = (line) =>
+  typeof line === "string" && /^\s*\|(?:\s*:?-+:?\s*\|)+\s*$/.test(line);
+const splitRow = (line) =>
+  line.trim().replace(/^\|/, "").replace(/\|$/, "").split("|").map((c) => c.trim());
+
 export function renderMarkdown(markdown) {
   if (!markdown) return null;
   const lines = markdown.split(/\r?\n/);
@@ -183,6 +198,51 @@ export function renderMarkdown(markdown) {
       continue;
     }
 
+    // Tables. Header row, divider, then body rows until the block ends.
+    if (isTableRow(line) && isTableDivider(lines[i + 1])) {
+      const header = splitRow(line);
+      i += 2;
+      const rows = [];
+      while (i < lines.length && isTableRow(lines[i])) {
+        rows.push(splitRow(lines[i]));
+        i++;
+      }
+      const tk = key++;
+      out.push(
+        <div key={tk} className="my-3 overflow-x-auto">
+          <table className="w-full text-sm border-collapse">
+            <thead>
+              <tr>
+                {header.map((cell, c) => (
+                  <th
+                    key={c}
+                    className="border border-line/60 bg-paper-warm px-2.5 py-1.5 text-left font-semibold text-ink align-top"
+                  >
+                    {renderInline(cell, `th${tk}-${c}`)}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row, r) => (
+                <tr key={r}>
+                  {header.map((_, c) => (
+                    <td
+                      key={c}
+                      className="border border-line/60 px-2.5 py-1.5 text-ink-soft align-top"
+                    >
+                      {renderInline(row[c] ?? "", `td${tk}-${r}-${c}`)}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      );
+      continue;
+    }
+
     // Blank line — separator
     if (!line.trim()) {
       i++;
@@ -197,7 +257,8 @@ export function renderMarkdown(markdown) {
       lines[i].trim() &&
       !/^(#{1,6})\s+/.test(lines[i]) &&
       !/^\s*[\*\-]\s+/.test(lines[i]) &&
-      !/^\s*\d+\.\s+/.test(lines[i])
+      !/^\s*\d+\.\s+/.test(lines[i]) &&
+      !isTableRow(lines[i])
     ) {
       para.push(lines[i]);
       i++;
