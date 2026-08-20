@@ -375,7 +375,29 @@ function GoalCard({ goal, onDelete, onPlan, planning, planError }) {
                 <div key={i} className={s.week}>
                   <p className={s.weekNum}>Week {w.week ?? i + 1}</p>
                   <p className="text-[13.5px] text-ink mt-0.5">{w.focus}</p>
-                  {Array.isArray(w.lessons) && w.lessons.length > 0 && (
+                  {/* Days are the plan now. `lessons` is what plans made
+                      before this looked like, and they still open. */}
+                  {Array.isArray(w.days) && w.days.length > 0 ? (
+                    <ul className="mt-2 space-y-1.5">
+                      {w.days.map((d, j) => (
+                        <li key={j} className="flex gap-2.5">
+                          <span className="font-mono text-[10px] uppercase tracking-[0.08em] text-accent shrink-0 mt-[3px]">
+                            Day {d.day ?? j + 1}
+                          </span>
+                          <span className="min-w-0">
+                            <span className="block text-[12.5px] text-ink font-medium leading-snug">
+                              {d.title}
+                            </span>
+                            {d.outline && (
+                              <span className="block text-[11.5px] text-muted leading-snug mt-0.5">
+                                {d.outline}
+                              </span>
+                            )}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : Array.isArray(w.lessons) && w.lessons.length > 0 ? (
                     <ul className="mt-1.5 space-y-0.5">
                       {w.lessons.map((l, j) => (
                         <li key={j} className="text-[12.5px] text-ink-soft">
@@ -383,7 +405,7 @@ function GoalCard({ goal, onDelete, onPlan, planning, planError }) {
                         </li>
                       ))}
                     </ul>
-                  )}
+                  ) : null}
                 </div>
               ))}
             </div>
@@ -450,6 +472,24 @@ export default function GoalsView() {
         });
       }
     } catch (e) {
+      /**
+       * A plan that finished after the connection did.
+       *
+       * Planning a term takes longer than the proxy in front of this app will
+       * hold a connection open for — it cuts the request at thirty seconds
+       * while the service is still writing. The work is not lost: the planner
+       * writes the plan to the goal itself and only then replies, so the row
+       * is already correct by the time the browser gives up.
+       *
+       * So a dropped connection is not reported as a failure until the goal
+       * has been asked whether it was, in fact, planned.
+       */
+      const planned = await waitForPlan(id);
+      if (planned) {
+        setGoals((g) => g.map((x) => (x.id === id ? { ...x, ...planned } : x)));
+        import("@/lib/data/credits").then((m) => m.consumeCredits("goal_plan", id)).catch(() => {});
+        return;
+      }
       setPlanError({
         id,
         message:
@@ -460,6 +500,26 @@ export default function GoalsView() {
     } finally {
       setPlanning(null);
     }
+  };
+
+  /**
+   * Poll the goal until its plan appears, or until waiting stops being
+   * reasonable. Four minutes is longer than any plan has taken and short
+   * enough that a genuine failure is still reported while she is watching.
+   */
+  const waitForPlan = async (id) => {
+    const deadline = Date.now() + 4 * 60_000;
+    while (Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 4_000));
+      try {
+        const rows = await api("/api/goals");
+        const row = (Array.isArray(rows) ? rows : rows?.goals ?? []).find((x) => x.id === id);
+        if (row?.plan?.weeks?.length) return row;
+      } catch {
+        // The service is busy writing the plan; ask again.
+      }
+    }
+    return null;
   };
 
   const remove = async (id) => {

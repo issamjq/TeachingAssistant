@@ -23,13 +23,16 @@ import {
 import { api, DatePicker } from "./_shared";
 import { useT } from "../lib/i18n";
 import DeckFonts from "../features/presentations/DeckFonts";
+import { deckTone, deckToneIndex, HERO_LAYOUTS } from "../features/studio-ai/deckTheme";
+import { SlideItems } from "../features/studio-ai/artifacts";
+import studioCss from "../features/studio-ai/Studio.module.css";
 
 import { API_BASE } from "../config/env";
 const resolveSrc = (u) =>
   !u ? "" : /^https?:\/\//.test(u) ? u : API_BASE + u;
 
 // ── Background themes ─────────────────────────────────────────────
-const THEMES = {
+export const THEMES = {
   paper:  { name: "Paper",  bg: "#fffdf6", text: "#1a1814", soft: "#6b6051", dot: "#c8472b" },
   white:  { name: "White",  bg: "#ffffff", text: "#1a1814", soft: "#6b6051", dot: "#c8472b" },
   sand:   { name: "Sand",   bg: "#f1e7d0", text: "#241f17", soft: "#6f6347", dot: "#c8472b" },
@@ -170,7 +173,7 @@ function hexLuminance(hex) {
 
 // A slide's bg is either a curated theme key OR a custom hex. For hex we
 // synthesize a theme, auto-picking light/dark text so it stays readable.
-function resolveTheme(bg) {
+export function resolveTheme(bg) {
   if (bg && THEMES[bg]) return THEMES[bg];
   if (isHex(bg)) {
     const dark = hexLuminance(bg) < 0.5;
@@ -601,7 +604,45 @@ const BULLET_STYLE_VALUES = ["dot", "dash", "number", "none"];
 
 // Saved presentation row → builder deck. Handles both the rich shape we
 // now save and the legacy { title, body, image_url } shape.
+/**
+ * A generated deck, in the colours it was generated in.
+ *
+ * Studio slides carry a layout this editor has never heard of ("split",
+ * "term", "cycle") and no background at all, so every one of them fell
+ * through to `text` on `paper` — a white page with a heading and a list.
+ * Given a theme of this editor's own choosing it stopped being white but
+ * started being a different deck: teal in the chat, plum here.
+ *
+ * So the tone comes from the studio, as exact hex. `resolveTheme` already
+ * accepts a hex and works out readable text for it, which is the seam that
+ * lets a generated deck keep its own colours inside a manual editor.
+ *
+ * Nothing is locked: the theme and layout pickers work on these slides as on
+ * any other. The deck simply no longer starts in the wrong colour.
+ */
+function studioSlideBg(slides, index, layout) {
+  const tone = deckTone(slides);
+  const hero = index === 0 || HERO_LAYOUTS.has(String(layout || "").toLowerCase());
+  return hero ? tone.accent : tone.field;
+}
+
+/** Slides shaped by the studio rather than typed into this editor. */
+function looksGenerated(slides) {
+  return (
+    Array.isArray(slides) &&
+    slides.some(
+      (sl) =>
+        sl &&
+        !sl.bg &&
+        ((Array.isArray(sl.items) && sl.items.length) ||
+          sl.note ||
+          (sl.layout && !LAYOUT_KEYS.includes(sl.layout))),
+    )
+  );
+}
+
 export function deckFromPresentation(p) {
+  const generated = looksGenerated(p?.slides);
   const slides = (p?.slides || []).map((s, i) => {
     const written =
       Array.isArray(s.bullets) && s.bullets.length
@@ -625,24 +666,64 @@ export function deckFromPresentation(p) {
      * fonts and layouts, and the honest fix is to give it the content in the
      * shape it already knows how to set.
      */
-    const items = Array.isArray(s.items)
-      ? s.items
-          .filter((it) => it && (it.label || it.detail))
-          .map((it) => (it.detail ? `${it.label} — ${it.detail}` : String(it.label)))
+    /**
+     * The generated structure is kept, not flattened.
+     *
+     * `items` and `note` were folded into the bullet list and then dropped on
+     * save, so opening a generated deck in the editor and pressing Save turned
+     * a designed slide into a list of sentences — permanently. They are now
+     * carried as themselves, drawn as themselves, and written back on save.
+     *
+     * Flattening survives only for a slide with no native structure, which is
+     * how a hand-built deck and an older generated one still read.
+     */
+    const nativeItems = Array.isArray(s.items)
+      ? s.items.filter((it) => it && (it.label || it.detail))
       : [];
-    // Last, because it is the line to leave the class with.
-    const note = typeof s.note === "string" && s.note.trim() ? [s.note.trim()] : [];
-    const bullets = [...written, ...items, ...note];
+    const nativeNote = typeof s.note === "string" ? s.note.trim() : "";
+    const flattened = nativeItems.length || nativeNote
+      ? []
+      : [
+          ...(Array.isArray(s.items)
+            ? s.items
+                .filter((it) => it && (it.label || it.detail))
+                .map((it) => (it.detail ? `${it.label} — ${it.detail}` : String(it.label)))
+            : []),
+          ...(nativeNote ? [nativeNote] : []),
+        ];
+    const bullets = [...written, ...flattened];
     let image = s.image || null;
     if (!image && s.image_url) image = { url: s.image_url, thumb: s.image_url };
     return {
       title: s.title || `Slide ${i + 1}`,
       bullets,
+      items: nativeItems,
+      note: nativeNote,
+      // The deck's own accent, so cards in the editor are the colour the
+      // slide was generated in rather than this editor's default red.
+      studioAccent: generated ? deckTone(p?.slides).accent : "",
+      studioTone: generated ? deckTone(p?.slides) : null,
+      studioLayout: String(s.layout || "").toLowerCase(),
       notes: s.notes || "",
       imageQuery: s.imageQuery || "",
       image,
-      layout: LAYOUT_KEYS.includes(s.layout) ? s.layout : (image ? "text-image" : (i === 0 ? "title" : "text")),
-      bg: THEME_KEYS.includes(s.bg) || isHex(s.bg) ? s.bg : (i === 0 ? "ink" : "paper"),
+      layout: LAYOUT_KEYS.includes(s.layout)
+        ? s.layout
+        : image
+          ? "text-image"
+          : generated && HERO_LAYOUTS.has(String(s.layout || "").toLowerCase())
+            ? "title"
+            : i === 0
+              ? "title"
+              : "text",
+      bg:
+        THEME_KEYS.includes(s.bg) || isHex(s.bg)
+          ? s.bg
+          : generated
+            ? studioSlideBg(p?.slides, i, s.layout)
+            : i === 0
+              ? "ink"
+              : "paper",
       imgAdjust: Number(s.imgAdjust) || 0,
       font: FONT_KEYS.includes(s.font) ? s.font : "editorial",
       textColor: isHex(s.textColor) ? s.textColor : "",
@@ -660,7 +741,7 @@ export function deckFromPresentation(p) {
     };
   });
   const fallback = {
-    title: "Slide 1", bullets: [], notes: "", imageQuery: "", image: null,
+    title: "Slide 1", bullets: [], items: [], note: "", notes: "", imageQuery: "", image: null,
     layout: "title", bg: "ink", imgAdjust: 0, font: "editorial", textColor: "",
     titleFmt: {}, bulletFmts: [], titleRuns: [], bulletRuns: [],
     titleAlign: "", bulletAligns: [], bulletStyle: "dot",
@@ -699,6 +780,12 @@ function slidesForSave(slides) {
       body: keep.map((x) => `• ${x.b}`).join("\n"),
       bullets: keep.map((x) => x.b),
       notes: s.notes || "",
+      // Written back so a save does not quietly delete the design.
+      items: Array.isArray(s.items) ? s.items.filter((it) => it && (it.label || it.detail)) : [],
+      note: typeof s.note === "string" ? s.note : "",
+      ...(s.studioAccent ? { studioAccent: s.studioAccent } : {}),
+      ...(s.studioTone ? { studioTone: s.studioTone } : {}),
+      ...(s.studioLayout ? { studioLayout: s.studioLayout } : {}),
       image: s.image || null,
       layout: s.layout || "text",
       bg: s.bg || "paper",
@@ -1139,9 +1226,22 @@ export default function SlideBuilder({
             // title doesn't show as a stale white block here.
             const titleRuns = ensureTitleRuns(s);
             const bulletRunsList = (s.bullets || []).map((_, bi) => ensureBulletRuns(s, bi));
-            const visibleBullets = bulletRunsList
-              .map((runs, idx) => ({ runs, text: (s.bullets || [])[idx] }))
-              .filter((b) => b.text);
+            /**
+             * A generated slide has no bullets — its content is items and a
+             * note — so the rail showed a column of bare headings. The
+             * thumbnail reads whichever the slide actually has.
+             */
+            const studioLines = [
+              ...(Array.isArray(s.items) ? s.items : [])
+                .filter((it) => it && (it.label || it.detail))
+                .map((it) => (it.detail ? `${it.label} — ${it.detail}` : String(it.label))),
+              ...(s.note ? [s.note] : []),
+            ];
+            const visibleBullets = studioLines.length
+              ? studioLines.map((text) => ({ runs: [], text }))
+              : bulletRunsList
+                  .map((runs, idx) => ({ runs, text: (s.bullets || [])[idx] }))
+                  .filter((b) => b.text);
             const titleAlign =
               layout === "title" ? "flex flex-col items-center justify-center text-center" :
               layout === "full-image" ? "flex flex-col justify-end" :
@@ -1198,12 +1298,26 @@ export default function SlideBuilder({
                   )}
                   <p
                     className={`font-serif text-[11px] font-medium leading-tight line-clamp-2 ${layout === "title" ? "" : "pr-4"}`}
-                    style={{ color: baseTitleColor }}
+                    style={{
+                      // Titled in the deck's colour, as the slide itself is.
+                      color:
+                        s.studioTone && layout !== "title" ? s.studioTone.accent : baseTitleColor,
+                    }}
                   >
                     {titleRuns.length ? titleRuns.map((r, ri) => (
                       <span key={ri} style={runReactStyle(r, "title")}>{r.text}</span>
                     )) : (s.title || "Untitled")}
                   </p>
+                  {/* The rule under the heading, at thumbnail scale — the mark
+                      that stops a pale card in the rail reading as an empty
+                      one. */}
+                  {s.studioTone && layout !== "title" && (
+                    <span
+                      aria-hidden="true"
+                      className="block h-[2px] w-4 rounded-sm mt-[3px] mb-[2px]"
+                      style={{ background: s.studioTone.accent, opacity: 0.85 }}
+                    />
+                  )}
                   {visibleBullets.length > 0 && (
                     <p
                       className={`text-[8.5px] mt-1 line-clamp-3 leading-snug ${
@@ -1737,6 +1851,40 @@ function useHistory(initial, debounceMs = 350) {
 
 // ── The slide canvas — renders the chosen layout. Editable in the
 // builder, static in the presenter. ──────────────────────────────
+/**
+ * One editable line of plain text.
+ *
+ * The rich lines above carry per-run formatting, which a generated card does
+ * not have and does not need — a label and a sentence. contentEditable keeps
+ * the caret where the teacher put it, which an <input> re-rendered on every
+ * keystroke does not.
+ */
+function PlainLine({ value, onChange, editable, className = "", style, placeholder }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    if (ref.current && ref.current.innerText !== (value || "")) {
+      ref.current.innerText = value || "";
+    }
+  }, [value]);
+  if (!editable) {
+    if (!value) return null;
+    return <p className={className} style={style}>{value}</p>;
+  }
+  return (
+    <div
+      ref={ref}
+      contentEditable
+      suppressContentEditableWarning
+      role="textbox"
+      tabIndex={0}
+      data-placeholder={placeholder}
+      onBlur={(e) => onChange?.(e.currentTarget.innerText.replace(/\n+/g, " ").trim())}
+      className={`${className} outline-none focus:bg-black/[0.04] rounded px-1 -mx-1 empty:before:content-[attr(data-placeholder)] empty:before:opacity-40`}
+      style={style}
+    />
+  );
+}
+
 function SlideCanvas({
   slide, theme, index, total, editable = false,
   onPatch, onSetTitleRuns, onSetBulletRuns,
@@ -1911,8 +2059,23 @@ function SlideCanvas({
         ? (layout === "title" ? "text-4xl md:text-5xl" : "text-2xl md:text-3xl")
         : (layout === "title" ? "text-4xl md:text-6xl" : "text-2xl md:text-4xl")
     }`,
-    style: { color: txt, fontFamily: f.title },
+    style: {
+      // A generated teaching slide is titled in the deck's own colour, with a
+      // rule under it — the two marks that stop a pale page reading as blank.
+      color: hasStudio && layout !== "title" && !hasTxt ? studioAccent : txt,
+      fontFamily: f.title,
+    },
   });
+
+  /** The accent rule the studio sets under a content-slide heading. */
+  const titleRule =
+    hasStudio && layout !== "title" ? (
+      <span
+        aria-hidden="true"
+        className="block h-[3px] w-10 rounded-sm mt-2"
+        style={{ background: studioAccent, opacity: 0.85 }}
+      />
+    ) : null;
   const bulletsNode = (
     <div className="mt-4 flex flex-col gap-2">
       {bullets.map((_, bi) => bulletEl(bi, {
@@ -1928,6 +2091,88 @@ function SlideCanvas({
         >
           <Plus size={12} /> Add a point
         </button>
+      )}
+    </div>
+  );
+
+  /**
+   * The generated design, drawn here rather than flattened into bullets.
+   *
+   * A teacher opens this page to change what the studio made her, so what the
+   * studio made her has to be what is on the page. The cards, the numbered
+   * stages and the copy-this line are drawn as the studio draws them and each
+   * one is editable in place — the same rich lines the rest of this editor
+   * uses, over the structure the slide actually has.
+   */
+  const items = Array.isArray(slide?.items) ? slide.items : [];
+  const hasStudio = items.length > 0 || Boolean(slide?.note);
+  // The deck's colour where it has one; this editor's accent otherwise.
+  const studioAccent = isHex(slide?.studioAccent) ? slide.studioAccent : theme.dot;
+
+  /**
+   * The generated design, drawn by the component that generated it.
+   *
+   * The editor used to approximate it — one card list standing in for a
+   * cycle, a comparison, a term and a split — so the slide a teacher edited
+   * was never quite the slide she was shown. It renders through the studio's
+   * own SlideItems now, with the studio's own stylesheet, and every label and
+   * sentence is editable in place. One component, so the two cannot drift.
+   */
+  const patchItem = (idx, key, value) => {
+    const next = items.map((it, i) => (i === idx ? { ...it, [key]: value } : it));
+    onPatch?.({ items: next });
+  };
+
+  /**
+   * The studio's stylesheet is driven by four custom properties set on its
+   * own slide element. This canvas is not that element, so the deck's tone is
+   * handed over directly — same variables, same values, same result.
+   */
+  const toneVars = slide?.studioTone
+    ? {
+        "--s-bg": slide.studioTone.field,
+        "--s-card": slide.studioTone.card,
+        "--s-accent": slide.studioTone.accent,
+        "--s-edge": slide.studioTone.edge,
+      }
+    : {};
+
+  const studioBody = (
+    <div className={studioCss.slideBody} style={toneVars} data-center={false}>
+      <SlideItems
+        layout={slide?.studioLayout || "steps"}
+        items={items}
+        title={slide?.title}
+        visual={slide?.visual}
+        index={index}
+        edit={editable ? patchItem : undefined}
+      />
+
+      {editable && (
+        <button
+          type="button"
+          onClick={() => onPatch?.({ items: [...items, { label: "", detail: "" }] })}
+          className="self-start inline-flex items-center gap-1.5 text-[12px] font-serif italic mt-2 opacity-80 hover:opacity-100"
+          style={{ color: studioAccent }}
+        >
+          <Plus size={12} /> Add a point
+        </button>
+      )}
+
+      {/* A div, not a p: the editable line inside is a block, and a block
+          inside a paragraph is invalid HTML that React reports as a hydration
+          error. The class is the studio's either way. */}
+      {(slide?.note || editable) && (
+        <div className={studioCss.slideNote}>
+          <span className="font-mono uppercase tracking-wider text-[9px] block mb-1">Note</span>
+          <PlainLine
+            value={slide?.note || ""}
+            onChange={(v) => onPatch?.({ note: v })}
+            editable={editable}
+            className="leading-snug"
+            placeholder="The line the class copies down"
+          />
+        </div>
       )}
     </div>
   );
@@ -2058,21 +2303,21 @@ function SlideCanvas({
         ) : (
           <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-12 md:px-20">
             <div className="max-w-4xl">{titleNode}</div>
-            <div className="mt-4 max-w-2xl">{bulletsNode}</div>
+            <div className="mt-4 max-w-2xl">{titleRule}{hasStudio ? studioBody : bulletsNode}</div>
           </div>
         )
       )}
       {layout === "text" && (
         <div className="absolute inset-0 flex flex-col p-10 md:p-12">
           {titleNode}
-          {bulletsNode}
+          {titleRule}{hasStudio ? studioBody : bulletsNode}
         </div>
       )}
       {layout === "text-image" && (
         <div className="absolute inset-0 grid grid-cols-2">
           <div className="flex flex-col p-9 md:p-11 overflow-auto">
             {titleNode}
-            {bulletsNode}
+            {titleRule}{hasStudio ? studioBody : bulletsNode}
           </div>
           <div className="p-4"><Photo className="w-full h-full" /></div>
         </div>
@@ -2082,7 +2327,7 @@ function SlideCanvas({
           <div className="p-4"><Photo className="w-full h-full" /></div>
           <div className="flex flex-col p-9 md:p-11 overflow-auto">
             {titleNode}
-            {bulletsNode}
+            {titleRule}{hasStudio ? studioBody : bulletsNode}
           </div>
         </div>
       )}

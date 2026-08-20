@@ -8,7 +8,8 @@ import {
   DataPageHeader, DataCard, CardsGrid, useViewMode,
   useDateScope, filterByDateScope,
 } from "./_data-view";
-import { PresentDeck, deckFromPresentation } from "./SlideBuilder";
+import { deckFromPresentation } from "./SlideBuilder";
+import PresentSaved from "@/features/presentations/components/PresentSaved";
 import { ExportMenu } from "@/components/ui/export-menu";
 import { SkeletonCards, SkeletonList } from "@/components/ui/skeleton";
 import { presentationToDoc } from "../lib/toDoc";
@@ -204,7 +205,7 @@ export default function Presentations({ onOpenPresentation }) {
       )}
 
       {presenting && (
-        <PresentDeck presentation={presenting} onClose={() => setPresenting(null)} />
+        <PresentSaved presentation={presenting} onClose={() => setPresenting(null)} />
       )}
 
       <ConfirmDelete

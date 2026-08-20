@@ -104,7 +104,21 @@ const BOUNDED = new Set(["quiz"]);
  * asks only for the half she left out, rather than for a window she was never
  * thinking in.
  */
-const TIMED = new Set(["activity", "presentation"]);
+const TIMED = new Set(["activity"]);
+
+/**
+ * A deck is not an event.
+ *
+ * Slides are shown during a lesson that is already on the timetable — they do
+ * not start at a time of their own or run for a length of their own. Asking a
+ * teacher what time her slides begin and how long they last is a question
+ * about nothing, and it stood between her and the deck every time.
+ *
+ * So nothing about the calendar is asked before writing. Putting a deck on
+ * the timetable is offered afterwards, at the save, where it is a choice
+ * rather than a toll.
+ */
+const UNTIMED = new Set(["presentation"]);
 
 /**
  * The kinds handed in rather than sat.
@@ -156,6 +170,9 @@ export function missingFrom(prompt, kind) {
     if (!HAS_DATE.test(text)) missing.push("due");
     return missing;
   }
+
+  // Nothing further: a deck needs the class it is for, not a slot.
+  if (asked.every((k) => UNTIMED.has(k))) return missing;
 
   if (asked.some((k) => TIMED.has(k))) {
     if (!HAS_DATE.test(text)) missing.push("day");

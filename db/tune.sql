@@ -201,6 +201,19 @@ END $$;
 -- tables it named. A literal CREATE INDEX on a table that no longer
 -- exists aborts the whole transaction and takes every other fix with it.
 -- Skipping what is gone keeps this runnable against a moving target.
+/*
+ * Which conversation a saved approach came from.
+ *
+ * The studio offers "save this approach as a skill" on a generation the
+ * teacher kept. The offer disappeared when she closed the chat, because
+ * nothing recorded that a conversation had already been turned into one —
+ * so the button could only be shown for turns saved in the current session,
+ * and a teacher who came back to a thread could never take the approach from
+ * it. Written here, the offer can stand until it is taken.
+ */
+ALTER TABLE IF EXISTS public.teaching_skills
+  ADD COLUMN IF NOT EXISTS source_session_id uuid;
+
 DO $$
 DECLARE
   r record;
@@ -213,6 +226,7 @@ BEGIN
       ('invitations', 'invitations_class_idx', $i$(class_id)$i$),
       ('materials', 'materials_faculty_idx', $i$(faculty_id, status)$i$),
       ('teaching_skills', 'teaching_skills_faculty_idx', $i$(faculty_id)$i$),
+      ('teaching_skills', 'teaching_skills_session_idx', $i$(source_session_id) WHERE source_session_id IS NOT NULL$i$),
       ('workflows', 'workflows_faculty_idx', $i$(faculty_id, created_at DESC)$i$),
       ('workflows', 'workflows_skill_idx', $i$(skill_id)$i$),
       ('generations', 'generations_faculty_idx', $i$(faculty_id, created_at DESC)$i$),
