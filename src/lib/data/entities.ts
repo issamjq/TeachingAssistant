@@ -1046,7 +1046,8 @@ export async function deleteGoal(id: string) {
 // teacher's own practice. The rows are plain teacher-owned data, so they
 // live browser→Supabase like everything else that needs no secret.
 
-const SKILL_COLS = "id, name, source_type, skill_profile, status, created_at, updated_at";
+const SKILL_COLS =
+  "id, name, source_type, skill_profile, status, source_session_id, created_at, updated_at";
 
 export async function listSkills() {
   const { data, error } = await supabase
@@ -1057,7 +1058,7 @@ export async function listSkills() {
 
 export async function createSkill(body: Record<string, any>) {
   const fid = await facultyId();
-  const { name, source_type, skill_profile } = body || {};
+  const { name, source_type, skill_profile, source_session_id } = body || {};
   if (!skill_profile?.trim()) {
     throw Object.assign(new Error("The profile is empty — nothing to save."), { status: 400 });
   }
@@ -1069,6 +1070,9 @@ export async function createSkill(body: Record<string, any>) {
       source_type: source_type || "interview",
       skill_profile: skill_profile.trim(),
       status: "ready",
+      // Which conversation it came from, so the studio can stop offering to
+      // take an approach it has already taken.
+      ...(source_session_id ? { source_session_id } : {}),
     })
     .select(SKILL_COLS).single();
   if (error) throw error;

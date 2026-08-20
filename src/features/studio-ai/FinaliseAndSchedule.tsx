@@ -152,6 +152,15 @@ export function FinaliseAndSchedule({
     return stored.id;
   };
 
+  /**
+   * A deck is shown during a lesson, not booked as one.
+   *
+   * Slides have no start of their own and no length of their own, so the
+   * timetable is offered here rather than required: she keeps the deck with
+   * one press, and puts it on a day only if she wants it there.
+   */
+  const optionalSlot = primaryKind === "presentation";
+
   const run = async (body: Record<string, unknown>) => {
     setError("");
     setPhase("working");
@@ -170,7 +179,11 @@ export function FinaliseAndSchedule({
       setClashes(reply.clashes || []);
 
       if (reply.status === "needs_input") {
-        setQuestion(reply.question || `When is this ${label}?`);
+        setQuestion(
+          optionalSlot
+            ? "Want this on your timetable? Tell me the day, or skip it — the deck is saved either way."
+            : reply.question || `When is this ${label}?`,
+        );
         setPhase("asking");
         return;
       }
@@ -334,7 +347,7 @@ export function FinaliseAndSchedule({
             autoFocus
             value={answer}
             onChange={(e) => setAnswer(e.target.value)}
-            placeholder="Thursday 11am"
+            placeholder={optionalSlot ? "Thursday" : "Thursday 11am"}
             aria-label={`When this ${label} is`}
             className="flex-1 min-w-[180px] rounded-md border border-line bg-paper px-2.5 py-1.5 text-[13px] text-ink"
           />
@@ -342,7 +355,7 @@ export function FinaliseAndSchedule({
             <Calendar size={13} /> Schedule it
           </button>
           <button type="button" className={s.chipBtn} onClick={() => setPhase("kept")}>
-            Not yet
+            {optionalSlot ? "No, just save it" : "Not yet"}
           </button>
         </div>
         {error && <p className="text-[12px] text-muted mt-1.5">{error}</p>}
@@ -370,7 +383,11 @@ export function FinaliseAndSchedule({
           /* Named for what she is actually doing: reading what came back,
              keeping all of it, and putting it on the timetable — one action
              covering the whole generation, however many documents it made. */
-          <><Calendar size={13} /> Looks right — save {label} &amp; schedule</>
+          optionalSlot ? (
+            <><Calendar size={13} /> Looks right — save {label}</>
+          ) : (
+            <><Calendar size={13} /> Looks right — save {label} &amp; schedule</>
+          )
         )}
       </button>
       {/* The guess, made visible and reversible. */}

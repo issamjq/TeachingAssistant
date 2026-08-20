@@ -38,6 +38,7 @@ import { MAJORS } from "@/lib/enums";
 import {
   ArtifactCard, QuizViewer, SlideViewer, SlideFullscreen, DocViewer, KIND_META,
   slidesFromMarkdown,
+  questionsFromMarkdown,
 } from "./artifacts";
 import { RewritableBody } from "./RewritableBody";
 import { FinaliseAndSchedule } from "./FinaliseAndSchedule";
@@ -458,14 +459,38 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
   // phone drawer starts closed. What used to live here force-closed the
   // rail below 1100px on every visit, overriding that choice.
 
+  /** Has this conversation already been turned into a skill? */
+  const skillExistsForSession = async (id) => {
+    if (!id) return false;
+    try {
+      const rows = await api("/api/skills");
+      const list = Array.isArray(rows) ? rows : rows?.skills ?? [];
+      return list.some((sk) => sk?.source_session_id === id);
+    } catch {
+      // Unknown is treated as "not taken": offering twice is a smaller harm
+      // than never offering at all.
+      return false;
+    }
+  };
+
   const openSession = async (id) => {
     if (id === sessionId) return;
     setLoadingThread(true);
     try {
       const turns_ = await loadSession(id);
+      /**
+       * An approach is taken from a conversation, not from a turn.
+       *
+       * The offer used to hang on `saved`, which only exists for a document
+       * kept in the current page — so closing the chat took the offer with it
+       * and a teacher could never come back to a thread and keep the method
+       * from it. It stands until it is taken, and what marks it taken is a
+       * skill recorded against this session.
+       */
+      const taken = await skillExistsForSession(id);
       setSessionId(id);
       sessionRef.current = id;
-      setTurns(turns_);
+      setTurns(taken ? turns_.map((t) => ({ ...t, skillSaved: true })) : turns_);
       setNotice(null);
       setDrawerOpen(false);
 
@@ -660,7 +685,14 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
 
   const send = useCallback(async (text, useKind, opts = {}) => {
     const prompt = (text ?? draft).trim();
-    if (!prompt || busy) return;
+    /**
+     * A file on its own is a request.
+     *
+     * The service asks for a prompt, materials, or both — this guard asked for
+     * words, so a teacher who attached a chapter, pressed Lesson and pressed
+     * send got nothing at all, with no error to explain it.
+     */
+    if ((!prompt && !attachments.length) || busy) return;
 
     /**
      * Ask before writing, not after.
@@ -849,7 +881,15 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
      */
     const spoken = opts.skipAsk ? [] : kindsNamedIn(prompt);
 
-    if (!opts.skipAsk && !reworking) {
+    /**
+     * Nothing is asked about a file she has already attached.
+     *
+     * The questions are read off her sentence, and a teacher who attaches a
+     * chapter and presses Quiz has not written one — so every question came
+     * back at once, about a grade and a subject the document itself states on
+     * its first page. The generator reads the document; it can read those too.
+     */
+    if (!opts.skipAsk && !reworking && !attachments.length) {
       // What is missing depends on what she is making: a quiz is booked
       // between two times, a lesson takes a period.
       const missing = missingFrom(prompt, spoken.length ? spoken : useKind ? [useKind] : kinds);
@@ -1349,6 +1389,19 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
 
     try {
       let saved;
+      /**
+       * A quiz's questions, from the structured payload when one came back
+       * and from the paper itself when one did not.
+       *
+       * The service no longer buys a second reading of a document it just
+       * wrote — `questionsFromMarkdown` does the same job in the browser for
+       * nothing. Both shapes are accepted so rows saved before this still work.
+       */
+      const quizQuestions =
+        primary.kind === "quiz"
+          ? primary.structured?.questions ?? questionsFromMarkdown(primary.text)
+          : null;
+
       if (replaceId) {
         saved = await api(`${path}/${replaceId}`, { method: "PATCH", body: payload });
         saved = saved ?? { id: replaceId };
@@ -1359,23 +1412,20 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
          * ORIGINAL question list, so a teacher who asked for harder questions
          * got a card that said harder and still asked the easy ones.
          */
-        if (primary.kind === "quiz" && primary.structured?.questions) {
+        if (quizQuestions?.length) {
           await api(`${path}/${replaceId}/sync`, {
             method: "POST",
-            body: { questions: primary.structured.questions },
+            body: { questions: quizQuestions },
           }).catch((e) => console.warn("[studio] questions not replaced:", e.message));
         }
-      } else if (primary.kind === "quiz" && primary.structured?.questions) {
-        const totalMarks = primary.structured.questions.reduce(
-          (sum, q) => sum + (Number(q?.marks) || 0),
-          0,
-        );
+      } else if (quizQuestions?.length) {
+        const totalMarks = quizQuestions.reduce((sum, q) => sum + (Number(q?.marks) || 0), 0);
         saved = await api("/api/quizzes/bulk", {
           method: "POST",
           body: {
             ...payload,
             ...(totalMarks > 0 ? { total_marks: totalMarks } : {}),
-            questions: primary.structured.questions,
+            questions: quizQuestions,
           },
         });
       } else {
@@ -1424,16 +1474,19 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
       const rounds = [];
       for (let j = 0; j < index; j++) {
         const t = turns[j];
-        if (t?.role !== "assistant" || t.kind !== turn.kind || !t.text) continue;
+        // Every document in the thread, not only the same kind: a teacher who
+        // fixed her homework and then made a quiz taught the studio the same
+        // standard twice, and the quiz was being thrown away.
+        if (t?.role !== "assistant" || !t.text) continue;
         let asked = "";
         for (let k = j - 1; k >= 0; k--) if (turns[k]?.role === "user") { asked = turns[k].text; break; }
         rounds.push(
           `### Earlier draft ${rounds.length + 1}\nShe asked: ${asked || "(the opening request)"}\n\n${t.text.slice(0, 2500)}`,
         );
       }
-      // Only the last two: the direction is what matters, and a long thread
+      // The last three: the direction is what matters, and a long thread
       // would crowd out the version she actually kept.
-      return rounds.slice(-2).join("\n\n");
+      return rounds.slice(-3).join("\n\n");
     })();
 
     const title = titleOf(turn.kind, turn.text, turn.structured);
@@ -1480,7 +1533,13 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
     try {
       await api("/api/skills", {
         method: "POST",
-        body: { name, source_type: "generation", skill_profile: profile },
+        body: {
+          name,
+          source_type: "generation",
+          skill_profile: profile,
+          // Which conversation this came from, so the offer is not made twice.
+          ...(sessionRef.current ? { source_session_id: sessionRef.current } : {}),
+        },
       });
       setTurns((t) => t.map((x, i) => (i === index ? { ...x, skillSaving: false, skillSaved: true } : x)));
       setSkillsVersion((v) => v + 1); // the picker refetches; new skill arrives selected
@@ -1585,7 +1644,24 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
           </div>
         ) : (
           <div className={s.threadInner}>
-            {turns.map((turn, i) => {
+            {turns.map((turn, i, all) => {
+              /**
+               * One offer per conversation, at the end of it.
+               *
+               * It was rendered under every document, so a thread with a
+               * lesson, a quiz and an activity in it carried three buttons
+               * that all did the same thing — and what they distil is the
+               * whole conversation, not the document above them. It sits
+               * under the last one, and once the approach has been taken
+               * from this thread there is no button anywhere in it.
+               */
+              const takenAlready = all.some((t) => t.skillSaved);
+              let lastDocIndex = -1;
+              for (let j = all.length - 1; j >= 0; j--) {
+                const t = all[j];
+                if (t?.role === "assistant" && t.done && t.text) { lastDocIndex = j; break; }
+              }
+              const skillSlotHere = i === lastDocIndex;
               /**
                * The one question asked before writing anything.
                *
@@ -1699,7 +1775,12 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
                 (turn.kind === "presentation" && turn.done
                   ? slidesFromMarkdown(turn.text)
                   : undefined);
-              const questions = turn.structured?.questions;
+              /** The same reading for a quiz: its own paper, parsed. */
+              const questions =
+                turn.structured?.questions ??
+                (turn.kind === "quiz" && turn.done
+                  ? questionsFromMarkdown(turn.text)
+                  : undefined);
               const showArtifact = turn.done && (slides || questions || turn.text);
 
               return (
@@ -1864,10 +1945,18 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
                         >
                           <RotateCcw size={13} /> Ask for a change
                         </button>
-                        {/* They kept it because they loved it — that is the
-                            moment to keep the METHOD too. */}
-                        {turn.saved && (
-                          turn.skillSaved ? (
+                        {/*
+                          The offer stands until it is taken.
+                          
+                          It used to appear only on a document kept in this
+                          page, so closing the chat removed it — and a teacher
+                          who came back to a thread she liked had no way to
+                          keep the method from it. It shows on any finished
+                          document, in a new thread or an old one, and goes
+                          only once a skill has been made from the conversation.
+                        */}
+                        {(turn.saved || turn.restored) && skillSlotHere && (
+                          takenAlready ? (
                             <span className={s.chipBtn} aria-disabled="true">
                               <Check size={13} /> Approach saved to Teaching skills
                             </span>
@@ -1952,7 +2041,13 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
             >
               <Paperclip size={17} />
             </button>
-            <input ref={fileRef} type="file" multiple accept="application/pdf,image/*"
+            <input
+              ref={fileRef}
+              type="file"
+              multiple
+              /* A scheme of work is usually a Word file and a reading is often
+                 a .txt; both upload fine and both were unselectable. */
+              accept="application/pdf,.pdf,.doc,.docx,.txt,.md,.csv,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown,text/csv,image/*"
                    className="hidden" onChange={attach} />
 
             <div className={s.kindRow}>
@@ -1977,7 +2072,16 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
                 <Square size={13} fill="currentColor" />
               </button>
             ) : (
-              <button type="button" className={s.send} disabled={!draft.trim()} onClick={() => send()} aria-label="Send">
+              // A file IS a request. The service accepts a prompt, materials or
+              // both — this button required typed words, so a teacher who
+              // attached a chapter and picked "Quiz" had nothing to press.
+              <button
+                type="button"
+                className={s.send}
+                disabled={!draft.trim() && !attachments.length}
+                onClick={() => send()}
+                aria-label="Send"
+              >
                 <Send size={16} />
               </button>
             )}
