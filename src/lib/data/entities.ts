@@ -1415,7 +1415,17 @@ export async function getBulletinShare() {
  */
 export async function knownStudents() {
   const { data, error } = await supabase.rpc("my_known_students");
-  if (error) return [];
+  if (error) {
+    /**
+     * Say so. Returning [] on error made a broken query indistinguishable
+     * from "you have never added anyone" — the picker just never appeared,
+     * with nothing in the console and no failed request to find. The
+     * caller still degrades to no picker; the difference is that this
+     * leaves a trail.
+     */
+    console.warn("[students] known-student picker unavailable:", error.message);
+    return [];
+  }
   return Array.isArray(data) ? data : [];
 }
 

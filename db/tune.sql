@@ -4024,3 +4024,374 @@ DO $$
 BEGIN
   RAISE NOTICE 'roles: a student account can no longer be turned into a teacher';
 END $$;
+
+
+-- =====================================================================
+-- 45. A removed student is remembered
+-- =====================================================================
+--
+-- §44 gave the student form a picker of addresses a teacher has used
+-- before, and read it from her roster — which is exactly the set that
+-- does NOT contain the student she just removed. The one case the
+-- feature exists for was the one case it could not serve.
+--
+-- The row has to outlive the delete, so the delete writes it here first.
+-- A separate table rather than a `deleted_at` column on students,
+-- because every policy, index, unique constraint and query in the
+-- product is written against students as the set of people in a class,
+-- and quietly turning it into "people in a class, plus ghosts" is how
+-- soft delete rots a schema. This is a filing cabinet, not a roster.
+--
+-- What it holds is a snapshot, deliberately. If she re-adds the child in
+-- March, what she typed in September is the right starting point — not a
+-- live join onto a row that no longer exists.
+
+CREATE TABLE IF NOT EXISTS public.removed_students (
+  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  faculty_id  uuid NOT NULL REFERENCES public.faculty(id) ON DELETE CASCADE,
+  email       text NOT NULL,
+  data        jsonb NOT NULL,
+  removed_at  timestamptz NOT NULL DEFAULT now()
+);
+
+-- One memory per address per teacher: re-adding and removing the same
+-- child four times should leave the most recent snapshot, not four.
+CREATE UNIQUE INDEX IF NOT EXISTS removed_students_teacher_email_unique
+  ON public.removed_students (faculty_id, lower(email));
+
+ALTER TABLE public.removed_students ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS removed_students_owner ON public.removed_students;
+CREATE POLICY removed_students_owner ON public.removed_students
+  FOR ALL TO authenticated
+  USING (faculty_id = public.current_faculty_id())
+  WITH CHECK (faculty_id = public.current_faculty_id());
+
+-- ── the delete writes the memory ──────────────────────────────────────
+--
+-- A trigger, not a step in deleteStudent(), because the roster is deleted
+-- from more than one place: the teacher's own bin, the super admin's, and
+-- the cascade when a teacher account is removed. Only the first should
+-- leave a memory a teacher can use, but recording all three costs
+-- nothing and missing one is a feature that works only sometimes.
+CREATE OR REPLACE FUNCTION public.students_remember_removed()
+RETURNS trigger
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+BEGIN
+  IF OLD.created_by IS NULL OR coalesce(trim(OLD.email), '') = '' THEN
+    RETURN OLD;
+  END IF;
+
+  INSERT INTO public.removed_students (faculty_id, email, data, removed_at)
+  VALUES (
+    OLD.created_by,
+    OLD.email,
+    jsonb_build_object(
+      'email', OLD.email,
+      'first_name', OLD.first_name,
+      'last_name', OLD.last_name,
+      'student_id', OLD.student_id,
+      'date_of_birth', OLD.date_of_birth,
+      'gender', OLD.gender,
+      'nationality', OLD.nationality,
+      'grade', OLD.grade,
+      'section', OLD.division,
+      'subject', OLD.subject,
+      'phone', OLD.phone,
+      'address', OLD.address,
+      'school_id', OLD.school_id,
+      'primary_guardian_name', OLD.primary_guardian_name,
+      'primary_guardian_relation', OLD.primary_guardian_relation,
+      'primary_guardian_email', OLD.primary_guardian_email,
+      'primary_guardian_phone', OLD.primary_guardian_phone,
+      'had_account', OLD.user_id IS NOT NULL
+    ),
+    now()
+  )
+  ON CONFLICT (faculty_id, lower(email)) DO UPDATE
+    SET data = EXCLUDED.data, removed_at = EXCLUDED.removed_at;
+
+  RETURN OLD;
+END $$;
+
+DROP TRIGGER IF EXISTS students_remember_removed_trg ON public.students;
+CREATE TRIGGER students_remember_removed_trg
+  BEFORE DELETE ON public.students
+  FOR EACH ROW EXECUTE FUNCTION public.students_remember_removed();
+
+-- ── the picker reads both ─────────────────────────────────────────────
+--
+-- Current roster first, then the removed. `on_roster` tells the form
+-- which it is looking at: an address still in her class is a duplicate
+-- and the unique index will refuse it, and she should be told that
+-- before she fills in a whole form.
+--
+-- `has_account` is answered live rather than from the snapshot, because
+-- the account can be claimed or deleted after the row was removed, and
+-- it decides the one thing she cares about — whether adding them back
+-- sends an invitation or simply puts them in the class.
+CREATE OR REPLACE FUNCTION public.my_known_students()
+RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE out jsonb; fid uuid;
+BEGIN
+  fid := public.current_faculty_id();
+  IF fid IS NULL THEN RETURN '[]'::jsonb; END IF;
+
+  SELECT COALESCE(jsonb_agg(row_to_json(t) ORDER BY t.on_roster DESC, t.last_seen DESC), '[]'::jsonb)
+    INTO out
+  FROM (
+    SELECT DISTINCT ON (lower(email))
+           email, first_name, last_name, student_id, date_of_birth, gender,
+           nationality, grade, section, subject, phone, address, school_id,
+           primary_guardian_name, primary_guardian_relation,
+           primary_guardian_email, primary_guardian_phone,
+           on_roster, last_seen,
+           EXISTS (
+             SELECT 1 FROM auth.users au JOIN public.users pu ON pu.id = au.id
+              WHERE lower(au.email) = lower(email) AND pu.role = 'student'
+           ) AS has_account
+      FROM (
+        SELECT s.email, s.first_name, s.last_name, s.student_id, s.date_of_birth,
+               s.gender, s.nationality, s.grade, s.division AS section, s.subject,
+               s.phone, s.address, s.school_id,
+               s.primary_guardian_name, s.primary_guardian_relation,
+               s.primary_guardian_email, s.primary_guardian_phone,
+               true AS on_roster, s.updated_at AS last_seen
+          FROM students s
+         WHERE s.created_by = fid AND coalesce(trim(s.email),'') <> ''
+
+        UNION ALL
+
+        SELECT r.data->>'email', r.data->>'first_name', r.data->>'last_name',
+               r.data->>'student_id', (r.data->>'date_of_birth')::date,
+               r.data->>'gender', r.data->>'nationality', r.data->>'grade',
+               r.data->>'section', r.data->>'subject',
+               r.data->>'phone', r.data->>'address', (r.data->>'school_id')::uuid,
+               r.data->>'primary_guardian_name', r.data->>'primary_guardian_relation',
+               r.data->>'primary_guardian_email', r.data->>'primary_guardian_phone',
+               false, r.removed_at
+          FROM removed_students r
+         WHERE r.faculty_id = fid
+      ) u
+     ORDER BY lower(email), on_roster DESC, last_seen DESC
+  ) t;
+
+  RETURN out;
+END $$;
+GRANT EXECUTE ON FUNCTION public.my_known_students() TO authenticated;
+
+DO $$
+BEGIN
+  RAISE NOTICE 'students: removed students are remembered for re-adding';
+END $$;
+
+
+-- =====================================================================
+-- 46. my_known_students(): qualify the ambiguous email
+-- =====================================================================
+--
+-- The EXISTS that answers `has_account` joins auth.users, which has an
+-- `email` column of its own — so the bare `lower(email)` inside it was
+-- ambiguous and the whole function raised 42702. knownStudents() catches
+-- its own errors and answers [], so the picker simply never appeared:
+-- no error in the console, no failed request, an empty dropdown that
+-- looked like "you have no past students".
+--
+-- Qualified as u.email, which is the subquery's column and always was.
+CREATE OR REPLACE FUNCTION public.my_known_students()
+RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE out jsonb; fid uuid;
+BEGIN
+  fid := public.current_faculty_id();
+  IF fid IS NULL THEN RETURN '[]'::jsonb; END IF;
+
+  SELECT COALESCE(jsonb_agg(row_to_json(t) ORDER BY t.on_roster DESC, t.last_seen DESC), '[]'::jsonb)
+    INTO out
+  FROM (
+    SELECT DISTINCT ON (lower(u.email))
+           u.email, u.first_name, u.last_name, u.student_id, u.date_of_birth, u.gender,
+           u.nationality, u.grade, u.section, u.subject, u.phone, u.address, u.school_id,
+           u.primary_guardian_name, u.primary_guardian_relation,
+           u.primary_guardian_email, u.primary_guardian_phone,
+           u.on_roster, u.last_seen,
+           EXISTS (
+             SELECT 1 FROM auth.users au JOIN public.users pu ON pu.id = au.id
+              WHERE lower(au.email) = lower(u.email) AND pu.role = 'student'
+           ) AS has_account
+      FROM (
+        SELECT s.email, s.first_name, s.last_name, s.student_id, s.date_of_birth,
+               s.gender, s.nationality, s.grade, s.division AS section, s.subject,
+               s.phone, s.address, s.school_id,
+               s.primary_guardian_name, s.primary_guardian_relation,
+               s.primary_guardian_email, s.primary_guardian_phone,
+               true AS on_roster, s.updated_at AS last_seen
+          FROM students s
+         WHERE s.created_by = fid AND coalesce(trim(s.email),'') <> ''
+
+        UNION ALL
+
+        SELECT r.data->>'email', r.data->>'first_name', r.data->>'last_name',
+               r.data->>'student_id', (r.data->>'date_of_birth')::date,
+               r.data->>'gender', r.data->>'nationality', r.data->>'grade',
+               r.data->>'section', r.data->>'subject',
+               r.data->>'phone', r.data->>'address',
+               NULLIF(r.data->>'school_id','')::uuid,
+               r.data->>'primary_guardian_name', r.data->>'primary_guardian_relation',
+               r.data->>'primary_guardian_email', r.data->>'primary_guardian_phone',
+               false, r.removed_at
+          FROM removed_students r
+         WHERE r.faculty_id = fid
+      ) u
+     ORDER BY lower(u.email), u.on_roster DESC, u.last_seen DESC
+  ) t;
+
+  RETURN out;
+END $$;
+GRANT EXECUTE ON FUNCTION public.my_known_students() TO authenticated;
+
+DO $$
+BEGIN
+  RAISE NOTICE 'students: known-student picker query fixed';
+END $$;
+
+
+-- =====================================================================
+-- 47. The guardian column is `relationship`, not `relation`
+-- =====================================================================
+--
+-- §45 and §46 both wrote primary_guardian_relation. The column has always
+-- been primary_guardian_relationship, so my_known_students() raised 42703
+-- and the picker silently rendered as "you have never added anyone" —
+-- knownStudents() answered [] on error, which is indistinguishable from
+-- an empty list.
+--
+-- The same name is in students_remember_removed(), where it is worse: it
+-- would raise inside a BEFORE DELETE trigger, so deleting any student
+-- with an email would have failed outright. Fixed here before anyone met
+-- it. Both secondary-guardian columns are carried too, since the snapshot
+-- exists to refill the whole form.
+
+CREATE OR REPLACE FUNCTION public.students_remember_removed()
+RETURNS trigger
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+BEGIN
+  IF OLD.created_by IS NULL OR coalesce(trim(OLD.email), '') = '' THEN
+    RETURN OLD;
+  END IF;
+
+  INSERT INTO public.removed_students (faculty_id, email, data, removed_at)
+  VALUES (
+    OLD.created_by,
+    OLD.email,
+    jsonb_build_object(
+      'email', OLD.email,
+      'first_name', OLD.first_name,
+      'last_name', OLD.last_name,
+      'student_id', OLD.student_id,
+      'date_of_birth', OLD.date_of_birth,
+      'gender', OLD.gender,
+      'nationality', OLD.nationality,
+      'grade', OLD.grade,
+      'section', OLD.division,
+      'subject', OLD.subject,
+      'phone', OLD.phone,
+      'address', OLD.address,
+      'notes', OLD.notes,
+      'school_id', OLD.school_id,
+      'enrollment_date', OLD.enrollment_date,
+      'primary_guardian_name', OLD.primary_guardian_name,
+      'primary_guardian_relationship', OLD.primary_guardian_relationship,
+      'primary_guardian_email', OLD.primary_guardian_email,
+      'primary_guardian_phone', OLD.primary_guardian_phone,
+      'secondary_guardian_name', OLD.secondary_guardian_name,
+      'secondary_guardian_relationship', OLD.secondary_guardian_relationship,
+      'secondary_guardian_email', OLD.secondary_guardian_email,
+      'secondary_guardian_phone', OLD.secondary_guardian_phone,
+      'had_account', OLD.user_id IS NOT NULL
+    ),
+    now()
+  )
+  ON CONFLICT (faculty_id, lower(email)) DO UPDATE
+    SET data = EXCLUDED.data, removed_at = EXCLUDED.removed_at;
+
+  RETURN OLD;
+END $$;
+
+CREATE OR REPLACE FUNCTION public.my_known_students()
+RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE out jsonb; fid uuid;
+BEGIN
+  fid := public.current_faculty_id();
+  IF fid IS NULL THEN RETURN '[]'::jsonb; END IF;
+
+  SELECT COALESCE(jsonb_agg(row_to_json(t) ORDER BY t.on_roster DESC, t.last_seen DESC), '[]'::jsonb)
+    INTO out
+  FROM (
+    SELECT DISTINCT ON (lower(u.email))
+           u.email, u.first_name, u.last_name, u.student_id, u.date_of_birth, u.gender,
+           u.nationality, u.grade, u.section, u.subject, u.phone, u.address, u.notes,
+           u.school_id, u.enrollment_date,
+           u.primary_guardian_name, u.primary_guardian_relationship,
+           u.primary_guardian_email, u.primary_guardian_phone,
+           u.secondary_guardian_name, u.secondary_guardian_relationship,
+           u.secondary_guardian_email, u.secondary_guardian_phone,
+           u.on_roster, u.last_seen,
+           EXISTS (
+             SELECT 1 FROM auth.users au JOIN public.users pu ON pu.id = au.id
+              WHERE lower(au.email) = lower(u.email) AND pu.role = 'student'
+           ) AS has_account
+      FROM (
+        SELECT s.email, s.first_name, s.last_name, s.student_id, s.date_of_birth,
+               s.gender, s.nationality, s.grade, s.division AS section, s.subject,
+               s.phone, s.address, s.notes, s.school_id, s.enrollment_date,
+               s.primary_guardian_name, s.primary_guardian_relationship,
+               s.primary_guardian_email, s.primary_guardian_phone,
+               s.secondary_guardian_name, s.secondary_guardian_relationship,
+               s.secondary_guardian_email, s.secondary_guardian_phone,
+               true AS on_roster, s.updated_at AS last_seen
+          FROM students s
+         WHERE s.created_by = fid AND coalesce(trim(s.email),'') <> ''
+
+        UNION ALL
+
+        SELECT r.data->>'email', r.data->>'first_name', r.data->>'last_name',
+               r.data->>'student_id', NULLIF(r.data->>'date_of_birth','')::date,
+               r.data->>'gender', r.data->>'nationality', r.data->>'grade',
+               r.data->>'section', r.data->>'subject',
+               r.data->>'phone', r.data->>'address', r.data->>'notes',
+               NULLIF(r.data->>'school_id','')::uuid,
+               NULLIF(r.data->>'enrollment_date','')::date,
+               r.data->>'primary_guardian_name', r.data->>'primary_guardian_relationship',
+               r.data->>'primary_guardian_email', r.data->>'primary_guardian_phone',
+               r.data->>'secondary_guardian_name', r.data->>'secondary_guardian_relationship',
+               r.data->>'secondary_guardian_email', r.data->>'secondary_guardian_phone',
+               false, r.removed_at
+          FROM removed_students r
+         WHERE r.faculty_id = fid
+      ) u
+     ORDER BY lower(u.email), u.on_roster DESC, u.last_seen DESC
+  ) t;
+
+  RETURN out;
+END $$;
+GRANT EXECUTE ON FUNCTION public.my_known_students() TO authenticated;
+
+-- The seeded memory of Tommy carried the wrong key too.
+UPDATE public.removed_students
+   SET data = (data - 'primary_guardian_relation')
+              || jsonb_build_object('primary_guardian_relationship',
+                                    data->>'primary_guardian_relation')
+ WHERE data ? 'primary_guardian_relation';
+
+DO $$
+BEGIN
+  RAISE NOTICE 'students: guardian column name corrected in picker and delete trigger';
+END $$;

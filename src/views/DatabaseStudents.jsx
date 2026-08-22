@@ -835,10 +835,16 @@ function StudentEditModal({ initial, prefill = null, onClose, onSaved }) {
       phone: k.phone ?? f.phone,
       address: k.address ?? f.address,
       school_id: k.school_id ?? f.school_id,
+      notes: k.notes ?? f.notes,
+      enrollment_date: k.enrollment_date ? String(k.enrollment_date).slice(0, 10) : f.enrollment_date,
       primary_guardian_name: k.primary_guardian_name ?? f.primary_guardian_name,
-      primary_guardian_relation: k.primary_guardian_relation ?? f.primary_guardian_relation,
+      primary_guardian_relationship: k.primary_guardian_relationship ?? f.primary_guardian_relationship,
       primary_guardian_email: k.primary_guardian_email ?? f.primary_guardian_email,
       primary_guardian_phone: k.primary_guardian_phone ?? f.primary_guardian_phone,
+      secondary_guardian_name: k.secondary_guardian_name ?? f.secondary_guardian_name,
+      secondary_guardian_relationship: k.secondary_guardian_relationship ?? f.secondary_guardian_relationship,
+      secondary_guardian_email: k.secondary_guardian_email ?? f.secondary_guardian_email,
+      secondary_guardian_phone: k.secondary_guardian_phone ?? f.secondary_guardian_phone,
     }));
   };
 
@@ -892,7 +898,21 @@ function StudentEditModal({ initial, prefill = null, onClose, onSaved }) {
             Cancel
           </Button>
           <Button onClick={submit} disabled={saving}>
-            {saving ? "Saving…" : isNew ? "Create student" : "Save changes"}
+            {saving
+              ? "Saving…"
+              : !isNew
+                ? "Save changes"
+                /**
+                 * "Create" is wrong for someone who already exists.
+                 *
+                 * Re-adding a student she removed is not the creation of a
+                 * person — the account is there, the details are hers from
+                 * last time, and nothing is being invited. Calling it Add
+                 * matches what actually happens: they go back in the class.
+                 */
+                : knownMatch && !knownMatch.on_roster
+                  ? "Add to class"
+                  : "Create student"}
           </Button>
         </>
       }
@@ -985,7 +1005,7 @@ function StudentEditModal({ initial, prefill = null, onClose, onSaved }) {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
         <SField
           label="Email"
-          hint={known.length ? "they sign in with this · pick a past student" : "they sign in with this"}
+          hint={known.length ? "they sign in with this · or pick someone you've added before" : "they sign in with this"}
           required
         >
           <input
@@ -1005,23 +1025,30 @@ function StudentEditModal({ initial, prefill = null, onClose, onSaved }) {
                 <option key={k.email} value={k.email}>
                   {[k.first_name, k.last_name].filter(Boolean).join(" ")}
                   {k.grade ? ` · ${k.grade}${k.section ? ` ${k.section}` : ""}` : ""}
+                  {k.on_roster ? " · in your class" : " · removed"}
                 </option>
               ))}
             </datalist>
           )}
           {knownMatch && (
-            <p className="text-xs text-muted mt-1.5">
-              {knownMatch.has_account ? (
+            <p className="text-xs mt-1.5 text-muted">
+              {knownMatch.on_roster ? (
+                <span className="text-clay">
+                  {[knownMatch.first_name, knownMatch.last_name].filter(Boolean).join(" ")} is
+                  already in your class — find them in the list to edit instead.
+                </span>
+              ) : knownMatch.has_account ? (
                 <>
-                  You&rsquo;ve added{" "}
+                  You removed{" "}
                   <span className="text-ink">
                     {[knownMatch.first_name, knownMatch.last_name].filter(Boolean).join(" ")}
                   </span>{" "}
-                  before and they already have an account — they&rsquo;ll join your class
-                  straight away, with no new invitation.
+                  before, and they already have an account.{" "}
+                  <span className="text-ink">No invitation will be sent</span> — they rejoin your
+                  class the moment you save.
                 </>
               ) : (
-                <>Details filled in from the last time you added this student.</>
+                <>Filled in from the last time you added this student. They&rsquo;ll be invited on save.</>
               )}
             </p>
           )}
