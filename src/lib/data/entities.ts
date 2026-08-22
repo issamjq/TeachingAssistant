@@ -47,6 +47,25 @@ function duplicateStudent(email: string) {
   );
 }
 
+/**
+ * A roster row with no address cannot become a person.
+ *
+ * NOT NULL in the schema catches it, but a constraint violation reaching a
+ * teacher reads as a crash. This is the same rule said in her language,
+ * and it covers every caller — the modal, the bulk import, and whatever
+ * writes students next.
+ */
+function requireEmail(body: Record<string, any>) {
+  const email = String(body?.email ?? "").trim();
+  if (!email) {
+    throw Object.assign(
+      new Error("Add an email for this student — it is what they sign in with."),
+      { status: 400, code: "email_required" },
+    );
+  }
+  return email;
+}
+
 const isDuplicateEmail = (e: any) =>
   e?.code === "23505" && String(e?.message ?? "").includes("students_teacher_email_unique");
 
@@ -243,6 +262,7 @@ export async function getStudent(id: string) {
 }
 
 export async function createStudent(body: Record<string, any>) {
+  requireEmail(body);
   const fid = await facultyId();
   const { data, error } = await supabase
     .from("students").insert({ ...inStudent(body), created_by: fid })
@@ -278,7 +298,34 @@ export async function bulkCreateStudents(rows: Record<string, any>[]) {
   if (!clean.length) {
     throw Object.assign(new Error("Nothing to import — no rows had a first name."), { status: 400 });
   }
+  // Email is NOT NULL now, so one blank cell fails the whole insert. Say
+  // whose it is: a constraint name is not something a teacher looking at a
+  // spreadsheet of thirty can act on.
+  const missing = clean.filter((r: any) => !String(r.email ?? "").trim());
+  if (missing.length) {
+    const who = missing
+      .slice(0, 3)
+      .map((r: any) => [r.first_name, r.last_name].filter(Boolean).join(" ") || "an unnamed row")
+      .join(", ");
+    throw Object.assign(
+      new Error(
+        `Every student needs an email — it is what they sign in with. ` +
+        `${missing.length} ${missing.length === 1 ? "row has" : "rows have"} none: ${who}` +
+        `${missing.length > 3 ? `, and ${missing.length - 3} more` : ""}.`,
+      ),
+      { status: 400, code: "email_required" },
+    );
+  }
   const { data, error } = await supabase.from("students").insert(clean).select(STUDENT_COLS);
+  if (isDuplicateEmail(error)) {
+    throw Object.assign(
+      new Error(
+        "One of those students is already in your class. " +
+        "Remove the duplicate rows from your file and import it again.",
+      ),
+      { status: 409, code: "duplicate_student" },
+    );
+  }
   if (error) throw error;
   return { created: (data || []).length, students: (data || []).map(outStudent) };
 }
@@ -366,6 +413,9 @@ export async function inviteStudent(id: string) {
 }
 
 export async function updateStudent(id: string, body: Record<string, any>) {
+  // Only when the caller is touching the address — a partial update that
+  // does not mention email must not be made to supply one.
+  if ("email" in body) requireEmail(body);
   const { data, error } = await supabase
     .from("students").update({ ...inStudent(body), updated_at: iso() })
     .eq("id", id).select(STUDENT_COLS).maybeSingle();

@@ -491,6 +491,28 @@ function ImportStudentsModal({ onClose, onImported }) {
 
   const doImport = async () => {
     if (!rows?.length) return;
+    /**
+     * Caught here rather than at the insert.
+     *
+     * Email is NOT NULL, so a file with a blank cell fails in the database
+     * with a constraint name and no line number — for a teacher looking at
+     * a spreadsheet of thirty, that is unactionable. Naming the students
+     * lets her fix the file.
+     */
+    const nameless = rows.filter((r) => !String(r.email ?? "").trim());
+    if (nameless.length) {
+      const who = nameless
+        .slice(0, 3)
+        .map((r) => [r.first_name, r.last_name].filter(Boolean).join(" ") || "a row with no name")
+        .join(", ");
+      setErr(
+        `Every student needs an email — it is what they sign in with. ` +
+        `${nameless.length} ${nameless.length === 1 ? "student has" : "students have"} none: ${who}` +
+        `${nameless.length > 3 ? `, and ${nameless.length - 3} more` : ""}. ` +
+        `Add the addresses to your file and import it again.`
+      );
+      return;
+    }
     setSaving(true); setErr(null);
     try {
       const res = await api("/api/students/bulk", { method: "POST", body: { students: rows } });
@@ -533,10 +555,10 @@ function ImportStudentsModal({ onClose, onImported }) {
             </p>
             <p className="font-mono text-[11px] text-ink mt-2 break-words">{SAMPLE_HEADERS.join(" · ")}</p>
             <p className="text-xs text-muted mt-2">
-              Only <span className="text-ink">first name</span> is required here — an import is a roster, not the
-              full form. An <span className="text-ink">email</span> is what a student later signs in with; add it now
-              and you can invite them from the list. Imported students are <span className="text-ink">not</span> emailed
-              automatically: the mailer is rate-limited, so a class of thirty would deliver two. CSV or Excel are exact;
+              <span className="text-ink">First name</span>, <span className="text-ink">last name</span> and
+              <span className="text-ink"> email</span> are required — the address is what a student signs in with,
+              so a row without one can never join. Imported students are <span className="text-ink">not</span> emailed
+              automatically; invite them from the list when the roster looks right. CSV or Excel are exact;
               PDF is best-effort.
             </p>
           </div>
@@ -645,6 +667,11 @@ const REQUIRED_STUDENT_FIELDS = [
   ["last_name", "Last name"],
   ["grade", "Grade"],
   ["section", "Section"],
+  // The address is the whole of a student's identity: it is what the
+  // invitation is sent to, what Google returns at sign-in, and the key the
+  // roster row is claimed by. A row without one is a name that can never
+  // log in, so it is required here and NOT NULL in the schema.
+  ["email", "Email"],
 ];
 
 function StudentEditModal({ initial, prefill = null, onClose, onSaved }) {
@@ -691,9 +718,9 @@ function StudentEditModal({ initial, prefill = null, onClose, onSaved }) {
       );
       return;
     }
-    // The email is optional, but a malformed one is worse than none: it is
-    // what the invite is sent to and what the student later signs in with,
-    // and both fail silently far from here.
+    // Required above; checked for shape here. A malformed address is worse
+    // than a missing one — it is what the invite is sent to and what the
+    // student later signs in with, and both fail silently far from here.
     const email = String(form.email ?? "").trim();
     if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       setErr("That email address doesn't look right.");
@@ -816,9 +843,9 @@ function StudentEditModal({ initial, prefill = null, onClose, onSaved }) {
 
       <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-3">Contact</p>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-        <SField label="Email" hint="they sign in with this">
+        <SField label="Email" hint="they sign in with this" required>
           <input type="email" className={inputClasses} value={form.email}
-            onChange={(e) => set("email", e.target.value)} />
+            onChange={(e) => set("email", e.target.value)} required />
         </SField>
         <SField label="Phone">
           <input className={inputClasses} value={form.phone}

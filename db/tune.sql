@@ -3667,3 +3667,53 @@ DO $$
 BEGIN
   RAISE NOTICE 'students: a student can now read their own roster row';
 END $$;
+
+
+-- =====================================================================
+-- 42. A student without an email is a student who cannot be reached
+-- =====================================================================
+--
+-- The column was optional because the roster began as a paper list — a
+-- teacher typing names to mark attendance against. It is no longer that.
+-- The address is the whole of a student's identity here: it is what the
+-- invitation is sent to, it is what Google returns at sign-in, and it is
+-- the key link_student_account() matches to claim the row. A roster row
+-- without one can never become a person; it is a name that can never log
+-- in, never be assigned work, and never appear in the student portal.
+--
+-- Enforced in the database rather than only in the form, because the form
+-- is one of three ways rows arrive — the modal, the bulk import, and
+-- anything a future screen adds. A rule that lives in one of them is a
+-- rule the other two do not have.
+--
+-- Blank is not absent: '' would satisfy NOT NULL and fail every use, so
+-- the CHECK is on trimmed length, not on NULL.
+
+DO $$
+DECLARE blank int;
+BEGIN
+  SELECT count(*) INTO blank FROM public.students WHERE coalesce(trim(email), '') = '';
+  IF blank > 0 THEN
+    -- Refuse rather than invent addresses. A deployment carrying paper-roster
+    -- rows needs a decision from the person who owns them, not a migration
+    -- that quietly fills them in with something unroutable.
+    RAISE EXCEPTION 'students: % row(s) have no email; fill or remove them before this migration', blank;
+  END IF;
+END $$;
+
+ALTER TABLE public.students ALTER COLUMN email SET NOT NULL;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint
+                  WHERE conname = 'students_email_present'
+                    AND connamespace = 'public'::regnamespace) THEN
+    ALTER TABLE public.students ADD CONSTRAINT students_email_present
+      CHECK (length(trim(email)) > 0);
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  RAISE NOTICE 'students: email is now required';
+END $$;
