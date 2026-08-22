@@ -4395,3 +4395,255 @@ DO $$
 BEGIN
   RAISE NOTICE 'students: guardian column name corrected in picker and delete trigger';
 END $$;
+
+
+-- =====================================================================
+-- 48. Work reaches a student by grade and subject
+-- =====================================================================
+--
+-- The teacher schedules work into schedule_entries: a generation, a date,
+-- a grade, a subject, sometimes a section. student_dashboard() read work
+-- from somewhere else entirely —
+--
+--     class_members -> classes -> assignments -> ai_studio
+--
+-- — three tables that hold zero rows and that nothing in the product has
+-- ever written. They are the remains of an earlier design in which a
+-- teacher built named classes and enrolled students into them one by one.
+-- That is not what was built. She types a grade and a subject on the
+-- roster row, and she types a grade and a subject when she schedules; the
+-- two are matched, and no one enrols anyone.
+--
+-- So the student side reads what the teacher side writes. Nothing else
+-- would have made a single item appear.
+--
+-- Three normalisations stand between the two, and each one silently
+-- returns nothing if it is skipped:
+--
+--   * grade is 'Grade 5' on the student and '5' on the schedule;
+--   * subject is free text on both sides — Math, Maths, Mathematics;
+--   * section is usually null on the schedule, and null means EVERY
+--     section, not none. Read literally it excludes the whole school.
+--
+-- And one scope rule that is not a normalisation at all: the entry must
+-- belong to the teacher whose roster row this is. Without it a child in
+-- Grade 5 Science receives the work of every Grade 5 Science teacher in
+-- the country, which is a data leak wearing the clothes of a feature.
+
+-- ── comparing what people typed ───────────────────────────────────────
+--
+-- IMMUTABLE so they can be indexed later if this gets slow; both answer
+-- NULL for NULL so a missing value never accidentally equals another
+-- missing value.
+CREATE OR REPLACE FUNCTION public.norm_grade(p text)
+RETURNS text
+LANGUAGE sql IMMUTABLE
+AS $$
+  -- 'Grade 5', 'grade5', 'G5', 'Class 5', 'Std 5', '5' -> '5'.
+  -- KG and Reception have no digits and are compared as themselves.
+  SELECT CASE
+    WHEN p IS NULL OR btrim(p) = '' THEN NULL
+    WHEN regexp_replace(p, '\D', '', 'g') <> '' THEN regexp_replace(p, '\D', '', 'g')
+    ELSE lower(btrim(p))
+  END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.norm_subject(p text)
+RETURNS text
+LANGUAGE sql IMMUTABLE
+AS $$
+  -- Case, spacing and the one genuine synonym set in UAE schools. Kept
+  -- deliberately short: guessing that 'Bio' means Biology is the kind of
+  -- cleverness that hides a teacher's typo from her instead of showing it.
+  SELECT CASE lower(regexp_replace(btrim(COALESCE(p,'')), '\s+', ' ', 'g'))
+    WHEN ''             THEN NULL
+    WHEN 'math'         THEN 'math'
+    WHEN 'maths'        THEN 'math'
+    WHEN 'mathematics'  THEN 'math'
+    WHEN 'ict'          THEN 'computer science'
+    WHEN 'computing'    THEN 'computer science'
+    ELSE lower(regexp_replace(btrim(COALESCE(p,'')), '\s+', ' ', 'g'))
+  END;
+$$;
+
+-- ── an attempt belongs to a scheduled entry ───────────────────────────
+--
+-- quiz_attempts.assignment_id pointed at `assignments`, which is empty
+-- and unwritten, so no attempt could ever have been recorded. Repointed
+-- at schedule_entries — the column keeps its name because every query
+-- and policy in the product already says assignment_id, and renaming it
+-- would be a wide change to say the same thing.
+DO $$
+DECLARE fk text;
+BEGIN
+  SELECT conname INTO fk
+    FROM pg_constraint
+   WHERE conrelid = 'public.quiz_attempts'::regclass
+     AND contype = 'f'
+     AND confrelid = 'public.assignments'::regclass
+   LIMIT 1;
+  IF fk IS NOT NULL THEN
+    EXECUTE format('ALTER TABLE public.quiz_attempts DROP CONSTRAINT %I', fk);
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+     WHERE conrelid = 'public.quiz_attempts'::regclass
+       AND contype = 'f'
+       AND confrelid = 'public.schedule_entries'::regclass
+  ) THEN
+    ALTER TABLE public.quiz_attempts
+      ADD CONSTRAINT quiz_attempts_entry_fk
+      FOREIGN KEY (assignment_id) REFERENCES public.schedule_entries(id) ON DELETE CASCADE;
+  END IF;
+END $$;
+
+-- ── what a student may read ───────────────────────────────────────────
+--
+-- The dashboard is SECURITY DEFINER and does its own scoping, but a
+-- student also opens the work itself, and that read goes through RLS on
+-- ai_studio. Matching is expressed once, here, as a function both can
+-- use.
+CREATE OR REPLACE FUNCTION public.student_entry_ids()
+RETURNS SETOF uuid
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+  SELECT se.id
+    FROM schedule_entries se
+    JOIN students st
+      ON st.created_by = se.faculty_id           -- her students, not everyone's
+     AND public.norm_grade(st.grade) IS NOT DISTINCT FROM public.norm_grade(se.grade)
+     AND (public.norm_subject(se.subject) IS NULL
+          OR public.norm_subject(se.subject) = public.norm_subject(st.subject))
+     AND (COALESCE(btrim(se.section), '') = ''   -- no section named = the whole grade
+          OR lower(btrim(se.section)) = lower(btrim(COALESCE(st.division, ''))))
+   WHERE st.user_id = (SELECT auth.uid())
+     AND se.draft_id IS NOT NULL                 -- a slot with nothing in it is a timetable, not work
+     AND COALESCE(se.status, 'planned') <> 'cancelled';
+$$;
+GRANT EXECUTE ON FUNCTION public.student_entry_ids() TO authenticated;
+
+-- A student may read the generation behind work that reaches them.
+DROP POLICY IF EXISTS ai_studio_student_read ON public.ai_studio;
+CREATE POLICY ai_studio_student_read ON public.ai_studio
+  FOR SELECT TO authenticated
+  USING (
+    deleted_at IS NULL
+    AND id IN (SELECT se.draft_id FROM schedule_entries se
+                WHERE se.id IN (SELECT public.student_entry_ids()))
+  );
+
+-- And the entry itself, for the date and the title.
+DROP POLICY IF EXISTS schedule_entries_student_read ON public.schedule_entries;
+CREATE POLICY schedule_entries_student_read ON public.schedule_entries
+  FOR SELECT TO authenticated
+  USING (id IN (SELECT public.student_entry_ids()));
+
+-- ── the dashboard ─────────────────────────────────────────────────────
+CREATE OR REPLACE FUNCTION public.student_dashboard()
+RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE out jsonb; n int;
+BEGIN
+  SELECT count(*) INTO n FROM students WHERE user_id = (SELECT auth.uid());
+  IF n = 0 THEN RETURN NULL; END IF;
+
+  SELECT jsonb_build_object(
+    'student', (
+      SELECT jsonb_build_object(
+        'id', st.id, 'first_name', st.first_name, 'last_name', st.last_name,
+        'email', st.email, 'grade', st.grade, 'section', st.division,
+        'school', (SELECT name FROM schools WHERE id = st.school_id)
+      ) FROM students st WHERE st.id = public.current_student_id()
+    ),
+
+    -- Who teaches them, and for what. With three teachers in one list,
+    -- "Unit 4 quiz" says nothing about whose it is.
+    'teachers', (
+      SELECT COALESCE(jsonb_agg(row_to_json(t) ORDER BY t.subject NULLS LAST), '[]'::jsonb) FROM (
+        SELECT st.id AS student_row_id, st.subject, st.grade, st.division AS section,
+               TRIM(COALESCE(u.first_name,'') || ' ' || COALESCE(u.last_name,'')) AS teacher,
+               (SELECT name FROM schools WHERE id = st.school_id) AS school
+          FROM students st
+          LEFT JOIN faculty f ON f.id = st.created_by
+          LEFT JOIN users   u ON u.id = f.user_id
+         WHERE st.id IN (SELECT public.current_student_ids())
+      ) t
+    ),
+
+    /**
+     * Everything scheduled to this child's grade and subject.
+     *
+     * Joined student-row-first so the same entry reaching them through
+     * two teachers appears twice, correctly, with each teacher named —
+     * rather than collapsing into one card that belongs to nobody.
+     */
+    'work', (
+      SELECT COALESCE(jsonb_agg(row_to_json(w) ORDER BY w.date DESC NULLS LAST), '[]'::jsonb) FROM (
+        SELECT se.id AS assignment_id, gen.id AS work_id, gen.type,
+               COALESCE(NULLIF(se.title,''), gen.content->>'title', gen.content->>'name', 'Work') AS title,
+               se.date, se.start_time, se.end_time, se.location, se.notes,
+               se.subject, se.grade, se.section,
+               st.id AS student_row_id,
+               TRIM(COALESCE(u.first_name,'') || ' ' || COALESCE(u.last_name,'')) AS teacher,
+               qa.status, qa.score, qa.max_score, qa.submitted_at
+          FROM students st
+          JOIN schedule_entries se
+            ON st.created_by = se.faculty_id
+           AND public.norm_grade(st.grade) IS NOT DISTINCT FROM public.norm_grade(se.grade)
+           AND (public.norm_subject(se.subject) IS NULL
+                OR public.norm_subject(se.subject) = public.norm_subject(st.subject))
+           AND (COALESCE(btrim(se.section), '') = ''
+                OR lower(btrim(se.section)) = lower(btrim(COALESCE(st.division, ''))))
+          JOIN ai_studio gen ON gen.id = se.draft_id AND gen.deleted_at IS NULL
+          LEFT JOIN faculty f ON f.id = se.faculty_id
+          LEFT JOIN users   u ON u.id = f.user_id
+          LEFT JOIN quiz_attempts qa
+                 ON qa.assignment_id = se.id AND qa.student_id = st.id
+         WHERE st.id IN (SELECT public.current_student_ids())
+           AND COALESCE(se.status, 'planned') <> 'cancelled'
+      ) w
+    ),
+
+    'scores', (
+      SELECT COALESCE(jsonb_agg(row_to_json(s2) ORDER BY s2.submitted_at DESC NULLS LAST), '[]'::jsonb) FROM (
+        SELECT qa.id, qa.score, qa.max_score, qa.submitted_at, gen.type, se.subject,
+               COALESCE(NULLIF(se.title,''), gen.content->>'title', 'Work') AS title
+          FROM quiz_attempts qa
+          LEFT JOIN schedule_entries se ON se.id = qa.assignment_id
+          LEFT JOIN ai_studio gen ON gen.id = se.draft_id
+         WHERE qa.student_id IN (SELECT public.current_student_ids())
+           AND qa.score IS NOT NULL
+         ORDER BY qa.submitted_at DESC NULLS LAST LIMIT 40
+      ) s2
+    ),
+
+    'attendance', (
+      SELECT jsonb_build_object(
+        'present', count(*) FILTER (WHERE status = 'present'),
+        'absent',  count(*) FILTER (WHERE status = 'absent'),
+        'late',    count(*) FILTER (WHERE status = 'late'),
+        'total',   count(*)
+      ) FROM attendance WHERE student_id IN (SELECT public.current_student_ids())
+    ),
+
+    'grades', (
+      SELECT COALESCE(jsonb_agg(row_to_json(g) ORDER BY g.recorded_on DESC), '[]'::jsonb) FROM (
+        SELECT sg.subject, sg.term, sg.label, sg.score, sg.max_score, sg.recorded_on
+          FROM student_grades sg
+         WHERE sg.student_id IN (SELECT public.current_student_ids())
+         ORDER BY sg.recorded_on DESC LIMIT 40
+      ) g
+    )
+  ) INTO out;
+  RETURN out;
+END $$;
+
+DO $$
+BEGIN
+  RAISE NOTICE 'students: work now reaches them by grade and subject';
+END $$;
