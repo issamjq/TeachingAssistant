@@ -335,8 +335,37 @@ export async function createStudent(body: Record<string, any>) {
   // is not what anyone asked for.
   if ((data as any)?.email?.trim()) {
     try {
-      return await inviteStudent((data as any).id);
-    } catch {
+      const invited: any = await inviteStudent((data as any).id);
+
+      /**
+       * A teacher's address cannot be a student, so it does not belong on
+       * the roster at all.
+       *
+       * Keeping the row and flagging it left a permanent entry for a
+       * child who can never sign in — a name in her class list that is
+       * not in her class, and that no amount of pressing Invite will
+       * ever fix. The row was created a second ago and holds nothing she
+       * would lose, so it goes, and she is told why.
+       *
+       * Only on create. Pressing Invite on a row she entered last term is
+       * a different matter: that row may carry marks and attendance, and
+       * deleting it because of one bad address is not ours to decide.
+       */
+      if (invited?.invite_status === "blocked_teacher") {
+        await supabase.from("students").delete().eq("id", (data as any).id);
+        throw Object.assign(new Error(
+          `${(data as any).email} already has a teacher account on Murchid, so it can't ` +
+          `also be a student — they haven't been added. Ask them for a different email ` +
+          `address and use that instead.`,
+        ), {
+          status: 409,
+          code: "already_teacher",
+          email: (data as any).email,
+        });
+      }
+      return invited;
+    } catch (e: any) {
+      if (e?.code === "already_teacher") throw e;
       /* the row is saved; the row's Invite button opens the gate later */
     }
   }
