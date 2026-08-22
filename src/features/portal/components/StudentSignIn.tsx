@@ -52,6 +52,19 @@ function errorFor(reason?: string): SignInError {
 
 export default function StudentSignIn() {
   const [checking, setChecking] = useState(true);
+  /**
+   * We are on our way to the dashboard — keep the loader up.
+   *
+   * The check ended in a `finally` that cleared `checking` whether the
+   * resolve had succeeded or not, and replace() is asynchronous. So a
+   * student who HAD just signed in got one frame of the sign-in form
+   * before the route changed: the flash of "please sign in" at the exact
+   * moment they had.
+   *
+   * Navigation is not the end of the wait, so the loader has to outlive
+   * the check that started it.
+   */
+  const [entering, setEntering] = useState(false);
   const [signingIn, setSigningIn] = useState(false);
   const [error, setError] = useState<SignInError | null>(null);
   const [email, setEmail] = useState("");
@@ -73,6 +86,7 @@ export default function StudentSignIn() {
       },
     });
     setRole("student");
+    setEntering(true);
     replace(["student-dashboard"]);
   }
 
@@ -179,7 +193,7 @@ export default function StudentSignIn() {
     }
   };
 
-  if (checking) return <BrandLoader />;
+  if (checking || entering) return <BrandLoader />;
 
   return (
     <div className="min-h-screen bg-paper" dir="auto">
