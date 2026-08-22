@@ -3621,3 +3621,49 @@ DO $$
 BEGIN
   RAISE NOTICE 'students: one address per teacher; super admin delete purges the account';
 END $$;
+
+
+-- =====================================================================
+-- 41. A student may read their own roster row
+-- =====================================================================
+--
+-- students_read granted access two ways, and both of them are a
+-- teacher's: the row is one she created, or it sits in one of her
+-- classes. A student reading their OWN row matched neither, because
+-- current_faculty_id() is NULL for someone who does not teach — so
+-- `created_by = NULL` is NULL, the EXISTS finds nothing, and the policy
+-- denies the student the one row that is about them.
+--
+-- The visible failure was a sign-in loop. getProfile() looks for a
+-- claimed roster row before it gives up with `no_teacher_row`; the SELECT
+-- returned nothing, so a student who HAD successfully claimed their row
+-- was told they had no profile, sent back to sign in, linked again —
+-- already linked — and bounced round again. The claim was never the
+-- problem, which is why the database looked correct throughout.
+--
+-- Read only. A student must not edit or delete the row: it is the
+-- teacher's record of them, carrying her grade, her section and her
+-- subject, and `students_upd` / `students_del` stay teacher-only.
+DROP POLICY IF EXISTS students_read ON public.students;
+CREATE POLICY students_read ON public.students
+  FOR SELECT TO authenticated
+  USING (
+    (
+      created_by = current_faculty_id()
+      OR EXISTS (
+        SELECT 1 FROM class_members cm
+          JOIN classes c ON c.id = cm.class_id
+         WHERE cm.student_id = students.id
+           AND c.faculty_id = current_faculty_id()
+      )
+      -- The student themselves. Every row they have claimed, so a child
+      -- taught by three teachers sees all three classes.
+      OR user_id = (SELECT auth.uid())
+    )
+    AND is_current_device()
+  );
+
+DO $$
+BEGIN
+  RAISE NOTICE 'students: a student can now read their own roster row';
+END $$;

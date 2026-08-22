@@ -92,8 +92,30 @@ export default function StudentSignIn() {
     // No profile yet — try to claim a roster row for this email.
     const res = await api<{ linked: boolean; reason?: string }>("/api/auth/link-student", { method: "POST" });
     if (res.linked) {
-      const me2 = await api<MeRow>("/api/auth/me");
-      if (me2.role === "student") { enter(me2); return true; }
+      /**
+       * The re-read is allowed to fail without losing the student.
+       *
+       * It was unguarded, so anything that stopped the profile loading
+       * after a SUCCESSFUL claim threw out of resolve() and landed as an
+       * "unknown" error — which is how a student whose row was already
+       * claimed got sent back to sign in, linked again, and bounced round
+       * once more. The claim is the thing that matters and it has already
+       * happened by here; a profile that will not load is worth naming
+       * rather than retrying forever.
+       */
+      let me2: MeRow | null = null;
+      try {
+        me2 = await api<MeRow>("/api/auth/me");
+      } catch {
+        me2 = null;
+      }
+      if (me2?.role === "student") { enter(me2); return true; }
+      setError({
+        kind: "unknown",
+        message:
+          "You're signed in and your teacher's invitation was accepted, but your student profile didn't load. Please refresh the page.",
+      });
+      return true;
     }
     setError(errorFor(res.reason));
     return true;
