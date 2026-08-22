@@ -191,6 +191,7 @@ export async function resolve(
 
     case "students":
       if (a === "bulk" && method === "POST") return yes(await E.bulkCreateStudents(body?.students));
+      if (a === "known" && method === "GET") return yes(await E.knownStudents());
       if (a && b === "invite" && method === "POST") return yes(await E.inviteStudent(a));
       if (!a && method === "GET") return yes(await E.listStudents());
       if (!a && method === "POST") return yes(await E.createStudent(body));

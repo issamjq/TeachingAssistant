@@ -3879,3 +3879,148 @@ DO $$
 BEGIN
   RAISE NOTICE 'console: stale sa_accounts()/sa_delete_account(uuid) overloads removed';
 END $$;
+
+
+-- =====================================================================
+-- 44. Once a student, always a student
+-- =====================================================================
+--
+-- provisionTeacher() asks link_student_account() first and creates a
+-- faculty row whenever the answer is anything but a clear `linked: true`.
+-- That is the right default for a stranger and the wrong one for someone
+-- the platform already knows: a student whose teacher has removed them
+-- from her class holds no invited row, so the claim answers `no_match`,
+-- the fall-through runs, and the next sign-in silently turns them into a
+-- teacher. From then on the §39 guard refuses them as `is_teacher` and
+-- the same address can never be invited again.
+--
+-- The role a person already holds is the answer, and it belongs in the
+-- database rather than in the one function that happens to write the row
+-- today. A trigger cannot be routed around by a second code path.
+
+-- ── a student may not become a teacher ────────────────────────────────
+CREATE OR REPLACE FUNCTION public.faculty_block_students()
+RETURNS trigger
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM users u WHERE u.id = NEW.user_id AND u.role = 'student') THEN
+    RAISE EXCEPTION 'this account is a student and cannot become a teacher'
+      USING ERRCODE = '42501';
+  END IF;
+  RETURN NEW;
+END $$;
+
+DROP TRIGGER IF EXISTS faculty_block_students_trg ON public.faculty;
+CREATE TRIGGER faculty_block_students_trg
+  BEFORE INSERT ON public.faculty
+  FOR EACH ROW EXECUTE FUNCTION public.faculty_block_students();
+
+-- ── undo the ones already granted ─────────────────────────────────────
+--
+-- Anyone carrying users.role = 'student' AND a faculty row got it from
+-- the fall-through above; nothing else can produce that pair. The faculty
+-- row is the wrong half, and it is safe to drop precisely when the
+-- account owns no teaching work.
+DO $$
+DECLARE fixed int;
+BEGIN
+  WITH wrong AS (
+    SELECT f.id
+      FROM faculty f
+      JOIN users u ON u.id = f.user_id
+     WHERE u.role = 'student'
+       AND NOT EXISTS (SELECT 1 FROM students  s WHERE s.created_by = f.id)
+       AND NOT EXISTS (SELECT 1 FROM classes   c WHERE c.faculty_id = f.id)
+       AND NOT EXISTS (SELECT 1 FROM ai_studio a WHERE a.faculty_id = f.id)
+  )
+  DELETE FROM faculty WHERE id IN (SELECT id FROM wrong);
+  GET DIAGNOSTICS fixed = ROW_COUNT;
+  IF fixed > 0 THEN
+    RAISE NOTICE 'roles: removed % faculty row(s) wrongly granted to students', fixed;
+  END IF;
+END $$;
+
+-- ── re-adding someone the platform already knows ──────────────────────
+--
+-- A teacher who removes a student and adds them back should not have to
+-- invite them again. The invitation exists to prove the address belongs
+-- to someone a teacher chose; that was established the first time, and
+-- the account on the other end is already a student. Sending a second
+-- "you have been added" mail to an account that can already sign in is
+-- noise, and it leaves the row sitting at `invited` when the person is
+-- plainly active.
+--
+-- So: if the address already belongs to a student account, the row is
+-- claimed on the spot and no mail is sent.
+CREATE OR REPLACE FUNCTION public.attach_known_student(p_student uuid)
+RETURNS jsonb
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE em text; uid uuid; owner uuid;
+BEGIN
+  SELECT lower(trim(s.email)), s.created_by INTO em, owner
+    FROM students s WHERE s.id = p_student;
+  IF em IS NULL THEN RETURN jsonb_build_object('attached', false, 'reason', 'not_found'); END IF;
+
+  -- The caller must own the row. DEFINER bypasses RLS, so ownership is
+  -- checked by hand exactly as the invite route does.
+  IF owner IS DISTINCT FROM public.current_faculty_id() THEN
+    RETURN jsonb_build_object('attached', false, 'reason', 'not_yours');
+  END IF;
+
+  SELECT u.id INTO uid
+    FROM auth.users u
+    JOIN public.users pu ON pu.id = u.id
+   WHERE lower(u.email) = em AND pu.role = 'student'
+   LIMIT 1;
+
+  IF uid IS NULL THEN RETURN jsonb_build_object('attached', false, 'reason', 'no_account'); END IF;
+
+  UPDATE students
+     SET user_id = uid, invite_status = 'active', invited_at = now(), updated_at = now()
+   WHERE id = p_student;
+
+  RETURN jsonb_build_object('attached', true, 'user_id', uid);
+END $$;
+GRANT EXECUTE ON FUNCTION public.attach_known_student(uuid) TO authenticated;
+
+-- ── everyone this teacher has ever added ──────────────────────────────
+--
+-- Powers the address picker on the student form. A teacher re-adding a
+-- child she removed last term should not retype a date of birth the
+-- platform still holds; she picks the address and the rest arrives.
+--
+-- Scoped to her own roster. It is a convenience, not a directory: the
+-- addresses of other teachers' students are none of her business.
+CREATE OR REPLACE FUNCTION public.my_known_students()
+RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE out jsonb; fid uuid;
+BEGIN
+  fid := public.current_faculty_id();
+  IF fid IS NULL THEN RETURN '[]'::jsonb; END IF;
+
+  SELECT COALESCE(jsonb_agg(row_to_json(t) ORDER BY t.last_seen DESC), '[]'::jsonb) INTO out
+  FROM (
+    SELECT DISTINCT ON (lower(s.email))
+           s.email, s.first_name, s.last_name, s.student_id, s.date_of_birth,
+           s.gender, s.nationality, s.grade, s.division AS section, s.subject,
+           s.phone, s.address, s.school_id,
+           s.primary_guardian_name, s.primary_guardian_relation,
+           s.primary_guardian_email, s.primary_guardian_phone,
+           s.user_id IS NOT NULL AS has_account,
+           s.updated_at AS last_seen
+      FROM students s
+     WHERE s.created_by = fid
+     ORDER BY lower(s.email), s.updated_at DESC
+  ) t;
+  RETURN out;
+END $$;
+GRANT EXECUTE ON FUNCTION public.my_known_students() TO authenticated;
+
+DO $$
+BEGIN
+  RAISE NOTICE 'roles: a student account can no longer be turned into a teacher';
+END $$;

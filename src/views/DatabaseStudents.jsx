@@ -797,6 +797,55 @@ function StudentEditModal({ initial, prefill = null, onClose, onSaved }) {
   }, []);
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
 
+  /**
+   * Addresses this teacher has used before, and what she typed with them.
+   *
+   * A student removed from a class does not stop existing — the account
+   * survives, and so does everything she once entered about them. Making
+   * her retype a date of birth the platform still holds is the kind of
+   * small insult that makes software feel hostile, so the address picks
+   * the rest.
+   *
+   * New students only. On an existing row the address is the identity of
+   * the record being edited, and offering to overwrite it with someone
+   * else's details is a way to lose a child in the roster.
+   */
+  const [known, setKnown] = useState([]);
+  useEffect(() => {
+    if (!isNew) return;
+    api("/api/students/known").then((r) => setKnown(r || [])).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const pickKnown = (email) => {
+    const k = known.find((x) => (x.email || "").toLowerCase() === email.toLowerCase());
+    if (!k) return set("email", email);
+    setForm((f) => ({
+      ...f,
+      email: k.email ?? "",
+      first_name: k.first_name ?? f.first_name,
+      last_name: k.last_name ?? f.last_name,
+      student_id: k.student_id ?? f.student_id,
+      date_of_birth: k.date_of_birth ? String(k.date_of_birth).slice(0, 10) : f.date_of_birth,
+      gender: k.gender ?? f.gender,
+      nationality: k.nationality ?? f.nationality,
+      grade: k.grade ?? f.grade,
+      section: k.section ?? f.section,
+      subject: k.subject ?? f.subject,
+      phone: k.phone ?? f.phone,
+      address: k.address ?? f.address,
+      school_id: k.school_id ?? f.school_id,
+      primary_guardian_name: k.primary_guardian_name ?? f.primary_guardian_name,
+      primary_guardian_relation: k.primary_guardian_relation ?? f.primary_guardian_relation,
+      primary_guardian_email: k.primary_guardian_email ?? f.primary_guardian_email,
+      primary_guardian_phone: k.primary_guardian_phone ?? f.primary_guardian_phone,
+    }));
+  };
+
+  const knownMatch = known.find(
+    (k) => (k.email || "").toLowerCase() === String(form.email || "").trim().toLowerCase()
+  );
+
   const submit = async () => {
     const missing = REQUIRED_STUDENT_FIELDS
       .filter(([k]) => !String(form[k] ?? "").trim())
@@ -934,9 +983,48 @@ function StudentEditModal({ initial, prefill = null, onClose, onSaved }) {
 
       <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-3">Contact</p>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-        <SField label="Email" hint="they sign in with this" required>
-          <input type="email" className={inputClasses} value={form.email}
-            onChange={(e) => set("email", e.target.value)} required />
+        <SField
+          label="Email"
+          hint={known.length ? "they sign in with this · pick a past student" : "they sign in with this"}
+          required
+        >
+          <input
+            type="email"
+            list={known.length ? "murchid-known-students" : undefined}
+            className={inputClasses}
+            value={form.email}
+            onChange={(e) => pickKnown(e.target.value)}
+            required
+          />
+          {/* A datalist rather than a select: she must still be able to type
+              an address that has never been used here, which is the common
+              case. The list is an offer, not a constraint. */}
+          {known.length > 0 && (
+            <datalist id="murchid-known-students">
+              {known.map((k) => (
+                <option key={k.email} value={k.email}>
+                  {[k.first_name, k.last_name].filter(Boolean).join(" ")}
+                  {k.grade ? ` · ${k.grade}${k.section ? ` ${k.section}` : ""}` : ""}
+                </option>
+              ))}
+            </datalist>
+          )}
+          {knownMatch && (
+            <p className="text-xs text-muted mt-1.5">
+              {knownMatch.has_account ? (
+                <>
+                  You&rsquo;ve added{" "}
+                  <span className="text-ink">
+                    {[knownMatch.first_name, knownMatch.last_name].filter(Boolean).join(" ")}
+                  </span>{" "}
+                  before and they already have an account — they&rsquo;ll join your class
+                  straight away, with no new invitation.
+                </>
+              ) : (
+                <>Details filled in from the last time you added this student.</>
+              )}
+            </p>
+          )}
         </SField>
         <SField label="Phone">
           <input className={inputClasses} value={form.phone}

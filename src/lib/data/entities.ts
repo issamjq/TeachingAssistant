@@ -376,6 +376,28 @@ export async function inviteStudent(id: string) {
    * matching the address they arrive with. So it never expires, and pressing
    * Invite again is always safe.
    */
+  /**
+   * Someone this platform already knows needs no second invitation.
+   *
+   * The invite exists to prove the address belongs to a person a teacher
+   * chose. That was settled the first time; the account on the other end
+   * is already a student and can already sign in. Re-inviting them left
+   * the row at `invited` while the person was plainly active, and put a
+   * "you have been added" mail in an inbox that did not need one — which
+   * is what happened every time a teacher removed a student and added
+   * them back.
+   */
+  try {
+    const { data: attached } = await supabase.rpc("attach_known_student", { p_student: id });
+    if ((attached as any)?.attached) {
+      const { data: fresh } = await supabase
+        .from("students").select(STUDENT_COLS).eq("id", id).maybeSingle();
+      return { ...outStudent(fresh ?? data), invite_mail_error: null };
+    }
+  } catch {
+    /* not deployed yet — fall through and invite as before */
+  }
+
   let mailError: string | null = null;
   let alreadyTeacher = false;
   try {
@@ -1344,6 +1366,19 @@ export async function getBulletinShare() {
     throw insErr;
   }
   return { token: created.token };
+}
+
+/**
+ * Every address this teacher has ever added, with the details behind it.
+ *
+ * Feeds the picker on the student form. A teacher re-adding a child she
+ * removed last term should not retype a date of birth the platform still
+ * holds — she picks the address and the rest arrives.
+ */
+export async function knownStudents() {
+  const { data, error } = await supabase.rpc("my_known_students");
+  if (error) return [];
+  return Array.isArray(data) ? data : [];
 }
 
 // ── sign-in ───────────────────────────────────────────────────────────
