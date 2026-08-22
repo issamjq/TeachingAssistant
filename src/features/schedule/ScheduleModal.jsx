@@ -43,6 +43,14 @@ export default function ScheduleModal({ initial, prefill, onClose, onSaved }) {
       end_time: fmtTime(initial.end_time),
     };
   });
+
+  /**
+   * Is this entry an assignment, or just a slot in her own week?
+   *
+   * A generation attached makes it work that students receive; without
+   * one it is a free period or a meeting, which has no audience to miss.
+   */
+  const carriesWork = Boolean(form.draft_id);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState(null);
   const [conflict, setConflict] = useState(null);
@@ -75,6 +83,27 @@ export default function ScheduleModal({ initial, prefill, onClose, onSaved }) {
   // click event here, which is truthy.
   const submit = async (opts) => {
     const ignoreConflict = opts === true;
+    /**
+     * Refuse before the round trip, and say what it costs.
+     *
+     * The data layer enforces this too — four screens write entries — but
+     * catching it here keeps the teacher in the form with the empty field
+     * in front of her rather than reading an error about a save.
+     */
+    if (carriesWork) {
+      const missing = [
+        !String(form.grade ?? "").trim() && "a grade",
+        !String(form.subject ?? "").trim() && "a subject",
+      ].filter(Boolean);
+      if (missing.length) {
+        setErr(
+          `Add ${missing.join(" and ")} before scheduling this. Students receive work by ` +
+          `matching their grade and subject, so without ${missing.length > 1 ? "them" : "it"} ` +
+          `nobody will see it.`
+        );
+        return;
+      }
+    }
     setSaving(true);
     setErr(null);
     // Warn-don't-block: teachers sometimes run parallel activities on
@@ -161,10 +190,14 @@ export default function ScheduleModal({ initial, prefill, onClose, onSaved }) {
             <input className={inputClasses} value={form.title} onChange={(e) => set("title", e.target.value)} />
           </Field>
         </div>
-        <Field label="Subject">
+        <Field
+          label="Subject"
+          required={carriesWork}
+          hint={carriesWork ? "students match on this" : undefined}
+        >
           <input className={inputClasses} value={form.subject} onChange={(e) => set("subject", e.target.value)} />
         </Field>
-        <Field label="Grade">
+        <Field label="Grade" required={carriesWork}>
           <AudienceSelect
             value={form.grade}
             onChange={(v) => set("grade", v)}

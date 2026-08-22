@@ -561,7 +561,43 @@ export async function listSchedule(params: URLSearchParams) {
   return data || [];
 }
 
+/**
+ * Work with no audience reaches nobody.
+ *
+ * A schedule entry carrying a generation IS the assignment — students
+ * receive it by matching their grade and subject against these two
+ * fields (db/tune.sql §48). Left blank, the entry saves, appears on her
+ * timetable, and is delivered to no one: the most expensive kind of
+ * failure, because everything looks like it worked.
+ *
+ * An entry with no generation is just a slot in her own week — a free
+ * period, a meeting, a reminder — and has no audience to miss. Those stay
+ * free-form.
+ *
+ * Enforced here rather than in the modal because four screens create
+ * entries: the schedule modal, the planner, the teaching rail and the
+ * studio's save-and-schedule.
+ */
+function requireAudience(body: Record<string, any>, existing?: Record<string, any>) {
+  const merged = { ...(existing ?? {}), ...body };
+  if (!merged.draft_id) return;
+  const missing = [
+    !String(merged.grade ?? "").trim() && "a grade",
+    !String(merged.subject ?? "").trim() && "a subject",
+  ].filter(Boolean) as string[];
+  if (!missing.length) return;
+  throw Object.assign(
+    new Error(
+      `Add ${missing.join(" and ")} before scheduling this. ` +
+      `Students receive work by matching their grade and subject, so without ` +
+      `${missing.length > 1 ? "them" : "it"} nobody will see it.`,
+    ),
+    { status: 400, code: "no_audience" },
+  );
+}
+
 export async function createSchedule(body: Record<string, any>) {
+  requireAudience(body);
   const fid = await facultyId();
   const { data, error } = await supabase
     .from("schedule_entries").insert({ ...body, faculty_id: fid }).select(SCHED).single();
@@ -570,6 +606,11 @@ export async function createSchedule(body: Record<string, any>) {
 }
 
 export async function updateSchedule(id: string, body: Record<string, any>) {
+  // Merged against what is already stored: a PATCH that only moves the
+  // date must not be asked to resupply a subject it is not touching.
+  const { data: current } = await supabase
+    .from("schedule_entries").select("draft_id, grade, subject").eq("id", id).maybeSingle();
+  requireAudience(body, current ?? undefined);
   const { data, error } = await supabase
     .from("schedule_entries").update({ ...body, updated_at: iso() })
     .eq("id", id).select(SCHED).maybeSingle();
