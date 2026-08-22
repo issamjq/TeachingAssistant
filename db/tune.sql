@@ -3717,3 +3717,165 @@ DO $$
 BEGIN
   RAISE NOTICE 'students: email is now required';
 END $$;
+
+
+-- =====================================================================
+-- 43. The console's delete, where the console actually looks
+-- =====================================================================
+--
+-- /api/admin/* is answered in the BROWSER by these RPCs, not by the API
+-- service — src/lib/data/superadmin.ts maps the paths straight onto
+-- sa_stats(), sa_accounts() and sa_delete_account(). Fixing the Express
+-- routes of the same name therefore changed nothing anyone could see,
+-- which is worth writing down because the two layers look identical from
+-- the frontend and only one of them runs.
+--
+-- Three faults, all visible on one screen:
+--
+--   * sa_accounts() returned deleted accounts like any other, so pressing
+--     the bin appeared to do nothing — the row came back on the reload,
+--     and the status pill was the only clue it had worked at all;
+--   * sa_stats() counted them too, so the total disagreed with the list;
+--   * sa_delete_account() was a soft delete and nothing more. The account
+--     stayed in auth.users, kept its email, and the address could never
+--     be reused — which is exactly what a test account needs to be.
+--
+-- Soft delete was the right default for a product that had no way to say
+-- what "gone" meant. It has one now: below, and it is deliberate.
+
+-- ── the list ──────────────────────────────────────────────────────────
+CREATE OR REPLACE FUNCTION public.sa_accounts(p_include_deleted boolean DEFAULT false)
+RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE out jsonb;
+BEGIN
+  PERFORM public.sa_gate_any(ARRAY['admin.accounts','admin.dashboard']);
+  SELECT COALESCE(jsonb_agg(row_to_json(t) ORDER BY t.created_at DESC), '[]'::jsonb) INTO out
+  FROM (
+    SELECT id, user_id, first_name, last_name, email, role, sub_role, status,
+           staff_id, last_login_at, created_at,
+           subscription_plan, subscription_status, subscription_ends_at
+      FROM public.accounts
+     WHERE p_include_deleted OR COALESCE(status, 'active') <> 'deleted'
+  ) t;
+  RETURN out;
+END $$;
+GRANT EXECUTE ON FUNCTION public.sa_accounts(boolean) TO authenticated;
+
+-- ── the cards ─────────────────────────────────────────────────────────
+--
+-- Also stops counting `role = 'teacher'`. Every row in `accounts` has a
+-- faculty row and therefore teaches; a super admin who also teaches
+-- carries her granted role in users.role rather than 'teacher', and was
+-- silently missing from her own console's totals.
+CREATE OR REPLACE FUNCTION public.sa_stats()
+RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE out jsonb;
+BEGIN
+  PERFORM public.sa_gate_any(ARRAY['admin.accounts','admin.dashboard']);
+  SELECT jsonb_build_object(
+    'active_teachers',    count(*) FILTER (WHERE COALESCE(status,'active') = 'active'),
+    'suspended_teachers', count(*) FILTER (WHERE status = 'suspended'),
+    'total_teachers',     count(*) FILTER (WHERE COALESCE(status,'active') <> 'deleted'),
+    'lapsed',             count(*) FILTER (
+                            WHERE COALESCE(status,'active') <> 'deleted'
+                              AND (subscription_status IS NULL
+                                   OR subscription_status IN ('expired','canceled','past_due')
+                                   OR (subscription_ends_at IS NOT NULL
+                                       AND subscription_ends_at < now())))
+  ) INTO out
+  FROM public.accounts;
+  RETURN out;
+END $$;
+
+-- ── the delete ────────────────────────────────────────────────────────
+--
+-- Hard by default. Everything a teacher owns is ON DELETE CASCADE from
+-- her faculty row — classes, studio work, goals, skills, schedule,
+-- attendance, marks, credits, subscription — so removing the row removes
+-- her world with it, and removing the login frees the address.
+--
+-- Her roster rows are the exception and have to be handled by hand:
+-- students.created_by is ON DELETE SET NULL, so deleting her would leave
+-- every child she entered owned by nobody. An orphan row is not merely
+-- untidy, it is unreachable: every students policy is written in terms of
+-- created_by, so a row with NULL there can be read by no one, edited by
+-- no one, and deleted by no one. They go with her.
+--
+-- The claimed ones keep their accounts. A student is a person, not this
+-- teacher's property — she may be one of three teachers who invited them,
+-- and losing their login because she closed her account is not a thing
+-- the platform is allowed to do. sa_delete_student() is where a student's
+-- account is removed, one row at a time, on purpose.
+CREATE OR REPLACE FUNCTION public.sa_delete_account(
+  p_faculty uuid,
+  p_hard boolean DEFAULT true
+)
+RETURNS jsonb
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE uid uuid; target_role text; roster int;
+BEGIN
+  PERFORM public.sa_gate('admin.accounts');
+  uid := public.sa_user_of(p_faculty);
+  IF uid IS NULL THEN RAISE EXCEPTION 'account not found'; END IF;
+  IF uid = (SELECT auth.uid()) THEN
+    RAISE EXCEPTION 'cannot delete your own account' USING ERRCODE = '42501';
+  END IF;
+
+  SELECT role INTO target_role FROM users WHERE id = uid;
+  IF target_role IN ('super_admin', 'dev') THEN
+    -- The console cannot be used to remove the people who own the console.
+    RAISE EXCEPTION 'cannot delete a privileged account' USING ERRCODE = '42501';
+  END IF;
+
+  IF NOT p_hard THEN
+    UPDATE users SET account_status = 'deleted', active_session_id = NULL, updated_at = now()
+     WHERE id = uid;
+    PERFORM public.sa_write_audit('admin.teacher.delete', 'users', uid,
+                                  jsonb_build_object('faculty_id', p_faculty, 'soft', true));
+    RETURN jsonb_build_object('ok', true, 'id', p_faculty, 'hard', false);
+  END IF;
+
+  -- Would be orphaned by the SET NULL, and unreachable if it were.
+  DELETE FROM students WHERE created_by = p_faculty;
+  GET DIAGNOSTICS roster = ROW_COUNT;
+
+  PERFORM public.sa_write_audit('admin.teacher.delete', 'users', uid,
+                                jsonb_build_object('faculty_id', p_faculty,
+                                                   'soft', false,
+                                                   'roster_removed', roster));
+
+  DELETE FROM faculty      WHERE id = p_faculty;   -- cascades her whole world
+  DELETE FROM public.users WHERE id = uid;
+  DELETE FROM auth.users   WHERE id = uid;
+
+  RETURN jsonb_build_object('ok', true, 'id', p_faculty, 'hard', true, 'roster_removed', roster);
+END $$;
+GRANT EXECUTE ON FUNCTION public.sa_delete_account(uuid, boolean) TO authenticated;
+
+DO $$
+BEGIN
+  RAISE NOTICE 'console: deleted accounts are hidden, uncounted, and actually deleted';
+END $$;
+
+
+-- ── drop the pre-§43 signatures ───────────────────────────────────────
+--
+-- CREATE OR REPLACE with a new defaulted parameter does not replace a
+-- function, it OVERLOADS it. Both versions were live, and the browser
+-- calls rpc("sa_accounts") with no arguments — which resolves to the
+-- zero-arg one. The migration ran, reported success, and the console kept
+-- calling the old unfiltered list and the old soft delete.
+--
+-- Dropped by exact signature so only the stale arities go.
+DROP FUNCTION IF EXISTS public.sa_accounts();
+DROP FUNCTION IF EXISTS public.sa_delete_account(uuid);
+
+DO $$
+BEGIN
+  RAISE NOTICE 'console: stale sa_accounts()/sa_delete_account(uuid) overloads removed';
+END $$;
