@@ -123,7 +123,27 @@ function NavBadge({ letter, icon }: { letter?: string; icon?: string }) {
 }
 
 export default function StudioShell({ children }: { children: React.ReactNode }) {
-  const [role, setRoleState] = useState<Role>(getRole);
+  /**
+   * The stored role is adopted AFTER mount, never during the first render.
+   *
+   * getRole() reads localStorage, which exists in the browser and not on
+   * the server. Used as the useState initialiser it ran in both places and
+   * disagreed: the server rendered a teacher's sidebar, the client rendered
+   * a super admin's, and React threw the whole tree away with a hydration
+   * mismatch — "Overview" on the server against "Super admin" on the
+   * client. Everything still worked, which is why it survived: the console
+   * carried the error and the screen looked fine.
+   *
+   * Seeding with the same value the server used makes the first paint
+   * agree by construction. The effect below is the only thing that reads
+   * storage, and it runs once hydration is done.
+   */
+  const [role, setRoleState] = useState<Role>("teacher");
+
+  useEffect(() => {
+    const stored = getRole();
+    if (stored !== "teacher") setRoleState(stored);
+  }, []);
   // Every role this account holds, from /api/me. One entry is the ordinary
   // case and the switcher stays hidden; more than one means the person is
   // genuinely both things and gets to choose which interface they are in.
