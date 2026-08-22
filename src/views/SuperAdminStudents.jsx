@@ -2,10 +2,14 @@
 
 // Super-admin Students dashboard — every student across the platform, and
 // what they are doing: quiz attempts and submissions, scores, last-seen.
-// Reads the is_super_admin()-gated sa_students_* RPCs; no writes.
+// Reads the is_super_admin()-gated sa_students_* RPCs.
+//
+// One write: delete. It is deliberately the only one, and it is the only
+// delete anywhere that reaches the person rather than a teacher's copy of
+// them — a teacher's Delete means "not in my class", this one means gone.
 
 import React, { useEffect, useMemo, useState } from "react";
-import { Users, UserCheck, ClipboardList, Activity, Percent, Search } from "lucide-react";
+import { Users, UserCheck, ClipboardList, Activity, Percent, Search, Trash2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { api } from "./_shared";
 import { LineChart, DonutChart, BarChart } from "../components/MiniCharts";
@@ -18,6 +22,8 @@ export default function SuperAdminStudents() {
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [deleting, setDeleting] = useState(null);
+  const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     Promise.all([
@@ -33,6 +39,30 @@ export default function SuperAdminStudents() {
   const runSearch = async (q) => {
     const r = await api(`/api/superadmin/students?limit=100${q ? `&search=${encodeURIComponent(q)}` : ""}`);
     setRows(r);
+  };
+
+  /**
+   * Remove the student, and the login behind them.
+   *
+   * Confirmed first because it cannot be undone and because the row is
+   * not always enough to identify a child — two students called Alif on
+   * two rosters look identical until you read the email.
+   */
+  const confirmDelete = async () => {
+    setBusy(true);
+    try {
+      const r = await api(`/api/superadmin/students/${deleting.id}`, { method: "DELETE" });
+      setRows((rs) => rs.filter((x) => x.id !== deleting.id));
+      setDeleting(null);
+      if (r?.account_purged) {
+        // Worth saying out loud: the address is now free to be invited again.
+        setOv((o) => (o ? { ...o, with_account: Math.max(0, (o.with_account || 1) - 1) } : o));
+      }
+    } catch (e) {
+      alert(`Could not delete: ${e.message}`);
+    } finally {
+      setBusy(false);
+    }
   };
 
   const gradeBars = useMemo(
@@ -142,6 +172,7 @@ export default function SuperAdminStudents() {
                   <th className="text-left py-3 font-medium">Attempts</th>
                   <th className="text-left py-3 font-medium">Avg</th>
                   <th className="text-left py-3 font-medium">Last active</th>
+                  <th className="w-10" />
                 </tr>
               </thead>
               <tbody>
@@ -152,6 +183,8 @@ export default function SuperAdminStudents() {
                       {s.has_account && (
                         <span className="ml-2 font-mono text-[9px] uppercase tracking-wider text-sage">acct</span>
                       )}
+                      {s.email && <div className="text-muted text-xs">{s.email}</div>}
+                      {s.teacher && <div className="text-muted text-[11px]">taught by {s.teacher}</div>}
                     </td>
                     <td className="py-3 text-muted text-xs">{s.school || "—"}</td>
                     <td className="py-3 text-muted text-xs">{s.grade || "—"}{s.section ? `·${s.section}` : ""}</td>
@@ -160,16 +193,65 @@ export default function SuperAdminStudents() {
                     <td className="py-3 text-muted text-xs">
                       {s.last_activity ? new Date(s.last_activity).toLocaleDateString() : "—"}
                     </td>
+                    <td className="py-3 pr-2 text-right">
+                      <button
+                        type="button"
+                        onClick={() => setDeleting(s)}
+                        title="Remove this student and their account"
+                        className="text-muted hover:text-clay transition p-1"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </td>
                   </tr>
                 ))}
                 {rows.length === 0 && (
-                  <tr><td colSpan={6} className="py-12 text-center text-muted">No students match.</td></tr>
+                  <tr><td colSpan={7} className="py-12 text-center text-muted">No students match.</td></tr>
                 )}
               </tbody>
             </table>
           </div>
         </CardContent>
       </Card>
+
+      {deleting && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 p-4">
+          <div className="bg-paper rounded-2xl border border-line max-w-md w-full p-6">
+            <p className="font-mono text-[10px] uppercase tracking-[0.15em] text-clay mb-2">
+              Remove student
+            </p>
+            <h3 className="font-serif text-2xl text-ink mb-3">
+              {deleting.first_name} {deleting.last_name}
+            </h3>
+            <p className="text-sm text-muted mb-2">
+              This removes them from{" "}
+              <span className="text-ink">{deleting.teacher || "their teacher"}</span>&rsquo;s class
+              {deleting.email ? <> and deletes the account for <span className="text-ink">{deleting.email}</span></> : null}.
+            </p>
+            <p className="text-sm text-muted mb-6">
+              A teacher can only remove a student from her own class. This cannot be undone.
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setDeleting(null)}
+                disabled={busy}
+                className="px-4 py-2 rounded-full border border-line text-ink text-sm hover:bg-paper-warm transition disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmDelete}
+                disabled={busy}
+                className="px-4 py-2 rounded-full bg-ink text-paper text-sm hover:opacity-90 transition disabled:opacity-50"
+              >
+                {busy ? "Removing\u2026" : "Remove"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

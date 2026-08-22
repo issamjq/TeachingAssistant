@@ -3502,3 +3502,122 @@ DO $$
 BEGIN
   RAISE NOTICE 'students: a teacher address can no longer claim a roster row';
 END $$;
+
+
+-- =====================================================================
+-- 40. One row per child per teacher, and a delete that means it
+-- =====================================================================
+--
+-- Three rules the roster could not express, all of them about the fact
+-- that a student row belongs to a TEACHER, not to the platform.
+--
+-- **The same address twice in one teacher's class is a mistake, always.**
+-- Nothing stopped it, so a teacher who typed a name again — or pressed
+-- Create twice on a slow connection — got a second row, a second
+-- invitation to the same inbox, and a class list that double-counts a
+-- child who is sitting in the room once. The index below is per teacher,
+-- not global, because the same address on TWO teachers' rosters is the
+-- ordinary case this product is built around.
+--
+-- **A teacher removing a student removes her own row and nothing else.**
+-- That already holds — deleteStudent() scopes to created_by — and it is
+-- worth stating because the opposite is what people expect: her Delete
+-- is "not in my class any more", never "erase this child". The account
+-- survives, the other teachers' rows survive, and the student keeps
+-- every class they still hold.
+--
+-- **A super admin removing a student means it.** That is the one delete
+-- that is allowed to reach the person: every roster row they hold, and
+-- the login itself, so a test address can be used again from clean.
+-- Teachers cannot reach this and never should.
+
+-- ── one address per teacher ───────────────────────────────────────────
+--
+-- Partial: rows without an email are the normal paper-roster case and
+-- any number of them may exist. lower() because a teacher who types
+-- Alif@… on Tuesday and alif@… on Friday means the same child.
+CREATE UNIQUE INDEX IF NOT EXISTS students_teacher_email_unique
+  ON public.students (created_by, lower(email))
+  WHERE coalesce(trim(email), '') <> '';
+
+-- ── the super admin's delete ──────────────────────────────────────────
+--
+-- Removes one roster row. If that was the last row the person held and
+-- they do not also teach here, the account goes too — otherwise a
+-- deleted student leaves behind a login that can sign in, match nothing,
+-- and sit in auth.users forever. Purging it is also what makes an
+-- address reusable for the next test.
+--
+-- The faculty check is the safety catch: a person who teaches AND was
+-- once on a roster must never lose their teaching account to a student
+-- cleanup.
+CREATE OR REPLACE FUNCTION public.sa_delete_student(
+  p_student uuid,
+  p_purge_account boolean DEFAULT true
+)
+RETURNS jsonb
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE uid uuid; remaining int; purged boolean := false;
+BEGIN
+  PERFORM public.sa_gate('admin.dashboard');
+
+  SELECT user_id INTO uid FROM students WHERE id = p_student;
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object('deleted', false, 'reason', 'not_found');
+  END IF;
+
+  DELETE FROM students WHERE id = p_student;
+
+  IF p_purge_account AND uid IS NOT NULL THEN
+    SELECT count(*) INTO remaining FROM students WHERE user_id = uid;
+    IF remaining = 0 AND NOT EXISTS (SELECT 1 FROM faculty f WHERE f.user_id = uid) THEN
+      DELETE FROM public.users WHERE id = uid;
+      DELETE FROM auth.users  WHERE id = uid;
+      purged := true;
+    END IF;
+  END IF;
+
+  RETURN jsonb_build_object('deleted', true, 'account_purged', purged);
+END $$;
+GRANT EXECUTE ON FUNCTION public.sa_delete_student(uuid, boolean) TO authenticated;
+
+-- ── the console needs to know who it is deleting ──────────────────────
+--
+-- The list carried no email and no teacher, which is not enough to
+-- decide anything: two children called Alif on two rosters look
+-- identical, and the delete above is not reversible.
+CREATE OR REPLACE FUNCTION public.sa_students(p_limit integer DEFAULT 100, p_search text DEFAULT NULL::text)
+RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE out jsonb; n int := LEAST(GREATEST(COALESCE(p_limit,100),1), 500); q text := NULLIF(TRIM(COALESCE(p_search,'')), '');
+BEGIN
+  PERFORM public.sa_gate('admin.dashboard');
+  SELECT COALESCE(jsonb_agg(row_to_json(t)), '[]'::jsonb) INTO out FROM (
+    SELECT st.id, st.first_name, st.last_name, st.grade, st.division AS section,
+           st.email, st.invite_status,
+           sc.name AS school, sc.emirate,
+           st.user_id IS NOT NULL AS has_account,
+           (SELECT trim(coalesce(tu.first_name,'') || ' ' || coalesce(tu.last_name,''))
+              FROM faculty tf JOIN users tu ON tu.id = tf.user_id
+             WHERE tf.id = st.created_by) AS teacher,
+           (SELECT count(*) FROM quiz_attempts qa WHERE qa.student_id = st.id) AS attempts,
+           (SELECT round(avg(qa.score / NULLIF(qa.max_score,0) * 100)::numeric, 0)
+              FROM quiz_attempts qa WHERE qa.student_id = st.id AND qa.score IS NOT NULL) AS avg_pct,
+           (SELECT max(qa.submitted_at) FROM quiz_attempts qa WHERE qa.student_id = st.id) AS last_activity
+      FROM students st LEFT JOIN schools sc ON sc.id = st.school_id
+     WHERE q IS NULL
+        OR st.first_name ILIKE '%'||q||'%' OR st.last_name ILIKE '%'||q||'%'
+        OR st.email ILIKE '%'||q||'%'
+        OR sc.name ILIKE '%'||q||'%'
+     ORDER BY last_activity DESC NULLS LAST, st.created_at DESC
+     LIMIT n
+  ) t;
+  RETURN out;
+END $$;
+
+DO $$
+BEGIN
+  RAISE NOTICE 'students: one address per teacher; super admin delete purges the account';
+END $$;

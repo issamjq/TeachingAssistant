@@ -97,6 +97,16 @@ export async function resolveSuperadmin(
     return yes(await rpc("sa_students", { p_limit: int(q.get("limit"), 100), p_search: q.get("search") }));
   if (a === "student-activity" && method === "GET")
     return yes(await rpc("sa_student_activity", { p_limit: int(q.get("limit"), 20) }));
+  /**
+   * The only delete that reaches the person.
+   *
+   * A teacher's Delete removes her own roster row and nothing else. This
+   * one removes the row AND the login behind it, when that row was the
+   * last one the student held — otherwise a deleted student leaves an
+   * account that can sign in and match nothing.
+   */
+  if (a === "students" && b && method === "DELETE")
+    return yes(await rpc("sa_delete_student", { p_student: b, p_purge_account: true }));
 
   // Organisations (schools) — where teaching happens, and their output.
   if (a === "orgs-overview" && method === "GET") return yes(await rpc("sa_orgs_overview"));

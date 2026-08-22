@@ -28,6 +28,28 @@ import { resolvePermissions } from "@/lib/permissions";
 const iso = () => new Date().toISOString();
 const notFound = () => Object.assign(new Error("Not found"), { status: 404 });
 
+/**
+ * The same address twice on one teacher's roster.
+ *
+ * Postgres reports 23505 against students_teacher_email_unique. Passed
+ * through raw it reads as an internal failure, which is the wrong story:
+ * nothing broke, the child is simply already in this class. Without the
+ * index a slow Create pressed twice made two rows and two invitations to
+ * the same inbox.
+ */
+function duplicateStudent(email: string) {
+  return Object.assign(
+    new Error(
+      `${email} is already a student in your class. ` +
+      `Find them in the list to edit or re-invite them.`,
+    ),
+    { status: 409, code: "duplicate_student" },
+  );
+}
+
+const isDuplicateEmail = (e: any) =>
+  e?.code === "23505" && String(e?.message ?? "").includes("students_teacher_email_unique");
+
 // ── profile ───────────────────────────────────────────────────────────
 
 /** /api/me — users ⨝ faculty ⨝ subscriptions ⨝ credits, flattened. */
@@ -225,6 +247,7 @@ export async function createStudent(body: Record<string, any>) {
   const { data, error } = await supabase
     .from("students").insert({ ...inStudent(body), created_by: fid })
     .select(STUDENT_COLS).single();
+  if (isDuplicateEmail(error)) throw duplicateStudent(String(body?.email ?? "").trim());
   if (error) throw error;
   // Adding a student with an email invites them in the same action —
   // typing the address IS the intent to let them in. Best-effort: a
@@ -346,6 +369,7 @@ export async function updateStudent(id: string, body: Record<string, any>) {
   const { data, error } = await supabase
     .from("students").update({ ...inStudent(body), updated_at: iso() })
     .eq("id", id).select(STUDENT_COLS).maybeSingle();
+  if (isDuplicateEmail(error)) throw duplicateStudent(String(body?.email ?? "").trim());
   if (error) throw error;
   if (!data) throw notFound();
   return outStudent(data);
