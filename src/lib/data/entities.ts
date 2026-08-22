@@ -274,6 +274,9 @@ const STUDENT_COLS =
   "invite_status, invited_at, created_at, updated_at";
 
 const outStudent = (r: any) => (r ? { ...r, section: r.division } : r);
+/** Date columns on students. An empty form field is NULL, never "". */
+const STUDENT_DATE_FIELDS = ["date_of_birth", "enrollment_date"] as const;
+
 const inStudent = (b: Record<string, any>) => {
   const o = { ...b };
   if ("section" in o) { o.division = o.section; delete o.section; }
@@ -281,6 +284,24 @@ const inStudent = (b: Record<string, any>) => {
   // Never client-settable through a plain create/update: linking an
   // account and opening the invite gate go through their own paths.
   delete o.user_id; delete o.invite_status; delete o.invited_at;
+
+  /**
+   * An untouched date input reads "", and Postgres will not take it:
+   * `invalid input syntax for type date: ""`. The form has always sent
+   * empty strings for the dates a teacher skipped — it only surfaced now
+   * because the known-student picker fills the whole form at once, so a
+   * blank enrollment date rides along with everything else instead of
+   * being left out.
+   *
+   * Normalised here rather than in the modal because three paths write
+   * students — the form, the bulk import and the picker — and all three
+   * arrive through this function.
+   */
+  for (const k of STUDENT_DATE_FIELDS) {
+    if (k in o && (o[k] === "" || o[k] === undefined)) o[k] = null;
+  }
+  // Same for the school select, whose "—" option is also "".
+  if (o.school_id === "") o.school_id = null;
   return o;
 };
 
