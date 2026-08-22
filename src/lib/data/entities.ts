@@ -20,6 +20,7 @@
 // than filling it in.
 // =====================================================================
 import { supabase } from "@/lib/supabaseClient";
+import { api } from "@/shared/lib/apiClient";
 import { clearIdent, facultyId, ident } from "./session";
 import { daysFromToday } from "../localDate";
 import { resolvePermissions } from "@/lib/permissions";
@@ -292,20 +293,51 @@ export async function inviteStudent(id: string) {
   // gate is open either way, so throwing would lose the very row the
   // screen needs to redraw — and would read as "the invite failed" when
   // the half that governs access succeeded.
-  const { sendStudentInvite } = await import("../supabaseAuth");
+  /**
+   * The mail goes through the service, not through Supabase.
+   *
+   * Supabase's own mailer allows a handful of messages an hour, which is the
+   * failure a teacher adding a class of thirty actually hits — the eleventh
+   * student simply never hears anything. The service sends through Brevo with
+   * a key the browser must never hold.
+   *
+   * It also means the invite is no longer auth mail. It carries no magic
+   * link: the student signs in with Google and the roster row is claimed by
+   * matching the address they arrive with. So it never expires, and pressing
+   * Invite again is always safe.
+   */
   let mailError: string | null = null;
+  let alreadyTeacher = false;
   try {
-    await sendStudentInvite(email);
+    const sent = await api<{ already_teacher?: boolean }>("/api/invites/student", {
+      method: "POST",
+      body: { student_id: id },
+    });
+    alreadyTeacher = Boolean(sent?.already_teacher);
   } catch (e: any) {
-    // Supabase's built-in SMTP allows only a handful of messages an hour,
-    // which is the failure a teacher adding a whole class will actually
-    // hit. Name that one, rather than reporting it as a mystery.
-    const limited = /rate limit|too many requests|over_email_send_rate/i.test(
-      String(e?.message || "")
-    );
-    mailError = limited
-      ? `${email} can sign in now, but the email didn't go out — the mailer is rate-limited. Wait a few minutes and press Invite again.`
-      : `${email} can sign in now, but the invite email failed to send. Press Invite again to retry.`;
+    mailError =
+      e?.code === "mail_unconfigured"
+        ? `${email} can sign in now, but no invite was sent — email is not set up on this deployment yet.`
+        : `${email} can sign in now, but the invite email failed to send. Press Invite again to retry.`;
+  }
+
+  /**
+   * The service moved the row underneath us.
+   *
+   * An address that already teaches here cannot claim a roster row, and the
+   * service writes that back as `blocked_teacher`. The optimistic UPDATE
+   * above said `invited`, so returning it unchanged would show the teacher a
+   * pending invitation that can never complete.
+   */
+  if (alreadyTeacher) {
+    return {
+      ...outStudent(data),
+      invite_status: "blocked_teacher",
+      invite_mail_error:
+        `${email} already has a teacher account on Murchid, so it can't also be a student. ` +
+        `They've been emailed an explanation — ask them for a different address, ` +
+        `then edit this student and invite them again.`,
+    };
   }
   return { ...outStudent(data), invite_mail_error: mailError };
 }

@@ -100,6 +100,10 @@ export default function SuperAdminConsole() {
       await api(`/api/admin/teachers/${deleting.id}`, { method: "DELETE" });
       setAccounts((rows) => rows.filter((r) => r.id !== deleting.id));
       setDeleting(null);
+      // The row is gone from the list either way; the cards above it are not
+      // recomputed in the browser, so without this the total keeps counting
+      // an account the screen has just stopped showing.
+      reload();
     } catch (e) {
       alert(`Could not delete: ${e.message}`);
     } finally {

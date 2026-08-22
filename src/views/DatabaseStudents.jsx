@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useMemo, useEffect } from "react";
-import { Search, Phone, Plus, Upload, Mail, CheckCircle2, FileDown, FileSpreadsheet } from "lucide-react";
+import { Search, Phone, Plus, Upload, Mail, CheckCircle2, AlertTriangle, FileDown, FileSpreadsheet } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { GRADE_LEVELS, NATIONALITIES } from "../lib/enums";
@@ -415,8 +415,28 @@ export default function DatabaseStudents() {
 
 // Invite gate per row: a student can log in only once invited, and only
 // then with a matching email. Shows where they are: not invited (a button),
-// invited (waiting to be claimed), or active (they've signed in).
+// invited (waiting to be claimed), active (they've signed in), or blocked
+// because the address already teaches here.
 function InviteControl({ s, onInvite }) {
+  /**
+   * The one state the teacher has to act on.
+   *
+   * She cannot fix it from here and she cannot be expected to guess it:
+   * the child gave her an address that already runs a teacher account, so
+   * the invitation will never be claimable no matter how often she resends
+   * it. The row says what to do instead — ask for a different address —
+   * because "Invited" forever is the failure this replaces.
+   */
+  if (s.invite_status === "blocked_teacher") {
+    return (
+      <span
+        title={`${s.email} already has a teacher account on Murchid, so it cannot also be a student. Edit this student's email to a different address and invite them again.`}
+        className="font-mono text-[9px] uppercase tracking-wider text-clay inline-flex items-center gap-1 cursor-help"
+      >
+        <AlertTriangle size={11} /> Already a teacher
+      </span>
+    );
+  }
   if (s.invite_status === "active") {
     return (
       <span title="Signed in" className="font-mono text-[9px] uppercase tracking-wider text-sage inline-flex items-center gap-1">

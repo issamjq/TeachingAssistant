@@ -3354,3 +3354,151 @@ DO $$
 BEGIN
   RAISE NOTICE 'roles: users.role is NOT NULL — a blank account can no longer be created';
 END $$;
+
+
+-- =====================================================================
+-- 39. A teacher's email cannot become a student
+-- =====================================================================
+--
+-- §37 allowed one person to hold both roles at once. That is defensible
+-- in the abstract and wrong for this product, because the two roles are
+-- not symmetric: a teacher's account carries a subscription, a credit
+-- balance and the work she has paid to produce. A student account
+-- carries none of that. Letting an invitation pull a paying teacher's
+-- address into a classroom roster puts her billing on the wrong side of
+-- a click she did not think twice about.
+--
+-- So the rule is asymmetric, deliberately:
+--
+--   * a teacher may INVITE any address, including another teacher's —
+--     she has no way of knowing, and blocking the send would make her
+--     guess;
+--   * an address that already has a teacher account may not CLAIM a
+--     roster row. It is refused at the moment of sign-in.
+--
+-- A refusal nobody sees is the failure this replaces: the student saw a
+-- dead end and the teacher saw "Invited" forever, so neither could act.
+-- The refusal is now written back onto the roster row as
+-- `blocked_teacher`, which is what the teacher's list reads to tell her
+-- to invite the same child at a different address.
+--
+-- The block is a fact about the address, not a punishment: change the
+-- email on the roster row and it returns to 'none', ready to invite.
+
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_constraint
+              WHERE conname = 'students_invite_status_check'
+                AND connamespace = 'public'::regnamespace) THEN
+    ALTER TABLE public.students DROP CONSTRAINT students_invite_status_check;
+  END IF;
+  ALTER TABLE public.students ADD CONSTRAINT students_invite_status_check
+    CHECK (invite_status IN ('none','invited','active','blocked_teacher'));
+END $$;
+
+-- ── is this address already a teacher? ────────────────────────────────
+--
+-- DEFINER because the caller is a teacher asking about an account that is
+-- not hers, and the honest answer is one bit. It deliberately reveals
+-- nothing else: not the name, not the school, not whether they ever
+-- signed in — only that this address cannot be a student here.
+CREATE OR REPLACE FUNCTION public.email_is_teacher(p_email text)
+RETURNS boolean
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM faculty f
+      JOIN auth.users u ON u.id = f.user_id
+     WHERE lower(u.email) = lower(p_email)
+  );
+$$;
+GRANT EXECUTE ON FUNCTION public.email_is_teacher(text) TO authenticated;
+
+-- ── the linker, with the teacher guard restored ───────────────────────
+--
+-- Keeps everything §37 got right — it still claims EVERY invited row for
+-- the address, so a child on three teachers' rosters joins all three
+-- classes in one sign-in — and adds back the one refusal that section
+-- dropped.
+--
+-- Order matters. The teacher check runs before the claim, so a teacher
+-- who follows an invitation never half-joins: nothing is written except
+-- the flag that tells the sender why.
+CREATE OR REPLACE FUNCTION public.link_student_account()
+RETURNS jsonb
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE uid uuid; em text; claimed int; held int; flagged int;
+BEGIN
+  uid := (SELECT auth.uid());
+  IF uid IS NULL THEN RETURN jsonb_build_object('linked', false, 'reason', 'not_signed_in'); END IF;
+
+  em := lower((SELECT email FROM auth.users WHERE id = uid));
+  IF em IS NULL THEN RETURN jsonb_build_object('linked', false, 'reason', 'no_email'); END IF;
+
+  -- Already a teacher: refuse, and say so on every roster row that was
+  -- waiting for this address, so each inviting teacher learns it too.
+  IF EXISTS (SELECT 1 FROM faculty WHERE user_id = uid) THEN
+    UPDATE students
+       SET invite_status = 'blocked_teacher', updated_at = now()
+     WHERE lower(email) = em AND user_id IS NULL AND invite_status = 'invited';
+    GET DIAGNOSTICS flagged = ROW_COUNT;
+    RETURN jsonb_build_object('linked', false, 'reason', 'is_teacher', 'flagged', flagged);
+  END IF;
+
+  -- Every invited, unclaimed row for this address — not just the first.
+  UPDATE students
+     SET user_id = uid, invite_status = 'active', updated_at = now()
+   WHERE lower(email) = em AND user_id IS NULL AND invite_status = 'invited';
+  GET DIAGNOSTICS claimed = ROW_COUNT;
+
+  SELECT count(*) INTO held FROM students WHERE user_id = uid;
+
+  IF held = 0 THEN
+    IF EXISTS (SELECT 1 FROM students WHERE lower(email) = em AND user_id IS NULL) THEN
+      RETURN jsonb_build_object('linked', false, 'reason', 'not_invited');
+    END IF;
+    RETURN jsonb_build_object('linked', false, 'reason', 'no_match');
+  END IF;
+
+  INSERT INTO public.users (id, email) VALUES (uid, em) ON CONFLICT (id) DO NOTHING;
+  UPDATE public.users u
+     SET role = 'student', updated_at = now()
+   WHERE u.id = uid
+     AND u.role = 'teacher'
+     AND NOT EXISTS (SELECT 1 FROM faculty f WHERE f.user_id = uid);
+
+  RETURN jsonb_build_object(
+    'linked', true, 'claimed', claimed, 'rows', held,
+    'student_id', public.current_student_id()
+  );
+END $$;
+GRANT EXECUTE ON FUNCTION public.link_student_account() TO authenticated;
+
+-- ── editing the address clears the block ──────────────────────────────
+--
+-- Without this the flag outlives the address that caused it: a teacher
+-- corrects the email, and the row still reads "already a teacher" about
+-- an address it no longer holds.
+CREATE OR REPLACE FUNCTION public.students_clear_block()
+RETURNS trigger
+LANGUAGE plpgsql SET search_path = public, pg_temp
+AS $$
+BEGIN
+  IF NEW.invite_status = 'blocked_teacher'
+     AND lower(COALESCE(NEW.email,'')) IS DISTINCT FROM lower(COALESCE(OLD.email,'')) THEN
+    NEW.invite_status := 'none';
+    NEW.invited_at := NULL;
+  END IF;
+  RETURN NEW;
+END $$;
+
+DROP TRIGGER IF EXISTS students_clear_block_trg ON public.students;
+CREATE TRIGGER students_clear_block_trg
+  BEFORE UPDATE ON public.students
+  FOR EACH ROW EXECUTE FUNCTION public.students_clear_block();
+
+DO $$
+BEGIN
+  RAISE NOTICE 'students: a teacher address can no longer claim a roster row';
+END $$;

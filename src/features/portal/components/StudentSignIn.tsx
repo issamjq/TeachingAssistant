@@ -31,8 +31,24 @@ interface MeRow {
 
 type SignInError =
   | { kind: "no_match" }
+  | { kind: "not_invited" }
+  | { kind: "is_teacher" }
   | { kind: "wrong_account"; role: string }
   | { kind: "unknown"; message: string };
+
+/**
+ * Why the claim failed, in the student's words.
+ *
+ * link_student_account() names its reason and every one of them used to
+ * arrive here as "no_match" — so a teacher signing in with their own
+ * address was told their teacher had never added them, which is both
+ * wrong and unfixable by the person reading it.
+ */
+function errorFor(reason?: string): SignInError {
+  if (reason === "is_teacher") return { kind: "is_teacher" };
+  if (reason === "not_invited") return { kind: "not_invited" };
+  return { kind: "no_match" };
+}
 
 export default function StudentSignIn() {
   const [checking, setChecking] = useState(true);
@@ -79,7 +95,7 @@ export default function StudentSignIn() {
       const me2 = await api<MeRow>("/api/auth/me");
       if (me2.role === "student") { enter(me2); return true; }
     }
-    setError({ kind: "no_match" });
+    setError(errorFor(res.reason));
     return true;
   }
 
@@ -207,9 +223,13 @@ export default function StudentSignIn() {
               <p className="text-sm text-ink">
                 {error.kind === "no_match"
                   ? "We couldn’t find a student added with this email. Ask your teacher to add you with the email you’re signing in with."
-                  : error.kind === "wrong_account"
-                    ? "This is a staff account, not a student one. Use the teacher sign-in instead."
-                    : error.message || "Something went wrong."}
+                  : error.kind === "not_invited"
+                    ? "Your teacher has added you, but hasn’t sent the invitation yet. Ask them to press Invite next to your name."
+                    : error.kind === "is_teacher"
+                      ? "This email already has a teacher account on Murchid, so it can’t also be a student. Ask your teacher to invite you with a different email."
+                      : error.kind === "wrong_account"
+                        ? "This is a staff account, not a student one. Use the teacher sign-in instead."
+                        : error.message || "Something went wrong."}
               </p>
             </div>
           )}
