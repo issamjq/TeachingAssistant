@@ -85,6 +85,9 @@ export default function StudentSignIn() {
       if (!(e instanceof ApiError && e.code === "no_teacher_row")) throw e;
     }
     if (me) {
+      // Including a student with no classes right now — see getProfile().
+      // The dashboard says so; being between teachers is not a sign-in
+      // failure and must not be reported as one.
       if (me.role === "student") { enter(me); return true; }
       setError({ kind: "wrong_account", role: me.role });
       return true;

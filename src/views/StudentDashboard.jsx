@@ -59,6 +59,37 @@ export default function StudentDashboard() {
     );
   }
 
+  /**
+   * Between classes — invited by nobody, right now.
+   *
+   * Their teacher removed them, or the term ended. Nothing is wrong with
+   * the account and there is nothing for them to do, so the screen says
+   * exactly that instead of rendering six empty charts.
+   */
+  if (data.no_classes) {
+    const who = [data.student?.first_name, data.student?.last_name].filter(Boolean).join(" ");
+    return (
+      <div className="max-w-lg mx-auto text-center py-20">
+        <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-3 inline-flex items-center gap-2.5">
+          <span className="w-6 h-px bg-accent" /> No classes yet
+        </p>
+        <h2 className="font-serif text-3xl text-ink mb-3">
+          {who ? `Hello, ${who}` : "You're signed in"}
+        </h2>
+        <p className="text-muted mb-2">
+          You&rsquo;re not in any classes at the moment, so there&rsquo;s nothing here yet.
+        </p>
+        <p className="text-sm text-muted">
+          When a teacher adds you to their class, your lessons, homework and quizzes will
+          appear on this page automatically — you won&rsquo;t need to sign up again.
+          {data.student?.email ? (
+            <> Ask them to invite <span className="text-ink">{data.student.email}</span>.</>
+          ) : null}
+        </p>
+      </div>
+    );
+  }
+
   const s = data.student || {};
   // A student can be on several teachers' rosters — each is a separate row
   // with its own subject. One dashboard shows all of it, so the subject and

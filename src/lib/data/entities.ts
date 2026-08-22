@@ -105,6 +105,44 @@ export async function getProfile() {
       .order("created_at")
       .limit(1);
     const st = rows?.[0];
+
+    /**
+     * A student between classes is still a student.
+     *
+     * The roster row is the teacher's record of them, and she may delete
+     * it — end of term, wrong class, a mistake. The PERSON survives that:
+     * their account, their history, their sign-in. Requiring a row to
+     * produce a profile meant a student whose only teacher removed them
+     * was locked out of the product entirely, with no way back in but
+     * another invitation they could not ask for.
+     *
+     * So the role decides, and the rows only decide what is on screen.
+     */
+    if (!st) {
+      const { data: urow } = await supabase
+        .from("users").select("role, email, first_name, last_name, full_name")
+        .eq("id", userId).maybeSingle();
+      if ((urow as any)?.role === "student") {
+        return {
+          roles: await myRoles("student"),
+          id: null,
+          user_id: userId,
+          role: "student",
+          first_name: (urow as any).first_name,
+          last_name: (urow as any).last_name,
+          full_name: (urow as any).full_name
+            ?? [(urow as any).first_name, (urow as any).last_name].filter(Boolean).join(" "),
+          email: (urow as any).email,
+          grade: null,
+          section: null,
+          school_id: null,
+          // Nothing to show, and that is a state rather than a failure.
+          no_classes: true,
+          onboarding_status: "complete",
+        };
+      }
+    }
+
     if (st) {
       return {
         roles: await myRoles("student"),
@@ -1440,6 +1478,25 @@ export async function provisionTeacher() {
     /* not deployed — carry on and provision a teacher, as before */
   }
 
+  /**
+   * A student signing in at the teacher door is still a student.
+   *
+   * The faculty INSERT below is refused by the schema for them (§44), so
+   * without this they reach a raw constraint error and no session at all.
+   * Their roster rows may all have been deleted — that is what put them
+   * here — and it changes nothing about who they are.
+   */
+  {
+    const { data: urow } = await supabase
+      .from("users").select("role").eq("id", userId).maybeSingle();
+    if ((urow as any)?.role === "student") {
+      clearIdent();
+      const { claimDevice } = await import("./device");
+      const active_session_id = await claimDevice().catch(() => null);
+      return { ...(await getProfile()), active_session_id };
+    }
+  }
+
   // The auth trigger normally mirrors this, but it swallows its own
   // errors by design, so a missing row is possible and cheap to fix.
   const { data: auth } = await supabase.auth.getUser();
@@ -1506,6 +1563,25 @@ export async function linkStudent() {
 export async function studentDashboard() {
   const { data, error } = await supabase.rpc("student_dashboard");
   if (error) throw error;
-  if (!data) throw Object.assign(new Error("No student profile."), { status: 404, code: "no_student" });
+  if (!data) {
+    /**
+     * No roster rows is a state, not an error.
+     *
+     * student_dashboard() reads across the rows a student holds and
+     * answers null when there are none — which happens the moment their
+     * only teacher removes them. Treating that as 404 turned an ordinary
+     * gap between classes into a broken account, on a screen whose whole
+     * job is to say what is going on.
+     */
+    const me: any = await getProfile().catch(() => null);
+    if (me?.role === "student") {
+      return {
+        student: { first_name: me.first_name, last_name: me.last_name, email: me.email },
+        teachers: [], work: [], scores: [], grades: [], attendance: {},
+        no_classes: true,
+      };
+    }
+    throw Object.assign(new Error("No student profile."), { status: 404, code: "no_student" });
+  }
   return data;
 }
