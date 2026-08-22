@@ -67,6 +67,16 @@ export default function DatabaseStudents() {
   const [schoolFilter, setSchoolFilter] = useState("");
   const [editing, setEditing] = useState(null); // student row being edited, or "new"
   const [deleting, setDeleting] = useState(null);
+  /**
+   * Why an invitation could not land, said in the product's own voice.
+   *
+   * This was a window.alert(): a grey OS box with a URL in the title, no
+   * typography, and an OK button that taught the teacher nothing. The
+   * message it carried is the most consequential one on this screen —
+   * the child she just added can never sign in with that address — so it
+   * is worth the same care as the rest of the page.
+   */
+  const [notice, setNotice] = useState(null);
   const [busy, setBusy] = useState(false);
   const [importing, setImporting] = useState(false);
   // The assistant's "add a student called…" hand-off: collect the parked
@@ -168,7 +178,9 @@ export default function DatabaseStudents() {
     setEditing(null);
     // A new student with an email is invited in the same action, so this
     // is where a failed send surfaces for them too.
-    if (saved?.invite_mail_error) alert(saved.invite_mail_error);
+    if (saved?.invite_mail_error) {
+      setNotice({ student: saved, message: saved.invite_mail_error });
+    }
   };
 
   // Invite: open the gate AND email them the link that opens it. The two
@@ -178,7 +190,9 @@ export default function DatabaseStudents() {
     try {
       const updated = await api(`/api/students/${s.id}/invite`, { method: "POST" });
       setStudents((rows) => rows.map((r) => (r.id === s.id ? updated : r)));
-      if (updated?.invite_mail_error) alert(updated.invite_mail_error);
+      if (updated?.invite_mail_error) {
+        setNotice({ student: updated, message: updated.invite_mail_error });
+      }
     } catch (e) {
       alert(friendlyError(e, "Couldn’t invite this student right now. Please try again."));
     }
@@ -409,7 +423,84 @@ export default function DatabaseStudents() {
             : ""
         }
       />
+
+      <InviteNotice notice={notice} onClose={() => setNotice(null)} />
     </div>
+  );
+}
+
+/**
+ * The invitation could not land, and why.
+ *
+ * Two outcomes arrive here and they are not the same thing, so they do not
+ * read the same. An address that already teaches on Murchid is a dead end
+ * the teacher must resolve with the child — no amount of resending will
+ * fix it. A send that failed is a retry.
+ */
+function InviteNotice({ notice, onClose }) {
+  const blocked = notice?.student?.invite_status === "blocked_teacher";
+  const email = notice?.student?.email || "";
+  const name = notice?.student
+    ? [notice.student.first_name, notice.student.last_name].filter(Boolean).join(" ")
+    : "";
+
+  return (
+    <Modal
+      open={!!notice}
+      onClose={onClose}
+      eyebrow={blocked ? "Invitation blocked" : "Invitation not sent"}
+      title={blocked ? "That email already teaches here" : "The invite didn’t send"}
+      footer={<Button onClick={onClose}>Got it</Button>}
+    >
+      {blocked ? (
+        <>
+          <div className="flex items-start gap-3 bg-paper-warm border border-line rounded-lg p-4 mb-5">
+            <AlertTriangle size={16} className="text-clay flex-shrink-0 mt-0.5" />
+            <div className="min-w-0">
+              <p className="text-sm text-ink">
+                <span className="font-medium">{email}</span> is already a teacher account on Murchid.
+              </p>
+              <p className="text-sm text-muted mt-1.5">
+                An account can be a teacher or a student, never both — a teacher’s account carries
+                their own plan and credits, and joining a class as a student would put that at risk.
+              </p>
+            </div>
+          </div>
+
+          <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-2.5">
+            What to do
+          </p>
+          <ol className="space-y-2.5 mb-5">
+            {[
+              `Ask ${name || "them"} for a different email — a personal or school address they don’t teach with.`,
+              "Edit this student and replace the address.",
+              "Press Invite again. The block clears the moment the email changes.",
+            ].map((step, i) => (
+              <li key={i} className="flex gap-3 text-sm text-ink-soft">
+                <span className="font-mono text-[10px] text-accent mt-1 flex-shrink-0">
+                  {String(i + 1).padStart(2, "0")}
+                </span>
+                <span>{step}</span>
+              </li>
+            ))}
+          </ol>
+
+          <p className="text-xs text-muted border-t border-line pt-4">
+            {name || "They"} stays on your roster meanwhile, and we’ve emailed {email} to explain.
+            Their teacher account is untouched.
+          </p>
+        </>
+      ) : (
+        <>
+          <p className="text-sm text-ink mb-3">{notice?.message}</p>
+          <p className="text-sm text-muted">
+            {name || "This student"} is on your roster and the gate is open — they can sign in as
+            soon as the email reaches them. Press <span className="text-ink">Invite</span> on their
+            row to try again.
+          </p>
+        </>
+      )}
+    </Modal>
   );
 }
 
