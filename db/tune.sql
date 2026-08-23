@@ -8674,3 +8674,97 @@ BEGIN
   IF live THEN RAISE EXCEPTION 'billing: a trial that ended yesterday still reads live'; END IF;
   RAISE NOTICE 'billing: a trial ends when it ends; grace is for cards only';
 END $$;
+
+-- ─────────────────────────────────────────────────────────────────────────
+-- §75  Expiry stops waiting for someone to log in
+--
+-- §73 gave us expire_lapsed_subscriptions(), but nothing called it on a
+-- schedule, so expiry still happened the moment a teacher opened the app.
+-- An account nobody signed into kept its plan and its credits on paper
+-- indefinitely — which is exactly the account most likely to have
+-- stopped paying.
+--
+-- pg_cron runs it hourly. Hourly rather than daily because the drift is
+-- the window in which a lapsed account still looks live to any report
+-- reading `credits`; an hour is small enough not to matter and the sweep
+-- only touches rows that have actually lapsed.
+--
+-- The sweep is rewritten set-based. The loop version called
+-- subscription_active_for() twice per subscription per run, which is
+-- fine for five accounts and silly for five thousand.
+-- ─────────────────────────────────────────────────────────────────────────
+
+CREATE EXTENSION IF NOT EXISTS pg_cron;
+
+CREATE OR REPLACE FUNCTION public.expire_lapsed_subscriptions()
+RETURNS jsonb
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE out jsonb;
+BEGIN
+  WITH lapsed AS (
+    SELECT s.faculty_id
+      FROM subscriptions s
+     WHERE (s.status <> 'expired' OR s.tier <> 'free')
+       AND NOT public.subscription_active_for(s.faculty_id)
+  ),
+  -- Counted from the same snapshot as the updates below, so this reads
+  -- the balances as they were BEFORE they were zeroed.
+  before AS (
+    SELECT COALESCE(SUM(c.balance), 0)::int AS credits
+      FROM credits c JOIN lapsed l ON l.faculty_id = c.faculty_id
+  ),
+  subs AS (
+    UPDATE subscriptions s
+       SET status = 'expired', tier = 'free', updated_at = now()
+      FROM lapsed l WHERE s.faculty_id = l.faculty_id
+    RETURNING 1
+  ),
+  creds AS (
+    UPDATE credits c
+       SET balance = 0, monthly_allowance = 0, next_refresh_at = NULL, updated_at = now()
+      FROM lapsed l WHERE c.faculty_id = l.faculty_id
+    RETURNING 1
+  )
+  SELECT jsonb_build_object(
+           'expired', (SELECT COUNT(*) FROM subs),
+           'credits_cleared', (SELECT credits FROM before),
+           'at', now()
+         ) INTO out;
+
+  RETURN out;
+END $$;
+
+REVOKE EXECUTE ON FUNCTION public.expire_lapsed_subscriptions() FROM public, authenticated;
+
+/**
+ * Re-register the schedule idempotently.
+ *
+ * cron.schedule() on an existing job name updates it rather than adding
+ * a second, but unscheduling first makes a changed cadence unambiguous
+ * and keeps this file safe to re-run.
+ */
+DO $$
+BEGIN
+  PERFORM cron.unschedule('expire-lapsed-subscriptions')
+    WHERE EXISTS (SELECT 1 FROM cron.job WHERE jobname = 'expire-lapsed-subscriptions');
+
+  PERFORM cron.schedule(
+    'expire-lapsed-subscriptions',
+    '7 * * * *',                       -- hourly, off the top of the hour
+    $cron$SELECT public.expire_lapsed_subscriptions();$cron$
+  );
+END $$;
+
+DO $$
+DECLARE n int; sched text;
+BEGIN
+  SELECT COUNT(*), MAX(schedule) INTO n, sched
+    FROM cron.job WHERE jobname = 'expire-lapsed-subscriptions';
+  IF n <> 1 THEN
+    RAISE EXCEPTION 'billing: expected one expiry job, found %', n;
+  END IF;
+  -- Prove it runs, rather than trusting that it is registered.
+  PERFORM public.expire_lapsed_subscriptions();
+  RAISE NOTICE 'billing: expiry sweep scheduled (%) and runs', sched;
+END $$;
