@@ -44,6 +44,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { asRoles, clearRole, getRole, onRoleChange, ROLE_LABELS, setRole, syncRoleFromServer } from "@/lib/role";
+import { CreditWarning } from "@/features/studio-ai/CreditMeter";
 import { api, ApiError } from "@/shared/lib/apiClient";
 import { navigate, replace, clearRoute } from "@/lib/route";
 import { useT } from "@/shared/i18n";
@@ -368,6 +369,28 @@ export default function StudioShell({ children }: { children: React.ReactNode })
    * Fetched once per session — a subject appearing mid-session means a
    * teacher just invited them, which a page load will pick up.
    */
+  /**
+   * A teacher's balance, for the warning that follows her around.
+   *
+   * It lived only in the studio, so a teacher who ran low while writing a
+   * bulletin or planning a term saw nothing until the generation refused.
+   * Every screen that can spend now shares one banner.
+   */
+  const [credits, setCredits] = useState<any>(null);
+  useEffect(() => {
+    if (role !== "teacher") return;
+    let off = false;
+    const load = () =>
+      api("/api/auth/credits")
+        .then((c: any) => { if (!off) setCredits(c || null); })
+        .catch(() => {});
+    load();
+    // The studio announces a spend the moment one lands.
+    const onSpent = () => load();
+    window.addEventListener("murchid:credits", onSpent);
+    return () => { off = true; window.removeEventListener("murchid:credits", onSpent); };
+  }, [role]);
+
   const [subjects, setSubjects] = useState<any[]>([]);
   const [classesOpen, setClassesOpen] = useState(true);
   useEffect(() => {
@@ -607,7 +630,12 @@ export default function StudioShell({ children }: { children: React.ReactNode })
             if (launcher) launcher.click();
             else setHelpOpen(true);
           }}
-          onUpgrade={() => navigate(["signup"])}
+          /* An existing teacher going to `signup` was the old behaviour and
+             plainly wrong — she has an account; what she wants is a plan. */
+          onUpgrade={() => navigate(["plans"])}
+          /* Teachers only — a student has no balance to account for. */
+          showUsage={role === "teacher"}
+          onOpenUsage={() => navigate(["credit-usage"])}
           onLogout={signOutFully}
           roles={heldRoles}
           activeRole={role}
@@ -707,6 +735,15 @@ export default function StudioShell({ children }: { children: React.ReactNode })
             panel.present ? "md:ps-6" : "md:ps-8"
           }`}
         >
+          {/* One banner for every screen that can spend. The studio has
+              its own estimate on the composer; this is the low-balance
+              warning, which is worth seeing wherever she is working. */}
+          {role === "teacher" && section !== "studio" && (
+            <div className="max-w-[900px] mx-auto w-full">
+              <CreditWarning credits={credits} />
+            </div>
+          )}
+
           {TEACHING_RAIL_SECTIONS.has(section) ? (
             <div className="lg:flex lg:gap-6 h-full">
               <div className="flex-1 min-w-0">{children}</div>

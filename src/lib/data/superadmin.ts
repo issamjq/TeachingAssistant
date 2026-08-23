@@ -71,6 +71,19 @@ export async function resolveSuperadmin(
   const [, a, b, c] = seg; // ["superadmin", a, b, c]
 
   if (a === "overview" && method === "GET") return yes(await rpc("sa_overview"));
+
+  // AI usage: what our users burned, what we charged for it, and what it
+  // cost us upstream. The one place both numbers sit in the same row.
+  if (a === "ai") {
+    const days = int(q.get("days"), 30);
+    if (b === "overview" && method === "GET") return yes(await rpc("sa_ai_overview", { p_days: days }));
+    if (b === "features" && method === "GET") return yes(await rpc("sa_ai_by_feature", { p_days: days }));
+    if (b === "daily" && method === "GET") return yes(await rpc("sa_ai_daily", { p_days: days }));
+    if (b === "users" && !c && method === "GET")
+      return yes(await rpc("sa_ai_by_user", { p_days: days, p_limit: int(q.get("limit"), 100) }));
+    if (b === "users" && c && method === "GET")
+      return yes(await rpc("sa_ai_user", { p_faculty: c, p_days: days }));
+  }
   if (a === "signups" && method === "GET")
     return yes(await rpc("sa_signups", { p_days: int(q.get("days"), 30) }));
   if (a === "logins" && method === "GET")

@@ -71,6 +71,33 @@ const isDuplicateEmail = (e: any) =>
 
 // ── profile ───────────────────────────────────────────────────────────
 
+/**
+ * What she has, what things cost, and what the last few actually cost.
+ *
+ * One call rather than three, because the studio needs all of it on every
+ * load: the balance for the header, the price list for the estimate on
+ * the generate button, and the recent charges so a number that moved can
+ * be accounted for.
+ */
+export async function myCredits() {
+  const { data, error } = await supabase.rpc("my_credits");
+  if (error) throw error;
+  return data;
+}
+
+/**
+ * Her own spending, broken down.
+ *
+ * Credits only. The token counts and the dollar cost behind them are our
+ * supply price, not hers — my_ai_usage() does not return them at all, so
+ * this cannot leak them by forgetting to strip a field.
+ */
+export async function myAiUsage(days = 30) {
+  const { data, error } = await supabase.rpc("my_ai_usage", { p_days: days });
+  if (error) throw error;
+  return data;
+}
+
 /** /api/me — users ⨝ faculty ⨝ subscriptions ⨝ credits, flattened. */
 /**
  * Every role this account holds, most privileged first.
@@ -1685,6 +1712,30 @@ export async function claimSession() {
 /** Claim the roster row for the signed-in email and mark the user a student. */
 export async function linkStudent() {
   const { data, error } = await supabase.rpc("link_student_account");
+  if (error) throw error;
+  return data;
+}
+
+/** The plans, the top-ups, and the price list they are described with. */
+export async function planOptions() {
+  const { data, error } = await supabase.rpc("plan_options");
+  if (error) throw error;
+  return data;
+}
+
+/**
+ * Which plan she reached for, and what she had left when she did.
+ *
+ * Recorded rather than charged, because card payments are not connected
+ * yet. It is also the only demand signal that exists before they are —
+ * the plan mix in the pricing model is currently a guess.
+ */
+export async function requestPlan(plan: string, credits: number, kind = "subscription") {
+  const { data, error } = await supabase.rpc("request_plan", {
+    p_plan: plan,
+    p_credits: credits,
+    p_kind: kind,
+  });
   if (error) throw error;
   return data;
 }

@@ -45,6 +45,54 @@ const ACCEPT = {
 
 const MAX_BYTES = 50 * 1024 * 1024;
 
+/**
+ * A photo of a page does not need twelve megapixels.
+ *
+ * Phones shoot 4000px and 4 MB; 1600px is comfortably legible for a
+ * teacher marking a page of fractions and is roughly eight times
+ * smaller. Storage is the one cost that scales with STUDENTS rather than
+ * teachers, and at 700 teachers this is the difference between about a
+ * terabyte a term and something that fits in the plan.
+ *
+ * Only photographs. A PDF, a document and a video are passed through
+ * untouched: re-encoding a video in a browser is slow and lossy, and a
+ * PDF is already whatever size its author chose.
+ */
+const MAX_IMAGE_EDGE = 1600;
+const IMAGE_QUALITY = 0.82;
+
+async function shrinkImage(file) {
+  if (!file.type.startsWith("image/")) return file;
+  // HEIC has no canvas decoder in most browsers; sending it untouched is
+  // better than sending nothing.
+  if (/heic|heif/i.test(file.type)) return file;
+
+  try {
+    const bitmap = await createImageBitmap(file);
+    const scale = Math.min(1, MAX_IMAGE_EDGE / Math.max(bitmap.width, bitmap.height));
+    if (scale === 1 && file.size < 1_500_000) return file; // already small enough
+
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(bitmap.width * scale);
+    canvas.height = Math.round(bitmap.height * scale);
+    canvas.getContext("2d").drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    bitmap.close?.();
+
+    const blob = await new Promise((r) => canvas.toBlob(r, "image/jpeg", IMAGE_QUALITY));
+    // Never hand back something larger than what she chose.
+    if (!blob || blob.size >= file.size) return file;
+
+    return new File([blob], file.name.replace(/\.(png|webp|jpeg|jpg)$/i, "") + ".jpg", {
+      type: "image/jpeg",
+      lastModified: file.lastModified,
+    });
+  } catch {
+    // Any decoder trouble and the original goes up. A student must never
+    // lose their homework to an optimisation.
+    return file;
+  }
+}
+
 export default function StudentWork({ entryId }) {
   const [w, setW] = useState(null);
   const [error, setError] = useState(null);
@@ -459,7 +507,9 @@ function HandIn({ w, onDone }) {
     setErr(null);
     try {
       const uploaded = [];
-      for (const f of chosen) {
+      for (const original of chosen) {
+        // eslint-disable-next-line no-await-in-loop
+        const f = await shrinkImage(original);
         const safe = f.name.replace(/[^\w.\-]+/g, "_");
         const path = `${w.student_row_id}/${w.entry_id}/${Date.now()}_${safe}`;
         const { error } = await supabase.storage.from("submissions").upload(path, f, {

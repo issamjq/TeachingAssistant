@@ -31,6 +31,7 @@ import {
   Plus, Trash2, MessageSquare, PanelLeftOpen, X as XIcon,
 } from "lucide-react";
 import { api } from "@/views/_shared";
+import { useCredits, CreditEstimate, CreditWarning } from "./CreditMeter";
 import { supabase } from "@/lib/supabaseClient";
 import { facultyId } from "@/lib/data/session";
 import { parseSections, renderMarkdown } from "@/lib/markdown";
@@ -342,6 +343,14 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
   // in canonical order. At least one kind stays on; the last one refuses
   // to toggle off rather than leaving the send button aimed at nothing.
   const [kinds, setKinds] = useState([initialKind]);
+  /**
+   * What she has and what things cost.
+   *
+   * Refreshed after every generation rather than polled: the balance only
+   * moves when she spends, and a number that lags behind her own action
+   * is the one thing worse than no number at all.
+   */
+  const { credits, refresh: refreshCredits } = useCredits();
   const toggleKind = (v) =>
     setKinds((prev) => {
       if (prev.includes(v)) return prev.length > 1 ? prev.filter((x) => x !== v) : prev;
@@ -354,7 +363,36 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
   const skillSel = useRef(null);
   const [skillsVersion, setSkillsVersion] = useState(0);
   const [busy, setBusy] = useState(false);
+  /**
+   * Files she has attached but not yet sent.
+   *
+   * These lived only in component state, so a reload — or following a link
+   * and coming back — dropped them. The upload itself had already happened
+   * and the row was sitting in `materials`; only the studio had forgotten,
+   * which reads as the upload having failed. They are kept where a refresh
+   * cannot reach, and cleared the moment the message that carries them is
+   * sent.
+   */
+  const ATTACH_KEY = "murchid.studio.pendingAttachments";
   const [attachments, setAttachments] = useState([]);
+
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(ATTACH_KEY) || "[]");
+      if (Array.isArray(saved) && saved.length) setAttachments(saved);
+    } catch {
+      /* nothing worth reporting: an unreadable list is an empty one */
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      if (attachments.length) localStorage.setItem(ATTACH_KEY, JSON.stringify(attachments));
+      else localStorage.removeItem(ATTACH_KEY);
+    } catch {
+      /* a full or blocked store must not stop her attaching a file */
+    }
+  }, [attachments]);
   const [uploading, setUploading] = useState(false);
   const [notice, setNotice] = useState(null);
   const [presenting, setPresenting] = useState(null);
@@ -882,17 +920,21 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
     const spoken = opts.skipAsk ? [] : kindsNamedIn(prompt);
 
     /**
-     * Nothing is asked about a file she has already attached.
+     * A document answers what it is. It does not answer when she teaches it.
      *
-     * The questions are read off her sentence, and a teacher who attaches a
-     * chapter and presses Quiz has not written one — so every question came
-     * back at once, about a grade and a subject the document itself states on
-     * its first page. The generator reads the document; it can read those too.
+     * Attaching a chapter used to silence every question, which was right for
+     * the grade and the subject — they are on its first page — and wrong for
+     * the calendar: no syllabus knows which Tuesday she has that class. So the
+     * questions about the class are dropped when a file is attached, and the
+     * questions about the timetable are always asked.
      */
-    if (!opts.skipAsk && !reworking && !attachments.length) {
+    const CONTENT_QUESTIONS = new Set(["grade", "subject"]);
+
+    if (!opts.skipAsk && !reworking) {
       // What is missing depends on what she is making: a quiz is booked
       // between two times, a lesson takes a period.
-      const missing = missingFrom(prompt, spoken.length ? spoken : useKind ? [useKind] : kinds);
+      const missing = missingFrom(prompt, spoken.length ? spoken : useKind ? [useKind] : kinds)
+        .filter((m) => !(attachments.length && CONTENT_QUESTIONS.has(m)));
       if (missing.length) {
         setDraft("");
         setTurns((t) => [
@@ -1239,8 +1281,12 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
     } finally {
       setBusy(false);
       abortRef.current = null;
+      // The balance only moves when she spends, so this is the moment —
+      // polling would be a request a minute to watch a number that is
+      // still for hours at a time.
+      refreshCredits();
     }
-  }, [draft, busy, kinds, attachments, refreshSessions]);
+  }, [draft, busy, kinds, attachments, refreshSessions, refreshCredits]);
 
   /**
    * Where each kind is stored.
@@ -1619,6 +1665,11 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
 
   return (
     <div className={s.shell}>
+      {/* Only once it is worth interrupting for: nothing above 20% left,
+          because a banner she sees every day is one she stops reading. */}
+      <div className="px-4 pt-3 max-w-[760px] mx-auto w-full">
+        <CreditWarning credits={credits} />
+      </div>
       <div className={s.thread} ref={threadRef}>
         {empty ? (
           <div className={s.hero}>
@@ -2066,6 +2117,14 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
             <SkillsPicker version={skillsVersion} onSelection={(sel) => { skillSel.current = sel; }} />
 
             <span className="flex-1" />
+
+            {/* Before she presses anything, and it moves as she ticks a
+                format or attaches a file. */}
+            <CreditEstimate
+              credits={credits}
+              kinds={kinds}
+              hasMaterials={attachments.length > 0}
+            />
 
             {busy ? (
               <button type="button" className={s.send} onClick={() => abortRef.current?.abort()} aria-label="Stop">

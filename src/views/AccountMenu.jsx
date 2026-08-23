@@ -11,7 +11,7 @@
 // and Escape — same pattern as the rest of the app's popovers — so it
 // can't get into a half-closed state from event-listener races.
 import React, { useEffect } from "react";
-import { Settings, Globe, HelpCircle, Sparkles, LogOut, Check, Repeat } from "lucide-react";
+import { Settings, Globe, HelpCircle, Sparkles, LogOut, Check, Repeat, Coins } from "lucide-react";
 import { useT, useI18n } from "../lib/i18n";
 import { ROLE_LABELS } from "../lib/role";
 
@@ -21,8 +21,10 @@ export default function AccountMenu({
   onOpenSettings,
   onOpenHelp,
   onUpgrade,
+  onOpenUsage,
   onLogout,
   showUpgrade,
+  showUsage,
   user,
   roles = [],
   activeRole,
@@ -114,6 +116,17 @@ export default function AccountMenu({
             label={t("accountMenu.help")}
             onClick={() => { onClose(); onOpenHelp?.(); }}
           />
+
+          {/* Where her credits went. Sits beside the upgrade prompt
+              because the two questions arrive together: a teacher who is
+              being asked to pay more wants to see what she used first. */}
+          {showUsage && (
+            <MenuItem
+              icon={Coins}
+              label={t("accountMenu.usage")}
+              onClick={() => { onClose(); onOpenUsage?.(); }}
+            />
+          )}
 
           {showUpgrade && (
             <MenuItem

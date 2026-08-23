@@ -127,14 +127,20 @@ export async function streamSSE(
     }
   }
 
-  // Bill for a successful generation — after the fact, because the model
-  // ran on the backend. Fire-and-forget: never let a metering hiccup turn
-  // a delivered answer into a thrown error.
-  if (!streamError) {
-    import("@/lib/data/credits")
-      .then((m) => m.meterStream(path, meterKinds, sawDone))
-      .catch(() => {});
-  }
+  /**
+   * The browser does not bill.
+   *
+   * It used to charge here, once per artifact, from the price table —
+   * back when the service charged a flat 1 credit and this was the only
+   * meter with any idea what a thing cost. The service meters properly
+   * now, from the tokens it actually spent, so this was charging a second
+   * time on top: a lesson took 7 credits from the service and another 10
+   * from here, and the teacher paid 17 for one lesson.
+   *
+   * It also should never have lived here. A meter in the browser is a
+   * meter the person being charged can decline to run — and only the
+   * service ever sees the token counts that decide the real price.
+   */
 
   if (streamError) throw streamError;
 }

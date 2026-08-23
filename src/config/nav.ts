@@ -70,6 +70,7 @@ export const ADMIN_SURFACES: AdminSurface[] = [
   { cap: "admin.accounts",  key: "superadmin-console",   label: "Accounts", icon: "keys" },
   { cap: "admin.dashboard", key: "superadmin-students",  label: "Students", icon: "students" },
   { cap: "admin.dashboard", key: "superadmin-orgs",      label: "Organisations", icon: "orgs" },
+  { cap: "admin.dashboard", key: "superadmin-usage",     label: "AI usage", icon: "reports" },
   { cap: "admin.platform",  key: "superadmin-costs",     label: "Credit costs", icon: "coins" },
 ];
 
@@ -119,6 +120,7 @@ const SUPERADMIN_NAV: NavSection[] = [
       { key: "superadmin-console", label: "Account access", icon: "keys" },
       { key: "superadmin-students", label: "Students", icon: "students" },
       { key: "superadmin-orgs", label: "Organisations", icon: "orgs" },
+      { key: "superadmin-usage", label: "AI usage", icon: "reports" },
       { key: "superadmin-costs", label: "Credit costs", icon: "coins" },
     ],
   },
@@ -204,13 +206,13 @@ export const SECTIONS_BY_ROLE: Record<Role, Set<string>> = {
     "teaching-skills",
     "reports",
     "account",
-  ]),
+  , "plans", "credit-usage"]),
   admin: new Set([
     "superadmin-dashboard", "superadmin-console", "superadmin-students",
-    "superadmin-orgs", "superadmin-costs", "account",
+    "superadmin-orgs", "superadmin-usage", "superadmin-costs", "account",
   ]),
   dev: new Set(["dev-console", "account"]),
-  super_admin: new Set(["superadmin-dashboard", "superadmin-console", "superadmin-students", "superadmin-orgs", "superadmin-costs", "account"]),
+  super_admin: new Set(["superadmin-dashboard", "superadmin-console", "superadmin-students", "superadmin-orgs", "superadmin-usage", "superadmin-costs", "account"]),
   moe: new Set(["moe-console", "account"]),
   owner: new Set(["owner-console", "account"]),
   student: new Set([

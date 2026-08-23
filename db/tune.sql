@@ -6479,3 +6479,1008 @@ DO $$
 BEGIN
   RAISE NOTICE 'cleanup: superseded RPCs removed';
 END $$;
+
+
+-- =====================================================================
+-- 63. The meter
+-- =====================================================================
+--
+-- Every generation charged exactly one credit, whatever it cost. A
+-- homework and a seven-document batch deducted the same single credit —
+-- $0.0257 and $0.3828 of real spend, billed identically. A teacher on
+-- Basic spending her whole allowance on lessons cost us $18.22 against
+-- $12 of revenue, and she had to do nothing unusual to get there: she
+-- had to use the feature the product is named after.
+--
+-- `ai_credit_costs` existed for this and nothing read it. Its values
+-- were also filled in before anything was measured and are 3–5× too
+-- high, so switching it on without correcting them would have turned a
+-- 15× under-charge into a 4× over-charge. Both happen here, together.
+--
+-- Credits are derived from measured cost at 1 credit = $0.02, rounded up
+-- so a credit never under-recovers:
+--
+--   scheduling    $0.0098   free      naming a Tuesday is not a feature
+--                                     anyone should ration
+--   skill         $0.0172   1
+--   homework      $0.0257   2
+--   activity      $0.0303   2
+--   quiz          $0.0348   2
+--   presentation  $0.0584   3
+--   goal plan     $0.0667   4
+--   lesson        $0.1518   8         three documents, not one
+--   + a document  $0.0530   3         the planning pass, near-fixed
+
+UPDATE public.ai_credit_costs SET cost = v.cost, updated_at = now()
+  FROM (VALUES
+    ('lesson_plan',   8),
+    ('quiz',          2),
+    ('homework',      2),
+    ('activity',      2),
+    ('presentation',  3),
+    ('goal_plan',     4),
+    ('skill_profile', 1),
+    ('template',      2),
+    ('bulletin',      1),
+    ('quiz_tweak',    1),
+    ('regenerate',    2),
+    ('chat',          0)
+  ) AS v(feature, cost)
+ WHERE ai_credit_costs.feature = v.feature;
+
+-- Charged the moment a teacher attaches a file: the planning pass reads
+-- it once and writes a brief the writers share, so it costs the same
+-- feeding one document or seven.
+INSERT INTO public.ai_credit_costs (feature, cost, label)
+VALUES ('materials', 3, 'Reading an attached document')
+ON CONFLICT (feature) DO UPDATE SET cost = 3, label = EXCLUDED.label, updated_at = now();
+
+-- Scheduling stays free and is recorded as such rather than left absent,
+-- so the console shows a deliberate 0 rather than a gap.
+INSERT INTO public.ai_credit_costs (feature, cost, label)
+VALUES ('scheduling', 0, 'Scheduling (free)')
+ON CONFLICT (feature) DO UPDATE SET cost = 0, label = EXCLUDED.label, updated_at = now();
+
+-- ── cached input is not billed like fresh input ───────────────────────
+--
+-- Anthropic charges a cache READ at 10% of input and a cache WRITE at
+-- 125%. usage_logs held one `tokens_in`, so a cached prompt looked
+-- exactly as expensive as an uncached one and prompt caching would have
+-- shown up as no saving at all.
+ALTER TABLE public.usage_logs ADD COLUMN IF NOT EXISTS cache_read_tokens  integer NOT NULL DEFAULT 0;
+ALTER TABLE public.usage_logs ADD COLUMN IF NOT EXISTS cache_write_tokens integer NOT NULL DEFAULT 0;
+ALTER TABLE public.usage_logs ADD COLUMN IF NOT EXISTS credits            integer NOT NULL DEFAULT 0;
+
+-- ── what a teacher may read about her own spending ────────────────────
+--
+-- She cannot spend well against a number she cannot see. Balance,
+-- allowance, and what the last few generations actually cost.
+CREATE OR REPLACE FUNCTION public.my_credits()
+RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE fid uuid; uid uuid; out jsonb;
+BEGIN
+  fid := public.current_faculty_id();
+  IF fid IS NULL THEN RETURN NULL; END IF;
+  uid := (SELECT auth.uid());
+
+  SELECT jsonb_build_object(
+    'balance',   COALESCE(c.balance, 0),
+    'allowance', COALESCE(c.monthly_allowance, 0),
+    'renews_at', c.next_refresh_at,
+    'plan',      s.plan,
+    'status',    s.status,
+    'costs', (
+      SELECT COALESCE(jsonb_object_agg(feature, cost), '{}'::jsonb)
+        FROM ai_credit_costs
+    ),
+    'recent', (
+      SELECT COALESCE(jsonb_agg(row_to_json(r) ORDER BY r.created_at DESC), '[]'::jsonb)
+        FROM (
+          SELECT operation, credits, tokens_in, tokens_out, cost_usd, created_at
+            FROM usage_logs
+           WHERE user_id = uid AND credits > 0
+           ORDER BY created_at DESC
+           LIMIT 20
+        ) r
+    )
+  ) INTO out
+  FROM credits c
+  LEFT JOIN subscriptions s ON s.faculty_id = c.faculty_id
+  WHERE c.faculty_id = fid;
+
+  RETURN out;
+END $$;
+GRANT EXECUTE ON FUNCTION public.my_credits() TO authenticated;
+
+DO $$
+BEGIN
+  RAISE NOTICE 'metering: per-feature credit costs corrected and cache columns added';
+END $$;
+
+
+-- =====================================================================
+-- 64. A monthly refresh needs a plan to refresh against
+-- =====================================================================
+--
+-- refresh_credits_if_due() reset the balance to monthly_allowance every
+-- month and never looked at the subscription. So a teacher who cancelled,
+-- or whose card stopped working, kept receiving a full allowance for as
+-- long as she kept opening the product — free, monthly, forever.
+--
+-- It was safe in the direction people usually check: calling it twice
+-- does nothing, because it only fires once `now() >= next_refresh_at`
+-- and moves the anchor forward. The hole was not abuse, it was that
+-- nobody had asked what a refresh MEANS when there is nothing to renew.
+--
+-- subscription_active() is the same test the RLS policies use for writing
+-- — active, trialing or past_due, and not expired past a three-day grace.
+-- Using it here keeps one answer to "is this account paid up" rather than
+-- two that can drift.
+--
+-- The anchor still advances when a refresh is skipped. Otherwise a lapsed
+-- teacher who resubscribes in March would be owed every month since
+-- December, and would get one month's credits followed by an immediate
+-- second refresh.
+CREATE OR REPLACE FUNCTION public.refresh_credits_if_due()
+RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp
+AS $function$
+DECLARE
+  fid uuid; v_balance int; v_allow int; v_next timestamptz;
+  anchor timestamptz; did boolean := false; paid boolean;
+BEGIN
+  fid := current_faculty_id();
+  IF fid IS NULL THEN RETURN NULL; END IF;
+  SELECT balance, monthly_allowance, next_refresh_at INTO v_balance, v_allow, v_next
+    FROM credits WHERE faculty_id = fid;
+  IF NOT FOUND THEN RETURN NULL; END IF;
+
+  paid := public.subscription_active();
+
+  IF v_next IS NULL THEN
+    -- First run: anchor to the plan's period-start day if there is one, so
+    -- the refresh lands on the same day the plan renews; else the credit
+    -- row's own creation day. Advance to the next boundary after now.
+    SELECT current_period_start INTO anchor FROM subscriptions WHERE faculty_id = fid;
+    anchor := COALESCE(anchor, now());
+    WHILE anchor <= now() LOOP anchor := anchor + INTERVAL '1 month'; END LOOP;
+    UPDATE credits SET next_refresh_at = anchor WHERE faculty_id = fid;
+    v_next := anchor;
+  ELSIF now() >= v_next THEN
+    anchor := v_next;
+    WHILE anchor <= now() LOOP anchor := anchor + INTERVAL '1 month'; END LOOP;
+
+    IF paid THEN
+      UPDATE credits SET balance = monthly_allowance, next_refresh_at = anchor, updated_at = now()
+        WHERE faculty_id = fid;
+      v_balance := v_allow;
+      did := true;
+    ELSE
+      -- The month passes either way; the credits do not.
+      UPDATE credits SET next_refresh_at = anchor, updated_at = now()
+        WHERE faculty_id = fid;
+    END IF;
+
+    v_next := anchor;
+  END IF;
+
+  RETURN jsonb_build_object(
+    'balance', v_balance, 'allowance', v_allow,
+    'next_refresh_at', v_next, 'refreshed', did,
+    -- So the screen can say "your plan ended" rather than leaving a
+    -- teacher wondering why the number never moved.
+    'subscription_active', paid
+  );
+END $function$;
+
+DO $$
+BEGIN
+  RAISE NOTICE 'credits: a lapsed plan no longer refreshes';
+END $$;
+
+
+-- =====================================================================
+-- 65. Choosing a plan, before there is a card reader
+-- =====================================================================
+--
+-- The teacher can now be told she is out of credits, and the next thing
+-- she will do is look for the button that fixes it. Stripe is not
+-- connected yet, so the honest version is: she picks, we record it, and
+-- we tell her plainly that billing is being set up.
+--
+-- Recording it is not a placeholder — it is the only demand signal that
+-- exists before payments do. Which plan people reach for when they run
+-- out is worth more than a guess at the mix, and §5 of the pricing model
+-- currently rests on a guess (60/30/10).
+--
+-- When Stripe lands this table becomes the checkout's starting point
+-- rather than something to delete.
+CREATE TABLE IF NOT EXISTS public.plan_requests (
+  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  faculty_id  uuid NOT NULL REFERENCES public.faculty(id) ON DELETE CASCADE,
+  plan        text NOT NULL,
+  credits     integer,
+  kind        text NOT NULL DEFAULT 'subscription',  -- or 'topup'
+  balance_at  integer,                               -- what was left when she asked
+  created_at  timestamptz NOT NULL DEFAULT now(),
+  fulfilled_at timestamptz
+);
+
+CREATE INDEX IF NOT EXISTS plan_requests_faculty_idx ON public.plan_requests (faculty_id, created_at DESC);
+
+ALTER TABLE public.plan_requests ENABLE ROW LEVEL SECURITY;
+
+-- Hers to read and to create. Never to fulfil — that is the payment's
+-- job, and a teacher who could set `fulfilled_at` could grant herself a
+-- plan.
+DROP POLICY IF EXISTS plan_requests_owner ON public.plan_requests;
+CREATE POLICY plan_requests_owner ON public.plan_requests
+  FOR SELECT TO authenticated
+  USING (faculty_id = public.current_faculty_id());
+
+DROP POLICY IF EXISTS plan_requests_insert ON public.plan_requests;
+CREATE POLICY plan_requests_insert ON public.plan_requests
+  FOR INSERT TO authenticated
+  WITH CHECK (faculty_id = public.current_faculty_id() AND fulfilled_at IS NULL);
+
+/**
+ * What the plans are, and what they buy — in real work.
+ *
+ * The credit costs come from `ai_credit_costs`, the same table the meter
+ * quotes from, so the page cannot drift from what is actually charged.
+ * A pricing page that says "15 lessons" while the meter charges for 10
+ * is worse than one that says nothing.
+ */
+CREATE OR REPLACE FUNCTION public.plan_options()
+RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE costs jsonb; out jsonb;
+BEGIN
+  SELECT COALESCE(jsonb_object_agg(feature, cost), '{}'::jsonb) INTO costs FROM ai_credit_costs;
+
+  SELECT jsonb_build_object(
+    'usd_per_credit', 0.02,
+    'costs', costs,
+    'plans', jsonb_build_agg.plans,
+    'topups', jsonb_build_agg.topups
+  ) INTO out
+  FROM (
+    SELECT
+      jsonb_build_array(
+        jsonb_build_object('key','basic','name','Basic','price',12,'annual',120,'credits',120,
+          'blurb','For one teacher, one timetable.'),
+        jsonb_build_object('key','pro','name','Pro','price',35,'annual',350,'credits',350,
+          'blurb','A full timetable, planned a term at a time.','popular',true),
+        jsonb_build_object('key','max','name','Max','price',80,'annual',800,'credits',800,
+          'blurb','Several classes, or a head of department.')
+      ) AS plans,
+      jsonb_build_array(
+        jsonb_build_object('key','topup_100','credits',100,'price',5),
+        jsonb_build_object('key','topup_300','credits',300,'price',14),
+        jsonb_build_object('key','topup_600','credits',600,'price',26)
+      ) AS topups
+  ) jsonb_build_agg;
+
+  RETURN out;
+END $$;
+GRANT EXECUTE ON FUNCTION public.plan_options() TO authenticated;
+
+/** Record which plan she reached for, and what she had left when she did. */
+CREATE OR REPLACE FUNCTION public.request_plan(p_plan text, p_credits integer, p_kind text DEFAULT 'subscription')
+RETURNS jsonb
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE fid uuid; bal integer;
+BEGIN
+  fid := public.current_faculty_id();
+  IF fid IS NULL THEN RAISE EXCEPTION 'not a teacher' USING ERRCODE = '42501'; END IF;
+
+  SELECT balance INTO bal FROM credits WHERE faculty_id = fid;
+
+  INSERT INTO plan_requests (faculty_id, plan, credits, kind, balance_at)
+  VALUES (fid, p_plan, p_credits, COALESCE(p_kind,'subscription'), bal);
+
+  RETURN jsonb_build_object('recorded', true, 'plan', p_plan);
+END $$;
+GRANT EXECUTE ON FUNCTION public.request_plan(text, integer, text) TO authenticated;
+
+DO $$
+BEGIN
+  RAISE NOTICE 'billing: plans, top-ups and the interest they attract';
+END $$;
+
+
+-- =====================================================================
+-- 66. A plan has a tier, and a tier decides the allowance
+-- =====================================================================
+--
+-- `subscriptions.plan` is trial | monthly | quarterly | annual. That is a
+-- BILLING PERIOD, not a tier — there was nowhere in the schema to say
+-- someone is on Basic rather than Pro, which is a problem for a product
+-- about to take money for exactly that distinction.
+--
+-- And nothing ever set `monthly_allowance` from the plan. It was written
+-- once at sign-up (200) and never again, so:
+--
+--   * every trial handed out 200 credits. That was written when a
+--     generation cost a flat 1 credit and 200 meant "200 generations".
+--     Metered properly it means 25 lessons — $4.00 of AI per trial, and
+--     at 30% conversion a $13.33 cost to acquire a $12/month customer;
+--
+--   * converting to Basic changed the plan and left the allowance at
+--     200, so a $12 teacher refreshed 200 credits a month instead of
+--     120. Margin 67% where the model says 80%.
+--
+-- One table decides it now, and both the sign-up trigger and the admin
+-- console read from it. A number that lives in two places is a number
+-- that will disagree.
+
+CREATE TABLE IF NOT EXISTS public.plan_tiers (
+  tier       text PRIMARY KEY,
+  label      text NOT NULL,
+  credits    integer NOT NULL,
+  price_usd  numeric(8,2),
+  sort       integer NOT NULL DEFAULT 0
+);
+
+INSERT INTO public.plan_tiers (tier, label, credits, price_usd, sort) VALUES
+  ('trial', 'Free trial',  40,  0.00, 0),
+  ('basic', 'Basic',      120, 12.00, 1),
+  ('pro',   'Pro',        350, 35.00, 2),
+  ('max',   'Max',        800, 80.00, 3)
+ON CONFLICT (tier) DO UPDATE
+  SET label = EXCLUDED.label, credits = EXCLUDED.credits,
+      price_usd = EXCLUDED.price_usd, sort = EXCLUDED.sort;
+
+ALTER TABLE public.plan_tiers ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS plan_tiers_read ON public.plan_tiers;
+CREATE POLICY plan_tiers_read ON public.plan_tiers FOR SELECT TO authenticated USING (true);
+
+-- The tier a subscription is on. `plan` keeps meaning the billing period,
+-- because the CHECK on it and every console that reads it already do.
+ALTER TABLE public.subscriptions ADD COLUMN IF NOT EXISTS tier text NOT NULL DEFAULT 'trial';
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint
+                  WHERE conname = 'subscriptions_tier_fk'
+                    AND connamespace = 'public'::regnamespace) THEN
+    ALTER TABLE public.subscriptions
+      ADD CONSTRAINT subscriptions_tier_fk FOREIGN KEY (tier) REFERENCES public.plan_tiers(tier);
+  END IF;
+END $$;
+
+/**
+ * Put an account on a tier, and give it that tier's allowance.
+ *
+ * The one place a plan change and an allowance change happen together,
+ * so they cannot drift. The BALANCE is only topped up when the new tier
+ * is larger — moving down should not claw back credits she has already
+ * paid for this month, and moving up should not make her wait a month
+ * for what she just bought.
+ */
+CREATE OR REPLACE FUNCTION public.apply_plan_tier(p_faculty uuid, p_tier text)
+RETURNS jsonb
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE want integer; had integer; bal integer;
+BEGIN
+  SELECT credits INTO want FROM plan_tiers WHERE tier = p_tier;
+  IF want IS NULL THEN RAISE EXCEPTION 'unknown tier %', p_tier USING ERRCODE = '22023'; END IF;
+
+  SELECT monthly_allowance, balance INTO had, bal FROM credits WHERE faculty_id = p_faculty;
+
+  UPDATE subscriptions SET tier = p_tier, updated_at = now() WHERE faculty_id = p_faculty;
+
+  INSERT INTO credits (faculty_id, balance, monthly_allowance)
+  VALUES (p_faculty, want, want)
+  ON CONFLICT (faculty_id) DO UPDATE
+    SET monthly_allowance = want,
+        -- Upgrading gives her the difference now; downgrading leaves the
+        -- balance alone until the next refresh trims it naturally.
+        balance = CASE
+                    WHEN want > COALESCE(had, 0)
+                      THEN COALESCE(credits.balance, 0) + (want - COALESCE(had, 0))
+                    ELSE credits.balance
+                  END,
+        updated_at = now();
+
+  RETURN jsonb_build_object('tier', p_tier, 'allowance', want);
+END $$;
+GRANT EXECUTE ON FUNCTION public.apply_plan_tier(uuid, text) TO authenticated;
+
+-- ── a new account gets a trial-sized trial ────────────────────────────
+CREATE OR REPLACE FUNCTION public.provision_faculty()
+RETURNS trigger
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp
+AS $function$
+DECLARE trial_credits integer;
+BEGIN
+  SELECT credits INTO trial_credits FROM plan_tiers WHERE tier = 'trial';
+
+  INSERT INTO credits (faculty_id, balance, monthly_allowance)
+  VALUES (NEW.id, COALESCE(trial_credits, 40), COALESCE(trial_credits, 40))
+  ON CONFLICT (faculty_id) DO NOTHING;
+
+  INSERT INTO subscriptions (faculty_id, plan, tier, status, trial_ends_at)
+  VALUES (NEW.id, 'trial', 'trial', 'trialing', now() + INTERVAL '7 days')
+  ON CONFLICT DO NOTHING;
+
+  RETURN NEW;
+EXCEPTION WHEN OTHERS THEN
+  -- Never block a sign-up over the entitlement rows. A teacher with no
+  -- credits row is recoverable; a teacher who could not create an
+  -- account at all is not.
+  RAISE WARNING 'provision_faculty: %', SQLERRM;
+  RETURN NEW;
+END $function$;
+
+-- ── the console sets the tier too ─────────────────────────────────────
+CREATE OR REPLACE FUNCTION public.sa_set_subscription(
+  p_faculty uuid, p_plan text, p_status text, p_ends_at timestamptz, p_tier text DEFAULT NULL
+)
+RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp
+AS $function$
+BEGIN
+  PERFORM public.sa_gate('admin.billing');
+  IF p_plan IS NOT NULL AND p_plan NOT IN ('trial','monthly','quarterly','annual') THEN
+    RAISE EXCEPTION 'invalid plan %', p_plan USING ERRCODE = '22023';
+  END IF;
+  IF p_status IS NOT NULL AND p_status NOT IN ('trialing','active','past_due','canceled','expired') THEN
+    RAISE EXCEPTION 'invalid status %', p_status USING ERRCODE = '22023';
+  END IF;
+
+  INSERT INTO subscriptions (faculty_id, plan, status, current_period_start, current_period_end)
+  VALUES (p_faculty, COALESCE(p_plan,'trial'), COALESCE(p_status,'active'), now(), p_ends_at)
+  ON CONFLICT (faculty_id) DO UPDATE
+    SET plan = COALESCE(p_plan, subscriptions.plan),
+        status = COALESCE(p_status, subscriptions.status),
+        current_period_end = COALESCE(p_ends_at, subscriptions.current_period_end);
+
+  -- The allowance follows the tier, or a Basic teacher keeps a trial's
+  -- credits and the margin quietly goes with them.
+  IF p_tier IS NOT NULL THEN
+    PERFORM public.apply_plan_tier(p_faculty, p_tier);
+  END IF;
+
+  PERFORM public.sa_write_audit('superadmin.subscription.update', 'subscriptions', p_faculty,
+                                jsonb_build_object('plan', p_plan, 'status', p_status,
+                                                   'tier', p_tier, 'ends_at', p_ends_at));
+  RETURN jsonb_build_object('ok', true);
+END $function$;
+
+DROP FUNCTION IF EXISTS public.sa_set_subscription(uuid, text, text, timestamptz);
+
+DO $$
+BEGIN
+  RAISE NOTICE 'billing: tiers decide the allowance; a trial is 40 credits';
+END $$;
+
+
+-- =====================================================================
+-- 67. The pricing page reads the tier table
+-- =====================================================================
+--
+-- plan_options() had the three plans written into it as a literal. That
+-- is two places holding the same numbers — the page could advertise 120
+-- credits while apply_plan_tier() granted 200, and nothing would notice
+-- until a teacher counted.
+--
+-- One table, read by the page that sells it and the function that grants
+-- it.
+CREATE OR REPLACE FUNCTION public.plan_options()
+RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE costs jsonb; plans jsonb;
+BEGIN
+  SELECT COALESCE(jsonb_object_agg(feature, cost), '{}'::jsonb) INTO costs FROM ai_credit_costs;
+
+  SELECT COALESCE(jsonb_agg(row_to_json(t) ORDER BY t.sort), '[]'::jsonb) INTO plans
+  FROM (
+    SELECT tier AS key, label AS name, credits,
+           price_usd::numeric AS price,
+           -- Two months free, which is the ordinary shape of an annual
+           -- plan and worth showing rather than burying in small print.
+           (price_usd * 10)::numeric AS annual,
+           sort,
+           CASE tier
+             WHEN 'basic' THEN 'For one teacher, one timetable.'
+             WHEN 'pro'   THEN 'A full timetable, planned a term at a time.'
+             WHEN 'max'   THEN 'Several classes, or a head of department.'
+           END AS blurb,
+           tier = 'pro' AS popular
+      FROM plan_tiers
+     WHERE tier <> 'trial'          -- not something to choose; it is where you start
+  ) t;
+
+  RETURN jsonb_build_object(
+    'usd_per_credit', 0.02,
+    'costs', costs,
+    'plans', plans,
+    'trial', (SELECT jsonb_build_object('credits', credits) FROM plan_tiers WHERE tier = 'trial'),
+    'topups', jsonb_build_array(
+      jsonb_build_object('key','topup_100','credits',100,'price',5),
+      jsonb_build_object('key','topup_300','credits',300,'price',14),
+      jsonb_build_object('key','topup_600','credits',600,'price',26)
+    )
+  );
+END $$;
+
+DO $$
+BEGIN
+  RAISE NOTICE 'billing: the pricing page and the grant read one table';
+END $$;
+
+-- ─────────────────────────────────────────────────────────────────────────
+-- §68  Who spent what: the AI usage ledger, and the two views onto it
+--
+-- The meter has been charging correctly for a while, but nothing could
+-- ANSWER anything with it. `usage_logs` carried a row per batch with the
+-- feature left null, so "what does quiz generation cost us" and "which
+-- teacher is burning the most" had no query behind them. Three fixes:
+--
+--   faculty_id   the log kept only auth user_id, so every question about
+--                an account meant joining through faculty. Credits,
+--                subscriptions and plans are all keyed by faculty.
+--   feature      written per document now (the service settles per
+--                artifact), so a batch of three appears as three rows
+--                and a per-feature total is a GROUP BY rather than a
+--                string-parse of "generate.lesson_plan+quiz+homework".
+--   the RPCs     two audiences with deliberately different columns.
+--
+-- The audiences matter. A teacher sees CREDITS — the currency we sell —
+-- and never a token count or a dollar of our cost: those are our supply
+-- price, and publishing them invites arguments about a margin that is
+-- none of her business. The super admin sees both, because the only way
+-- to know whether the pricing works is to hold the credits charged and
+-- the tokens spent in the same row.
+-- ─────────────────────────────────────────────────────────────────────────
+
+ALTER TABLE public.usage_logs ADD COLUMN IF NOT EXISTS faculty_id uuid;
+
+-- Backfill: every historic row belongs to whoever owned that auth user.
+UPDATE public.usage_logs l
+   SET faculty_id = f.id
+  FROM public.faculty f
+ WHERE f.user_id = l.user_id
+   AND l.faculty_id IS NULL;
+
+CREATE INDEX IF NOT EXISTS usage_logs_faculty_idx  ON public.usage_logs (faculty_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS usage_logs_feature_idx  ON public.usage_logs (feature, created_at DESC);
+CREATE INDEX IF NOT EXISTS usage_logs_created_idx  ON public.usage_logs (created_at DESC);
+
+/**
+ * A feature's display name, for whichever audience is asking.
+ *
+ * The price list already names the features a teacher recognises; this
+ * falls back to the raw key rather than inventing one, so a feature
+ * nobody has priced yet still appears instead of vanishing into a NULL.
+ */
+CREATE OR REPLACE FUNCTION public.feature_label(p_feature text)
+RETURNS text
+LANGUAGE sql STABLE SET search_path = public, pg_temp
+AS $$
+  SELECT COALESCE(
+    (SELECT label FROM ai_credit_costs WHERE feature = p_feature),
+    CASE p_feature
+      WHEN 'lesson_plan'   THEN 'Lesson plans'
+      WHEN 'presentation'  THEN 'Presentations'
+      WHEN 'quiz'          THEN 'Quizzes'
+      WHEN 'homework'      THEN 'Homework'
+      WHEN 'activity'      THEN 'Activities'
+      WHEN 'bulletin'      THEN 'Bulletin board'
+      WHEN 'skill_profile' THEN 'Teaching skills'
+      WHEN 'goal_plan'     THEN 'Goal planner'
+      WHEN 'chat'          THEN 'Assistant'
+      WHEN 'reply'         THEN 'Assistant'
+      ELSE initcap(replace(COALESCE(p_feature, 'other'), '_', ' '))
+    END);
+$$;
+
+-- ── the teacher's own view: credits, and nothing about our costs ────────
+
+/**
+ * What this teacher has spent, and on what.
+ *
+ * Reads her own rows only — the faculty id comes from the session, not
+ * from a parameter, so there is no id to tamper with. Deliberately
+ * returns no tokens and no dollars.
+ */
+CREATE OR REPLACE FUNCTION public.my_ai_usage(p_days int DEFAULT 30)
+RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE
+  me    uuid := public.current_faculty_id();
+  since timestamptz := now() - (GREATEST(COALESCE(p_days, 30), 1) || ' days')::interval;
+  out   jsonb;
+BEGIN
+  IF me IS NULL THEN RAISE EXCEPTION 'not a teacher' USING ERRCODE = '42501'; END IF;
+
+  SELECT jsonb_build_object(
+    'days', GREATEST(COALESCE(p_days, 30), 1),
+    'balance',   (SELECT balance           FROM credits WHERE faculty_id = me),
+    'allowance', (SELECT monthly_allowance FROM credits WHERE faculty_id = me),
+    'renews_at', (SELECT next_refresh_at   FROM credits WHERE faculty_id = me),
+    'plan',      (SELECT tier              FROM subscriptions WHERE faculty_id = me),
+    -- Spent in the window, and spent since the allowance last refreshed.
+    -- The second is the one that answers "why is my balance here".
+    'spent', COALESCE((SELECT SUM(credits) FROM usage_logs
+                        WHERE faculty_id = me AND created_at >= since), 0),
+    'generations', COALESCE((SELECT COUNT(*) FROM usage_logs
+                        WHERE faculty_id = me AND created_at >= since AND credits > 0), 0),
+    'by_feature', COALESCE((
+      SELECT jsonb_agg(row_to_json(t) ORDER BY t.credits DESC, t.feature)
+        FROM (
+          SELECT feature,
+                 public.feature_label(feature) AS label,
+                 SUM(credits)::int            AS credits,
+                 COUNT(*)::int                AS runs
+            FROM usage_logs
+           WHERE faculty_id = me AND created_at >= since AND credits > 0
+           GROUP BY feature
+        ) t), '[]'::jsonb),
+    'by_day', COALESCE((
+      SELECT jsonb_agg(row_to_json(d) ORDER BY d.day)
+        FROM (
+          SELECT created_at::date AS day, SUM(credits)::int AS credits
+            FROM usage_logs
+           WHERE faculty_id = me AND created_at >= since AND credits > 0
+           GROUP BY 1
+        ) d), '[]'::jsonb),
+    'recent', COALESCE((
+      SELECT jsonb_agg(row_to_json(r) ORDER BY r.at DESC)
+        FROM (
+          SELECT created_at AS at,
+                 public.feature_label(feature) AS label,
+                 credits
+            FROM usage_logs
+           WHERE faculty_id = me AND credits > 0
+           ORDER BY created_at DESC
+           LIMIT 20
+        ) r), '[]'::jsonb)
+  ) INTO out;
+
+  RETURN out;
+END $$;
+
+-- ── the super admin's view: credits AND what they actually cost us ──────
+
+/**
+ * The platform, in one object.
+ *
+ * `revenue` here is contracted plan value, not cash collected — card
+ * payments are not switched on yet, so calling it revenue outright
+ * would be a number that reads as money in the bank when it is not.
+ * Named `plan_value_usd` so nobody has to remember that caveat.
+ */
+CREATE OR REPLACE FUNCTION public.sa_ai_overview(p_days int DEFAULT 30)
+RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE
+  since timestamptz := now() - (GREATEST(COALESCE(p_days, 30), 1) || ' days')::interval;
+  out   jsonb;
+BEGIN
+  PERFORM public.sa_gate('admin.dashboard');
+
+  SELECT jsonb_build_object(
+    'days', GREATEST(COALESCE(p_days, 30), 1),
+    'tokens_in',   COALESCE(SUM(tokens_in), 0),
+    'tokens_out',  COALESCE(SUM(tokens_out), 0),
+    'cache_read',  COALESCE(SUM(cache_read_tokens), 0),
+    'cache_write', COALESCE(SUM(cache_write_tokens), 0),
+    'tokens_total', COALESCE(SUM(tokens_in + tokens_out + cache_read_tokens + cache_write_tokens), 0),
+    'cost_usd',    ROUND(COALESCE(SUM(cost_usd), 0)::numeric, 4),
+    'credits',     COALESCE(SUM(credits), 0),
+    'generations', COUNT(*),
+    'active_users', COUNT(DISTINCT faculty_id)
+  ) INTO out
+    FROM usage_logs WHERE created_at >= since;
+
+  -- What we charged for that spend, and what it left us.
+  out := out || jsonb_build_object(
+    'charged_usd', ROUND(((out->>'credits')::numeric * 0.02), 4),
+    'margin_usd',  ROUND(((out->>'credits')::numeric * 0.02) - (out->>'cost_usd')::numeric, 4)
+  );
+
+  out := out || jsonb_build_object(
+    'accounts', (SELECT COUNT(*) FROM faculty),
+    'paying',   (SELECT COUNT(*) FROM subscriptions s
+                  WHERE s.tier <> 'trial' AND s.status IN ('active', 'trialing')),
+    'trialing', (SELECT COUNT(*) FROM subscriptions WHERE tier = 'trial'),
+    'plan_value_usd', (SELECT ROUND(COALESCE(SUM(t.price_usd), 0)::numeric, 2)
+                         FROM subscriptions s JOIN plan_tiers t ON t.tier = s.tier
+                        WHERE s.tier <> 'trial' AND s.status IN ('active', 'trialing')),
+    'credits_outstanding', (SELECT COALESCE(SUM(balance), 0) FROM credits)
+  );
+
+  RETURN out;
+END $$;
+
+/** Per feature: what it costs us, what we charge for it, what it earns. */
+CREATE OR REPLACE FUNCTION public.sa_ai_by_feature(p_days int DEFAULT 30)
+RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE
+  since timestamptz := now() - (GREATEST(COALESCE(p_days, 30), 1) || ' days')::interval;
+  out   jsonb;
+BEGIN
+  PERFORM public.sa_gate('admin.dashboard');
+
+  SELECT COALESCE(jsonb_agg(row_to_json(t) ORDER BY t.cost_usd DESC), '[]'::jsonb) INTO out
+    FROM (
+      SELECT feature,
+             public.feature_label(feature)                              AS label,
+             COUNT(*)::int                                              AS runs,
+             COUNT(DISTINCT faculty_id)::int                            AS users,
+             COALESCE(SUM(tokens_in), 0)::bigint                        AS tokens_in,
+             COALESCE(SUM(tokens_out), 0)::bigint                       AS tokens_out,
+             COALESCE(SUM(cache_read_tokens), 0)::bigint                AS cache_read,
+             COALESCE(SUM(cache_write_tokens), 0)::bigint               AS cache_write,
+             ROUND(COALESCE(SUM(cost_usd), 0)::numeric, 4)              AS cost_usd,
+             COALESCE(SUM(credits), 0)::int                             AS credits,
+             ROUND((COALESCE(SUM(credits), 0) * 0.02)::numeric, 4)      AS charged_usd,
+             -- The number that decides whether the price list is right.
+             ROUND(AVG(credits)::numeric, 2)                            AS avg_credits,
+             ROUND(AVG(cost_usd)::numeric, 5)                           AS avg_cost_usd,
+             -- What the price list SAYS it costs, next to what it really did.
+             (SELECT cost FROM ai_credit_costs c WHERE c.feature = u.feature) AS listed_credits
+        FROM usage_logs u
+       WHERE created_at >= since
+       GROUP BY feature
+    ) t;
+
+  RETURN out;
+END $$;
+
+/** Per account: spend, credits, plan and what they are worth to us. */
+CREATE OR REPLACE FUNCTION public.sa_ai_by_user(p_days int DEFAULT 30, p_limit int DEFAULT 100)
+RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE
+  since timestamptz := now() - (GREATEST(COALESCE(p_days, 30), 1) || ' days')::interval;
+  out   jsonb;
+BEGIN
+  PERFORM public.sa_gate('admin.dashboard');
+
+  SELECT COALESCE(jsonb_agg(row_to_json(t) ORDER BY t.cost_usd DESC NULLS LAST), '[]'::jsonb) INTO out
+    FROM (
+      SELECT f.id                                                       AS faculty_id,
+             u.email,
+             COALESCE(NULLIF(TRIM(f.full_name), ''), split_part(u.email, '@', 1)) AS name,
+             COALESCE(s.tier, 'trial')                                  AS tier,
+             COALESCE(s.status, 'trialing')                             AS status,
+             s.trial_ends_at,
+             s.current_period_end,
+             COALESCE(pt.price_usd, 0)                                  AS plan_usd,
+             c.balance,
+             c.monthly_allowance,
+             COALESCE(l.tokens_in, 0)                                   AS tokens_in,
+             COALESCE(l.tokens_out, 0)                                  AS tokens_out,
+             COALESCE(l.cache_read, 0)                                  AS cache_read,
+             COALESCE(l.cache_write, 0)                                 AS cache_write,
+             COALESCE(l.cost_usd, 0)                                    AS cost_usd,
+             COALESCE(l.credits, 0)                                     AS credits,
+             COALESCE(l.runs, 0)                                        AS runs,
+             l.last_used_at,
+             -- Are they costing us more than their plan brings in?
+             ROUND((COALESCE(pt.price_usd, 0) - COALESCE(l.cost_usd, 0))::numeric, 4) AS net_usd
+        FROM faculty f
+        JOIN auth.users u        ON u.id = f.user_id
+        LEFT JOIN subscriptions s ON s.faculty_id = f.id
+        LEFT JOIN plan_tiers pt   ON pt.tier = COALESCE(s.tier, 'trial')
+        LEFT JOIN credits c       ON c.faculty_id = f.id
+        LEFT JOIN (
+          SELECT faculty_id,
+                 SUM(tokens_in)::bigint                     AS tokens_in,
+                 SUM(tokens_out)::bigint                    AS tokens_out,
+                 SUM(cache_read_tokens)::bigint             AS cache_read,
+                 SUM(cache_write_tokens)::bigint            AS cache_write,
+                 ROUND(SUM(cost_usd)::numeric, 4)           AS cost_usd,
+                 SUM(credits)::int                          AS credits,
+                 COUNT(*)::int                              AS runs,
+                 MAX(created_at)                            AS last_used_at
+            FROM usage_logs
+           WHERE created_at >= since AND faculty_id IS NOT NULL
+           GROUP BY faculty_id
+        ) l ON l.faculty_id = f.id
+       ORDER BY COALESCE(l.cost_usd, 0) DESC
+       LIMIT GREATEST(COALESCE(p_limit, 100), 1)
+    ) t;
+
+  RETURN out;
+END $$;
+
+/** One account, opened up: its per-feature breakdown and recent runs. */
+CREATE OR REPLACE FUNCTION public.sa_ai_user(p_faculty uuid, p_days int DEFAULT 30)
+RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE
+  since timestamptz := now() - (GREATEST(COALESCE(p_days, 30), 1) || ' days')::interval;
+  out   jsonb;
+BEGIN
+  PERFORM public.sa_gate('admin.dashboard');
+
+  SELECT jsonb_build_object(
+    'faculty_id', f.id,
+    'email', u.email,
+    'name', COALESCE(NULLIF(TRIM(f.full_name), ''), split_part(u.email, '@', 1)),
+    'tier', COALESCE(s.tier, 'trial'),
+    'status', COALESCE(s.status, 'trialing'),
+    'plan_usd', COALESCE(pt.price_usd, 0),
+    'balance', c.balance,
+    'allowance', c.monthly_allowance,
+    'renews_at', c.next_refresh_at,
+    'trial_ends_at', s.trial_ends_at,
+    'by_feature', COALESCE((
+      SELECT jsonb_agg(row_to_json(x) ORDER BY x.cost_usd DESC)
+        FROM (
+          SELECT feature,
+                 public.feature_label(feature)                    AS label,
+                 COUNT(*)::int                                    AS runs,
+                 SUM(tokens_in + tokens_out
+                     + cache_read_tokens + cache_write_tokens)::bigint AS tokens,
+                 ROUND(SUM(cost_usd)::numeric, 4)                 AS cost_usd,
+                 SUM(credits)::int                                AS credits
+            FROM usage_logs
+           WHERE faculty_id = f.id AND created_at >= since
+           GROUP BY feature
+        ) x), '[]'::jsonb),
+    'recent', COALESCE((
+      SELECT jsonb_agg(row_to_json(r) ORDER BY r.at DESC)
+        FROM (
+          SELECT created_at AS at, operation,
+                 public.feature_label(feature) AS label, model,
+                 tokens_in, tokens_out, cache_read_tokens AS cache_read,
+                 cache_write_tokens AS cache_write,
+                 ROUND(cost_usd::numeric, 5) AS cost_usd, credits
+            FROM usage_logs
+           WHERE faculty_id = f.id
+           ORDER BY created_at DESC LIMIT 30
+        ) r), '[]'::jsonb)
+  ) INTO out
+    FROM faculty f
+    JOIN auth.users u ON u.id = f.user_id
+    LEFT JOIN subscriptions s ON s.faculty_id = f.id
+    LEFT JOIN plan_tiers pt   ON pt.tier = COALESCE(s.tier, 'trial')
+    LEFT JOIN credits c       ON c.faculty_id = f.id
+   WHERE f.id = p_faculty;
+
+  IF out IS NULL THEN RAISE EXCEPTION 'no such account' USING ERRCODE = '22023'; END IF;
+  RETURN out;
+END $$;
+
+/** The trend line — spend and charge per day, so a spike is visible. */
+CREATE OR REPLACE FUNCTION public.sa_ai_daily(p_days int DEFAULT 30)
+RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE
+  since timestamptz := now() - (GREATEST(COALESCE(p_days, 30), 1) || ' days')::interval;
+  out   jsonb;
+BEGIN
+  PERFORM public.sa_gate('admin.dashboard');
+
+  SELECT COALESCE(jsonb_agg(row_to_json(d) ORDER BY d.day), '[]'::jsonb) INTO out
+    FROM (
+      SELECT created_at::date                                  AS day,
+             SUM(tokens_in + tokens_out
+                 + cache_read_tokens + cache_write_tokens)::bigint AS tokens,
+             ROUND(SUM(cost_usd)::numeric, 4)                  AS cost_usd,
+             SUM(credits)::int                                 AS credits,
+             COUNT(*)::int                                     AS runs,
+             COUNT(DISTINCT faculty_id)::int                   AS users
+        FROM usage_logs
+       WHERE created_at >= since
+       GROUP BY 1
+    ) d;
+
+  RETURN out;
+END $$;
+
+GRANT EXECUTE ON FUNCTION public.feature_label(text)        TO authenticated;
+GRANT EXECUTE ON FUNCTION public.my_ai_usage(int)           TO authenticated;
+GRANT EXECUTE ON FUNCTION public.sa_ai_overview(int)        TO authenticated;
+GRANT EXECUTE ON FUNCTION public.sa_ai_by_feature(int)      TO authenticated;
+GRANT EXECUTE ON FUNCTION public.sa_ai_by_user(int, int)    TO authenticated;
+GRANT EXECUTE ON FUNCTION public.sa_ai_user(uuid, int)      TO authenticated;
+GRANT EXECUTE ON FUNCTION public.sa_ai_daily(int)           TO authenticated;
+
+DO $$
+BEGIN
+  RAISE NOTICE 'usage: the ledger can answer per user, per feature, per day';
+END $$;
+
+-- ─────────────────────────────────────────────────────────────────────────
+-- §69  The back catalogue, bucketed
+--
+-- §68 added the column; the service fills it going forward. The 299 rows
+-- already in the table predate it and would show as one unnamed slab on
+-- every chart. This applies the SAME rules the service uses (see
+-- featureOf() in the backend's src/lib/usage.ts) to what is already
+-- there, so the first day of the dashboard has a history behind it.
+--
+-- Historic BATCH rows are honest about what they are: one row covering
+-- several documents, which cannot be split after the fact. They bucket to
+-- 'batch' rather than being guessed apart — a fabricated split would look
+-- more precise and be less true.
+-- ─────────────────────────────────────────────────────────────────────────
+
+CREATE OR REPLACE FUNCTION public.feature_of(p_operation text)
+RETURNS text
+LANGUAGE sql IMMUTABLE SET search_path = public, pg_temp
+AS $$
+  WITH op AS (SELECT lower(btrim(COALESCE(p_operation, ''))) AS o),
+  bare AS (
+    SELECT o,
+           CASE WHEN o LIKE 'generate.%' THEN substr(o, 10) ELSE o END AS b
+      FROM op
+  )
+  SELECT CASE
+    WHEN b IS NULL OR b = ''      THEN 'other'
+    WHEN o LIKE '%.refused'       THEN 'refused'
+    WHEN b LIKE '%+%'             THEN 'batch'
+    ELSE CASE replace(b, '.', '_')
+           WHEN 'chatbot'          THEN 'chat'
+           WHEN 'quiz_draft'       THEN 'quiz'
+           WHEN 'quiz_tweak'       THEN 'quiz'
+           WHEN 'goal_plan_empty'  THEN 'goal_plan'
+           WHEN 'schedule_resolve' THEN 'schedule'
+           ELSE replace(b, '.', '_')
+         END
+  END FROM bare;
+$$;
+
+UPDATE public.usage_logs
+   SET feature = public.feature_of(operation)
+ WHERE feature IS NULL OR feature = '';
+
+-- The label table gained buckets that are not sellable features but do
+-- appear on our side of the dashboard.
+CREATE OR REPLACE FUNCTION public.feature_label(p_feature text)
+RETURNS text
+LANGUAGE sql STABLE SET search_path = public, pg_temp
+AS $$
+  SELECT COALESCE(
+    (SELECT label FROM ai_credit_costs WHERE feature = p_feature),
+    CASE p_feature
+      WHEN 'lesson_plan'   THEN 'Lesson plans'
+      WHEN 'presentation'  THEN 'Presentations'
+      WHEN 'quiz'          THEN 'Quizzes'
+      WHEN 'homework'      THEN 'Homework'
+      WHEN 'activity'      THEN 'Activities'
+      WHEN 'bulletin'      THEN 'Bulletin board'
+      WHEN 'skill_profile' THEN 'Teaching skills'
+      WHEN 'goal_plan'     THEN 'Goal planner'
+      WHEN 'chat'          THEN 'Assistant'
+      WHEN 'schedule'      THEN 'Scheduling'
+      WHEN 'resume_parse'  THEN 'CV reading'
+      WHEN 'materials'     THEN 'Reading attachments'
+      -- Ours, not hers. Tokens spent with nothing delivered.
+      WHEN 'refused'       THEN 'Refused (uncharged)'
+      WHEN 'unfinished'    THEN 'Unfinished (uncharged)'
+      WHEN 'batch'         THEN 'Batch (before per-document logging)'
+      ELSE initcap(replace(COALESCE(p_feature, 'other'), '_', ' '))
+    END);
+$$;
+
+GRANT EXECUTE ON FUNCTION public.feature_of(text) TO authenticated;
+
+DO $$
+DECLARE unbucketed int;
+BEGIN
+  SELECT COUNT(*) INTO unbucketed FROM usage_logs WHERE feature IS NULL OR feature = '';
+  IF unbucketed > 0 THEN
+    RAISE EXCEPTION 'usage: % rows still have no feature', unbucketed;
+  END IF;
+  RAISE NOTICE 'usage: every row is bucketed';
+END $$;

@@ -170,6 +170,11 @@ export async function resolve(
       if (a === "supabase" && method === "POST") return yes(await E.provisionTeacher());
       if (a === "claim-session" && method === "POST") return yes(await E.claimSession());
       if (a === "me" && method === "GET") return yes(await E.getProfile());
+      // Balance, the price list, and what recent generations cost.
+      if (a === "credits" && method === "GET") return yes(await E.myCredits());
+      // Where her credits went, by feature and by day.
+      if (a === "usage" && method === "GET")
+        return yes(await E.myAiUsage(Number(q.get("days")) || 30));
       // A student claims their roster row by signing in with its email.
       if (a === "link-student" && method === "POST") return yes(await E.linkStudent());
       return { handled: false };
@@ -183,6 +188,13 @@ export async function resolve(
       if (a === "file" && method === "POST") return yes({ url: await E.submissionFileUrl(body?.path) });
       if (a && b === "grade" && method === "POST")
         return yes(await E.gradeAttempt(a, Number(body?.score), body?.feedback));
+      return { handled: false };
+
+    // Plans and top-ups. No money changes hands here yet — see request_plan.
+    case "billing":
+      if (a === "plans" && method === "GET") return yes(await E.planOptions());
+      if (a === "request" && method === "POST")
+        return yes(await E.requestPlan(body?.plan, Number(body?.credits) || 0, body?.kind));
       return { handled: false };
 
     case "student":

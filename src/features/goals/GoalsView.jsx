@@ -460,9 +460,9 @@ export default function GoalsView() {
       // plan looked like the button had done nothing.
       const updated = res?.goal ?? res;
       setGoals((g) => g.map((x) => (x.id === id ? { ...x, ...updated } : x)));
-      // Charge for the plan — this endpoint is a plain JSON call, so it
-      // isn't metered by streamSSE like the streaming generators are.
-      import("@/lib/data/credits").then((m) => m.consumeCredits("goal_plan", id)).catch(() => {});
+      // Not charged here: /api/studio/goal-plan meters itself from the
+      // tokens it spent, and billing again from the browser took the
+      // credits twice.
       if (res?.unread_materials?.length) {
         setPlanError({
           id,
@@ -487,7 +487,6 @@ export default function GoalsView() {
       const planned = await waitForPlan(id);
       if (planned) {
         setGoals((g) => g.map((x) => (x.id === id ? { ...x, ...planned } : x)));
-        import("@/lib/data/credits").then((m) => m.consumeCredits("goal_plan", id)).catch(() => {});
         return;
       }
       setPlanError({
