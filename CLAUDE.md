@@ -133,11 +133,11 @@ Two carve-outs:
   anything else a visitor sees before signing in. Build it, run it, and show
   it — `localhost:3000/?home=1`, which is the URL that bypasses the
   signed-in redirect to the dashboard — then wait for a yes. This is the
-  public face of the product and Issa signs off on how it looks. Everything
+  public face of the product and its owner signs off on how it looks. Everything
   behind the login (studio, admin, database, backend) still ships without
   asking.
 
-  If something marketing-related is already pushed and he objects, back it
+  If something marketing-related is already pushed and it is rejected, back it
   out with a **revert commit** and park the work on a local branch. Don't
   force-push a branch that has been shared.
 
