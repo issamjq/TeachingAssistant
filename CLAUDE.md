@@ -99,7 +99,7 @@ a nine-week library — and creates a second, deliberately empty account
 for looking at empty states. It rewrites only those two accounts. See
 [db/seed-demo.js](db/seed-demo.js).
 
-## Deploy policy — push without asking
+## Deploy policy — push without asking, except the public site
 
 When a unit of work is finished, ship it. Do **not** ask for confirmation first. The deploy story is:
 
@@ -126,7 +126,24 @@ Neither runs automatically. Migrations are applied deliberately, from a
 machine that can read the output — an API that rebuilt the schema on
 every boot is exactly what this replaced.
 
-Carve-out: actions that **delete or rewrite live data** on Supabase (`TRUNCATE`, dropping columns, destructive migrations) still need explicit confirmation. Idempotent re-init does not.
+Two carve-outs:
+
+- **Marketing and the landing page wait for approval.** The hero,
+  `src/features/marketing/*`, `src/landing.css` / `Landing.module.css`, and
+  anything else a visitor sees before signing in. Build it, run it, and show
+  it — `localhost:3000/?home=1`, which is the URL that bypasses the
+  signed-in redirect to the dashboard — then wait for a yes. This is the
+  public face of the product and Issa signs off on how it looks. Everything
+  behind the login (studio, admin, database, backend) still ships without
+  asking.
+
+  If something marketing-related is already pushed and he objects, back it
+  out with a **revert commit** and park the work on a local branch. Don't
+  force-push a branch that has been shared.
+
+- Actions that **delete or rewrite live data** on Supabase (`TRUNCATE`,
+  dropping columns, destructive migrations) still need explicit
+  confirmation. Idempotent re-init does not.
 
 <!-- BEGIN:nextjs-agent-rules -->
 
