@@ -119,15 +119,26 @@ export default function LandingPage() {
 
   return (
     <div className={s.page} ref={scope}>
-      <header className={`${s.nav} ${scrolled ? s.navScrolled : ""}`}>
+      {/* Light-on-dark while the hero band is behind it, ink-on-paper
+          once it is not. Same observer, no second source of truth. */}
+      <header className={`${s.nav} ${scrolled ? s.navScrolled : s.navOverHero}`}>
         <div className={s.navInner}>
           {/* The preview1 wordmark, everywhere: currentColor glyphs take
               the surface's ink, the italic r takes the accent, and both
               follow the theme. */}
+          {/* The wordmark takes the surface it is on. Over the hero band
+              that surface is dark, so the glyphs go light — set here
+              rather than in CSS because the colour arrives as an inline
+              style and a stylesheet cannot cleanly outrank one. */}
           <Link href="/" className={s.logoLink} aria-label="Murchid">
             <MurchidLogo
               className="h-9 w-auto"
-              style={{ color: "var(--ink)", "--murchid-logo-accent": "var(--accent)" } as React.CSSProperties}
+              style={{
+                color: scrolled ? "var(--ink)" : "#f6f5f1",
+                "--murchid-logo-accent": scrolled
+                  ? "var(--accent)"
+                  : "color-mix(in srgb, var(--accent) 55%, #f6f5f1)",
+              } as React.CSSProperties}
             />
           </Link>
 

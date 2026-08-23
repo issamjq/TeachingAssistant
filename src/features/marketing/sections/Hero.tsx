@@ -1,31 +1,54 @@
 "use client";
 
+// =====================================================================
+// The hero
+//
+// A full-bleed dark band the nav sits inside, product shots stacked at
+// an angle on the right with callouts floating off them, and a torn edge
+// where the band gives way to the cream page below.
+//
+// The reference for this layout ran on oxblood. We are not oxblood — the
+// palette is cream paper, near-black ink and a teal accent — so the band
+// is built from `--ink` with an accent wash rather than a borrowed
+// colour. Same structure, our material.
+//
+// The headline deliberately mixes the two faces already in the type
+// system: Inter Tight for the statement, Fraunces italic for the phrase
+// it turns on. That contrast is what the reference is doing with its own
+// pairing, and we get it without adding a font.
+//
+// The shots are REAL screens — /studio composing and the lesson library
+// — not drawings of them. A hero that shows a product which does not
+// look like that is a promise the first login breaks.
+// =====================================================================
 import { useEffect, useRef } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import gsap from "gsap";
-import {
-  Sparkles,
-  ArrowRight,
-  CheckCircle2,
-  Clock,
-  Target,
-  Layers,
-  Sparkle,
-  BookOpen,
-  Presentation,
-  ListChecks,
-} from "lucide-react";
+import { ArrowRight, Sparkles, CalendarCheck, FileCheck2, Layers } from "lucide-react";
 import { useT } from "@/shared/i18n";
 import { motionIsStopped } from "../useReveal";
 import s from "../Landing.module.css";
 
+/**
+ * The callouts pinned to the shots.
+ *
+ * Each names something the product actually does, in the words a teacher
+ * would use. Position is per-callout because they hang off specific
+ * parts of the screenshots underneath — a generic corner placement would
+ * float them over nothing.
+ */
+const CALLOUTS = [
+  { key: "brief", icon: Sparkles, cls: "calloutOne" },
+  { key: "materials", icon: Layers, cls: "calloutTwo" },
+  { key: "scheduled", icon: CalendarCheck, cls: "calloutThree" },
+  { key: "marked", icon: FileCheck2, cls: "calloutFour" },
+] as const;
+
 export default function Hero() {
   const t = useT();
   const root = useRef<HTMLElement>(null);
-  const shot = useRef<HTMLDivElement>(null);
 
-  // GSAP entrance choreography
   useEffect(() => {
     if (!root.current || motionIsStopped()) return;
     const mm = gsap.matchMedia();
@@ -34,13 +57,17 @@ export default function Hero() {
       const ctx = gsap.context(() => {
         gsap
           .timeline({ defaults: { ease: "power3.out" } })
-          .from("[data-hero-pill]", { y: 16, opacity: 0, duration: 0.5 })
-          .from("[data-hero-title]", { y: 28, opacity: 0, duration: 0.7 }, "-=0.35")
-          .from("[data-hero-lede]", { y: 20, opacity: 0, duration: 0.55 }, "-=0.45")
-          .from("[data-hero-actions]", { y: 16, opacity: 0, duration: 0.5 }, "-=0.38")
-          .from("[data-hero-trust]", { y: 12, opacity: 0, duration: 0.45 }, "-=0.35")
-          .from(shot.current, { y: 36, scale: 0.97, opacity: 0, duration: 0.85 }, "-=0.55")
-          .from("[data-floating-badge]", { scale: 0.85, opacity: 0, duration: 0.6, stagger: 0.12, ease: "back.out(1.7)" }, "-=0.4");
+          .from("[data-hero-eyebrow]", { y: 14, opacity: 0, duration: 0.5 })
+          .from("[data-hero-title]", { y: 26, opacity: 0, duration: 0.72 }, "-=0.3")
+          .from("[data-hero-lede]", { y: 18, opacity: 0, duration: 0.55 }, "-=0.45")
+          .from("[data-hero-actions]", { y: 14, opacity: 0, duration: 0.5 }, "-=0.4")
+          .from("[data-shot-back]", { y: 40, opacity: 0, duration: 0.8 }, "-=0.6")
+          .from("[data-shot-front]", { y: 48, opacity: 0, duration: 0.8 }, "-=0.62")
+          .from(
+            "[data-callout]",
+            { scale: 0.86, opacity: 0, duration: 0.5, stagger: 0.1, ease: "back.out(1.6)" },
+            "-=0.4",
+          );
       }, root);
       return () => ctx.revert();
     });
@@ -50,134 +77,94 @@ export default function Hero() {
 
   return (
     <section className={s.hero} id="top" ref={root}>
-      {/* Left Column: Value Proposition, Master Headline, CTAs */}
-      <div className={s.heroCopy} data-hero-copy>
-        {/* Floating Eyebrow Pill */}
-        <div className={s.heroEyebrowPill} data-hero-pill>
-          <span className={s.pulsingDot} aria-hidden="true" />
-          <Sparkles size={14} className={s.eyebrowIcon} aria-hidden="true" />
-          <span>{t("mk.hero.eyebrow")}</span>
+      <div className={s.heroInner}>
+        {/* ── Left: the claim ─────────────────────────────────────── */}
+        <div className={s.heroCopy}>
+          <p className={s.heroEyebrow} data-hero-eyebrow>
+            <span className={s.heroEyebrowDot} aria-hidden="true" />
+            {t("mk.hero.eyebrow")}
+          </p>
+
+          {/* Two faces, one sentence, set to WRAP rather than to break
+              per phrase. Giving each phrase its own line staircased the
+              block and made "of ideas." a line of its own; letting it
+              flow is what the reference is actually doing. */}
+          <h1 className={s.heroTitle} data-hero-title>
+            {t("mk.hero.lineA")}{" "}
+            <em className={s.heroTitleAccent}>{t("mk.hero.lineB")}</em>{" "}
+            {t("mk.hero.lineC")}
+          </h1>
+
+          <p className={s.heroLede} data-hero-lede>
+            {t("mk.hero.lede")}
+          </p>
+
+          <div className={s.heroActions} data-hero-actions>
+            <Link href="/signup" className={s.heroCta}>
+              <span>{t("mk.hero.cta.trial")}</span>
+              <ArrowRight size={15} aria-hidden="true" />
+            </Link>
+            <a href="#how" className={s.heroCtaGhost}>
+              {t("mk.cta.secondary")}
+            </a>
+          </div>
+
+          <p className={s.heroFinePrint}>{t("mk.hero.finePrint")}</p>
         </div>
 
-        {/* Master Display Headline */}
-        <h1 className={s.heroTitle} data-hero-title>
-          <span className={s.heroTitleLead}>{t("mk.hero.headlineA")}</span>{" "}
-          <em className={s.heroTitleAccent}>{t("mk.hero.headlineB")}</em>
-        </h1>
-
-        {/* Understandability Lede */}
-        <p className={s.heroLede} data-hero-lede>
-          {t("mk.hero.lede")}
-        </p>
-
-        {/* Main Actions */}
-        <div className={s.heroActions} data-hero-actions>
-          <Link href="/signup" className={s.btnPrimaryHero}>
-            <span>{t("mk.hero.cta.trial")}</span>
-            <ArrowRight size={17} className={s.btnArrow} aria-hidden="true" />
-          </Link>
-          <a href="#how" className={s.btnGhostHero}>
-            <span>{t("mk.cta.secondary")}</span>
-          </a>
-        </div>
-
-        {/* Value & Trust Badges Strip */}
-        <div className={s.heroTrustStrip} data-hero-trust>
-          <div className={s.trustItem}>
-            <CheckCircle2 size={15} className={s.trustCheck} aria-hidden="true" />
-            <span>{t("mk.hero.trust.nocard")}</span>
+        {/* ── Right: the product, at an angle ─────────────────────── */}
+        <div className={s.heroStage}>
+          {/* Behind: what came out of it. */}
+          <div className={s.shotBack} data-shot-back>
+            <Image
+              src="/marketing/studio-library.jpg"
+              alt={t("mk.hero.shot.library")}
+              width={1400}
+              height={663}
+              sizes="(max-width: 1024px) 90vw, 46vw"
+              className={s.shotImg}
+            />
           </div>
-          <span className={s.trustDot} aria-hidden="true">·</span>
-          <div className={s.trustItem}>
-            <CheckCircle2 size={15} className={s.trustCheck} aria-hidden="true" />
-            <span>{t("mk.hero.trust.bilingual")}</span>
+
+          {/* In front: where a teacher starts. */}
+          <div className={s.shotFront} data-shot-front>
+            <Image
+              src="/marketing/studio-compose.jpg"
+              alt={t("mk.hero.shot.compose")}
+              width={1400}
+              height={663}
+              priority
+              sizes="(max-width: 1024px) 96vw, 50vw"
+              className={s.shotImg}
+            />
           </div>
-          <span className={s.trustDot} aria-hidden="true">·</span>
-          <div className={s.trustItem}>
-            <CheckCircle2 size={15} className={s.trustCheck} aria-hidden="true" />
-            <span>{t("mk.hero.trust.export")}</span>
-          </div>
+
+          {CALLOUTS.map(({ key, icon: Icon, cls }) => (
+            <span
+              key={key}
+              className={`${s.callout} ${s[cls]}`}
+              data-callout
+            >
+              <Icon size={13} aria-hidden="true" />
+              {t(`mk.hero.callout.${key}` as Parameters<typeof t>[0])}
+            </span>
+          ))}
         </div>
       </div>
 
-      {/* Right Column: Platform Visual Showcase & Floating Glass Cards */}
-      <div
-        className={s.heroShot}
-        ref={shot}
-        data-hero-shot
-      >
-        {/* Floating Highlight Badge: Prep Time Saved */}
-        <div className={`${s.floatingBadge} ${s.badgeTopLeft}`} data-floating-badge>
-          <div className={s.badgeIconWrap}>
-            <Clock size={14} className={s.badgeIcon} />
-          </div>
-          <div className={s.badgeText}>
-            <span className={s.badgeTitle}>{t("mk.hero.badge.time")}</span>
-          </div>
-        </div>
-
-        {/* Floating Highlight Badge: Synced Materials */}
-        <div className={`${s.floatingBadge} ${s.badgeTopRight}`} data-floating-badge>
-          <div className={s.badgeIconWrap}>
-            <Layers size={14} className={s.badgeIcon} />
-          </div>
-          <div className={s.badgeText}>
-            <span className={s.badgeTitle}>{t("mk.hero.badge.synced")}</span>
-          </div>
-        </div>
-
-        {/* Floating Highlight Badge: Curriculum Alignment */}
-        <div className={`${s.floatingBadge} ${s.badgeBottomRight}`} data-floating-badge>
-          <div className={s.badgeIconWrap}>
-            <Target size={14} className={s.badgeIcon} />
-          </div>
-          <div className={s.badgeText}>
-            <span className={s.badgeTitle}>{t("mk.hero.badge.aligned")}</span>
-          </div>
-        </div>
-
-        {/* Main Visual Frame */}
-        <div className={s.heroImgFrame}>
-          <Image
-            src="/marketing/hero-director.jpg"
-            alt="Murchid AI Lesson Director for Teachers"
-            width={1280}
-            height={720}
-            priority
-            sizes="(max-width: 960px) 100vw, 55vw"
-            className={s.heroDirectorImg}
+      {/* The torn edge. Decorative — the band has to end somewhere and a
+          ruled line would be the one straight thing on the page. */}
+      <div className={s.heroTear} aria-hidden="true">
+        <svg viewBox="0 0 1440 88" preserveAspectRatio="none" focusable="false">
+          <path
+            d="M0 63 C 42 47, 74 74, 118 62 C 163 50, 191 71, 236 66 C 284 60, 305 42, 352 51
+               C 398 60, 421 79, 470 70 C 517 62, 540 44, 588 49 C 638 54, 660 76, 710 69
+               C 757 62, 779 46, 828 52 C 876 58, 902 77, 951 70 C 998 63, 1020 45, 1068 50
+               C 1117 55, 1141 75, 1190 68 C 1236 61, 1259 45, 1307 51
+               C 1354 57, 1386 72, 1440 60 L 1440 88 L 0 88 Z"
           />
-
-          {/* Frosted Glass Overlay Card */}
-          <div className={s.heroGlassOverlay}>
-            <div className={s.glassHeader}>
-              <span className={s.glassPulseDot} aria-hidden="true" />
-              <span className={s.glassPillText}>AI LESSON DIRECTOR · KG–G12</span>
-              <Sparkle size={12} className={s.glassSparkle} aria-hidden="true" />
-            </div>
-
-            <p className={s.glassTitle}>
-              One brief produces your entire term’s lesson plans, slides, quizzes & rubrics.
-            </p>
-
-            <div className={s.glassArtifactTags}>
-              <span className={s.glassTag}>
-                <BookOpen size={12} className={s.glassTagIcon} />
-                <span>Plans</span>
-              </span>
-              <span className={s.glassTag}>
-                <Presentation size={12} className={s.glassTagIcon} />
-                <span>Decks</span>
-              </span>
-              <span className={s.glassTag}>
-                <ListChecks size={12} className={s.glassTagIcon} />
-                <span>Quizzes</span>
-              </span>
-            </div>
-          </div>
-        </div>
+        </svg>
       </div>
     </section>
   );
 }
-
