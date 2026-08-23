@@ -798,7 +798,7 @@ function AiUsage({ accountId }) {
             <UsageStat label="Runs" value={totals.runs} />
             <UsageStat label="Tokens" value={fmtTokens(totals.tokens)} />
             <UsageStat label="Our cost" value={`$${totals.cost.toFixed(4)}`} />
-            <UsageStat label="Charged" value={`${totals.credits} cr`} />
+            <UsageStat label="Credits" value={totals.credits} />
           </div>
 
           <div className="bg-paper-warm rounded-xl overflow-hidden">

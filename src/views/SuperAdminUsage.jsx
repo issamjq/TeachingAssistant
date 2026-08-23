@@ -133,7 +133,7 @@ export default function SuperAdminUsage() {
             <Stat
               icon={Coins}
               label="Charged"
-              value={`${fmtInt(overview.credits)} cr`}
+              value={`${fmtInt(overview.credits)} credits`}
               note={`${fmtUsd(overview.charged_usd)} at $0.02 a credit`}
             />
             <Stat
@@ -179,7 +179,7 @@ export default function SuperAdminUsage() {
         </p>
         {!features ? <Skeleton className="h-48 rounded-2xl" /> : (
           <Table
-            cols={["Feature", "Runs", "Users", "Tokens", "Our cost", "Charged", "Avg cr", "Listed", "Margin"]}
+            cols={["Feature", "Runs", "Users", "Tokens", "Our cost", "Credits", "Avg", "Listed", "Margin"]}
             align={[0, 1, 1, 1, 1, 1, 1, 1, 1]}
           >
             {features.map((f) => {
@@ -199,7 +199,7 @@ export default function SuperAdminUsage() {
                   <Num>{fmtInt(f.users)}</Num>
                   <Num>{fmtTokens(Number(f.tokens_in) + Number(f.tokens_out) + Number(f.cache_read) + Number(f.cache_write))}</Num>
                   <Num>{fmtUsd4(f.cost_usd)}</Num>
-                  <Num>{fmtInt(f.credits)} cr</Num>
+                  <Num>{fmtInt(f.credits)}</Num>
                   <Num>{f.avg_credits ?? "—"}</Num>
                   <Num>{f.listed_credits ?? "—"}</Num>
                   <Num tone={underwater ? "clay" : undefined}>{fmtUsd4(m)}</Num>
@@ -209,7 +209,8 @@ export default function SuperAdminUsage() {
           </Table>
         )}
         <p className="text-xs text-muted mt-2">
-          <strong>Avg cr</strong> is what a run actually charged;{" "}
+          <strong>Credits</strong> and <strong>Avg</strong> are credits, not currency —
+          one credit is $0.02. <strong>Avg</strong> is what a run actually charged;{" "}
           <strong>Listed</strong> is what the price list quotes. A gap between
           them means the quote on the composer is misleading.
         </p>
@@ -222,7 +223,7 @@ export default function SuperAdminUsage() {
         </p>
         {!users ? <Skeleton className="h-64 rounded-2xl" /> : (
           <Table
-            cols={["Account", "Plan", "Pays", "Runs", "Tokens", "Our cost", "Credits used", "Balance", "Net", ""]}
+            cols={["Account", "Plan", "Pays", "Runs", "Tokens", "Our cost", "Credits", "Balance", "Net", ""]}
             align={[0, 0, 1, 1, 1, 1, 1, 1, 1, 1]}
           >
             {users.map((u) => (
@@ -242,7 +243,7 @@ export default function SuperAdminUsage() {
                 <Num>{fmtInt(u.runs)}</Num>
                 <Num>{fmtTokens(Number(u.tokens_in) + Number(u.tokens_out) + Number(u.cache_read) + Number(u.cache_write))}</Num>
                 <Num>{fmtUsd4(u.cost_usd)}</Num>
-                <Num>{fmtInt(u.credits)} cr</Num>
+                <Num>{fmtInt(u.credits)}</Num>
                 <Num tone={Number(u.balance) === 0 ? "clay" : undefined}>
                   {fmtInt(u.balance)}
                 </Num>

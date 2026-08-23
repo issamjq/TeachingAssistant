@@ -251,8 +251,8 @@ export default function SuperAdminDashboard() {
             />
             <Kpi
               icon={<Coins size={14} />}
-              label="Charged"
-              value={`${Number(ai.credits || 0).toLocaleString()} cr`}
+              label="Credits charged"
+              value={Number(ai.credits || 0).toLocaleString()}
               sub={`$${Number(ai.charged_usd || 0).toFixed(2)} at $0.02 each`}
               small
             />

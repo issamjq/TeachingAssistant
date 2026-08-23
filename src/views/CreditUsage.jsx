@@ -164,8 +164,9 @@ export default function CreditUsage() {
                 </div>
                 <p className="font-serif text-2xl text-ink flex-shrink-0">
                   {f.credits}
+                  {/* Spelled out. "cr" reads as crore to half this market. */}
                   <span className="font-mono text-[10px] uppercase tracking-wider text-muted ms-1.5">
-                    cr
+                    {f.credits === 1 ? "credit" : "credits"}
                   </span>
                 </p>
               </div>
