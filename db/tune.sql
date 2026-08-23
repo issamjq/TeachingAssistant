@@ -8275,3 +8275,402 @@ BEGIN
   END IF;
   RAISE NOTICE 'usage: every row counts again';
 END $$;
+
+-- ─────────────────────────────────────────────────────────────────────────
+-- §73  When a plan ends, the credits end with it
+--
+-- Four things were missing, and together they meant a subscription that
+-- lapsed cost the teacher nothing and us everything:
+--
+--   1  a trial that ran out kept its unused credits. refresh_credits_if_due
+--      stopped REFILLING on lapse but never removed what was already
+--      there — "the month passes either way; the credits do not". A trial
+--      that ended with 40 of 40 unspent kept all 40, for ever.
+--   2  nothing downgraded a lapsed account. It stayed on its tier with its
+--      allowance intact, waiting for a payment that never had to come.
+--   3  expiry only happened when the teacher opened the app, because
+--      refresh_credits_if_due is called from the client. An account nobody
+--      logged into never expired at all.
+--   4  and the AI routes never checked any of it — see assertBalance() in
+--      the backend, which reads `balance` and nothing else. Data writes
+--      were gated by subscription_active() through RLS, but generation
+--      runs on the pooler, which bypasses RLS. So a dead trial with credit
+--      left could keep generating until the balance ran dry.
+--
+-- ANNUAL IS A BILLING PERIOD, NOT A CREDIT PERIOD. An annual subscriber
+-- is charged once a year and still receives their monthly allowance every
+-- month — which is what the pricing page already advertises ("2 months
+-- free" beside "350 credits a month"). So the refresh cadence stays
+-- monthly for everyone; what the plan decides is when the SUBSCRIPTION
+-- lapses, not when the credits land.
+--
+-- On lapse an account becomes a `free` tier: it keeps everything it has
+-- made, its classes and its students, and can generate nothing new. That
+-- is the "normal account without credits".
+-- ─────────────────────────────────────────────────────────────────────────
+
+INSERT INTO public.plan_tiers (tier, label, credits, price_usd, sort)
+VALUES ('free', 'No plan', 0, 0.00, 9)
+ON CONFLICT (tier) DO UPDATE
+  SET label = EXCLUDED.label, credits = EXCLUDED.credits, price_usd = EXCLUDED.price_usd;
+
+/**
+ * Is this account's subscription live? Asked ABOUT an account rather
+ * than about the caller.
+ *
+ * subscription_active() reads auth.uid() and so can only ever answer for
+ * whoever is signed in — no use to a sweep that has to look at every
+ * account. Same rules, including the privileged-role bypass and the
+ * three-day grace that keeps a card retry from locking a teacher out
+ * mid-lesson.
+ */
+CREATE OR REPLACE FUNCTION public.subscription_active_for(p_faculty uuid)
+RETURNS boolean
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+  SELECT
+    EXISTS (
+      SELECT 1 FROM faculty f JOIN users u ON u.id = f.user_id
+       WHERE f.id = p_faculty
+         AND u.role IN ('dev', 'super_admin', 'admin', 'owner', 'moe')
+    )
+    OR EXISTS (
+      SELECT 1 FROM subscriptions s
+       WHERE s.faculty_id = p_faculty
+         AND s.status IN ('trialing', 'active', 'past_due')
+         AND (
+           COALESCE(s.current_period_end, s.trial_ends_at) IS NULL
+           OR COALESCE(s.current_period_end, s.trial_ends_at) > now() - INTERVAL '3 days'
+         )
+    );
+$$;
+
+/**
+ * Take the plan away, and the credits with it.
+ *
+ * Idempotent — an account already on `free` with a zero balance is left
+ * alone, so the sweep can run as often as it likes. Returns true only
+ * when it actually changed something, which is what makes the sweep's
+ * count meaningful.
+ *
+ * The allowance goes to zero as well as the balance. Leaving the
+ * allowance would mean the next refresh boundary silently handed back a
+ * full month of credits to an account that never paid.
+ */
+CREATE OR REPLACE FUNCTION public.expire_subscription(p_faculty uuid)
+RETURNS boolean
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE changed boolean := false;
+BEGIN
+  UPDATE subscriptions
+     SET status = 'expired', tier = 'free', updated_at = now()
+   WHERE faculty_id = p_faculty
+     AND (status <> 'expired' OR tier <> 'free');
+  IF FOUND THEN changed := true; END IF;
+
+  UPDATE credits
+     SET balance = 0, monthly_allowance = 0, next_refresh_at = NULL, updated_at = now()
+   WHERE faculty_id = p_faculty
+     AND (balance <> 0 OR monthly_allowance <> 0 OR next_refresh_at IS NOT NULL);
+  IF FOUND THEN changed := true; END IF;
+
+  RETURN changed;
+END $$;
+
+/**
+ * The refresh, rewritten to end plans as well as renew them.
+ *
+ * Called by the client on load. Three outcomes:
+ *
+ *   lapsed          the plan is over. Credits and allowance go to zero and
+ *                   the tier drops to `free`. This is the case that did
+ *                   not exist before.
+ *   due and live    the boundary has passed on a paying account: balance
+ *                   goes back to the monthly allowance.
+ *   live, not due   nothing happens except, on a first run, anchoring the
+ *                   next boundary to the plan's own start day.
+ *
+ * The cadence is monthly whatever the billing period, because annual is
+ * a billing period and not a credit period.
+ */
+CREATE OR REPLACE FUNCTION public.refresh_credits_if_due()
+RETURNS jsonb
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE
+  fid uuid; v_balance int; v_allow int; v_next timestamptz;
+  anchor timestamptz; did boolean := false; paid boolean; ended boolean := false;
+BEGIN
+  fid := current_faculty_id();
+  IF fid IS NULL THEN RETURN NULL; END IF;
+  SELECT balance, monthly_allowance, next_refresh_at INTO v_balance, v_allow, v_next
+    FROM credits WHERE faculty_id = fid;
+  IF NOT FOUND THEN RETURN NULL; END IF;
+
+  paid := public.subscription_active_for(fid);
+
+  IF NOT paid THEN
+    -- The plan is over. Unused credits are not a possession that
+    -- outlives it: a trial that ended with all 40 untouched keeps none.
+    PERFORM public.expire_subscription(fid);
+    RETURN jsonb_build_object(
+      'balance', 0, 'allowance', 0, 'next_refresh_at', NULL,
+      'refreshed', false, 'subscription_active', false, 'expired', true
+    );
+  END IF;
+
+  IF v_next IS NULL THEN
+    SELECT current_period_start INTO anchor FROM subscriptions WHERE faculty_id = fid;
+    anchor := COALESCE(anchor, now());
+    WHILE anchor <= now() LOOP anchor := anchor + INTERVAL '1 month'; END LOOP;
+    UPDATE credits SET next_refresh_at = anchor WHERE faculty_id = fid;
+    v_next := anchor;
+  ELSIF now() >= v_next THEN
+    anchor := v_next;
+    WHILE anchor <= now() LOOP anchor := anchor + INTERVAL '1 month'; END LOOP;
+    UPDATE credits SET balance = monthly_allowance, next_refresh_at = anchor, updated_at = now()
+      WHERE faculty_id = fid;
+    v_balance := v_allow;
+    did := true;
+    v_next := anchor;
+  END IF;
+
+  RETURN jsonb_build_object(
+    'balance', v_balance, 'allowance', v_allow,
+    'next_refresh_at', v_next, 'refreshed', did,
+    'subscription_active', true, 'expired', ended
+  );
+END $$;
+
+/**
+ * The sweep, for every account at once.
+ *
+ * Expiry cannot depend on the teacher opening the app — that is how an
+ * account nobody logged into kept its credits indefinitely. Run this on
+ * a schedule (Supabase cron, or the backend on a timer); it is
+ * idempotent and only touches accounts that have actually lapsed.
+ */
+CREATE OR REPLACE FUNCTION public.expire_lapsed_subscriptions()
+RETURNS jsonb
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE
+  r record; n int := 0; credits_cleared int := 0; c int;
+BEGIN
+  FOR r IN
+    SELECT s.faculty_id
+      FROM subscriptions s
+     WHERE NOT public.subscription_active_for(s.faculty_id)
+       AND (s.status <> 'expired' OR s.tier <> 'free')
+  LOOP
+    SELECT COALESCE(balance, 0) INTO c FROM credits WHERE faculty_id = r.faculty_id;
+    IF public.expire_subscription(r.faculty_id) THEN
+      n := n + 1;
+      credits_cleared := credits_cleared + COALESCE(c, 0);
+    END IF;
+  END LOOP;
+
+  RETURN jsonb_build_object('expired', n, 'credits_cleared', credits_cleared);
+END $$;
+
+/** Super-admin trigger for the same sweep, so it can be run by hand. */
+CREATE OR REPLACE FUNCTION public.sa_expire_lapsed()
+RETURNS jsonb
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE out jsonb;
+BEGIN
+  PERFORM public.sa_gate('admin.billing');
+  out := public.expire_lapsed_subscriptions();
+  PERFORM public.sa_write_audit('superadmin.subscriptions.expire_sweep', 'subscriptions', NULL, out);
+  RETURN out;
+END $$;
+
+/**
+ * Starting a plan sets the period end from the BILLING period.
+ *
+ * monthly → +1 month, quarterly → +3, annual → +12. The credit refresh
+ * stays monthly regardless; this only decides when the subscription
+ * itself lapses.
+ */
+CREATE OR REPLACE FUNCTION public.plan_period(p_plan text)
+RETURNS interval
+LANGUAGE sql IMMUTABLE SET search_path = public, pg_temp
+AS $$
+  SELECT CASE lower(COALESCE(p_plan, 'monthly'))
+           WHEN 'annual'    THEN INTERVAL '1 year'
+           WHEN 'quarterly' THEN INTERVAL '3 months'
+           WHEN 'trial'     THEN INTERVAL '7 days'
+           ELSE                  INTERVAL '1 month'
+         END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.subscription_active_for(uuid)     TO authenticated;
+GRANT EXECUTE ON FUNCTION public.plan_period(text)                 TO authenticated;
+GRANT EXECUTE ON FUNCTION public.sa_expire_lapsed()                TO authenticated;
+-- expire_subscription / expire_lapsed_subscriptions are deliberately NOT
+-- granted: they are called from definer functions and a sweep, never by a
+-- browser.
+REVOKE EXECUTE ON FUNCTION public.expire_subscription(uuid)        FROM public, authenticated;
+REVOKE EXECUTE ON FUNCTION public.expire_lapsed_subscriptions()    FROM public, authenticated;
+
+DO $$
+DECLARE probe uuid; before_balance int; after_balance int; after_tier text;
+BEGIN
+  -- Prove the lapse path on a real lapsed account rather than trusting it.
+  SELECT s.faculty_id INTO probe
+    FROM subscriptions s
+   WHERE NOT public.subscription_active_for(s.faculty_id)
+   LIMIT 1;
+
+  IF probe IS NULL THEN
+    RAISE NOTICE 'billing: no lapsed account to verify against';
+  ELSE
+    SELECT balance INTO before_balance FROM credits WHERE faculty_id = probe;
+    PERFORM public.expire_subscription(probe);
+    SELECT c.balance, s.tier INTO after_balance, after_tier
+      FROM credits c JOIN subscriptions s ON s.faculty_id = c.faculty_id
+     WHERE c.faculty_id = probe;
+    IF after_balance <> 0 OR after_tier <> 'free' THEN
+      RAISE EXCEPTION 'billing: lapse left balance=% tier=%', after_balance, after_tier;
+    END IF;
+    RAISE NOTICE 'billing: lapsed account cleared (% credits removed)', before_balance;
+  END IF;
+END $$;
+
+-- §73b  my_credits() reports whether the plan is live
+--
+-- "You are out of credits" and "your plan has ended" need different
+-- words and different buttons — topping up does not fix the second —
+-- and the client could not tell them apart from `balance` alone.
+CREATE OR REPLACE FUNCTION public.my_credits()
+RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE fid uuid; uid uuid; out jsonb;
+BEGIN
+  fid := current_faculty_id();
+  IF fid IS NULL THEN RETURN NULL; END IF;
+  uid := (SELECT auth.uid());
+
+  SELECT jsonb_build_object(
+    'balance',   COALESCE(c.balance, 0),
+    'allowance', COALESCE(c.monthly_allowance, 0),
+    'renews_at', c.next_refresh_at,
+    'plan',      s.plan,
+    'tier',      s.tier,
+    'status',    s.status,
+    'subscription_active', public.subscription_active_for(fid),
+    'ends_at',   COALESCE(s.current_period_end, s.trial_ends_at),
+    'costs', (
+      SELECT COALESCE(jsonb_object_agg(feature, cost), '{}'::jsonb) FROM ai_credit_costs
+    ),
+    'recent', (
+      SELECT COALESCE(jsonb_agg(row_to_json(r) ORDER BY r.created_at DESC), '[]'::jsonb)
+        FROM (
+          SELECT operation, credits, tokens_in, tokens_out, cost_usd, created_at
+            FROM usage_logs
+           WHERE user_id = uid AND credits > 0
+           ORDER BY created_at DESC LIMIT 20
+        ) r
+    )
+  ) INTO out
+  FROM credits c
+  LEFT JOIN subscriptions s ON s.faculty_id = c.faculty_id
+  WHERE c.faculty_id = fid;
+
+  RETURN out;
+END $$;
+
+DO $$
+BEGIN
+  RAISE NOTICE 'billing: a plan that ends takes its credits with it';
+END $$;
+
+-- ─────────────────────────────────────────────────────────────────────────
+-- §74  The grace period is for payments, not for trials
+--
+-- Both active-plan checks allowed three days past the end date. On a
+-- paid plan that is right: a card retry should not lock a teacher out
+-- mid-lesson, and `past_due` exists precisely for that window.
+--
+-- On a TRIAL there is no payment to retry, so the grace is simply three
+-- free days nobody agreed to — a 7-day trial that runs 10. §73's own
+-- test caught it: a trial expired yesterday still reported live.
+--
+-- Grace now applies only where a payment could be in flight.
+-- ─────────────────────────────────────────────────────────────────────────
+
+CREATE OR REPLACE FUNCTION public.subscription_active_for(p_faculty uuid)
+RETURNS boolean
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+  SELECT
+    EXISTS (
+      SELECT 1 FROM faculty f JOIN users u ON u.id = f.user_id
+       WHERE f.id = p_faculty
+         AND u.role IN ('dev', 'super_admin', 'admin', 'owner', 'moe')
+    )
+    OR EXISTS (
+      SELECT 1 FROM subscriptions s
+       WHERE s.faculty_id = p_faculty
+         AND s.status IN ('trialing', 'active', 'past_due')
+         AND (
+           COALESCE(s.current_period_end, s.trial_ends_at) IS NULL
+           OR COALESCE(s.current_period_end, s.trial_ends_at) >
+              CASE WHEN s.status = 'trialing'
+                   THEN now()                        -- a trial ends when it ends
+                   ELSE now() - INTERVAL '3 days'    -- a card gets three days to clear
+              END
+         )
+    );
+$$;
+
+CREATE OR REPLACE FUNCTION public.subscription_active()
+RETURNS boolean
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+  SELECT
+    EXISTS (
+      SELECT 1 FROM users u
+       WHERE u.id = (SELECT auth.uid())
+         AND u.role IN ('dev', 'super_admin', 'admin', 'owner', 'moe')
+    )
+    OR EXISTS (
+      SELECT 1 FROM subscriptions s
+       WHERE s.faculty_id = current_faculty_id()
+         AND s.status IN ('trialing', 'active', 'past_due')
+         AND (
+           COALESCE(s.current_period_end, s.trial_ends_at) IS NULL
+           OR COALESCE(s.current_period_end, s.trial_ends_at) >
+              CASE WHEN s.status = 'trialing'
+                   THEN now()
+                   ELSE now() - INTERVAL '3 days'
+              END
+         )
+    );
+$$;
+
+DO $$
+DECLARE fid uuid; live boolean;
+BEGIN
+  SELECT s.faculty_id INTO fid FROM subscriptions s
+    JOIN faculty f ON f.id = s.faculty_id
+    JOIN users u ON u.id = f.user_id
+   WHERE u.role NOT IN ('dev','super_admin','admin','owner','moe') LIMIT 1;
+  IF fid IS NULL THEN RAISE NOTICE 'billing: no ordinary teacher to verify grace against'; RETURN; END IF;
+
+  -- A trial that ended yesterday must read dead, not alive.
+  CREATE TEMP TABLE _g AS SELECT status, trial_ends_at, current_period_end
+    FROM subscriptions WHERE faculty_id = fid;
+  UPDATE subscriptions SET status='trialing', trial_ends_at = now() - INTERVAL '1 day',
+         current_period_end = NULL WHERE faculty_id = fid;
+  live := public.subscription_active_for(fid);
+  UPDATE subscriptions s SET status=g.status, trial_ends_at=g.trial_ends_at,
+         current_period_end=g.current_period_end FROM _g g WHERE s.faculty_id = fid;
+  DROP TABLE _g;
+
+  IF live THEN RAISE EXCEPTION 'billing: a trial that ended yesterday still reads live'; END IF;
+  RAISE NOTICE 'billing: a trial ends when it ends; grace is for cards only';
+END $$;

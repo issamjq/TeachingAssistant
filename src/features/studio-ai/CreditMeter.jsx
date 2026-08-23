@@ -95,7 +95,10 @@ export function CreditEstimate({ credits, kinds, hasMaterials }) {
 export function CreditWarning({ credits, onDismiss = undefined }) {
   const [hidden, setHidden] = useState(false);
   const left = pct(credits);
-  if (!credits || left == null || hidden) return null;
+  // A lapsed account has a zero allowance, so pct() is null for exactly
+  // the people who most need to be told why nothing works.
+  const lapsed = credits?.subscription_active === false;
+  if (!credits || (left == null && !lapsed) || hidden) return null;
 
   const balance = Number(credits.balance ?? 0);
   const renews = credits.renews_at
@@ -106,6 +109,24 @@ export function CreditWarning({ credits, onDismiss = undefined }) {
   const lessons = credits.costs?.lesson_plan
     ? Math.floor(balance / credits.costs.lesson_plan)
     : null;
+
+  /**
+   * An ended plan is not an empty wallet.
+   *
+   * Both stop her generating, but only one is fixed by topping up —
+   * offering credits to someone whose subscription lapsed sells her
+   * something that will not work. Checked first, because a lapsed
+   * account also has a zero balance and would otherwise fall into the
+   * wrong branch.
+   */
+  if (credits.subscription_active === false) {
+    return (
+      <Banner tone="clay" action="See plans">
+        <strong>Your plan has ended.</strong> Everything you&rsquo;ve made is still here and your
+        classes carry on — new AI generations are paused until you pick a plan.
+      </Banner>
+    );
+  }
 
   if (balance === 0) {
     return (
