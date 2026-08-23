@@ -4,6 +4,7 @@
 // a glance:
 //
 //   Hero KPIs  : accounts, MRR, ARR, trials, ending soon, active today
+//   AI spend   : what generation cost us, what we charged, the margin
 //   Charts     : signups over time, accounts by role (donut), revenue by plan (bar)
 //   Activity   : recent audit-log entries (signups, role changes, suspensions)
 //   Quick list : newest 5 accounts (click → open drawer)
@@ -12,13 +13,17 @@
 // Click a row → opens <AccountDrawer />.
 
 import React, { useEffect, useState } from "react";
-import { Users, GraduationCap, Briefcase, TrendingUp, Coins, Calendar, Activity, Sparkles } from "lucide-react";
+import {
+  Users, GraduationCap, Briefcase, TrendingUp, Coins, Calendar, Activity, Sparkles,
+  Cpu, ArrowRight,
+} from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { api } from "./_shared";
 import { LineChart, DonutChart, BarChart } from "../components/MiniCharts";
 import { ROLE_LABELS, ROLES } from "../lib/role";
 import AccountDrawer from "./AccountDrawer";
 import BrandLoader from "../components/BrandLoader";
+import { navigate } from "@/lib/route";
 import { Skeleton } from "../components/ui/skeleton";
 
 const ROLE_COLORS = {
@@ -41,6 +46,7 @@ export default function SuperAdminDashboard() {
   const [error, setError] = useState(null);
   const [openId, setOpenId] = useState(null);
   const [days, setDays] = useState(30);
+  const [ai, setAi] = useState(null);
 
   const reload = (showSpinner = true) => {
     if (showSpinner) setLoading(true);
@@ -54,8 +60,13 @@ export default function SuperAdminDashboard() {
       // to an empty list rather than failing the whole dashboard.
       api("/api/admin/teachers").catch(() => []),
       api("/api/auth/me"),
+      // What the platform's AI actually cost over the same window. Its own
+      // failure is survivable — a dashboard without the spend row is worth
+      // more than no dashboard.
+      api(`/api/superadmin/ai/overview?days=${days}`).catch(() => null),
     ])
-      .then(([overview, su, lo, act, accounts, me]) => {
+      .then(([overview, su, lo, act, accounts, me, aiOverview]) => {
+        setAi(aiOverview);
         setData(overview);
         setSignups(su);
         setLogins(lo);
@@ -206,6 +217,61 @@ export default function SuperAdminDashboard() {
         />
       </div>
 
+      {/* What that revenue costs to serve.
+          Directly under MRR on purpose: revenue and cost of goods belong
+          on the same screen, and this was the number nobody could see. */}
+      {ai && (
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted inline-flex items-center gap-2.5">
+              <span className="w-6 h-px bg-accent" /> AI spend · last {ai.days} days
+            </p>
+            <button
+              type="button"
+              onClick={() => navigate(["superadmin-usage"])}
+              className="font-mono text-[10px] uppercase tracking-wider text-ink-soft hover:text-ink transition inline-flex items-center gap-1.5"
+            >
+              Full breakdown <ArrowRight size={11} />
+            </button>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            <Kpi
+              icon={<Cpu size={14} />}
+              label="Tokens"
+              value={fmtTokens(ai.tokens_total)}
+              sub={`${ai.generations} generations`}
+              small
+            />
+            <Kpi
+              icon={<Coins size={14} />}
+              label="Our cost"
+              value={`$${Number(ai.cost_usd || 0).toFixed(2)}`}
+              sub="billed by Anthropic"
+              small
+            />
+            <Kpi
+              icon={<Coins size={14} />}
+              label="Charged"
+              value={`${Number(ai.credits || 0).toLocaleString()} cr`}
+              sub={`$${Number(ai.charged_usd || 0).toFixed(2)} at $0.02 each`}
+              small
+            />
+            <Kpi
+              icon={<TrendingUp size={14} />}
+              label="Margin"
+              value={`$${Number(ai.margin_usd || 0).toFixed(2)}`}
+              sub={
+                Number(ai.charged_usd) > 0
+                  ? `${Math.round((Number(ai.margin_usd) / Number(ai.charged_usd)) * 100)}% of charged`
+                  : "nothing charged yet"
+              }
+              accent={Number(ai.margin_usd) < 0}
+              small
+            />
+          </div>
+        </div>
+      )}
+
       {/* Charts row 1 — signups timeseries */}
       <Card>
         <CardContent>
@@ -353,6 +419,14 @@ export default function SuperAdminDashboard() {
 }
 
 // ────────────────────────────────────────────────────────────────────
+/** Tokens run to millions; a raw integer stops being readable. */
+function fmtTokens(n) {
+  const v = Number(n || 0);
+  if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(2)}M`;
+  if (v >= 1_000) return `${(v / 1_000).toFixed(1)}k`;
+  return String(v);
+}
+
 function Kpi({ icon, label, value, accent, small, sub }) {
   return (
     <Card>

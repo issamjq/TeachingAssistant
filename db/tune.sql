@@ -7484,3 +7484,154 @@ BEGIN
   END IF;
   RAISE NOTICE 'usage: every row is bucketed';
 END $$;
+
+-- ─────────────────────────────────────────────────────────────────────────
+-- §70  sa_ai_user / sa_ai_by_user read a column that does not exist
+--
+-- Both reached for `faculty.full_name`. There is no such column — a
+-- person's name lives on public.users as first_name / last_name, which is
+-- where every other sa_ function already looks (sa_accounts, §37).
+--
+-- The account drawer calls sa_ai_user the moment it opens, so this was
+-- not a cosmetic fault: it raised 42703 and the whole panel failed. It
+-- went unnoticed because §68 was only ever exercised through
+-- sa_ai_overview, which does not join a name at all.
+-- ─────────────────────────────────────────────────────────────────────────
+
+CREATE OR REPLACE FUNCTION public.sa_ai_by_user(p_days int DEFAULT 30, p_limit int DEFAULT 100)
+RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE
+  since timestamptz := now() - (GREATEST(COALESCE(p_days, 30), 1) || ' days')::interval;
+  out   jsonb;
+BEGIN
+  PERFORM public.sa_gate('admin.dashboard');
+
+  SELECT COALESCE(jsonb_agg(row_to_json(t) ORDER BY t.cost_usd DESC NULLS LAST), '[]'::jsonb) INTO out
+    FROM (
+      SELECT f.id                                                       AS faculty_id,
+             au.email,
+             COALESCE(
+               NULLIF(BTRIM(COALESCE(pu.first_name, '') || ' ' || COALESCE(pu.last_name, '')), ''),
+               split_part(au.email, '@', 1))                            AS name,
+             COALESCE(s.tier, 'trial')                                  AS tier,
+             COALESCE(s.status, 'trialing')                             AS status,
+             s.trial_ends_at,
+             s.current_period_end,
+             COALESCE(pt.price_usd, 0)                                  AS plan_usd,
+             c.balance,
+             c.monthly_allowance,
+             COALESCE(l.tokens_in, 0)                                   AS tokens_in,
+             COALESCE(l.tokens_out, 0)                                  AS tokens_out,
+             COALESCE(l.cache_read, 0)                                  AS cache_read,
+             COALESCE(l.cache_write, 0)                                 AS cache_write,
+             COALESCE(l.cost_usd, 0)                                    AS cost_usd,
+             COALESCE(l.credits, 0)                                     AS credits,
+             COALESCE(l.runs, 0)                                        AS runs,
+             l.last_used_at,
+             ROUND((COALESCE(pt.price_usd, 0) - COALESCE(l.cost_usd, 0))::numeric, 4) AS net_usd
+        FROM faculty f
+        JOIN auth.users au        ON au.id = f.user_id
+        LEFT JOIN public.users pu ON pu.id = f.user_id
+        LEFT JOIN subscriptions s ON s.faculty_id = f.id
+        LEFT JOIN plan_tiers pt   ON pt.tier = COALESCE(s.tier, 'trial')
+        LEFT JOIN credits c       ON c.faculty_id = f.id
+        LEFT JOIN (
+          SELECT faculty_id,
+                 SUM(tokens_in)::bigint                     AS tokens_in,
+                 SUM(tokens_out)::bigint                    AS tokens_out,
+                 SUM(cache_read_tokens)::bigint             AS cache_read,
+                 SUM(cache_write_tokens)::bigint            AS cache_write,
+                 ROUND(SUM(cost_usd)::numeric, 4)           AS cost_usd,
+                 SUM(credits)::int                          AS credits,
+                 COUNT(*)::int                              AS runs,
+                 MAX(created_at)                            AS last_used_at
+            FROM usage_logs
+           WHERE created_at >= since AND faculty_id IS NOT NULL
+           GROUP BY faculty_id
+        ) l ON l.faculty_id = f.id
+       ORDER BY COALESCE(l.cost_usd, 0) DESC
+       LIMIT GREATEST(COALESCE(p_limit, 100), 1)
+    ) t;
+
+  RETURN out;
+END $$;
+
+CREATE OR REPLACE FUNCTION public.sa_ai_user(p_faculty uuid, p_days int DEFAULT 30)
+RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE
+  since timestamptz := now() - (GREATEST(COALESCE(p_days, 30), 1) || ' days')::interval;
+  out   jsonb;
+BEGIN
+  PERFORM public.sa_gate('admin.dashboard');
+
+  SELECT jsonb_build_object(
+    'faculty_id', f.id,
+    'email', au.email,
+    'name', COALESCE(
+              NULLIF(BTRIM(COALESCE(pu.first_name, '') || ' ' || COALESCE(pu.last_name, '')), ''),
+              split_part(au.email, '@', 1)),
+    'tier', COALESCE(s.tier, 'trial'),
+    'status', COALESCE(s.status, 'trialing'),
+    'plan_usd', COALESCE(pt.price_usd, 0),
+    'balance', c.balance,
+    'allowance', c.monthly_allowance,
+    'renews_at', c.next_refresh_at,
+    'trial_ends_at', s.trial_ends_at,
+    'by_feature', COALESCE((
+      SELECT jsonb_agg(row_to_json(x) ORDER BY x.cost_usd DESC)
+        FROM (
+          SELECT feature,
+                 public.feature_label(feature)                    AS label,
+                 COUNT(*)::int                                    AS runs,
+                 SUM(tokens_in + tokens_out
+                     + cache_read_tokens + cache_write_tokens)::bigint AS tokens,
+                 ROUND(SUM(cost_usd)::numeric, 4)                 AS cost_usd,
+                 SUM(credits)::int                                AS credits
+            FROM usage_logs
+           WHERE faculty_id = f.id AND created_at >= since
+           GROUP BY feature
+        ) x), '[]'::jsonb),
+    'recent', COALESCE((
+      SELECT jsonb_agg(row_to_json(r) ORDER BY r.at DESC)
+        FROM (
+          SELECT created_at AS at, operation,
+                 public.feature_label(feature) AS label, model,
+                 tokens_in, tokens_out, cache_read_tokens AS cache_read,
+                 cache_write_tokens AS cache_write,
+                 ROUND(cost_usd::numeric, 5) AS cost_usd, credits
+            FROM usage_logs
+           WHERE faculty_id = f.id
+           ORDER BY created_at DESC LIMIT 30
+        ) r), '[]'::jsonb)
+  ) INTO out
+    FROM faculty f
+    JOIN auth.users au        ON au.id = f.user_id
+    LEFT JOIN public.users pu ON pu.id = f.user_id
+    LEFT JOIN subscriptions s ON s.faculty_id = f.id
+    LEFT JOIN plan_tiers pt   ON pt.tier = COALESCE(s.tier, 'trial')
+    LEFT JOIN credits c       ON c.faculty_id = f.id
+   WHERE f.id = p_faculty;
+
+  IF out IS NULL THEN RAISE EXCEPTION 'no such account' USING ERRCODE = '22023'; END IF;
+  RETURN out;
+END $$;
+
+-- Prove both run rather than trusting that they compile: a function body
+-- is not parsed until it executes, which is exactly how §68 shipped
+-- broken.
+DO $$
+DECLARE probe uuid;
+BEGIN
+  SELECT id INTO probe FROM faculty LIMIT 1;
+  IF probe IS NULL THEN
+    RAISE NOTICE 'usage: no faculty to probe against';
+  ELSE
+    PERFORM public.sa_ai_user(probe, 30);
+    PERFORM public.sa_ai_by_user(30, 5);
+    RAISE NOTICE 'usage: per-account reporting runs';
+  END IF;
+END $$;

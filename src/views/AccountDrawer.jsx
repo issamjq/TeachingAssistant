@@ -7,6 +7,7 @@
 //
 // Server endpoints:
 //   GET   /api/superadmin/account/:id
+//   GET   /api/superadmin/ai/users/:id      (what this account has burned)
 //   PATCH /api/superadmin/account/:id/permissions
 //
 // Permissions: super admin can flip each key per-account. Empty
@@ -15,7 +16,7 @@
 // and lets you toggle to override.
 
 import React, { useEffect, useState, useMemo } from "react";
-import { X, Save, RotateCcw, Pause, Play, Coins, Eye, FileText, Users } from "lucide-react";
+import { X, Save, RotateCcw, Pause, Play, Coins, Eye, FileText, Users, Cpu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { api, Field, inputClasses, selectClasses } from "./_shared";
 import {
@@ -399,7 +400,7 @@ export default function AccountDrawer({ accountId, isSelf, onClose, onChanged })
                 {/* Credits / tokens */}
                 <div className="bg-paper-warm rounded-xl p-4 mb-4">
                   <div className="flex items-baseline justify-between mb-3">
-                    <p className="font-mono text-[10px] uppercase tracking-wider text-muted">Tokens (credits)</p>
+                    <p className="font-mono text-[10px] uppercase tracking-wider text-muted">Credits</p>
                     <p className="font-serif text-2xl text-ink leading-none">
                       {account.credits_balance ?? "—"}
                       <span className="font-mono text-[10px] text-muted ml-2">
@@ -520,6 +521,13 @@ export default function AccountDrawer({ accountId, isSelf, onClose, onChanged })
                 </div>
               </section>
             )}
+
+            {/* What this account has actually burned.
+                Sits directly under the billing controls on purpose: the
+                question "should I grant this teacher more credits" is
+                unanswerable without seeing what she did with the last
+                lot, and it was two screens away. */}
+            <AiUsage accountId={accountId} />
 
             {/* Content footprint */}
             <section>
@@ -715,6 +723,147 @@ export default function AccountDrawer({ accountId, isSelf, onClose, onChanged })
         )}
       </aside>
     </>
+  );
+}
+
+/**
+ * What this account has burned, and what it cost us.
+ *
+ * Both currencies, because this is our side of the glass: the CREDITS
+ * she was charged and the TOKENS those actually consumed. The teacher's
+ * own Credits used page shows the first and never the second.
+ *
+ * Loaded on its own rather than folded into sa_account(), so opening a
+ * drawer to change a permission does not drag a usage aggregate along
+ * with it.
+ */
+function AiUsage({ accountId }) {
+  const [data, setData] = useState(null);
+  const [error, setError] = useState(null);
+  const [days, setDays] = useState(30);
+
+  useEffect(() => {
+    let live = true;
+    setData(null);
+    api(`/api/superadmin/ai/users/${accountId}?days=${days}`)
+      .then((d) => live && setData(d))
+      .catch((e) => live && setError(e.message));
+    return () => { live = false; };
+  }, [accountId, days]);
+
+  const rows = data?.by_feature || [];
+  const totals = useMemo(
+    () => rows.reduce(
+      (a, f) => ({
+        tokens: a.tokens + Number(f.tokens || 0),
+        cost: a.cost + Number(f.cost_usd || 0),
+        credits: a.credits + Number(f.credits || 0),
+        runs: a.runs + Number(f.runs || 0),
+      }),
+      { tokens: 0, cost: 0, credits: 0, runs: 0 },
+    ),
+    [rows],
+  );
+
+  return (
+    <section>
+      <div className="flex items-center justify-between mb-3">
+        <SectionHeader label="AI usage" />
+        <div className="inline-flex rounded-full border border-line p-0.5">
+          {[7, 30, 90].map((d) => (
+            <button
+              key={d}
+              onClick={() => setDays(d)}
+              className={`font-mono text-[9px] uppercase tracking-wider px-2.5 py-1 rounded-full transition ${
+                days === d ? "bg-ink text-paper" : "text-ink-soft hover:text-ink"
+              }`}
+            >
+              {d}d
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {error ? (
+        <p className="font-mono text-[10px] uppercase tracking-wider text-accent">{error}</p>
+      ) : !data ? (
+        <Skeleton className="h-32 rounded-xl" />
+      ) : rows.length === 0 ? (
+        <p className="text-sm text-muted bg-paper-warm rounded-xl p-4">
+          Nothing generated in the last {days} days.
+        </p>
+      ) : (
+        <>
+          <div className="grid grid-cols-4 gap-2 mb-3">
+            <UsageStat label="Runs" value={totals.runs} />
+            <UsageStat label="Tokens" value={fmtTokens(totals.tokens)} />
+            <UsageStat label="Our cost" value={`$${totals.cost.toFixed(4)}`} />
+            <UsageStat label="Charged" value={`${totals.credits} cr`} />
+          </div>
+
+          <div className="bg-paper-warm rounded-xl overflow-hidden">
+            <table className="w-full text-sm">
+              <thead>
+                <tr>
+                  {["Feature", "Runs", "Tokens", "Our cost", "Credits"].map((c, i) => (
+                    <th
+                      key={c}
+                      className={`px-3 py-2 font-mono text-[9px] uppercase tracking-wider text-muted ${
+                        i ? "text-end" : "text-start"
+                      }`}
+                    >
+                      {c}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((f) => (
+                  <tr key={f.feature} className="border-t border-line">
+                    <td className="px-3 py-2 text-ink">{f.label}</td>
+                    <UsageNum>{f.runs}</UsageNum>
+                    <UsageNum>{fmtTokens(f.tokens)}</UsageNum>
+                    <UsageNum>${Number(f.cost_usd).toFixed(4)}</UsageNum>
+                    <UsageNum>{f.credits}</UsageNum>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Is this account worth what it costs? The one line that says so. */}
+          <p className="font-mono text-[10px] uppercase tracking-wider text-muted mt-2 inline-flex items-center gap-1.5">
+            <Cpu size={11} />
+            {Number(data.plan_usd) > 0
+              ? `pays $${Number(data.plan_usd).toFixed(2)}/mo · cost us $${totals.cost.toFixed(4)}`
+              : `on ${data.tier} · cost us $${totals.cost.toFixed(4)}`}
+          </p>
+        </>
+      )}
+    </section>
+  );
+}
+
+/** Tokens run to millions; a raw integer stops being readable. */
+function fmtTokens(n) {
+  const v = Number(n || 0);
+  if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(2)}M`;
+  if (v >= 1_000) return `${(v / 1_000).toFixed(1)}k`;
+  return String(v);
+}
+
+function UsageStat({ label, value }) {
+  return (
+    <div className="bg-paper-warm rounded-lg p-2.5">
+      <p className="font-mono text-[9px] uppercase tracking-wider text-muted">{label}</p>
+      <p className="font-serif text-lg text-ink leading-tight">{value}</p>
+    </div>
+  );
+}
+
+function UsageNum({ children }) {
+  return (
+    <td className="px-3 py-2 text-end font-mono text-xs text-ink whitespace-nowrap">{children}</td>
   );
 }
 
