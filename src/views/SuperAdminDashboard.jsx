@@ -98,6 +98,10 @@ export default function SuperAdminDashboard() {
 
   const aed = (n) => `${(n || 0).toLocaleString("en", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} AED`;
 
+  // Cost the metered filter left out of the row above.
+  const excludedCost = Object.values(ai?.excluded || {})
+    .reduce((a, v) => a + Number(v.cost_usd || 0), 0);
+
   const accountSegments = ROLES
     .filter((r) => (data.accounts.by_role[r] || 0) > 0)
     .map((r) => ({
@@ -246,7 +250,7 @@ export default function SuperAdminDashboard() {
               icon={<Coins size={14} />}
               label="Our cost"
               value={`$${Number(ai.cost_usd || 0).toFixed(2)}`}
-              sub="billed by Anthropic"
+              sub="on metered generations"
               small
             />
             <Kpi
@@ -269,6 +273,15 @@ export default function SuperAdminDashboard() {
               small
             />
           </div>
+          {/* The metered filter drops generation from before credit
+              accounting. We still paid for it, so the figure it is
+              missing belongs next to the figure it improves. */}
+          {excludedCost > 0 && (
+            <p className="font-mono text-[10px] uppercase tracking-wider text-muted mt-2">
+              Excludes ${excludedCost.toFixed(2)} of cost from before credit
+              accounting — real spend, but nothing to price against.
+            </p>
+          )}
         </div>
       )}
 
