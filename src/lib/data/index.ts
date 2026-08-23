@@ -174,10 +174,33 @@ export async function resolve(
       if (a === "link-student" && method === "POST") return yes(await E.linkStudent());
       return { handled: false };
 
+    // What her students handed in, and marking the written half.
+    case "submissions":
+      // Students first — a teacher with a hundred and twenty of them
+      // cannot answer "has Aisha done her homework" from a flat feed.
+      if (a === "by-student" && !b && method === "GET") return yes(await E.studentReport());
+      if (a === "by-student" && b && method === "GET") return yes(await E.studentWorkReport(b));
+      if (a === "file" && method === "POST") return yes({ url: await E.submissionFileUrl(body?.path) });
+      if (a && b === "grade" && method === "POST")
+        return yes(await E.gradeAttempt(a, Number(body?.score), body?.feedback));
+      return { handled: false };
+
     case "student":
       // The student's own surface. student_dashboard() is definer-scoped to
       // the caller's own rows, so no owner filter is needed here.
       if (a === "dashboard" && method === "GET") return yes(await E.studentDashboard());
+      if (a === "subjects" && method === "GET") return yes(await E.studentSubjects());
+      if (a === "join" && b && method === "POST") return yes(await E.joinClass(b));
+      if (a === "attendance" && method === "GET") return yes(await E.studentAttendance());
+      if (a === "present" && method === "POST") return yes(await E.studentMarkPresent());
+      // /api/student/class/:studentRowId — one subject's classroom.
+      if (a === "class" && b && method === "GET") return yes(await E.studentClass(b));
+      // /api/student/work/:entryId — one piece of work, and what they did with it.
+      if (a === "work" && b && method === "GET") return yes(await E.studentWork(b));
+      if (a === "work" && b && c === "submit" && method === "POST")
+        return yes(await E.submitWork(b, body?.student_row_id, body || {}));
+      if (a === "work" && b && c === "quiz" && method === "POST")
+        return yes(await E.submitQuiz(b, body || {}));
       return { handled: false };
 
     case "me":
@@ -210,6 +233,22 @@ export async function resolve(
     case "attendance":
       if (!a && method === "GET") return yes(await E.listAttendance(q));
       if (a && method === "PUT") return yes(await E.markAttendance(a, body));
+      /**
+       * The register posts the student in the BODY, not the path.
+       *
+       * DatabaseAttendance has always called PUT /api/attendance with
+       * {student_id, date, status}; only the path form was ever handled,
+       * so every mark fell through to the API service and came back
+       * "Not found". The screen looked wired — the cell even changed
+       * colour, because it is set optimistically — and then reverted.
+       */
+      if (!a && method === "PUT") {
+        const sid = body?.student_id;
+        if (!sid) {
+          throw Object.assign(new Error("student_id is required"), { status: 400 });
+        }
+        return yes(await E.markAttendance(sid, body));
+      }
       return { handled: false };
 
     case "grades":

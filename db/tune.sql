@@ -4647,3 +4647,1835 @@ DO $$
 BEGIN
   RAISE NOTICE 'students: work now reaches them by grade and subject';
 END $$;
+
+
+-- =====================================================================
+-- 49. The student's classes: subjects, work, submissions, attendance
+-- =====================================================================
+--
+-- A student holds ONE grade and several subjects, one per teacher. That
+-- is the whole shape of their world here, and it is already recorded:
+-- each roster row a teacher created carries her subject, so the set of
+-- rows IS the set of subjects. Nothing new needs enrolling.
+--
+-- What was missing is everything the student does back:
+--
+--   * submissions — homework and activity handed in as files;
+--   * quiz_attempts they may actually write to (the policies allowed a
+--     teacher to read them and nobody to create one);
+--   * attendance marked by turning up rather than by a teacher's
+--     register;
+--   * and a lesson plan reduced to the part that is for them.
+--
+-- The rule that governs all of it: a student sees their own work and
+-- nobody else's, ever. Not a classmate's score, not a classmate's upload,
+-- not the fact that a classmate submitted. Every policy below is written
+-- against current_student_ids(), which is the set of roster rows THIS
+-- login has claimed.
+
+-- ── what the student is enrolled in ───────────────────────────────────
+--
+-- One grade, several subjects, one teacher each. Returned with a count
+-- of outstanding work so the sidebar can carry a number without a second
+-- round trip per subject.
+CREATE OR REPLACE FUNCTION public.student_subjects()
+RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE out jsonb;
+BEGIN
+  SELECT COALESCE(jsonb_agg(row_to_json(t) ORDER BY t.subject NULLS LAST), '[]'::jsonb) INTO out
+  FROM (
+    SELECT st.id            AS student_row_id,
+           st.subject,
+           st.grade,
+           st.division      AS section,
+           TRIM(COALESCE(u.first_name,'') || ' ' || COALESCE(u.last_name,'')) AS teacher,
+           f.id             AS faculty_id,
+           (SELECT count(*) FROM schedule_entries se
+             WHERE se.faculty_id = st.created_by
+               AND se.draft_id IS NOT NULL
+               AND COALESCE(se.status,'planned') <> 'cancelled'
+               AND public.norm_grade(se.grade) IS NOT DISTINCT FROM public.norm_grade(st.grade)
+               AND (public.norm_subject(se.subject) IS NULL
+                    OR public.norm_subject(se.subject) = public.norm_subject(st.subject))
+               AND (COALESCE(btrim(se.section),'') = ''
+                    OR lower(btrim(se.section)) = lower(btrim(COALESCE(st.division,''))))
+           ) AS work_count
+      FROM students st
+      LEFT JOIN faculty f ON f.id = st.created_by
+      LEFT JOIN users   u ON u.id = f.user_id
+     WHERE st.id IN (SELECT public.current_student_ids())
+  ) t;
+  RETURN out;
+END $$;
+GRANT EXECUTE ON FUNCTION public.student_subjects() TO authenticated;
+
+-- ── what a student hands in ───────────────────────────────────────────
+--
+-- Homework and activities come back as files: photos of a page, a
+-- document, a video of the thing they built. One row per student per
+-- entry — resubmitting replaces what is there, because a second upload
+-- means "this one instead", not "both".
+CREATE TABLE IF NOT EXISTS public.submissions (
+  id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  entry_id     uuid NOT NULL REFERENCES public.schedule_entries(id) ON DELETE CASCADE,
+  student_id   uuid NOT NULL REFERENCES public.students(id) ON DELETE CASCADE,
+  files        jsonb NOT NULL DEFAULT '[]'::jsonb,   -- [{path,name,type,size}]
+  note         text,
+  submitted_at timestamptz NOT NULL DEFAULT now(),
+  updated_at   timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS submissions_entry_student_unique
+  ON public.submissions (entry_id, student_id);
+CREATE INDEX IF NOT EXISTS submissions_student_idx ON public.submissions (student_id);
+CREATE INDEX IF NOT EXISTS submissions_entry_idx   ON public.submissions (entry_id);
+
+ALTER TABLE public.submissions ENABLE ROW LEVEL SECURITY;
+
+-- The student: their own rows, and only for work that actually reaches
+-- them. Without the entry check a student could submit against any entry
+-- id they could guess.
+DROP POLICY IF EXISTS submissions_student ON public.submissions;
+CREATE POLICY submissions_student ON public.submissions
+  FOR ALL TO authenticated
+  USING (student_id IN (SELECT public.current_student_ids()))
+  WITH CHECK (
+    student_id IN (SELECT public.current_student_ids())
+    AND entry_id IN (SELECT public.student_entry_ids())
+  );
+
+-- The teacher: everything handed in against HER entries, read-only. She
+-- grades in her own screens; she does not edit what a child submitted.
+DROP POLICY IF EXISTS submissions_teacher_read ON public.submissions;
+CREATE POLICY submissions_teacher_read ON public.submissions
+  FOR SELECT TO authenticated
+  USING (entry_id IN (SELECT id FROM schedule_entries WHERE faculty_id = public.current_faculty_id()));
+
+-- ── a student may sit a quiz ──────────────────────────────────────────
+--
+-- quiz_attempts had a policy for reading and none for writing, so no
+-- attempt could be created by the person taking it. One attempt, and it
+-- locks: an UPDATE is refused once submitted_at is set, which is the
+-- database saying what "submit once" means rather than the UI hoping.
+DROP POLICY IF EXISTS quiz_attempts_student ON public.quiz_attempts;
+CREATE POLICY quiz_attempts_student ON public.quiz_attempts
+  FOR ALL TO authenticated
+  USING (student_id IN (SELECT public.current_student_ids()))
+  WITH CHECK (
+    student_id IN (SELECT public.current_student_ids())
+    AND assignment_id IN (SELECT public.student_entry_ids())
+  );
+
+CREATE OR REPLACE FUNCTION public.quiz_attempt_locked()
+RETURNS trigger
+LANGUAGE plpgsql SET search_path = public, pg_temp
+AS $$
+BEGIN
+  -- A teacher marking it later is a different caller and is allowed.
+  IF OLD.submitted_at IS NOT NULL
+     AND public.current_faculty_id() IS NULL
+     AND NOT public.is_super_admin() THEN
+    RAISE EXCEPTION 'this quiz has already been submitted' USING ERRCODE = '42501';
+  END IF;
+  RETURN NEW;
+END $$;
+
+DROP TRIGGER IF EXISTS quiz_attempt_locked_trg ON public.quiz_attempts;
+CREATE TRIGGER quiz_attempt_locked_trg
+  BEFORE UPDATE ON public.quiz_attempts
+  FOR EACH ROW EXECUTE FUNCTION public.quiz_attempt_locked();
+
+-- ── present because they turned up ────────────────────────────────────
+--
+-- Attendance is marked by the student opening the portal, once per day
+-- per teacher — the register a teacher would otherwise take by hand.
+--
+-- DEFINER because attendance is a teacher-owned table the student may
+-- not write, and this is the one exception: the platform recording that
+-- someone was here. It writes nothing on a day already marked, so a
+-- teacher who corrects a record is not overruled by the next page load.
+CREATE OR REPLACE FUNCTION public.student_mark_present()
+RETURNS jsonb
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE marked int := 0;
+BEGIN
+  INSERT INTO attendance (faculty_id, student_id, date, status)
+  SELECT st.created_by, st.id, current_date, 'present'
+    FROM students st
+   WHERE st.id IN (SELECT public.current_student_ids())
+     AND st.created_by IS NOT NULL
+     AND NOT EXISTS (
+       SELECT 1 FROM attendance a
+        WHERE a.student_id = st.id AND a.date = current_date
+     );
+  GET DIAGNOSTICS marked = ROW_COUNT;
+  RETURN jsonb_build_object('marked', marked, 'date', current_date);
+END $$;
+GRANT EXECUTE ON FUNCTION public.student_mark_present() TO authenticated;
+
+-- The student reads their own attendance; the teacher's own policies
+-- already cover hers.
+DROP POLICY IF EXISTS attendance_student_read ON public.attendance;
+CREATE POLICY attendance_student_read ON public.attendance
+  FOR SELECT TO authenticated
+  USING (student_id IN (SELECT public.current_student_ids()));
+
+-- ── one subject, everything in it ─────────────────────────────────────
+--
+-- The classroom page. Work the teacher scheduled, what the student has
+-- done about each item, and nothing about anybody else.
+--
+-- A lesson plan is trimmed to the student's half. The generation holds a
+-- plan, a teaching guide and student notes; the first two are hers and
+-- reading them is reading her preparation, not the lesson.
+CREATE OR REPLACE FUNCTION public.student_class(p_student_row uuid)
+RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE out jsonb; st students%ROWTYPE;
+BEGIN
+  SELECT * INTO st FROM students
+   WHERE id = p_student_row AND id IN (SELECT public.current_student_ids());
+  IF NOT FOUND THEN RETURN NULL; END IF;
+
+  SELECT jsonb_build_object(
+    'subject', st.subject,
+    'grade',   st.grade,
+    'section', st.division,
+    'student_row_id', st.id,
+    'teacher', (SELECT TRIM(COALESCE(u.first_name,'') || ' ' || COALESCE(u.last_name,''))
+                  FROM faculty f JOIN users u ON u.id = f.user_id WHERE f.id = st.created_by),
+    'work', (
+      SELECT COALESCE(jsonb_agg(row_to_json(w) ORDER BY w.date DESC NULLS LAST), '[]'::jsonb) FROM (
+        SELECT se.id AS entry_id, gen.id AS work_id, gen.type,
+               COALESCE(NULLIF(se.title,''), gen.content->>'title', gen.content->>'name', 'Work') AS title,
+               se.date, se.start_time, se.end_time, se.location, se.notes,
+               -- Scheduled means a date was set. Everything reaches them
+               -- either way; the date is what tells them when it matters.
+               se.date IS NOT NULL AS is_scheduled,
+               (se.date IS NOT NULL AND se.date > current_date) AS is_upcoming,
+               sub.id IS NOT NULL AS submitted,
+               sub.submitted_at,
+               sub.files,
+               qa.id AS attempt_id, qa.status AS attempt_status,
+               qa.score, qa.max_score, qa.submitted_at AS attempted_at
+          FROM schedule_entries se
+          JOIN ai_studio gen ON gen.id = se.draft_id AND gen.deleted_at IS NULL
+          LEFT JOIN submissions sub ON sub.entry_id = se.id AND sub.student_id = st.id
+          LEFT JOIN quiz_attempts qa ON qa.assignment_id = se.id AND qa.student_id = st.id
+         WHERE se.faculty_id = st.created_by
+           AND COALESCE(se.status,'planned') <> 'cancelled'
+           AND public.norm_grade(se.grade) IS NOT DISTINCT FROM public.norm_grade(st.grade)
+           AND (public.norm_subject(se.subject) IS NULL
+                OR public.norm_subject(se.subject) = public.norm_subject(st.subject))
+           AND (COALESCE(btrim(se.section),'') = ''
+                OR lower(btrim(se.section)) = lower(btrim(COALESCE(st.division,''))))
+      ) w
+    )
+  ) INTO out;
+  RETURN out;
+END $$;
+GRANT EXECUTE ON FUNCTION public.student_class(uuid) TO authenticated;
+
+-- ── one piece of work, opened ─────────────────────────────────────────
+--
+-- Separate from the list because the content is large and a class page
+-- should not carry every lesson in full. This is also where a lesson
+-- plan is cut down: the student gets `student_notes` and nothing else.
+CREATE OR REPLACE FUNCTION public.student_work(p_entry uuid)
+RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE out jsonb; se schedule_entries%ROWTYPE; gen ai_studio%ROWTYPE; body jsonb;
+BEGIN
+  SELECT * INTO se FROM schedule_entries
+   WHERE id = p_entry AND id IN (SELECT public.student_entry_ids());
+  IF NOT FOUND THEN RETURN NULL; END IF;
+
+  SELECT * INTO gen FROM ai_studio WHERE id = se.draft_id AND deleted_at IS NULL;
+  IF NOT FOUND THEN RETURN NULL; END IF;
+
+  body := gen.content;
+
+  /**
+   * A lesson plan is three documents and only one of them is theirs.
+   *
+   * The plan and the teaching guide are the teacher's preparation —
+   * timings, differentiation, what to do if the class does not follow.
+   * Handing a child the script is not the same as teaching them, so the
+   * student gets the notes written for them and nothing else.
+   */
+  IF gen.type = 'lesson_plan' THEN
+    body := jsonb_strip_nulls(jsonb_build_object(
+      'title', body->>'title',
+      'student_notes', COALESCE(body->'student_notes', body->'notes', body->'student_material')
+    ));
+  END IF;
+
+  SELECT jsonb_build_object(
+    'entry_id', se.id,
+    'type', gen.type,
+    'title', COALESCE(NULLIF(se.title,''), body->>'title', 'Work'),
+    'date', se.date, 'start_time', se.start_time, 'end_time', se.end_time,
+    'subject', se.subject, 'grade', se.grade, 'section', se.section,
+    'notes', se.notes,
+    'content', body,
+    'submission', (
+      SELECT row_to_json(s) FROM (
+        SELECT sub.id, sub.files, sub.note, sub.submitted_at
+          FROM submissions sub
+         WHERE sub.entry_id = se.id AND sub.student_id IN (SELECT public.current_student_ids())
+      ) s
+    ),
+    'attempt', (
+      SELECT row_to_json(a) FROM (
+        SELECT qa.id, qa.status, qa.answers, qa.score, qa.max_score, qa.submitted_at
+          FROM quiz_attempts qa
+         WHERE qa.assignment_id = se.id AND qa.student_id IN (SELECT public.current_student_ids())
+      ) a
+    )
+  ) INTO out;
+  RETURN out;
+END $$;
+GRANT EXECUTE ON FUNCTION public.student_work(uuid) TO authenticated;
+
+DO $$
+BEGIN
+  RAISE NOTICE 'students: classes, submissions, attempts and attendance are in place';
+END $$;
+
+
+-- =====================================================================
+-- 50. Where a student's work is stored
+-- =====================================================================
+--
+-- Homework comes back as a photo of a page; an activity as a video of
+-- the thing they made. Private, always: a child's schoolwork is not
+-- public content, and `bulletin-media` is the only public bucket here
+-- precisely because a notice board is meant to be seen.
+--
+-- The path carries the ownership: submissions/<student_row_id>/<entry_id>/<file>
+-- so a policy can decide from the key alone, without joining anything.
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES (
+  'submissions', 'submissions', false,
+  52428800,  -- 50 MB: a phone video of an activity is the large case
+  ARRAY['image/png','image/jpeg','image/webp','image/heic','image/heif',
+        'video/mp4','video/quicktime','video/webm',
+        'application/pdf',
+        'application/msword',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'text/plain']
+)
+ON CONFLICT (id) DO UPDATE
+  SET file_size_limit = EXCLUDED.file_size_limit,
+      allowed_mime_types = EXCLUDED.allowed_mime_types,
+      public = false;
+
+-- The first path segment is the roster row the upload belongs to, so
+-- "is this mine" is a set membership test on a string.
+DROP POLICY IF EXISTS submissions_student_write ON storage.objects;
+CREATE POLICY submissions_student_write ON storage.objects
+  FOR ALL TO authenticated
+  USING (
+    bucket_id = 'submissions'
+    AND (storage.foldername(name))[1] IN (
+      SELECT id::text FROM public.students WHERE user_id = (SELECT auth.uid())
+    )
+  )
+  WITH CHECK (
+    bucket_id = 'submissions'
+    AND (storage.foldername(name))[1] IN (
+      SELECT id::text FROM public.students WHERE user_id = (SELECT auth.uid())
+    )
+  );
+
+-- Her students' uploads, read-only. She marks the work; she does not
+-- rewrite what a child handed in.
+DROP POLICY IF EXISTS submissions_teacher_read ON storage.objects;
+CREATE POLICY submissions_teacher_read ON storage.objects
+  FOR SELECT TO authenticated
+  USING (
+    bucket_id = 'submissions'
+    AND (storage.foldername(name))[1] IN (
+      SELECT id::text FROM public.students WHERE created_by = public.current_faculty_id()
+    )
+  );
+
+DO $$
+BEGIN
+  RAISE NOTICE 'storage: private submissions bucket ready';
+END $$;
+
+
+-- =====================================================================
+-- 51. One attempt per student per quiz
+-- =====================================================================
+--
+-- The student submits with an upsert on (assignment_id, student_id), and
+-- there was no constraint on that pair — so the upsert has nothing to
+-- conflict against and Postgres refuses it outright. It is also the rule
+-- itself: one attempt is a property of the data, not a promise the UI
+-- makes.
+--
+-- Duplicates cannot exist yet (nothing could write an attempt until §49
+-- gave the student a policy), so this applies cleanly.
+CREATE UNIQUE INDEX IF NOT EXISTS quiz_attempts_entry_student_unique
+  ON public.quiz_attempts (assignment_id, student_id);
+
+DO $$
+BEGIN
+  RAISE NOTICE 'quiz: one attempt per student per entry';
+END $$;
+
+
+-- =====================================================================
+-- 52. student_work() names the roster row it reached them through
+-- =====================================================================
+--
+-- The page submits with it — a quiz attempt and a submission are both
+-- keyed by (entry, student row), and a student on two teachers' rosters
+-- has two rows that could receive the same entry. It also decides where
+-- "Back to class" goes.
+--
+-- Picked as the row whose subject and grade actually match the entry,
+-- not merely the first row the student holds, or a child taught English
+-- and Science would hand their science homework in to their English
+-- teacher.
+CREATE OR REPLACE FUNCTION public.student_work(p_entry uuid)
+RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE out jsonb; se schedule_entries%ROWTYPE; gen ai_studio%ROWTYPE; body jsonb; row_id uuid;
+BEGIN
+  SELECT * INTO se FROM schedule_entries
+   WHERE id = p_entry AND id IN (SELECT public.student_entry_ids());
+  IF NOT FOUND THEN RETURN NULL; END IF;
+
+  SELECT * INTO gen FROM ai_studio WHERE id = se.draft_id AND deleted_at IS NULL;
+  IF NOT FOUND THEN RETURN NULL; END IF;
+
+  SELECT st.id INTO row_id
+    FROM students st
+   WHERE st.id IN (SELECT public.current_student_ids())
+     AND st.created_by = se.faculty_id
+     AND public.norm_grade(st.grade) IS NOT DISTINCT FROM public.norm_grade(se.grade)
+     AND (public.norm_subject(se.subject) IS NULL
+          OR public.norm_subject(se.subject) = public.norm_subject(st.subject))
+   ORDER BY st.created_at
+   LIMIT 1;
+
+  body := gen.content;
+
+  -- A lesson plan is three documents and only one of them is theirs.
+  IF gen.type = 'lesson_plan' THEN
+    body := jsonb_strip_nulls(jsonb_build_object(
+      'title', body->>'title',
+      'student_notes', COALESCE(body->'student_notes', body->'notes', body->'student_material')
+    ));
+  END IF;
+
+  SELECT jsonb_build_object(
+    'entry_id', se.id,
+    'student_row_id', row_id,
+    'type', gen.type,
+    'title', COALESCE(NULLIF(se.title,''), body->>'title', 'Work'),
+    'date', se.date, 'start_time', se.start_time, 'end_time', se.end_time,
+    'subject', se.subject, 'grade', se.grade, 'section', se.section,
+    'notes', se.notes,
+    'content', body,
+    'submission', (
+      SELECT row_to_json(s) FROM (
+        SELECT sub.id, sub.files, sub.note, sub.submitted_at
+          FROM submissions sub
+         WHERE sub.entry_id = se.id AND sub.student_id IN (SELECT public.current_student_ids())
+      ) s
+    ),
+    'attempt', (
+      SELECT row_to_json(a) FROM (
+        SELECT qa.id, qa.status, qa.answers, qa.score, qa.max_score, qa.submitted_at
+          FROM quiz_attempts qa
+         WHERE qa.assignment_id = se.id AND qa.student_id IN (SELECT public.current_student_ids())
+      ) a
+    )
+  ) INTO out;
+  RETURN out;
+END $$;
+
+DO $$
+BEGIN
+  RAISE NOTICE 'students: work carries the roster row it arrived through';
+END $$;
+
+
+-- =====================================================================
+-- 53. Multiple choice marks itself; writing waits for the teacher
+-- =====================================================================
+--
+-- The score is computed here and never in the browser. A score the
+-- browser calculates is a score the student can calculate differently —
+-- and the correct answers would have to be sent to them to do it, which
+-- hands over the answer key along with the paper.
+--
+-- What can be marked mechanically is decided by the QUESTION, not by its
+-- declared type: a question with a closed list of choices and a stated
+-- correct answer has exactly one right response and no judgement in it.
+-- The live data has `mcq`, `short`, `essay` and 24 older questions with
+-- no type at all, four of which carry choices — so reading `type` would
+-- have silently refused to mark most of what exists.
+--
+-- Everything else — short answers, essays, a photo of working — is the
+-- teacher's. The attempt records what was earned so far and stays
+-- `submitted` until she finishes it; only a paper with nothing left to
+-- judge is `graded`.
+
+/**
+ * Did the student pick the right choice?
+ *
+ * Choices are written "B. 1/4" and a student may reasonably be recorded
+ * as having answered "B", "b" or the whole string, depending on what the
+ * UI sent this year. All three are the same answer, and marking a child
+ * wrong over a prefix is the kind of unfairness nobody would ever find.
+ */
+CREATE OR REPLACE FUNCTION public.answer_matches(p_given text, p_correct text)
+RETURNS boolean
+LANGUAGE sql IMMUTABLE
+AS $$
+  WITH g AS (SELECT lower(btrim(COALESCE(p_given, '')))   AS v),
+       c AS (SELECT lower(btrim(COALESCE(p_correct, ''))) AS v)
+  SELECT CASE
+    WHEN (SELECT v FROM g) = '' OR (SELECT v FROM c) = '' THEN false
+    WHEN (SELECT v FROM g) = (SELECT v FROM c) THEN true
+    -- "b" against "b. 1/4", and the reverse.
+    WHEN (SELECT v FROM g) = btrim(split_part((SELECT v FROM c), '.', 1)) THEN true
+    WHEN btrim(split_part((SELECT v FROM g), '.', 1)) = (SELECT v FROM c) THEN true
+    -- Same letter, same text, different punctuation.
+    WHEN regexp_replace((SELECT v FROM g), '[^a-z0-9/]', '', 'g')
+       = regexp_replace((SELECT v FROM c), '[^a-z0-9/]', '', 'g') THEN true
+    ELSE false
+  END;
+$$;
+
+/**
+ * Sit the quiz, and mark what can be marked.
+ *
+ * SECURITY DEFINER because it reads the correct answers, which the
+ * student may not. It refuses an entry that does not reach them and an
+ * attempt that is already submitted — one attempt is a property of the
+ * data, and the trigger from §49 enforces it besides.
+ */
+CREATE OR REPLACE FUNCTION public.student_submit_quiz(p_entry uuid, p_answers jsonb)
+RETURNS jsonb
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE
+  se        schedule_entries%ROWTYPE;
+  gen       ai_studio%ROWTYPE;
+  row_id    uuid;
+  q         jsonb;
+  idx       int := 0;
+  key       text;
+  given     text;
+  marks     numeric;
+  earned    numeric := 0;
+  auto_max  numeric := 0;
+  pending   numeric := 0;
+  breakdown jsonb := '{}'::jsonb;
+  attempt   quiz_attempts%ROWTYPE;
+BEGIN
+  SELECT * INTO se FROM schedule_entries
+   WHERE id = p_entry AND id IN (SELECT public.student_entry_ids());
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'that work is not yours' USING ERRCODE = '42501';
+  END IF;
+
+  SELECT * INTO gen FROM ai_studio WHERE id = se.draft_id AND deleted_at IS NULL;
+  IF NOT FOUND THEN RAISE EXCEPTION 'that quiz no longer exists'; END IF;
+
+  SELECT st.id INTO row_id
+    FROM students st
+   WHERE st.id IN (SELECT public.current_student_ids())
+     AND st.created_by = se.faculty_id
+     AND public.norm_grade(st.grade) IS NOT DISTINCT FROM public.norm_grade(se.grade)
+   ORDER BY st.created_at LIMIT 1;
+  IF row_id IS NULL THEN
+    RAISE EXCEPTION 'that work is not yours' USING ERRCODE = '42501';
+  END IF;
+
+  SELECT * INTO attempt FROM quiz_attempts
+   WHERE assignment_id = p_entry AND student_id = row_id;
+  IF FOUND AND attempt.submitted_at IS NOT NULL THEN
+    RAISE EXCEPTION 'this quiz has already been submitted' USING ERRCODE = '42501';
+  END IF;
+
+  FOR q IN SELECT * FROM jsonb_array_elements(COALESCE(gen.content->'questions', '[]'::jsonb))
+  LOOP
+    -- The key the student answered under: the question's own id where it
+    -- has one, its position otherwise, and the ordinal as a last resort.
+    key := COALESCE(q->>'qid', q->>'id', q->>'position', idx::text);
+    given := COALESCE(p_answers->>key, p_answers->>idx::text, '');
+    marks := COALESCE(NULLIF(q->>'marks','')::numeric, 1);
+
+    IF (q ? 'choices' OR q ? 'options') AND COALESCE(q->>'correct_answer', q->>'answer', '') <> '' THEN
+      auto_max := auto_max + marks;
+      IF public.answer_matches(given, COALESCE(q->>'correct_answer', q->>'answer')) THEN
+        earned := earned + marks;
+        breakdown := breakdown || jsonb_build_object(key, jsonb_build_object('correct', true,  'marks', marks));
+      ELSE
+        breakdown := breakdown || jsonb_build_object(key, jsonb_build_object('correct', false, 'marks', 0));
+      END IF;
+    ELSE
+      -- Written. Recorded as awaiting her, never as zero: a blank score
+      -- and a wrong answer are not the same thing to a child reading it.
+      pending := pending + marks;
+      breakdown := breakdown || jsonb_build_object(key, jsonb_build_object('pending', true, 'marks', marks));
+    END IF;
+
+    idx := idx + 1;
+  END LOOP;
+
+  INSERT INTO quiz_attempts (
+    assignment_id, student_id, answers, score, max_score, status,
+    started_at, submitted_at, flags
+  )
+  VALUES (
+    p_entry, row_id, COALESCE(p_answers, '{}'::jsonb),
+    earned, auto_max + pending,
+    CASE WHEN pending > 0 THEN 'submitted' ELSE 'graded' END,
+    now(), now(),
+    jsonb_build_object('marking', breakdown, 'auto_max', auto_max, 'pending_max', pending)
+  )
+  ON CONFLICT (assignment_id, student_id) DO UPDATE
+    SET answers      = EXCLUDED.answers,
+        score        = EXCLUDED.score,
+        max_score    = EXCLUDED.max_score,
+        status       = EXCLUDED.status,
+        submitted_at = EXCLUDED.submitted_at,
+        flags        = EXCLUDED.flags,
+        updated_at   = now();
+
+  RETURN jsonb_build_object(
+    'submitted', true,
+    'score', earned,
+    'auto_max', auto_max,
+    'pending_max', pending,
+    'max_score', auto_max + pending,
+    'awaiting_teacher', pending > 0
+  );
+END $$;
+GRANT EXECUTE ON FUNCTION public.student_submit_quiz(uuid, jsonb) TO authenticated;
+
+DO $$
+BEGIN
+  RAISE NOTICE 'quiz: multiple choice marks itself, writing waits for the teacher';
+END $$;
+
+
+-- =====================================================================
+-- 54. The student's half of a lesson is a section, not a key
+-- =====================================================================
+--
+-- §49 cut a lesson down by reading content->'student_notes', a key that
+-- does not exist. A lesson is one markdown document in `body_md` with
+-- three top-level sections —
+--
+--     ## Lesson plan      her sequence, timings, differentiation
+--     ## Teaching guide   how to run it, what usually goes wrong
+--     ## Student notes    what the child reads
+--
+-- — so the student got an empty page, which is worse than getting the
+-- whole thing: it looks like the teacher assigned nothing.
+--
+-- Everything from `## Student notes` to the end of the document is
+-- theirs. The sections beneath it are flat `##` too (What you will learn,
+-- Words you need, The notes, Remember this, Check yourself, Exam
+-- questions, Answers), so slicing at the NEXT heading would cut the
+-- notes off after the first line. It slices to the end, which is also
+-- what the API service does when it grounds a presentation in the same
+-- section — one rule, in two places, agreeing.
+
+CREATE OR REPLACE FUNCTION public.lesson_student_notes(p_body text)
+RETURNS text
+LANGUAGE plpgsql IMMUTABLE
+AS $$
+DECLARE pos int;
+BEGIN
+  IF p_body IS NULL OR btrim(p_body) = '' THEN RETURN NULL; END IF;
+  -- Case-insensitive, and anchored to a heading rather than the words:
+  -- "student notes" appears inside the teaching guide often enough.
+  pos := (regexp_instr(p_body, '(^|\n)##[ \t]+Student notes[ \t]*(\n|$)', 1, 1, 0, 'i'));
+  IF pos = 0 THEN RETURN NULL; END IF;
+  -- regexp_instr may land on the newline that precedes the heading.
+  RETURN btrim(regexp_replace(substr(p_body, pos), '^\s*\n', ''));
+END $$;
+
+CREATE OR REPLACE FUNCTION public.student_work(p_entry uuid)
+RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE out jsonb; se schedule_entries%ROWTYPE; gen ai_studio%ROWTYPE; body jsonb; row_id uuid; notes text;
+BEGIN
+  SELECT * INTO se FROM schedule_entries
+   WHERE id = p_entry AND id IN (SELECT public.student_entry_ids());
+  IF NOT FOUND THEN RETURN NULL; END IF;
+
+  SELECT * INTO gen FROM ai_studio WHERE id = se.draft_id AND deleted_at IS NULL;
+  IF NOT FOUND THEN RETURN NULL; END IF;
+
+  SELECT st.id INTO row_id
+    FROM students st
+   WHERE st.id IN (SELECT public.current_student_ids())
+     AND st.created_by = se.faculty_id
+     AND public.norm_grade(st.grade) IS NOT DISTINCT FROM public.norm_grade(se.grade)
+     AND (public.norm_subject(se.subject) IS NULL
+          OR public.norm_subject(se.subject) = public.norm_subject(st.subject))
+   ORDER BY st.created_at
+   LIMIT 1;
+
+  body := gen.content;
+
+  IF gen.type = 'lesson_plan' THEN
+    notes := COALESCE(
+      public.lesson_student_notes(body->>'body_md'),
+      -- A lesson written before the three-section format, or one whose
+      -- notes the teacher removed. Better an honest nothing than her
+      -- teaching guide handed to a child.
+      NULLIF(body->>'student_notes', '')
+    );
+    body := jsonb_strip_nulls(jsonb_build_object(
+      'title',   body->>'title',
+      'subject', body->>'subject',
+      'grade',   body->>'grade',
+      'body_md', notes
+    ));
+  END IF;
+
+  SELECT jsonb_build_object(
+    'entry_id', se.id,
+    'student_row_id', row_id,
+    'type', gen.type,
+    'title', COALESCE(NULLIF(se.title,''), body->>'title', 'Work'),
+    'date', se.date, 'start_time', se.start_time, 'end_time', se.end_time,
+    'subject', se.subject, 'grade', se.grade, 'section', se.section,
+    'notes', se.notes,
+    'content', body,
+    'submission', (
+      SELECT row_to_json(s) FROM (
+        SELECT sub.id, sub.files, sub.note, sub.submitted_at
+          FROM submissions sub
+         WHERE sub.entry_id = se.id AND sub.student_id IN (SELECT public.current_student_ids())
+      ) s
+    ),
+    'attempt', (
+      SELECT row_to_json(a) FROM (
+        SELECT qa.id, qa.status, qa.answers, qa.score, qa.max_score, qa.submitted_at, qa.flags
+          FROM quiz_attempts qa
+         WHERE qa.assignment_id = se.id AND qa.student_id IN (SELECT public.current_student_ids())
+      ) a
+    )
+  ) INTO out;
+  RETURN out;
+END $$;
+
+DO $$
+BEGIN
+  RAISE NOTICE 'lessons: students get the Student notes section';
+END $$;
+
+
+-- =====================================================================
+-- 55. What her students handed in
+-- =====================================================================
+--
+-- The teacher's half of the portal. Students submit files and sit
+-- quizzes; without this she has no screen that tells her so, and work
+-- handed in is work nobody reads — which is the fastest way to teach a
+-- class that handing it in does not matter.
+--
+-- Scoped to her own entries throughout. `submissions` and
+-- `quiz_attempts` are joined through schedule_entries, and every row
+-- returned belongs to an entry whose faculty_id is hers.
+CREATE OR REPLACE FUNCTION public.teacher_submissions(p_limit integer DEFAULT 200)
+RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE out jsonb; fid uuid; n int := LEAST(GREATEST(COALESCE(p_limit,200),1), 500);
+BEGIN
+  fid := public.current_faculty_id();
+  IF fid IS NULL THEN RETURN '[]'::jsonb; END IF;
+
+  SELECT COALESCE(jsonb_agg(row_to_json(t) ORDER BY t.handed_in DESC NULLS LAST), '[]'::jsonb)
+    INTO out
+  FROM (
+    -- Files: homework and activities.
+    SELECT sub.id,
+           'submission'                        AS kind,
+           gen.type                            AS work_type,
+           COALESCE(NULLIF(se.title,''), gen.content->>'title', 'Work') AS title,
+           se.id                               AS entry_id,
+           se.subject, se.grade, se.section, se.date AS due,
+           st.id                               AS student_id,
+           TRIM(COALESCE(st.first_name,'') || ' ' || COALESCE(st.last_name,'')) AS student,
+           st.email                            AS student_email,
+           sub.submitted_at                    AS handed_in,
+           jsonb_array_length(COALESCE(sub.files,'[]'::jsonb)) AS file_count,
+           sub.files, sub.note,
+           NULL::numeric AS score, NULL::numeric AS max_score, NULL::text AS status
+      FROM submissions sub
+      JOIN schedule_entries se ON se.id = sub.entry_id
+      JOIN ai_studio gen       ON gen.id = se.draft_id
+      JOIN students st         ON st.id = sub.student_id
+     WHERE se.faculty_id = fid
+
+    UNION ALL
+
+    -- Quizzes: what the marker gave, and what is still hers to judge.
+    SELECT qa.id,
+           'attempt'                           AS kind,
+           gen.type                            AS work_type,
+           COALESCE(NULLIF(se.title,''), gen.content->>'title', 'Quiz') AS title,
+           se.id                               AS entry_id,
+           se.subject, se.grade, se.section, se.date AS due,
+           st.id                               AS student_id,
+           TRIM(COALESCE(st.first_name,'') || ' ' || COALESCE(st.last_name,'')) AS student,
+           st.email                            AS student_email,
+           qa.submitted_at                     AS handed_in,
+           0                                   AS file_count,
+           '[]'::jsonb                         AS files,
+           NULL::text                          AS note,
+           qa.score, qa.max_score, qa.status
+      FROM quiz_attempts qa
+      JOIN schedule_entries se ON se.id = qa.assignment_id
+      JOIN ai_studio gen       ON gen.id = se.draft_id
+      JOIN students st         ON st.id = qa.student_id
+     WHERE se.faculty_id = fid
+       AND qa.submitted_at IS NOT NULL
+    LIMIT n
+  ) t;
+  RETURN out;
+END $$;
+GRANT EXECUTE ON FUNCTION public.teacher_submissions(integer) TO authenticated;
+
+/**
+ * Finish marking a quiz.
+ *
+ * The written half is hers. She sets the final score; the status moves
+ * to `graded` and the student sees a total instead of "more marks to
+ * come". Scoped to her own entries, and it is the one path allowed to
+ * touch an attempt after submission — the §49 trigger lets a teacher
+ * through and refuses everyone else.
+ */
+CREATE OR REPLACE FUNCTION public.teacher_grade_attempt(
+  p_attempt uuid,
+  p_score numeric,
+  p_feedback text DEFAULT NULL
+)
+RETURNS jsonb
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE fid uuid; ok boolean;
+BEGIN
+  fid := public.current_faculty_id();
+  IF fid IS NULL THEN RAISE EXCEPTION 'not a teacher' USING ERRCODE = '42501'; END IF;
+
+  SELECT EXISTS (
+    SELECT 1 FROM quiz_attempts qa
+      JOIN schedule_entries se ON se.id = qa.assignment_id
+     WHERE qa.id = p_attempt AND se.faculty_id = fid
+  ) INTO ok;
+  IF NOT ok THEN RAISE EXCEPTION 'that attempt is not yours' USING ERRCODE = '42501'; END IF;
+
+  UPDATE quiz_attempts
+     SET score = p_score,
+         feedback = COALESCE(p_feedback, feedback),
+         status = 'graded',
+         updated_at = now()
+   WHERE id = p_attempt;
+
+  RETURN jsonb_build_object('graded', true, 'id', p_attempt, 'score', p_score);
+END $$;
+GRANT EXECUTE ON FUNCTION public.teacher_grade_attempt(uuid, numeric, text) TO authenticated;
+
+DO $$
+BEGIN
+  RAISE NOTICE 'teacher: submissions and attempts are readable and markable';
+END $$;
+
+
+-- =====================================================================
+-- 56. The marker may mark
+-- =====================================================================
+--
+-- guard_quiz_attempt_marking() strips score, max_score, feedback and
+-- flags from any INSERT made while a student is the caller, and forces
+-- status back to 'pending'. That is exactly right and must stay: a
+-- student who could write their own marks has an answer sheet worth
+-- nothing.
+--
+-- But student_submit_quiz() runs while a student is the caller too. It
+-- is SECURITY DEFINER, so it may read the correct answers — and then the
+-- guard silently threw its marking away. The attempt saved, the answers
+-- were stored, the function returned {score: 4}, and the row said
+-- `pending` with no score at all. Nothing errored anywhere, which is why
+-- it looked like the frontend was calling the wrong thing.
+--
+-- The distinction the guard needs is not WHO is calling but WHAT is
+-- writing: the student's own client, or the marker running on their
+-- behalf. A transaction-local setting says so. It cannot be forged from
+-- the browser — PostgREST does not let a request set arbitrary GUCs —
+-- and `true` scopes it to the transaction, so it cannot leak into the
+-- next statement on a pooled connection.
+
+CREATE OR REPLACE FUNCTION public.guard_quiz_attempt_marking()
+RETURNS trigger
+LANGUAGE plpgsql SECURITY DEFINER SET search_path TO ''
+AS $function$
+declare
+  sid uuid := public.current_student_id();
+begin
+  -- Null for a teacher and for this project's backend, which connects on a
+  -- role with no auth.uid(). Only an actual student is guarded here.
+  if sid is null then
+    return new;
+  end if;
+
+  -- The platform's own marker, mid-transaction. Set only inside
+  -- student_submit_quiz(); a browser cannot set it.
+  if coalesce(current_setting('murchid.marking', true), '') = 'on' then
+    return new;
+  end if;
+
+  if tg_op = 'INSERT' then
+    -- Sanitised rather than refused: starting a paper is legitimate, and only
+    -- the marks sent alongside it are not.
+    new.score := null;
+    new.max_score := null;
+    new.feedback := null;
+    new.proctor_summary := null;
+    new.flags := null;
+    new.status := 'pending';
+    return new;
+  end if;
+
+  if new.score          is distinct from old.score
+  or new.max_score      is distinct from old.max_score
+  or new.feedback       is distinct from old.feedback
+  or new.proctor_summary is distinct from old.proctor_summary
+  or new.flags          is distinct from old.flags then
+    raise exception 'A student cannot set marks, feedback or proctoring on an attempt'
+      using errcode = '42501';
+  end if;
+
+  return new;
+end;
+$function$;
+
+-- Re-declared so the marker announces itself. Everything else is §53.
+CREATE OR REPLACE FUNCTION public.student_submit_quiz(p_entry uuid, p_answers jsonb)
+RETURNS jsonb
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE
+  se        schedule_entries%ROWTYPE;
+  gen       ai_studio%ROWTYPE;
+  row_id    uuid;
+  q         jsonb;
+  idx       int := 0;
+  key       text;
+  given     text;
+  marks     numeric;
+  earned    numeric := 0;
+  auto_max  numeric := 0;
+  pending   numeric := 0;
+  breakdown jsonb := '{}'::jsonb;
+  attempt   quiz_attempts%ROWTYPE;
+BEGIN
+  SELECT * INTO se FROM schedule_entries
+   WHERE id = p_entry AND id IN (SELECT public.student_entry_ids());
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'that work is not yours' USING ERRCODE = '42501';
+  END IF;
+
+  SELECT * INTO gen FROM ai_studio WHERE id = se.draft_id AND deleted_at IS NULL;
+  IF NOT FOUND THEN RAISE EXCEPTION 'that quiz no longer exists'; END IF;
+
+  SELECT st.id INTO row_id
+    FROM students st
+   WHERE st.id IN (SELECT public.current_student_ids())
+     AND st.created_by = se.faculty_id
+     AND public.norm_grade(st.grade) IS NOT DISTINCT FROM public.norm_grade(se.grade)
+   ORDER BY st.created_at LIMIT 1;
+  IF row_id IS NULL THEN
+    RAISE EXCEPTION 'that work is not yours' USING ERRCODE = '42501';
+  END IF;
+
+  SELECT * INTO attempt FROM quiz_attempts
+   WHERE assignment_id = p_entry AND student_id = row_id;
+  IF FOUND AND attempt.submitted_at IS NOT NULL THEN
+    RAISE EXCEPTION 'this quiz has already been submitted' USING ERRCODE = '42501';
+  END IF;
+
+  FOR q IN SELECT * FROM jsonb_array_elements(COALESCE(gen.content->'questions', '[]'::jsonb))
+  LOOP
+    key := COALESCE(q->>'qid', q->>'id', q->>'position', idx::text);
+    given := COALESCE(p_answers->>key, p_answers->>idx::text, '');
+    marks := COALESCE(NULLIF(q->>'marks','')::numeric, 1);
+
+    IF (q ? 'choices' OR q ? 'options') AND COALESCE(q->>'correct_answer', q->>'answer', '') <> '' THEN
+      auto_max := auto_max + marks;
+      IF public.answer_matches(given, COALESCE(q->>'correct_answer', q->>'answer')) THEN
+        earned := earned + marks;
+        breakdown := breakdown || jsonb_build_object(key, jsonb_build_object('correct', true,  'marks', marks));
+      ELSE
+        breakdown := breakdown || jsonb_build_object(key, jsonb_build_object('correct', false, 'marks', 0));
+      END IF;
+    ELSE
+      pending := pending + marks;
+      breakdown := breakdown || jsonb_build_object(key, jsonb_build_object('pending', true, 'marks', marks));
+    END IF;
+
+    idx := idx + 1;
+  END LOOP;
+
+  -- Transaction-local, and the only place it is ever set.
+  PERFORM set_config('murchid.marking', 'on', true);
+
+  INSERT INTO quiz_attempts (
+    assignment_id, student_id, answers, score, max_score, status,
+    started_at, submitted_at, flags
+  )
+  VALUES (
+    p_entry, row_id, COALESCE(p_answers, '{}'::jsonb),
+    earned, auto_max + pending,
+    CASE WHEN pending > 0 THEN 'submitted' ELSE 'graded' END,
+    now(), now(),
+    jsonb_build_object('marking', breakdown, 'auto_max', auto_max, 'pending_max', pending)
+  )
+  ON CONFLICT (assignment_id, student_id) DO UPDATE
+    SET answers      = EXCLUDED.answers,
+        score        = EXCLUDED.score,
+        max_score    = EXCLUDED.max_score,
+        status       = EXCLUDED.status,
+        submitted_at = EXCLUDED.submitted_at,
+        flags        = EXCLUDED.flags,
+        updated_at   = now();
+
+  PERFORM set_config('murchid.marking', 'off', true);
+
+  RETURN jsonb_build_object(
+    'submitted', true,
+    'score', earned,
+    'auto_max', auto_max,
+    'pending_max', pending,
+    'max_score', auto_max + pending,
+    'awaiting_teacher', pending > 0
+  );
+END $$;
+GRANT EXECUTE ON FUNCTION public.student_submit_quiz(uuid, jsonb) TO authenticated;
+
+DO $$
+BEGIN
+  RAISE NOTICE 'quiz: the marker may write marks; the student still may not';
+END $$;
+
+
+-- =====================================================================
+-- 57. A student may not read the answers
+-- =====================================================================
+--
+-- §54 cut lesson plans down to the Student notes and stopped there. The
+-- other three carry the same problem and nobody had looked:
+--
+--   homework  ends with `## Answers` — the full mark scheme, printed
+--             directly above the box where the child uploads the work it
+--             marks. And `## One question you could not solve` is a note
+--             to the teacher about what to reteach.
+--
+--   activity  is entirely her run-sheet: Before the lesson, How to run
+--             it, When it goes sideways, Make it easier / make it
+--             harder. A child needs the idea, the materials and the
+--             ground rules; the rest is stage direction.
+--
+--   quiz      is the worst of the three, because it does not look like a
+--             leak at all. The questions array carries `correct_answer`
+--             on every entry, and student_work() returned the whole
+--             thing. The page renders only the prompts, so the paper
+--             looks correct — and the answers sit in the response body,
+--             one devtools tab away. body_md carries the mark scheme too.
+--
+-- Cut in the database rather than in the component, because what the
+-- browser never receives cannot be read by anyone using it.
+
+/**
+ * Drop named `##` sections from a markdown document.
+ *
+ * Section-aware rather than a text search: "answers" appears in prose
+ * throughout these documents, and matching the word would shred them.
+ */
+CREATE OR REPLACE FUNCTION public.md_drop_sections(p_body text, p_names text[])
+RETURNS text
+LANGUAGE plpgsql IMMUTABLE
+AS $$
+DECLARE
+  ln text; out_lines text[] := '{}'; heading text; dropping boolean := false;
+BEGIN
+  IF p_body IS NULL THEN RETURN NULL; END IF;
+  FOREACH ln IN ARRAY regexp_split_to_array(p_body, E'\n') LOOP
+    heading := (regexp_match(ln, '^##[ \t]+(.+?)[ \t]*$'))[1];
+    IF heading IS NOT NULL THEN
+      -- A new section always re-decides; a dropped one ends here.
+      dropping := lower(btrim(heading)) = ANY (
+        SELECT lower(btrim(n)) FROM unnest(p_names) n
+      );
+    END IF;
+    IF NOT dropping THEN out_lines := out_lines || ln; END IF;
+  END LOOP;
+  RETURN btrim(array_to_string(out_lines, E'\n'));
+END $$;
+
+/** Keep only the named `##` sections, in the order they appear. */
+CREATE OR REPLACE FUNCTION public.md_keep_sections(p_body text, p_names text[])
+RETURNS text
+LANGUAGE plpgsql IMMUTABLE
+AS $$
+DECLARE
+  ln text; out_lines text[] := '{}'; heading text; keeping boolean := false;
+BEGIN
+  IF p_body IS NULL THEN RETURN NULL; END IF;
+  FOREACH ln IN ARRAY regexp_split_to_array(p_body, E'\n') LOOP
+    heading := (regexp_match(ln, '^##[ \t]+(.+?)[ \t]*$'))[1];
+    IF heading IS NOT NULL THEN
+      keeping := lower(btrim(heading)) = ANY (
+        SELECT lower(btrim(n)) FROM unnest(p_names) n
+      );
+    END IF;
+    IF keeping THEN out_lines := out_lines || ln; END IF;
+  END LOOP;
+  RETURN btrim(array_to_string(out_lines, E'\n'));
+END $$;
+
+/**
+ * Everything a student may see of one generation.
+ *
+ * One function so the rule lives in one place: student_work() opens the
+ * work, and anything added later that shows a student a generation must
+ * come through here too.
+ */
+CREATE OR REPLACE FUNCTION public.student_safe_content(p_type text, p_content jsonb)
+RETURNS jsonb
+LANGUAGE plpgsql IMMUTABLE
+AS $$
+DECLARE body jsonb := p_content; md text; qs jsonb;
+BEGIN
+  IF body IS NULL THEN RETURN NULL; END IF;
+
+  IF p_type = 'lesson_plan' THEN
+    RETURN jsonb_strip_nulls(jsonb_build_object(
+      'title',   body->>'title',
+      'subject', body->>'subject',
+      'grade',   body->>'grade',
+      'body_md', public.lesson_student_notes(body->>'body_md')
+    ));
+
+  ELSIF p_type = 'homework' THEN
+    md := public.md_drop_sections(
+      body->>'body_md',
+      ARRAY['Answers', 'Answer key', 'Mark scheme', 'Marking',
+            'One question you could not solve', 'Note for next lesson']
+    );
+    RETURN jsonb_strip_nulls(jsonb_build_object(
+      'title', body->>'title', 'subject', body->>'subject',
+      'grade', body->>'grade', 'body_md', md
+    ));
+
+  ELSIF p_type = 'activity' THEN
+    -- Her run-sheet stays with her. The child gets what the activity is,
+    -- what to bring, and how to stay safe doing it.
+    md := public.md_keep_sections(
+      body->>'body_md',
+      ARRAY['The idea', 'What you need', 'Safety and ground rules',
+            'How it connects to the topic']
+    );
+    RETURN jsonb_strip_nulls(jsonb_build_object(
+      'title', body->>'title', 'subject', body->>'subject',
+      'grade', body->>'grade', 'body_md', NULLIF(md, '')
+    ));
+
+  ELSIF p_type = 'quiz' THEN
+    -- Every question, stripped of anything that answers it. body_md goes
+    -- entirely: it is the printable paper WITH the mark scheme.
+    SELECT COALESCE(jsonb_agg(
+             (q - 'correct_answer' - 'answer' - 'answers'
+                - 'explanation' - 'rationale' - 'mark_scheme' - 'model_answer')
+             ORDER BY ord),
+           '[]'::jsonb)
+      INTO qs
+      FROM jsonb_array_elements(COALESCE(body->'questions', '[]'::jsonb))
+           WITH ORDINALITY AS t(q, ord);
+
+    RETURN jsonb_strip_nulls(jsonb_build_object(
+      'title', body->>'title', 'subject', body->>'subject',
+      'grade', body->>'grade',
+      'instructions', body->>'instructions',
+      'duration_minutes', body->'duration_minutes',
+      'total_marks', body->'total_marks',
+      'questions', qs
+    ));
+  END IF;
+
+  -- Presentations are made to be shown to the class, so they pass whole.
+  RETURN body;
+END $$;
+
+CREATE OR REPLACE FUNCTION public.student_work(p_entry uuid)
+RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE out jsonb; se schedule_entries%ROWTYPE; gen ai_studio%ROWTYPE; body jsonb; row_id uuid;
+BEGIN
+  SELECT * INTO se FROM schedule_entries
+   WHERE id = p_entry AND id IN (SELECT public.student_entry_ids());
+  IF NOT FOUND THEN RETURN NULL; END IF;
+
+  SELECT * INTO gen FROM ai_studio WHERE id = se.draft_id AND deleted_at IS NULL;
+  IF NOT FOUND THEN RETURN NULL; END IF;
+
+  SELECT st.id INTO row_id
+    FROM students st
+   WHERE st.id IN (SELECT public.current_student_ids())
+     AND st.created_by = se.faculty_id
+     AND public.norm_grade(st.grade) IS NOT DISTINCT FROM public.norm_grade(se.grade)
+     AND (public.norm_subject(se.subject) IS NULL
+          OR public.norm_subject(se.subject) = public.norm_subject(st.subject))
+   ORDER BY st.created_at
+   LIMIT 1;
+
+  body := public.student_safe_content(gen.type, gen.content);
+
+  SELECT jsonb_build_object(
+    'entry_id', se.id,
+    'student_row_id', row_id,
+    'type', gen.type,
+    'title', COALESCE(NULLIF(se.title,''), body->>'title', 'Work'),
+    'date', se.date, 'start_time', se.start_time, 'end_time', se.end_time,
+    'subject', se.subject, 'grade', se.grade, 'section', se.section,
+    'notes', se.notes,
+    'content', body,
+    'submission', (
+      SELECT row_to_json(s) FROM (
+        SELECT sub.id, sub.files, sub.note, sub.submitted_at
+          FROM submissions sub
+         WHERE sub.entry_id = se.id AND sub.student_id IN (SELECT public.current_student_ids())
+      ) s
+    ),
+    'attempt', (
+      SELECT row_to_json(a) FROM (
+        SELECT qa.id, qa.status, qa.answers, qa.score, qa.max_score, qa.submitted_at, qa.flags
+          FROM quiz_attempts qa
+         WHERE qa.assignment_id = se.id AND qa.student_id IN (SELECT public.current_student_ids())
+      ) a
+    )
+  ) INTO out;
+  RETURN out;
+END $$;
+
+/**
+ * And the raw row is no longer readable either.
+ *
+ * §48 gave students a SELECT policy on ai_studio so they could open work.
+ * That returns `content` whole — the answers included — which makes every
+ * cut above cosmetic. student_work() is the only way in now.
+ */
+DROP POLICY IF EXISTS ai_studio_student_read ON public.ai_studio;
+
+DO $$
+BEGIN
+  RAISE NOTICE 'students: answer keys, mark schemes and run-sheets are no longer sent';
+END $$;
+
+
+-- =====================================================================
+-- 58. Section matching has to know about heading levels
+-- =====================================================================
+--
+-- §57 matched `^##` only, and homework puts its mark scheme under a
+-- level-one `# Answers` — the document is `# Title`, then `##` sections,
+-- then `# Answers` at the top level again. So the drop matched nothing,
+-- reported success, and the answer key went to the student exactly as
+-- before. The migration said it had worked; the only way to know it had
+-- not was to measure the output, which is why the check below is part of
+-- the same change.
+--
+-- A section now runs from its heading until the next heading at the SAME
+-- level or shallower. `# Answers` therefore takes everything under it
+-- including any `##` beneath, and a `## Answers` inside a larger section
+-- ends where its siblings do rather than eating the rest of the file.
+
+CREATE OR REPLACE FUNCTION public.md_drop_sections(p_body text, p_names text[])
+RETURNS text
+LANGUAGE plpgsql IMMUTABLE
+AS $$
+DECLARE
+  ln text; out_lines text[] := '{}'; m text[];
+  lvl int; heading text; drop_at int := NULL;
+BEGIN
+  IF p_body IS NULL THEN RETURN NULL; END IF;
+  FOREACH ln IN ARRAY regexp_split_to_array(p_body, E'\n') LOOP
+    m := regexp_match(ln, '^(#{1,6})[ \t]+(.+?)[ \t]*$');
+    IF m IS NOT NULL THEN
+      lvl := length(m[1]);
+      heading := lower(btrim(m[2]));
+      IF drop_at IS NOT NULL AND lvl <= drop_at THEN
+        drop_at := NULL;                     -- the dropped section ends here
+      END IF;
+      IF drop_at IS NULL
+         AND heading = ANY (SELECT lower(btrim(n)) FROM unnest(p_names) n) THEN
+        drop_at := lvl;
+      END IF;
+    END IF;
+    IF drop_at IS NULL THEN out_lines := out_lines || ln; END IF;
+  END LOOP;
+  RETURN btrim(array_to_string(out_lines, E'\n'));
+END $$;
+
+CREATE OR REPLACE FUNCTION public.md_keep_sections(p_body text, p_names text[])
+RETURNS text
+LANGUAGE plpgsql IMMUTABLE
+AS $$
+DECLARE
+  ln text; out_lines text[] := '{}'; m text[];
+  lvl int; heading text; keep_at int := NULL;
+BEGIN
+  IF p_body IS NULL THEN RETURN NULL; END IF;
+  FOREACH ln IN ARRAY regexp_split_to_array(p_body, E'\n') LOOP
+    m := regexp_match(ln, '^(#{1,6})[ \t]+(.+?)[ \t]*$');
+    IF m IS NOT NULL THEN
+      lvl := length(m[1]);
+      heading := lower(btrim(m[2]));
+      IF keep_at IS NOT NULL AND lvl <= keep_at THEN
+        keep_at := NULL;
+      END IF;
+      IF keep_at IS NULL
+         AND heading = ANY (SELECT lower(btrim(n)) FROM unnest(p_names) n) THEN
+        keep_at := lvl;
+      END IF;
+    END IF;
+    IF keep_at IS NOT NULL THEN out_lines := out_lines || ln; END IF;
+  END LOOP;
+  RETURN btrim(array_to_string(out_lines, E'\n'));
+END $$;
+
+-- Verified rather than assumed. §57 passed its own migration while
+-- changing nothing, so this refuses to apply if the answer key is still
+-- reaching a student.
+DO $$
+DECLARE bad int;
+BEGIN
+  SELECT count(*) INTO bad
+    FROM ai_studio g
+   WHERE g.type = 'homework' AND g.deleted_at IS NULL
+     AND g.content->>'body_md' ~* '(^|\n)#{1,3}[ \t]+Answers[ \t]*(\n|$)'
+     AND public.student_safe_content(g.type, g.content)->>'body_md'
+         ~* '(^|\n)#{1,3}[ \t]+Answers[ \t]*(\n|$)';
+  IF bad > 0 THEN
+    RAISE EXCEPTION 'student_safe_content still returns an Answers section for % homework document(s)', bad;
+  END IF;
+  RAISE NOTICE 'students: answer sections verified removed';
+END $$;
+
+
+-- =====================================================================
+-- 59. Reports, by student
+-- =====================================================================
+--
+-- teacher_submissions() returned one flat list of everything handed in,
+-- newest first. That is the right shape for a teacher with six students
+-- and useless for one with a hundred and twenty: to answer "has Aisha
+-- done her homework" she has to read the whole term.
+--
+-- A teacher thinks in students. So the list is students, each with what
+-- they owe and what they have done, and opening one shows their work.
+--
+-- And she can read the answers now. She could open an uploaded file and
+-- nothing else — not the note a child left with it, and not a single
+-- word of what they wrote in a quiz. Marking the written half was the
+-- job she was left with, on a screen that would not show her the
+-- writing.
+
+/**
+ * Her students, with a count of what is outstanding.
+ *
+ * Scoped to her own roster; `assigned` counts what actually reaches each
+ * child by grade and subject, so the denominator is theirs rather than
+ * the class's.
+ */
+CREATE OR REPLACE FUNCTION public.teacher_student_report()
+RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE out jsonb; fid uuid;
+BEGIN
+  fid := public.current_faculty_id();
+  IF fid IS NULL THEN RETURN '[]'::jsonb; END IF;
+
+  SELECT COALESCE(jsonb_agg(row_to_json(t) ORDER BY t.last_name, t.first_name), '[]'::jsonb)
+    INTO out
+  FROM (
+    SELECT st.id AS student_id, st.first_name, st.last_name, st.email,
+           st.grade, st.division AS section, st.subject,
+           st.invite_status, st.user_id IS NOT NULL AS has_account,
+
+           -- Everything set for this child that expects something back.
+           (SELECT count(*) FROM schedule_entries se
+              JOIN ai_studio g ON g.id = se.draft_id AND g.deleted_at IS NULL
+             WHERE se.faculty_id = fid
+               AND COALESCE(se.status,'planned') <> 'cancelled'
+               AND g.type IN ('quiz','homework','activity')
+               AND public.norm_grade(se.grade) IS NOT DISTINCT FROM public.norm_grade(st.grade)
+               AND (public.norm_subject(se.subject) IS NULL
+                    OR public.norm_subject(se.subject) = public.norm_subject(st.subject))
+               AND (COALESCE(btrim(se.section),'') = ''
+                    OR lower(btrim(se.section)) = lower(btrim(COALESCE(st.division,''))))
+           ) AS assigned,
+
+           (SELECT count(*) FROM submissions sub
+              JOIN schedule_entries se ON se.id = sub.entry_id
+             WHERE sub.student_id = st.id AND se.faculty_id = fid) AS handed_in,
+
+           (SELECT count(*) FROM quiz_attempts qa
+              JOIN schedule_entries se ON se.id = qa.assignment_id
+             WHERE qa.student_id = st.id AND se.faculty_id = fid
+               AND qa.submitted_at IS NOT NULL) AS attempts,
+
+           -- What she still has to mark: a paper with writing in it.
+           (SELECT count(*) FROM quiz_attempts qa
+              JOIN schedule_entries se ON se.id = qa.assignment_id
+             WHERE qa.student_id = st.id AND se.faculty_id = fid
+               AND qa.submitted_at IS NOT NULL AND qa.status <> 'graded') AS to_mark,
+
+           (SELECT round(avg(qa.score / NULLIF(qa.max_score,0) * 100)::numeric, 0)
+              FROM quiz_attempts qa
+              JOIN schedule_entries se ON se.id = qa.assignment_id
+             WHERE qa.student_id = st.id AND se.faculty_id = fid
+               AND qa.status = 'graded' AND qa.score IS NOT NULL) AS avg_pct,
+
+           (SELECT max(x) FROM (
+              SELECT max(sub.submitted_at) AS x FROM submissions sub
+                JOIN schedule_entries se ON se.id = sub.entry_id
+               WHERE sub.student_id = st.id AND se.faculty_id = fid
+              UNION ALL
+              SELECT max(qa.submitted_at) FROM quiz_attempts qa
+                JOIN schedule_entries se ON se.id = qa.assignment_id
+               WHERE qa.student_id = st.id AND se.faculty_id = fid
+            ) z) AS last_seen
+      FROM students st
+     WHERE st.created_by = fid
+  ) t;
+  RETURN out;
+END $$;
+GRANT EXECUTE ON FUNCTION public.teacher_student_report() TO authenticated;
+
+/**
+ * One student, opened: every piece of work she set them and what came
+ * back — including the words they wrote.
+ *
+ * The quiz carries the question, the child's answer, and whether the
+ * marker judged it right. Reading a wrong answer is how a teacher knows
+ * whether it was a slip or a misconception, which is the entire point of
+ * marking.
+ */
+CREATE OR REPLACE FUNCTION public.teacher_student_work(p_student uuid)
+RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE out jsonb; fid uuid; st students%ROWTYPE;
+BEGIN
+  fid := public.current_faculty_id();
+  IF fid IS NULL THEN RETURN NULL; END IF;
+
+  SELECT * INTO st FROM students WHERE id = p_student AND created_by = fid;
+  IF NOT FOUND THEN RETURN NULL; END IF;
+
+  SELECT jsonb_build_object(
+    'student', jsonb_build_object(
+      'id', st.id, 'first_name', st.first_name, 'last_name', st.last_name,
+      'email', st.email, 'grade', st.grade, 'section', st.division,
+      'subject', st.subject, 'invite_status', st.invite_status
+    ),
+    'work', (
+      SELECT COALESCE(jsonb_agg(row_to_json(w) ORDER BY w.date DESC NULLS LAST), '[]'::jsonb) FROM (
+        SELECT se.id AS entry_id, g.type,
+               COALESCE(NULLIF(se.title,''), g.content->>'title', 'Work') AS title,
+               se.date, se.subject,
+
+               sub.id AS submission_id, sub.files, sub.note, sub.submitted_at AS handed_in,
+
+               qa.id AS attempt_id, qa.status AS attempt_status,
+               qa.score, qa.max_score, qa.submitted_at AS attempted_at,
+               qa.feedback,
+
+               -- Question, answer, and the marker's verdict, in order.
+               CASE WHEN qa.id IS NULL THEN NULL ELSE (
+                 SELECT COALESCE(jsonb_agg(jsonb_build_object(
+                          'prompt',  COALESCE(q->>'prompt', q->>'question', q->>'text'),
+                          'given',   qa.answers->>COALESCE(q->>'qid', q->>'id', q->>'position', (ord-1)::text),
+                          'correct', q->>'correct_answer',
+                          'marks',   COALESCE(NULLIF(q->>'marks','')::numeric, 1),
+                          'auto',    (q ? 'choices' OR q ? 'options')
+                                       AND COALESCE(q->>'correct_answer','') <> '',
+                          'verdict', qa.flags->'marking'
+                                       ->COALESCE(q->>'qid', q->>'id', q->>'position', (ord-1)::text)
+                        ) ORDER BY ord), '[]'::jsonb)
+                   FROM jsonb_array_elements(COALESCE(g.content->'questions','[]'::jsonb))
+                        WITH ORDINALITY AS t2(q, ord)
+               ) END AS answers
+          FROM schedule_entries se
+          JOIN ai_studio g ON g.id = se.draft_id AND g.deleted_at IS NULL
+          LEFT JOIN submissions   sub ON sub.entry_id = se.id AND sub.student_id = st.id
+          LEFT JOIN quiz_attempts qa  ON qa.assignment_id = se.id AND qa.student_id = st.id
+         WHERE se.faculty_id = fid
+           AND COALESCE(se.status,'planned') <> 'cancelled'
+           AND g.type IN ('quiz','homework','activity')
+           AND public.norm_grade(se.grade) IS NOT DISTINCT FROM public.norm_grade(st.grade)
+           AND (public.norm_subject(se.subject) IS NULL
+                OR public.norm_subject(se.subject) = public.norm_subject(st.subject))
+           AND (COALESCE(btrim(se.section),'') = ''
+                OR lower(btrim(se.section)) = lower(btrim(COALESCE(st.division,''))))
+      ) w
+    )
+  ) INTO out;
+  RETURN out;
+END $$;
+GRANT EXECUTE ON FUNCTION public.teacher_student_work(uuid) TO authenticated;
+
+DO $$
+BEGIN
+  RAISE NOTICE 'teacher: reports are per student, and she can read the answers';
+END $$;
+
+
+-- =====================================================================
+-- 60. A student joins each class, one invitation at a time
+-- =====================================================================
+--
+-- A child in Grade 5 has five subjects and five teachers, and each of
+-- them invites separately. The platform was treating the first
+-- invitation as a sign-up and every one after it as paperwork: the row
+-- was claimed the moment it was created, the student was told nothing,
+-- and a class appeared in their sidebar that they had never agreed to
+-- be in.
+--
+-- The correct shape is Google Classroom's, and it is what a teacher and
+-- a child both already expect:
+--
+--   invited   the teacher has asked. The student sees the invitation
+--             and decides.
+--   active    the student accepted. It is one of their classes now, and
+--             it stays there when the next invitation arrives.
+--
+-- Joining is therefore an act, not a side effect. `link_student_account`
+-- still runs at sign-in — it has to, because that is what ties the
+-- roster rows to a login — but it now only claims OWNERSHIP of the
+-- invitations, never membership.
+--
+-- The bug this fixes is the one that looks like data loss: a second
+-- teacher's invitation was auto-joined, and because the classes list
+-- read the primary roster row rather than every joined one, the first
+-- class vanished and a new one appeared in its place. Nothing was
+-- deleted; the student was simply only ever shown one class at a time.
+
+-- ── membership is 'active', full stop ─────────────────────────────────
+--
+-- Everything downstream — the dashboard, the class pages, which work
+-- reaches them, what they may open — is written in terms of these two
+-- functions. Narrowing them here is what makes a pending invitation
+-- inert everywhere at once, rather than in each caller by hand.
+CREATE OR REPLACE FUNCTION public.current_student_ids()
+RETURNS SETOF uuid
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+  SELECT id FROM students
+   WHERE user_id = (SELECT auth.uid())
+     AND invite_status = 'active';
+$$;
+
+CREATE OR REPLACE FUNCTION public.current_student_id()
+RETURNS uuid
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+  SELECT id FROM students
+   WHERE user_id = (SELECT auth.uid())
+     AND invite_status = 'active'
+   ORDER BY created_at
+   LIMIT 1;
+$$;
+
+-- ── signing in claims the invitations, not the classes ────────────────
+CREATE OR REPLACE FUNCTION public.link_student_account()
+RETURNS jsonb
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE uid uuid; em text; claimed int; held int; flagged int;
+BEGIN
+  uid := (SELECT auth.uid());
+  IF uid IS NULL THEN RETURN jsonb_build_object('linked', false, 'reason', 'not_signed_in'); END IF;
+
+  em := lower((SELECT email FROM auth.users WHERE id = uid));
+  IF em IS NULL THEN RETURN jsonb_build_object('linked', false, 'reason', 'no_email'); END IF;
+
+  -- A teacher's address may not become a student (§39).
+  IF EXISTS (SELECT 1 FROM faculty WHERE user_id = uid) THEN
+    UPDATE students
+       SET invite_status = 'blocked_teacher', updated_at = now()
+     WHERE lower(email) = em AND user_id IS NULL AND invite_status = 'invited';
+    GET DIAGNOSTICS flagged = ROW_COUNT;
+    RETURN jsonb_build_object('linked', false, 'reason', 'is_teacher', 'flagged', flagged);
+  END IF;
+
+  /**
+   * Ownership only.
+   *
+   * user_id says "this invitation is for the person now signed in".
+   * invite_status stays 'invited' until they accept it, so a class they
+   * have not agreed to join cannot reach them, set them work, or take
+   * their attendance.
+   */
+  UPDATE students
+     SET user_id = uid, updated_at = now()
+   WHERE lower(email) = em AND user_id IS NULL AND invite_status = 'invited';
+  GET DIAGNOSTICS claimed = ROW_COUNT;
+
+  SELECT count(*) INTO held FROM students WHERE user_id = uid;
+
+  IF held = 0 THEN
+    IF EXISTS (SELECT 1 FROM students WHERE lower(email) = em AND user_id IS NULL) THEN
+      RETURN jsonb_build_object('linked', false, 'reason', 'not_invited');
+    END IF;
+    RETURN jsonb_build_object('linked', false, 'reason', 'no_match');
+  END IF;
+
+  INSERT INTO public.users (id, email) VALUES (uid, em) ON CONFLICT (id) DO NOTHING;
+  UPDATE public.users u
+     SET role = 'student', updated_at = now()
+   WHERE u.id = uid
+     AND u.role = 'teacher'
+     AND NOT EXISTS (SELECT 1 FROM faculty f WHERE f.user_id = uid);
+
+  RETURN jsonb_build_object(
+    'linked', true, 'claimed', claimed, 'rows', held,
+    'pending', (SELECT count(*) FROM students
+                 WHERE user_id = uid AND invite_status = 'invited')
+  );
+END $$;
+GRANT EXECUTE ON FUNCTION public.link_student_account() TO authenticated;
+
+-- ── the invitations waiting for them ──────────────────────────────────
+--
+-- Both the ones claimed at sign-in and any that arrived since. Read by
+-- email as well as user_id so an invitation sent while they are looking
+-- at the page appears on the next load without another sign-in.
+CREATE OR REPLACE FUNCTION public.student_invitations()
+RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE out jsonb; uid uuid; em text;
+BEGIN
+  uid := (SELECT auth.uid());
+  IF uid IS NULL THEN RETURN '[]'::jsonb; END IF;
+  em := lower((SELECT email FROM auth.users WHERE id = uid));
+
+  SELECT COALESCE(jsonb_agg(row_to_json(t) ORDER BY t.invited_at DESC NULLS LAST), '[]'::jsonb)
+    INTO out
+  FROM (
+    SELECT st.id AS student_row_id, st.subject, st.grade, st.division AS section,
+           st.invited_at,
+           TRIM(COALESCE(u.first_name,'') || ' ' || COALESCE(u.last_name,'')) AS teacher,
+           (SELECT name FROM schools WHERE id = st.school_id) AS school
+      FROM students st
+      LEFT JOIN faculty f ON f.id = st.created_by
+      LEFT JOIN users   u ON u.id = f.user_id
+     WHERE st.invite_status = 'invited'
+       AND (st.user_id = uid OR (st.user_id IS NULL AND lower(st.email) = em))
+  ) t;
+  RETURN out;
+END $$;
+GRANT EXECUTE ON FUNCTION public.student_invitations() TO authenticated;
+
+-- ── accepting one ─────────────────────────────────────────────────────
+CREATE OR REPLACE FUNCTION public.student_join_class(p_student_row uuid)
+RETURNS jsonb
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE uid uuid; em text; ok boolean;
+BEGIN
+  uid := (SELECT auth.uid());
+  IF uid IS NULL THEN RAISE EXCEPTION 'not signed in' USING ERRCODE = '42501'; END IF;
+  em := lower((SELECT email FROM auth.users WHERE id = uid));
+
+  -- Theirs, and still an invitation. Anything else is somebody else's
+  -- class or a row they have already joined.
+  SELECT EXISTS (
+    SELECT 1 FROM students st
+     WHERE st.id = p_student_row
+       AND st.invite_status = 'invited'
+       AND (st.user_id = uid OR (st.user_id IS NULL AND lower(st.email) = em))
+  ) INTO ok;
+  IF NOT ok THEN
+    RAISE EXCEPTION 'that invitation is not yours' USING ERRCODE = '42501';
+  END IF;
+
+  UPDATE students
+     SET user_id = uid, invite_status = 'active', updated_at = now()
+   WHERE id = p_student_row;
+
+  RETURN jsonb_build_object('joined', true, 'student_row_id', p_student_row);
+END $$;
+GRANT EXECUTE ON FUNCTION public.student_join_class(uuid) TO authenticated;
+
+-- ── a student may read the invitation itself ──────────────────────────
+--
+-- students_read is written in terms of current_student_ids(), which no
+-- longer includes a pending row — so without this the invitation is
+-- invisible to the person being invited.
+DROP POLICY IF EXISTS students_read ON public.students;
+CREATE POLICY students_read ON public.students
+  FOR SELECT TO authenticated
+  USING (
+    (
+      created_by = current_faculty_id()
+      OR EXISTS (
+        SELECT 1 FROM class_members cm
+          JOIN classes c ON c.id = cm.class_id
+         WHERE cm.student_id = students.id
+           AND c.faculty_id = current_faculty_id()
+      )
+      -- Every row that belongs to this person, joined or merely offered.
+      OR user_id = (SELECT auth.uid())
+    )
+    AND is_current_device()
+  );
+
+-- ── re-adding a known student offers, it does not enrol ───────────────
+--
+-- §44 claimed the row outright so a returning student needed no second
+-- invitation. That is right about the ACCOUNT and wrong about the CLASS:
+-- a different teacher's subject is a different class, and being known to
+-- the platform is not the same as agreeing to join it.
+CREATE OR REPLACE FUNCTION public.attach_known_student(p_student uuid)
+RETURNS jsonb
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE em text; uid uuid; owner uuid;
+BEGIN
+  SELECT lower(trim(s.email)), s.created_by INTO em, owner
+    FROM students s WHERE s.id = p_student;
+  IF em IS NULL THEN RETURN jsonb_build_object('attached', false, 'reason', 'not_found'); END IF;
+
+  IF owner IS DISTINCT FROM public.current_faculty_id() THEN
+    RETURN jsonb_build_object('attached', false, 'reason', 'not_yours');
+  END IF;
+
+  SELECT u.id INTO uid
+    FROM auth.users u
+    JOIN public.users pu ON pu.id = u.id
+   WHERE lower(u.email) = em AND pu.role = 'student'
+   LIMIT 1;
+
+  IF uid IS NULL THEN RETURN jsonb_build_object('attached', false, 'reason', 'no_account'); END IF;
+
+  -- Addressed to them, and waiting for them to accept it.
+  UPDATE students
+     SET user_id = uid, invite_status = 'invited', invited_at = now(), updated_at = now()
+   WHERE id = p_student AND invite_status <> 'active';
+
+  RETURN jsonb_build_object('attached', true, 'user_id', uid, 'pending', true);
+END $$;
+
+DO $$
+BEGIN
+  RAISE NOTICE 'students: each class is joined from its own invitation';
+END $$;
+
+
+-- =====================================================================
+-- 61. One login, many classes
+-- =====================================================================
+--
+-- students.user_id carried a UNIQUE constraint, so a login could own
+-- exactly ONE roster row. It dates from the design where a student WAS
+-- a row — one child, one record — and it quietly made the whole
+-- multi-teacher model impossible: the moment Tommy joined Science, no
+-- other teacher could ever link him again.
+--
+-- The failure was invisible from the outside, which is what made it
+-- expensive. The second teacher's invitation was created and emailed
+-- exactly as the first; only the link step raised
+--
+--     duplicate key value violates unique constraint "students_user_id_key"
+--
+-- inside attach_known_student(), where the browser swallowed it. The
+-- student clicked the link, signed in, and found one class — with
+-- nothing anywhere saying the second had been refused.
+--
+-- A student is a PERSON with several roster rows, one per teacher. The
+-- uniqueness that actually matters is one row per teacher per child, and
+-- that is already enforced by students_teacher_email_unique. This one is
+-- simply wrong.
+
+ALTER TABLE public.students DROP CONSTRAINT IF EXISTS students_user_id_key;
+
+-- Still indexed — current_student_ids() looks rows up by it on every
+-- request a student makes — just no longer unique.
+CREATE INDEX IF NOT EXISTS students_user_id_idx ON public.students (user_id);
+
+-- Prove it, rather than trust it: the same login must be able to hold
+-- two rows from two teachers.
+DO $$
+DECLARE ok boolean;
+BEGIN
+  SELECT NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+     WHERE conrelid = 'public.students'::regclass
+       AND contype = 'u'
+       AND pg_get_constraintdef(oid) = 'UNIQUE (user_id)'
+  ) INTO ok;
+  IF NOT ok THEN
+    RAISE EXCEPTION 'students.user_id is still unique; a student cannot hold two classes';
+  END IF;
+  RAISE NOTICE 'students: one login may now hold a row per teacher';
+END $$;
+
+
+-- =====================================================================
+-- 62. Remove what nothing calls
+-- =====================================================================
+--
+-- Two functions written during this work and superseded before anything
+-- shipped. Both are reachable by any authenticated user through
+-- PostgREST, so leaving them is not free: an endpoint nobody calls is an
+-- endpoint nobody is checking either.
+--
+--   teacher_submissions()   the first Reports screen was one flat feed
+--                           of everything handed in. It was replaced by
+--                           teacher_student_report() / _student_work()
+--                           the moment it was clear a teacher with a
+--                           hundred students cannot read a feed.
+--
+--   student_invitations()   the invitation briefly lived inside the app,
+--                           with a Join button on the classes page. It
+--                           belongs in the email — one per subject, from
+--                           the teacher who sent it — so the in-app list
+--                           went and this went unused with it.
+--
+-- Dropped by exact signature, so an unrelated overload could not go with
+-- them by accident.
+DROP FUNCTION IF EXISTS public.teacher_submissions(integer);
+DROP FUNCTION IF EXISTS public.student_invitations();
+
+DO $$
+BEGIN
+  RAISE NOTICE 'cleanup: superseded RPCs removed';
+END $$;

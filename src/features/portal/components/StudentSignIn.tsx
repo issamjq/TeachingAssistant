@@ -12,7 +12,7 @@
 // dashboard. If there's no profile yet (no_teacher_row), try to link by
 // email; on success route, otherwise explain that no roster row matched.
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef} from "react";
 import { ArrowRight } from "lucide-react";
 import { api, ApiError } from "@/shared/lib/apiClient";
 import { replace } from "@/lib/route";
@@ -50,6 +50,31 @@ function errorFor(reason?: string): SignInError {
   return { kind: "no_match" };
 }
 
+/** Is an OAuth or magic-link exchange in flight in this page load? */
+function returningFromAuth(): boolean {
+  if (typeof window === "undefined") return false;
+  const q = window.location.search + window.location.hash;
+  return /[?&#](code|token_hash|access_token|refresh_token)=/.test(q);
+}
+
+/**
+ * Give the exchange a moment to land.
+ *
+ * Polled rather than awaited on an event because the client resolves it
+ * internally; six tries at 250ms is comfortably longer than it takes and
+ * short enough that a genuine failure still shows the buttons quickly.
+ */
+async function waitForSession(read: () => Promise<unknown>): Promise<any> {
+  for (let i = 0; i < 6; i += 1) {
+    // eslint-disable-next-line no-await-in-loop
+    await new Promise((r) => setTimeout(r, 250));
+    // eslint-disable-next-line no-await-in-loop
+    const u = await read();
+    if (u) return u;
+  }
+  return null;
+}
+
 export default function StudentSignIn() {
   const [checking, setChecking] = useState(true);
   /**
@@ -65,11 +90,28 @@ export default function StudentSignIn() {
    * the check that started it.
    */
   const [entering, setEntering] = useState(false);
+  /** Set when the link was followed and the class did not join. */
+  const [joinFailed, setJoinFailed] = useState<string | null>(null);
+  // enter() runs in the same tick as the setState above, so it reads the
+  // ref rather than the state it would not yet see.
+  const joinFailedRef = useRef<string | null>(null);
   const [signingIn, setSigningIn] = useState(false);
   const [error, setError] = useState<SignInError | null>(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [emailBusy, setEmailBusy] = useState(false);
+
+  /**
+   * The class this link is for.
+   *
+   * An invitation is one email per subject, and the link carries the
+   * roster row it belongs to — so following it joins THAT class and
+   * nothing else. Read once, before any navigation clears it.
+   */
+  const joinTarget =
+    typeof window !== "undefined"
+      ? new URLSearchParams(window.location.search).get("join")
+      : null;
 
   function enter(me: MeRow) {
     setAccount({
@@ -87,7 +129,36 @@ export default function StudentSignIn() {
     });
     setRole("student");
     setEntering(true);
+    // Carried across the navigation, because this component is leaving.
+    if (typeof window !== "undefined" && joinFailedRef.current) {
+      try {
+        sessionStorage.setItem("murchid.joinError", joinFailedRef.current);
+      } catch { /* private mode — the console warning still stands */ }
+    }
     replace(["student-dashboard"]);
+  }
+
+  /**
+   * Follow the invitation.
+   *
+   * A failure here must not block the sign-in — the link may be for a
+   * class they joined last week, or one the teacher has since removed —
+   * but it must not be silent either. Swallowing it entirely is how a
+   * class that failed to join looked exactly like a class that was never
+   * invited: the student landed in the portal, saw one subject, and had
+   * no way to know the second had gone wrong.
+   */
+  async function acceptIfInvited() {
+    if (!joinTarget) return null;
+    try {
+      await api(`/api/student/join/${joinTarget}`, { method: "POST" });
+      return joinTarget;
+    } catch (e: any) {
+      console.warn("[student] could not join from the invitation link:", e?.message || e);
+      joinFailedRef.current = e?.message || "That invitation could not be opened.";
+      setJoinFailed(joinFailedRef.current);
+      return null;
+    }
   }
 
   // Resolve a live session into a student, linking by email if needed.
@@ -102,7 +173,7 @@ export default function StudentSignIn() {
       // Including a student with no classes right now — see getProfile().
       // The dashboard says so; being between teachers is not a sign-in
       // failure and must not be reported as one.
-      if (me.role === "student") { enter(me); return true; }
+      if (me.role === "student") { await acceptIfInvited(); enter(me); return true; }
       setError({ kind: "wrong_account", role: me.role });
       return true;
     }
@@ -126,7 +197,7 @@ export default function StudentSignIn() {
       } catch {
         me2 = null;
       }
-      if (me2?.role === "student") { enter(me2); return true; }
+      if (me2?.role === "student") { await acceptIfInvited(); enter(me2); return true; }
       setError({
         kind: "unknown",
         message:
@@ -151,9 +222,28 @@ export default function StudentSignIn() {
         // detectSessionInUrl has already handled the same-device case by
         // the time this runs, and this returns null when there is no hash.
         await completeTokenHashSignIn().catch(() => null);
-        const user = await getCurrentUser();
+        let user = await getCurrentUser();
+
+        /**
+         * Coming back from Google, the session may not be readable yet.
+         *
+         * detectSessionInUrl exchanges the code asynchronously, so the
+         * first getCurrentUser() after the redirect can answer null —
+         * and the finally below then cleared `checking` and rendered the
+         * sign-in form. A student who had just picked their account
+         * watched it ask them to sign in for a second or two before the
+         * dashboard appeared, which reads as a failed login.
+         *
+         * The URL says whether a sign-in is in flight. If one is, wait
+         * for it rather than concluding there is nobody here.
+         */
+        if (!user && returningFromAuth()) {
+          user = await waitForSession(getCurrentUser);
+          if (cancelled) return;
+        }
+
         if (cancelled) return;
-        if (!user) return; // show the buttons
+        if (!user) return; // genuinely signed out — show the buttons
         await resolve();
       } catch (e) {
         if (!cancelled) setError({ kind: "unknown", message: e instanceof Error ? e.message : String(e) });
@@ -170,7 +260,16 @@ export default function StudentSignIn() {
     setSigningIn(true);
     try {
       const { signInWithGoogle } = await import("@/lib/supabaseAuth");
-      await signInWithGoogle(); // full-page redirect; resolve() runs on return
+      /**
+       * Come back HERE, carrying the class they were invited to.
+       *
+       * Without this the provider returned everyone to /signin — the
+       * teacher door — so a student signed in with Google and was asked
+       * to sign in again, and the ?join= that made the link an
+       * invitation was lost in the round trip.
+       */
+      const back = `/student${joinTarget ? `?join=${encodeURIComponent(joinTarget)}` : ""}`;
+      await signInWithGoogle(back); // full-page redirect; resolve() runs on return
     } catch (e) {
       setError({ kind: "unknown", message: e instanceof Error ? e.message : String(e) });
       setSigningIn(false);

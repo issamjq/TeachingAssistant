@@ -5,6 +5,7 @@ import { FileDown, FileSpreadsheet } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { api } from "./_shared";
+import ReportsSubmissions from "./ReportsSubmissions";
 
 export default function Reports() {
   const [summary, setSummary] = useState([]);
@@ -129,6 +130,9 @@ export default function Reports() {
           </div>
         </CardContent>
       </Card>
+
+      <ReportsSubmissions />
+
     </div>
   );
 }

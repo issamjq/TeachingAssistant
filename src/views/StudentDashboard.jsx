@@ -109,7 +109,14 @@ export default function StudentDashboard() {
           Hi <em className="italic font-light text-accent">{s.first_name || "there"}</em>
         </h2>
         <p className="text-muted mt-2 text-sm md:text-base">
-          {[s.grade && `Grade ${s.grade}`, s.section, s.school].filter(Boolean).join(" · ") || "Your assigned work at a glance."}
+          {/* The roster already stores "Grade 5", so prefixing it again
+              produced "Grade Grade 5". Only add the word when the value
+              is a bare number, which is the other way teachers type it. */}
+          {[
+            s.grade && (/^\s*\d/.test(String(s.grade)) ? `Grade ${s.grade}` : s.grade),
+            s.section,
+            s.school,
+          ].filter(Boolean).join(" · ") || "Your assigned work at a glance."}
         </p>
       </div>
 
@@ -182,8 +189,13 @@ export default function StudentDashboard() {
                           {w.teacher && <span className="block font-serif italic">{w.teacher}</span>}
                         </td>
                       )}
-                      <td className="py-3 text-muted text-xs">{w.class_name || "—"}</td>
-                      <td className="py-3 text-muted text-xs">{w.ends_at ? new Date(w.ends_at).toLocaleDateString() : "—"}</td>
+                      {/* The class IS the subject, and the date is the
+                          schedule entry's — §48 replaced class_name and
+                          starts_at/ends_at, which read "—" for everything. */}
+                      <td className="py-3 text-muted text-xs">{w.subject || "—"}</td>
+                      <td className="py-3 text-muted text-xs">
+                        {w.date ? new Date(w.date).toLocaleDateString() : "—"}
+                      </td>
                       <td className="py-3">
                         <span className={`font-mono text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full border bg-paper ${
                           done ? "border-sage text-sage" : "border-gold text-gold"

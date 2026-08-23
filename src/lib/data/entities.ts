@@ -297,6 +297,19 @@ const inStudent = (b: Record<string, any>) => {
    * students — the form, the bulk import and the picker — and all three
    * arrive through this function.
    */
+  /**
+   * Fields the UI adds, which are not columns.
+   *
+   * inviteStudent() returns the row with `invite_mail_error` attached so
+   * the screen can explain a failed send. That object then becomes the
+   * row in the list, and the edit form seeds itself from the row — so
+   * saving a student who had ever been invited sent a column Postgres
+   * has never had: "Could not find the 'invite_mail_error' column of
+   * 'students' in the schema cache".
+   */
+  delete o.invite_mail_error;
+  delete o.age;
+
   for (const k of STUDENT_DATE_FIELDS) {
     if (k in o && (o[k] === "" || o[k] === undefined)) o[k] = null;
   }
@@ -475,15 +488,25 @@ export async function inviteStudent(id: string) {
    * is what happened every time a teacher removed a student and added
    * them back.
    */
+  /**
+   * Someone this platform already knows joins without a second sign-up —
+   * but they are still told.
+   *
+   * A student holds one invitation PER SUBJECT, because each subject is
+   * a different teacher's class. Claiming the row silently was right
+   * about the account and wrong about the person: their English teacher
+   * added them and nothing arrived, so the first they would know of it
+   * is homework appearing in a class they were never told they were in.
+   *
+   * So the row is claimed (no sign-up, no waiting — it reads Active at
+   * once) and the mail goes anyway, naming the class.
+   */
+  let claimed = false;
   try {
     const { data: attached } = await supabase.rpc("attach_known_student", { p_student: id });
-    if ((attached as any)?.attached) {
-      const { data: fresh } = await supabase
-        .from("students").select(STUDENT_COLS).eq("id", id).maybeSingle();
-      return { ...outStudent(fresh ?? data), invite_mail_error: null };
-    }
+    claimed = Boolean((attached as any)?.attached);
   } catch {
-    /* not deployed yet — fall through and invite as before */
+    /* not deployed yet — the invitation below still opens the gate */
   }
 
   let mailError: string | null = null;
@@ -518,6 +541,12 @@ export async function inviteStudent(id: string) {
         `They've been emailed an explanation — ask them for a different address, ` +
         `then edit this student and invite them again.`,
     };
+  }
+  if (claimed) {
+    // The claim moved the row to `active` underneath the update above.
+    const { data: fresh } = await supabase
+      .from("students").select(STUDENT_COLS).eq("id", id).maybeSingle();
+    return { ...outStudent(fresh ?? data), invite_mail_error: mailError };
   }
   return { ...outStudent(data), invite_mail_error: mailError };
 }
@@ -1658,6 +1687,153 @@ export async function linkStudent() {
   const { data, error } = await supabase.rpc("link_student_account");
   if (error) throw error;
   return data;
+}
+
+/** Her students, each with what they owe and what they have done. */
+export async function studentReport() {
+  const { data, error } = await supabase.rpc("teacher_student_report");
+  if (error) throw error;
+  return Array.isArray(data) ? data : [];
+}
+
+/** One student opened: their work, their files, and what they wrote. */
+export async function studentWorkReport(studentId: string) {
+  const { data, error } = await supabase.rpc("teacher_student_work", { p_student: studentId });
+  if (error) throw error;
+  if (!data) throw notFound();
+  return data;
+}
+
+/** Finish marking a quiz: her score for the written half, and it is done. */
+export async function gradeAttempt(attemptId: string, score: number, feedback?: string) {
+  const { data, error } = await supabase.rpc("teacher_grade_attempt", {
+    p_attempt: attemptId,
+    p_score: score,
+    p_feedback: feedback ?? null,
+  });
+  if (error) throw error;
+  return data;
+}
+
+/** A signed link to one submitted file. Private bucket — never a public URL. */
+export async function submissionFileUrl(path: string) {
+  const { data, error } = await supabase.storage.from("submissions").createSignedUrl(path, 300);
+  if (error) throw error;
+  return data?.signedUrl ?? null;
+}
+
+// ── the student's classes ─────────────────────────────────────────────
+//
+// A student holds one grade and several subjects, one per teacher, and
+// each roster row IS a subject. Everything below is scoped by
+// current_student_ids() inside the function, so a student can only ever
+// reach their own — there is no id a caller could pass to see another
+// child's work.
+
+/**
+ * Join a class from its invitation link.
+ *
+ * One invitation per subject, each a different teacher's class — so
+ * following a link joins THAT class and leaves every other one alone.
+ */
+export async function joinClass(studentRowId: string) {
+  const { data, error } = await supabase.rpc("student_join_class", {
+    p_student_row: studentRowId,
+  });
+  if (error) throw error;
+  return data;
+}
+
+/** Subjects this student is enrolled in, with the teacher and a work count. */
+export async function studentSubjects() {
+  const { data, error } = await supabase.rpc("student_subjects");
+  if (error) throw error;
+  return Array.isArray(data) ? data : [];
+}
+
+/** One subject's classroom: everything their teacher has set. */
+export async function studentClass(studentRowId: string) {
+  const { data, error } = await supabase.rpc("student_class", { p_student_row: studentRowId });
+  if (error) throw error;
+  if (!data) throw notFound();
+  return data;
+}
+
+/** One piece of work, opened. A lesson plan arrives already trimmed to the student's notes. */
+export async function studentWork(entryId: string) {
+  const { data, error } = await supabase.rpc("student_work", { p_entry: entryId });
+  if (error) throw error;
+  if (!data) throw notFound();
+  return data;
+}
+
+/**
+ * Present, because they are here.
+ *
+ * Called on portal load. Writes nothing on a day already marked, so a
+ * teacher who corrected a record is not overruled by the next page load,
+ * and best-effort throughout: a student must never be kept out of their
+ * work because a register failed.
+ */
+export async function studentMarkPresent() {
+  const { data, error } = await supabase.rpc("student_mark_present");
+  if (error) return { marked: 0 };
+  return data;
+}
+
+/** Hand in homework or an activity. Re-submitting replaces what was there. */
+export async function submitWork(
+  entryId: string,
+  studentRowId: string,
+  body: { files?: any[]; note?: string },
+) {
+  const { data, error } = await supabase
+    .from("submissions")
+    .upsert(
+      {
+        entry_id: entryId,
+        student_id: studentRowId,
+        files: body.files ?? [],
+        note: body.note ?? null,
+        submitted_at: iso(),
+        updated_at: iso(),
+      },
+      { onConflict: "entry_id,student_id" },
+    )
+    .select("id, files, note, submitted_at")
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+/**
+ * Sit a quiz, once.
+ *
+ * The answers go to the database and the score comes back. Nothing here
+ * computes it: marking needs the correct answers, and a browser that
+ * holds those is a browser holding the answer key. Multiple choice is
+ * marked on the spot, written answers wait for the teacher, and one
+ * attempt is enforced by a unique index and a trigger rather than by
+ * this function being polite.
+ */
+export async function submitQuiz(entryId: string, body: { answers: any }) {
+  const { data, error } = await supabase.rpc("student_submit_quiz", {
+    p_entry: entryId,
+    p_answers: body.answers ?? {},
+  });
+  if (error) throw error;
+  return data;
+}
+
+/** The student's own attendance, newest first. */
+export async function studentAttendance() {
+  const { data, error } = await supabase
+    .from("attendance")
+    .select("date, status, note")
+    .order("date", { ascending: false })
+    .limit(120);
+  if (error) throw error;
+  return data || [];
 }
 
 /** The student's own dashboard: assigned work, scores, attendance, marks. */

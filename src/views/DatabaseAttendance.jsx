@@ -94,10 +94,21 @@ export default function DatabaseAttendance() {
     reload();
   };
 
+  /**
+   * The tally, counted case-insensitively.
+   *
+   * The keys were capitalised and the column stores lowercase — the same
+   * mismatch the STATUSES comment above describes — so `c['present']`
+   * was undefined and every marked student fell through to Unmarked. A
+   * teacher taking a full register watched the row turn green and the
+   * headline keep saying nobody was there.
+   */
   const counts = useMemo(() => {
     const c = { Present: 0, Absent: 0, Late: 0, Excused: 0, Unmarked: 0 };
+    const label = { present: "Present", absent: "Absent", late: "Late", excused: "Excused" };
     rows.forEach((r) => {
-      if (r.status && c[r.status] !== undefined) c[r.status]++;
+      const key = label[String(r.status || "").toLowerCase()];
+      if (key) c[key]++;
       else c.Unmarked++;
     });
     return c;

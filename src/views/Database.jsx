@@ -8,20 +8,28 @@
 // Settings → Teaching profile so the Settings page owns all the
 // "about you" data.
 import React from "react";
-import { Users, BarChart3 } from "lucide-react";
+import { Users, BarChart3, CalendarCheck } from "lucide-react";
 import { navigate } from "../lib/route";
 import DatabaseStudents from "./DatabaseStudents";
 import DatabaseScores from "./DatabaseScores";
+import DatabaseAttendance from "./DatabaseAttendance";
 
 const TABS = [
-  { key: "students", label: "Students", icon: Users, route: ["database", "students"] },
-  { key: "scores",   label: "Scores",   icon: BarChart3, route: ["database", "scores"] },
+  { key: "students",   label: "Students",   icon: Users, route: ["database", "students"] },
+  { key: "scores",     label: "Scores",     icon: BarChart3, route: ["database", "scores"] },
+  /**
+   * The register. Built long ago and never reachable — DatabaseAttendance
+   * has existed in full since before the portal did, with no tab pointing
+   * at it. Students now mark themselves present by opening Murchid, which
+   * makes this the screen where a teacher reads and corrects that.
+   */
+  { key: "attendance", label: "Attendance", icon: CalendarCheck, route: ["database", "attendance"] },
 ];
 
 export default function Database({ sub }) {
   // Default tab is Students. Legacy /database/profile URLs (from before
   // the Teaching-profile move) fall back to Students too.
-  const active = sub === "scores" ? "scores" : "students";
+  const active = sub === "scores" ? "scores" : sub === "attendance" ? "attendance" : "students";
 
   return (
     <div>
@@ -56,7 +64,13 @@ export default function Database({ sub }) {
         })}
       </div>
 
-      {active === "students" ? <DatabaseStudents /> : <DatabaseScores />}
+      {active === "students" ? (
+        <DatabaseStudents />
+      ) : active === "attendance" ? (
+        <DatabaseAttendance />
+      ) : (
+        <DatabaseScores />
+      )}
     </div>
   );
 }

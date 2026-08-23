@@ -40,6 +40,7 @@ import {
   GraduationCap,
   Coins,
   Building2,
+  ChevronDown,
   type LucideIcon,
 } from "lucide-react";
 import { asRoles, clearRole, getRole, onRoleChange, ROLE_LABELS, setRole, syncRoleFromServer } from "@/lib/role";
@@ -139,10 +140,22 @@ export default function StudioShell({ children }: { children: React.ReactNode })
    * storage, and it runs once hydration is done.
    */
   const [role, setRoleState] = useState<Role>("teacher");
+  /**
+   * Has the stored role been read yet?
+   *
+   * The seed above is the server's guess, not this browser's answer, and
+   * for one render they disagree. The bounce below must not run in that
+   * window: a student opening /student-class directly was judged against
+   * a teacher's sections, failed, and was thrown back to a home page —
+   * every time, on every reload, while clicking the same link inside the
+   * app worked perfectly.
+   */
+  const [roleReady, setRoleReady] = useState(false);
 
   useEffect(() => {
     const stored = getRole();
     if (stored !== "teacher") setRoleState(stored);
+    setRoleReady(true);
   }, []);
   // Every role this account holds, from /api/me. One entry is the ordinary
   // case and the switcher stays hidden; more than one means the person is
@@ -304,10 +317,12 @@ export default function StudioShell({ children }: { children: React.ReactNode })
   // sub-admin wasn't granted). Replace, not push, so the back button
   // doesn't re-trigger the bounce.
   useEffect(() => {
+    // Not until this browser has said who it is — see roleReady.
+    if (!roleReady) return;
     if (!allowedSections.has(section)) {
       replace([homeRoute]);
     }
-  }, [role, section, perms]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [role, roleReady, section, perms]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Any route change closes the mobile drawer + account menu so the new
   // screen is visible immediately after tapping a nav item.
@@ -345,9 +360,70 @@ export default function StudioShell({ children }: { children: React.ReactNode })
   const roleKey = `account.${role}` as TranslationKey;
   const roleLabel = t(roleKey) === `account.${role}` ? ROLE_LABELS[role] : t(roleKey);
 
+  /**
+   * The subjects under Classes, for a student.
+   *
+   * Not in the nav config because they are not static: a student holds
+   * one grade and however many subjects teachers have invited them to.
+   * Fetched once per session — a subject appearing mid-session means a
+   * teacher just invited them, which a page load will pick up.
+   */
+  const [subjects, setSubjects] = useState<any[]>([]);
+  const [classesOpen, setClassesOpen] = useState(true);
+  useEffect(() => {
+    if (role !== "student") return;
+    let off = false;
+
+    const loadClasses = () => {
+      api("/api/student/subjects")
+        .then((r: any) => { if (!off) setSubjects(Array.isArray(r) ? r : []); })
+        .catch(() => {});
+    };
+    loadClasses();
+
+    /**
+     * A newly joined class appears without a reload.
+     *
+     * The list was fetched once per session, so following an invitation
+     * link left the new subject missing until a refresh.
+     */
+    const onChanged = () => loadClasses();
+    window.addEventListener("murchid:classes-changed", onChanged);
+
+    /**
+     * Present, because they are here.
+     *
+     * The register a teacher would otherwise take by hand. Once per day
+     * per teacher, and it writes nothing on a date already recorded — so
+     * a teacher who corrected a mark is not overruled by the next page
+     * load, and refreshing does not inflate anything.
+     *
+     * Deliberately silent: a student must never be kept out of their
+     * work because a register failed, and there is nothing they could do
+     * about it if they were told.
+     */
+    api("/api/student/present", { method: "POST" }).catch(() => {});
+    return () => {
+      off = true;
+      window.removeEventListener("murchid:classes-changed", onChanged);
+    };
+  }, [role]);
+
   const nav = isAdmin ? adminNav(perms) : NAV_BY_ROLE[role];
   const sidebarActive = section === "account" ? "account" : section;
-  const handleNavClick = (key: string) => navigate(navTargetFor(key));
+  const handleNavClick = (key: string) => {
+    // Classes is a container once it has subjects in it: clicking the
+    // parent opens the list rather than navigating to a page that would
+    // only repeat what is now directly underneath it.
+    // A container once it has classes in it: clicking the parent opens
+    // the list rather than navigating to a page that repeats what is now
+    // directly underneath it.
+    if (key === "student-classes" && subjects.length > 0) {
+      setClassesOpen((o) => !o);
+      return;
+    }
+    navigate(navTargetFor(key));
+  };
 
   // Studio launcher — the hero CTA, lifted out of the nav list. Sits just
   // above the account chip so the two persistent affordances pair up.
@@ -408,7 +484,7 @@ export default function StudioShell({ children }: { children: React.ReactNode })
                 {s.items.map((item) => {
                   const isActive = sidebarActive === item.key;
                   const myIndex = mi++;
-                  return (
+                  const button = (
                     <button
                       key={item.key}
                       onClick={() => handleNavClick(item.key)}
@@ -424,8 +500,55 @@ export default function StudioShell({ children }: { children: React.ReactNode })
                     >
                       <NavBadge letter={item.letter} icon={item.icon} />
                       <span className="truncate flex-1">{navT(item.key, item.label)}</span>
+                      {item.key === "student-classes" && subjects.length > 0 && (
+                        <ChevronDown
+                          size={13}
+                          className={`flex-shrink-0 transition-transform ${classesOpen ? "" : "-rotate-90"}`}
+                        />
+                      )}
                     </button>
                   );
+
+                  /**
+                   * The student's subjects, nested under Classes.
+                   *
+                   * One grade, several subjects — a maths teacher and an
+                   * English teacher each invited them separately, and each
+                   * roster row is one of these. The teacher's name rides
+                   * along because "Science" means nothing to a child with
+                   * two science teachers.
+                   */
+                  if (item.key === "student-classes" && subjects.length > 0 && classesOpen) {
+                    return (
+                      <React.Fragment key={item.key}>
+                        {button}
+                        <div className="ms-6 ps-2 border-s border-line/70 space-y-0.5">
+                          {subjects.map((sub: any) => {
+                            const active = section === "student-class"
+                              && pathname?.includes(sub.student_row_id);
+                            return (
+                              <button
+                                key={sub.student_row_id}
+                                onClick={() => navigate(["student-class", sub.student_row_id])}
+                                title={`${sub.subject || "Class"}${sub.teacher ? ` · ${sub.teacher}` : ""}`}
+                                className={`murchid-sidebar-item w-full ${active ? "murchid-sidebar-item-active" : ""}`}
+                              >
+                                <span className="truncate flex-1 text-start">
+                                  {sub.subject || "Class"}
+                                </span>
+                                {sub.work_count > 0 && (
+                                  <span className="font-mono text-[9px] text-muted flex-shrink-0">
+                                    {sub.work_count}
+                                  </span>
+                                )}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </React.Fragment>
+                    );
+                  }
+                  return button;
                 })}
               </div>
             </section>

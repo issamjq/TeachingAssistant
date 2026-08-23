@@ -134,6 +134,16 @@ const STUDENT_NAV: NavSection[] = [
     section: "My work",
     items: [
       { key: "student-dashboard", label: "Dashboard", icon: "dashboard" },
+      /**
+       * Classes expands into the subjects this student is taught.
+       *
+       * The children are not listed here because they are not static: a
+       * student holds one grade and however many subjects teachers have
+       * invited them to, which is known only at runtime. The shell fills
+       * them in from /api/student/subjects.
+       */
+      { key: "student-classes", label: "Classes", icon: "lessons" },
+      { key: "student-attendance", label: "Attendance", icon: "reports" },
     ],
   },
 ];
@@ -203,7 +213,10 @@ export const SECTIONS_BY_ROLE: Record<Role, Set<string>> = {
   super_admin: new Set(["superadmin-dashboard", "superadmin-console", "superadmin-students", "superadmin-orgs", "superadmin-costs", "account"]),
   moe: new Set(["moe-console", "account"]),
   owner: new Set(["owner-console", "account"]),
-  student: new Set(["student-dashboard", "account"]),
+  student: new Set([
+    "student-dashboard", "student-classes", "student-class", "student-work",
+    "student-attendance", "account",
+  ]),
 };
 
 /** Where a nav key should navigate — some sections have a default sub-tab. */

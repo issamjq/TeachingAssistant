@@ -89,7 +89,21 @@ function redirectTo(path = "/") {
 // Callers must instead react to the session arriving — either via
 // onAuthChange() or by reading getCurrentUser() after the redirect
 // completes. The sign-in screens were updated accordingly.
-export async function signInWithGoogle() {
+/**
+ * @param {string} [next] Where the provider should return to. Defaults to
+ *   the teacher sign-in screen.
+ *
+ *   The default was the only option, and it sent EVERY Google sign-in to
+ *   "/signin" — including a student's. They picked their account, came
+ *   back to the teacher door, and were asked to sign in a second time;
+ *   any `?join=` on the invitation link was dropped on the way, so the
+ *   class they had followed the email to join never joined.
+ *
+ *   Whatever is passed must also be listed in Supabase → Authentication →
+ *   URL Configuration → Redirect URLs, or Supabase substitutes the Site
+ *   URL and the caller silently gets the old behaviour back.
+ */
+export async function signInWithGoogle(next) {
   unwrap(
     await supabase.auth.signInWithOAuth({
       provider: "google",
@@ -100,7 +114,7 @@ export async function signInWithGoogle() {
         // signed-in teacher standing on the hero with nowhere to go. The
         // marketing page also carries a forwarding shim in case the
         // Supabase redirect allowlist ever falls back to the site root.
-        redirectTo: redirectTo("/signin"),
+        redirectTo: next ? redirectTo(next) : redirectTo("/signin"),
         // Force the account chooser every time, so a teacher signed into
         // several Google accounts in one browser can pick the right one.
         // Without this Google silently reuses the last account.
