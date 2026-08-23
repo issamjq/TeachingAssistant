@@ -76,28 +76,13 @@ export async function resolveSuperadmin(
   // cost us upstream. The one place both numbers sit in the same row.
   if (a === "ai") {
     const days = int(q.get("days"), 30);
-    /**
-     * Metered rows only, unless asked otherwise.
-     *
-     * usage_logs holds generation that predates credit accounting, and
-     * letting it into a margin makes the margin describe the table
-     * rather than the business (db/tune.sql §71). Passed explicitly
-     * rather than left to the parameter default, so what the page is
-     * looking at is decided here and visible.
-     */
-    const metered = q.get("all") !== "1";
-    if (b === "overview" && method === "GET")
-      return yes(await rpc("sa_ai_overview", { p_days: days, p_metered_only: metered }));
-    if (b === "features" && method === "GET")
-      return yes(await rpc("sa_ai_by_feature", { p_days: days, p_metered_only: metered }));
-    if (b === "daily" && method === "GET")
-      return yes(await rpc("sa_ai_daily", { p_days: days, p_metered_only: metered }));
+    if (b === "overview" && method === "GET") return yes(await rpc("sa_ai_overview", { p_days: days }));
+    if (b === "features" && method === "GET") return yes(await rpc("sa_ai_by_feature", { p_days: days }));
+    if (b === "daily" && method === "GET") return yes(await rpc("sa_ai_daily", { p_days: days }));
     if (b === "users" && !c && method === "GET")
-      return yes(await rpc("sa_ai_by_user", {
-        p_days: days, p_limit: int(q.get("limit"), 100), p_metered_only: metered,
-      }));
+      return yes(await rpc("sa_ai_by_user", { p_days: days, p_limit: int(q.get("limit"), 100) }));
     if (b === "users" && c && method === "GET")
-      return yes(await rpc("sa_ai_user", { p_faculty: c, p_days: days, p_metered_only: metered }));
+      return yes(await rpc("sa_ai_user", { p_faculty: c, p_days: days }));
   }
   if (a === "signups" && method === "GET")
     return yes(await rpc("sa_signups", { p_days: int(q.get("days"), 30) }));

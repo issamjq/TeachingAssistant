@@ -20,13 +20,6 @@
 // `plan value` is contracted, NOT collected: card payments are not
 // switched on, so anything labelled revenue would be a number that reads
 // as money in the bank. Named for what it is.
-//
-// Defaults to METERED rows only. usage_logs still holds generation from
-// before credit accounting existed, and averaging it into a margin makes
-// the margin describe the table rather than the business. The excluded
-// rows are named and counted on the page rather than quietly dropped —
-// a margin that improves because rows were removed is only honest if the
-// removed rows are on the same screen.
 // =====================================================================
 import React, { useEffect, useMemo, useState } from "react";
 import {
@@ -59,17 +52,15 @@ export default function SuperAdminUsage() {
   const [daily, setDaily] = useState(null);
   const [error, setError] = useState(null);
   const [open, setOpen] = useState(null); // faculty_id of the drill-down
-  const [meteredOnly, setMeteredOnly] = useState(true);
 
   useEffect(() => {
     let live = true;
     setOverview(null); setFeatures(null); setUsers(null); setDaily(null);
-    const all = meteredOnly ? "" : "&all=1";
     Promise.all([
-      api(`/api/superadmin/ai/overview?days=${days}${all}`),
-      api(`/api/superadmin/ai/features?days=${days}${all}`),
-      api(`/api/superadmin/ai/users?days=${days}&limit=100${all}`),
-      api(`/api/superadmin/ai/daily?days=${days}${all}`),
+      api(`/api/superadmin/ai/overview?days=${days}`),
+      api(`/api/superadmin/ai/features?days=${days}`),
+      api(`/api/superadmin/ai/users?days=${days}&limit=100`),
+      api(`/api/superadmin/ai/daily?days=${days}`),
     ])
       .then(([o, f, u, d]) => {
         if (!live) return;
@@ -77,7 +68,7 @@ export default function SuperAdminUsage() {
       })
       .catch((e) => live && setError(e.message));
     return () => { live = false; };
-  }, [days, meteredOnly]);
+  }, [days]);
 
   if (error) {
     return (
@@ -104,38 +95,18 @@ export default function SuperAdminUsage() {
             what those tokens actually cost us upstream.
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="inline-flex rounded-full border border-line p-1">
-            {WINDOWS.map((d) => (
-              <button
-                key={d}
-                onClick={() => setDays(d)}
-                className={`font-mono text-[10px] uppercase tracking-wider px-3.5 py-1.5 rounded-full transition ${
-                  days === d ? "bg-ink text-paper" : "text-ink-soft hover:text-ink"
-                }`}
-              >
-                {d} days
-              </button>
-            ))}
-          </div>
-          <div className="inline-flex rounded-full border border-line p-1">
-            {[["Metered", true], ["All rows", false]].map(([label, on]) => (
-              <button
-                key={label}
-                onClick={() => setMeteredOnly(on)}
-                title={
-                  on
-                    ? "Only rows the server meter priced from real tokens"
-                    : "Every row, including generation from before credit accounting"
-                }
-                className={`font-mono text-[10px] uppercase tracking-wider px-3.5 py-1.5 rounded-full transition ${
-                  meteredOnly === on ? "bg-ink text-paper" : "text-ink-soft hover:text-ink"
-                }`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
+        <div className="inline-flex rounded-full border border-line p-1">
+          {WINDOWS.map((d) => (
+            <button
+              key={d}
+              onClick={() => setDays(d)}
+              className={`font-mono text-[10px] uppercase tracking-wider px-3.5 py-1.5 rounded-full transition ${
+                days === d ? "bg-ink text-paper" : "text-ink-soft hover:text-ink"
+              }`}
+            >
+              {d} days
+            </button>
+          ))}
         </div>
       </div>
 
@@ -177,10 +148,6 @@ export default function SuperAdminUsage() {
               tone={margin < 0 ? "clay" : "sage"}
             />
           </div>
-
-          {/* What the filter left out. On the same screen as the margin it
-              improves, or the improvement is just a nicer number. */}
-          <Excluded excluded={overview.excluded} metered={meteredOnly} days={days} />
 
           {/* Cache saving is the whole reason the cache exists — show it. */}
           {Number(overview.cache_read) > 0 && (
@@ -406,64 +373,6 @@ function UserDrawer({ facultyId, days, onClose }) {
 }
 
 /* ── small pieces ─────────────────────────────────────────────────────── */
-
-/**
- * The rows the metered filter dropped, named and counted.
- *
- * Two distinct kinds, and conflating them would hide the more
- * interesting one: generation that predates credit accounting (real
- * cost, never charged) and the old browser meter (charged without ever
- * measuring tokens, so it reports infinite margin).
- */
-const EXCLUDED_LABEL = {
-  unmetered: {
-    title: "Before credit accounting",
-    why: "real cost, never charged — nothing to price against",
-  },
-  unmeasured: {
-    title: "Charged without measuring",
-    why: "the old browser meter recorded credits but no tokens",
-  },
-};
-
-function Excluded({ excluded, metered, days }) {
-  const rows = Object.entries(excluded || {});
-  if (!metered || rows.length === 0) return null;
-
-  const totalRows = rows.reduce((a, [, v]) => a + Number(v.rows || 0), 0);
-  const totalCost = rows.reduce((a, [, v]) => a + Number(v.cost_usd || 0), 0);
-
-  return (
-    <div className="border border-line rounded-2xl bg-paper-warm/40 p-4">
-      <p className="font-mono text-[10px] uppercase tracking-wider text-muted mb-2.5 inline-flex items-center gap-1.5">
-        <AlertTriangle size={11} />
-        Excluded from the figures above · {fmtInt(totalRows)} rows, {fmtUsd(totalCost)} of cost
-      </p>
-      <div className="grid gap-2 sm:grid-cols-2">
-        {rows.map(([era, v]) => {
-          const meta = EXCLUDED_LABEL[era] || { title: era, why: "" };
-          return (
-            <div key={era} className="text-sm">
-              <p className="text-ink">
-                {meta.title}
-                <span className="font-mono text-[10px] text-muted ms-2">
-                  {fmtInt(v.rows)} rows · {v.first} → {v.last}
-                </span>
-              </p>
-              <p className="text-xs text-muted">
-                {meta.why} · {fmtUsd4(v.cost_usd)} cost, {fmtInt(v.credits)} credits charged
-              </p>
-            </div>
-          );
-        })}
-      </div>
-      <p className="text-xs text-muted mt-2.5">
-        We really did pay for these — they are left out of the margin, not out
-        of the bill. Switch to <strong>All rows</strong> to include them.
-      </p>
-    </div>
-  );
-}
 
 function Stat({ icon: Icon, label, value, note, tone }) {
   return (

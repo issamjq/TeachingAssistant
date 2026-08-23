@@ -7989,3 +7989,289 @@ BEGIN
   END IF;
   RAISE NOTICE 'usage: margin reads from metered rows only';
 END $$;
+
+-- ─────────────────────────────────────────────────────────────────────────
+-- §72  Put every row back in the figures — §71 reverted
+--
+-- §71 filtered the AI reporting down to rows the server meter priced,
+-- to stop generation from before credit accounting dragging the margin
+-- negative. Reverted on request: the dashboard shows the whole table
+-- again, margin included.
+--
+-- Reverted FORWARD rather than by deleting §71 — this file is an
+-- append-only log and a section that ran against the live database does
+-- not stop having happened because the text was removed.
+--
+-- The p_metered_only signatures must be DROPPED, not merely replaced:
+-- the plain forms differ in arity, so CREATE OR REPLACE alone would
+-- leave both and let PostgREST resolve to whichever it liked. Same trap
+-- §71 documented, now in the other direction.
+--
+-- usage_era() stays. Nothing reads it after this, but it is the only
+-- written record of how the three eras are told apart, and it costs
+-- nothing to keep.
+-- ─────────────────────────────────────────────────────────────────────────
+
+DROP FUNCTION IF EXISTS public.sa_ai_overview(int, boolean);
+DROP FUNCTION IF EXISTS public.sa_ai_by_feature(int, boolean);
+DROP FUNCTION IF EXISTS public.sa_ai_by_user(int, int, boolean);
+DROP FUNCTION IF EXISTS public.sa_ai_user(uuid, int, boolean);
+DROP FUNCTION IF EXISTS public.sa_ai_daily(int, boolean);
+
+CREATE OR REPLACE FUNCTION public.sa_ai_overview(p_days int DEFAULT 30)
+RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE
+  since timestamptz := now() - (GREATEST(COALESCE(p_days, 30), 1) || ' days')::interval;
+  out   jsonb;
+BEGIN
+  PERFORM public.sa_gate('admin.dashboard');
+
+  SELECT jsonb_build_object(
+    'days', GREATEST(COALESCE(p_days, 30), 1),
+    'tokens_in',   COALESCE(SUM(tokens_in), 0),
+    'tokens_out',  COALESCE(SUM(tokens_out), 0),
+    'cache_read',  COALESCE(SUM(cache_read_tokens), 0),
+    'cache_write', COALESCE(SUM(cache_write_tokens), 0),
+    'tokens_total', COALESCE(SUM(tokens_in + tokens_out + cache_read_tokens + cache_write_tokens), 0),
+    'cost_usd',    ROUND(COALESCE(SUM(cost_usd), 0)::numeric, 4),
+    'credits',     COALESCE(SUM(credits), 0),
+    'generations', COUNT(*),
+    'active_users', COUNT(DISTINCT faculty_id)
+  ) INTO out
+    FROM usage_logs WHERE created_at >= since;
+
+  out := out || jsonb_build_object(
+    'charged_usd', ROUND(((out->>'credits')::numeric * 0.02), 4),
+    'margin_usd',  ROUND(((out->>'credits')::numeric * 0.02) - (out->>'cost_usd')::numeric, 4)
+  );
+
+  out := out || jsonb_build_object(
+    'accounts', (SELECT COUNT(*) FROM faculty),
+    'paying',   (SELECT COUNT(*) FROM subscriptions s
+                  WHERE s.tier <> 'trial' AND s.status IN ('active', 'trialing')),
+    'trialing', (SELECT COUNT(*) FROM subscriptions WHERE tier = 'trial'),
+    'plan_value_usd', (SELECT ROUND(COALESCE(SUM(t.price_usd), 0)::numeric, 2)
+                         FROM subscriptions s JOIN plan_tiers t ON t.tier = s.tier
+                        WHERE s.tier <> 'trial' AND s.status IN ('active', 'trialing')),
+    'credits_outstanding', (SELECT COALESCE(SUM(balance), 0) FROM credits)
+  );
+
+  RETURN out;
+END $$;
+
+CREATE OR REPLACE FUNCTION public.sa_ai_by_feature(p_days int DEFAULT 30)
+RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE
+  since timestamptz := now() - (GREATEST(COALESCE(p_days, 30), 1) || ' days')::interval;
+  out   jsonb;
+BEGIN
+  PERFORM public.sa_gate('admin.dashboard');
+
+  SELECT COALESCE(jsonb_agg(row_to_json(t) ORDER BY t.cost_usd DESC), '[]'::jsonb) INTO out
+    FROM (
+      SELECT feature,
+             public.feature_label(feature)                              AS label,
+             COUNT(*)::int                                              AS runs,
+             COUNT(DISTINCT faculty_id)::int                            AS users,
+             COALESCE(SUM(tokens_in), 0)::bigint                        AS tokens_in,
+             COALESCE(SUM(tokens_out), 0)::bigint                       AS tokens_out,
+             COALESCE(SUM(cache_read_tokens), 0)::bigint                AS cache_read,
+             COALESCE(SUM(cache_write_tokens), 0)::bigint               AS cache_write,
+             ROUND(COALESCE(SUM(cost_usd), 0)::numeric, 4)              AS cost_usd,
+             COALESCE(SUM(credits), 0)::int                             AS credits,
+             ROUND((COALESCE(SUM(credits), 0) * 0.02)::numeric, 4)      AS charged_usd,
+             ROUND(AVG(credits)::numeric, 2)                            AS avg_credits,
+             ROUND(AVG(cost_usd)::numeric, 5)                           AS avg_cost_usd,
+             (SELECT cost FROM ai_credit_costs c WHERE c.feature = u.feature) AS listed_credits
+        FROM usage_logs u
+       WHERE created_at >= since
+       GROUP BY feature
+    ) t;
+
+  RETURN out;
+END $$;
+
+CREATE OR REPLACE FUNCTION public.sa_ai_by_user(p_days int DEFAULT 30, p_limit int DEFAULT 100)
+RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE
+  since timestamptz := now() - (GREATEST(COALESCE(p_days, 30), 1) || ' days')::interval;
+  out   jsonb;
+BEGIN
+  PERFORM public.sa_gate('admin.dashboard');
+
+  SELECT COALESCE(jsonb_agg(row_to_json(t) ORDER BY t.cost_usd DESC NULLS LAST), '[]'::jsonb) INTO out
+    FROM (
+      SELECT f.id                                                       AS faculty_id,
+             au.email,
+             COALESCE(
+               NULLIF(BTRIM(COALESCE(pu.first_name, '') || ' ' || COALESCE(pu.last_name, '')), ''),
+               split_part(au.email, '@', 1))                            AS name,
+             COALESCE(s.tier, 'trial')                                  AS tier,
+             COALESCE(s.status, 'trialing')                             AS status,
+             s.trial_ends_at,
+             s.current_period_end,
+             COALESCE(pt.price_usd, 0)                                  AS plan_usd,
+             c.balance,
+             c.monthly_allowance,
+             COALESCE(l.tokens_in, 0)                                   AS tokens_in,
+             COALESCE(l.tokens_out, 0)                                  AS tokens_out,
+             COALESCE(l.cache_read, 0)                                  AS cache_read,
+             COALESCE(l.cache_write, 0)                                 AS cache_write,
+             COALESCE(l.cost_usd, 0)                                    AS cost_usd,
+             COALESCE(l.credits, 0)                                     AS credits,
+             COALESCE(l.runs, 0)                                        AS runs,
+             l.last_used_at,
+             ROUND((COALESCE(pt.price_usd, 0) - COALESCE(l.cost_usd, 0))::numeric, 4) AS net_usd
+        FROM faculty f
+        JOIN auth.users au        ON au.id = f.user_id
+        LEFT JOIN public.users pu ON pu.id = f.user_id
+        LEFT JOIN subscriptions s ON s.faculty_id = f.id
+        LEFT JOIN plan_tiers pt   ON pt.tier = COALESCE(s.tier, 'trial')
+        LEFT JOIN credits c       ON c.faculty_id = f.id
+        LEFT JOIN (
+          SELECT faculty_id,
+                 SUM(tokens_in)::bigint                     AS tokens_in,
+                 SUM(tokens_out)::bigint                    AS tokens_out,
+                 SUM(cache_read_tokens)::bigint             AS cache_read,
+                 SUM(cache_write_tokens)::bigint            AS cache_write,
+                 ROUND(SUM(cost_usd)::numeric, 4)           AS cost_usd,
+                 SUM(credits)::int                          AS credits,
+                 COUNT(*)::int                              AS runs,
+                 MAX(created_at)                            AS last_used_at
+            FROM usage_logs
+           WHERE created_at >= since AND faculty_id IS NOT NULL
+           GROUP BY faculty_id
+        ) l ON l.faculty_id = f.id
+       ORDER BY COALESCE(l.cost_usd, 0) DESC
+       LIMIT GREATEST(COALESCE(p_limit, 100), 1)
+    ) t;
+
+  RETURN out;
+END $$;
+
+CREATE OR REPLACE FUNCTION public.sa_ai_user(p_faculty uuid, p_days int DEFAULT 30)
+RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE
+  since timestamptz := now() - (GREATEST(COALESCE(p_days, 30), 1) || ' days')::interval;
+  out   jsonb;
+BEGIN
+  PERFORM public.sa_gate('admin.dashboard');
+
+  SELECT jsonb_build_object(
+    'faculty_id', f.id,
+    'email', au.email,
+    'name', COALESCE(
+              NULLIF(BTRIM(COALESCE(pu.first_name, '') || ' ' || COALESCE(pu.last_name, '')), ''),
+              split_part(au.email, '@', 1)),
+    'tier', COALESCE(s.tier, 'trial'),
+    'status', COALESCE(s.status, 'trialing'),
+    'plan_usd', COALESCE(pt.price_usd, 0),
+    'balance', c.balance,
+    'allowance', c.monthly_allowance,
+    'renews_at', c.next_refresh_at,
+    'trial_ends_at', s.trial_ends_at,
+    'by_feature', COALESCE((
+      SELECT jsonb_agg(row_to_json(x) ORDER BY x.cost_usd DESC)
+        FROM (
+          SELECT feature,
+                 public.feature_label(feature)                    AS label,
+                 COUNT(*)::int                                    AS runs,
+                 SUM(tokens_in + tokens_out
+                     + cache_read_tokens + cache_write_tokens)::bigint AS tokens,
+                 ROUND(SUM(cost_usd)::numeric, 4)                 AS cost_usd,
+                 SUM(credits)::int                                AS credits
+            FROM usage_logs
+           WHERE faculty_id = f.id AND created_at >= since
+           GROUP BY feature
+        ) x), '[]'::jsonb),
+    'recent', COALESCE((
+      SELECT jsonb_agg(row_to_json(r) ORDER BY r.at DESC)
+        FROM (
+          SELECT created_at AS at, operation,
+                 public.feature_label(feature) AS label, model,
+                 public.usage_era(credits, cost_usd) AS era,
+                 tokens_in, tokens_out, cache_read_tokens AS cache_read,
+                 cache_write_tokens AS cache_write,
+                 ROUND(cost_usd::numeric, 5) AS cost_usd, credits
+            FROM usage_logs
+           WHERE faculty_id = f.id
+           ORDER BY created_at DESC LIMIT 30
+        ) r), '[]'::jsonb)
+  ) INTO out
+    FROM faculty f
+    JOIN auth.users au        ON au.id = f.user_id
+    LEFT JOIN public.users pu ON pu.id = f.user_id
+    LEFT JOIN subscriptions s ON s.faculty_id = f.id
+    LEFT JOIN plan_tiers pt   ON pt.tier = COALESCE(s.tier, 'trial')
+    LEFT JOIN credits c       ON c.faculty_id = f.id
+   WHERE f.id = p_faculty;
+
+  IF out IS NULL THEN RAISE EXCEPTION 'no such account' USING ERRCODE = '22023'; END IF;
+  RETURN out;
+END $$;
+
+CREATE OR REPLACE FUNCTION public.sa_ai_daily(p_days int DEFAULT 30)
+RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE
+  since timestamptz := now() - (GREATEST(COALESCE(p_days, 30), 1) || ' days')::interval;
+  out   jsonb;
+BEGIN
+  PERFORM public.sa_gate('admin.dashboard');
+
+  SELECT COALESCE(jsonb_agg(row_to_json(d) ORDER BY d.day), '[]'::jsonb) INTO out
+    FROM (
+      SELECT created_at::date                                  AS day,
+             SUM(tokens_in + tokens_out
+                 + cache_read_tokens + cache_write_tokens)::bigint AS tokens,
+             ROUND(SUM(cost_usd)::numeric, 4)                  AS cost_usd,
+             SUM(credits)::int                                 AS credits,
+             COUNT(*)::int                                     AS runs,
+             COUNT(DISTINCT faculty_id)::int                   AS users
+        FROM usage_logs
+       WHERE created_at >= since
+       GROUP BY 1
+    ) d;
+
+  RETURN out;
+END $$;
+
+GRANT EXECUTE ON FUNCTION public.sa_ai_overview(int)        TO authenticated;
+GRANT EXECUTE ON FUNCTION public.sa_ai_by_feature(int)      TO authenticated;
+GRANT EXECUTE ON FUNCTION public.sa_ai_by_user(int, int)    TO authenticated;
+GRANT EXECUTE ON FUNCTION public.sa_ai_user(uuid, int)      TO authenticated;
+GRANT EXECUTE ON FUNCTION public.sa_ai_daily(int)           TO authenticated;
+
+DO $$
+DECLARE probe uuid; n int; fn text;
+BEGIN
+  -- Exactly one signature each, or PostgREST picks and we get whichever.
+  FOREACH fn IN ARRAY ARRAY['sa_ai_overview','sa_ai_by_feature','sa_ai_by_user',
+                            'sa_ai_user','sa_ai_daily'] LOOP
+    SELECT COUNT(*) INTO n FROM pg_proc p
+      JOIN pg_namespace ns ON ns.oid = p.pronamespace
+     WHERE ns.nspname = 'public' AND p.proname = fn;
+    IF n <> 1 THEN
+      RAISE EXCEPTION '% has % signatures; a stale one would win', fn, n;
+    END IF;
+  END LOOP;
+
+  SELECT id INTO probe FROM faculty LIMIT 1;
+  IF probe IS NOT NULL THEN
+    PERFORM public.sa_ai_overview(30);
+    PERFORM public.sa_ai_by_feature(30);
+    PERFORM public.sa_ai_by_user(30, 5);
+    PERFORM public.sa_ai_user(probe, 30);
+    PERFORM public.sa_ai_daily(30);
+  END IF;
+  RAISE NOTICE 'usage: every row counts again';
+END $$;
