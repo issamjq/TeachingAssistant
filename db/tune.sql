@@ -8768,3 +8768,64 @@ BEGIN
   PERFORM public.expire_lapsed_subscriptions();
   RAISE NOTICE 'billing: expiry sweep scheduled (%) and runs', sched;
 END $$;
+
+-- ─────────────────────────────────────────────────────────────────────────
+-- §76  The views were reading past RLS — every teacher could see every
+--      other teacher's work
+--
+-- Eight views sit over `ai_studio`, `faculty` and `faculty_schools`, and
+-- all eight ran as their OWNER rather than as the caller. That is the
+-- PostgreSQL 15+ default: a view without `security_invoker` executes with
+-- the owner's rights, and the owner here is the table owner, for whom RLS
+-- does not apply. The content views compound it by filtering on `type`
+-- alone, with no `faculty_id` predicate at all:
+--
+--     FROM ai_studio WHERE type = 'lesson_plan' AND deleted_at IS NULL
+--
+-- Measured in production, signed in as ONE teacher:
+--
+--     drafts        11 rows, 11 belonging to other teachers
+--     quizzes        7 rows,  7 belonging to other teachers
+--     homework       9 rows,  9 belonging to other teachers
+--     presentations  4 rows,  4 belonging to other teachers
+--     activities     3 rows,  3 belonging to other teachers
+--     accounts       every account on the platform
+--
+-- The same query against the base table returned 0. So RLS was never
+-- broken — the views simply went around it. This is the whole security
+-- argument of the direct-to-Supabase architecture, undone by a default.
+--
+-- `security_invoker = true` makes each view execute as the querying user,
+-- so the existing policies apply: ai_studio_read, faculty_own and
+-- faculty_schools_read all already restrict to the caller's own rows.
+-- Nothing about the policies needs to change; they were correct and
+-- unreachable.
+--
+-- The sa_* consoles are unaffected: they are SECURITY DEFINER, so inside
+-- them the effective user is still the owner and the views behave as they
+-- did. Only the browser's own reads change, which is the point.
+-- ─────────────────────────────────────────────────────────────────────────
+
+ALTER VIEW public.drafts          SET (security_invoker = true);
+ALTER VIEW public.quizzes         SET (security_invoker = true);
+ALTER VIEW public.homework        SET (security_invoker = true);
+ALTER VIEW public.presentations   SET (security_invoker = true);
+ALTER VIEW public.activities      SET (security_invoker = true);
+ALTER VIEW public.templates       SET (security_invoker = true);
+ALTER VIEW public.accounts        SET (security_invoker = true);
+ALTER VIEW public.account_schools SET (security_invoker = true);
+
+DO $$
+DECLARE leaky text;
+BEGIN
+  SELECT string_agg(c.relname, ', ') INTO leaky
+    FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+   WHERE n.nspname = 'public' AND c.relkind = 'v'
+     AND NOT EXISTS (
+       SELECT 1 FROM unnest(coalesce(c.reloptions, '{}')) o
+        WHERE o = 'security_invoker=true');
+  IF leaky IS NOT NULL THEN
+    RAISE EXCEPTION 'views still running as owner: %', leaky;
+  END IF;
+  RAISE NOTICE 'security: every view now runs as the caller';
+END $$;
