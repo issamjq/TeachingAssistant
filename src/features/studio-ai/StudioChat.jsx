@@ -1392,19 +1392,85 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
       SCHEDULABLE_KINDS.map((k) => parts.find((t) => t.kind === k)).find(Boolean) || parts[0];
     if (!primary) return null;
 
-    const title = titleOf(primary.kind, primary.text, primary.structured);
-    const path = PATH_FOR_KIND[primary.kind] || "/api/drafts";
+    /**
+     * One row per DELIVERABLE, not one row per batch.
+     *
+     * A lesson's three documents genuinely are one lesson, and merging them
+     * is right — but a quiz and a homework sheet are not parts of a lesson,
+     * they are separate things with their own sections, their own marks and
+     * their own due dates. Saving the whole batch under the primary kind
+     * filed all of it as a single lesson-plan row: the quiz and the homework
+     * were folded into that row's body and never appeared in Quizzes or
+     * Homework at all, while their cards in the thread showed "Saved" and
+     * offered an "Open quizzes" link that led to a section without them.
+     * Four documents out of five were reported saved and were not there.
+     *
+     * So: the lesson trio stays merged, and everything else is kept in its
+     * own section under its own path.
+     */
+    const groups = (() => {
+      const trio = DOC_ORDER.filter((k) => byKind.has(k)).map((k) => byKind.get(k));
+      const out = [];
+      if (trio.length) {
+        // Keep the previous choice of kind for the merged row, so a partial
+        // edit of just the notes still files where it always did.
+        const trioKind =
+          SCHEDULABLE_KINDS.find((k) => trio.some((t) => t.kind === k)) || trio[0].kind;
+        out.push({ kind: trioKind, parts: trio });
+      }
+      for (const part of parts) {
+        if (DOC_ORDER.includes(part.kind)) continue;
+        out.push({ kind: part.kind, parts: [part] });
+      }
+      return out;
+    })();
 
-    // One document when there are several parts; the part itself when there
-    // is only one. The headings are the same ones the import path writes.
-    const body_md =
-      parts.length > 1
-        ? parts
+    /** Build the row body for one deliverable. */
+    const bodyFor = (gParts, head) =>
+      gParts.length > 1
+        ? gParts
             .map((t) => `## ${KIND_META[t.kind]?.label || t.kind}\n\n${stripH1(t.text)}`)
             .join("\n\n")
-        : primary.text;
+        : head.text;
 
-    const payload = {
+    /**
+     * Save one deliverable, and hand back its row.
+     *
+     * `replaceId` only ever belongs to the PRIMARY deliverable — a rework
+     * replaces the lesson it reworked, not the quiz that happened to be in
+     * the same batch — so the others are always written fresh.
+     */
+    const storeOne = async (group, replaceForThis, inherit) => {
+      const head =
+        SCHEDULABLE_KINDS.map((k) => group.parts.find((t) => t.kind === k)).find(Boolean) ||
+        group.parts[0];
+      if (!head) return null;
+
+      const title = titleOf(head.kind, head.text, head.structured);
+      const path = PATH_FOR_KIND[head.kind] || "/api/drafts";
+      const body_md = bodyFor(group.parts, head);
+      const payload = buildPayload({ head, title, body_md });
+
+      /**
+       * A quiz written for a Grade 6 Science lesson is Grade 6 Science.
+       *
+       * `statedFacts` reads what a document says about itself, and a quiz
+       * paper often says only its title and its marks — so the row went in
+       * with no subject and no grade while the lesson beside it had both.
+       * Student visibility is keyed on those two, so an unlabelled quiz
+       * reaches nobody. The batch it came from knows, and only fills what
+       * the document itself left blank.
+       */
+      if (inherit) {
+        if (!payload.subject && inherit.subject) payload.subject = inherit.subject;
+        if (!payload.grade && inherit.grade) payload.grade = inherit.grade;
+        if (!payload.section && inherit.section) payload.section = inherit.section;
+      }
+
+      return writeRow({ head, path, payload, replaceId: replaceForThis });
+    };
+
+    const buildPayload = ({ head: primary, title, body_md }) => ({
       name: title,
       title,
       body_md,
@@ -1431,9 +1497,9 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
       // save nor the words that asked for it.
       ...(batchTurns[0]?.batchId ? { batch_id: batchTurns[0].batchId } : {}),
       ...(batchTurns[0]?.prompt ? { prompt_text: batchTurns[0].prompt } : {}),
-    };
+    });
 
-    try {
+    const writeRow = async ({ head: primary, path, payload, replaceId }) => {
       let saved;
       /**
        * A quiz's questions, from the structured payload when one came back
@@ -1478,11 +1544,66 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
         saved = await api(path, { method: "POST", body: payload });
       }
 
+      return saved;
+    };
+
+    try {
+      /**
+       * The primary first, so its id is what schedules.
+       *
+       * FinaliseAndSchedule takes the returned row as the thing to put on
+       * the timetable, and that has to be the lesson — not whichever
+       * deliverable happened to be saved last.
+       */
+      const primaryGroup =
+        groups.find((g) => g.parts.some((t) => t.kind === primary.kind)) || groups[0];
+      const savedPrimary = await storeOne(primaryGroup, replaceId);
+
+      /**
+       * What the lesson knows, for the deliverables that do not.
+       *
+       * Read off the primary group's own head document rather than the saved
+       * row, so this works whether the write returned the row or not.
+       */
+      const inherit = (() => {
+        const head =
+          SCHEDULABLE_KINDS.map((k) => primaryGroup.parts.find((t) => t.kind === k)).find(
+            Boolean,
+          ) || primaryGroup.parts[0];
+        const facts = head ? statedFacts(head.text) : {};
+        return { subject: facts.subject, grade: facts.grade, section: facts.section };
+      })();
+
+      /**
+       * The rest, each into its own section.
+       *
+       * One failing must not lose the others or the lesson that already
+       * saved, so each is caught on its own and reported rather than thrown.
+       */
+      const others = groups.filter((g) => g !== primaryGroup);
+      const alsoSaved = [];
+      for (const g of others) {
+        try {
+          const row = await storeOne(g, undefined, inherit);
+          if (row) alsoSaved.push({ kind: g.parts[0].kind, id: row.id });
+        } catch (e) {
+          setNotice(`Saved the lesson, but the ${KIND_META[g.parts[0].kind]?.label || g.parts[0].kind} could not be kept: ${e.message}`);
+        }
+      }
+
+      // Each card carries the id of the row it actually became, so "Open
+      // quizzes" points at the quiz rather than at the lesson it came with.
+      const byTurn = new Map();
+      for (const { kind, id } of alsoSaved) byTurn.set(kind, id);
       const ids = new Set(batchTurns);
       setTurns((t) =>
-        t.map((x) => (ids.has(x) ? { ...x, saved: true, artifactId: saved?.id } : x)),
+        t.map((x) =>
+          ids.has(x)
+            ? { ...x, saved: true, artifactId: byTurn.get(x.kind) ?? savedPrimary?.id }
+            : x,
+        ),
       );
-      return saved;
+      return savedPrimary;
     } catch (e) {
       setNotice(`Couldn't save that: ${e.message}`);
       return null;
@@ -1599,7 +1720,16 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
 
   const when = (iso) => {
     const d = new Date(iso);
-    const days = Math.floor((Date.now() - d.getTime()) / 864e5);
+    /**
+     * Never a negative age.
+     *
+     * The row is stamped by the database and read by a browser whose clock
+     * is its own: a few seconds of skew made the difference negative, which
+     * fell straight through to the `days < 7` branch and printed
+     * "-1 days ago" on a conversation created moments earlier. A timestamp
+     * that appears to be in the future is simply now.
+     */
+    const days = Math.max(0, Math.floor((Date.now() - d.getTime()) / 864e5));
     if (days === 0) return d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
     if (days === 1) return "Yesterday";
     if (days < 7) return `${days} days ago`;

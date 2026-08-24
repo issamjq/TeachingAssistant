@@ -95,9 +95,83 @@ export function joinSections(sections) {
 // output the AI Studio system prompt asks for. No HTML / no scripts / no
 // dangerouslySetInnerHTML — everything is built as React elements, so XSS
 // is structurally impossible.
+/**
+ * LaTeX, turned into characters a child can read.
+ *
+ * Generators reach for maths notation unprompted — a Grade 7 digestive
+ * system sheet came back with "mouth $\\rightarrow$ esophagus
+ * $\\rightarrow$ stomach" — and this renderer is deliberately minimal, so
+ * `$...$` fell through untouched and a teacher handed her class a worksheet
+ * with `$\\rightarrow$` printed on it.
+ *
+ * Converting to Unicode rather than adding KaTeX: the whole point of this
+ * file is that model output is a constrained subset and the bundle stays
+ * lean. An arrow is a character; it does not need a typesetting engine.
+ */
+const MATH_SYMBOLS = [
+  [/\\(?:longrightarrow|rightarrow|to)\b/g, "\u2192"],
+  [/\\(?:longleftarrow|leftarrow|gets)\b/g, "\u2190"],
+  [/\\leftrightarrow\b/g, "\u2194"],
+  [/\\Rightarrow\b/g, "\u21d2"],
+  [/\\times\b/g, "\u00d7"],
+  [/\\div\b/g, "\u00f7"],
+  [/\\cdot\b/g, "\u00b7"],
+  [/\\pm\b/g, "\u00b1"],
+  [/\\leq\b|\\le\b/g, "\u2264"],
+  [/\\geq\b|\\ge\b/g, "\u2265"],
+  [/\\neq\b|\\ne\b/g, "\u2260"],
+  [/\\approx\b/g, "\u2248"],
+  [/\\infty\b/g, "\u221e"],
+  [/\\degree\b/g, "\u00b0"],
+  [/\^\s*\\circ\b/g, "\u00b0"],
+  [/\\alpha\b/g, "\u03b1"],
+  [/\\beta\b/g, "\u03b2"],
+  [/\\theta\b/g, "\u03b8"],
+  [/\\pi\b/g, "\u03c0"],
+  [/\\Delta\b/g, "\u0394"],
+  [/\\delta\b/g, "\u03b4"],
+  [/\\mu\b/g, "\u03bc"],
+];
+
+/** The contents of a maths span, as plain text. */
+const mathToText = (inner) => {
+  let out = String(inner ?? "");
+  // \frac{a}{b} reads as a/b; wrappers that only carry styling drop away.
+  out = out.replace(/\\d?frac\s*\{([^{}]*)\}\s*\{([^{}]*)\}/g, "$1/$2");
+  out = out.replace(/\\(?:text|textbf|textit|mathrm|mathit|mathbf|operatorname)\s*\{([^{}]*)\}/g, "$1");
+  for (const [re, ch] of MATH_SYMBOLS) out = out.replace(re, ch);
+  // Whatever is left: drop the delimiters and the backslashes, keep the words.
+  out = out.replace(/\\[a-zA-Z]+\s*/g, "");
+  out = out.replace(/[{}]/g, "");
+  return out.replace(/\s+/g, " ").trim();
+};
+
+/**
+ * Only spans that are actually maths are unwrapped.
+ *
+ * "$5 each" is a price, not an equation, so a `$…$` pair is only treated as
+ * maths when it contains a command, a superscript or a subscript. Getting
+ * this wrong in the other direction would eat currency out of a worksheet.
+ */
+export const stripMath = (src) => {
+  let out = String(src ?? "");
+  out = out.replace(/\$\$([\s\S]*?)\$\$/g, (_m, inner) => mathToText(inner));
+  out = out.replace(/\\\[([\s\S]*?)\\\]/g, (_m, inner) => mathToText(inner));
+  out = out.replace(/\\\(([\s\S]*?)\\\)/g, (_m, inner) => mathToText(inner));
+  out = out.replace(/\$([^$\n]+?)\$/g, (m, inner) =>
+    /[\\^_]/.test(inner) ? mathToText(inner) : m);
+  // Commands that arrived with no delimiters around them at all.
+  if (/\\[a-zA-Z]/.test(out)) {
+    for (const [re, ch] of MATH_SYMBOLS) out = out.replace(re, ch);
+  }
+  return out;
+};
+
 const renderInline = (text, baseKey) => {
   const parts = [];
-  let remaining = text;
+  // Every heading, list item, table cell and paragraph funnels through here,
+  // so this is the one place the conversion has to happen.
+  let remaining = stripMath(text);
   let k = 0;
   // Process **bold**, *italic*, `code` — left-to-right, longest match first.
   while (remaining.length > 0) {
