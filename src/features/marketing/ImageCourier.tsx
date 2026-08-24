@@ -14,7 +14,7 @@ import s from "./Landing.module.css";
 // ENLARGE back up into the next image's full size — then shrink again,
 // and again, a breathing chain down the page. So the courier now starts
 // as a pixel-perfect cover of the hero screenshot, shrinks into a small
-// window on the first scroll (carrying the planner with it), swaps to
+// window on the first scroll (carrying the DASHBOARD with it), swaps to
 // the next screen at its smallest point — the cut hidden at minimum
 // size — and grows until it exactly covers the first step's frame.
 // Repeat to frames two and three, where it comes to rest.
@@ -26,8 +26,17 @@ import s from "./Landing.module.css";
 // back and the images are carried home. Hidden below 900px, under
 // reduced motion, under motion-stop, and in any static render.
 
+// FACE 0 MUST BE WHATEVER THE HERO IS SHOWING.
+//
+// Leg 0 begins as a pixel-perfect cover of the hero shot, so if this
+// first entry is a different screen the visitor watches the hero image
+// swap for another one the instant they scroll — the flight is smooth,
+// but it sets off carrying the wrong picture. That is exactly what
+// happened when the hero moved from the planner to the dashboard and
+// this list stayed behind. The planner is not lost: it is the screen
+// the first step's frame holds, so the courier still flies into it.
 const FACES = [
-  "/marketing/planner.jpg",
+  "/marketing/dashboard.jpg",
   "/marketing/studio.jpg",
   "/marketing/lesson-plans.jpg",
   "/marketing/quizzes.jpg",

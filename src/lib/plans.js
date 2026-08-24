@@ -39,6 +39,46 @@ export const PLANS = /** @type {Plan[]} */ ([
   { id: "annual",    perMonth: "22.49", total: "269.99", savePct: 25, cycle: "yr", durationDays: 365 },
 ]);
 
+// ---------------------------------------------------------------------
+// What the product actually sells now.
+//
+// PLANS above is a BILLING CADENCE (monthly / quarterly / annual) and is
+// still what sign-up posts and what the backend's plan_ids CHECK accepts.
+// CREDIT_TIERS is the PRODUCT: three sizes of monthly allowance, every
+// feature in each. The two are orthogonal — a tier is bought on either
+// cadence — and conflating them is why the landing page spent months
+// quoting a single 29.99 AED price that nothing charged.
+//
+// ⚠️ These mirror `plan_tiers` in db/tune.sql §79. The public landing page
+// is statically rendered and unauthenticated, so it cannot call
+// plan_options() the way /plans does — it needs constants. If the table
+// changes, change these. `npm run test:e2e` is not going to catch it.
+//
+// usd/aed are the monthly charge; annualAed is the yearly one, set at ten
+// months rather than twelve, which is where "two months free" comes from.
+// lessons is the same equivalence /plans shows: credits ÷ 8, a full lesson
+// being 8 credits.
+export const CREDIT_TIERS = [
+  { id: "basic", name: "Basic", credits: 120, usd: 12, aed: 45,  annualUsd: 120, annualAed: 450,  lessons: 15 },
+  { id: "pro",   name: "Pro",   credits: 350, usd: 35, aed: 129, annualUsd: 350, annualAed: 1290, lessons: 43, best: true },
+  { id: "max",   name: "Max",   credits: 800, usd: 80, aed: 295, annualUsd: 800, annualAed: 2950, lessons: 100 },
+];
+
+/**
+ * What a year saves, as a percentage, worked out rather than asserted.
+ *
+ * Written as a function so the badge cannot drift from the prices beside
+ * it: change annualAed and the number moves with it.
+ *
+ * @param {{ aed: number, annualAed: number }} tier
+ */
+export const annualSavePct = (tier) =>
+  Math.round((1 - tier.annualAed / (tier.aed * 12)) * 100);
+
+/** How many months a year costs, for "two months free". @param {{ aed: number, annualAed: number }} tier */
+export const annualFreeMonths = (tier) =>
+  Math.round(12 - tier.annualAed / tier.aed);
+
 // All plan IDs the backend will accept — paid cards PLUS the trial.
 // Anything else is rejected at /api/auth/supabase as an invalid plan.
 export const PLAN_IDS = /** @type {PlanId[]} */ ([...PLANS.map((p) => p.id), TRIAL_PLAN_ID]);

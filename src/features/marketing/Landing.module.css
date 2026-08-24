@@ -275,8 +275,12 @@
   padding-top: clamp(28px, 5vh, 72px);
   padding-bottom: clamp(40px, 7vh, 90px);
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: clamp(28px, 4vw, 64px);
+  /* The stage takes the larger share. Pulling it in off the right edge
+     left a gap on that side; growing it LEFTWARDS into the column gap
+     spends that gap on the product instead of on air, without putting
+     the second window back against the viewport. */
+  grid-template-columns: minmax(0, 0.86fr) minmax(0, 1.14fr);
+  gap: clamp(20px, 2.6vw, 40px);
   align-items: center;
   min-height: min(76vh, 720px);
 }
@@ -317,16 +321,248 @@
   margin-top: 30px;
 }
 
+/* The closing word carries the accent, so the headline resolves on a
+   colour instead of just stopping. Italic serif against the upright
+   serif is the same move the section titles make. */
+.wordAccent {
+  color: var(--accent);
+  font-style: italic;
+  font-weight: 300;
+}
+
+/* ── The stage: the shot, its wash, and the pills ────────────────────
+   Two boxes, because they want opposite things. `.heroShot` must CLIP
+   (the screenshot has square corners and the frame is rounded), and the
+   pills must NOT be clipped — they straddle the frame's edge, which is
+   the whole reason they read as captions of the interface rather than
+   as a row of marketing under it. So the clipping lives on the frame
+   and the positioning context lives on the stage around it. */
+.heroStage {
+  position: relative;
+  /* Pulled IN off the right edge, not bled past it.
+
+     The bleed was inherited from the single-shot hero, where the frame
+     was the only thing out there and running it toward the edge read as
+     confidence. It does not survive the furniture: the inset hangs 8%
+     past the frame and the right-hand pill another 5% past that, so the
+     bleed put three stacked objects hard against the viewport with no
+     air behind them. A positive gutter gives the whole stage — frame,
+     second window and pills alike — somewhere to sit. */
+  margin-inline-end: clamp(10px, 3vw, 46px);
+  /* Room for the pills that hang past the frame on both sides. */
+  padding-block: 26px;
+}
+
+/* The blue, kept as light as it can be and still be there.
+
+   The brief was white primary and blue secondary, and a tinted PANEL
+   behind the shot inverts that — it makes the blue the ground and the
+   page the interruption. A wash bled out to transparent reads as light
+   coming off the product: present at the edges of the frame, gone by
+   the time it reaches the copy. */
+.heroGlow {
+  position: absolute;
+  inset: -5% -6%;
+  z-index: 0;
+  pointer-events: none;
+  border-radius: 40px;
+  /* A blurred SOLID, not a gradient.
+
+     The first attempt was two radial gradients, and it was invisible for
+     a reason worth recording: their bright centres sat behind the frame,
+     which is opaque, so the only part that ever escaped into view was
+     the tail — already faded to nothing. Blurring a filled rectangle
+     that is slightly larger than the frame puts the light exactly where
+     it can be seen, which is the band just outside the edges. */
+  background: linear-gradient(
+    150deg,
+    color-mix(in oklab, var(--accent) 34%, transparent) 0%,
+    color-mix(in oklab, var(--accent) 16%, transparent) 52%,
+    color-mix(in oklab, var(--accent) 26%, transparent) 100%
+  );
+  filter: blur(38px);
+  opacity: 0.5;
+}
+
 /* The product shot sits proud of the grid, bleeding toward the edge, so
    the page opens on the interface rather than on a boxed thumbnail. */
 .heroShot {
   position: relative;
+  z-index: 1;
   border-radius: var(--r-lg);
   overflow: hidden;
   border: 1px solid var(--frame-border);
   background: var(--chalk);
   box-shadow: var(--shadow-shot);
-  margin-inline-end: calc(-1 * clamp(0px, 6vw, 90px));
+}
+
+/* ── The second window ──────────────────────────────────────────────
+   Overlaps the main frame's lower outer corner, sitting between the
+   shot (z 1) and the pills (z 2) so a pill can still cross in front of
+   it. Its own shadow is heavier than the frame's: it has to read as
+   nearer to the viewer, and on a light ground depth is carried by the
+   shadow rather than by any change in fill.
+
+   inset-inline-end, so the Arabic build stacks it on the mirrored
+   corner instead of leaving both windows crowding the same side. */
+.heroInset {
+  position: absolute;
+  z-index: 1;
+  bottom: -4%;
+  inset-inline-end: -8%;
+  width: 46%;
+  /* WIDER than the 16:10 capture, and that ratio is doing the cropping.
+
+     At 4:3 the box was narrower than the image, so `cover` fitted by
+     height and trimmed the sides — which meant the studio's whole
+     height showed, empty prompt bar and all, and half the window was
+     dead white. Wider than the source, `cover` fits by width and trims
+     top and bottom instead, so object-position can choose the band that
+     actually holds the deliverable cards. */
+  aspect-ratio: 16 / 9;
+  border-radius: var(--r-md);
+  overflow: hidden;
+  border: 1px solid var(--frame-border);
+  background: var(--chalk);
+  box-shadow:
+    0 2px 8px rgba(16, 23, 24, 0.08),
+    0 26px 60px -18px rgba(16, 23, 24, 0.34);
+}
+
+/* A CROP, not a thumbnail.
+
+   Shown whole at this size the studio is a white rectangle: it is a
+   generous, mostly-empty screen, and shrinking it to 46% turns its one
+   dense area into three grey specks — which reads as an image that
+   failed to load rather than as a second screen. Cropping into the
+   middle keeps the part that carries meaning at a legible size, and the
+   window still says "there is another room in here", which is the only
+   job it has. */
+.insetImg {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  /* Anchored to the top-left corner and pushed in, which is the same
+     treatment the travelling courier window uses: at this size a whole
+     screen is unreadable, but a corner of one — the wordmark, the top of
+     the sidebar, the page title — still says exactly which screen it is.
+
+     Percentages nudge the crop; the scale is what makes it legible. */
+  object-position: 0% 0%;
+  display: block;
+  transform: scale(1.7);
+  transform-origin: 0% 0%;
+}
+
+/* ── The hand-off to the courier ─────────────────────────────────────
+   The travelling window covers the SCREENSHOT and nothing else, but the
+   pills and the second window hang past that frame on every side, so
+   during the flight they sat in the layout with the courier crossing
+   over them. Scrolling down that mostly reads as the hero leaving.
+   Scrolling back up it did not: the courier grew into place and the
+   furniture popped in against it, half covered, flickering as the scrub
+   crossed each edge.
+
+   So the furniture fades as the hero leaves and returns as it comes
+   back. A scroll-linked CSS animation, not script: it is tied to scroll
+   POSITION rather than to scroll events, so up is exactly down reversed
+   with no state to get stuck in and no work on the main thread. (Three
+   attempts at the JavaScript version are the reason for the emphasis —
+   the last one never executed at all.)
+
+   Where `animation-timeline` is unsupported the rule is skipped and the
+   furniture simply stays put, which is where this started: no worse than
+   before, and correct everywhere it lands. The courier's own timeline is
+   untouched either way. */
+@keyframes heroHandoff {
+  to {
+    opacity: 0;
+  }
+}
+
+@supports (animation-timeline: view()) {
+  @media (min-width: 900px) and (prefers-reduced-motion: no-preference) {
+    .pill,
+    .heroInset {
+      /* LONGHANDS, not the `animation` shorthand.
+
+         Two reasons, both of which bit. The shorthand resolved to
+         `animation-name: none` — CSS Modules hashes the @keyframes name
+         and does not rewrite it inside the shorthand — and the shorthand
+         also RESETS animation-timeline back to `auto`, quietly undoing
+         the line below it. Written out, both survive. */
+      animation-name: heroHandoff;
+      animation-duration: auto;
+      animation-timing-function: linear;
+      animation-fill-mode: both;
+      /* The ROOT scroller, not view().
+
+         view() measures the element against its nearest scrollport, and
+         here that resolves to `.page` — which carries `overflow-x: clip`
+         and therefore counts as a scroll container even though it never
+         scrolls. Progress sat at zero forever and the furniture never
+         faded. scroll(root) asks the only thing that actually moves. */
+      animation-timeline: scroll(root block);
+      /* Gone within the first stretch of the page, which is well before
+         the courier reaches the first step frame, so the two are never
+         on screen contesting the same edges. */
+      animation-range: 0 260px;
+    }
+  }
+}
+
+/* ── Floating pills ─────────────────────────────────────────────────
+   White chips on a white page, so they cannot be defined by fill alone:
+   the hairline gives the edge and the long soft shadow gives the lift.
+   The icon is the only saturated thing in them. */
+.pill {
+  position: absolute;
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 15px;
+  border-radius: 999px;
+  background: var(--chalk);
+  border: 1px solid var(--line-soft);
+  box-shadow:
+    0 1px 2px rgba(16, 23, 24, 0.05),
+    0 14px 34px -12px rgba(16, 23, 24, 0.28);
+  font-size: var(--t-2);
+  font-weight: 500;
+  line-height: 1;
+  color: var(--ink);
+  white-space: nowrap;
+  /* A pill is a caption, not a control — it must never eat a click
+     meant for the screenshot behind it. */
+  pointer-events: none;
+}
+
+.pill svg {
+  flex: none;
+  color: var(--accent);
+}
+
+/* Placed against the frame's own edges, in logical properties, so the
+   Arabic build mirrors them with the layout instead of stranding all
+   three on the same side. Percentages rather than pixels: the frame is
+   fluid and a pill pinned at 40px would drift off it. */
+.pillA {
+  top: 4%;
+  inset-inline-start: -7%;
+}
+
+.pillB {
+  top: 44%;
+  inset-inline-end: -5%;
+}
+
+/* Hangs off the frame like the other two. Sat INSIDE at first, which
+   put it on top of the screenshot's own sidebar and read as a piece of
+   the product's UI rather than a caption of it. */
+.pillC {
+  bottom: 9%;
+  inset-inline-start: -6%;
 }
 
 .shotImg {
@@ -346,8 +582,28 @@
     max-width: none;
   }
 
-  .heroShot {
+  .heroStage {
     margin-inline-end: 0;
+    padding-block: 0;
+  }
+
+  /* Stacked, the pills have nowhere to hang: at this width they either
+     sit outside the viewport — which is a horizontal scrollbar on a
+     phone — or they cover the screenshot they are meant to annotate.
+     The claims are not lost; they are the section that follows. */
+  .pill {
+    display: none;
+  }
+
+  /* Two overlapping windows need width to overlap IN. At this size the
+     inset would cover the screenshot it is layered on rather than sit
+     beside it, so the hero goes back to one clear screen. */
+  .heroInset {
+    display: none;
+  }
+
+  .heroGlow {
+    inset: -4% -6%;
   }
 }
 
@@ -1477,10 +1733,12 @@
   flex: none;
 }
 
-/* ── Pricing: one board, three cadences ──────────────────────────────
-   The cycles share a single chalk plate; the quarterly column lifts on
-   an accent ring because plans.js marks it best. Inclusions live once,
-   beneath all three. Under 720px the columns stack and the lift rests. */
+/* ── Pricing: one board, three tiers ─────────────────────────────────
+   The tiers share a single chalk plate; the Pro column lifts on an
+   accent ring because plans.js marks it best. Inclusions live once,
+   beneath all three — every tier has every feature, and repeating the
+   list per column would imply otherwise. Under 720px the columns stack
+   and the lift rests. */
 
 .priceBoard {
   margin-top: clamp(26px, 4vw, 44px);
@@ -1572,8 +1830,61 @@
   color: var(--muted);
 }
 
-.cycleBilled {
+/* Who the tier is for. One line, sitting under the name where a
+   subtitle belongs, so the reader can skip two of the three columns
+   without reading a price at all. */
+.cycleFor {
+  margin: 0 0 2px;
+  font-size: var(--t-1);
+  line-height: 1.45;
+  color: var(--muted);
+  min-height: 2.9em; /* keeps the three prices on one line across columns */
+}
+
+/* The currency mark rides small and high — "$12" should read as a
+   number with a unit, not as two characters of equal weight. */
+.cycleCur {
+  font-size: 0.52em;
+  font-weight: 400;
+  vertical-align: 0.42em;
+  margin-inline-end: 0.06em;
+  color: var(--muted);
+}
+
+/* What the card is actually charged. The dollar figure above is the one
+   this market quotes and the one /plans shows; this is the one Stripe
+   bills, and saying both is cheaper than explaining the difference to
+   someone who has already divided by 3.6725. */
+.cycleAed {
   margin: 6px 0 0;
+  font-size: var(--t-1);
+  color: var(--muted);
+}
+
+/* The allowance, which is the only thing that differs between tiers —
+   so it gets the emphasis the feature list would get elsewhere. */
+.cycleCredits {
+  margin: 12px 0 0;
+  padding-top: 12px;
+  border-top: 1px solid color-mix(in oklab, var(--accent) 22%, transparent);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: var(--t-1);
+  line-height: 1.45;
+}
+
+.cycleCredits strong {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.cycleCredits span {
+  color: var(--muted);
+}
+
+.cycleBilled {
+  margin: 10px 0 0;
   font-size: var(--t-1);
   line-height: 1.5;
   color: var(--muted);
@@ -1586,6 +1897,14 @@
   font-size: var(--t-1);
   font-weight: 600;
   color: var(--accent);
+}
+
+/* Stacked, the columns are read one after another rather than compared
+   side by side, so the line that was reserving height stops needing to. */
+@media (max-width: 719px) {
+  .cycleFor {
+    min-height: 0;
+  }
 }
 
 .included {
@@ -1603,13 +1922,24 @@
   color: var(--muted);
 }
 
+/* A COLUMN FLOW, not a grid.
+
+   A grid lays the items out in rows, so twenty-one of them across five
+   tracks leaves a final row holding one lonely item, and any item that
+   wraps to two lines pushes a ragged gap through its whole row. Columns
+   flow top-to-bottom and fill themselves evenly — 5/4/4/4/4 — so the
+   count never has to divide neatly and a two-line item costs two lines
+   in its own column and nowhere else.
+
+   column-width rather than column-count: the browser fits as many
+   ~175px columns as the board allows, which is five on a desktop and
+   one on a phone, with nothing to declare at either end. */
 .includedList {
   list-style: none;
   margin: 0;
   padding: 0;
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: 10px 24px;
+  column-width: 175px;
+  column-gap: 20px;
   font-size: var(--t-2);
   color: var(--ink-soft);
 }
@@ -1619,6 +1949,10 @@
   gap: 9px;
   align-items: flex-start;
   line-height: 1.45;
+  /* Without this a two-line item can be split across two columns, tick
+     at the bottom of one and text at the top of the next. */
+  break-inside: avoid;
+  margin-bottom: 9px;
 }
 
 .includedList svg {
