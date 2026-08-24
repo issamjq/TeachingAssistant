@@ -175,6 +175,9 @@ export async function resolve(
       // Where her credits went, by feature and by day.
       if (a === "usage" && method === "GET")
         return yes(await E.myAiUsage(Number(q.get("days")) || 30));
+      // Plan, spend and receipts. Checkout itself is server-only — a
+      // browser that could write `payments` could buy itself a plan.
+      if (a === "billing" && method === "GET") return yes(await E.myBilling());
       // A student claims their roster row by signing in with its email.
       if (a === "link-student" && method === "POST") return yes(await E.linkStudent());
       return { handled: false };

@@ -41,25 +41,64 @@ export default function Plans() {
   const [data, setData] = useState(null);
   const [credits, setCredits] = useState(null);
   const [error, setError] = useState(null);
-  const [asked, setAsked] = useState(null);
+  /**
+   * Every plan she has asked about, not just the last one.
+   *
+   * This was a single key, so requesting Basic and then Pro moved the
+   * "noted" line onto Pro and put a live button back on Basic — it read
+   * as if the first request had been forgotten, which is the one thing a
+   * request flow must not do.
+   */
+  const [asked, setAsked] = useState(() => new Set());
   const [busy, setBusy] = useState(null);
   const [annual, setAnnual] = useState(false);
+  /** null until asked, so the buttons do not flicker between two labels. */
+  const [payEnabled, setPayEnabled] = useState(null);
 
   useEffect(() => {
-    Promise.all([api("/api/billing/plans"), api("/api/auth/credits").catch(() => null)])
-      .then(([p, c]) => { setData(p); setCredits(c); })
+    Promise.all([
+      api("/api/billing/plans"),
+      api("/api/auth/credits").catch(() => null),
+      api("/api/billing/config").catch(() => ({ enabled: false })),
+    ])
+      .then(([p, c, cfg]) => {
+        setData(p);
+        setCredits(c);
+        setPayEnabled(Boolean(cfg?.enabled));
+        // Seeded from the database so a reload does not offer to request
+        // a plan she has already asked for.
+        setAsked(new Set(p?.requested || []));
+      })
       .catch((e) => setError(e.message));
   }, []);
 
+  /**
+   * Buy it, or ask for it.
+   *
+   * With Stripe configured this creates a Checkout Session and hands the
+   * teacher over — card details never reach us. Without it, the old
+   * request flow still works, so the page keeps functioning on the day
+   * before the keys arrive rather than presenting dead buttons.
+   *
+   * Nothing here grants anything. The plan changes when a signed webhook
+   * says the money arrived; this only opens the door to Stripe.
+   */
   const choose = async (key, creditCount, kind) => {
     setBusy(key);
     try {
+      if (payEnabled) {
+        const body = { plan: key, period: annual ? "annual" : "monthly" };
+        const { url } = await api("/api/billing/checkout", { method: "POST", body });
+        if (!url) throw new Error("Stripe did not return a payment page.");
+        window.location.href = url;
+        return;                       // leaving the page; keep the spinner on
+      }
       await api("/api/billing/request", { method: "POST", body: { plan: key, credits: creditCount, kind } });
-      setAsked(key);
+      setAsked((prev) => new Set(prev).add(key));
     } catch (e) {
-      alert(e.message);
+      setError(e.message);
     } finally {
-      setBusy(null);
+      if (!payEnabled) setBusy(null);
     }
   };
 
@@ -114,8 +153,16 @@ export default function Plans() {
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-3">
-        {(data.plans || []).map((p) => {
+      {/*
+        Four across on a month view, three on a year view.
+
+        The trial leads because it is what a visitor actually does next —
+        every other card asks for a card number. It is dropped from the
+        annual view on purpose: offering seven free days beside three
+        yearly prices answers a question nobody asked.
+      */}
+      <div className={`grid gap-4 ${annual ? "md:grid-cols-3" : "md:grid-cols-2 xl:grid-cols-4"}`}>
+        {(annual ? data.plans || [] : [data.trial, ...(data.plans || [])].filter(Boolean)).map((p) => {
           const price = annual ? p.annual : p.price;
           const per = annual ? "/year" : "/month";
           const buys = worksOutAs(p.credits, costs);
@@ -132,16 +179,22 @@ export default function Plans() {
                   Most teachers
                 </span>
               )}
+              {p.is_trial && (
+                <span className="absolute -top-2.5 start-6 font-mono text-[9px] uppercase tracking-wider bg-ink text-paper px-2 py-0.5 rounded-full">
+                  Start here
+                </span>
+              )}
 
               <p className="font-serif text-2xl text-ink">{p.name}</p>
               <p className="text-sm text-muted mt-1 mb-4">{p.blurb}</p>
 
               <p className="font-serif text-4xl text-ink">
-                ${price}
-                <span className="text-base text-muted font-sans"> {per}</span>
+                {p.is_trial ? "Free" : `$${price}`}
+                {!p.is_trial && <span className="text-base text-muted font-sans"> {per}</span>}
               </p>
               <p className="font-mono text-[10px] uppercase tracking-wider text-accent mt-2 mb-5">
-                {p.credits} credits a month
+                {p.credits} credits
+                {p.is_trial ? ` for ${p.trial_days} days` : " a month"}
               </p>
 
               {/* The part that actually decides it. */}
@@ -157,6 +210,15 @@ export default function Plans() {
 
               <ul className="space-y-1.5 mb-6 border-t border-line pt-4">
                 {[
+                  /* The trial is the same product, not a cut-down one —
+                     what differs is how long it lasts, so that is the line
+                     it leads with rather than a list of absences. */
+                  ...(p.is_trial
+                    ? [
+                        `Ends ${p.trial_days} days after you sign up`,
+                        "No card, and nothing charged automatically",
+                      ]
+                    : []),
                   "Every feature — nothing is held back by plan",
                   "Unlimited students, classes and scheduling",
                   "Attendance, marking and reports",
@@ -172,15 +234,30 @@ export default function Plans() {
 
               {current ? (
                 <p className="font-mono text-[10px] uppercase tracking-wider text-sage text-center py-2.5">
-                  Your current plan
+                  {p.is_trial ? "You are on the trial" : "Your current plan"}
                 </p>
-              ) : asked === p.key ? (
+              ) : p.is_trial ? (
+                /* Nothing to request: the trial is what a new account is
+                   already given, so this card informs rather than sells. */
+                <p className="font-mono text-[10px] uppercase tracking-wider text-muted text-center py-2.5">
+                  Every account starts here
+                </p>
+              ) : asked.has(p.key) ? (
                 <p className="text-sm text-sage text-center py-2.5">
-                  Noted — we&rsquo;ll be in touch.
+                  Requested — we&rsquo;ll be in touch.
+                  <span className="block text-xs text-muted mt-0.5">Nothing charged.</span>
                 </p>
               ) : (
+                /* The label says what the button actually does: until card
+                   payments are switched on it registers interest, and
+                   calling that "Choose Pro" promises a checkout that does
+                   not exist yet. */
                 <Button onClick={() => choose(p.key, p.credits, "subscription")} disabled={busy === p.key}>
-                  {busy === p.key ? "…" : `Choose ${p.name}`}
+                  {busy === p.key
+                    ? (payEnabled ? "Taking you to Stripe…" : "Sending…")
+                    : payEnabled
+                      ? `Choose ${p.name}`
+                      : `Request ${p.name}`}
                 </Button>
               )}
             </div>
@@ -188,54 +265,22 @@ export default function Plans() {
         })}
       </div>
 
-      {/* Top-ups: for the busy week, not the whole term. */}
-      <div className="border border-line rounded-2xl p-6 bg-paper">
-        <div className="flex flex-wrap items-end justify-between gap-3 mb-5">
-          <div>
-            <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-1.5 inline-flex items-center gap-2">
-              <Sparkles size={11} /> Top up
-            </p>
-            <h3 className="font-serif text-xl text-ink">Just need a bit more this month?</h3>
-            <p className="text-sm text-muted mt-1">
-              Added to your balance straight away. They roll into next month, once.
-            </p>
-          </div>
-        </div>
-
-        <div className="grid gap-3 sm:grid-cols-3">
-          {(data.topups || []).map((t) => {
-            const lessons = costs?.lesson_plan ? Math.floor(t.credits / costs.lesson_plan) : null;
-            return (
-              <button
-                key={t.key}
-                onClick={() => choose(t.key, t.credits, "topup")}
-                disabled={busy === t.key}
-                className="border border-line rounded-xl p-4 text-start hover:border-ink transition disabled:opacity-50"
-              >
-                <p className="font-serif text-2xl text-ink">${t.price}</p>
-                <p className="font-mono text-[10px] uppercase tracking-wider text-accent mt-1">
-                  {t.credits} credits
-                </p>
-                {lessons ? (
-                  <p className="text-xs text-muted mt-1.5">about {lessons} more lessons</p>
-                ) : null}
-                {asked === t.key && (
-                  <p className="text-xs text-sage mt-2">Noted — we&rsquo;ll be in touch.</p>
-                )}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
       {/* Said plainly rather than hidden behind a button that does nothing. */}
-      <div className="border border-line rounded-xl p-5 bg-paper-warm/40 text-center">
-        <p className="text-sm text-ink">
-          <strong>Card payments are being switched on.</strong> Choose a plan above and we&rsquo;ll
-          set it up with you directly — you won&rsquo;t lose anything you&rsquo;ve made in the
-          meantime.
+      {payEnabled === false && (
+        <div className="border border-line rounded-xl p-5 bg-paper-warm/40 text-center">
+          <p className="text-sm text-ink">
+            <strong>Card payments are being switched on.</strong> Choose a plan above and we&rsquo;ll
+            set it up with you directly — you won&rsquo;t lose anything you&rsquo;ve made in the
+            meantime.
+          </p>
+        </div>
+      )}
+      {payEnabled && (
+        <p className="text-center text-xs text-muted">
+          Payments are handled by Stripe. Your card details never reach Murchid.
+          Cancel any time from Billing.
         </p>
-      </div>
+      )}
 
       <div className="text-center">
         <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-3">

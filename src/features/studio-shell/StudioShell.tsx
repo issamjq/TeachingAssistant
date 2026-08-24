@@ -636,6 +636,8 @@ export default function StudioShell({ children }: { children: React.ReactNode })
           /* Teachers only — a student has no balance to account for. */
           showUsage={role === "teacher"}
           onOpenUsage={() => navigate(["credit-usage"])}
+          showBilling={role === "teacher"}
+          onOpenBilling={() => navigate(["billing"])}
           onLogout={signOutFully}
           roles={heldRoles}
           activeRole={role}

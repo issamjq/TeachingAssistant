@@ -108,6 +108,7 @@ export const EN = {
   "accountMenu.help": "Get help",
   "accountMenu.upgrade": "Upgrade plan",
   "accountMenu.usage": "Credits used",
+  "accountMenu.billing": "Billing",
   "accountMenu.viewAs": "View as",
   "accountMenu.logout": "Log out",
   // help popover

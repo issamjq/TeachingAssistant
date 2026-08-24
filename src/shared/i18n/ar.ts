@@ -102,6 +102,7 @@ export const AR: Partial<Record<TranslationKey, string>> = {
   "accountMenu.help": "الحصول على مساعدة",
   "accountMenu.upgrade": "ترقية الخطة",
   "accountMenu.usage": "الأرصدة المستخدمة",
+  "accountMenu.billing": "الفوترة",
   "accountMenu.viewAs": "العرض بصفة",
   "accountMenu.logout": "تسجيل الخروج",
   // help popover

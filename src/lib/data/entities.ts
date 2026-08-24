@@ -98,6 +98,18 @@ export async function myAiUsage(days = 30) {
   return data;
 }
 
+/**
+ * Her plan, her spend, her receipts.
+ *
+ * Credits and dirhams only. What a lesson costs us upstream lives on the
+ * super admin's side of the glass, and my_billing() does not return it.
+ */
+export async function myBilling() {
+  const { data, error } = await supabase.rpc("my_billing");
+  if (error) throw error;
+  return data;
+}
+
 /** /api/me — users ⨝ faculty ⨝ subscriptions ⨝ credits, flattened. */
 /**
  * Every role this account holds, most privileged first.

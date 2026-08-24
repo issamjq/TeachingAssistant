@@ -74,6 +74,21 @@ export async function resolveSuperadmin(
 
   // AI usage: what our users burned, what we charged for it, and what it
   // cost us upstream. The one place both numbers sit in the same row.
+  /**
+   * The revenue side. Read-only, and summed from `payments` rather than
+   * from the plan price — a plan price says what a teacher SHOULD pay;
+   * only a payment row says what arrived.
+   */
+  if (a === "revenue") {
+    const days = int(q.get("days"), 30);
+    if (b === "overview" && method === "GET")
+      return yes(await rpc("sa_revenue_overview", { p_days: days }));
+    if (b === "users" && !c && method === "GET")
+      return yes(await rpc("sa_revenue_by_user", { p_limit: int(q.get("limit"), 100) }));
+    if (b === "users" && c && method === "GET")
+      return yes(await rpc("sa_payments_for", { p_faculty: c, p_limit: int(q.get("limit"), 50) }));
+  }
+
   if (a === "ai") {
     const days = int(q.get("days"), 30);
     if (b === "overview" && method === "GET") return yes(await rpc("sa_ai_overview", { p_days: days }));
