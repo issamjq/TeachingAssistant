@@ -1585,7 +1585,14 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
       for (const g of others) {
         try {
           const row = await storeOne(g, undefined, inherit);
-          if (row) alsoSaved.push({ kind: g.parts[0].kind, id: row.id });
+          if (row) {
+            const h = g.parts[0];
+            alsoSaved.push({
+              kind: h.kind,
+              id: row.id,
+              title: titleOf(h.kind, h.text, h.structured),
+            });
+          }
         } catch (e) {
           setNotice(`Saved the lesson, but the ${KIND_META[g.parts[0].kind]?.label || g.parts[0].kind} could not be kept: ${e.message}`);
         }
@@ -1603,7 +1610,17 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
             : x,
         ),
       );
-      return savedPrimary;
+      /**
+       * The other deliverables travel back with the primary.
+       *
+       * `schedule_entries` IS the assignment mechanism — a student sees work
+       * by matching their grade and subject against a timetable row, and the
+       * `assignments` table is empty and unused. So a quiz with no slot is a
+       * quiz no student can ever open: saving it into the Quizzes section
+       * fixed the teacher's half and left the class's half exactly as
+       * broken. The caller schedules these once the lesson has its day.
+       */
+      return savedPrimary ? { ...savedPrimary, also: alsoSaved } : savedPrimary;
     } catch (e) {
       setNotice(`Couldn't save that: ${e.message}`);
       return null;

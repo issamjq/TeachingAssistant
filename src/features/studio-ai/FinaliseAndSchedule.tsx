@@ -19,7 +19,7 @@
 // has not decided yet would turn a convenience into a form. She is asked
 // once, and "Not yet" keeps the work with no date on it.
 // =====================================================================
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Calendar, Check, Loader2 } from "lucide-react";
 
 import { api } from "@/views/_shared";
@@ -46,6 +46,13 @@ interface Proposed {
 }
 
 interface Clash {
+  id: string;
+  title: string;
+}
+
+/** A deliverable saved alongside the lesson, waiting for a slot of its own. */
+interface SavedExtra {
+  kind: string;
   id: string;
   title: string;
 }
@@ -97,7 +104,10 @@ export function FinaliseAndSchedule({
    * the save would mean a second copy of the title rule, and the two would
    * disagree the first time either changed.
    */
-  save: (turns: StudioTurn[], replaceId?: string) => Promise<{ id: string } | null>;
+  save: (
+    turns: StudioTurn[],
+    replaceId?: string,
+  ) => Promise<{ id: string; also?: SavedExtra[] } | null>;
   /** The slot, once written, so the library card can carry it too. */
   onScheduled?: (artifactId: string, entry: Proposed) => void;
   /**
@@ -125,6 +135,15 @@ export function FinaliseAndSchedule({
    * overrides a choice she has made.
    */
   const [asUpdate, setAsUpdate] = useState<boolean>(!!replaces);
+  /**
+   * Saved in the same batch, each still needing its own timetable row.
+   *
+   * A ref rather than state: `storeAll` and the scheduling call happen
+   * inside ONE async run, so a state variable read there would still hold
+   * the value from before this render and place nothing. Nothing renders
+   * from it either, so state would only add a needless re-render.
+   */
+  const extrasRef = useRef<SavedExtra[]>([]);
 
   const primary = turns.find((t) => t.kind === primaryKind);
 
@@ -147,6 +166,7 @@ export function FinaliseAndSchedule({
     const existing = asUpdate && replaces ? replaces.id : undefined;
     const stored = await save(turns, existing);
     if (!stored) throw new Error(`The ${label} could not be saved.`);
+    extrasRef.current = stored.also ?? [];
     setPrimaryId(stored.id);
     onKept?.({ primaryId: stored.id });
     return stored.id;
@@ -160,6 +180,57 @@ export function FinaliseAndSchedule({
    * one press, and puts it on a day only if she wants it there.
    */
   const optionalSlot = primaryKind === "presentation";
+
+  /**
+   * Give the quiz and the homework a day too.
+   *
+   * A student sees work by matching their grade and subject against a
+   * timetable row — `schedule_entries` IS the assignment mechanism, and the
+   * `assignments` table is empty and unused. Only the lesson was ever
+   * placed, so a quiz generated in the same breath reached the teacher's
+   * Quizzes list and no child at all.
+   *
+   * They land on the LESSON'S day with no hours: homework and a quiz have a
+   * deadline, not a period, and the route already writes a null start_time
+   * as exactly that. Reusing the day the teacher already agreed to avoids
+   * asking her a second date question she has effectively answered.
+   *
+   * Failures are reported and swallowed: the lesson is on the calendar by
+   * this point and losing that because a quiz clashed would be a worse
+   * trade than a quiz she has to place by hand.
+   */
+  const placeExtras = async (entry: Proposed) => {
+    if (!extrasRef.current.length) return;
+    const failed: string[] = [];
+    for (const extra of extrasRef.current) {
+      try {
+        await api("/api/studio/schedule", {
+          method: "POST",
+          body: {
+            draft_id: extra.id,
+            confirm: true,
+            proposed: {
+              title: extra.title,
+              subject: entry.subject ?? null,
+              grade: entry.grade ?? null,
+              section: entry.section ?? null,
+              date: entry.date,
+              start_time: null,
+              end_time: null,
+            },
+          },
+        });
+      } catch {
+        failed.push(extra.kind.replace(/_/g, " "));
+      }
+    }
+    if (failed.length) {
+      setError(
+        `Saved, but the ${failed.join(" and ")} could not be put on your timetable. ` +
+          "You can place it from its own section.",
+      );
+    }
+  };
 
   const run = async (body: Record<string, unknown>) => {
     setError("");
@@ -203,6 +274,7 @@ export function FinaliseAndSchedule({
       if (reply.entry) {
         setProposed(reply.entry);
         onScheduled?.(id, reply.entry);
+        await placeExtras(reply.entry);
       }
       // `unchanged` means the documents were rewritten and the slot she
       // already chose was left exactly where it was.
