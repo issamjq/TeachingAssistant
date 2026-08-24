@@ -8829,3 +8829,75 @@ BEGIN
   END IF;
   RAISE NOTICE 'security: every view now runs as the caller';
 END $$;
+
+-- ─────────────────────────────────────────────────────────────────────────
+-- §77  The pricing page was selling "No plan" for $0
+--
+-- §73 added a `free` tier as the state a LAPSED account falls into — no
+-- credits, no allowance, keeps everything it made. It is a state, not a
+-- product. But plan_options() selected every tier except `trial`, so
+-- `free` went straight onto the pricing page as a fourth card offering
+-- "No plan · $0 · 0 credits a month", with a blank blurb because the
+-- CASE has no arm for it.
+--
+-- Filtering `tier <> 'free'` beside `tier <> 'trial'` would fix today and
+-- fail again the next time an internal tier is added — the page opts
+-- everything IN by default and has to be told what to leave out.
+--
+-- So the table says what is for sale. A new tier is invisible to the
+-- pricing page until someone deliberately marks it purchasable.
+-- ─────────────────────────────────────────────────────────────────────────
+
+ALTER TABLE public.plan_tiers
+  ADD COLUMN IF NOT EXISTS purchasable boolean NOT NULL DEFAULT false;
+
+UPDATE public.plan_tiers SET purchasable = (tier IN ('basic', 'pro', 'max'));
+
+CREATE OR REPLACE FUNCTION public.plan_options()
+RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE costs jsonb; plans jsonb;
+BEGIN
+  SELECT COALESCE(jsonb_object_agg(feature, cost), '{}'::jsonb) INTO costs FROM ai_credit_costs;
+
+  SELECT COALESCE(jsonb_agg(row_to_json(t) ORDER BY t.sort), '[]'::jsonb) INTO plans
+  FROM (
+    SELECT tier AS key, label AS name, credits,
+           price_usd::numeric AS price,
+           (price_usd * 10)::numeric AS annual,
+           sort,
+           CASE tier
+             WHEN 'basic' THEN 'For one teacher, one timetable.'
+             WHEN 'pro'   THEN 'A full timetable, planned a term at a time.'
+             WHEN 'max'   THEN 'Several classes, or a head of department.'
+           END AS blurb,
+           tier = 'pro' AS popular
+      FROM plan_tiers
+     WHERE purchasable            -- `trial` is where you start, `free` is where you land
+  ) t;
+
+  RETURN jsonb_build_object(
+    'usd_per_credit', 0.02,
+    'costs', costs,
+    'plans', plans,
+    'trial', (SELECT jsonb_build_object('credits', credits) FROM plan_tiers WHERE tier = 'trial'),
+    'topups', jsonb_build_array(
+      jsonb_build_object('key','topup_100','credits',100,'price',5),
+      jsonb_build_object('key','topup_300','credits',300,'price',14),
+      jsonb_build_object('key','topup_600','credits',600,'price',26)
+    )
+  );
+END $$;
+
+DO $$
+DECLARE keys text; n int;
+BEGIN
+  SELECT string_agg(p->>'key', ', ' ORDER BY p->>'key'), count(*)
+    INTO keys, n
+    FROM jsonb_array_elements(public.plan_options()->'plans') p;
+  IF n <> 3 OR keys <> 'basic, max, pro' THEN
+    RAISE EXCEPTION 'pricing page offers % (%), expected exactly basic, max, pro', n, keys;
+  END IF;
+  RAISE NOTICE 'billing: the pricing page offers only what is for sale (%)', keys;
+END $$;
