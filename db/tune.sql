@@ -8901,3 +8901,664 @@ BEGIN
   END IF;
   RAISE NOTICE 'billing: the pricing page offers only what is for sale (%)', keys;
 END $$;
+
+-- ─────────────────────────────────────────────────────────────────────────
+-- §78  The trial belongs on the pricing page — as a card, not a footnote
+--
+-- §77 correctly stopped `free` being sold, and the trial went with it: the
+-- page returned only what is purchasable, so the thing every visitor
+-- actually starts on was reduced to a credits number in the small print.
+--
+-- The trial is not purchasable and must not be — `purchasable` still
+-- decides what can be BOUGHT — but it is the first thing a teacher should
+-- see. So it is returned as a full card of its own, marked `is_trial`, and
+-- carrying the one fact that governs it: seven days.
+--
+-- Monthly only. An annual view offering a 7-day trial beside three yearly
+-- prices is answering a question nobody asked, and the page hides it there.
+-- ─────────────────────────────────────────────────────────────────────────
+
+CREATE OR REPLACE FUNCTION public.plan_options()
+RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE costs jsonb; plans jsonb; trial_card jsonb;
+BEGIN
+  SELECT COALESCE(jsonb_object_agg(feature, cost), '{}'::jsonb) INTO costs FROM ai_credit_costs;
+
+  SELECT COALESCE(jsonb_agg(row_to_json(t) ORDER BY t.sort), '[]'::jsonb) INTO plans
+  FROM (
+    SELECT tier AS key, label AS name, credits,
+           price_usd::numeric AS price,
+           (price_usd * 10)::numeric AS annual,
+           sort,
+           CASE tier
+             WHEN 'basic' THEN 'For one teacher, one timetable.'
+             WHEN 'pro'   THEN 'A full timetable, planned a term at a time.'
+             WHEN 'max'   THEN 'Several classes, or a head of department.'
+           END AS blurb,
+           tier = 'pro' AS popular
+      FROM plan_tiers
+     WHERE purchasable
+  ) t;
+
+  -- The card everyone starts on. Not purchasable, so it is built here
+  -- rather than coming through the `purchasable` filter.
+  SELECT jsonb_build_object(
+           'key', tier, 'name', label, 'credits', credits,
+           'price', 0, 'annual', 0, 'sort', -1,
+           'blurb', 'Try the whole thing. No card, nothing charged.',
+           'popular', false,
+           'is_trial', true,
+           'trial_days', 7
+         ) INTO trial_card
+    FROM plan_tiers WHERE tier = 'trial';
+
+  RETURN jsonb_build_object(
+    'usd_per_credit', 0.02,
+    'costs', costs,
+    'plans', plans,
+    'trial', trial_card,
+    'topups', jsonb_build_array(
+      jsonb_build_object('key','topup_100','credits',100,'price',5),
+      jsonb_build_object('key','topup_300','credits',300,'price',14),
+      jsonb_build_object('key','topup_600','credits',600,'price',26)
+    )
+  );
+END $$;
+
+DO $$
+DECLARE o jsonb;
+BEGIN
+  o := public.plan_options();
+  IF jsonb_array_length(o->'plans') <> 3 THEN
+    RAISE EXCEPTION 'expected 3 purchasable plans, got %', jsonb_array_length(o->'plans');
+  END IF;
+  IF (o->'trial'->>'is_trial') IS DISTINCT FROM 'true'
+     OR (o->'trial'->>'trial_days') IS DISTINCT FROM '7'
+     OR (o->'trial'->>'credits') IS NULL THEN
+    RAISE EXCEPTION 'trial card incomplete: %', o->'trial';
+  END IF;
+  RAISE NOTICE 'billing: 3 plans for sale + a % credit, % day trial card',
+    o->'trial'->>'credits', o->'trial'->>'trial_days';
+END $$;
+
+-- ─────────────────────────────────────────────────────────────────────────
+-- §79  Taking money: what a plan costs, and what was actually paid
+--
+-- Until now `plan_requests` recorded that a teacher ASKED for a plan and a
+-- human granted it by hand. This is the machinery for being paid.
+--
+-- Three ideas, kept apart on purpose:
+--
+--   plan_tiers    what a plan costs and what it grants. Prices are charged
+--                 in AED (the market), while `price_usd` stays as the unit
+--                 the credit economics are reasoned in — $0.02 a credit,
+--                 and every cost figure in the AI dashboard. Deriving one
+--                 from the other at read time would put an exchange rate
+--                 inside the margin calculation.
+--
+--   payments      one row per attempt, not per success. A checkout that is
+--                 abandoned or declined is a fact worth having: "we tried
+--                 to charge and could not" is the row that explains a
+--                 teacher's angry email.
+--
+--   subscriptions unchanged in shape — it already carries
+--                 stripe_customer_id and stripe_subscription_id. What it
+--                 gains is which billing period was bought and whether a
+--                 cancellation is pending.
+--
+-- Nothing here talks to Stripe. The service does that; this only records
+-- what Stripe reported, so a webhook replayed twice cannot double-grant.
+-- ─────────────────────────────────────────────────────────────────────────
+
+/* ── what a plan costs ─────────────────────────────────────────────────── */
+
+ALTER TABLE public.plan_tiers
+  ADD COLUMN IF NOT EXISTS price_aed        numeric(10,2),
+  ADD COLUMN IF NOT EXISTS annual_aed       numeric(10,2),
+  ADD COLUMN IF NOT EXISTS stripe_price_monthly text,
+  ADD COLUMN IF NOT EXISTS stripe_price_annual  text;
+
+/**
+ * AED at the pegged rate (3.6725), rounded to a price a person would
+ * quote. Written down rather than computed so a rate move cannot silently
+ * change what a teacher is charged, and annual is ten months for twelve —
+ * the same "2 months free" the page already advertises.
+ */
+UPDATE public.plan_tiers SET
+  price_aed  = CASE tier WHEN 'basic' THEN 45 WHEN 'pro' THEN 129 WHEN 'max' THEN 295 ELSE 0 END,
+  annual_aed = CASE tier WHEN 'basic' THEN 450 WHEN 'pro' THEN 1290 WHEN 'max' THEN 2950 ELSE 0 END
+WHERE price_aed IS NULL OR annual_aed IS NULL;
+
+/* ── what was actually paid ────────────────────────────────────────────── */
+
+CREATE TABLE IF NOT EXISTS public.payments (
+  id                     uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  faculty_id             uuid NOT NULL REFERENCES public.faculty(id) ON DELETE CASCADE,
+  /**
+   * What was bought. `tier` is null for a top-up: it buys credits, not a
+   * plan, and writing a tier there would make a top-up look like a
+   * subscription in every report.
+   */
+  kind                   text NOT NULL CHECK (kind IN ('subscription', 'topup')),
+  tier                   text REFERENCES public.plan_tiers(tier),
+  billing_period         text CHECK (billing_period IN ('monthly', 'annual')),
+  credits_granted        integer NOT NULL DEFAULT 0,
+  /** Minor units, as Stripe counts them: 4500 fils = AED 45.00. */
+  amount_minor           integer NOT NULL DEFAULT 0,
+  currency               text NOT NULL DEFAULT 'aed',
+  status                 text NOT NULL DEFAULT 'pending'
+                           CHECK (status IN ('pending','paid','failed','refunded','canceled')),
+  /**
+   * Stripe's own ids. `checkout_session_id` is unique so a webhook
+   * delivered twice — which Stripe does, deliberately — updates the row
+   * it already wrote instead of granting a second month of credits.
+   */
+  checkout_session_id    text UNIQUE,
+  payment_intent_id      text,
+  subscription_id        text,
+  invoice_id             text,
+  /** What Stripe said, verbatim, for the argument nobody expects to have. */
+  raw                    jsonb,
+  created_at             timestamptz NOT NULL DEFAULT now(),
+  paid_at                timestamptz,
+  updated_at             timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS payments_faculty_idx ON public.payments (faculty_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS payments_status_idx  ON public.payments (status, created_at DESC);
+CREATE INDEX IF NOT EXISTS payments_invoice_idx ON public.payments (invoice_id)
+  WHERE invoice_id IS NOT NULL;
+
+DROP TRIGGER IF EXISTS set_updated_at ON public.payments;
+CREATE TRIGGER set_updated_at BEFORE UPDATE ON public.payments
+  FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+
+/**
+ * A teacher may READ her own receipts and nothing else.
+ *
+ * No insert, update or delete policy exists, and that is deliberate: the
+ * only writer is the service, on a webhook Stripe signed. A browser that
+ * could write here could buy itself a plan.
+ */
+ALTER TABLE public.payments ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS payments_owner_read ON public.payments;
+CREATE POLICY payments_owner_read ON public.payments
+  FOR SELECT TO authenticated
+  USING (faculty_id = public.current_faculty_id());
+
+/* ── what the subscription knows about its own billing ─────────────────── */
+
+ALTER TABLE public.subscriptions
+  ADD COLUMN IF NOT EXISTS billing_period       text
+    CHECK (billing_period IN ('monthly', 'annual')),
+  ADD COLUMN IF NOT EXISTS cancel_at_period_end boolean NOT NULL DEFAULT false;
+
+DO $$
+BEGIN
+  RAISE NOTICE 'billing: payments table, AED prices and Stripe columns in place';
+END $$;
+
+-- ─────────────────────────────────────────────────────────────────────────
+-- §80  Granting what was paid for, and showing what was spent
+--
+-- One writer and two readers.
+--
+-- The writer, apply_payment(), is the only thing that turns money into
+-- credits. It is idempotent on the Stripe session id because Stripe
+-- delivers a webhook more than once by design — at-least-once, not
+-- exactly-once — and a second delivery must not grant a second month.
+--
+-- The readers are deliberately different. A teacher sees her own
+-- receipts. A super admin sees what every account has paid, because
+-- "which teachers are actually worth money" is the question the console
+-- exists to answer.
+-- ─────────────────────────────────────────────────────────────────────────
+
+/**
+ * Money in, credits out.
+ *
+ * Called by the service from a Stripe webhook, never from a browser —
+ * there is no grant policy on `payments` and no execute grant here.
+ *
+ * The balance is SET to the allowance rather than added to. Buying Pro
+ * makes the balance 350, whatever it was: adding would let someone stack
+ * a trial's 40 on top of every plan they buy, and stack again on each
+ * switch. It also matches how the monthly refresh already behaves, so a
+ * plan bought today and refreshed next month land on the same number.
+ */
+CREATE OR REPLACE FUNCTION public.apply_payment(p_payment uuid)
+RETURNS jsonb
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE
+  pay   public.payments%ROWTYPE;
+  allow int;
+  ends  timestamptz;
+BEGIN
+  SELECT * INTO pay FROM payments WHERE id = p_payment FOR UPDATE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'no such payment' USING ERRCODE = '22023'; END IF;
+
+  -- Already granted. Say so plainly rather than granting again.
+  IF pay.status = 'paid' AND pay.paid_at IS NOT NULL AND pay.credits_granted > 0 THEN
+    RETURN jsonb_build_object('already_applied', true, 'payment', pay.id);
+  END IF;
+
+  IF pay.kind = 'subscription' THEN
+    SELECT credits INTO allow FROM plan_tiers WHERE tier = pay.tier;
+    IF allow IS NULL THEN RAISE EXCEPTION 'unknown tier %', pay.tier USING ERRCODE='22023'; END IF;
+
+    ends := now() + public.plan_period(
+              CASE WHEN pay.billing_period = 'annual' THEN 'annual' ELSE 'monthly' END);
+
+    UPDATE subscriptions
+       SET tier = pay.tier,
+           plan = COALESCE(pay.billing_period, 'monthly'),
+           status = 'active',
+           billing_period = COALESCE(pay.billing_period, 'monthly'),
+           cancel_at_period_end = false,
+           current_period_start = now(),
+           current_period_end = ends,
+           trial_ends_at = NULL,
+           stripe_subscription_id = COALESCE(pay.subscription_id, stripe_subscription_id),
+           updated_at = now()
+     WHERE faculty_id = pay.faculty_id;
+
+    -- An account that never had a subscription row still gets its plan.
+    IF NOT FOUND THEN
+      INSERT INTO subscriptions (faculty_id, plan, tier, status, billing_period,
+                                 current_period_start, current_period_end,
+                                 stripe_subscription_id)
+      VALUES (pay.faculty_id, COALESCE(pay.billing_period,'monthly'), pay.tier, 'active',
+              COALESCE(pay.billing_period,'monthly'), now(), ends, pay.subscription_id);
+    END IF;
+
+    /**
+     * The allowance follows the tier, and the balance is set to it.
+     * next_refresh_at is a month out whatever the billing period —
+     * annual is a billing period, not a credit period (§73).
+     */
+    UPDATE credits
+       SET balance = allow, monthly_allowance = allow,
+           next_refresh_at = now() + INTERVAL '1 month', updated_at = now()
+     WHERE faculty_id = pay.faculty_id;
+    IF NOT FOUND THEN
+      INSERT INTO credits (faculty_id, balance, monthly_allowance, next_refresh_at)
+      VALUES (pay.faculty_id, allow, allow, now() + INTERVAL '1 month');
+    END IF;
+
+  ELSE
+    /**
+     * A top-up ADDS. It is not a plan — it is credits bought outright on
+     * top of whatever the plan already granted, so setting the balance
+     * here would destroy what she had and charge her for the privilege.
+     */
+    allow := pay.credits_granted;
+    UPDATE credits SET balance = balance + allow, updated_at = now()
+     WHERE faculty_id = pay.faculty_id;
+  END IF;
+
+  UPDATE payments
+     SET status = 'paid', paid_at = COALESCE(paid_at, now()),
+         credits_granted = COALESCE(NULLIF(credits_granted, 0), allow)
+   WHERE id = pay.id;
+
+  RETURN jsonb_build_object('applied', true, 'payment', pay.id,
+                            'kind', pay.kind, 'credits', allow);
+END $$;
+
+REVOKE EXECUTE ON FUNCTION public.apply_payment(uuid) FROM public, authenticated;
+
+/**
+ * A teacher's own billing page: the plan, the money, the receipts.
+ *
+ * Spend is summed from `payments` rather than from the plan price, so a
+ * refund and a failed attempt are both reflected without a second source
+ * of truth.
+ */
+CREATE OR REPLACE FUNCTION public.my_billing()
+RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE me uuid := public.current_faculty_id(); out jsonb;
+BEGIN
+  IF me IS NULL THEN RAISE EXCEPTION 'not a teacher' USING ERRCODE = '42501'; END IF;
+
+  SELECT jsonb_build_object(
+    'plan', jsonb_build_object(
+      'tier',        COALESCE(s.tier, 'trial'),
+      'label',       COALESCE(pt.label, 'Free trial'),
+      'status',      COALESCE(s.status, 'trialing'),
+      'billing_period', s.billing_period,
+      'price_aed',   CASE WHEN s.billing_period = 'annual' THEN pt.annual_aed ELSE pt.price_aed END,
+      'started_at',  s.current_period_start,
+      'renews_at',   COALESCE(s.current_period_end, s.trial_ends_at),
+      'cancel_at_period_end', COALESCE(s.cancel_at_period_end, false),
+      'live',        public.subscription_active_for(me)
+    ),
+    'credits', jsonb_build_object(
+      'balance',   COALESCE(c.balance, 0),
+      'allowance', COALESCE(c.monthly_allowance, 0),
+      'refreshes_at', c.next_refresh_at
+    ),
+    -- What she has actually paid us, all time.
+    'spend', (
+      SELECT jsonb_build_object(
+               'total_minor', COALESCE(SUM(amount_minor) FILTER (WHERE status = 'paid'), 0),
+               'currency',    COALESCE(MAX(currency), 'aed'),
+               'payments',    COUNT(*) FILTER (WHERE status = 'paid'))
+        FROM payments WHERE faculty_id = me
+    ),
+    'receipts', COALESCE((
+      SELECT jsonb_agg(row_to_json(r) ORDER BY r.created_at DESC)
+        FROM (
+          SELECT id, kind, tier, billing_period, credits_granted,
+                 amount_minor, currency, status, created_at, paid_at
+            FROM payments WHERE faculty_id = me
+           ORDER BY created_at DESC LIMIT 50
+        ) r), '[]'::jsonb)
+  ) INTO out
+  FROM (SELECT 1) _
+  LEFT JOIN subscriptions s ON s.faculty_id = me
+  LEFT JOIN plan_tiers pt   ON pt.tier = s.tier
+  LEFT JOIN credits c       ON c.faculty_id = me;
+
+  RETURN out;
+END $$;
+
+GRANT EXECUTE ON FUNCTION public.my_billing() TO authenticated;
+
+DO $$
+BEGIN
+  RAISE NOTICE 'billing: apply_payment grants, my_billing reports';
+END $$;
+
+-- ─────────────────────────────────────────────────────────────────────────
+-- §81  The revenue side of the console
+--
+-- The AI usage page answers "what did this cost us". This answers "what
+-- did they pay us", and the two only mean something together: an account
+-- burning $4 of tokens on a 45 AED plan is a different problem from the
+-- same burn on a 295 AED plan.
+--
+-- Money is summed from `payments` and never from the plan price. A plan
+-- price says what a teacher SHOULD be paying; only a payment row says
+-- what actually arrived, and the gap between those two is exactly what a
+-- billing console exists to show.
+-- ─────────────────────────────────────────────────────────────────────────
+
+/** Platform revenue at a glance. */
+CREATE OR REPLACE FUNCTION public.sa_revenue_overview(p_days int DEFAULT 30)
+RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE since timestamptz := now() - (GREATEST(COALESCE(p_days,30),1) || ' days')::interval;
+        out jsonb;
+BEGIN
+  PERFORM public.sa_gate('admin.dashboard');
+
+  SELECT jsonb_build_object(
+    'days', GREATEST(COALESCE(p_days,30),1),
+    'currency', 'aed',
+    'collected_minor', COALESCE(SUM(amount_minor) FILTER (WHERE status='paid'), 0),
+    'refunded_minor',  COALESCE(SUM(amount_minor) FILTER (WHERE status='refunded'), 0),
+    'payments',        COUNT(*) FILTER (WHERE status='paid'),
+    'failed',          COUNT(*) FILTER (WHERE status IN ('failed','canceled')),
+    'pending',         COUNT(*) FILTER (WHERE status='pending'),
+    'paying_accounts', COUNT(DISTINCT faculty_id) FILTER (WHERE status='paid'),
+    'subscriptions',   COUNT(*) FILTER (WHERE status='paid' AND kind='subscription'),
+    'topups',          COUNT(*) FILTER (WHERE status='paid' AND kind='topup')
+  ) INTO out
+  FROM payments WHERE created_at >= since;
+
+  -- Recurring value under contract right now, whatever was collected in
+  -- the window. Annual is shown as its monthly equivalent so the two
+  -- billing periods can be added together honestly.
+  out := out || jsonb_build_object(
+    'mrr_minor', (
+      SELECT COALESCE(SUM(
+        CASE WHEN s.billing_period = 'annual'
+             THEN ROUND(pt.annual_aed * 100 / 12.0)
+             ELSE ROUND(pt.price_aed * 100) END), 0)::bigint
+        FROM subscriptions s JOIN plan_tiers pt ON pt.tier = s.tier
+       WHERE s.status = 'active' AND pt.purchasable));
+
+  RETURN out;
+END $$;
+
+/** Per account: the plan, what it costs them, what they have actually paid. */
+CREATE OR REPLACE FUNCTION public.sa_revenue_by_user(p_limit int DEFAULT 100)
+RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE out jsonb;
+BEGIN
+  PERFORM public.sa_gate('admin.dashboard');
+
+  SELECT COALESCE(jsonb_agg(row_to_json(t) ORDER BY t.paid_minor DESC, t.email), '[]'::jsonb)
+    INTO out
+  FROM (
+    SELECT f.id AS faculty_id, au.email,
+           COALESCE(
+             NULLIF(BTRIM(COALESCE(pu.first_name,'') || ' ' || COALESCE(pu.last_name,'')), ''),
+             split_part(au.email,'@',1))                              AS name,
+           COALESCE(s.tier,'trial')                                   AS tier,
+           COALESCE(s.status,'trialing')                              AS status,
+           s.billing_period,
+           COALESCE(s.cancel_at_period_end,false)                     AS cancelling,
+           COALESCE(s.current_period_end, s.trial_ends_at)            AS renews_at,
+           CASE WHEN s.billing_period='annual' THEN pt.annual_aed ELSE pt.price_aed END AS plan_aed,
+           COALESCE(p.paid_minor,0)::bigint                           AS paid_minor,
+           COALESCE(p.payments,0)                                     AS payments,
+           p.last_paid_at,
+           COALESCE(c.balance,0)                                      AS balance
+      FROM faculty f
+      JOIN auth.users au        ON au.id = f.user_id
+      LEFT JOIN public.users pu ON pu.id = f.user_id
+      LEFT JOIN subscriptions s ON s.faculty_id = f.id
+      LEFT JOIN plan_tiers pt   ON pt.tier = s.tier
+      LEFT JOIN credits c       ON c.faculty_id = f.id
+      LEFT JOIN (
+        SELECT faculty_id,
+               SUM(amount_minor) FILTER (WHERE status='paid') AS paid_minor,
+               COUNT(*) FILTER (WHERE status='paid')          AS payments,
+               MAX(paid_at)                                   AS last_paid_at
+          FROM payments GROUP BY faculty_id
+      ) p ON p.faculty_id = f.id
+     LIMIT GREATEST(COALESCE(p_limit,100),1)
+  ) t;
+
+  RETURN out;
+END $$;
+
+/** One account's receipts, for the drawer. */
+CREATE OR REPLACE FUNCTION public.sa_payments_for(p_faculty uuid, p_limit int DEFAULT 50)
+RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE out jsonb;
+BEGIN
+  PERFORM public.sa_gate('admin.dashboard');
+  SELECT COALESCE(jsonb_agg(row_to_json(r) ORDER BY r.created_at DESC), '[]'::jsonb) INTO out
+  FROM (
+    SELECT id, kind, tier, billing_period, credits_granted,
+           amount_minor, currency, status, created_at, paid_at,
+           checkout_session_id, invoice_id
+      FROM payments WHERE faculty_id = p_faculty
+     ORDER BY created_at DESC LIMIT GREATEST(COALESCE(p_limit,50),1)
+  ) r;
+  RETURN out;
+END $$;
+
+GRANT EXECUTE ON FUNCTION public.sa_revenue_overview(int)      TO authenticated;
+GRANT EXECUTE ON FUNCTION public.sa_revenue_by_user(int)       TO authenticated;
+GRANT EXECUTE ON FUNCTION public.sa_payments_for(uuid, int)    TO authenticated;
+
+DO $$
+DECLARE probe uuid;
+BEGIN
+  PERFORM public.sa_revenue_overview(30);
+  PERFORM public.sa_revenue_by_user(5);
+  SELECT id INTO probe FROM faculty LIMIT 1;
+  IF probe IS NOT NULL THEN PERFORM public.sa_payments_for(probe, 5); END IF;
+  RAISE NOTICE 'billing: revenue console reads run';
+END $$;
+
+-- ─────────────────────────────────────────────────────────────────────────
+-- §82  A request she already made should still look made
+--
+-- While card payments are off, "Request Pro" writes a `plan_requests` row
+-- and the card says so. That acknowledgement lived only in component
+-- state: refreshing the page put a live button back, so a teacher who had
+-- already asked was invited to ask again — and did, which is why
+-- plan_requests holds the same plan several times over.
+--
+-- The page now reads what she has already asked for, so the card can
+-- carry it across a reload. Only unfulfilled requests count: once a plan
+-- is actually granted, the card should offer the NEXT thing rather than
+-- claim a request is still outstanding.
+-- ─────────────────────────────────────────────────────────────────────────
+
+CREATE OR REPLACE FUNCTION public.plan_options()
+RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE costs jsonb; plans jsonb; trial_card jsonb; mine uuid;
+BEGIN
+  mine := public.current_faculty_id();
+
+  SELECT COALESCE(jsonb_object_agg(feature, cost), '{}'::jsonb) INTO costs FROM ai_credit_costs;
+
+  SELECT COALESCE(jsonb_agg(row_to_json(t) ORDER BY t.sort), '[]'::jsonb) INTO plans
+  FROM (
+    SELECT tier AS key, label AS name, credits,
+           price_usd::numeric AS price,
+           (price_usd * 10)::numeric AS annual,
+           price_aed, annual_aed,
+           sort,
+           CASE tier
+             WHEN 'basic' THEN 'For one teacher, one timetable.'
+             WHEN 'pro'   THEN 'A full timetable, planned a term at a time.'
+             WHEN 'max'   THEN 'Several classes, or a head of department.'
+           END AS blurb,
+           tier = 'pro' AS popular
+      FROM plan_tiers
+     WHERE purchasable
+  ) t;
+
+  SELECT jsonb_build_object(
+           'key', tier, 'name', label, 'credits', credits,
+           'price', 0, 'annual', 0, 'sort', -1,
+           'blurb', 'Try the whole thing. No card, nothing charged.',
+           'popular', false, 'is_trial', true, 'trial_days', 7
+         ) INTO trial_card
+    FROM plan_tiers WHERE tier = 'trial';
+
+  RETURN jsonb_build_object(
+    'usd_per_credit', 0.02,
+    'costs', costs,
+    'plans', plans,
+    'trial', trial_card,
+    -- What she has already asked for and not yet been given.
+    'requested', COALESCE((
+      SELECT jsonb_agg(DISTINCT plan)
+        FROM plan_requests
+       WHERE faculty_id = mine AND fulfilled_at IS NULL), '[]'::jsonb),
+    'topups', jsonb_build_array(
+      jsonb_build_object('key','topup_100','credits',100,'price',5),
+      jsonb_build_object('key','topup_300','credits',300,'price',14),
+      jsonb_build_object('key','topup_600','credits',600,'price',26)
+    )
+  );
+END $$;
+
+DO $$
+BEGIN
+  PERFORM public.plan_options();
+  RAISE NOTICE 'billing: the pricing page remembers what was already requested';
+END $$;
+
+
+-- ---------------------------------------------------------------------
+-- §83  `anon` was never revoked, and anon is the browser
+--
+-- §73, §75 and §80 each ended with
+--
+--     REVOKE EXECUTE ON FUNCTION … FROM public, authenticated;
+--
+-- which reads like it locks the door and does not. Supabase ships a
+-- default privilege that grants EXECUTE on every new function in
+-- `public` to `anon`, `authenticated` AND `service_role`, and `anon` is
+-- not a member of `public` in the SQL sense — a role explicitly granted
+-- keeps its grant when PUBLIC's is revoked. So all three functions were
+-- left callable by `anon`, which is the role attached to the publishable
+-- key that ships inside the browser bundle. Not a theoretical reader: a
+-- key anyone can read from our own JavaScript.
+--
+-- What that allowed, with no session at all:
+--
+--   expire_lapsed_subscriptions()  clear credits across the platform
+--   expire_subscription(uuid)      end one named teacher's plan
+--   apply_payment(uuid)            grant credits for an unpaid payment
+--
+-- All three are SECURITY DEFINER and none consult current_faculty_id(),
+-- because all three are meant to be called by the cron job and the
+-- webhook — service_role — where there is no session to consult. That
+-- is exactly why the grant matters: the gate was supposed to be the
+-- privilege, and the privilege was not there.
+--
+-- refresh_credits_if_due() is deliberately left alone. It resolves
+-- current_faculty_id() and returns NULL when there isn't one, so it is
+-- self-scoped by construction and a teacher calling it can only refresh
+-- herself.
+-- ---------------------------------------------------------------------
+
+REVOKE EXECUTE ON FUNCTION public.expire_subscription(uuid)        FROM anon;
+REVOKE EXECUTE ON FUNCTION public.expire_lapsed_subscriptions()    FROM anon;
+REVOKE EXECUTE ON FUNCTION public.apply_payment(uuid)              FROM anon;
+
+-- And re-state the earlier revokes, so this section stands alone if the
+-- ones above it are ever reordered.
+REVOKE EXECUTE ON FUNCTION public.expire_subscription(uuid)        FROM public, authenticated;
+REVOKE EXECUTE ON FUNCTION public.expire_lapsed_subscriptions()    FROM public, authenticated;
+REVOKE EXECUTE ON FUNCTION public.apply_payment(uuid)              FROM public, authenticated;
+
+/**
+ * Assert it, rather than trusting that the REVOKE above said what it
+ * meant. `has_function_privilege` answers the real question — can this
+ * role execute it — instead of the one the grant syntax answers.
+ */
+DO $$
+DECLARE r record; leaked text[] := '{}';
+BEGIN
+  FOR r IN
+    SELECT p.oid, p.proname, a.rolname
+      FROM pg_proc p
+      JOIN pg_namespace n ON n.oid = p.pronamespace
+      CROSS JOIN (SELECT unnest(ARRAY['anon','authenticated']) AS rolname) a
+     WHERE n.nspname = 'public'
+       AND p.proname IN ('expire_subscription',
+                         'expire_lapsed_subscriptions',
+                         'apply_payment')
+  LOOP
+    IF has_function_privilege(r.rolname, r.oid, 'execute') THEN
+      leaked := leaked || (r.proname || ' → ' || r.rolname);
+    END IF;
+  END LOOP;
+
+  IF array_length(leaked, 1) > 0 THEN
+    RAISE EXCEPTION 'service-only functions still reachable from the browser: %',
+      array_to_string(leaked, ', ');
+  END IF;
+
+  -- The cron job and the Stripe webhook must still be able to work.
+  IF NOT has_function_privilege('service_role',
+        'public.expire_lapsed_subscriptions()', 'execute')
+     OR NOT has_function_privilege('service_role',
+        'public.apply_payment(uuid)', 'execute') THEN
+    RAISE EXCEPTION 'revoked too far: service_role can no longer bill or expire';
+  END IF;
+
+  RAISE NOTICE 'billing: expiry and payment are service-only, and service_role still has them';
+END $$;
