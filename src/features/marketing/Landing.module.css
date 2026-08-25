@@ -2058,3 +2058,23 @@
   line-height: 1.65;
   color: var(--ink);
 }
+
+/* Each document ends by pointing at the other — they are one agreement,
+   and someone who lands on one usually needs both. */
+.legalCross {
+  margin-top: clamp(32px, 4vw, 52px);
+  padding-top: 20px;
+  border-top: 1px solid var(--line-soft);
+  font-size: var(--t-3);
+  color: var(--muted);
+}
+
+.legalCross a {
+  color: var(--accent);
+  text-decoration: none;
+  border-bottom: 1px solid color-mix(in oklab, var(--accent) 35%, transparent);
+}
+
+.legalCross a:hover {
+  border-bottom-color: var(--accent);
+}

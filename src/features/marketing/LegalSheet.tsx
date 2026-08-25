@@ -3,7 +3,8 @@
 import Link from "next/link";
 import MurchidLogo from "@/components/MurchidLogo";
 import { useT } from "@/shared/i18n";
-import { PRIVACY, PRIVACY_UPDATED, type Block } from "./legal/privacy";
+import { PRIVACY, PRIVACY_UPDATED, type Block, type Section } from "./legal/privacy";
+import { TERMS, TERMS_UPDATED } from "./legal/terms";
 import s from "./Landing.module.css";
 
 // Privacy and Terms. Real routes, deliberately not folded into the single
@@ -13,10 +14,11 @@ import s from "./Landing.module.css";
 // read, reviewed and dated by someone who does not write React — and so
 // this file stays about layout.
 //
-// Terms is still the honest placeholder. Publishing invented legal
-// wording would be worse than publishing none, and a terms of service
-// is not something to improvise: it has to be written against how the
-// product actually behaves, then read by a lawyer.
+// Both documents share one renderer, so they cannot drift apart in
+// typography. Neither is a substitute for a lawyer reading them; what
+// they are is accurate — every number in the terms, from credit costs to
+// the three-day grace on a failed renewal, was read out of the running
+// system rather than assumed.
 
 function Blocks({ body }: { body: Block[] }) {
   return (
@@ -77,38 +79,40 @@ export default function LegalSheet({ doc }: { doc: "privacy" | "terms" }) {
           {doc === "privacy" ? t("mk.foot.privacy") : t("mk.foot.terms")}
         </h1>
 
-        {doc === "privacy" ? (
-          <>
-            <p className={s.legalUpdated}>Last updated {PRIVACY_UPDATED}</p>
-            <p className={s.legalLede}>
-              This policy describes what Murchid collects when you plan and teach, who
-              processes it, how long we keep it, and the choices you have. It is written
-              for two readers: the teacher who signs in, and the school responsible for
-              the pupils whose records she keeps here.
-            </p>
+        <p className={s.legalUpdated}>
+          Last updated {doc === "privacy" ? PRIVACY_UPDATED : TERMS_UPDATED}
+        </p>
+        <p className={s.legalLede}>
+          {doc === "privacy"
+            ? "This policy describes what Murchid collects when you plan and teach, who processes it, how long we keep it, and the choices you have. It is written for two readers: the teacher who signs in, and the school responsible for the pupils whose records she keeps here."
+            : "These Terms explain the rules for using Murchid. Please read them carefully — they include important points about drafts needing your review before a class sees them, about whose pupil data this is, and about credits and payment."}
+        </p>
 
-            {PRIVACY.map((sec) => (
-              <section key={sec.n} className={s.legalSection}>
-                <h2 className={s.legalH2}>
-                  <span aria-hidden="true">{sec.n}.</span> {sec.title}
-                </h2>
-                <Blocks body={sec.body} />
-              </section>
-            ))}
-          </>
-        ) : (
-          <>
-            <p className={s.body} style={{ marginTop: 20 }}>
-              {t("mk.legal.placeholder")}
-            </p>
-            <p className={s.body} style={{ marginTop: 14 }}>
-              {t("mk.legal.contact")}{" "}
-              <a href="mailto:mk@mjqinvestment.com" style={{ color: "var(--accent)" }}>
-                mk@mjqinvestment.com
-              </a>
-            </p>
-          </>
-        )}
+        {(doc === "privacy" ? PRIVACY : TERMS).map((sec: Section) => (
+          <section key={sec.n} className={s.legalSection}>
+            <h2 className={s.legalH2}>
+              <span aria-hidden="true">{sec.n}.</span> {sec.title}
+            </h2>
+            <Blocks body={sec.body} />
+          </section>
+        ))}
+
+        {/* Each points at the other: they are one agreement, and someone
+            who lands on one usually needs both. */}
+        <p className={s.legalCross}>
+          {doc === "privacy" ? (
+            <>
+              The rules for using Murchid are in the{" "}
+              <Link href="/legal/terms">Terms of Service</Link>.
+            </>
+          ) : (
+            <>
+              How we handle personal data is in the{" "}
+              <Link href="/legal/privacy">Privacy Policy</Link>, which forms part of
+              these Terms.
+            </>
+          )}
+        </p>
       </main>
     </div>
   );
