@@ -47,6 +47,21 @@ const SERVER_ONLY = [
   // teacher's Supabase rows, so a cold service degrades to "not
   // connected yet" instead of a bare 404.
   "/api/library",
+  /**
+   * Checkout and the billing portal.
+   *
+   * Never handled locally: a browser that could move itself onto a paid
+   * tier is the whole reason `payments` has no write policy. Listing it
+   * here is about the FAILURE, though — since the request flow was
+   * removed, checkout is the only purchase path, so a build without
+   * API_PROXY_TARGET would throw a raw "HTTP 404" at a teacher trying to
+   * pay. Named here, she gets "needs the API service" instead.
+   *
+   * `/api/billing/plans` is deliberately NOT covered: reading the price
+   * list is a Supabase RPC and must keep working when the API is down,
+   * or the pricing page goes blank on a cold service.
+   */
+  "/api/billing/checkout", "/api/billing/portal", "/api/billing/config",
   // Most of /api/auth moved: provisioning is a database trigger and the
   // device claim is a policy, so only the parts that need a mail sender
   // and a bcrypt secret are left.
@@ -193,11 +208,21 @@ export async function resolve(
         return yes(await E.gradeAttempt(a, Number(body?.score), body?.feedback));
       return { handled: false };
 
-    // Plans and top-ups. No money changes hands here yet — see request_plan.
+    /**
+     * Plans. Reading only — buying is server-only for a reason.
+     *
+     * `request` used to live here: with Stripe unconfigured the pricing
+     * page wrote a row to `plan_requests` and told the teacher we would
+     * be in touch. Checkout exists now, so the fallback is gone, and
+     * with it the note that outlived it — a permanent request meant a
+     * plan asked about before checkout could never be bought after it.
+     *
+     * A browser must never be able to move itself onto a paid tier, so
+     * the only write path is POST /api/billing/checkout on the server,
+     * and the only thing that grants anything is a signed webhook.
+     */
     case "billing":
       if (a === "plans" && method === "GET") return yes(await E.planOptions());
-      if (a === "request" && method === "POST")
-        return yes(await E.requestPlan(body?.plan, Number(body?.credits) || 0, body?.kind));
       return { handled: false };
 
     case "student":

@@ -9562,3 +9562,276 @@ BEGIN
 
   RAISE NOTICE 'billing: expiry and payment are service-only, and service_role still has them';
 END $$;
+
+
+-- ---------------------------------------------------------------------
+-- §84  A checkout nobody finished is not a payment pending
+--
+-- Every press of a plan button inserts a `payments` row as `pending`
+-- BEFORE the teacher leaves for Stripe, because that row's id is what
+-- travels as client_reference_id and comes back on the webhook. Only
+-- paying flips it to `paid`.
+--
+-- So every abandoned checkout — a closed tab, a second thought at the
+-- card form, a teacher comparing two tiers — leaves a `pending` row that
+-- nothing will ever resolve. They are honest to her (`my_billing()`
+-- shows "Not finished" and leaves them out of the total) but the revenue
+-- console counts them, and that count only ever grows.
+--
+-- One hour is the cut. Stripe sessions live 24h, but one unpaid after an
+-- hour is not in flight, it is abandoned. If she does pay a stale
+-- session later the webhook still finds the row by id and apply_payment()
+-- still grants: `canceled` is a display state, not a lock, and the grant
+-- path never consults it.
+-- ---------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION public.expire_stale_checkouts()
+RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE n int;
+BEGIN
+  UPDATE payments
+     SET status = 'canceled', updated_at = now()
+   WHERE status = 'pending'
+     AND paid_at IS NULL
+     AND created_at < now() - INTERVAL '1 hour';
+  GET DIAGNOSTICS n = ROW_COUNT;
+  RETURN jsonb_build_object('at', now(), 'abandoned', n);
+END $$;
+
+-- §83 is why this is spelled out: Supabase grants EXECUTE on every new
+-- public function to `anon`, the role behind the key in the browser.
+REVOKE EXECUTE ON FUNCTION public.expire_stale_checkouts() FROM anon, public, authenticated;
+
+-- Hourly at :23, offset from the expiry sweep at :07 so the two are
+-- never contending for the same rows.
+DO $$
+BEGIN
+  PERFORM cron.unschedule('expire-stale-checkouts');
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
+
+SELECT cron.schedule(
+  'expire-stale-checkouts',
+  '23 * * * *',
+  $cron$SELECT public.expire_stale_checkouts();$cron$
+);
+
+
+-- ---------------------------------------------------------------------
+-- §85  Abandoned is not failed, and the last of the request flow
+--
+-- 1. §84 moves a stale checkout to 'canceled' to clear it out of
+--    `pending` — but the overview counted ('failed','canceled') together
+--    as `failed`, so the number simply moved to a more alarming column.
+--    "12 failed" would mean "12 people closed a tab", not twelve refused
+--    cards: the same misreading §84 set out to remove. Own bucket.
+--
+-- 2. `plan_options()` still built a `requested` array on every load of
+--    the pricing page, and nothing reads it since the request flow was
+--    removed from the UI.
+--
+-- 3. `request_plan()` was still granted to `authenticated`. Removing the
+--    caller is not removing the capability.
+-- ---------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION public.sa_revenue_overview(p_days integer DEFAULT 30)
+RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE since timestamptz := now() - (GREATEST(COALESCE(p_days,30),1) || ' days')::interval;
+        out jsonb;
+BEGIN
+  PERFORM public.sa_gate('admin.dashboard');
+
+  SELECT jsonb_build_object(
+    'days', GREATEST(COALESCE(p_days,30),1),
+    'currency', 'aed',
+    'collected_minor', COALESCE(SUM(amount_minor) FILTER (WHERE status='paid'), 0),
+    'refunded_minor',  COALESCE(SUM(amount_minor) FILTER (WHERE status='refunded'), 0),
+    'payments',        COUNT(*) FILTER (WHERE status='paid'),
+    -- A card the bank refused. Actionable.
+    'failed',          COUNT(*) FILTER (WHERE status='failed'),
+    -- A checkout nobody finished. Not a failure, and not actionable.
+    'abandoned',       COUNT(*) FILTER (WHERE status='canceled'),
+    'pending',         COUNT(*) FILTER (WHERE status='pending'),
+    'paying_accounts', COUNT(DISTINCT faculty_id) FILTER (WHERE status='paid'),
+    'subscriptions',   COUNT(*) FILTER (WHERE status='paid' AND kind='subscription'),
+    'topups',          COUNT(*) FILTER (WHERE status='paid' AND kind='topup')
+  ) INTO out
+  FROM payments WHERE created_at >= since;
+
+  out := out || jsonb_build_object(
+    'mrr_minor', (
+      SELECT COALESCE(SUM(
+        CASE WHEN s.billing_period = 'annual'
+             THEN ROUND(pt.annual_aed * 100 / 12.0)
+             ELSE ROUND(pt.price_aed * 100) END), 0)::bigint
+        FROM subscriptions s JOIN plan_tiers pt ON pt.tier = s.tier
+       WHERE s.status = 'active' AND pt.purchasable));
+
+  RETURN out;
+END $$;
+
+/** §82 minus `requested`. Everything else the page reads is unchanged. */
+CREATE OR REPLACE FUNCTION public.plan_options()
+RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE costs jsonb; plans jsonb; trial_card jsonb;
+BEGIN
+  SELECT COALESCE(jsonb_object_agg(feature, cost), '{}'::jsonb) INTO costs FROM ai_credit_costs;
+
+  SELECT COALESCE(jsonb_agg(row_to_json(t) ORDER BY t.sort), '[]'::jsonb) INTO plans
+  FROM (
+    SELECT tier AS key, label AS name, credits,
+           price_usd::numeric AS price,
+           (price_usd * 10)::numeric AS annual,
+           price_aed, annual_aed,
+           sort,
+           CASE tier
+             WHEN 'basic' THEN 'For one teacher, one timetable.'
+             WHEN 'pro'   THEN 'A full timetable, planned a term at a time.'
+             WHEN 'max'   THEN 'Several classes, or a head of department.'
+           END AS blurb,
+           tier = 'pro' AS popular
+      FROM plan_tiers
+     WHERE purchasable
+  ) t;
+
+  SELECT jsonb_build_object(
+           'key', tier, 'name', label, 'credits', credits,
+           'price', 0, 'annual', 0, 'sort', -1,
+           'blurb', 'Try the whole thing. No card, nothing charged.',
+           'popular', false, 'is_trial', true, 'trial_days', 7
+         ) INTO trial_card
+    FROM plan_tiers WHERE tier = 'trial';
+
+  -- `topups` stays: the page no longer renders it, but the shape is
+  -- public and dropping a key is how a forgotten caller starts throwing.
+  RETURN jsonb_build_object(
+    'usd_per_credit', 0.02,
+    'costs', costs,
+    'plans', plans,
+    'trial', trial_card,
+    'topups', jsonb_build_array(
+      jsonb_build_object('key','topup_100','credits',100,'price',5),
+      jsonb_build_object('key','topup_300','credits',300,'price',14),
+      jsonb_build_object('key','topup_600','credits',600,'price',26)
+    )
+  );
+END $$;
+
+-- Dead code is not the same as no capability.
+REVOKE EXECUTE ON FUNCTION public.request_plan(text, int, text) FROM anon, public, authenticated;
+
+DO $$
+DECLARE n int;
+BEGIN
+  IF has_function_privilege('authenticated', 'public.request_plan(text,int,text)', 'execute')
+     OR has_function_privilege('anon', 'public.request_plan(text,int,text)', 'execute') THEN
+    RAISE EXCEPTION 'request_plan is still reachable from the browser';
+  END IF;
+  IF has_function_privilege('anon', 'public.expire_stale_checkouts()', 'execute')
+     OR has_function_privilege('authenticated', 'public.expire_stale_checkouts()', 'execute') THEN
+    RAISE EXCEPTION 'expire_stale_checkouts is reachable from the browser';
+  END IF;
+  SELECT COUNT(*) INTO n FROM cron.job WHERE jobname = 'expire-stale-checkouts';
+  IF n <> 1 THEN RAISE EXCEPTION 'expire-stale-checkouts is not scheduled (found %)', n; END IF;
+  IF NOT (public.sa_revenue_overview_shape_ok()) THEN NULL; END IF;
+EXCEPTION WHEN undefined_function THEN
+  RAISE NOTICE 'billing: abandoned split from failed, request_plan closed, sweep scheduled';
+END $$;
+
+
+-- ---------------------------------------------------------------------
+-- §86  my_credits() lost its tier to this very file
+--
+-- §64 defines my_credits() returning `plan` (the billing cadence) and no
+-- `tier`. A richer version — with `tier`, `subscription_active` and
+-- `ends_at` — was applied to the live database directly and never came
+-- back into this file, so the next `npm run db:tune` quietly replaced it
+-- with §64's older shape.
+--
+-- That is the hazard of an out-of-band change to an append-only log: the
+-- file is the source of truth, so anything not written here is reverted
+-- the next time it runs, silently, and only surfaces when something
+-- downstream reads a key that is no longer there.
+--
+-- What broke: the pricing page decides "your current plan" by comparing
+-- `tier`. With the key gone the comparison was against undefined, so
+-- EVERY card offered a buy button — including the one already paid for.
+-- ---------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION public.my_credits()
+RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE fid uuid; uid uuid; out jsonb;
+BEGIN
+  fid := public.current_faculty_id();
+  IF fid IS NULL THEN RETURN NULL; END IF;
+  uid := (SELECT auth.uid());
+
+  SELECT jsonb_build_object(
+    'balance',   COALESCE(c.balance, 0),
+    'allowance', COALESCE(c.monthly_allowance, 0),
+    'renews_at', c.next_refresh_at,
+    -- `plan` is the billing CADENCE ('monthly' | 'annual' | 'trial').
+    -- `tier` is the PRODUCT ('basic' | 'pro' | 'max' | 'trial').
+    -- Both are needed and they are not interchangeable.
+    'plan',      s.plan,
+    'tier',      s.tier,
+    'status',    s.status,
+    'subscription_active', public.subscription_active_for(fid),
+    'ends_at',   COALESCE(s.current_period_end, s.trial_ends_at),
+    'costs', (
+      SELECT COALESCE(jsonb_object_agg(feature, cost), '{}'::jsonb)
+        FROM ai_credit_costs
+    ),
+    'recent', (
+      SELECT COALESCE(jsonb_agg(row_to_json(r) ORDER BY r.created_at DESC), '[]'::jsonb)
+        FROM (
+          SELECT operation, credits, tokens_in, tokens_out, cost_usd, created_at
+            FROM usage_logs
+           WHERE user_id = uid AND credits > 0
+           ORDER BY created_at DESC
+           LIMIT 20
+        ) r
+    )
+  ) INTO out
+  FROM credits c
+  LEFT JOIN subscriptions s ON s.faculty_id = c.faculty_id
+  WHERE c.faculty_id = fid;
+
+  RETURN out;
+END $$;
+GRANT EXECUTE ON FUNCTION public.my_credits() TO authenticated;
+
+/**
+ * Assert the SHAPE, not just that it runs.
+ *
+ * §64 ran perfectly while returning the wrong keys — which is exactly
+ * why nobody noticed. A missing key is a silent `undefined` in
+ * JavaScript, so the check has to live here, where it can fail loudly.
+ */
+DO $$
+DECLARE missing text[] := '{}'; k text; def text;
+BEGIN
+  SELECT pg_get_functiondef(oid) INTO def FROM pg_proc WHERE proname = 'my_credits';
+  FOREACH k IN ARRAY ARRAY['balance','allowance','renews_at','plan','tier',
+                           'status','subscription_active','ends_at','costs','recent']
+  LOOP
+    IF position('''' || k || '''' IN def) = 0 THEN missing := missing || k; END IF;
+  END LOOP;
+  IF array_length(missing, 1) > 0 THEN
+    RAISE EXCEPTION 'my_credits() is missing: %', array_to_string(missing, ', ');
+  END IF;
+
+  IF (public.sa_revenue_overview(30)) ? 'abandoned' IS NOT TRUE THEN
+    RAISE EXCEPTION 'sa_revenue_overview() is missing the abandoned bucket';
+  END IF;
+
+  RAISE NOTICE 'billing: my_credits returns tier, revenue splits abandoned from failed';
+END $$;

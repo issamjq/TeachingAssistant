@@ -113,10 +113,14 @@ export default function SuperAdminRevenue() {
               value={overview.paying_accounts}
               note={`${overview.subscriptions} plans · ${overview.topups} top-ups`}
             />
+            {/* Refused cards only. Abandoned checkouts used to be counted
+                here, which turned "someone closed a tab" into "a payment
+                failed" — the alarming reading of a number that needs no
+                action. They sit in the note now, next to pending. */}
             <Stat
-              icon={AlertTriangle} label="Didn't go through"
+              icon={AlertTriangle} label="Cards refused"
               value={overview.failed}
-              note={`${overview.pending} still unfinished`}
+              note={`${overview.pending} in flight · ${overview.abandoned ?? 0} abandoned`}
               tone={overview.failed > 0 ? "clay" : undefined}
             />
           </div>

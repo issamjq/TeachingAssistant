@@ -3201,7 +3201,10 @@ export default function Landing({ onOpenStudio, heroVariant = null, initialPage 
             },
           });
         } catch (e) {
-          console.warn(`Failed to import student ${st.firstName} ${st.lastName}:`, e);
+          // The name goes to HER, in `failed` below — not to the console.
+          // A devtools log is readable by anyone at the machine and gets
+          // scraped into error reporters, and these are children.
+          console.warn("[import] a student row failed:", e?.message || e);
           failed.push(`${st.firstName || ""} ${st.lastName || ""}`.trim() || "(unnamed row)");
         }
       }

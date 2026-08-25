@@ -1735,23 +1735,6 @@ export async function planOptions() {
   return data;
 }
 
-/**
- * Which plan she reached for, and what she had left when she did.
- *
- * Recorded rather than charged, because card payments are not connected
- * yet. It is also the only demand signal that exists before they are —
- * the plan mix in the pricing model is currently a guess.
- */
-export async function requestPlan(plan: string, credits: number, kind = "subscription") {
-  const { data, error } = await supabase.rpc("request_plan", {
-    p_plan: plan,
-    p_credits: credits,
-    p_kind: kind,
-  });
-  if (error) throw error;
-  return data;
-}
-
 /** Her students, each with what they owe and what they have done. */
 export async function studentReport() {
   const { data, error } = await supabase.rpc("teacher_student_report");

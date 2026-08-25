@@ -41,15 +41,6 @@ export default function Plans() {
   const [data, setData] = useState(null);
   const [credits, setCredits] = useState(null);
   const [error, setError] = useState(null);
-  /**
-   * Every plan she has asked about, not just the last one.
-   *
-   * This was a single key, so requesting Basic and then Pro moved the
-   * "noted" line onto Pro and put a live button back on Basic — it read
-   * as if the first request had been forgotten, which is the one thing a
-   * request flow must not do.
-   */
-  const [asked, setAsked] = useState(() => new Set());
   const [busy, setBusy] = useState(null);
   const [annual, setAnnual] = useState(false);
   /** null until asked, so the buttons do not flicker between two labels. */
@@ -65,44 +56,58 @@ export default function Plans() {
         setData(p);
         setCredits(c);
         setPayEnabled(Boolean(cfg?.enabled));
-        // Seeded from the database so a reload does not offer to request
-        // a plan she has already asked for.
-        setAsked(new Set(p?.requested || []));
       })
       .catch((e) => setError(e.message));
   }, []);
 
   /**
-   * Buy it, or ask for it.
+   * Buy it. There is no other path.
    *
-   * With Stripe configured this creates a Checkout Session and hands the
-   * teacher over — card details never reach us. Without it, the old
-   * request flow still works, so the page keeps functioning on the day
-   * before the keys arrive rather than presenting dead buttons.
+   * This used to fork: with Stripe configured it opened a Checkout
+   * Session, and without it recorded a row in `plan_requests` and left
+   * the card saying "Requested — we'll be in touch". That note then
+   * outlived its own reason. The request is permanent, so a teacher who
+   * asked about a plan before checkout existed could never buy that plan
+   * afterwards — the card had replaced its own button with a receipt for
+   * a conversation nobody was going to have.
    *
-   * Nothing here grants anything. The plan changes when a signed webhook
-   * says the money arrived; this only opens the door to Stripe.
+   * Now the button does one thing on every card, monthly or annual: it
+   * goes to Stripe. If Stripe is not configured the request fails and
+   * says so, which is honest, rather than quietly filing a note.
+   *
+   * Nothing is remembered on the way out. Coming back without paying —
+   * cancelling, or just pressing back — leaves the page exactly as it
+   * was, because the only thing that changes a card is a payment that
+   * actually cleared.
    */
-  const choose = async (key, creditCount, kind) => {
+  const choose = async (key) => {
     setBusy(key);
+    setError(null);   // a fresh attempt clears the last failure
     try {
-      if (payEnabled) {
-        const body = { plan: key, period: annual ? "annual" : "monthly" };
-        const { url } = await api("/api/billing/checkout", { method: "POST", body });
-        if (!url) throw new Error("Stripe did not return a payment page.");
-        window.location.href = url;
-        return;                       // leaving the page; keep the spinner on
-      }
-      await api("/api/billing/request", { method: "POST", body: { plan: key, credits: creditCount, kind } });
-      setAsked((prev) => new Set(prev).add(key));
+      const { url } = await api("/api/billing/checkout", {
+        method: "POST",
+        body: { plan: key, period: annual ? "annual" : "monthly" },
+      });
+      if (!url) throw new Error("Stripe did not return a payment page.");
+      window.location.href = url;
+      // Deliberately no setBusy(null): the tab is leaving, and clearing
+      // it would flash the button back to "Choose" mid-navigation.
     } catch (e) {
       setError(e.message);
-    } finally {
-      if (!payEnabled) setBusy(null);
+      setBusy(null);
     }
   };
 
-  if (error) {
+  /**
+   * Only a failure to LOAD replaces the page.
+   *
+   * A failed checkout must not: with the request flow gone, a click that
+   * cannot reach Stripe is an ordinary outcome, and blanking the whole
+   * grid over it left her staring at one line of error text with no
+   * prices, no retry and no way back except a reload. Load failures
+   * still take over, because there is nothing else to show.
+   */
+  if (error && !data) {
     return (
       <div className="bg-paper border border-accent rounded-lg p-4">
         <p className="font-mono text-[10px] uppercase tracking-wider text-accent">{error}</p>
@@ -161,12 +166,68 @@ export default function Plans() {
         annual view on purpose: offering seven free days beside three
         yearly prices answers a question nobody asked.
       */}
+      {/* A checkout that failed, said above the prices rather than instead
+          of them — she can read what went wrong and press the button
+          again without losing the page. Dismisses itself on the next
+          attempt, because `choose` clears the error before it starts. */}
+      {error && (
+        <div
+          className="border border-accent rounded-xl p-4 bg-paper flex items-start gap-3"
+          role="alert"
+        >
+          <p className="text-sm text-ink flex-1">{error}</p>
+          <button
+            type="button"
+            onClick={() => setError(null)}
+            className="font-mono text-[10px] uppercase tracking-wider text-muted hover:text-ink transition"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+
       <div className={`grid gap-4 ${annual ? "md:grid-cols-3" : "md:grid-cols-2 xl:grid-cols-4"}`}>
         {(annual ? data.plans || [] : [data.trial, ...(data.plans || [])].filter(Boolean)).map((p) => {
           const price = annual ? p.annual : p.price;
           const per = annual ? "/year" : "/month";
           const buys = worksOutAs(p.credits, costs);
-          const current = credits?.plan === p.key;
+          /**
+           * Is this the card she is already on?
+           *
+           * `tier`, not `plan`. my_credits() returns both and they are
+           * different axes: `plan` is the billing CADENCE ('monthly',
+           * 'annual') and `tier` is the PRODUCT ('basic', 'pro', 'max').
+           * Comparing plan against a tier key meant 'monthly' === 'pro',
+           * which is false for every paid card — so a teacher who had
+           * just paid for Pro was still offered a button to buy Pro.
+           *
+           * The period has to agree too, so someone on Pro monthly can
+           * still switch to Pro annual: the annual card stays live for
+           * her, and only the one she is actually on goes quiet.
+           */
+          const samePeriod = annual
+            ? credits?.plan === "annual"
+            : credits?.plan === "monthly";
+          /**
+           * A plan she is on AND paying for.
+           *
+           * `status` matters as much as the tier. When a renewal card
+           * declines the webhook writes status='past_due' and leaves
+           * tier and plan untouched — so a tier-only check called Max
+           * her "current plan" and rendered no button on the one card
+           * she needed to buy. She could not generate and could not
+           * re-purchase.
+           *
+           * Gating on `subscription_active` is not enough either: it
+           * stays true through the three-day grace, which would lock her
+           * out for exactly as long as she is most likely to be trying
+           * to fix it. Only a plan that is genuinely active hides its
+           * own button.
+           */
+          const paying = credits?.status === "active" || credits?.status === "trialing";
+          const current = p.is_trial
+            ? credits?.tier === "trial" && paying
+            : credits?.tier === p.key && samePeriod && paying;
           return (
             <div
               key={p.key}
@@ -242,22 +303,9 @@ export default function Plans() {
                 <p className="font-mono text-[10px] uppercase tracking-wider text-muted text-center py-2.5">
                   Every account starts here
                 </p>
-              ) : asked.has(p.key) ? (
-                <p className="text-sm text-sage text-center py-2.5">
-                  Requested — we&rsquo;ll be in touch.
-                  <span className="block text-xs text-muted mt-0.5">Nothing charged.</span>
-                </p>
               ) : (
-                /* The label says what the button actually does: until card
-                   payments are switched on it registers interest, and
-                   calling that "Choose Pro" promises a checkout that does
-                   not exist yet. */
-                <Button onClick={() => choose(p.key, p.credits, "subscription")} disabled={busy === p.key}>
-                  {busy === p.key
-                    ? (payEnabled ? "Taking you to Stripe…" : "Sending…")
-                    : payEnabled
-                      ? `Choose ${p.name}`
-                      : `Request ${p.name}`}
+                <Button onClick={() => choose(p.key)} disabled={busy === p.key}>
+                  {busy === p.key ? "Taking you to Stripe…" : `Choose ${p.name}`}
                 </Button>
               )}
             </div>
@@ -265,13 +313,14 @@ export default function Plans() {
         })}
       </div>
 
-      {/* Said plainly rather than hidden behind a button that does nothing. */}
+      {/* Stripe unreachable. The buttons above still go to checkout and
+          will fail loudly there rather than silently doing nothing —
+          this says why before she finds out the hard way. */}
       {payEnabled === false && (
         <div className="border border-line rounded-xl p-5 bg-paper-warm/40 text-center">
           <p className="text-sm text-ink">
-            <strong>Card payments are being switched on.</strong> Choose a plan above and we&rsquo;ll
-            set it up with you directly — you won&rsquo;t lose anything you&rsquo;ve made in the
-            meantime.
+            <strong>Card payments are temporarily unavailable.</strong> Nothing you have made is
+            affected, and your current plan keeps working. Please try again shortly.
           </p>
         </div>
       )}
