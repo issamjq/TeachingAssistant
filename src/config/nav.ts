@@ -208,7 +208,11 @@ export const SECTIONS_BY_ROLE: Record<Role, Set<string>> = {
     "teaching-skills",
     "reports",
     "account",
-  , "plans", "credit-usage", "billing"]),
+  /* PUBLIC TEST PERIOD: no plans and no billing, so those two surfaces
+     are gone. `credit-usage` STAYS — a teacher on a fixed grant still
+     needs to see where it went, and that page shows credits only, never
+     a plan or a price. */
+  , "credit-usage"]),
   admin: new Set([
     "superadmin-dashboard", "superadmin-console", "superadmin-students",
     "superadmin-orgs", "superadmin-usage", "superadmin-revenue", "superadmin-costs", "account",

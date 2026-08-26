@@ -9835,3 +9835,198 @@ BEGIN
 
   RAISE NOTICE 'billing: my_credits returns tier, revenue splits abandoned from failed';
 END $$;
+
+
+-- ─────────────────────────────────────────────────────────────────────────
+-- §87  The public test: no plans, one grant of 800
+-- ─────────────────────────────────────────────────────────────────────────
+--
+-- Murchid is opening to the public for testing, and a paywall in front of
+-- an untested product buys nothing but a smaller sample. So the plans go
+-- away: every teacher gets the same 800 credits, and the only thing that
+-- can stop a generation is having spent them.
+--
+-- What is deliberately NOT changed:
+--
+--   * The credit costs. A lesson plan still costs 8, a quiz still costs 2.
+--     The whole point of the test is to learn what real teachers actually
+--     spend, and that number is worthless if the meter is re-tuned first.
+--   * The metering itself — spend_credits(), the usage log, the per-feature
+--     breakdown. The usage page stays; a teacher on a fixed grant needs to
+--     see where it went more than one on a plan does.
+--   * The subscriptions and payments tables, and every admin view over
+--     them. Nothing is dropped. The rows keep being written.
+--
+-- The lever is one function, not thirty policies. Every write policy in
+-- §37 ends in `AND subscription_active()`, and the backend's per-account
+-- variant is subscription_active_for(). Making both answer `true` turns
+-- plan gating off everywhere at once — including in expire_lapsed_
+-- subscriptions(), whose `lapsed` CTE is now empty, and in
+-- refresh_credits_if_due(), which stops taking credits away.
+--
+-- To bring plans back: revert this section forward with §86's definitions
+-- of both functions (they are in this file, above), restore the nav
+-- entries in src/config/nav.ts and the two redirecting page.tsx files.
+
+CREATE OR REPLACE FUNCTION public.subscription_active_for(p_faculty uuid)
+RETURNS boolean
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+  /* PUBLIC TEST PERIOD: there are no plans, so nothing can lapse. The
+     argument is kept so every call site and grant stays valid. */
+  SELECT p_faculty IS NOT NULL;
+$$;
+
+CREATE OR REPLACE FUNCTION public.subscription_active()
+RETURNS boolean
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+  /* PUBLIC TEST PERIOD: see subscription_active_for(). Still requires a
+     session — an anonymous caller has no faculty and no business writing.
+     Dropping that check would turn a billing switch into a security hole. */
+  SELECT (SELECT auth.uid()) IS NOT NULL;
+$$;
+
+-- §83: Supabase grants EXECUTE on every new function to `anon` as well as
+-- `authenticated`, and CREATE OR REPLACE re-runs that default. Both of
+-- these are SECURITY DEFINER, so revoke again and assert it took.
+REVOKE EXECUTE ON FUNCTION public.subscription_active_for(uuid) FROM anon;
+REVOKE EXECUTE ON FUNCTION public.subscription_active()         FROM anon;
+GRANT  EXECUTE ON FUNCTION public.subscription_active_for(uuid) TO authenticated;
+GRANT  EXECUTE ON FUNCTION public.subscription_active()         TO authenticated;
+
+DO $$
+BEGIN
+  IF has_function_privilege('anon', 'public.subscription_active_for(uuid)', 'EXECUTE')
+     OR has_function_privilege('anon', 'public.subscription_active()', 'EXECUTE') THEN
+    RAISE EXCEPTION 'anon can still execute the subscription gate functions';
+  END IF;
+END $$;
+
+-- ── the grant itself ──────────────────────────────────────────────────
+--
+-- 800 is not arbitrary: it is what the Max plan gave for AED 295, which
+-- makes the test a real answer to "is this worth paying for" rather than
+-- a taster.
+--
+-- It is written onto the EXISTING 'trial' tier rather than a new
+-- 'public_test' one, and that is a deliberate choice against the tidier
+-- name. `subscriptions.plan` carries a CHECK of ('trial','monthly',
+-- 'quarterly','annual') and `subscriptions.tier` is a foreign key into
+-- this table; a new value means editing a constraint, and every admin
+-- view that joins `plan_tiers ON tier = COALESCE(s.tier, 'trial')` would
+-- need to learn about it. Widening a constraint to rename something is a
+-- lot of blast radius for a label. A public test period IS an extended
+-- free trial — so the row keeps its key and gets the honest label.
+--
+-- The other three tiers are left exactly as they are. Nothing sells them
+-- any more, but the payments already taken reference them, and the
+-- revenue views join them.
+
+UPDATE public.plan_tiers
+   SET label = 'Public test', credits = 800
+ WHERE tier = 'trial';
+
+CREATE OR REPLACE FUNCTION public.provision_faculty()
+RETURNS trigger
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp
+AS $function$
+DECLARE grant_credits integer;
+BEGIN
+  SELECT credits INTO grant_credits FROM plan_tiers WHERE tier = 'trial';
+
+  INSERT INTO credits (faculty_id, balance, monthly_allowance)
+  VALUES (NEW.id, COALESCE(grant_credits, 800), COALESCE(grant_credits, 800))
+  ON CONFLICT (faculty_id) DO NOTHING;
+
+  /* PUBLIC TEST PERIOD: 'active' with no end date, not 'trialing' with a
+     seven-day clock. Gating is off either way, but leaving a countdown on
+     the row is a landmine for whoever turns gating back on — it would
+     expire every account that signed up during the test on the day it was
+     restored. The row is still written: my_credits(), the admin console
+     and the revenue views all join subscriptions, and a missing row reads
+     as broken rather than as free. */
+  INSERT INTO subscriptions (faculty_id, plan, tier, status, current_period_start)
+  VALUES (NEW.id, 'trial', 'trial', 'active', now())
+  ON CONFLICT DO NOTHING;
+
+  RETURN NEW;
+EXCEPTION WHEN OTHERS THEN
+  -- Unchanged: never block a sign-up over the entitlement rows. A teacher
+  -- with no credits row is recoverable; one who could not create an
+  -- account at all is not.
+  RAISE WARNING 'provision_faculty: %', SQLERRM;
+  RETURN NEW;
+END $function$;
+
+-- ── everyone already here ─────────────────────────────────────────────
+--
+-- Existing accounts get the same grant. Written as a top-up, not an
+-- assignment: allowance moves to 800 for everyone, but the balance is
+-- only raised, never lowered. A teacher who bought Max and still holds
+-- more than 800 keeps what she paid for — taking it back because the
+-- shop closed would be theft, and she is exactly the person whose
+-- goodwill the test needs.
+--
+-- Any lapsed row is reopened, because expire_lapsed_subscriptions()
+-- already zeroed some of them and the grant is meant to be universal.
+
+UPDATE public.credits c
+   SET monthly_allowance = 800,
+       balance = GREATEST(COALESCE(c.balance, 0), 800),
+       updated_at = now()
+ WHERE COALESCE(c.monthly_allowance, 0) <> 800
+    OR COALESCE(c.balance, 0) < 800;
+
+UPDATE public.subscriptions s
+   SET status = 'active',
+       tier = 'trial',
+       current_period_start = COALESCE(s.current_period_start, now()),
+       trial_ends_at = NULL,
+       updated_at = now()
+ WHERE s.status IN ('expired', 'canceled')
+    OR s.tier = 'free';
+
+-- Teachers with no rows at all (provisioning that failed, or an account
+-- made before the trigger existed) get them now.
+INSERT INTO public.credits (faculty_id, balance, monthly_allowance)
+SELECT f.id, 800, 800 FROM public.faculty f
+ON CONFLICT (faculty_id) DO NOTHING;
+
+INSERT INTO public.subscriptions (faculty_id, plan, tier, status, current_period_start)
+SELECT f.id, 'trial', 'trial', 'active', now()
+  FROM public.faculty f
+ WHERE NOT EXISTS (SELECT 1 FROM public.subscriptions s WHERE s.faculty_id = f.id);
+
+-- ── prove it ──────────────────────────────────────────────────────────
+--
+-- §86 is the reason for asserting rather than trusting: this file is
+-- append-only and re-run whole, so a later CREATE OR REPLACE above could
+-- silently undo any of the above. A failure here is loud and blocks the
+-- migration, which is the point.
+
+DO $$
+DECLARE short int; lapsed int;
+BEGIN
+  IF NOT public.subscription_active_for('00000000-0000-0000-0000-000000000001'::uuid) THEN
+    RAISE EXCEPTION 'subscription_active_for() still gates on a plan';
+  END IF;
+
+  SELECT COUNT(*) INTO short FROM public.credits
+   WHERE COALESCE(monthly_allowance, 0) <> 800 OR COALESCE(balance, 0) < 800;
+  IF short > 0 THEN
+    RAISE EXCEPTION '% account(s) did not get the 800-credit grant', short;
+  END IF;
+
+  SELECT COUNT(*) INTO lapsed FROM public.subscriptions
+   WHERE status IN ('expired', 'canceled') OR tier = 'free';
+  IF lapsed > 0 THEN
+    RAISE EXCEPTION '% subscription(s) still lapsed after the public-test grant', lapsed;
+  END IF;
+
+  IF (SELECT credits FROM public.plan_tiers WHERE tier = 'trial') <> 800 THEN
+    RAISE EXCEPTION 'the public-test grant is not 800';
+  END IF;
+
+  RAISE NOTICE 'public test: plan gating off, everyone on 800 credits';
+END $$;

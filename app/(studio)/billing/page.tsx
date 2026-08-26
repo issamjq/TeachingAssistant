@@ -1,14 +1,14 @@
-import type { Metadata } from "next";
-import Billing from "@/views/Billing";
+import { redirect } from "next/navigation";
 
-// Her own account only — my_billing() reads the caller's faculty id from
-// the session, and `payments` has a select-only owner policy with no
-// write policy at all, so this segment carries no authorisation of its own.
-export const metadata: Metadata = {
-  title: "Billing — Murchid",
-  robots: { index: false, follow: false },
-};
-
+/**
+ * ── PUBLIC TEST PERIOD ───────────────────────────────────────────────
+ * Nobody is charged during the public test, so there is no invoice
+ * history to show and no card on file to manage. Redirects to the usage
+ * page for the same reason /plans does — see that file.
+ *
+ * src/views/Billing.jsx is left in place, unimported and unrouted, so
+ * this is a one-file revert when billing comes back.
+ */
 export default function BillingPage() {
-  return <Billing />;
+  redirect("/credit-usage");
 }
