@@ -11182,3 +11182,66 @@ BEGIN
   RAISE NOTICE 'billing switch: % paid account(s) protected, % on the free grant',
     paid_rows, unpaid_rows;
 END $$;
+
+
+-- ─────────────────────────────────────────────────────────────────────────
+-- §91  The marketing site has to know too
+-- ─────────────────────────────────────────────────────────────────────────
+--
+-- The landing page sells three plans at 45, 129 and 295 AED. Flip the
+-- switch to free and it goes on selling them — to the exact audience the
+-- free period exists to attract. A visitor reads a price, signs up, and
+-- finds no way to pay and no plan on their account. That is worse than
+-- either mode on its own, because it is the two disagreeing in public.
+--
+-- So the landing has to read the switch, and the landing has no session.
+-- feature_flags is `FOR SELECT TO authenticated`, and billing_enabled()
+-- is revoked from anon (§89) because it is the last clause of every RLS
+-- write policy — anything anon can call there is worth being careful
+-- about.
+--
+-- This is a separate, deliberately tiny function that anon CAN call. It
+-- returns two facts and nothing else: whether plans are on sale, and how
+-- many credits the free grant is. Both are already printed on a public
+-- web page, so there is nothing here a visitor could not read by looking.
+-- No counts, no account data, no table access — sa_billing_mode() keeps
+-- those behind sa_gate('admin.billing').
+--
+-- The grant to anon is the ONE deliberate exception to §83's rule, and it
+-- is asserted in the positive below so a future blanket revoke cannot
+-- quietly blank the pricing section.
+
+CREATE OR REPLACE FUNCTION public.public_billing_mode()
+RETURNS jsonb
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+  SELECT jsonb_build_object(
+    'enabled',    public.billing_enabled(),
+    'free_grant', public.free_grant_credits()
+  );
+$$;
+
+GRANT EXECUTE ON FUNCTION public.public_billing_mode() TO anon, authenticated;
+
+DO $$
+BEGIN
+  -- Positive assertion: this one MUST be reachable without a session, or
+  -- the pricing section has nothing to render and the landing page
+  -- silently falls back to advertising plans during a free period.
+  IF NOT has_function_privilege('anon', 'public.public_billing_mode()', 'EXECUTE') THEN
+    RAISE EXCEPTION 'anon cannot read the public billing mode — the landing page needs it';
+  END IF;
+
+  -- And the negative one it must not drag in with it.
+  IF has_function_privilege('anon', 'public.billing_enabled()', 'EXECUTE')
+     OR has_function_privilege('anon', 'public.sa_billing_mode()', 'EXECUTE')
+     OR has_function_privilege('anon', 'public.sa_set_billing(boolean)', 'EXECUTE') THEN
+    RAISE EXCEPTION 'the public billing read has widened anon''s reach';
+  END IF;
+
+  IF (public.public_billing_mode()) ?& ARRAY['enabled','free_grant'] IS NOT TRUE THEN
+    RAISE EXCEPTION 'public_billing_mode() is missing a key the landing page reads';
+  END IF;
+
+  RAISE NOTICE 'landing page can read the billing switch';
+END $$;

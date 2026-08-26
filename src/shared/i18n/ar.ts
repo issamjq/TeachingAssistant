@@ -1340,6 +1340,25 @@ export const AR: Partial<Record<TranslationKey, string>> = {
   "mk.foot.legal": "قانوني",
   "mk.price.best": "اختيار معظم المعلّمين",
   "mk.price.save": "وفّر {save}%",
+  // ── Free public test (db/tune.sql §89/§91) ──────────────────────
+  // The paid copy above stays put; these are its counterparts for
+  // when the billing switch is off. Two complete sets rather than
+  // interpolated fragments, so each reads like it was written on
+  // purpose instead of assembled.
+  "mk.free.q5.q": "كم تكلفته الآن؟",
+  "mk.free.q5.a": "لا شيء. نحن في فترة اختبار عام، فالاستوديو كامل مجاني ولا نطلب بطاقة. كل حساب يحصل على {credits} رصيد للتوليد. ستعود الخطط المدفوعة لاحقًا، ولن يضيع شيء ممّا أنشأته.",
+  "mk.free.title": "مجّاني أثناء فترة الاختبار العام.",
+  "mk.free.lede": "لا خطط، ولا بطاقة، ولا شيء تختاره. كل معلّم يسجّل يحصل على {credits} رصيد — الاستوديو كامل، بكل وحداته، مثل أكبر خطة مدفوعة تمامًا.",
+  "mk.free.badge": "اختبار عام",
+  "mk.free.credits": "{credits} رصيد، مجانًا",
+  "mk.free.creditsSub": "نحو {lessons} خطة درس كاملة، أو مئات الاختبارات وأوراق العمل والعروض.",
+  "mk.free.note": "نحن نختبر مع معلّمين حقيقيين قبل أن نبدأ التحصيل. ستعود الخطط المدفوعة لاحقًا — ولن يضيع شيء ممّا أنشأته هنا.",
+  "mk.free.cta": "ابدأ مجانًا",
+  "mk.free.ctaNote": "بلا بطاقة. بلا خطة تختارها. بالعربية والإنجليزية.",
+  "mk.free.authPoint": "الاستوديو كامل، مجانًا أثناء الاختبار العام. بلا بطاقة، ولا أي خصم.",
+  "mk.free.finalSub": "مجّاني أثناء الاختبار العام، دون طلب بطاقة. أول فصل تسلّمه هو آخر فصل تبنيه بيدك.",
+  "mk.free.trust": "مجاني أثناء الاختبار · بلا بطاقة · بالعربية والإنجليزية",
+  "mk.free.faq": "كل شيء الآن — نحن في فترة اختبار عام، فالاستوديو كامل مجاني ولا نطلب بطاقة. كل حساب يحصل على {credits} رصيد للتوليد. ستعود الخطط المدفوعة لاحقًا، ولن يضيع شيء ممّا أنشأته.",
   "mk.price.everyPlan": "كلّ اشتراك يشمل",
   "mk.plan.billedMonthly": "يُحسب {total} درهماً كلّ شهر.",
   "mk.plan.billed": "يُدفع {total} درهماً مقدّماً، أقلّ بـ {save}% شهرياً.",

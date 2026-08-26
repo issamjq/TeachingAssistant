@@ -1378,6 +1378,25 @@ export const EN = {
   "mk.foot.legal": "Legal",
   "mk.price.best": "Most teachers pick this",
   "mk.price.save": "Save {save}%",
+  // ── Free public test (db/tune.sql §89/§91) ──────────────────────
+  // The paid copy above stays put; these are its counterparts for
+  // when the billing switch is off. Two complete sets rather than
+  // interpolated fragments, so each reads like it was written on
+  // purpose instead of assembled.
+  "mk.free.q5.q": "What does it cost right now?",
+  "mk.free.q5.a": "Nothing. We're in public testing, so the whole studio is free and no card is asked for. Every account gets {credits} credits to spend on generating. Paid plans come back later, and nothing you have made goes away when they do.",
+  "mk.free.title": "Free while we're in public testing.",
+  "mk.free.lede": "No plans, no card, nothing to choose. Every teacher who signs up gets {credits} credits — the whole studio, every module, the same as the largest paid plan.",
+  "mk.free.badge": "Public testing",
+  "mk.free.credits": "{credits} credits, free",
+  "mk.free.creditsSub": "About {lessons} full lesson plans, or hundreds of quizzes, worksheets and slide decks.",
+  "mk.free.note": "We're testing with real teachers before we start charging. Paid plans will come back later — nothing you make here goes away when they do.",
+  "mk.free.cta": "Start free",
+  "mk.free.ctaNote": "No card. No plan to pick. English and Arabic.",
+  "mk.free.authPoint": "The whole studio, free while we're in public testing. No card, and nothing charged.",
+  "mk.free.finalSub": "Free while we're in public testing, no card asked for. The first term you hand over is the last one you build by hand.",
+  "mk.free.trust": "Free while testing · No card required · English and Arabic",
+  "mk.free.faq": "Right now, everything — we're in public testing, so the whole studio is free and no card is asked for. Every account gets {credits} credits to spend on generating. Paid plans come back later, and nothing you have made goes away when they do.",
   "mk.price.everyPlan": "Every plan includes",
   "mk.plan.billedMonthly": "Billed {total} AED each month.",
   "mk.plan.billed": "Billed {total} AED up front, {save}% less per month.",

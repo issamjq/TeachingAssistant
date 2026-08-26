@@ -24,6 +24,7 @@ import {
 import { api as apiFetch } from "./_shared";
 import { setSessionId, clearSessionId } from "../lib/session";
 import { PLANS } from "../lib/plans";
+import { useBillingMode } from "@/features/marketing/useBillingMode";
 import { PRIVACY, TERMS, SECURITY, LEGAL_VERSION, LEGAL_EFFECTIVE_DATE } from "../lib/legal";
 import ProfileForm from "./onboarding/ProfileForm";
 import LandingHome from "./LandingHome";
@@ -1249,6 +1250,7 @@ function validatePassword(password, { isSignin = false } = {}) {
 // h-[100dvh], not 100vh: on a phone 100vh is the viewport WITHOUT browser
 // chrome, so the last provider button would sit under the address bar.
 function AuthShell({ title, em, lead, onPage, children }) {
+  const { billingOn } = useBillingMode();
   const t = useT();
 
   // Rebuilt in the Wall Chart world (direction seed 0df4eaa5). MARKUP AND
@@ -1266,8 +1268,13 @@ function AuthShell({ title, em, lead, onPage, children }) {
   // - h-[100dvh] with overflow-hidden is gone: it clipped the form under
   //   the accessibility toolbar's 1.5x text setting, which is a shipped
   //   product feature, not an edge case.
+  // The first reassurance is the offer, and the offer changes with the
+  // billing switch (db/tune.sql §89). "Seven days of the whole studio" is
+  // a trial; during a free period there is no trial and no clock, and
+  // promising one to someone about to hand over an email would be the
+  // wrong kind of wrong. The other two are true in both modes.
   const reassurances = [
-    t("mk.auth.point1"),
+    billingOn ? t("mk.auth.point1") : t("mk.free.authPoint"),
     t("mk.auth.point2"),
     t("mk.auth.point3"),
   ];

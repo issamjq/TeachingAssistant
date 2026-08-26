@@ -57,7 +57,7 @@ const PILLS = [
   { key: "mk.hero.pill.lang", icon: Languages, where: "pillC" },
 ] as const;
 
-export default function Hero() {
+export default function Hero({ billingOn = true }: { billingOn?: boolean }) {
   const { t, lang } = useI18n();
   const root = useRef<HTMLElement>(null);
   const stage = useRef<HTMLDivElement>(null);
@@ -189,8 +189,11 @@ export default function Hero() {
         </p>
 
         <div className={s.heroActions} data-hero-actions>
+          {/* "Start seven days free" is a trial offer, and during a free
+              period there is no trial to start — the whole thing is free
+              and there is nothing to count down. */}
           <Link href="/signup" className={s.btnPrimary}>
-            {t("mk.cta.primary")}
+            {t(billingOn ? "mk.cta.primary" : "mk.free.cta")}
           </Link>
           <a href="#how" className={s.btnGhost}>
             {t("mk.cta.secondary")}

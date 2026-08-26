@@ -56,8 +56,84 @@ const INCLUDED = [
   "f18", "f19", "f20",
 ] as const;
 
-export default function Pricing() {
+export default function Pricing({
+  billingOn = true,
+  freeGrant = 800,
+}: {
+  billingOn?: boolean;
+  freeGrant?: number;
+}) {
   const t = useT();
+
+  /**
+   * Free period: the board becomes one panel instead of three cards.
+   *
+   * The inclusions list below is deliberately shared between both modes
+   * and rendered unchanged. It is the argument this section actually
+   * makes — nothing is held back — and that argument is MORE true when
+   * everything is free, not less. Hiding it during a free period would
+   * throw away the only part of the pitch that still applies.
+   *
+   * The anchor stays #pricing and the nav keeps pointing at it. Someone
+   * looking for the price should find this, and "it is free" is an
+   * answer to that question.
+   */
+  if (!billingOn) {
+    // Stated in the unit a teacher thinks in, from the cost the studio
+    // actually charges, so the two cannot drift.
+    const lessons = Math.floor(freeGrant / 8);
+    return (
+      <section className={`${s.shell} ${s.section}`} id="pricing">
+        <div className={s.sectionHead} data-reveal-stagger>
+          <h2 className={s.sectionTitle} data-reveal-item>
+            {t("mk.free.title")}
+          </h2>
+          <p className={s.body} data-reveal-item>
+            {t("mk.free.lede", { credits: String(freeGrant) })}
+          </p>
+        </div>
+
+        <div className={s.priceBoard} data-reveal>
+          <div className={s.cycles}>
+            <div className={`${s.cycle} ${s.cycleBest}`} data-tilt>
+              <span className={s.cycleFlag}>{t("mk.free.badge")}</span>
+              <p className={s.cycleName}>
+                {t("mk.free.credits", { credits: String(freeGrant) })}
+              </p>
+              <p className={s.cycleFor}>
+                {t("mk.free.creditsSub", { lessons: String(lessons) })}
+              </p>
+              <p className={s.cyclePrice}>
+                <span className={s.cycleCur}>$</span>0
+              </p>
+              <p className={s.cycleBilled}>{t("mk.free.note")}</p>
+            </div>
+          </div>
+
+          <div className={s.included}>
+            <p className={s.includedHead}>{t("mk.price.everyPlan")}</p>
+            <ul className={s.includedList}>
+              {INCLUDED.map((k) => (
+                <li key={k}>
+                  <Check size={16} strokeWidth={2} aria-hidden="true" />
+                  <span>{t(`mk.price.${k}` as never)}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <div className={s.priceActions}>
+            <Link href="/signup" className={s.btnPrimary}>
+              {t("mk.free.cta")}
+            </Link>
+            <p className={s.actionNote} style={{ marginTop: 10 }}>
+              {t("mk.free.ctaNote")}
+            </p>
+          </div>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section className={`${s.shell} ${s.section}`} id="pricing">

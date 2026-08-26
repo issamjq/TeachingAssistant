@@ -17,7 +17,13 @@ import s from "../Landing.module.css";
 
 const ITEMS = ["q1", "q2", "q3", "q4", "q5", "q6"] as const;
 
-export default function Questions() {
+export default function Questions({
+  billingOn = true,
+  freeGrant = 800,
+}: {
+  billingOn?: boolean;
+  freeGrant?: number;
+}) {
   const t = useT();
   const list = useRef<HTMLDivElement>(null);
 
@@ -47,11 +53,22 @@ export default function Questions() {
           <details key={k} className={s.faqItem} onToggle={closeSiblings}>
             <summary className={s.faqQ}>
               <span className={s.faqNum}>{String(i + 1).padStart(2, "0")}</span>
-              <span className={s.faqQText}>{t(`mk.faq.${k}.q` as never)}</span>
+              <span className={s.faqQText}>
+                {!billingOn && k === "q5"
+                  ? t("mk.free.q5.q")
+                  : t(`mk.faq.${k}.q` as never)}
+              </span>
               <span className={s.faqMark} aria-hidden="true" />
             </summary>
             <div className={s.faqA}>
-              <p>{t(`mk.faq.${k}.a` as never)}</p>
+              {/* q5 asks what happens after the free week. During a free
+                  period there is no week and no "after", so that one
+                  question — and only that one — is answered differently. */}
+              <p>
+                {!billingOn && k === "q5"
+                  ? t("mk.free.q5.a", { credits: String(freeGrant) })
+                  : t(`mk.faq.${k}.a` as never)}
+              </p>
             </div>
           </details>
         ))}

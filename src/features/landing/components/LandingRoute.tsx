@@ -32,13 +32,19 @@ import EntryGate from "./EntryGate";
 // A signed-in teacher is sent to their dashboard before anything paints;
 // see EntryGate. Reaching the marketing page on purpose is `/?home=1`,
 // which is where the studio's logo points.
-export default function LandingRoute() {
+export default function LandingRoute({
+  billingOn = true,
+  freeGrant = 800,
+}: {
+  billingOn?: boolean;
+  freeGrant?: number;
+}) {
   // useSearchParams needs a Suspense boundary to keep this route
   // statically renderable — without one Next opts the whole page into
   // dynamic rendering, and "/" is the one page that must stay static.
   return (
     <Suspense fallback={null}>
-      <EntryGate />
+      <EntryGate billingOn={billingOn} freeGrant={freeGrant} />
     </Suspense>
   );
 }

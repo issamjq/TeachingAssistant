@@ -38,7 +38,14 @@ const NAV = [
   { href: "#questions", key: "mk.nav.faq" as const, secondary: true },
 ];
 
-export default function LandingPage() {
+export default function LandingPage({
+  billingOn = true,
+  freeGrant = 800,
+}: {
+  /** Are plans on sale? Read on the server — see billingMode.ts. */
+  billingOn?: boolean;
+  freeGrant?: number;
+}) {
   const t = useT();
   // One reveal scope for the page: every [data-reveal] inside it rises
   // once as it enters. GSAP only, no Motion in this tree.
@@ -151,13 +158,13 @@ export default function LandingPage() {
       </header>
 
       <main>
-        <Hero />
+        <Hero billingOn={billingOn} />
         <Steps />
         <Outputs />
         <TermTimeline />
         <Bilingual />
-        <Pricing />
-        <Questions />
+        <Pricing billingOn={billingOn} freeGrant={freeGrant} />
+        <Questions billingOn={billingOn} freeGrant={freeGrant} />
 
         {/* "One more thing" — preview1's closing structure, kept at the
             owner's request: the kicker framed by two short rules, the
@@ -174,17 +181,19 @@ export default function LandingPage() {
               {t("mk.final.q.a")} <em>{t("mk.final.q.em")}</em> {t("mk.final.q.b")}
             </h2>
             <p className={s.finalSub} data-reveal>
-              {t("mk.final.sub")}
+              {t(billingOn ? "mk.final.sub" : "mk.free.finalSub")}
             </p>
             <div className={s.closingActions} data-reveal>
               <Link href="/signup" className={s.btnPrimary}>
-                {t("mk.cta.primary")}
+                {t(billingOn ? "mk.cta.primary" : "mk.free.cta")}
               </Link>
               <a href="#pricing" className={s.btnGhost}>
                 {t("mk.cta.secondary")}
               </a>
             </div>
-            <p className={s.closingNote}>{t("mk.cta.note")}</p>
+            <p className={s.closingNote}>
+              {t(billingOn ? "mk.cta.note" : "mk.free.ctaNote")}
+            </p>
           </div>
         </section>
         <ImageCourier />

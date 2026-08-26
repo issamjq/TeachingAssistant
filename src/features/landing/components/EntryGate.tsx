@@ -58,7 +58,13 @@ function hasStoredSession(): boolean {
   }
 }
 
-export default function EntryGate() {
+export default function EntryGate({
+  billingOn = true,
+  freeGrant = 800,
+}: {
+  billingOn?: boolean;
+  freeGrant?: number;
+}) {
   const router = useRouter();
   const params = useSearchParams();
 
@@ -81,5 +87,5 @@ export default function EntryGate() {
   if (redirecting) return null;
 
   // The marketing site: one scroll, real product screenshots, real hrefs.
-  return <LandingPage />;
+  return <LandingPage billingOn={billingOn} freeGrant={freeGrant} />;
 }
