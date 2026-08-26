@@ -500,6 +500,8 @@ export default function DashboardView({ onJump }) {
   const today = data?.today_lessons || [];
   const counts = data?.counts || {};
   const plan = data?.plan || null;
+  /** Are plans on sale? See planSummary() in src/lib/data/entities.ts. */
+  const planOn = plan?.billing_enabled !== false;
   const calendar = data?.calendar || [];
   // The clock is the client's, and only the client's. Rendered during
   // SSR these two lines take the SERVER's hour and timezone, which is a
@@ -737,15 +739,21 @@ export default function DashboardView({ onJump }) {
               <section className={`${s.ink} p-6 h-full flex flex-col justify-between min-h-[220px]`}>
                 {plan ? (
                   <>
+                    {/* PUBLIC TEST PERIOD (db/tune.sql §89): there are no
+                        plans, so this card must not call itself one. It was
+                        the last surface still saying "TRIAL PLAN" to a
+                        teacher on a free grant. */}
                     <p className={s.inkEyebrow}>
-                      {plan.status === "trialing" ? "Free trial" : `${plan.plan} plan`}
+                      {!planOn
+                        ? "Your credits"
+                        : plan.status === "trialing" ? "Free trial" : `${plan.plan} plan`}
                     </p>
                     <div className="flex items-end justify-between gap-4 mt-3">
                       <div>
                         <p className={s.figure}>{plan.days_left ?? "∞"}</p>
                         <p className={`${s.inkMuted} text-[12.5px] mt-1.5`}>
                           {plan.days_left === 1 ? "day left" : "days left"}
-                          {plan.status === "trialing" ? " — then choose a plan" : ""}
+                          {planOn && plan.status === "trialing" ? " — then choose a plan" : ""}
                         </p>
                         {/* The date the number is counting to. A bare
                             countdown is unfalsifiable — this is what
@@ -770,13 +778,17 @@ export default function DashboardView({ onJump }) {
                         </Ring>
                       )}
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => onJump?.("account")}
-                      className="mt-5 self-start text-[12.5px] underline underline-offset-4 decoration-1 opacity-80 hover:opacity-100 transition-opacity cursor-pointer"
-                    >
-                      Manage plan
-                    </button>
+                    {/* Nothing to manage while billing is off. Account is
+                        still one click away in the sidebar menu. */}
+                    {planOn && (
+                      <button
+                        type="button"
+                        onClick={() => onJump?.("account")}
+                        className="mt-5 self-start text-[12.5px] underline underline-offset-4 decoration-1 opacity-80 hover:opacity-100 transition-opacity cursor-pointer"
+                      >
+                        Manage plan
+                      </button>
+                    )}
                   </>
                 ) : (
                   <>
@@ -798,7 +810,7 @@ export default function DashboardView({ onJump }) {
         )}
       </div>
 
-      {plan && plan.days_left != null && plan.days_left <= 3 && !editing && (
+      {planOn && plan && plan.days_left != null && plan.days_left <= 3 && !editing && (
         <div className={`${s.glass} px-4 py-3 flex items-center gap-3 flex-wrap`}>
           <p className="text-sm text-ink flex-1 min-w-[220px]">
             {plan.days_left === 0

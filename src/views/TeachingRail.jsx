@@ -12,6 +12,7 @@ import { ChevronLeft, ChevronRight, CalendarDays, Plus } from "lucide-react";
 import { api } from "./_shared";
 import { useAutoRefresh } from "@/shared/hooks/useAutoRefresh";
 import SchedulePopup from "./_schedule-popup";
+import { useI18n } from "@/shared/i18n";
 
 // Pin the locale for every formatted date. Left to the environment's
 // default (`undefined`), the server formats en-US ("August 17") while the
@@ -19,7 +20,11 @@ import SchedulePopup from "./_schedule-popup";
 // makes React throw out and re-render this whole tree on hydration. A
 // fixed locale makes both sides agree; en-GB's day-month order also suits
 // the UAE audience.
-const DATE_LOCALE = "en-GB";
+// Weekday and month names come from the browser, so the locale has to
+// follow the chosen language — pinned to "en-GB" it printed "Monday"
+// inside an otherwise Arabic column. en-GB is kept for English so the
+// day-before-month order is unchanged.
+const localeFor = (lang) => (lang === "ar" ? "ar" : "en-GB");
 
 const DAY_LABELS = ["M", "T", "W", "T", "F", "S", "S"];
 const MONTH_NAMES = [
@@ -51,6 +56,8 @@ function monthMatrix(anchor) {
 const PREF_KEY = "murchid.teaching-rail.collapsed";
 
 export default function TeachingRail() {
+  const { t, lang } = useI18n();
+  const dateLocale = localeFor(lang);
   const [collapsed, setCollapsed] = useState(() => {
     try { return localStorage.getItem(PREF_KEY) === "1"; }
     catch { return false; }
@@ -205,14 +212,18 @@ export default function TeachingRail() {
         date: d,
         iso: isoKey(d),
         isToday,
-        label: isToday ? "Today" : isTomorrow ? "Tomorrow" : d.toLocaleDateString(DATE_LOCALE, { weekday: "long" }),
-        sub: d.toLocaleDateString(DATE_LOCALE, { weekday: "long", day: "numeric", month: "long" }),
+        label: isToday
+          ? t("rail.today")
+          : isTomorrow
+            ? t("rail.tomorrow")
+            : d.toLocaleDateString(dateLocale, { weekday: "long" }),
+        sub: d.toLocaleDateString(dateLocale, { weekday: "long", day: "numeric", month: "long" }),
         events: (eventsByDate.get(isoKey(d)) || []).sort((a, b) =>
           (a.time || "").localeCompare(b.time || "")
         ),
       };
     });
-  }, [today, selectedDate, eventsByDate]);
+  }, [today, selectedDate, eventsByDate, t, dateLocale]);
 
   // pt-14 keeps the rail's top controls below the page-level X close
   // button (absolute top-3 right-8 in App.jsx) so they don't visually
@@ -301,7 +312,7 @@ export default function TeachingRail() {
                 key={i}
                 type="button"
                 onClick={() => onPickDay(d)}
-                aria-label={d.toLocaleDateString(DATE_LOCALE, { weekday: "long", month: "long", day: "numeric", year: "numeric" })}
+                aria-label={d.toLocaleDateString(dateLocale, { weekday: "long", month: "long", day: "numeric", year: "numeric" })}
                 aria-pressed={isSelected}
                 className="aspect-square flex flex-col items-center justify-center focus:outline-none"
               >
@@ -339,7 +350,7 @@ export default function TeachingRail() {
         className="planner-nav-btn inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border border-accent/30 bg-accent/[0.10] hover:bg-accent/[0.18] hover:border-accent/50 text-accent text-[11.5px] font-semibold shadow-sm"
       >
         <Plus size={13} strokeWidth={2.5} />
-        New entry
+        {t("rail.new")}
       </button>
 
       <div className="h-px bg-line/40" />
@@ -358,7 +369,7 @@ export default function TeachingRail() {
             </p>
             {day.events.length === 0 ? (
               <p className="text-[11.5px] text-muted/80 italic">
-                No events scheduled
+                {t("rail.none")}
               </p>
             ) : (
               <div className="flex flex-col gap-1">

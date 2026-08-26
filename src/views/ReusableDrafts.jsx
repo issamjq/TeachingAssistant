@@ -206,7 +206,7 @@ export default function ReusableDrafts({ onEditDraft, onNewLesson }) {
                   onDelete={() => setDeleting(d)}
                   timestamp={fmtRowTimestamp(d)}
                 >
-                  <div className="pr-16 flex-1 flex flex-col gap-2">
+                  <div className="pe-16 flex-1 flex flex-col gap-2">
                     <div className="flex items-center gap-2">
                       <SubjectBadge subject={d.subject} />
                       <StatusBadge status={d.status} />

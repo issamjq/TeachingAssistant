@@ -1161,12 +1161,19 @@ async function planSummary(fid: string | null) {
   // Same lazy refresh as getProfile — the dashboard's credit ring reads
   // from here, so a due reset shows the moment the teacher opens it.
   await supabase.rpc("refresh_credits_if_due").then(() => {}, () => {});
-  const [sub, cr] = await Promise.all([
+  const [sub, cr, mode] = await Promise.all([
     supabase
       .from("subscriptions")
       .select("plan, status, trial_ends_at, current_period_start, current_period_end")
       .maybeSingle(),
     supabase.from("credits").select("balance, monthly_allowance").maybeSingle(),
+    // Which billing mode the platform is in (db/tune.sql §89). The
+    // dashboard's runway card is the last surface that talked about a
+    // "trial plan" during a free period — it reads subscriptions
+    // directly rather than my_credits(), so the flag has to come with
+    // it. Third leg of a Promise.all that was already there, so no extra
+    // round trip.
+    supabase.rpc("public_billing_mode"),
   ]);
   const s: any = sub.data;
   if (!s) return null;
@@ -1179,6 +1186,9 @@ async function planSummary(fid: string | null) {
     days_left: ends ? daysUntil(ends) : null,
     credits: cr.data?.balance ?? null,
     allowance: cr.data?.monthly_allowance ?? null,
+    // `!== false` so a failed RPC reads as billing on, matching every
+    // other surface.
+    billing_enabled: (mode.data as any)?.enabled !== false,
   };
 }
 

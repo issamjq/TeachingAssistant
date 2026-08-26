@@ -88,12 +88,12 @@ export default function Quizzes({ onOpenQuiz }) {
         sortKey={sortKey}
         onSortChange={setSortKey}
         sortOptions={[
-          { value: "scheduled_for-desc", label: "Newest scheduled" },
-          { value: "scheduled_for-asc",  label: "Oldest scheduled" },
-          { value: "title-asc",          label: "Title A → Z" },
-          { value: "title-desc",         label: "Title Z → A" },
-          { value: "total_marks-desc",   label: "Most marks" },
-          { value: "duration_minutes-desc", label: "Longest duration" },
+          { value: "scheduled_for-desc", label: t("sort.scheduledNewest") },
+          { value: "scheduled_for-asc",  label: t("sort.scheduledOldest") },
+          { value: "title-asc",          label: t("sort.titleAz") },
+          { value: "title-desc",         label: t("sort.titleZa") },
+          { value: "total_marks-desc",   label: t("sort.mostMarks") },
+          { value: "duration_minutes-desc", label: t("sort.longestDuration") },
         ]}
         dateScope={scope}
         onDateScopeChange={setScope}
@@ -130,7 +130,7 @@ export default function Quizzes({ onOpenQuiz }) {
               <button
                 type="button"
                 onClick={() => onOpenQuiz?.(q)}
-                className="text-left flex-1 flex flex-col gap-2 pr-16 w-full"
+                className="text-left flex-1 flex flex-col gap-2 pe-16 w-full"
               >
                 <span className="font-mono text-[10px] uppercase tracking-wider px-2 py-0.5 bg-paper border border-line text-ink-soft rounded self-start">
                   {q.status}
@@ -150,9 +150,19 @@ export default function Quizzes({ onOpenQuiz }) {
                     Marks / Duration / Scheduled line up across cards
                     regardless of title length. */}
                 <div className="grid grid-cols-3 gap-2 mt-auto pt-3 border-t border-dashed border-line">
-                  <Stat label="Marks" value={q.total_marks ?? "—"} />
-                  <Stat label="Duration" value={q.duration_minutes ? `${q.duration_minutes} min` : "—"} />
-                  <Stat label="Scheduled" value={fmtShortDate(q.scheduled_for)} />
+                  <Stat label={t("card.marks")} value={q.total_marks ?? "—"} />
+                  {/* "40 min" was a bare Latin run in an RTL paragraph, and
+                      bidi reordered it to "min 40". Translating the unit
+                      fixes the reading order because the whole string is
+                      then RTL, rather than papering over it with an
+                      isolate. */}
+                  <Stat
+                    label={t("card.duration")}
+                    value={q.duration_minutes
+                      ? t("card.minutes", { n: String(q.duration_minutes) })
+                      : "—"}
+                  />
+                  <Stat label={t("card.scheduled")} value={fmtShortDate(q.scheduled_for)} />
                 </div>
               </button>
             </DataCard>
@@ -190,7 +200,9 @@ export default function Quizzes({ onOpenQuiz }) {
                     </td>
                     <td className="py-4 text-ink-soft">{q.total_marks ?? "—"}</td>
                     <td className="py-4 text-ink-soft">
-                      {q.duration_minutes ? `${q.duration_minutes} min` : "—"}
+                      {q.duration_minutes
+                        ? t("card.minutes", { n: String(q.duration_minutes) })
+                        : "—"}
                     </td>
                     <td className="py-4 text-ink-soft text-xs">
                       {q.scheduled_for ? new Date(q.scheduled_for).toLocaleDateString() : "—"}

@@ -135,7 +135,7 @@ export default function Presentations({ onOpenPresentation }) {
               <button
                 type="button"
                 onClick={() => onOpenPresentation?.(p)}
-                className="text-left pr-16 flex-1 flex flex-col gap-2"
+                className="text-left pe-16 flex-1 flex flex-col gap-2"
               >
                 <span className="font-mono text-[10px] uppercase tracking-wider px-2 py-0.5 bg-paper border border-line text-ink-soft rounded self-start">
                   {p.status}
