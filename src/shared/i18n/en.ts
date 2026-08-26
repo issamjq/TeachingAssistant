@@ -55,6 +55,7 @@ export const EN = {
   "sort.titleZa": "Title Z → A",
   "sort.mostMarks": "Most marks",
   "sort.longestDuration": "Longest duration",
+  "bb.placeholders": "This still has {list} in it — the writer leaves a blank rather than inventing a date. Fill them in, or press Save again to post as is.",
   "nav.dashboard": "Dashboard",
   "nav.studio": "AI Studio",
   "nav.reports": "Reports",

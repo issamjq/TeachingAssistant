@@ -315,6 +315,21 @@ function cleanTitle(raw) {
     .trim();
 }
 
+/**
+ * Shorten to `max`, but never mid-word.
+ *
+ * A hard slice produced "Approach: Evaporation or Boiling? Sort I", which
+ * looks like the text was lost rather than trimmed. Cutting at the last
+ * space and adding an ellipsis says "there is more" instead.
+ */
+function clip(text, max) {
+  const t = String(text || "").trim();
+  if (t.length <= max) return t;
+  const cut = t.slice(0, max - 1);
+  const space = cut.lastIndexOf(" ");
+  return `${(space > max * 0.6 ? cut.slice(0, space) : cut).trimEnd()}\u2026`;
+}
+
 function titleOf(kind, text, structured) {
   if (structured?.title) return cleanTitle(structured.title);
   const heading = (text || "").split(/\r?\n/).find((l) => /^#{1,3}\s+/.test(l));
@@ -1676,7 +1691,12 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
     const title = titleOf(turn.kind, turn.text, turn.structured);
     const label = (KIND_META[turn.kind]?.label || "material").toLowerCase();
     setTurns((t) => t.map((x, i) => (i === index ? { ...x, skillSaving: true } : x)));
-    let name = `Approach: ${title}`.slice(0, 40);
+    /* Truncated mid-word to "Approach: Evaporation or Boiling? Sort I",
+       which reads as a bug rather than as a shortened name. Clip on a word
+       boundary and mark it, and give it the same 60 characters the
+       distilled name below gets — there was no reason for the fallback to
+       be tighter than the good case. */
+    let name = clip(`Approach: ${title}`, 60);
     let profile = "";
     try {
       const { streamSSE } = await import("@/shared/lib/apiStream");
@@ -1711,7 +1731,7 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
         `# Approach — ${title}\n\n` +
         `_Saved from an AI Studio ${label} the teacher wanted to reuse._\n\n` +
         `## The instruction that produced it\n\n${promptText || "(not recorded)"}\n\n` +
-        `## How to reproduce it\n\nMatch the structure, difficulty and tone of the reference below when making similar ${label}s.\n\n` +
+        `## How to reproduce it\n\nMatch the structure, difficulty and tone of the reference below when making another ${label}.\n\n` +
         `## Reference\n\n${(turn.text || "").slice(0, 2000)}`;
     }
     try {

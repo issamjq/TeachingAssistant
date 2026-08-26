@@ -57,6 +57,8 @@ export default function PostEditor({ post, onClose, onSaved }: Props) {
   const [uploads, setUploads] = useState(0);
   const sessionPaths = useRef(new Set<string>());
   const savedRef = useRef(false);
+  /** Flipped by the first Save when the text still holds [blanks]. */
+  const [placeholdersOk, setPlaceholdersOk] = useState(false);
   const imageInput = useRef<HTMLInputElement>(null);
   const videoInput = useRef<HTMLInputElement>(null);
 
@@ -177,8 +179,30 @@ export default function PostEditor({ post, onClose, onSaved }: Props) {
     }
   };
 
+  /**
+   * Stop a placeholder reaching the board.
+   *
+   * "Write it out for me" deliberately leaves [date] or [teacher name] where
+   * it was told nothing, rather than inventing a plausible time — that is the
+   * right call, and prompts.ts says so. What was missing is anything between
+   * that blank and a notice pinned in front of parents: the post saved
+   * silently with "on Monday, [date]" still in it.
+   *
+   * Warn once, then obey. A teacher who means to post a template — a form for
+   * a trip, say — presses Save again and it goes. Blocking outright would be
+   * the editor deciding it knows better than the person writing.
+   */
   const save = () => {
     if (!title.trim() || busy || uploads > 0) return;
+
+    const blanks = [...`${title} ${bodyText}`.matchAll(/\[[^\]\n]{1,40}\]/g)]
+      .map((m) => m[0]);
+    if (blanks.length && !placeholdersOk) {
+      setPlaceholdersOk(true);
+      setErr(t("bb.placeholders", { list: [...new Set(blanks)].join(", ") }));
+      return;
+    }
+
     setBusy(true);
     setErr(null);
     const payload = {

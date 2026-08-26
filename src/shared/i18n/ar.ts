@@ -53,6 +53,7 @@ export const AR: Partial<Record<TranslationKey, string>> = {
   "sort.titleZa": "العنوان ي → أ",
   "sort.mostMarks": "الأكثر درجات",
   "sort.longestDuration": "الأطول مدة",
+  "bb.placeholders": "لا يزال النص يحتوي على {list} — الكاتب يترك فراغًا بدل اختلاق تاريخ. املأها، أو اضغط حفظ مرة أخرى للنشر كما هي.",
   "nav.dashboard": "لوحة التحكم",
   "nav.studio": "استوديو الذكاء",
   "nav.reports": "التقارير",

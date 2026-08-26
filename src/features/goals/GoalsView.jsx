@@ -367,7 +367,9 @@ function GoalCard({ goal, onDelete, onPlan, planning, planError }) {
             aria-expanded={open}
           >
             {open ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
-            {open ? "Hide the plan" : `See the plan — ${weeks.length} weeks`}
+            {open
+              ? "Hide the plan"
+              : `See the plan — ${weeks.length} ${weeks.length === 1 ? "week" : "weeks"}`}
           </button>
           {open && (
             <div className="mt-3 space-y-3">
@@ -543,9 +545,16 @@ export default function GoalsView() {
           Hand over a whole unit — <em className="italic">get a term taught like an expert planned it.</em>
         </h1>
         <p className={`${s.loudSub} text-sm mt-2.5 max-w-2xl leading-relaxed`}>
+          {/* Says what this screen does, and stops there. It used to promise
+              that Murchid "then drafts the lessons, quizzes and materials for
+              each week as you go" — it does not: the plan is a teaching
+              sequence, and the drafting happens when you take a day into the
+              AI Studio yourself. Copy that describes an unbuilt feature reads
+              as a broken one. */}
           Name the goal, attach the syllabus or textbook, pick a timeline. Murchid breaks it
-          into a week-by-week plan built around your subjects and your way of teaching —
-          then drafts the lessons, quizzes and materials for each week as you go.
+          into a week-by-week teaching plan built around your subjects and your way of
+          teaching — day by day, with what to cover and what to watch out for. Take any day
+          into the AI Studio when you want the materials for it.
         </p>
         {!creating && (
           <button
