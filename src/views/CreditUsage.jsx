@@ -15,9 +15,11 @@
 // leak them by forgetting to strip a field.
 // =====================================================================
 import React, { useEffect, useMemo, useState } from "react";
-import { Coins, TrendingUp, Clock } from "lucide-react";
+import { Coins, TrendingUp, Clock, ArrowRight } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { api } from "./_shared";
 import BrandLoader from "../components/BrandLoader";
+import { navigate } from "@/lib/route";
 
 const WINDOWS = [
   { days: 7, label: "7 days" },
@@ -105,9 +107,7 @@ export default function CreditUsage() {
           <p className="font-serif text-4xl text-ink">{balance}</p>
           {allowance > 0 && (
             <>
-              {/* PUBLIC TEST PERIOD: a one-off grant, not a monthly
-                  allowance — so no "this month" and no renewal date. */}
-              <p className="text-xs text-muted mt-1">of {allowance}</p>
+              <p className="text-xs text-muted mt-1">of {allowance} this month</p>
               <div className="h-1.5 rounded-full bg-line mt-3 overflow-hidden">
                 <div
                   className={`h-full rounded-full ${low ? "bg-clay" : "bg-accent"}`}
@@ -116,21 +116,21 @@ export default function CreditUsage() {
               </div>
             </>
           )}
+          {data.renews_at && (
+            <p className="text-xs text-muted mt-2">Renews {fmtDay(data.renews_at)}</p>
+          )}
         </div>
 
         <Stat label={`Spent in ${days} days`} value={spent} icon={TrendingUp} />
         <Stat label={`Generations in ${days} days`} value={data.generations ?? 0} icon={Clock} />
       </div>
 
-      {/* PUBLIC TEST PERIOD: the warning stays, the call to action goes.
-          There is no bigger plan to move to and no page to send her to, so
-          this tells her where she stands and stops there. */}
       {low && (
-        <div className="border border-clay/40 rounded-xl p-4 bg-paper">
-          <p className="text-sm text-ink">
-            <strong>Running low.</strong> You&rsquo;ve used most of your credits. Everything
-            you&rsquo;ve already made stays here.
+        <div className="border border-clay/40 rounded-xl p-4 bg-paper flex flex-wrap items-center gap-3">
+          <p className="text-sm text-ink flex-1 min-w-[220px]">
+            <strong>Running low.</strong> Top up or move to a bigger plan to keep generating.
           </p>
+          <Button onClick={() => navigate(["plans"])}>See plans</Button>
         </div>
       )}
 
@@ -214,6 +214,13 @@ export default function CreditUsage() {
           Credits are charged as a document is written, not after — so a
           generation you stop halfway only costs you the part that was written.
         </p>
+        <button
+          type="button"
+          onClick={() => navigate(["plans"])}
+          className="font-mono text-[10px] uppercase tracking-wider text-ink mt-2 inline-flex items-center gap-1.5 hover:text-accent transition"
+        >
+          Plans and top-ups <ArrowRight size={11} />
+        </button>
       </div>
     </div>
   );

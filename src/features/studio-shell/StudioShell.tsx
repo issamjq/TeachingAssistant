@@ -617,14 +617,11 @@ export default function StudioShell({ children }: { children: React.ReactNode })
           </div>
           <ChevronRight size={14} className="text-muted flex-shrink-0 rtl:rotate-180" />
         </button>
-        {/* PUBLIC TEST PERIOD: no plans and no billing, so neither entry
-            is offered. "Credits used" stays — a teacher on a fixed grant
-            still needs to see where it went. */}
         <AccountMenu
           open={accountMenuOpen}
           onClose={() => setAccountMenuOpen(false)}
           user={account}
-          showUpgrade={false}
+          showUpgrade
           onOpenSettings={() => navigate(["account"])}
           onOpenHelp={() => {
             const launcher = document.querySelector<HTMLButtonElement>(
@@ -639,7 +636,7 @@ export default function StudioShell({ children }: { children: React.ReactNode })
           /* Teachers only — a student has no balance to account for. */
           showUsage={role === "teacher"}
           onOpenUsage={() => navigate(["credit-usage"])}
-          showBilling={false}
+          showBilling={role === "teacher"}
           onOpenBilling={() => navigate(["billing"])}
           onLogout={signOutFully}
           roles={heldRoles}

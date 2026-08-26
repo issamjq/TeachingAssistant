@@ -10030,3 +10030,201 @@ BEGIN
 
   RAISE NOTICE 'public test: plan gating off, everyone on 800 credits';
 END $$;
+
+
+-- ─────────────────────────────────────────────────────────────────────────
+-- §88  The public test is off; plans are back
+-- ─────────────────────────────────────────────────────────────────────────
+--
+-- §87 is reverted. This file is append-only and re-run whole, so the way
+-- to undo a section is to write the opposite one after it — deleting §87
+-- would leave everything it already did to the live database standing,
+-- with nothing left in the file to reverse it.
+--
+-- The two gate functions go back to the definitions §86 left them with,
+-- word for word. Restoring them restores plan gating everywhere at once:
+-- every write policy ends in AND subscription_active(), the backend calls
+-- subscription_active_for() on the pooler, expire_lapsed_subscriptions()
+-- gets its lapsed CTE back, and refresh_credits_if_due() resumes taking
+-- credits away when a plan ends.
+
+CREATE OR REPLACE FUNCTION public.subscription_active_for(p_faculty uuid)
+RETURNS boolean
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+  SELECT
+    EXISTS (
+      SELECT 1 FROM faculty f JOIN users u ON u.id = f.user_id
+       WHERE f.id = p_faculty
+         AND u.role IN ('dev', 'super_admin', 'admin', 'owner', 'moe')
+    )
+    OR EXISTS (
+      SELECT 1 FROM subscriptions s
+       WHERE s.faculty_id = p_faculty
+         AND s.status IN ('trialing', 'active', 'past_due')
+         AND (
+           COALESCE(s.current_period_end, s.trial_ends_at) IS NULL
+           OR COALESCE(s.current_period_end, s.trial_ends_at) >
+              CASE WHEN s.status = 'trialing'
+                   THEN now()                        -- a trial ends when it ends
+                   ELSE now() - INTERVAL '3 days'    -- a card gets three days to clear
+              END
+         )
+    );
+$$;
+
+CREATE OR REPLACE FUNCTION public.subscription_active()
+RETURNS boolean
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+  SELECT
+    EXISTS (
+      SELECT 1 FROM users u
+       WHERE u.id = (SELECT auth.uid())
+         AND u.role IN ('dev', 'super_admin', 'admin', 'owner', 'moe')
+    )
+    OR EXISTS (
+      SELECT 1 FROM subscriptions s
+       WHERE s.faculty_id = current_faculty_id()
+         AND s.status IN ('trialing', 'active', 'past_due')
+         AND (
+           COALESCE(s.current_period_end, s.trial_ends_at) IS NULL
+           OR COALESCE(s.current_period_end, s.trial_ends_at) >
+              CASE WHEN s.status = 'trialing'
+                   THEN now()
+                   ELSE now() - INTERVAL '3 days'
+              END
+         )
+    );
+$$;
+
+-- §83 again: CREATE OR REPLACE re-runs Supabase's default grant to anon.
+REVOKE EXECUTE ON FUNCTION public.subscription_active_for(uuid) FROM anon;
+REVOKE EXECUTE ON FUNCTION public.subscription_active()         FROM anon;
+GRANT  EXECUTE ON FUNCTION public.subscription_active_for(uuid) TO authenticated;
+GRANT  EXECUTE ON FUNCTION public.subscription_active()         TO authenticated;
+
+DO $$
+BEGIN
+  IF has_function_privilege('anon', 'public.subscription_active_for(uuid)', 'EXECUTE')
+     OR has_function_privilege('anon', 'public.subscription_active()', 'EXECUTE') THEN
+    RAISE EXCEPTION 'anon can still execute the subscription gate functions';
+  END IF;
+END $$;
+
+-- ── the trial tier goes back to being a trial ─────────────────────────
+--
+-- §87 rewrote this row in place — 'Free trial'/40 became 'Public test'/800.
+-- provision_faculty() reads it, so restoring the row is most of restoring
+-- sign-up.
+
+UPDATE public.plan_tiers
+   SET label = 'Free trial', credits = 40
+ WHERE tier = 'trial';
+
+CREATE OR REPLACE FUNCTION public.provision_faculty()
+RETURNS trigger
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp
+AS $function$
+DECLARE trial_credits integer;
+BEGIN
+  SELECT credits INTO trial_credits FROM plan_tiers WHERE tier = 'trial';
+
+  INSERT INTO credits (faculty_id, balance, monthly_allowance)
+  VALUES (NEW.id, COALESCE(trial_credits, 40), COALESCE(trial_credits, 40))
+  ON CONFLICT (faculty_id) DO NOTHING;
+
+  INSERT INTO subscriptions (faculty_id, plan, tier, status, trial_ends_at)
+  VALUES (NEW.id, 'trial', 'trial', 'trialing', now() + INTERVAL '7 days')
+  ON CONFLICT DO NOTHING;
+
+  RETURN NEW;
+EXCEPTION WHEN OTHERS THEN
+  -- Never block a sign-up over the entitlement rows. A teacher with no
+  -- credits row is recoverable; a teacher who could not create an
+  -- account at all is not.
+  RAISE WARNING 'provision_faculty: %', SQLERRM;
+  RETURN NEW;
+END $function$;
+
+-- ── clearing up after the grant ───────────────────────────────────────
+--
+-- §87 did two things to live rows that restoring the functions does not
+-- undo, and the second one is a hole rather than a leftover.
+--
+-- The hole: §87 set status='active' with BOTH current_period_end and
+-- trial_ends_at NULL on every row it reopened, and provision_faculty()
+-- wrote the same shape for everyone who signed up while it was live. Read
+-- that through the restored subscription_active_for() above and the
+-- COALESCE(...) IS NULL arm answers TRUE — forever. Left alone, every one
+-- of those accounts has a subscription that can never lapse, which is the
+-- paywall quietly not existing rather than the paywall being off.
+--
+-- So they go back on a trial clock. Scoped to rows that carry no Stripe
+-- subscription: anyone who actually paid keeps their period end, and the
+-- three paid tiers are not touched at all.
+UPDATE public.subscriptions s
+   SET status = 'trialing',
+       plan = 'trial',
+       trial_ends_at = COALESCE(s.current_period_start, now()) + INTERVAL '7 days',
+       updated_at = now()
+ WHERE s.tier = 'trial'
+   AND s.status = 'active'
+   AND s.current_period_end IS NULL
+   AND s.trial_ends_at IS NULL
+   AND s.stripe_subscription_id IS NULL;
+
+-- The leftover: allowances. §87 set monthly_allowance = 800 for everyone,
+-- which governs what refresh_credits_if_due() tops a teacher back up to.
+-- Left at 800 a trial account would refill to twenty times its tier every
+-- month. Each row goes back to what its own tier grants.
+UPDATE public.credits c
+   SET monthly_allowance = t.credits, updated_at = now()
+  FROM public.subscriptions s
+  JOIN public.plan_tiers t ON t.tier = s.tier
+ WHERE s.faculty_id = c.faculty_id
+   AND c.monthly_allowance IS DISTINCT FROM t.credits;
+
+-- BALANCES ARE DELIBERATELY NOT TOUCHED.
+--
+-- §87 raised them to 800 and that credit is already in people's accounts;
+-- taking it back is destructive, and this file is not the place to make
+-- that call silently. It also fixes itself: refresh_credits_if_due() sets
+-- balance = monthly_allowance at the next refresh, so an over-granted
+-- account converges on its real tier within a month without anyone losing
+-- work they were part-way through.
+--
+-- To claw them back now instead, run this by hand and watch the count:
+--
+--   UPDATE public.credits c SET balance = LEAST(c.balance, c.monthly_allowance)
+--    WHERE c.balance > c.monthly_allowance;
+
+DO $$
+DECLARE loose int; over int;
+BEGIN
+  IF public.subscription_active_for('00000000-0000-0000-0000-000000000001'::uuid) THEN
+    RAISE EXCEPTION 'subscription_active_for() still answers true for anyone';
+  END IF;
+
+  SELECT COUNT(*) INTO loose FROM public.subscriptions
+   WHERE tier = 'trial' AND status = 'active'
+     AND current_period_end IS NULL AND trial_ends_at IS NULL
+     AND stripe_subscription_id IS NULL;
+  IF loose > 0 THEN
+    RAISE EXCEPTION '% trial subscription(s) still have no end date', loose;
+  END IF;
+
+  SELECT COUNT(*) INTO over FROM public.credits c
+    JOIN public.subscriptions s ON s.faculty_id = c.faculty_id
+    JOIN public.plan_tiers t ON t.tier = s.tier
+   WHERE c.monthly_allowance IS DISTINCT FROM t.credits;
+  IF over > 0 THEN
+    RAISE EXCEPTION '% account(s) still on the public-test allowance', over;
+  END IF;
+
+  IF (SELECT credits FROM public.plan_tiers WHERE tier = 'trial') <> 40 THEN
+    RAISE EXCEPTION 'the trial tier is not back to 40 credits';
+  END IF;
+
+  RAISE NOTICE 'public test reverted: plan gating on, tiers back to normal';
+END $$;
