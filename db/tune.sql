@@ -9890,8 +9890,12 @@ $$;
 -- §83: Supabase grants EXECUTE on every new function to `anon` as well as
 -- `authenticated`, and CREATE OR REPLACE re-runs that default. Both of
 -- these are SECURITY DEFINER, so revoke again and assert it took.
-REVOKE EXECUTE ON FUNCTION public.subscription_active_for(uuid) FROM anon;
-REVOKE EXECUTE ON FUNCTION public.subscription_active()         FROM anon;
+-- FROM PUBLIC as well as anon. CREATE FUNCTION grants EXECUTE to PUBLIC
+-- by default and anon inherits it through that group grant, so revoking
+-- anon alone leaves the function reachable — the assertion below is what
+-- catches it, and it caught it. (§83 got this right by revoking both.)
+REVOKE EXECUTE ON FUNCTION public.subscription_active_for(uuid) FROM PUBLIC, anon;
+REVOKE EXECUTE ON FUNCTION public.subscription_active()         FROM PUBLIC, anon;
 GRANT  EXECUTE ON FUNCTION public.subscription_active_for(uuid) TO authenticated;
 GRANT  EXECUTE ON FUNCTION public.subscription_active()         TO authenticated;
 
@@ -10099,8 +10103,12 @@ AS $$
 $$;
 
 -- §83 again: CREATE OR REPLACE re-runs Supabase's default grant to anon.
-REVOKE EXECUTE ON FUNCTION public.subscription_active_for(uuid) FROM anon;
-REVOKE EXECUTE ON FUNCTION public.subscription_active()         FROM anon;
+-- FROM PUBLIC as well as anon. CREATE FUNCTION grants EXECUTE to PUBLIC
+-- by default and anon inherits it through that group grant, so revoking
+-- anon alone leaves the function reachable — the assertion below is what
+-- catches it, and it caught it. (§83 got this right by revoking both.)
+REVOKE EXECUTE ON FUNCTION public.subscription_active_for(uuid) FROM PUBLIC, anon;
+REVOKE EXECUTE ON FUNCTION public.subscription_active()         FROM PUBLIC, anon;
 GRANT  EXECUTE ON FUNCTION public.subscription_active_for(uuid) TO authenticated;
 GRANT  EXECUTE ON FUNCTION public.subscription_active()         TO authenticated;
 
@@ -10227,4 +10235,950 @@ BEGIN
   END IF;
 
   RAISE NOTICE 'public test reverted: plan gating on, tiers back to normal';
+END $$;
+
+
+-- ─────────────────────────────────────────────────────────────────────────
+-- §89  Billing as a switch, not a deploy
+-- ─────────────────────────────────────────────────────────────────────────
+--
+-- §87 turned billing off and §88 turned it back on, and both were code
+-- changes that had to be written, reviewed, pushed and migrated. That is
+-- the wrong shape for a decision the business will make more than once —
+-- open the doors for a testing week, close them again, open them for a
+-- school holiday. It should be a switch a super admin flips, and it should
+-- take effect for everyone at once, immediately, with no deploy.
+--
+-- So: one flag, `billing_enabled`, and one function reading it. Everything
+-- that used to be edited by hand now asks that function instead.
+--
+--   ON  (the default, and what is live today)
+--        Plans, billing, tiered credits, trials that end, cards that
+--        decline. Exactly the current behaviour.
+--
+--   OFF (the public test)
+--        No plans, no billing, no subscription anywhere in a teacher's
+--        panel. Everyone gets FREE_GRANT credits. Nothing can lapse.
+--
+-- Credit COSTS never change. A lesson plan costs 8 either way — the point
+-- of a free period is to learn what teachers actually spend, and that
+-- number is worthless if the meter is re-tuned at the same time.
+--
+-- Why one function rather than a flag check at each site: there are
+-- roughly thirty RLS write policies ending in AND subscription_active(),
+-- plus the pooler path, plus sign-up, plus the expiry cron. A flag read
+-- scattered across all of those is a flag that will be missed in one of
+-- them, and the one that is missed is the one that leaks. Routing every
+-- caller through subscription_active()/subscription_active_for() means
+-- there are exactly two places that read the flag for gating, and both
+-- are in this section.
+
+INSERT INTO public.feature_flags (key, enabled, description) VALUES
+  ('billing_enabled', true,
+   'Master switch for plans, billing and tiered credits. OFF = free public test: no subscription UI, everyone on the free grant, nothing lapses.')
+ON CONFLICT (key) DO NOTHING;   -- never re-arm a switch someone deliberately threw
+
+/**
+ * The switch itself.
+ *
+ * STABLE, so Postgres evaluates it once per statement rather than once
+ * per row — this ends up inside RLS policies on every write, and a
+ * VOLATILE read of a three-row table on every row of a bulk insert is a
+ * cost nobody would ever go looking for.
+ *
+ * SECURITY DEFINER because the callers are: RLS policies (running as the
+ * teacher), the pooled backend connection (running as no one in
+ * particular), and the sign-up trigger. Only one of those can read
+ * feature_flags through RLS, and a gate that answers differently
+ * depending on who asks is not a gate.
+ *
+ * Defaults to TRUE — billing ON — when the row is missing. A flag table
+ * that failed to seed must not silently hand the whole product away.
+ */
+CREATE OR REPLACE FUNCTION public.billing_enabled()
+RETURNS boolean
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+  SELECT COALESCE((SELECT enabled FROM feature_flags WHERE key = 'billing_enabled'), true);
+$$;
+
+/**
+ * What a teacher gets while billing is off.
+ *
+ * A function rather than a literal so there is exactly one place to
+ * change it, and rather than a plan_tiers row because that table's key is
+ * a foreign key from subscriptions.tier and its values are constrained —
+ * §87 learned that the hard way. This number belongs to the free period,
+ * not to the plan catalogue, and it should not have to pretend to be a
+ * product to be stored.
+ */
+CREATE OR REPLACE FUNCTION public.free_grant_credits()
+RETURNS integer
+LANGUAGE sql IMMUTABLE
+AS $$ SELECT 800 $$;
+
+-- ── the two gates ─────────────────────────────────────────────────────
+--
+-- Both keep their §86 logic verbatim in the ELSE arm. The only change is
+-- the CASE around it. Read the ELSE and you are reading the paid product
+-- exactly as it behaves today.
+
+CREATE OR REPLACE FUNCTION public.subscription_active_for(p_faculty uuid)
+RETURNS boolean
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+  SELECT CASE WHEN NOT public.billing_enabled()
+    THEN p_faculty IS NOT NULL      -- nothing to lapse; still needs to be someone
+    ELSE
+      EXISTS (
+        SELECT 1 FROM faculty f JOIN users u ON u.id = f.user_id
+         WHERE f.id = p_faculty
+           AND u.role IN ('dev', 'super_admin', 'admin', 'owner', 'moe')
+      )
+      OR EXISTS (
+        SELECT 1 FROM subscriptions s
+         WHERE s.faculty_id = p_faculty
+           AND s.status IN ('trialing', 'active', 'past_due')
+           AND (
+             COALESCE(s.current_period_end, s.trial_ends_at) IS NULL
+             OR COALESCE(s.current_period_end, s.trial_ends_at) >
+                CASE WHEN s.status = 'trialing'
+                     THEN now()                        -- a trial ends when it ends
+                     ELSE now() - INTERVAL '3 days'    -- a card gets three days to clear
+                END
+           )
+      )
+  END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.subscription_active()
+RETURNS boolean
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+  SELECT CASE WHEN NOT public.billing_enabled()
+    -- Still requires a session. Turning a billing switch into an
+    -- anonymous write hole would be the easy mistake here: this function
+    -- is the last clause of every write policy in §37, so `true` would
+    -- mean anon can write to any table whose owner predicate it can
+    -- satisfy. The flag decides whether she has PAID, never whether she
+    -- is SOMEONE.
+    THEN (SELECT auth.uid()) IS NOT NULL
+    ELSE
+      EXISTS (
+        SELECT 1 FROM users u
+         WHERE u.id = (SELECT auth.uid())
+           AND u.role IN ('dev', 'super_admin', 'admin', 'owner', 'moe')
+      )
+      OR EXISTS (
+        SELECT 1 FROM subscriptions s
+         WHERE s.faculty_id = current_faculty_id()
+           AND s.status IN ('trialing', 'active', 'past_due')
+           AND (
+             COALESCE(s.current_period_end, s.trial_ends_at) IS NULL
+             OR COALESCE(s.current_period_end, s.trial_ends_at) >
+                CASE WHEN s.status = 'trialing'
+                     THEN now()
+                     ELSE now() - INTERVAL '3 days'
+                END
+           )
+      )
+  END;
+$$;
+
+-- BOTH revokes are needed, and each one alone is a hole.
+--
+-- CREATE FUNCTION grants EXECUTE to PUBLIC by default, and `anon` is a
+-- member of PUBLIC, so revoking from anon alone leaves it reachable
+-- through the group grant. Supabase then adds its OWN explicit grant to
+-- anon, which revoking from PUBLIC does not touch. §83 learned the
+-- second half; this is the first. The assertion below is what caught it.
+REVOKE EXECUTE ON FUNCTION public.free_grant_credits()          FROM PUBLIC, anon;
+REVOKE EXECUTE ON FUNCTION public.billing_enabled()             FROM PUBLIC, anon;
+REVOKE EXECUTE ON FUNCTION public.subscription_active_for(uuid) FROM PUBLIC, anon;
+REVOKE EXECUTE ON FUNCTION public.subscription_active()         FROM PUBLIC, anon;
+GRANT  EXECUTE ON FUNCTION public.free_grant_credits()          TO authenticated;
+GRANT  EXECUTE ON FUNCTION public.billing_enabled()             TO authenticated;
+GRANT  EXECUTE ON FUNCTION public.subscription_active_for(uuid) TO authenticated;
+GRANT  EXECUTE ON FUNCTION public.subscription_active()         TO authenticated;
+
+-- ── sign-up follows the switch ────────────────────────────────────────
+--
+-- While billing is off a new teacher gets the free grant and a
+-- subscription row with no end date. That row would read as
+-- never-lapsing if the switch were thrown back to ON with it untouched,
+-- which is why sa_set_billing(true) below puts every such account onto a
+-- fresh trial rather than leaving them be. The reconciliation belongs to
+-- the transition, not to steady state.
+
+CREATE OR REPLACE FUNCTION public.provision_faculty()
+RETURNS trigger
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp
+AS $function$
+DECLARE start_credits integer; paid boolean;
+BEGIN
+  paid := public.billing_enabled();
+
+  IF paid THEN
+    SELECT credits INTO start_credits FROM plan_tiers WHERE tier = 'trial';
+    start_credits := COALESCE(start_credits, 40);
+  ELSE
+    start_credits := public.free_grant_credits();
+  END IF;
+
+  INSERT INTO credits (faculty_id, balance, monthly_allowance)
+  VALUES (NEW.id, start_credits, start_credits)
+  ON CONFLICT (faculty_id) DO NOTHING;
+
+  IF paid THEN
+    INSERT INTO subscriptions (faculty_id, plan, tier, status, trial_ends_at)
+    VALUES (NEW.id, 'trial', 'trial', 'trialing', now() + INTERVAL '7 days')
+    ON CONFLICT DO NOTHING;
+  ELSE
+    INSERT INTO subscriptions (faculty_id, plan, tier, status, current_period_start)
+    VALUES (NEW.id, 'trial', 'trial', 'active', now())
+    ON CONFLICT DO NOTHING;
+  END IF;
+
+  RETURN NEW;
+EXCEPTION WHEN OTHERS THEN
+  -- Never block a sign-up over the entitlement rows. A teacher with no
+  -- credits row is recoverable; a teacher who could not create an
+  -- account at all is not.
+  RAISE WARNING 'provision_faculty: %', SQLERRM;
+  RETURN NEW;
+END $function$;
+
+-- ── the cron stops sweeping ───────────────────────────────────────────
+--
+-- With the switch off, subscription_active_for() answers true for
+-- everyone, so the `lapsed` CTE would be empty and this is already a
+-- no-op. The explicit early return is here anyway: it says so out loud,
+-- it saves a full scan of subscriptions every night, and it means a
+-- future edit to the CTE cannot accidentally start zeroing balances
+-- during a free period.
+
+CREATE OR REPLACE FUNCTION public.expire_lapsed_subscriptions()
+RETURNS jsonb
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE out jsonb;
+BEGIN
+  IF NOT public.billing_enabled() THEN
+    RETURN jsonb_build_object('expired', 0, 'credits_cleared', 0,
+                              'skipped', 'billing_disabled', 'at', now());
+  END IF;
+
+  WITH lapsed AS (
+    SELECT s.faculty_id
+      FROM subscriptions s
+     WHERE (s.status <> 'expired' OR s.tier <> 'free')
+       AND NOT public.subscription_active_for(s.faculty_id)
+  ),
+  before AS (
+    SELECT COALESCE(SUM(c.balance), 0)::int AS credits
+      FROM credits c JOIN lapsed l ON l.faculty_id = c.faculty_id
+  ),
+  subs AS (
+    UPDATE subscriptions s
+       SET status = 'expired', tier = 'free', updated_at = now()
+      FROM lapsed l WHERE s.faculty_id = l.faculty_id
+    RETURNING 1
+  ),
+  creds AS (
+    UPDATE credits c
+       SET balance = 0, monthly_allowance = 0, next_refresh_at = NULL, updated_at = now()
+      FROM lapsed l WHERE c.faculty_id = l.faculty_id
+    RETURNING 1
+  )
+  SELECT jsonb_build_object(
+           'expired', (SELECT COUNT(*) FROM subs),
+           'credits_cleared', (SELECT credits FROM before),
+           'at', now()
+         ) INTO out;
+
+  RETURN out;
+END $$;
+
+REVOKE EXECUTE ON FUNCTION public.expire_lapsed_subscriptions() FROM PUBLIC, authenticated, anon;
+
+-- ── throwing the switch ───────────────────────────────────────────────
+--
+-- Flipping the flag alone would leave the database in a state that is
+-- consistent with neither mode, so the flip and the reconciliation are
+-- one transaction. Either both happen or neither does.
+--
+-- What has to be reconciled, and why the flag alone is not enough:
+--
+--   monthly_allowance  drives what refresh_credits_if_due() tops a
+--                      teacher back up to every month. Leave it at 800
+--                      after switching billing back on and a trial
+--                      account refills to twenty times its tier, for
+--                      ever, silently.
+--
+--   subscription dates  while billing is off, sign-up writes rows with
+--                      no end date. Read back through the paid gate,
+--                      COALESCE(period_end, trial_ends_at) IS NULL
+--                      answers TRUE — permanently. That is not the
+--                      paywall being off, it is the paywall silently not
+--                      existing, which is far worse because it looks
+--                      like it is working.
+--
+-- BALANCES ARE NEVER LOWERED, in either direction. Credits already in an
+-- account were given; taking them back is a decision for a human, not a
+-- side effect of a toggle. It also self-corrects: refresh_credits_if_due()
+-- sets balance = monthly_allowance at the next refresh, so an
+-- over-granted account converges on its real tier within a month without
+-- interrupting work someone is part-way through.
+
+CREATE OR REPLACE FUNCTION public.sa_set_billing(p_enabled boolean)
+RETURNS jsonb
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE
+  was boolean; want boolean; grant_size integer;
+  n_credits int := 0; n_subs int := 0;
+BEGIN
+  PERFORM public.sa_gate('admin.billing');
+
+  want := COALESCE(p_enabled, true);
+  was  := public.billing_enabled();
+  grant_size := public.free_grant_credits();
+
+  UPDATE feature_flags SET enabled = want, updated_at = now()
+   WHERE key = 'billing_enabled';
+  IF NOT FOUND THEN
+    INSERT INTO feature_flags (key, enabled, description)
+    VALUES ('billing_enabled', want, 'Master switch for plans, billing and tiered credits.');
+  END IF;
+
+  IF was IS NOT DISTINCT FROM want THEN
+    -- Idempotent: flipping a switch to where it already is should not
+    -- re-grant credits to everyone. Say so rather than pretending work
+    -- was done.
+    RETURN jsonb_build_object('enabled', want, 'changed', false,
+                              'credits_updated', 0, 'subscriptions_updated', 0);
+  END IF;
+
+  IF NOT want THEN
+    -- ── going FREE ────────────────────────────────────────────────────
+    -- Everyone lands on the same grant. Raise-only: a teacher holding
+    -- more than the grant because she paid for Max keeps what she paid
+    -- for. Taking it away because the shop closed would be theft, and
+    -- she is exactly the person whose goodwill a free period needs.
+    UPDATE credits c
+       SET monthly_allowance = grant_size,
+           balance = GREATEST(COALESCE(c.balance, 0), grant_size),
+           updated_at = now()
+     WHERE COALESCE(c.monthly_allowance, 0) <> grant_size
+        OR COALESCE(c.balance, 0) < grant_size;
+    GET DIAGNOSTICS n_credits = ROW_COUNT;
+
+    -- Every non-paying row goes to the same open state, not just the
+    -- ones the cron had already closed.
+    --
+    -- Scoping this to expired/canceled rows was a bug with a long fuse. A
+    -- teacher whose trial ran out BEFORE the free period kept
+    -- status='trialing' with a date in the past — invisible while the
+    -- switch was off, because nothing reads the date then. The moment
+    -- billing came back she was locked out by a trial that had expired
+    -- months earlier, having used the product happily the whole time.
+    -- Normalising every non-Stripe row here is what lets the paid flip
+    -- below hand out a fresh trial to exactly the same set.
+    --
+    -- Rows carrying a Stripe subscription are left alone: a live Max
+    -- subscription should still read as Max when billing comes back.
+    UPDATE subscriptions s
+       SET status = 'active',
+           tier = 'trial',
+           plan = 'trial',
+           current_period_start = COALESCE(s.current_period_start, now()),
+           trial_ends_at = NULL,
+           updated_at = now()
+     WHERE s.stripe_subscription_id IS NULL
+       AND (s.status IS DISTINCT FROM 'active'
+            OR s.trial_ends_at IS NOT NULL
+            OR s.tier IS DISTINCT FROM 'trial');
+    GET DIAGNOSTICS n_subs = ROW_COUNT;
+
+    -- Accounts that never got entitlement rows at all.
+    INSERT INTO credits (faculty_id, balance, monthly_allowance)
+    SELECT f.id, grant_size, grant_size FROM faculty f
+    ON CONFLICT (faculty_id) DO NOTHING;
+
+    INSERT INTO subscriptions (faculty_id, plan, tier, status, current_period_start)
+    SELECT f.id, 'trial', 'trial', 'active', now() FROM faculty f
+     WHERE NOT EXISTS (SELECT 1 FROM subscriptions s WHERE s.faculty_id = f.id);
+
+  ELSE
+    -- ── going PAID ────────────────────────────────────────────────────
+    -- Every account back to what its own tier grants.
+    UPDATE credits c
+       SET monthly_allowance = t.credits, updated_at = now()
+      FROM subscriptions s
+      JOIN plan_tiers t ON t.tier = s.tier
+     WHERE s.faculty_id = c.faculty_id
+       AND c.monthly_allowance IS DISTINCT FROM t.credits;
+    GET DIAGNOSTICS n_credits = ROW_COUNT;
+
+    -- The open-ended rows the free period created get a FRESH trial,
+    -- dated from the flip rather than from sign-up.
+    --
+    -- Dating it from sign-up would be defensible and is wrong in
+    -- practice: a teacher who joined during a three-month free period
+    -- would have her trial expire the instant the switch moved, having
+    -- never been offered one. She gets the same seven days a new sign-up
+    -- gets, starting now.
+    --
+    -- Scoped to rows carrying no Stripe subscription and no real period
+    -- end, so nobody who actually paid is touched. This is deliberately
+    -- the SAME set the free flip normalised above — the two directions
+    -- have to agree on who they are talking about, or accounts fall
+    -- between them and surface as a lockout much later.
+    --
+    -- Someone mid-trial when the switch was thrown gets a full seven days
+    -- rather than her remaining three. Carrying the remainder across a
+    -- mode change is more arithmetic than it is worth, and erring toward
+    -- the teacher is the right direction to err in.
+    UPDATE subscriptions s
+       SET status = 'trialing',
+           plan = 'trial',
+           tier = 'trial',
+           trial_ends_at = now() + INTERVAL '7 days',
+           updated_at = now()
+     WHERE s.current_period_end IS NULL
+       AND s.stripe_subscription_id IS NULL;
+    GET DIAGNOSTICS n_subs = ROW_COUNT;
+  END IF;
+
+  PERFORM public.sa_write_audit(
+    'superadmin.billing.mode', 'feature_flags', NULL,
+    jsonb_build_object('enabled', want, 'was', was, 'free_grant', grant_size,
+                       'credits_updated', n_credits, 'subscriptions_updated', n_subs));
+
+  RETURN jsonb_build_object('enabled', want, 'changed', true,
+                            'credits_updated', n_credits,
+                            'subscriptions_updated', n_subs,
+                            'free_grant', grant_size);
+END $$;
+
+/**
+ * What the console shows before anyone touches the switch.
+ *
+ * Returns the counts the confirmation needs, so the super admin is told
+ * how many accounts a flip will rewrite BEFORE they flip it rather than
+ * after. A toggle that silently rewrites every row in two tables should
+ * at least say how many.
+ */
+CREATE OR REPLACE FUNCTION public.sa_billing_mode()
+RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+BEGIN
+  PERFORM public.sa_gate('admin.billing');
+  RETURN jsonb_build_object(
+    'enabled',    public.billing_enabled(),
+    'free_grant', public.free_grant_credits(),
+    'accounts',   (SELECT COUNT(*) FROM faculty),
+    'paying',     (SELECT COUNT(*) FROM subscriptions
+                    WHERE stripe_subscription_id IS NOT NULL
+                      AND status IN ('active', 'past_due')),
+    'updated_at', (SELECT updated_at FROM feature_flags WHERE key = 'billing_enabled')
+  );
+END $$;
+
+REVOKE EXECUTE ON FUNCTION public.sa_set_billing(boolean) FROM PUBLIC, anon;
+REVOKE EXECUTE ON FUNCTION public.sa_billing_mode()       FROM PUBLIC, anon;
+GRANT  EXECUTE ON FUNCTION public.sa_set_billing(boolean) TO authenticated;
+GRANT  EXECUTE ON FUNCTION public.sa_billing_mode()       TO authenticated;
+
+-- ── the browser learns which mode it is in ────────────────────────────
+--
+-- my_credits() is already fetched by the studio shell on load and again
+-- on every spend, and it is already the source for the credit meter and
+-- the usage page. Adding the flag here means the teacher UI reacts to a
+-- flip with no new round trip, no new endpoint, and no poll — the next
+-- generation she runs refreshes it.
+--
+-- Everything else in the payload is unchanged. `plan`, `tier`, `status`
+-- and `ends_at` still come back while billing is off; they are simply
+-- not rendered. Blanking them here would break the super admin's account
+-- drawer, which reads the same shape.
+
+CREATE OR REPLACE FUNCTION public.my_credits()
+RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE fid uuid; uid uuid; out jsonb;
+BEGIN
+  fid := public.current_faculty_id();
+  IF fid IS NULL THEN RETURN NULL; END IF;
+  uid := (SELECT auth.uid());
+
+  SELECT jsonb_build_object(
+    'balance',   COALESCE(c.balance, 0),
+    'allowance', COALESCE(c.monthly_allowance, 0),
+    'renews_at', c.next_refresh_at,
+    -- `plan` is the billing CADENCE ('monthly' | 'annual' | 'trial').
+    -- `tier` is the PRODUCT ('basic' | 'pro' | 'max' | 'trial').
+    -- Both are needed and they are not interchangeable.
+    'plan',      s.plan,
+    'tier',      s.tier,
+    'status',    s.status,
+    'subscription_active', public.subscription_active_for(fid),
+    -- Whether this teacher should be shown plans and billing at all.
+    'billing_enabled', public.billing_enabled(),
+    'ends_at',   COALESCE(s.current_period_end, s.trial_ends_at),
+    'costs', (
+      SELECT COALESCE(jsonb_object_agg(feature, cost), '{}'::jsonb)
+        FROM ai_credit_costs
+    ),
+    'recent', (
+      SELECT COALESCE(jsonb_agg(row_to_json(r) ORDER BY r.created_at DESC), '[]'::jsonb)
+        FROM (
+          SELECT operation, credits, tokens_in, tokens_out, cost_usd, created_at
+            FROM usage_logs
+           WHERE user_id = uid AND credits > 0
+           ORDER BY created_at DESC
+           LIMIT 20
+        ) r
+    )
+  ) INTO out
+  FROM credits c
+  LEFT JOIN subscriptions s ON s.faculty_id = c.faculty_id
+  WHERE c.faculty_id = fid;
+
+  RETURN out;
+END $$;
+GRANT EXECUTE ON FUNCTION public.my_credits() TO authenticated;
+REVOKE EXECUTE ON FUNCTION public.my_credits() FROM PUBLIC, anon;
+
+-- ── prove the whole switch ────────────────────────────────────────────
+--
+-- §86 is why this asserts rather than trusts: this file is append-only
+-- and re-run whole, and a CREATE OR REPLACE further up silently won the
+-- last time. Every claim the section makes is checked here, and a failure
+-- blocks the migration rather than shipping a half-wired switch.
+
+DO $$
+DECLARE missing text[] := '{}'; k text; def text; started boolean;
+BEGIN
+  -- 1. The payload keeps every key it had, and gains the new one.
+  SELECT pg_get_functiondef(oid) INTO def FROM pg_proc WHERE proname = 'my_credits';
+  FOREACH k IN ARRAY ARRAY['balance','allowance','renews_at','plan','tier','status',
+                           'subscription_active','billing_enabled','ends_at','costs','recent']
+  LOOP
+    IF position('''' || k || '''' IN def) = 0 THEN missing := missing || k; END IF;
+  END LOOP;
+  IF array_length(missing, 1) > 0 THEN
+    RAISE EXCEPTION 'my_credits() is missing: %', array_to_string(missing, ', ');
+  END IF;
+
+  -- 2. The flag exists and the gates actually read it. Flipped inside a
+  --    savepoint and rolled straight back, so this proves the wiring on
+  --    the real functions without leaving the switch moved.
+  started := public.billing_enabled();
+
+  BEGIN
+    UPDATE feature_flags SET enabled = false WHERE key = 'billing_enabled';
+    IF public.billing_enabled() THEN
+      RAISE EXCEPTION 'billing_enabled() does not read the flag';
+    END IF;
+    IF NOT public.subscription_active_for('00000000-0000-0000-0000-000000000001'::uuid) THEN
+      RAISE EXCEPTION 'subscription_active_for() ignores the billing switch';
+    END IF;
+    IF (public.expire_lapsed_subscriptions()) ->> 'skipped' IS DISTINCT FROM 'billing_disabled' THEN
+      RAISE EXCEPTION 'the expiry sweep still runs while billing is off';
+    END IF;
+    RAISE EXCEPTION 'rollback_probe';        -- unwind everything above
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM <> 'rollback_probe' THEN RAISE; END IF;
+  END;
+
+  -- 3. The switch is exactly where it was before the probe.
+  IF public.billing_enabled() IS DISTINCT FROM started THEN
+    RAISE EXCEPTION 'the probe left billing_enabled changed (now %)', public.billing_enabled();
+  END IF;
+
+  -- 4. Anonymous callers cannot reach any of it (§83).
+  FOREACH k IN ARRAY ARRAY['public.billing_enabled()',
+                           'public.free_grant_credits()',
+                           'public.subscription_active()',
+                           'public.subscription_active_for(uuid)',
+                           'public.sa_set_billing(boolean)',
+                           'public.sa_billing_mode()']
+  LOOP
+    IF has_function_privilege('anon', k, 'EXECUTE') THEN
+      RAISE EXCEPTION 'anon can execute %', k;
+    END IF;
+  END LOOP;
+
+  RAISE NOTICE 'billing switch wired: mode=%, free grant=% credits',
+    CASE WHEN started THEN 'PAID' ELSE 'FREE' END, public.free_grant_credits();
+END $$;
+
+-- ── the usage page needs the mode too ─────────────────────────────────
+--
+-- CreditUsage reads my_ai_usage(), not my_credits(), so without this it
+-- would keep offering "Top up or move to a bigger plan" during a free
+-- period. Adding the key here rather than making the page fetch
+-- my_credits() as well keeps it to one request — the page already has
+-- everything else it needs.
+--
+-- Only the two lines marked below differ from the §68 definition.
+
+CREATE OR REPLACE FUNCTION public.my_ai_usage(p_days int DEFAULT 30)
+RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE
+  me    uuid := public.current_faculty_id();
+  since timestamptz := now() - (GREATEST(COALESCE(p_days, 30), 1) || ' days')::interval;
+  out   jsonb;
+BEGIN
+  IF me IS NULL THEN RAISE EXCEPTION 'not a teacher' USING ERRCODE = '42501'; END IF;
+
+  SELECT jsonb_build_object(
+    'days', GREATEST(COALESCE(p_days, 30), 1),
+    'balance',   (SELECT balance           FROM credits WHERE faculty_id = me),
+    'allowance', (SELECT monthly_allowance FROM credits WHERE faculty_id = me),
+    'renews_at', (SELECT next_refresh_at   FROM credits WHERE faculty_id = me),
+    'plan',      (SELECT tier              FROM subscriptions WHERE faculty_id = me),
+    -- NEW: whether plans and billing exist right now (§89).
+    'billing_enabled', public.billing_enabled(),
+    -- Spent in the window, and spent since the allowance last refreshed.
+    -- The second is the one that answers "why is my balance here".
+    'spent', COALESCE((SELECT SUM(credits) FROM usage_logs
+                        WHERE faculty_id = me AND created_at >= since), 0),
+    'generations', COALESCE((SELECT COUNT(*) FROM usage_logs
+                        WHERE faculty_id = me AND created_at >= since AND credits > 0), 0),
+    'by_feature', COALESCE((
+      SELECT jsonb_agg(row_to_json(t) ORDER BY t.credits DESC, t.feature)
+        FROM (
+          SELECT feature,
+                 public.feature_label(feature) AS label,
+                 SUM(credits)::int            AS credits,
+                 COUNT(*)::int                AS runs
+            FROM usage_logs
+           WHERE faculty_id = me AND created_at >= since AND credits > 0
+           GROUP BY feature
+        ) t), '[]'::jsonb),
+    'by_day', COALESCE((
+      SELECT jsonb_agg(row_to_json(d) ORDER BY d.day)
+        FROM (
+          SELECT created_at::date AS day, SUM(credits)::int AS credits
+            FROM usage_logs
+           WHERE faculty_id = me AND created_at >= since AND credits > 0
+           GROUP BY 1
+        ) d), '[]'::jsonb),
+    'recent', COALESCE((
+      SELECT jsonb_agg(row_to_json(r) ORDER BY r.at DESC)
+        FROM (
+          SELECT created_at AS at,
+                 public.feature_label(feature) AS label,
+                 credits
+            FROM usage_logs
+           WHERE faculty_id = me AND credits > 0
+           ORDER BY created_at DESC
+           LIMIT 20
+        ) r), '[]'::jsonb)
+  ) INTO out;
+
+  RETURN out;
+END $$;
+GRANT EXECUTE ON FUNCTION public.my_ai_usage(int) TO authenticated;
+REVOKE EXECUTE ON FUNCTION public.my_ai_usage(int) FROM PUBLIC, anon;
+
+DO $$
+DECLARE def text;
+BEGIN
+  SELECT pg_get_functiondef(oid) INTO def FROM pg_proc WHERE proname = 'my_ai_usage';
+  IF position('''billing_enabled''' IN def) = 0 THEN
+    RAISE EXCEPTION 'my_ai_usage() lost billing_enabled';
+  END IF;
+  IF position('''by_feature''' IN def) = 0 OR position('''recent''' IN def) = 0 THEN
+    RAISE EXCEPTION 'my_ai_usage() lost a key the usage page reads';
+  END IF;
+END $$;
+
+-- ── and the billing page ──────────────────────────────────────────────
+--
+-- Same reason as my_ai_usage() above: Billing.jsx reads my_billing(), so
+-- without the key it cannot tell a free period from a teacher who simply
+-- has no receipts yet. Identical to the §80 definition apart from the one
+-- marked line.
+
+CREATE OR REPLACE FUNCTION public.my_billing()
+RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE me uuid := public.current_faculty_id(); out jsonb;
+BEGIN
+  IF me IS NULL THEN RAISE EXCEPTION 'not a teacher' USING ERRCODE = '42501'; END IF;
+
+  SELECT jsonb_build_object(
+    -- NEW: whether plans and billing exist right now (§89).
+    'billing_enabled', public.billing_enabled(),
+    'plan', jsonb_build_object(
+      'tier',        COALESCE(s.tier, 'trial'),
+      'label',       COALESCE(pt.label, 'Free trial'),
+      'status',      COALESCE(s.status, 'trialing'),
+      'billing_period', s.billing_period,
+      'price_aed',   CASE WHEN s.billing_period = 'annual' THEN pt.annual_aed ELSE pt.price_aed END,
+      'started_at',  s.current_period_start,
+      'renews_at',   COALESCE(s.current_period_end, s.trial_ends_at),
+      'cancel_at_period_end', COALESCE(s.cancel_at_period_end, false),
+      'live',        public.subscription_active_for(me)
+    ),
+    'credits', jsonb_build_object(
+      'balance',   COALESCE(c.balance, 0),
+      'allowance', COALESCE(c.monthly_allowance, 0),
+      'refreshes_at', c.next_refresh_at
+    ),
+    -- What she has actually paid us, all time.
+    'spend', (
+      SELECT jsonb_build_object(
+               'total_minor', COALESCE(SUM(amount_minor) FILTER (WHERE status = 'paid'), 0),
+               'currency',    COALESCE(MAX(currency), 'aed'),
+               'payments',    COUNT(*) FILTER (WHERE status = 'paid'))
+        FROM payments WHERE faculty_id = me
+    ),
+    'receipts', COALESCE((
+      SELECT jsonb_agg(row_to_json(r) ORDER BY r.created_at DESC)
+        FROM (
+          SELECT id, kind, tier, billing_period, credits_granted,
+                 amount_minor, currency, status, created_at, paid_at
+            FROM payments WHERE faculty_id = me
+           ORDER BY created_at DESC LIMIT 50
+        ) r), '[]'::jsonb)
+  ) INTO out
+  FROM (SELECT 1) _
+  LEFT JOIN subscriptions s ON s.faculty_id = me
+  LEFT JOIN plan_tiers pt   ON pt.tier = s.tier
+  LEFT JOIN credits c       ON c.faculty_id = me;
+
+  RETURN out;
+END $$;
+GRANT EXECUTE ON FUNCTION public.my_billing() TO authenticated;
+REVOKE EXECUTE ON FUNCTION public.my_billing() FROM PUBLIC, anon;
+
+DO $$
+DECLARE def text; fn text; sig text;
+BEGIN
+  -- Checked here rather than beside my_credits() because that block runs
+  -- before this section redefines the other two, and a privilege check on
+  -- a function that does not exist yet fails for the wrong reason.
+  FOREACH fn IN ARRAY ARRAY['my_credits','my_ai_usage','my_billing'] LOOP
+    SELECT pg_get_functiondef(oid) INTO def FROM pg_proc WHERE proname = fn;
+    IF position('''billing_enabled''' IN def) = 0 THEN
+      RAISE EXCEPTION '%() does not tell the browser which billing mode it is in', fn;
+    END IF;
+  END LOOP;
+
+  FOREACH sig IN ARRAY ARRAY['public.my_credits()', 'public.my_ai_usage(int)',
+                             'public.my_billing()']
+  LOOP
+    IF has_function_privilege('anon', sig, 'EXECUTE') THEN
+      RAISE EXCEPTION 'anon can execute %', sig;
+    END IF;
+    IF NOT has_function_privilege('authenticated', sig, 'EXECUTE') THEN
+      RAISE EXCEPTION 'authenticated LOST execute on % — teachers would see nothing', sig;
+    END IF;
+  END LOOP;
+
+  RAISE NOTICE 'billing switch reaches all three teacher payloads';
+END $$;
+
+
+-- ─────────────────────────────────────────────────────────────────────────
+-- §90  "Has this account paid?" belongs in one place
+-- ─────────────────────────────────────────────────────────────────────────
+--
+-- §89's two flips each carried their own idea of who counts as a paying
+-- account, spelled as `stripe_subscription_id IS NULL`. Live data says
+-- that is wrong: the one paying account on this platform has NO
+-- stripe_subscription_id and no stripe_customer_id. It was bought through
+-- Checkout in payment mode, so apply_payment() recorded the entitlement
+-- as `tier = 'max'` with a `current_period_end` and no subscription
+-- object ever existed.
+--
+-- Under §89 that account would have been swept into the free grant,
+-- rewritten to tier 'trial', and handed a 7-day trial with 40 credits
+-- when billing came back — a real customer silently demoted to a trial
+-- for having paid the wrong way. Caught by reading the confirmation
+-- dialog against real rows: it said "all 5 accounts" and showed no
+-- paying-account warning, on a platform with a live Max subscriber.
+--
+-- The fix is not a better WHERE clause. It is having ONE clause. Two
+-- copies of a predicate that must agree is the bug; a function both
+-- callers ask is the fix, and sa_billing_mode() now counts with the same
+-- one, so the confirmation dialog cannot disagree with what the flip
+-- actually does.
+
+CREATE OR REPLACE FUNCTION public.has_paid_entitlement(p_faculty uuid)
+RETURNS boolean
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM subscriptions s
+     WHERE s.faculty_id = p_faculty
+       AND (
+         -- Bought as a recurring subscription.
+         s.stripe_subscription_id IS NOT NULL
+         -- Or bought outright: a real period end is a paid entitlement
+         -- whatever produced it. This is the arm §89 was missing.
+         OR s.current_period_end IS NOT NULL
+         -- Or sitting on a paid product for any other reason — granted by
+         -- an admin, migrated in. A trial is the only unpaid tier.
+         OR s.tier IN ('basic', 'pro', 'max')
+       )
+  );
+$$;
+
+REVOKE EXECUTE ON FUNCTION public.has_paid_entitlement(uuid) FROM PUBLIC, anon;
+GRANT  EXECUTE ON FUNCTION public.has_paid_entitlement(uuid) TO authenticated;
+
+CREATE OR REPLACE FUNCTION public.sa_set_billing(p_enabled boolean)
+RETURNS jsonb
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE
+  was boolean; want boolean; grant_size integer;
+  n_credits int := 0; n_subs int := 0;
+BEGIN
+  PERFORM public.sa_gate('admin.billing');
+
+  want := COALESCE(p_enabled, true);
+  was  := public.billing_enabled();
+  grant_size := public.free_grant_credits();
+
+  UPDATE feature_flags SET enabled = want, updated_at = now()
+   WHERE key = 'billing_enabled';
+  IF NOT FOUND THEN
+    INSERT INTO feature_flags (key, enabled, description)
+    VALUES ('billing_enabled', want, 'Master switch for plans, billing and tiered credits.');
+  END IF;
+
+  IF was IS NOT DISTINCT FROM want THEN
+    RETURN jsonb_build_object('enabled', want, 'changed', false,
+                              'credits_updated', 0, 'subscriptions_updated', 0);
+  END IF;
+
+  IF NOT want THEN
+    -- ── going FREE ────────────────────────────────────────────────────
+    -- Credits go to everyone, paying or not: during a free period nobody
+    -- should have less than the grant. Raise-only, so a Max subscriber
+    -- sitting above it keeps what she paid for.
+    UPDATE credits c
+       SET monthly_allowance = grant_size,
+           balance = GREATEST(COALESCE(c.balance, 0), grant_size),
+           updated_at = now()
+     WHERE COALESCE(c.monthly_allowance, 0) <> grant_size
+        OR COALESCE(c.balance, 0) < grant_size;
+    GET DIAGNOSTICS n_credits = ROW_COUNT;
+
+    -- Subscription ROWS are only rewritten for unpaid accounts. A paying
+    -- account needs no rewriting: gating is off, so its dates are inert,
+    -- and leaving them untouched is what lets it come back as itself.
+    UPDATE subscriptions s
+       SET status = 'active',
+           tier = 'trial',
+           plan = 'trial',
+           current_period_start = COALESCE(s.current_period_start, now()),
+           trial_ends_at = NULL,
+           updated_at = now()
+     WHERE NOT public.has_paid_entitlement(s.faculty_id)
+       AND (s.status IS DISTINCT FROM 'active' OR s.trial_ends_at IS NOT NULL);
+    GET DIAGNOSTICS n_subs = ROW_COUNT;
+
+    INSERT INTO credits (faculty_id, balance, monthly_allowance)
+    SELECT f.id, grant_size, grant_size FROM faculty f
+    ON CONFLICT (faculty_id) DO NOTHING;
+
+    INSERT INTO subscriptions (faculty_id, plan, tier, status, current_period_start)
+    SELECT f.id, 'trial', 'trial', 'active', now() FROM faculty f
+     WHERE NOT EXISTS (SELECT 1 FROM subscriptions s WHERE s.faculty_id = f.id);
+
+  ELSE
+    -- ── going PAID ────────────────────────────────────────────────────
+    UPDATE credits c
+       SET monthly_allowance = t.credits, updated_at = now()
+      FROM subscriptions s
+      JOIN plan_tiers t ON t.tier = s.tier
+     WHERE s.faculty_id = c.faculty_id
+       AND c.monthly_allowance IS DISTINCT FROM t.credits;
+    GET DIAGNOSTICS n_credits = ROW_COUNT;
+
+    -- Exactly the accounts the free flip rewrote — same predicate, one
+    -- definition, so the two directions cannot disagree about who they
+    -- are talking about. Everyone here gets a full fresh trial dated from
+    -- the flip, not from sign-up: a teacher who joined during a
+    -- three-month free period would otherwise have her trial expire the
+    -- instant the switch moved, having never been offered one.
+    UPDATE subscriptions s
+       SET status = 'trialing',
+           plan = 'trial',
+           tier = 'trial',
+           trial_ends_at = now() + INTERVAL '7 days',
+           updated_at = now()
+     WHERE NOT public.has_paid_entitlement(s.faculty_id);
+    GET DIAGNOSTICS n_subs = ROW_COUNT;
+  END IF;
+
+  PERFORM public.sa_write_audit(
+    'superadmin.billing.mode', 'feature_flags', NULL,
+    jsonb_build_object('enabled', want, 'was', was, 'free_grant', grant_size,
+                       'credits_updated', n_credits, 'subscriptions_updated', n_subs));
+
+  RETURN jsonb_build_object('enabled', want, 'changed', true,
+                            'credits_updated', n_credits,
+                            'subscriptions_updated', n_subs,
+                            'free_grant', grant_size);
+END $$;
+
+CREATE OR REPLACE FUNCTION public.sa_billing_mode()
+RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+BEGIN
+  PERFORM public.sa_gate('admin.billing');
+  RETURN jsonb_build_object(
+    'enabled',    public.billing_enabled(),
+    'free_grant', public.free_grant_credits(),
+    'accounts',   (SELECT COUNT(*) FROM faculty),
+    -- Counted with the SAME predicate the flip uses. When these two
+    -- disagreed, the dialog under-reported the blast radius on the only
+    -- account that mattered.
+    'paying',     (SELECT COUNT(*) FROM subscriptions s
+                    WHERE public.has_paid_entitlement(s.faculty_id)),
+    'updated_at', (SELECT updated_at FROM feature_flags WHERE key = 'billing_enabled')
+  );
+END $$;
+
+REVOKE EXECUTE ON FUNCTION public.sa_set_billing(boolean) FROM PUBLIC, anon;
+REVOKE EXECUTE ON FUNCTION public.sa_billing_mode()       FROM PUBLIC, anon;
+GRANT  EXECUTE ON FUNCTION public.sa_set_billing(boolean) TO authenticated;
+GRANT  EXECUTE ON FUNCTION public.sa_billing_mode()       TO authenticated;
+
+DO $$
+DECLARE paid_rows int; unpaid_rows int;
+BEGIN
+  SELECT COUNT(*) INTO paid_rows   FROM subscriptions s
+   WHERE public.has_paid_entitlement(s.faculty_id);
+  SELECT COUNT(*) INTO unpaid_rows FROM subscriptions s
+   WHERE NOT public.has_paid_entitlement(s.faculty_id);
+
+  -- The specific regression: a tier that was bought outright, with no
+  -- Stripe subscription object, must read as paid.
+  IF EXISTS (SELECT 1 FROM subscriptions
+              WHERE tier IN ('basic','pro','max')
+                AND NOT public.has_paid_entitlement(faculty_id)) THEN
+    RAISE EXCEPTION 'a paid tier is being treated as an unpaid account';
+  END IF;
+
+  IF has_function_privilege('anon', 'public.has_paid_entitlement(uuid)', 'EXECUTE') THEN
+    RAISE EXCEPTION 'anon can execute has_paid_entitlement';
+  END IF;
+
+  RAISE NOTICE 'billing switch: % paid account(s) protected, % on the free grant',
+    paid_rows, unpaid_rows;
 END $$;

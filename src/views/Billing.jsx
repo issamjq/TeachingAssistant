@@ -96,6 +96,28 @@ export default function Billing() {
       </div>
     );
   }
+  /**
+   * PUBLIC TEST PERIOD (db/tune.sql §89).
+   *
+   * The studio shell already bounces this route out of the nav and out of
+   * the URL bar while billing is off, so almost nobody reaches this. It is
+   * here for the gap between the page mounting and the shell's redirect
+   * effect running, and for anyone who lands with a stale link: a flash of
+   * live price cards during a free period is a worse answer than a sentence
+   * saying there is nothing to buy.
+   */
+  if (data?.billing_enabled === false) {
+    return (
+      <div className="border border-line rounded-2xl p-6 bg-paper max-w-xl">
+        <h2 className="font-serif text-2xl text-ink">Nothing to bill.</h2>
+        <p className="text-sm text-muted mt-2">
+          Murchid is free while we&rsquo;re in public testing. There&rsquo;s no card on
+          file and no invoices to show.
+        </p>
+      </div>
+    );
+  }
+
   if (!data) return <BrandLoader />;
 
   const { plan, credits, spend, receipts } = data;

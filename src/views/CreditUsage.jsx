@@ -67,6 +67,16 @@ export default function CreditUsage() {
   const spent = Number(data.spent ?? 0);
   const used = allowance ? Math.min(100, Math.round(((allowance - balance) / allowance) * 100)) : 0;
   const low = allowance > 0 && balance / allowance <= 0.2;
+  /**
+   * Whether plans exist right now (db/tune.sql §89). This page stays in
+   * both modes — a teacher on a fixed grant needs to see where it went
+   * more than one on a plan does — but everything that points AT a plan
+   * comes out when there are none to point at.
+   *
+   * `!== false` so an older payload without the key reads as billing on,
+   * which is the default.
+   */
+  const billingOn = data.billing_enabled !== false;
 
   return (
     <div className="space-y-8 pb-10">
@@ -107,7 +117,9 @@ export default function CreditUsage() {
           <p className="font-serif text-4xl text-ink">{balance}</p>
           {allowance > 0 && (
             <>
-              <p className="text-xs text-muted mt-1">of {allowance} this month</p>
+              <p className="text-xs text-muted mt-1">
+                of {allowance}{billingOn ? " this month" : ""}
+              </p>
               <div className="h-1.5 rounded-full bg-line mt-3 overflow-hidden">
                 <div
                   className={`h-full rounded-full ${low ? "bg-clay" : "bg-accent"}`}
@@ -116,7 +128,7 @@ export default function CreditUsage() {
               </div>
             </>
           )}
-          {data.renews_at && (
+          {billingOn && data.renews_at && (
             <p className="text-xs text-muted mt-2">Renews {fmtDay(data.renews_at)}</p>
           )}
         </div>
@@ -128,9 +140,12 @@ export default function CreditUsage() {
       {low && (
         <div className="border border-clay/40 rounded-xl p-4 bg-paper flex flex-wrap items-center gap-3">
           <p className="text-sm text-ink flex-1 min-w-[220px]">
-            <strong>Running low.</strong> Top up or move to a bigger plan to keep generating.
+            <strong>Running low.</strong>{" "}
+            {billingOn
+              ? "Top up or move to a bigger plan to keep generating."
+              : "You\u2019ve used most of your credits. Everything you\u2019ve already made stays here."}
           </p>
-          <Button onClick={() => navigate(["plans"])}>See plans</Button>
+          {billingOn && <Button onClick={() => navigate(["plans"])}>See plans</Button>}
         </div>
       )}
 
@@ -214,13 +229,15 @@ export default function CreditUsage() {
           Credits are charged as a document is written, not after — so a
           generation you stop halfway only costs you the part that was written.
         </p>
-        <button
-          type="button"
-          onClick={() => navigate(["plans"])}
-          className="font-mono text-[10px] uppercase tracking-wider text-ink mt-2 inline-flex items-center gap-1.5 hover:text-accent transition"
-        >
-          Plans and top-ups <ArrowRight size={11} />
-        </button>
+        {billingOn && (
+          <button
+            type="button"
+            onClick={() => navigate(["plans"])}
+            className="font-mono text-[10px] uppercase tracking-wider text-ink mt-2 inline-flex items-center gap-1.5 hover:text-accent transition"
+          >
+            Plans and top-ups <ArrowRight size={11} />
+          </button>
+        )}
       </div>
     </div>
   );

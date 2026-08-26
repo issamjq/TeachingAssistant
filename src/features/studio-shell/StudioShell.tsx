@@ -14,7 +14,7 @@
 // Note: App.jsx also computed a `crumbs` array in 17 places. Nothing ever
 // rendered it — it was dead code and is not carried over.
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import {
   ChevronRight,
@@ -190,7 +190,48 @@ export default function StudioShell({ children }: { children: React.ReactNode })
   // A sub-admin's surfaces are whatever the super admin granted; everyone
   // else's are the static per-role config. `perms` fills in from /api/me.
   const isAdmin = role === "admin";
-  const allowedSections = isAdmin ? adminSections(perms) : SECTIONS_BY_ROLE[role];
+  /**
+   * Which billing mode the platform is in (db/tune.sql §89). It rides
+   * along on the credits payload rather than getting its own endpoint,
+   * so a super admin throwing the switch reaches every teacher on her
+   * next generation with no poll and no reload.
+   *
+   * `null` means "not answered yet", and it is treated as HIDE rather
+   * than as show. A Plans link that appears for a moment and then
+   * vanishes is worse than one that arrives a beat late: during a free
+   * period it advertises something that does not exist, and a teacher
+   * who clicks it in that moment lands on a redirect.
+   *
+   * A failed fetch resolves to TRUE, not to null. Billing on is the
+   * default and the paying customer is the one who gets hurt by guessing
+   * wrong — losing the link to the plan she is paying for because a
+   * request timed out is the worse of the two failures.
+   */
+  const [billingOn, setBillingOn] = useState<boolean | null>(null);
+
+  const roleSections = isAdmin ? adminSections(perms) : SECTIONS_BY_ROLE[role];
+
+  /**
+   * Plans and billing are not features of a role, they are features of a
+   * billing mode, so they are subtracted here rather than removed from
+   * SECTIONS_BY_ROLE. That config answers "may this role reach this
+   * screen"; the switch answers "does this screen exist right now", and
+   * folding the second into the first would mean a static file had to be
+   * edited to throw a runtime switch.
+   *
+   * Subtracting here also closes the URL bar. `allowedSections` is what
+   * the redirect effect below checks, so with billing off a teacher who
+   * types /plans is bounced to her dashboard by the same guard that
+   * already handles a stale /quizzes — no separate route check to keep
+   * in step.
+   */
+  const allowedSections = useMemo(() => {
+    if (billingOn !== false) return roleSections;
+    const open = new Set(roleSections);
+    open.delete("plans");
+    open.delete("billing");
+    return open;
+  }, [roleSections, billingOn]);
   const homeRoute = isAdmin ? adminHome(perms) : DEFAULT_ROUTE[role];
 
   // The section is the first path segment — the shell needs it for active
@@ -323,7 +364,13 @@ export default function StudioShell({ children }: { children: React.ReactNode })
     if (!allowedSections.has(section)) {
       replace([homeRoute]);
     }
-  }, [role, roleReady, section, perms]); // eslint-disable-line react-hooks/exhaustive-deps
+    // `billingOn` belongs in here: it is the one input that can change
+    // while the teacher is standing still. Role and section only move
+    // because she moved, but the switch is thrown by someone else, and
+    // without this a teacher sitting on /plans when billing goes off
+    // keeps the page — and the checkout button on it — until she happens
+    // to navigate.
+  }, [role, roleReady, section, perms, billingOn]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Any route change closes the mobile drawer + account menu so the new
   // screen is visible immediately after tapping a nav item.
@@ -382,8 +429,12 @@ export default function StudioShell({ children }: { children: React.ReactNode })
     let off = false;
     const load = () =>
       api("/api/auth/credits")
-        .then((c: any) => { if (!off) setCredits(c || null); })
-        .catch(() => {});
+        .then((c: any) => {
+          if (off) return;
+          setCredits(c || null);
+          setBillingOn(c?.billing_enabled !== false);
+        })
+        .catch(() => { if (!off) setBillingOn(true); });
     load();
     // The studio announces a spend the moment one lands.
     const onSpent = () => load();
@@ -621,7 +672,15 @@ export default function StudioShell({ children }: { children: React.ReactNode })
           open={accountMenuOpen}
           onClose={() => setAccountMenuOpen(false)}
           user={account}
-          showUpgrade
+          /* Teachers only, and only while there is something to upgrade to.
+             `billingOn` rides on the credits fetch, which only runs for
+             teachers — so for a super admin it stays null and this read as
+             "show", leaving "Upgrade plan" in the menu of someone who has
+             no plan, during a free period with no plans to sell. Two
+             wrongs in one line. "Credits used" still stays in both modes:
+             a teacher on a fixed grant needs to see where it went more
+             than one on a plan does. */
+          showUpgrade={role === "teacher" && billingOn !== false}
           onOpenSettings={() => navigate(["account"])}
           onOpenHelp={() => {
             const launcher = document.querySelector<HTMLButtonElement>(
@@ -636,7 +695,7 @@ export default function StudioShell({ children }: { children: React.ReactNode })
           /* Teachers only — a student has no balance to account for. */
           showUsage={role === "teacher"}
           onOpenUsage={() => navigate(["credit-usage"])}
-          showBilling={role === "teacher"}
+          showBilling={role === "teacher" && billingOn !== false}
           onOpenBilling={() => navigate(["billing"])}
           onLogout={signOutFully}
           roles={heldRoles}

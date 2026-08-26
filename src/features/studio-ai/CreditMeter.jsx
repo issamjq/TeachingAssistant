@@ -95,9 +95,22 @@ export function CreditEstimate({ credits, kinds, hasMaterials }) {
 export function CreditWarning({ credits, onDismiss = undefined }) {
   const [hidden, setHidden] = useState(false);
   const left = pct(credits);
+  /**
+   * Which mode the platform is in (db/tune.sql §89). Off means there are
+   * no plans, so every "upgrade" and "see plans" here has nowhere to
+   * lead — the banner still states the balance, it just stops offering a
+   * way out that does not exist. A dead call to action is worse than
+   * none: it reads as the product being broken rather than free.
+   *
+   * Compared against `false` rather than truthiness so that an older
+   * payload without the key behaves as billing on, which is the default.
+   */
+  const billingOn = credits?.billing_enabled !== false;
+
   // A lapsed account has a zero allowance, so pct() is null for exactly
-  // the people who most need to be told why nothing works.
-  const lapsed = credits?.subscription_active === false;
+  // the people who most need to be told why nothing works. Nothing can
+  // lapse while billing is off, so that case is ignored there.
+  const lapsed = billingOn && credits?.subscription_active === false;
   if (!credits || (left == null && !lapsed) || hidden) return null;
 
   const balance = Number(credits.balance ?? 0);
@@ -119,7 +132,7 @@ export function CreditWarning({ credits, onDismiss = undefined }) {
    * account also has a zero balance and would otherwise fall into the
    * wrong branch.
    */
-  if (credits.subscription_active === false) {
+  if (lapsed) {
     return (
       <Banner tone="clay" action="See plans">
         <strong>Your plan has ended.</strong> Everything you&rsquo;ve made is still here and your
@@ -130,19 +143,25 @@ export function CreditWarning({ credits, onDismiss = undefined }) {
 
   if (balance === 0) {
     return (
-      <Banner tone="clay" action="Top up or upgrade">
-        <strong>You&rsquo;re out of credits.</strong> Everything you&rsquo;ve made stays here and
-        your classes carry on — you just can&rsquo;t generate anything new until you top up
-        {renews ? <> or your plan renews on {renews}</> : null}.
+      <Banner tone="clay" action={billingOn ? "Top up or upgrade" : undefined}>
+        <strong>You&rsquo;ve used all your credits.</strong> Everything you&rsquo;ve made stays
+        here and your classes carry on — you just can&rsquo;t generate anything new
+        {billingOn ? (
+          <> until you top up{renews ? <> or your plan renews on {renews}</> : null}.</>
+        ) : (
+          <> for now.</>
+        )}
       </Banner>
     );
   }
   if (left <= 10) {
     return (
-      <Banner tone="clay" action="Top up or upgrade">
+      <Banner tone="clay" action={billingOn ? "Top up or upgrade" : undefined}>
         <strong>{balance} credits left.</strong>{" "}
         {lessons ? <>About {lessons} more {lessons === 1 ? "lesson" : "lessons"}. </> : null}
-        Top up or upgrade to keep going{renews ? <>, or wait until {renews}</> : null}.
+        {billingOn ? (
+          <>Top up or upgrade to keep going{renews ? <>, or wait until {renews}</> : null}.</>
+        ) : null}
       </Banner>
     );
   }
@@ -150,7 +169,7 @@ export function CreditWarning({ credits, onDismiss = undefined }) {
     return (
       <Banner
         tone="gold"
-        action="See plans"
+        action={billingOn ? "See plans" : undefined}
         onDismiss={() => { setHidden(true); onDismiss?.(); }}
       >
         <strong>{balance} credits left</strong>

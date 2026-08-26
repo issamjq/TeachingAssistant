@@ -14,8 +14,8 @@
 // what actually arrived, and the gap between those two is the thing a
 // billing console exists to show.
 // =====================================================================
-import React, { useEffect, useState } from "react";
-import { CreditCard, Users, TrendingUp, AlertTriangle, X, RefreshCw } from "lucide-react";
+import React, { useCallback, useEffect, useState } from "react";
+import { CreditCard, Users, TrendingUp, AlertTriangle, X, RefreshCw, Lock, Unlock } from "lucide-react";
 import { api } from "./_shared";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -40,6 +40,48 @@ export default function SuperAdminRevenue() {
   const [users, setUsers] = useState(null);
   const [error, setError] = useState(null);
   const [open, setOpen] = useState(null);
+  const [mode, setMode] = useState(null);      // the master billing switch
+  const [flipping, setFlipping] = useState(false);
+  const [confirm, setConfirm] = useState(null); // the target state awaiting a yes
+  const [flipError, setFlipError] = useState(null);
+
+  const loadMode = useCallback(() => {
+    api("/api/superadmin/billing-mode")
+      .then(setMode)
+      .catch((e) => setFlipError(e.message));
+  }, []);
+  useEffect(() => { loadMode(); }, [loadMode]);
+
+  /**
+   * Throw the switch, then reload everything.
+   *
+   * The RPC rewrites credits and subscriptions in the same transaction as
+   * the flag, so the numbers on this page are stale the instant it
+   * returns — reloading is not a nicety, it is the difference between the
+   * console showing the platform and showing what the platform was.
+   */
+  const flip = async (next) => {
+    setFlipping(true);
+    setFlipError(null);
+    try {
+      await api("/api/superadmin/billing-mode", {
+        method: "PATCH",
+        body: { enabled: next },
+      });
+      setConfirm(null);
+      loadMode();
+      setOverview(null); setUsers(null);
+      const [o, u] = await Promise.all([
+        api(`/api/superadmin/revenue/overview?days=${days}`),
+        api(`/api/superadmin/revenue/users?limit=100`),
+      ]);
+      setOverview(o); setUsers(u);
+    } catch (e) {
+      setFlipError(e.message);
+    } finally {
+      setFlipping(false);
+    }
+  };
 
   useEffect(() => {
     let live = true;
@@ -90,6 +132,16 @@ export default function SuperAdminRevenue() {
           ))}
         </div>
       </div>
+
+      <BillingSwitch
+        mode={mode}
+        flipping={flipping}
+        error={flipError}
+        confirm={confirm}
+        onAsk={setConfirm}
+        onCancel={() => setConfirm(null)}
+        onConfirm={flip}
+      />
 
       {!overview ? (
         <div className="grid gap-4 md:grid-cols-4">
@@ -298,6 +350,157 @@ function Stat({ icon: Icon, label, value, note, tone }) {
       </p>
       <p className={`font-serif text-3xl ${tone === "clay" ? "text-clay" : "text-ink"}`}>{value}</p>
       {note && <p className="text-xs text-muted mt-1">{note}</p>}
+    </div>
+  );
+}
+
+
+/**
+ * The master switch: does this platform sell plans, or is it free?
+ *
+ * It sits on the revenue page rather than in the feature-flags list
+ * because it is not a feature flag. The generic flag setter flips a
+ * boolean; this one rewrites `credits` and `subscriptions` for every
+ * account in the same transaction, and the place to put a control with
+ * that reach is next to the numbers it changes — a super admin watching
+ * collected revenue is exactly the person deciding whether to stop
+ * collecting it.
+ *
+ * Two-step, always. A single click cannot move it. The confirmation is
+ * not ceremony: it names how many accounts will be rewritten, and those
+ * counts come from the server before the flip rather than being guessed
+ * here, so the number shown is the number affected.
+ */
+function BillingSwitch({ mode, flipping, error, confirm, onAsk, onCancel, onConfirm }) {
+  /**
+   * Three states, and they must not look alike.
+   *
+   * Loading is a skeleton. A permission error is nothing at all — the
+   * revenue page is reachable by sub-admins and sa_billing_mode() is
+   * gated on `admin.billing`, so someone without it should simply not
+   * see a control that is not theirs.
+   *
+   * Anything else is SHOWN. Returning null on every error hid the switch
+   * completely when the RPC did not exist yet, which reads as "the
+   * feature was never built" rather than "the migration has not run" —
+   * an hour of looking for a missing toggle that was there all along.
+   * A control that cannot load should say so.
+   */
+  if (!mode) {
+    if (!error) return <Skeleton className="h-28 rounded-2xl" />;
+    if (/permission|denied|not permitted|forbidden/i.test(error)) return null;
+    return (
+      <div className="border border-clay/40 rounded-2xl p-5 bg-paper">
+        <p className="font-mono text-[10px] uppercase tracking-wider text-muted mb-2">
+          Billing mode
+        </p>
+        <p className="text-sm text-ink">
+          The switch can&rsquo;t load. If this says the function is missing, the database
+          migration hasn&rsquo;t been applied yet &mdash; run <code>npm run db:tune</code>.
+        </p>
+        <p className="font-mono text-[10px] text-accent mt-2 break-all">{error}</p>
+      </div>
+    );
+  }
+
+  const on = mode.enabled !== false;
+  const target = confirm;
+  const asking = target !== null && target !== undefined;
+
+  return (
+    <div className={`border rounded-2xl p-5 ${on ? "border-line bg-paper" : "border-gold/50 bg-paper-warm/30"}`}>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="min-w-[260px] flex-1">
+          <p className="font-mono text-[10px] uppercase tracking-wider text-muted mb-2 inline-flex items-center gap-1.5">
+            {on ? <Lock size={11} /> : <Unlock size={11} />} Billing mode
+          </p>
+          <p className="font-serif text-2xl text-ink">
+            {on ? "Plans are on sale" : "Free public test"}
+          </p>
+          <p className="text-sm text-muted mt-1.5 max-w-xl">
+            {on ? (
+              <>
+                Teachers see plans, billing and their tier. Trials end, cards are charged,
+                and credits follow the tier they paid for.
+              </>
+            ) : (
+              <>
+                No plans, no billing and no subscription anywhere in a teacher&rsquo;s panel.
+                Everyone gets {mode.free_grant} credits and nothing lapses. The usage page
+                stays, and credits cost exactly what they cost on a plan.
+              </>
+            )}
+          </p>
+        </div>
+
+        {!asking && (
+          <button
+            type="button"
+            onClick={() => onAsk(!on)}
+            disabled={flipping}
+            className={`font-mono text-[10px] uppercase tracking-wider px-4 py-2 rounded-full transition flex-shrink-0 disabled:opacity-50 ${
+              on ? "border border-ink text-ink hover:bg-paper-warm" : "bg-ink text-paper hover:opacity-90"
+            }`}
+          >
+            {on ? "Switch to free" : "Turn billing back on"}
+          </button>
+        )}
+      </div>
+
+      {asking && (
+        <div className="mt-4 pt-4 border-t border-line">
+          {/* Say what it does to real rows, not "are you sure". */}
+          <p className="text-sm text-ink">
+            {target === false ? (
+              <>
+                <strong>Turn billing off for everyone?</strong> All {mode.accounts} account
+                {mode.accounts === 1 ? "" : "s"} move to {mode.free_grant} credits, lapsed
+                accounts reopen, and plans and billing disappear from every teacher&rsquo;s
+                panel. Balances are only ever raised, never cut.
+                {mode.paying > 0 && (
+                  <>
+                    {" "}
+                    <span className="text-clay">
+                      {mode.paying} account{mode.paying === 1 ? " is" : "s are"} on a paid
+                      plan — they keep their tier and are not cancelled here, but nothing
+                      will be gating on it.
+                    </span>
+                  </>
+                )}
+              </>
+            ) : (
+              <>
+                <strong>Put billing back on?</strong> Every account returns to its own
+                tier&rsquo;s monthly allowance, and anyone who signed up during the free
+                period gets a fresh 7-day trial starting now. Balances already granted stay
+                put — they settle to the real tier at the next monthly refresh.
+              </>
+            )}
+          </p>
+          <div className="flex flex-wrap gap-2 mt-3">
+            <button
+              type="button"
+              onClick={() => onConfirm(target)}
+              disabled={flipping}
+              className="font-mono text-[10px] uppercase tracking-wider px-4 py-2 rounded-full bg-ink text-paper hover:opacity-90 transition disabled:opacity-50"
+            >
+              {flipping ? "Applying\u2026" : target === false ? "Yes, make it free" : "Yes, start charging"}
+            </button>
+            <button
+              type="button"
+              onClick={onCancel}
+              disabled={flipping}
+              className="font-mono text-[10px] uppercase tracking-wider px-4 py-2 rounded-full border border-line text-ink-soft hover:text-ink transition disabled:opacity-50"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {error && (
+        <p className="font-mono text-[10px] uppercase tracking-wider text-accent mt-3">{error}</p>
+      )}
     </div>
   );
 }

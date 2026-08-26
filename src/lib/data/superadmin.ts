@@ -106,6 +106,19 @@ export async function resolveSuperadmin(
   if (a === "recent-activity" && method === "GET")
     return yes(await rpc("sa_recent_activity", { p_limit: int(q.get("limit"), 15) }));
 
+  /**
+   * The master billing switch (db/tune.sql §89). Read tells the console
+   * which mode the platform is in and how many accounts a flip would
+   * rewrite; write flips it AND reconciles credits and subscriptions in
+   * the same transaction — the RPC is the only correct way to move it,
+   * which is why this does not go through the generic flag setter below.
+   */
+  if (a === "billing-mode") {
+    if (method === "GET") return yes(await rpc("sa_billing_mode"));
+    if (method === "PATCH")
+      return yes(await rpc("sa_set_billing", { p_enabled: !!body?.enabled }));
+  }
+
   if (a === "flags") {
     if (!b && method === "GET") return yes(await rpc("sa_flags"));
     if (b && method === "PATCH")
