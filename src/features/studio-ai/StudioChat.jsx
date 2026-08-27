@@ -42,8 +42,11 @@ import {
   questionsFromMarkdown,
 } from "./artifacts";
 import { RewritableBody } from "./RewritableBody";
+import DocumentSkeleton from "./DocumentSkeleton";
 import { FinaliseAndSchedule } from "./FinaliseAndSchedule";
-import { missingFrom, askFor, declined } from "./missingDetails";
+// `declined` still reads "you decide" out of an answer in an old ask
+// turn. missingFrom/askFor went with the question that used them.
+import { declined } from "./missingDetails";
 import {
   isRework, isScheduleOnly, targetedKinds, asksToReschedule, namesNewWork, kindsNamedIn,
 } from "./revision";
@@ -226,9 +229,21 @@ const KNOWN_SUBJECTS = new Set(MAJORS.map((m) => m.toLowerCase()));
  * at rather than silently offering nothing.
  */
 function batchOffer(turns, turn, index) {
-  // History is a record, not an open decision. Anything reopened from a past
-  // conversation is read-only as far as saving goes.
-  if (turn.restored) return null;
+  /**
+   * A generation she has not kept is still hers to keep.
+   *
+   * Reopening a thread used to withdraw every save button in it, on the
+   * reasoning that history is a record rather than an open decision. In
+   * practice that lost work: generate a lesson, click into another
+   * conversation, come back — and the only way to file it was to generate it
+   * again, paying for it twice.
+   *
+   * What made that rule necessary was not knowing whether a restored batch
+   * had already been saved. openSession() now asks the library, so the
+   * question is answered properly and the offer can turn on the real
+   * condition: kept or not kept.
+   */
+  if (turn.saved) return null;
   const inBatch = turn.batchId
     ? turns.filter((x) => x.role === "assistant" && x.batchId === turn.batchId)
     : [turn];
@@ -248,15 +263,19 @@ function batchOffer(turns, turn, index) {
   if (turns.indexOf(inBatch[inBatch.length - 1]) !== index) return null;
 
   /**
-   * Only the newest generation is on offer.
+   * Every generation carries its own offer.
    *
-   * Reworking without saving first left the superseded batch still showing
-   * its own button, so the thread had two "save lesson & schedule" — one for
-   * the version she had just replaced. Whichever she pressed, the other stayed
-   * there inviting her to file the old one beside it.
+   * This used to allow only the newest, so that reworking without saving
+   * first could not leave two buttons in the thread. But a thread is often
+   * several separate pieces of work — a lesson, then a quiz on another
+   * topic, then an activity — and hiding the earlier ones meant the only
+   * one she could file was the last thing she happened to ask for.
+   *
+   * One button per BATCH, not per document: a lesson is a plan and a set of
+   * notes and it is filed once. Pressing one saves that generation and
+   * nothing else; the others keep their own buttons until they are kept
+   * too.
    */
-  const newest = [...turns].reverse().find((x) => x.role === "assistant" && x.done && !x.restored);
-  if (newest && turns.indexOf(newest) !== index) return null;
 
   /**
    * Nothing is offered while anything is still arriving.
@@ -352,6 +371,7 @@ function titleOf(kind, text, structured) {
 
 export default function StudioChat({ initialKind = "lesson_plan" }) {
   const [turns, setTurns] = useState([]);
+
   const [draft, setDraft] = useState("");
   // Multi-select: one prompt can come back as a lesson AND its quiz AND
   // the homework — the service plans the batch and streams each artifact
@@ -541,9 +561,46 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
        * skill recorded against this session.
        */
       const taken = await skillExistsForSession(id);
+
+      /**
+       * Which generations in this thread were already kept.
+       *
+       * Reopening a conversation used to remove every save button in it —
+       * `restored` turns were treated as read-only on the grounds that a
+       * restored turn "cannot know whether it was ever kept". It can: the
+       * library row carries the same batch id the transcript does, which is
+       * what savedForBatch() reads. So a teacher who generated a lesson,
+       * navigated away and came back had no way to file it at all, and the
+       * work was only recoverable by generating it again.
+       *
+       * Asked once per batch on open, not per turn — a lesson is two turns
+       * and a full batch four.
+       */
+      const batchIds = [...new Set(
+        turns_.filter((t) => t.role === "assistant" && t.batchId).map((t) => t.batchId),
+      )];
+      const keptBatches = new Set(
+        (await Promise.all(
+          batchIds.map((b) =>
+            // `drafts` is the route root for ai_studio; savedForBatch matches on
+            // batch_id alone, so it answers for a batch of any kind.
+            api(`/api/drafts/saved-for-batch/${b}`)
+              .then((r) => (r ? b : null))
+              .catch(() => null),
+          ),
+        )).filter(Boolean),
+      );
+
       setSessionId(id);
       sessionRef.current = id;
-      setTurns(taken ? turns_.map((t) => ({ ...t, skillSaved: true })) : turns_);
+      setTurns(
+        turns_.map((t) => ({
+          ...t,
+          ...(taken ? { skillSaved: true } : {}),
+          // Already in her library: show it as kept, not as offerable.
+          ...(t.batchId && keptBatches.has(t.batchId) ? { saved: true } : {}),
+        })),
+      );
       setNotice(null);
       setDrawerOpen(false);
 
@@ -935,31 +992,29 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
     const spoken = opts.skipAsk ? [] : kindsNamedIn(prompt);
 
     /**
-     * A document answers what it is. It does not answer when she teaches it.
+     * Nothing is asked before writing.
      *
-     * Attaching a chapter used to silence every question, which was right for
-     * the grade and the subject — they are on its first page — and wrong for
-     * the calendar: no syllabus knows which Tuesday she has that class. So the
-     * questions about the class are dropped when a file is attached, and the
-     * questions about the timetable are always asked.
+     * There used to be a gate here: missingFrom() read the brief for a grade,
+     * a subject, a duration and a day, and anything absent became a question
+     * — "Before I write it, how long does it run and when are you teaching
+     * it?" — with Generate and "You decide" beneath it.
+     *
+     * Removed on the owner's call, and the reasoning it was built on was
+     * sound but backwards. A teacher who types "a lesson on the water cycle
+     * for Grade 6" has said enough; stopping to interrogate her makes the
+     * fastest path through the product a form. The model already handles an
+     * unstated duration the way an experienced colleague would — it picks a
+     * period and says so — and every question here was one she could have
+     * answered by editing the draft in less time than it took to read.
+     *
+     * The timetable questions went with them: scheduling is now only ever
+     * inferred from words she volunteered, never solicited. See
+     * FinaliseAndSchedule.tsx.
+     *
+     * missingFrom/askFor/declined stay in missingDetails.js — the "ask" turn
+     * still renders for threads that already contain one, so old
+     * conversations keep reading correctly.
      */
-    const CONTENT_QUESTIONS = new Set(["grade", "subject"]);
-
-    if (!opts.skipAsk && !reworking) {
-      // What is missing depends on what she is making: a quiz is booked
-      // between two times, a lesson takes a period.
-      const missing = missingFrom(prompt, spoken.length ? spoken : useKind ? [useKind] : kinds)
-        .filter((m) => !(attachments.length && CONTENT_QUESTIONS.has(m)));
-      if (missing.length) {
-        setDraft("");
-        setTurns((t) => [
-          ...t,
-          { role: "user", text: prompt, attachments },
-          { role: "ask", question: askFor(missing), pending: prompt, kind: useKind || (spoken.length === 1 ? spoken[0] : null) },
-        ]);
-        return;
-      }
-    }
     /**
      * Rewrite only what she asked about.
      *
@@ -2005,15 +2060,12 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
                 <div key={i} className={s.turn}>
                   <span className={s.avatar}><Sparkles size={15} /></span>
                   <div className="flex-1 min-w-0">
+                    {/* The document's own shape while it is on its way.
+                        Three dots said "something is happening"; this says
+                        what, and occupies the space the text will take so
+                        nothing jumps when it arrives. */}
                     {turn.streaming && !turn.text && (
-                      <div className={s.thinking} aria-label="Working">
-                        <span className={s.thinkDot} /><span className={s.thinkDot} /><span className={s.thinkDot} />
-                        {turn.stage && (
-                          <span className="text-[12px] text-muted ms-1">
-                            {turn.stage === "planning" ? "planning the material" : turn.stage}
-                          </span>
-                        )}
-                      </div>
+                      <DocumentSkeleton kind={turn.kind} stage={turn.stage} />
                     )}
 
                     {/* While streaming, the text IS the answer. Once it

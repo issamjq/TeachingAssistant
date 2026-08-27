@@ -30,6 +30,7 @@ import { api } from "@/views/_shared";
 import { supabase } from "@/lib/supabaseClient";
 import { facultyId } from "@/lib/data/session";
 import s from "./Goals.module.css";
+import PlanningProgress from "./PlanningProgress";
 
 /**
  * How long she has, in her own words.
@@ -415,16 +416,23 @@ function GoalCard({ goal, onDelete, onPlan, planning, planError }) {
         </div>
       )}
 
-      {goal.status === "processing" && (
+      {/* While it is working, the panel replaces the button entirely: a
+          disabled button reading "Planning…" is the thing that looked like
+          a hang, and leaving it beside a progress panel would say the same
+          thing twice. */}
+      {goal.status === "processing" && planning === goal.id && (
+        <PlanningProgress weeks={weeksTotal} />
+      )}
+
+      {goal.status === "processing" && planning !== goal.id && (
         <div className="mt-4 flex items-center gap-3 flex-wrap">
           <button
             type="button"
             onClick={() => onPlan(goal.id)}
-            disabled={planning === goal.id}
-            className="inline-flex items-center gap-2 h-10 px-5 rounded-full bg-accent text-on-accent text-[13px] font-medium hover:bg-accent-hover transition-colors cursor-pointer disabled:opacity-50"
+            className="inline-flex items-center gap-2 h-10 px-5 rounded-full bg-accent text-on-accent text-[13px] font-medium hover:bg-accent-hover transition-colors cursor-pointer"
           >
             <Sparkles size={14} />
-            {planning === goal.id ? "Planning…" : "Plan it with AI"}
+            Plan it with AI
           </button>
           {planError?.id === goal.id && (
             <p className="text-[12.5px] text-ink-soft flex-1 min-w-[220px]">{planError.message}</p>

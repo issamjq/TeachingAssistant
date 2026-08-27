@@ -38,12 +38,15 @@
 }
 .threadInner {
   max-width: 760px;
+  width: 100%;
+  min-width: 0;
   margin: 0 auto;
   padding: 0 16px;
   display: flex;
   flex-direction: column;
   gap: 22px;
 }
+
 
 .turn { display: flex; gap: 12px; }
 .turn[data-role="user"] { justify-content: flex-end; }
@@ -1319,3 +1322,37 @@
 .fullFrame[data-themed="true"] .fullTitle { color: var(--s-text, var(--p-ink)); }
 .fullFrame[data-themed="true"] .fullRule { background: var(--s-accent); }
 .fullFrame[data-themed="true"] p { color: var(--s-text, var(--p-ink)); }
+
+/* ── the document skeleton ─────────────────────────────────────────── */
+/*
+   Shown between pressing send and the first token. It is the shape of the
+   document that is coming, at the width it will arrive at, so the swap to
+   real text moves nothing.
+*/
+.skel {
+  border: 1px solid var(--p-line);
+  border-radius: 16px;
+  background: var(--p-surface);
+  padding: 18px 20px 20px;
+}
+.skelBlock {
+  display: block;
+  border-radius: 4px;
+  /* Two stops of the same ink, swept across. Calmer than a grey pulse and
+     it reads as movement in one direction — which is what is happening. */
+  background: linear-gradient(
+    90deg,
+    color-mix(in oklab, var(--p-line) 55%, transparent) 0%,
+    color-mix(in oklab, var(--p-line) 100%, transparent) 50%,
+    color-mix(in oklab, var(--p-line) 55%, transparent) 100%
+  );
+  background-size: 200% 100%;
+  animation: skelSweep 1.6s ease-in-out infinite;
+}
+@keyframes skelSweep {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .skelBlock { animation: none; }
+}

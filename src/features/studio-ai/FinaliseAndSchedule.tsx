@@ -11,13 +11,15 @@
 //
 // This is the step between. It keeps everything the batch produced, then
 // asks the service when the thing is taught. The service reads her own
-// words for a day; when she never gave one it sends back a plain
-// question, which is what the middle state below renders.
+// words for a day — "next Monday 9am", "Thursday first period" — and
+// schedules it when it finds one.
 //
-// The asking is the point, and so is not insisting. Guessing a day would
-// put a class on her calendar she never agreed to; nagging for one she
-// has not decided yet would turn a convenience into a form. She is asked
-// once, and "Not yet" keeps the work with no date on it.
+// When it does not find one, nothing is asked. Murchid never guesses a
+// day: putting a class on her calendar she did not agree to is worse than
+// leaving it off. But it does not chase her for one either — the work
+// saves with no date and she places it from the Scheduler if and when she
+// decides. Generating and timetabling are separate jobs, and only she
+// knows whether the second one is due yet.
 // =====================================================================
 import { useEffect, useRef, useState } from "react";
 import { Calendar, Check, Loader2 } from "lucide-react";
@@ -249,13 +251,22 @@ export function FinaliseAndSchedule({
 
       setClashes(reply.clashes || []);
 
+      /**
+       * She never said when, so nothing is asked.
+       *
+       * This used to stop and put a question in front of her — "When is this
+       * lesson?" — with "Not yet" as the way out. Removed on the owner's
+       * call: a teacher who wanted a slot said so in the brief, and one who
+       * did not was being made to dismiss a form to get back to work. The
+       * Scheduler has always been there for placing it later, and that is
+       * where someone who has not decided yet is going to do it anyway.
+       *
+       * The work is already saved by this point — storeAll() ran before the
+       * call — so finishing here keeps everything and simply leaves it with
+       * no date, which is exactly what "Not yet" did.
+       */
       if (reply.status === "needs_input") {
-        setQuestion(
-          optionalSlot
-            ? "Want this on your timetable? Tell me the day, or skip it — the deck is saved either way."
-            : reply.question || `When is this ${label}?`,
-        );
-        setPhase("asking");
+        setPhase("kept");
         return;
       }
       /**
@@ -387,6 +398,10 @@ export function FinaliseAndSchedule({
           >
             <Calendar size={13} /> Put it on my timetable
           </button>
+          {/* Still reachable — but only from a slot Murchid PROPOSED,
+              which means she did name a time. This is her correcting a
+              reading of her own words, not being asked for something she
+              never offered. */}
           <button
             type="button"
             className={s.chipBtn}
@@ -443,8 +458,8 @@ export function FinaliseAndSchedule({
         data-primary
         disabled={phase === "working"}
         // Finalise IS the approval — she has read the documents and pressed a
-        // button that says "looks right". If the time is already known this
-        // schedules it outright; if it is not, the question comes back.
+        // button that says "looks right". If she named a time in the brief
+        // this schedules it outright; if she did not, it saves and stops.
         onClick={() => run({ confirm: true })}
       >
         {phase === "working" ? (
@@ -455,11 +470,10 @@ export function FinaliseAndSchedule({
           /* Named for what she is actually doing: reading what came back,
              keeping all of it, and putting it on the timetable — one action
              covering the whole generation, however many documents it made. */
-          optionalSlot ? (
-            <><Calendar size={13} /> Looks right — save {label}</>
-          ) : (
-            <><Calendar size={13} /> Looks right — save {label} &amp; schedule</>
-          )
+          /* Not "save & schedule" any more: a slot only happens when she
+             named one in the brief, so promising it on every lesson
+             advertised a step most presses will not reach. */
+          <><Calendar size={13} /> Looks right — save {label}</>
         )}
       </button>
       {/* The guess, made visible and reversible. */}

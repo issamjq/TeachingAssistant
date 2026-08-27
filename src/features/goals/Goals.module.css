@@ -164,3 +164,26 @@
   text-transform: uppercase;
   color: var(--p-accent);
 }
+
+/* Skeleton rows while a term is being planned — the shape of the plan
+   that is coming. Matches the studio's, so the two read as one product.
+   See PlanningProgress.jsx for why there is no percentage here. */
+.skelBlock {
+  display: block;
+  border-radius: 4px;
+  background: linear-gradient(
+    90deg,
+    color-mix(in oklab, var(--p-line) 55%, transparent) 0%,
+    color-mix(in oklab, var(--p-line) 100%, transparent) 50%,
+    color-mix(in oklab, var(--p-line) 55%, transparent) 100%
+  );
+  background-size: 200% 100%;
+  animation: skelSweep 1.6s ease-in-out infinite;
+}
+@keyframes skelSweep {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .skelBlock { animation: none; }
+}
