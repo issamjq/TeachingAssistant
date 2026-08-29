@@ -34,7 +34,6 @@ import { api } from "@/views/_shared";
 import { useCredits, CreditEstimate, CreditWarning } from "./CreditMeter";
 import { supabase } from "@/lib/supabaseClient";
 import { facultyId } from "@/lib/data/session";
-import { parseSections, renderMarkdown } from "@/lib/markdown";
 import { MAJORS } from "@/lib/enums";
 import {
   ArtifactCard, QuizViewer, SlideViewer, SlideFullscreen, DocViewer, KIND_META,
@@ -2139,22 +2138,22 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
                 <div key={i} className={s.turn}>
                   <span className={s.avatar}><Sparkles size={15} /></span>
                   <div className="flex-1 min-w-0">
-                    {/* The document's own shape while it is on its way.
-                        Three dots said "something is happening"; this says
-                        what, and occupies the space the text will take so
-                        nothing jumps when it arrives. */}
-                    {turn.streaming && !turn.text && (
+                    {/* The document's own shape until the document itself
+                        is ready — the whole wait, not just the part before
+                        the first token.
+                        
+                        Half-written markdown used to be shown as it
+                        arrived: headings landing one at a time, a table
+                        drawing itself column by column, a bold marker
+                        sitting as "**carbon diox" until its closing pair
+                        turned up. It read as the page loading in pieces,
+                        and the finished document then replaced all of it,
+                        so nothing on screen during the wait survived. The
+                        skeleton already says what is coming and holds the
+                        space it will take; showing the raw text on top of
+                        that was motion standing in for progress. */}
+                    {turn.streaming && (
                       <DocumentSkeleton kind={turn.kind} stage={turn.stage} />
-                    )}
-
-                    {/* While streaming, the text IS the answer. Once it
-                        finishes, it becomes an artifact with the viewer
-                        its kind deserves. */}
-                    {turn.streaming && turn.text && (
-                      <div className={s.reply}>
-                        {renderMarkdown(turn.text)}
-                        <span className={s.caret} aria-hidden="true" />
-                      </div>
                     )}
 
                     {showArtifact && (
