@@ -38,11 +38,12 @@ import { parseSections, renderMarkdown } from "@/lib/markdown";
 import { MAJORS } from "@/lib/enums";
 import {
   ArtifactCard, QuizViewer, SlideViewer, SlideFullscreen, DocViewer, KIND_META,
+  namedSlides,
   slidesFromMarkdown,
   questionsFromMarkdown,
 } from "./artifacts";
 import { RewritableBody } from "./RewritableBody";
-import DocumentSkeleton from "./DocumentSkeleton";
+import DocumentSkeleton, { ConversationListSkeleton, ThreadSkeleton } from "./DocumentSkeleton";
 import { FinaliseAndSchedule } from "./FinaliseAndSchedule";
 // `declined` still reads "you decide" out of an answer in an old ask
 // turn. missingFrom/askFor went with the question that used them.
@@ -386,8 +387,23 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
    * is the one thing worse than no number at all.
    */
   const { credits, refresh: refreshCredits } = useCredits();
+  /**
+   * Has she TOUCHED the kind row, or is it just sitting where it loaded?
+   *
+   * The distinction is the whole reason the row can be trusted. It resets to
+   * "Lesson" on every page load, so obeying it blindly turned "give question 9
+   * more marks" on a reopened quiz into a lesson plan. But a row she has just
+   * clicked is the clearest statement of intent in the composer, and ignoring
+   * THAT is how "now a homework for the same topic", typed with Homework lit
+   * and nothing else, came back as the lesson, the notes and the quiz again.
+   *
+   * Cleared after every send: the next message is a follow-up to what was
+   * just written unless she says otherwise.
+   */
+  const kindsTouched = useRef(false);
   const toggleKind = (v) =>
     setKinds((prev) => {
+      kindsTouched.current = true;
       if (prev.includes(v)) return prev.length > 1 ? prev.filter((x) => x !== v) : prev;
       const on = new Set([...prev, v]);
       return KINDS.map((k) => k.value).filter((x) => on.has(x)); // canonical order
@@ -477,8 +493,18 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
   // and setSessionId has not committed by the time they are written.
   const sessionRef = useRef(null);
 
+  // Distinct from `sessions.length === 0`: an empty array is both "she has
+  // none" and "the query has not answered", and showing the empty copy for
+  // the second one tells a teacher with twenty conversations that she has
+  // nothing. Only the FIRST load shows a skeleton — a background refresh
+  // after saving or deleting must not blank a list she is reading.
+  const [sessionsLoading, setSessionsLoading] = useState(true);
+
   const refreshSessions = useCallback(() => {
-    listSessions().then(setSessions).catch(() => {});
+    listSessions()
+      .then(setSessions)
+      .catch(() => {})
+      .finally(() => setSessionsLoading(false));
   }, []);
 
   useEffect(() => {
@@ -1067,15 +1093,32 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
      * only decides it for genuinely new work.
      */
     const heldKinds = held ? Object.keys(held) : [];
+    /**
+     * Read in order of how plainly she said it.
+     *
+     * Inheriting the thread's kinds used to sit at the top of this chain, so
+     * it beat every explicit signal underneath it: a starter chip, the kind
+     * named in the sentence, and the row she had just set. That is why asking
+     * for homework in a thread holding a lesson, notes and a quiet quiz
+     * rewrote all three and produced no homework at all — and it could not be
+     * escaped by rewording, because naming the kind was outranked too.
+     *
+     * Inheritance is the FALLBACK now: it applies when she has said nothing
+     * about format, which is exactly the case it was written for ("give
+     * question 9 more marks"), and never when she has.
+     */
     const ks = isPartial
       ? partial
-      : reworking && heldKinds.length && !useKind
-        ? heldKinds
-        : useKind
-          ? [useKind]
-          : spoken.length
-            ? spoken
-            : kinds;
+      : useKind
+        ? [useKind]
+        : spoken.length
+          ? spoken
+          : kindsTouched.current
+            ? kinds
+            : reworking && heldKinds.length
+              ? heldKinds
+              : kinds;
+    kindsTouched.current = false;
     const k = ks[0];
     const atts = attachments;
 
@@ -1122,6 +1165,25 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
      * The rest of the lesson is described but not sent to be rewritten: it is
      * what keeps the new version consistent with the documents staying put.
      */
+    /**
+     * A DIFFERENT document is new work, not a revision.
+     *
+     * "Now a homework for the same topic" is a follow-up, so it classified as
+     * a rework — and the rework prompt says "here is the existing version,
+     * rewrite it changing only what she asked". Handed a quiz and asked for
+     * homework, the model did as it was told and returned the quiz again,
+     * with a homework label on the card.
+     *
+     * So the thread's work is carried two different ways. Same kind: this is
+     * the version to change. Different kind: this is the lesson it belongs
+     * to — take the topic, the grade and the scope from it, and write
+     * something else.
+     */
+    const newKind = !isPartial && ks.some((x) => !heldKinds.includes(x));
+    /** The plan is the better source when the batch holds one; the last
+     *  document is whatever she happened to look at most recently. */
+    const source = held?.lesson_plan ?? lastDoc.current;
+
     const carried = isPartial
       ? [
           `This is a revision of one part of an existing lesson on "${lastDoc.current?.title || ""}".`,
@@ -1132,6 +1194,16 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
           partial.map((kind) => held[kind].text).join("\n\n").slice(0, 6000),
           "",
           `Now rewrite ONLY this part, applying this change: ${prompt}`,
+        ].join("\n")
+      : newKind && source
+      ? [
+          `The teacher is already working on a lesson: "${source.title || lastDoc.current?.title || ""}".`,
+          "Keep its exact topic, subject and grade. Stay inside what it teaches — do not examine or practise anything it never covers.",
+          "",
+          `What the lesson already contains, as REFERENCE ONLY. Do not reproduce it and do not reshape it into a ${NOUN_FOR_KIND[ks[0]] || "document"}:`,
+          source.text.slice(0, 6000),
+          "",
+          `Now write a NEW ${NOUN_FOR_KIND[ks[0]] || "document"} on that same topic. Her request: ${prompt}`,
         ].join("\n")
       : reworking && lastDoc.current
       ? [
@@ -1557,7 +1629,7 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
        * and by the same rule.
        */
       slides:
-        primary.structured?.slides ??
+        namedSlides(primary.structured?.slides) ??
         (primary.kind === "presentation" ? slidesFromMarkdown(primary.text) : undefined),
       // What the document says about itself, so the card has something to
       // show the moment it is saved.
@@ -1842,7 +1914,9 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
         <Plus size={15} className="text-accent flex-shrink-0" /> New conversation
       </button>
       <div className={s.railList}>
-        {sessions.length === 0 ? (
+        {sessionsLoading ? (
+          <ConversationListSkeleton />
+        ) : sessions.length === 0 ? (
           <p className={s.railEmpty}>
             Nothing yet. Conversations you have here are kept for {KEEP_DAYS} days — anything
             you save goes to your library and stays.
@@ -1893,7 +1967,12 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
         <CreditWarning credits={credits} />
       </div>
       <div className={s.thread} ref={threadRef}>
-        {empty ? (
+        {loadingThread ? (
+          // `loadingThread` was set on both edges of openSession and then
+          // never read, so reopening a conversation left the previous one on
+          // screen until the new turns replaced it.
+          <ThreadSkeleton />
+        ) : empty ? (
           <div className={s.hero}>
             <h1 className={s.heroTitle}>
               What are we making, <em>today?</em>
@@ -2044,7 +2123,7 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
                * back thin.
                */
               const slides =
-                turn.structured?.slides ??
+                namedSlides(turn.structured?.slides) ??
                 (turn.kind === "presentation" && turn.done
                   ? slidesFromMarkdown(turn.text)
                   : undefined);

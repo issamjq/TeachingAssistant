@@ -76,16 +76,30 @@ export function slidesFromMarkdown(markdown) {
    * they do not.
    */
   const byRule = text.split(/\n\s*---+\s*\n/);
-  const blocks =
-    byRule.length > 1
-      ? byRule
-      : text.split(/\n(?=\s*#{1,3}\s+)/);
+  const byTitle = text.split(/\n(?=\s*#{1,3}\s+)/);
+  /**
+   * Whichever finds MORE slides is the one that read the deck correctly.
+   *
+   * The rule split needs "---" alone on its line, and a generator that ran it
+   * onto the end of the line above — "...and oxygen. --- Plants make their
+   * own food" — hides it. That is not a rule the parser can see, so eight
+   * slides arrived as three, each carrying two or three slides' worth of
+   * bullets, and the deck looked both empty and overfull at once.
+   *
+   * Every slide carries exactly one title, so the titles are the second, and
+   * more reliable, count of them. Taking the larger of the two keeps the old
+   * behaviour where the rules are written properly (both agree), still reads
+   * a deck written with no rules at all, and recovers the case where SOME of
+   * the rules were swallowed — which is the one that was silently losing
+   * five slides out of eight.
+   */
+  const blocks = byTitle.length > byRule.length ? byTitle : byRule;
 
   return blocks
     .map((block) => {
       // A heading carrying "::" is an item that landed where a title goes; the
       // half before it is still the name of the thing.
-      const title =
+      const rawTitle =
         block
           .match(/^\s*#{1,3}\s+(.+)$/m)?.[1]
           ?.split("::")[0]
@@ -147,11 +161,33 @@ export function slidesFromMarkdown(markdown) {
 
       const layout = block.match(/^\s*Layout:\s*([a-z]+)/im)?.[1]?.toLowerCase();
 
+      /**
+       * "Slide 1" is a position, not a title.
+       *
+       * The instruction spells out `never "Slide 4"` and a small model copied
+       * the placeholder wholesale anyway — a deck whose every heading read
+       * "Slide 1", "Slide 2", "Slide 3" and therefore said nothing from the
+       * back of a room. Rather than print it, the slide is named from what it
+       * actually carries: the first thing in its diagram, or its first bullet.
+       * That is the slide's own content, not an invention.
+       */
+      const unnamed = !rawTitle || /^(slide|page)\s*\d*$/i.test(rawTitle);
+      const title = unnamed
+        ? (items[0]?.label || bullets[0] || "").split(/[.;:]/)[0].trim().slice(0, 60)
+        : rawTitle;
+
+      // A bullet promoted to the heading does not also stay a bullet: printing
+      // it twice, once large and once small, is the repair showing its working.
+      const shown =
+        unnamed && title && !items.length && bullets[0]?.startsWith(title)
+          ? bullets.slice(1)
+          : bullets;
+
       return {
         title,
         // What it says it is; failing that, what it looks like.
         layout: layout || (items.length ? "steps" : bullets.length ? "bullets" : "statement"),
-        bullets,
+        bullets: shown,
         items,
         note: cue(block, "Note"),
         visual: cue(block, "Show"),
@@ -163,6 +199,29 @@ export function slidesFromMarkdown(markdown) {
     // A block with no title and no bullets is the preamble before slide one,
     // not a slide.
     .filter((x) => x.title || x.bullets.length || x.items.length);
+}
+
+/**
+ * The same repair, for a deck that came back from the structured pass.
+ *
+ * The viewer prefers structured slides over the markdown, so repairing only
+ * the parser would have fixed the deck nobody sees. The structured pass reads
+ * the same markdown, so it inherits the same "Slide 1" headings.
+ */
+export function namedSlides(slides) {
+  if (!Array.isArray(slides)) return slides;
+  return slides.map((slide) => {
+    const title = String(slide?.title || "").trim();
+    if (title && !/^(slide|page)\s*\d*$/i.test(title)) return slide;
+    const named = String(slide?.items?.[0]?.label || slide?.bullets?.[0] || "")
+      .split(/[.;:]/)[0]
+      .trim()
+      .slice(0, 60);
+    if (!named) return slide;
+    const promoted =
+      !slide?.items?.length && slide?.bullets?.[0]?.startsWith(named);
+    return { ...slide, title: named, ...(promoted ? { bullets: slide.bullets.slice(1) } : {}) };
+  });
 }
 
 /**

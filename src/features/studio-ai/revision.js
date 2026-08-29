@@ -189,8 +189,21 @@ export function targetedKinds(prompt) {
 /* ── rescheduling is not rewriting ─────────────────────────────────────── */
 
 /** Anything that names a day or an hour. */
+/**
+ * A day or a date, written out in full rather than as a stem.
+ *
+ * The abbreviations used to carry `[a-z]*` after them, so any word STARTING
+ * with one counted as a date. "dec" ate **deck** — which meant every request
+ * for a slide deck read as naming a time, took the reschedule branch, and
+ * came back "I couldn't find that in your library to move it" instead of a
+ * presentation. "sun" ate **sunlight**, in a lesson about photosynthesis.
+ *
+ * So each name is matched whole. The short forms and the long forms are
+ * listed separately because \b after "dec" is exactly what stops "deck",
+ * and a stem with anything appended is the thing that broke.
+ */
 const NAMES_A_TIME =
-  /\b(mon|tue|wed|thu|fri|sat|sun)[a-z]*\b|\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\b|\b(today|tomorrow|tonight)\b|\b\d{1,2}\s*(am|pm)\b|\b\d{1,2}:\d{2}\b|\b\d{1,2}(st|nd|rd|th)\b|\b\d{4}-\d{2}-\d{2}\b|\bnext week\b|\bperiod\b/i;
+  /\b(mon|tue|tues|wed|weds|thu|thur|thurs|fri|sat|sun)\b|\b(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b|\b(jan|feb|mar|apr|jun|jul|aug|sep|sept|oct|nov|dec)\b|\b(january|february|march|april|june|july|august|september|october|november|december)\b|\b(today|tomorrow|tonight)\b|\b\d{1,2}\s*(am|pm)\b|\b\d{1,2}:\d{2}\b|\b\d{1,2}(st|nd|rd|th)\b|\b\d{4}-\d{2}-\d{2}\b|\bnext week\b|\bperiod\b/i;
 
 /** Anything that asks for the documents themselves to change. */
 const ASKS_FOR_CONTENT =
