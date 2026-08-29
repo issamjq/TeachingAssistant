@@ -11245,3 +11245,72 @@ BEGIN
 
   RAISE NOTICE 'landing page can read the billing switch';
 END $$;
+
+-- ─────────────────────────────────────────────────────────────────────
+-- §92  The lesson is two documents now, and the price still said three
+-- ─────────────────────────────────────────────────────────────────────
+--
+-- §69 set `lesson_plan` to 8 credits and its own note says why: "three
+-- documents, not one" at a measured $0.1518. The teaching guide has
+-- since been dropped from what a lesson generates — `studio.ts` expands
+-- a lesson to the plan and the student notes, and nothing auto-generates
+-- the guide any more. The price was never re-measured after that, so
+-- every lesson has been quoted for a document it no longer writes.
+--
+-- Measured today on production, claude-sonnet-5, one generation per
+-- feature from a fresh account with the current prompts:
+--
+--   lesson_plan    $0.06281   \
+--   student_notes  $0.05636   /  $0.1192 together  ->  6   (was 8)
+--   quiz           $0.03345                        ->  2   unchanged
+--   homework       $0.03753                        ->  2   unchanged
+--   presentation   $0.04544                        ->  3   unchanged
+--   activity       $0.03370                        ->  2   unchanged
+--
+-- Four of the five were already exact. Only the lesson was wrong, and it
+-- was wrong in the teacher's favour by two credits on the single most
+-- used feature in the product.
+--
+-- `goal_plan`, `skill_profile`, `materials`, `template`, `bulletin`,
+-- `quiz_tweak`, `regenerate`, `chat` and `scheduling` are deliberately
+-- untouched: their prompts did not change in this round, so their
+-- measured cost did not either, and a price re-stated without a
+-- measurement behind it is a guess wearing a decimal point.
+--
+-- Costs are identical whether billing is on or off, by design (§89), so
+-- this lands correctly either way and needs no coordination with the
+-- switch.
+
+UPDATE public.ai_credit_costs
+   SET cost = 6, updated_at = now()
+ WHERE feature = 'lesson_plan';
+
+DO $$
+DECLARE
+  v_lesson int;
+  v_wrong  text;
+BEGIN
+  SELECT cost INTO v_lesson FROM public.ai_credit_costs WHERE feature = 'lesson_plan';
+  IF v_lesson IS DISTINCT FROM 6 THEN
+    RAISE EXCEPTION 'lesson_plan should cost 6 credits, found %', v_lesson;
+  END IF;
+
+  -- The point of the section is that ONE price moved. If any of the
+  -- others has drifted, the measurement above no longer describes the
+  -- table and the next person should not trust it.
+  SELECT string_agg(feature || '=' || cost, ', ' ORDER BY feature)
+    INTO v_wrong
+    FROM public.ai_credit_costs
+   WHERE (feature, cost) NOT IN (
+           ('lesson_plan', 6), ('quiz', 2), ('homework', 2),
+           ('presentation', 3), ('activity', 2), ('goal_plan', 4),
+           ('skill_profile', 1), ('materials', 3), ('template', 2),
+           ('bulletin', 1), ('quiz_tweak', 1), ('regenerate', 2),
+           ('chat', 0), ('scheduling', 0)
+         );
+  IF v_wrong IS NOT NULL THEN
+    RAISE EXCEPTION 'credit costs differ from the measured set: %', v_wrong;
+  END IF;
+
+  RAISE NOTICE 'a lesson costs 6 credits; every other price is unchanged';
+END $$;
