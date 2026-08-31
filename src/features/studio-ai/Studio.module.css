@@ -1436,3 +1436,91 @@
   .railMenu { animation: none; }
   .railMenuItem { transition: none; }
 }
+
+/* ── asking before something that cannot be undone ────────────────── */
+/*
+   Centred, small, and over everything. A drawer is for reading; this is
+   a question with two answers and no content of its own, so it belongs
+   in the middle where the eye already is rather than at an edge.
+*/
+.confirmScrim {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  background: color-mix(in oklab, var(--p-ink) 38%, transparent);
+  backdrop-filter: blur(2px);
+  animation: confirmFade 140ms ease both;
+}
+@keyframes confirmFade { from { opacity: 0; } to { opacity: 1; } }
+
+.confirmBox {
+  position: fixed;
+  z-index: 81;
+  top: 50%;
+  left: 50%;
+  width: min(420px, calc(100vw - 32px));
+  transform: translate(-50%, -50%);
+  padding: 22px 22px 18px;
+  border-radius: 18px;
+  background: var(--p-paper);
+  border: 1px solid var(--p-line);
+  box-shadow: 0 28px 64px -24px color-mix(in oklab, var(--p-ink) 55%, transparent);
+  animation: confirmIn 160ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes confirmIn {
+  from { opacity: 0; transform: translate(-50%, -46%) scale(0.97); }
+  to   { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+
+.confirmTitle {
+  font-family: var(--font-serif);
+  font-size: 19px;
+  font-weight: 600;
+  color: var(--p-ink);
+  line-height: 1.2;
+}
+/* Names the conversation. "Are you sure?" on its own asks her to
+   remember which row she pressed. */
+.confirmBody {
+  margin-top: 8px;
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--p-muted);
+}
+
+.confirmRow {
+  display: flex;
+  justify-content: flex-end;
+  gap: 9px;
+  margin-top: 20px;
+}
+.confirmCancel,
+.confirmGo {
+  height: 38px;
+  padding: 0 18px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 550;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+.confirmCancel {
+  border: 1px solid var(--p-line);
+  background: transparent;
+  color: var(--p-ink);
+}
+.confirmCancel:hover { background: color-mix(in oklab, var(--p-ink) 5%, transparent); }
+/* The destructive one is the only red thing on screen, so it cannot be
+   pressed by mistake for something else. */
+.confirmGo {
+  border: 1px solid transparent;
+  background: var(--p-crit);
+  color: var(--p-paper);
+}
+.confirmGo:hover { background: color-mix(in oklab, var(--p-crit) 85%, black); }
+.confirmCancel:focus-visible,
+.confirmGo:focus-visible { outline: 2px solid var(--p-accent); outline-offset: 2px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .confirmScrim, .confirmBox { animation: none; }
+}

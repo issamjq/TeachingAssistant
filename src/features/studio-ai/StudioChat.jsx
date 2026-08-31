@@ -481,6 +481,8 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
   const [menuFor, setMenuFor] = useState(null);
   const [renamingId, setRenamingId] = useState(null);
   const [renameDraft, setRenameDraft] = useState("");
+  /** The conversation waiting on a yes before it is deleted. */
+  const [confirmDelete, setConfirmDelete] = useState(null);
   // The id the CURRENT send belongs to. State would be a render behind:
   // a thread is created and its first two turns saved inside one call,
   // and setSessionId has not committed by the time they are written.
@@ -513,6 +515,13 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
    * dismisses the menu could not also be the click that opens another
    * row — which is what anyone with three menus in a list actually does.
    */
+  useEffect(() => {
+    if (!confirmDelete) return;
+    const key = (e) => { if (e.key === "Escape") setConfirmDelete(null); };
+    document.addEventListener("keydown", key);
+    return () => document.removeEventListener("keydown", key);
+  }, [confirmDelete]);
+
   useEffect(() => {
     if (!menuFor) return;
     const away = () => setMenuFor(null);
@@ -781,8 +790,8 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
     }
   };
 
-  const removeSession = async (id, e) => {
-    e?.stopPropagation?.();
+  /** Runs only after the dialog has been answered. */
+  const removeSession = async (id) => {
     setMenuFor(null);
     const prev = sessions;
     setSessions((x) => x.filter((y) => y.session_id !== id));
@@ -1950,7 +1959,7 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
                       <Pencil size={13} /> Rename
                     </button>
                     <button type="button" role="menuitem" className={s.railMenuItem} data-danger
-                            onClick={(e) => removeSession(x.session_id, e)}>
+                            onClick={() => { setMenuFor(null); setConfirmDelete(x); }}>
                       <Trash2 size={13} /> Delete
                     </button>
                   </div>
@@ -1963,8 +1972,56 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
     </>
   );
 
+  /**
+   * A yes before a delete that cannot be taken back.
+   *
+   * The bin used to remove the conversation on the click. It is one press
+   * next to the row she opens every day, the messages cascade with it,
+   * and there is no undo — so the only protection was hoping she did not
+   * miss. Asking costs one keystroke and saves the case that cannot be
+   * repaired.
+   *
+   * The window.confirm() used elsewhere in the app was the other option.
+   * It is a browser chrome dialog that names the site rather than the
+   * thing, cannot show WHICH conversation is about to go, and looks like
+   * a phishing prompt in the middle of a teacher's own work.
+   */
+  const deleteDialog = confirmDelete && (
+    <>
+      <div
+        className={s.confirmScrim}
+        /* Closes on a press that STARTS here — the click that opened the
+           dialog ends on a scrim that did not exist when it began. */
+        onMouseDown={(e) => { if (e.target === e.currentTarget) setConfirmDelete(null); }}
+        aria-hidden="true"
+      />
+      <div className={s.confirmBox} role="alertdialog" aria-modal="true"
+           aria-labelledby="del-title" aria-describedby="del-body">
+        <h2 id="del-title" className={s.confirmTitle}>Delete conversation</h2>
+        <p id="del-body" className={s.confirmBody}>
+          Are you sure you want to delete{" "}
+          <strong className="text-ink font-medium">{confirmDelete.title || "Untitled"}</strong>?
+          {" "}The documents you saved from it stay in your library; the conversation does not.
+        </p>
+        <div className={s.confirmRow}>
+          {/* Cancel takes the focus, not Delete: a dialog that answers
+              itself on Enter is not a question. */}
+          <button type="button" autoFocus className={s.confirmCancel}
+                  onClick={() => setConfirmDelete(null)}>
+            Cancel
+          </button>
+          <button type="button" className={s.confirmGo}
+                  onClick={() => { const id = confirmDelete.session_id; setConfirmDelete(null); removeSession(id); }}>
+            Delete
+          </button>
+        </div>
+      </div>
+    </>
+  );
+
   return (
     <div className={s.shell}>
+      {deleteDialog}
       {/* Only once it is worth interrupting for: nothing above 20% left,
           because a banner she sees every day is one she stops reading. */}
       <div className="px-4 pt-3 max-w-[760px] mx-auto w-full">
