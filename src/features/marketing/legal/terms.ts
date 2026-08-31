@@ -23,7 +23,7 @@ export const TERMS: Section[] = [
     title: "Who we are and what these Terms cover",
     body: [
       {
-        p: "Murchid (“Murchid”, “we”, “us”) is a teaching-material service operated by MJQ Investment LLC, registered in Dubai, United Arab Emirates, at Office 607, Opal Tower, Marasi Drive, Business Bay.",
+        p: "Murchid (“Murchid”, “we”, “us”) is a teaching-material service: a teacher describes what she needs and the service drafts lesson plans, student notes, quizzes, homework, slide decks and classroom activities for her to check, edit and use.",
       },
       {
         p: "These Terms of Service (“Terms”) form a binding agreement between you and us and govern your use of the Murchid website, application and APIs (together, the “Service”). By creating an account or using the Service you accept these Terms. If you do not accept them, please do not use the Service.",
@@ -74,7 +74,7 @@ export const TERMS: Section[] = [
         list: [
           "You must be at least 18, or the age of majority where you live, to hold a teacher account and to purchase a plan.",
           "Sign-in is by password, by an emailed link, or with Google or LinkedIn.",
-          "You are responsible for everything done through your account and for keeping your sign-in secure. Tell us promptly at mk@mjqinvestment.com if you believe it has been used without your authorisation.",
+          "You are responsible for everything done through your account and for keeping your sign-in secure. Tell us promptly at hello@murchid.app if you believe it has been used without your authorisation.",
           "One person, one account. Accounts may not be shared, sold or transferred. Murchid holds an account to a single active session, so signing in on a second device signs the first one out.",
           "Pupil accounts are created only by invitation from a teacher, and exist so a pupil can see and submit the work set for them.",
         ],
@@ -167,7 +167,7 @@ export const TERMS: Section[] = [
         ],
       },
       {
-        p: "Refunds: credits are digital content supplied immediately, and a credit spent on a generation is non-refundable. Unspent allowance and unused subscription time may be refunded at our discretion within 14 days of purchase — write to mk@mjqinvestment.com. This does not affect rights you have under applicable UAE consumer protection law, which we will honour.",
+        p: "Refunds: credits are digital content supplied immediately, and a credit spent on a generation is non-refundable. Unspent allowance and unused subscription time may be refunded at our discretion within 14 days of purchase — write to hello@murchid.app. This does not affect rights you have under applicable UAE consumer protection law, which we will honour.",
       },
     ],
   },
@@ -275,10 +275,7 @@ export const TERMS: Section[] = [
     title: "Contact",
     body: [
       {
-        p: "MJQ Investment LLC, Office 607, Opal Tower, Marasi Drive, Business Bay, Dubai, United Arab Emirates.",
-      },
-      {
-        p: "Questions about these Terms? Reach us at mk@mjqinvestment.com, by telephone on +971 4 884 1158 or +971 52 288 5649, or through the account page inside the app.",
+        p: "Questions about these Terms? Write to hello@murchid.app, or use the account page inside the app.",
       },
     ],
   },

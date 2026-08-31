@@ -31,13 +31,13 @@ export const PRIVACY: Section[] = [
     title: "Who we are",
     body: [
       {
-        p: "Murchid is operated by MJQ Investment LLC, registered in Dubai, United Arab Emirates, at Office 607, Opal Tower, Marasi Drive, Business Bay.",
+        p: "Murchid is a teaching-material service for schools. This policy covers the Murchid app and the murchid.com website.",
       },
       {
         p: "For a teacher's own account we are the controller of the personal data described here. For the pupil records a teacher enters — names, dates of birth, guardians, attendance, marks — we act on the instructions of the teacher and their school, who remain responsible for deciding what is collected and why. Section 4 sets that out in full.",
       },
       {
-        p: "Privacy questions, and any request to access, correct, export or delete data: mk@mjqinvestment.com.",
+        p: "Privacy questions, and any request to access, correct, export or delete data: hello@murchid.app, or through the account page inside the app.",
       },
     ],
   },
@@ -87,7 +87,7 @@ export const PRIVACY: Section[] = [
         p: "Pupils may also hold their own sign-in, created by invitation from their teacher, which lets them see the work set for them and submit it. A pupil account holds their name, their school email and their own submissions.",
       },
       {
-        note: "If you are a parent or guardian and want to know what is held about your child, ask the school or teacher first — they control the record. They can correct or delete it themselves, and we will help them do so. You can also write to us directly at mk@mjqinvestment.com.",
+        note: "If you are a parent or guardian and want to know what is held about your child, ask the school or teacher first — they control the record. They can correct or delete it themselves, and we will help them do so. You can also write to us directly at hello@murchid.app.",
       },
     ],
   },
@@ -231,7 +231,7 @@ export const PRIVACY: Section[] = [
         ],
       },
       {
-        p: "Depending on where you are — including under the UAE Personal Data Protection Law, and under GDPR or UK GDPR if you are in the EU or UK — you may also have rights to access, correct, erase, restrict or object to processing, to data portability, to withdraw consent, and to complain to your data protection authority. Write to mk@mjqinvestment.com and we will respond within 30 days. We may ask you to verify your identity first.",
+        p: "Depending on where you are — including under the UAE Personal Data Protection Law, and under GDPR or UK GDPR if you are in the EU or UK — you may also have rights to access, correct, erase, restrict or object to processing, to data portability, to withdraw consent, and to complain to your data protection authority. Write to hello@murchid.app and we will respond within 30 days. We may ask you to verify your identity first.",
       },
       {
         p: "Where the request concerns a pupil, we will normally refer it to the teacher or school that holds the record, and help them act on it.",
@@ -277,7 +277,7 @@ export const PRIVACY: Section[] = [
         p: "We do not knowingly collect a child's personal data except as instructed by their teacher or school for the purpose of teaching them. We do not profile children, market to them, or use anything about them to train a model.",
       },
       {
-        p: "If you believe a child's data is held here without a proper basis, write to mk@mjqinvestment.com and we will remove it.",
+        p: "If you believe a child's data is held here without a proper basis, write to hello@murchid.app and we will remove it.",
       },
     ],
   },
@@ -307,10 +307,7 @@ export const PRIVACY: Section[] = [
     title: "Contact",
     body: [
       {
-        p: "MJQ Investment LLC, Office 607, Opal Tower, Marasi Drive, Business Bay, Dubai, United Arab Emirates.",
-      },
-      {
-        p: "Questions about privacy? Reach us at mk@mjqinvestment.com, by telephone on +971 4 884 1158 or +971 52 288 5649, or through the account page inside the app.",
+        p: "Questions about privacy, or a request about your data? Write to hello@murchid.app, or use the account page inside the app — signed in, we can answer about the right account without asking you to prove who you are twice.",
       },
     ],
   },
