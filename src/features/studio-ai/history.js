@@ -23,7 +23,7 @@ import { supabase } from "@/lib/supabaseClient";
  *  library and are not affected — this is the conversation around them. */
 const KEEP_DAYS = 30;
 
-const SESSION_COLS = "session_id, title, created_at, updated_at";
+const SESSION_COLS = "session_id, title, created_at, updated_at, pinned_at";
 
 /** A short label from the teacher's own first sentence. */
 export function titleFrom(text) {
@@ -31,16 +31,48 @@ export function titleFrom(text) {
   return line.length > 60 ? `${line.slice(0, 57)}…` : line;
 }
 
-/** The teacher's studio threads, newest first. */
+/**
+ * The teacher's studio threads: pinned first, then newest.
+ *
+ * Two keys, not one. `updated_at` alone is the right default and the
+ * wrong permanent answer — the thread she returns to all week is the one
+ * she has not touched today, so it sinks under the ones she has. Pinned
+ * rows sort among THEMSELVES by when they were pinned, so a new pin goes
+ * to the top of the pins rather than into the middle of them according
+ * to when it was last edited.
+ */
 export async function listSessions(limit = 40) {
   const { data, error } = await supabase
     .from("chatbot_sessions")
     .select(SESSION_COLS)
     .eq("page_scope", "studio")
+    .order("pinned_at", { ascending: false, nullsFirst: false })
     .order("updated_at", { ascending: false })
     .limit(limit);
   if (error) throw error;
   return data || [];
+}
+
+/**
+ * Keep it at the top, or stop.
+ *
+ * Pinning is not editing, and the rail's order is the teacher's memory
+ * of when she last worked on something — so a pin must not rewrite it.
+ * Writing only `pinned_at` is not enough to guarantee that: a BEFORE
+ * UPDATE trigger stamps `updated_at` on every write to this table
+ * whatever it touched, so unpinning flung a four-day-old thread to the
+ * top of the unpinned list. The trigger now skips updates that change
+ * only the pin (db/tune.sql §94); this function relies on that.
+ */
+export async function setPinned(id, pinned) {
+  const { data, error } = await supabase
+    .from("chatbot_sessions")
+    .update({ pinned_at: pinned ? new Date().toISOString() : null })
+    .eq("session_id", id)
+    .select(SESSION_COLS)
+    .single();
+  if (error) throw error;
+  return data;
 }
 
 export async function createSession(title) {
@@ -141,12 +173,26 @@ export async function loadSession(sessionId) {
   }));
 }
 
+/**
+ * Her words, not the generator's.
+ *
+ * A thread is titled from its first sentence, which is a guess that is
+ * usually good and sometimes not — "hello" is a real row in this table.
+ * This is how she overrules it, so the text is taken AS TYPED rather
+ * than through titleFrom(): that trims to the first line and clips at 60
+ * for a sentence someone was writing to the studio, not naming a thread
+ * with. Empty is refused instead of saved — a blank row in a list of
+ * names is one she cannot find again.
+ */
 export async function renameSession(sessionId, title) {
+  const clean = String(title || "").trim().replace(/\s+/g, " ").slice(0, 120);
+  if (!clean) throw new Error("Give the conversation a name.");
   const { error } = await supabase
     .from("chatbot_sessions")
-    .update({ title: titleFrom(title) })
+    .update({ title: clean })
     .eq("session_id", sessionId);
   if (error) throw error;
+  return clean;
 }
 
 /** Messages cascade from the session, so one delete is enough. */

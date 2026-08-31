@@ -11314,3 +11314,100 @@ BEGIN
 
   RAISE NOTICE 'a lesson costs 6 credits; every other price is unchanged';
 END $$;
+
+-- ─────────────────────────────────────────────────────────────────────
+-- §93  A conversation can be kept at the top
+-- ─────────────────────────────────────────────────────────────────────
+--
+-- The studio rail is ordered by `updated_at`, which is the right default
+-- and the wrong permanent answer: the thread a teacher returns to all
+-- week is the one she has not touched today, so it sinks under the ones
+-- she has. Pinning is the fix, and it belongs on the row rather than in
+-- the browser — a layout preference can live in localStorage, but which
+-- lesson matters this term should follow her to the classroom PC.
+--
+-- A TIMESTAMP, not a boolean. Pinned rows sort among themselves by when
+-- they were pinned, so the fifth pin does not land in the middle of the
+-- other four according to when it was last edited. NULL is unpinned,
+-- which keeps the column out of the way of every existing row and every
+-- query that does not ask for it.
+
+ALTER TABLE public.chatbot_sessions
+  ADD COLUMN IF NOT EXISTS pinned_at timestamptz;
+
+-- The rail's exact order, so pinning does not cost a sort. Partial: only
+-- pinned rows are in it, and they are the few.
+CREATE INDEX IF NOT EXISTS chatbot_sessions_pinned_idx
+  ON public.chatbot_sessions (user_id, page_scope, pinned_at DESC)
+  WHERE pinned_at IS NOT NULL;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+     WHERE table_schema = 'public' AND table_name = 'chatbot_sessions'
+       AND column_name = 'pinned_at'
+  ) THEN
+    RAISE EXCEPTION 'chatbot_sessions.pinned_at is missing';
+  END IF;
+
+  -- The existing owner policy is what makes pinning and renaming safe
+  -- from the browser: without it a teacher could pin someone else's row.
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+     WHERE schemaname = 'public' AND tablename = 'chatbot_sessions'
+       AND policyname = 'chatbot_sessions_own'
+  ) THEN
+    RAISE EXCEPTION 'chatbot_sessions_own policy is missing — pinning would be unguarded';
+  END IF;
+
+  RAISE NOTICE 'conversations can be pinned';
+END $$;
+
+-- ─────────────────────────────────────────────────────────────────────
+-- §94  Pinning is not editing
+-- ─────────────────────────────────────────────────────────────────────
+--
+-- §93 added `pinned_at` and the browser writes it directly. What §93 did
+-- not account for is `set_updated_at`, a BEFORE UPDATE trigger on this
+-- table that stamps `updated_at = now()` on every write whatever it
+-- touched.
+--
+-- So pinning a thread also marked it as just-used, and — the case that
+-- actually shows — UNPINNING one flung a four-day-old conversation to
+-- the top of the unpinned list, because as far as the row was concerned
+-- it had been edited a second ago. The rail's order is the teacher's
+-- memory of when she last worked on something; a pin must not rewrite
+-- it.
+--
+-- The trigger is shared by other tables, so it is not the thing to
+-- change. The trigger's WHEN clause is: fire on every update EXCEPT one
+-- that changes the pin. A write that changes anything else still stamps
+-- the row exactly as before.
+
+DROP TRIGGER IF EXISTS set_updated_at ON public.chatbot_sessions;
+
+CREATE TRIGGER set_updated_at
+  BEFORE UPDATE ON public.chatbot_sessions
+  FOR EACH ROW
+  WHEN (OLD.pinned_at IS NOT DISTINCT FROM NEW.pinned_at)
+  EXECUTE FUNCTION set_updated_at();
+
+DO $$
+DECLARE
+  v_when text;
+BEGIN
+  SELECT pg_get_triggerdef(t.oid) INTO v_when
+    FROM pg_trigger t
+   WHERE t.tgrelid = 'public.chatbot_sessions'::regclass
+     AND t.tgname = 'set_updated_at' AND NOT t.tgisinternal;
+
+  IF v_when IS NULL THEN
+    RAISE EXCEPTION 'set_updated_at is missing from chatbot_sessions — every edit would stop stamping the row';
+  END IF;
+  IF position('pinned_at' IN v_when) = 0 THEN
+    RAISE EXCEPTION 'set_updated_at fires on pin changes; unpinning would reorder the rail';
+  END IF;
+
+  RAISE NOTICE 'a pin no longer counts as an edit';
+END $$;

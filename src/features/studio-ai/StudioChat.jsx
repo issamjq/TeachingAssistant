@@ -29,6 +29,7 @@ import {
   Send, Paperclip, X, Sparkles, Square, RotateCcw, Save, Check,
   FileText, GraduationCap, ClipboardList, Layers, Puzzle,
   Plus, Trash2, MessageSquare, PanelLeftOpen, X as XIcon,
+  MoreHorizontal, Pencil, Pin, PinOff,
 } from "lucide-react";
 import { api } from "@/views/_shared";
 import { useCredits, CreditEstimate, CreditWarning } from "./CreditMeter";
@@ -52,7 +53,8 @@ import {
 } from "./revision";
 import { SkillsPicker } from "./SkillsPicker";
 import {
-  listSessions, createSession, appendMessage, loadSession, deleteSession, purgeOld, KEEP_DAYS,
+  listSessions, createSession, appendMessage, loadSession, deleteSession,
+  renameSession, setPinned, purgeOld, KEEP_DAYS,
 } from "./history";
 import { useContextPanelSlot } from "@/shared/shell/ContextPanel";
 import { useMediaQuery } from "@/shared/hooks/useMediaQuery";
@@ -475,6 +477,10 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
   // has no equivalent of.
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [loadingThread, setLoadingThread] = useState(false);
+  /** Which row's ⋯ menu is open, and which row is being renamed in place. */
+  const [menuFor, setMenuFor] = useState(null);
+  const [renamingId, setRenamingId] = useState(null);
+  const [renameDraft, setRenameDraft] = useState("");
   // The id the CURRENT send belongs to. State would be a render behind:
   // a thread is created and its first two turns saved inside one call,
   // and setSessionId has not committed by the time they are written.
@@ -498,6 +504,26 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
     refreshSessions();
     purgeOld();
   }, [refreshSessions]);
+
+  /**
+   * The ⋯ menu closes on the next click anywhere, and on Escape.
+   *
+   * Listening on the document rather than on a backdrop element: a
+   * backdrop would have to sit over the rail, and then the click that
+   * dismisses the menu could not also be the click that opens another
+   * row — which is what anyone with three menus in a list actually does.
+   */
+  useEffect(() => {
+    if (!menuFor) return;
+    const away = () => setMenuFor(null);
+    const key = (e) => { if (e.key === "Escape") setMenuFor(null); };
+    document.addEventListener("click", away);
+    document.addEventListener("keydown", key);
+    return () => {
+      document.removeEventListener("click", away);
+      document.removeEventListener("keydown", key);
+    };
+  }, [menuFor]);
 
   // Grow the composer with what's in it, then scroll. The ceiling is a
   // slice of the viewport (not a fixed 240px) so a small paragraph takes
@@ -704,8 +730,60 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
     setLastKept(null);
   };
 
+  /**
+   * The rail's own order, applied locally.
+   *
+   * Pinning has to move the row NOW — a pin that only takes effect on the
+   * next load is a pin the teacher does not believe worked. Same two keys
+   * the query uses, so the optimistic order and the fetched one agree.
+   */
+  const sortSessions = (list) =>
+    [...list].sort((a, b) => {
+      if (!!a.pinned_at !== !!b.pinned_at) return a.pinned_at ? -1 : 1;
+      if (a.pinned_at && b.pinned_at) return b.pinned_at.localeCompare(a.pinned_at);
+      return String(b.updated_at || b.created_at).localeCompare(String(a.updated_at || a.created_at));
+    });
+
+  const togglePin = async (x) => {
+    setMenuFor(null);
+    const pinned_at = x.pinned_at ? null : new Date().toISOString();
+    const prev = sessions;
+    setSessions((list) =>
+      sortSessions(list.map((y) => (y.session_id === x.session_id ? { ...y, pinned_at } : y))),
+    );
+    try {
+      await setPinned(x.session_id, !!pinned_at);
+    } catch (err) {
+      setSessions(prev);
+      setNotice(`Couldn't ${pinned_at ? "pin" : "unpin"} that: ${err.message}`);
+    }
+  };
+
+  const startRename = (x) => {
+    setMenuFor(null);
+    setRenameDraft(x.title || "");
+    setRenamingId(x.session_id);
+  };
+
+  const commitRename = async (id) => {
+    const name = renameDraft.trim();
+    setRenamingId(null);
+    const row = sessions.find((y) => y.session_id === id);
+    // Nothing typed, or nothing changed: not a failure, just not an edit.
+    if (!name || name === (row?.title || "")) return;
+    const prev = sessions;
+    setSessions((list) => list.map((y) => (y.session_id === id ? { ...y, title: name } : y)));
+    try {
+      await renameSession(id, name);
+    } catch (err) {
+      setSessions(prev);
+      setNotice(`Couldn't rename that: ${err.message}`);
+    }
+  };
+
   const removeSession = async (id, e) => {
-    e.stopPropagation();
+    e?.stopPropagation?.();
+    setMenuFor(null);
     const prev = sessions;
     setSessions((x) => x.filter((y) => y.session_id !== id));
     if (id === sessionId) newChat();
@@ -1799,35 +1877,85 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
           </p>
         ) : (
           sessions.map((x) => (
-            // Two sibling buttons in a plain row, not a button inside a
+            // Sibling buttons in a plain row, not a button inside a
             // role="button". Nesting them made the row's accessible name
-            // swallow the delete label, so a screen reader announced one
+            // swallow the second label, so a screen reader announced one
             // control offering both actions.
             <div
               key={x.session_id}
               className={s.railItem}
               data-on={x.session_id === sessionId}
+              data-menu={menuFor === x.session_id || undefined}
             >
-              <button
-                type="button"
-                className={s.railOpen}
-                onClick={() => { openSession(x.session_id); setDrawerOpen(false); }}
-                aria-current={x.session_id === sessionId ? "true" : undefined}
-              >
-                <MessageSquare size={13} className="text-muted flex-shrink-0 mt-0.5 self-start" />
-                <span className={s.railItemText}>
-                  <span className={s.railItemTitle}>{x.title || "Untitled"}</span>
-                  <span className={s.railItemWhen}>{when(x.updated_at || x.created_at)}</span>
-                </span>
-              </button>
-              <button
-                type="button"
-                className={s.railDel}
-                onClick={(e) => removeSession(x.session_id, e)}
-                aria-label={`Delete conversation: ${x.title || "Untitled"}`}
-              >
-                <Trash2 size={13} />
-              </button>
+              {renamingId === x.session_id ? (
+                /* Renamed in place. A dialog for one field is a dialog
+                   for its own sake, and the row is where she is looking. */
+                <input
+                  className={s.railRename}
+                  value={renameDraft}
+                  autoFocus
+                  onChange={(e) => setRenameDraft(e.target.value)}
+                  onBlur={() => commitRename(x.session_id)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") { e.preventDefault(); e.currentTarget.blur(); }
+                    // Escape abandons: clear the id first so the blur that
+                    // follows has nothing left to commit.
+                    if (e.key === "Escape") { setRenamingId(null); e.currentTarget.blur(); }
+                  }}
+                  aria-label={`Rename conversation: ${x.title || "Untitled"}`}
+                />
+              ) : (
+                <button
+                  type="button"
+                  className={s.railOpen}
+                  onClick={() => { openSession(x.session_id); setDrawerOpen(false); }}
+                  aria-current={x.session_id === sessionId ? "true" : undefined}
+                >
+                  {x.pinned_at
+                    ? <Pin size={12} className="text-accent flex-shrink-0 mt-1 self-start" />
+                    : <MessageSquare size={13} className="text-muted flex-shrink-0 mt-0.5 self-start" />}
+                  <span className={s.railItemText}>
+                    <span className={s.railItemTitle}>{x.title || "Untitled"}</span>
+                    <span className={s.railItemWhen}>{when(x.updated_at || x.created_at)}</span>
+                  </span>
+                </button>
+              )}
+
+              <div className={s.railMenuWrap}>
+                <button
+                  type="button"
+                  className={s.railDel}
+                  /* Stops the document listener that closes menus from
+                     seeing this click and shutting the one being opened. */
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setMenuFor((cur) => (cur === x.session_id ? null : x.session_id));
+                  }}
+                  aria-haspopup="menu"
+                  aria-expanded={menuFor === x.session_id}
+                  aria-label={`More for: ${x.title || "Untitled"}`}
+                >
+                  <MoreHorizontal size={14} />
+                </button>
+
+                {menuFor === x.session_id && (
+                  <div className={s.railMenu} role="menu" onClick={(e) => e.stopPropagation()}>
+                    <button type="button" role="menuitem" className={s.railMenuItem}
+                            onClick={() => togglePin(x)}>
+                      {x.pinned_at ? <PinOff size={13} /> : <Pin size={13} />}
+                      {x.pinned_at ? "Unpin" : "Pin to top"}
+                    </button>
+                    <button type="button" role="menuitem" className={s.railMenuItem}
+                            onClick={() => startRename(x)}>
+                      <Pencil size={13} /> Rename
+                    </button>
+                    <button type="button" role="menuitem" className={s.railMenuItem} data-danger
+                            onClick={(e) => removeSession(x.session_id, e)}>
+                      <Trash2 size={13} /> Delete
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           ))
         )}
