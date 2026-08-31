@@ -187,3 +187,138 @@
 @media (prefers-reduced-motion: reduce) {
   .skelBlock { animation: none; }
 }
+
+/* ── the plan, opened beside the list ─────────────────────────────── */
+/*
+   The same drawer the template library uses, on purpose: clicking a card
+   to have its contents arrive from the edge should be one gesture across
+   the product, not a different one per screen.
+
+   It replaced an accordion. A ten-week plan expanding inside the card
+   pushed every goal under it off the screen, so opening one goal meant
+   losing the rest — the list stopped being a list at the moment it was
+   most useful as one.
+*/
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: color-mix(in oklab, var(--p-ink) 34%, transparent);
+  backdrop-filter: blur(2px);
+  animation: goalFade 180ms ease both;
+}
+@keyframes goalFade { from { opacity: 0; } to { opacity: 1; } }
+
+.drawer {
+  position: fixed;
+  inset-block: 0;
+  inset-inline-end: 0;
+  z-index: 61;
+  width: min(680px, 100vw);
+  display: flex;
+  flex-direction: column;
+  background: var(--p-bg, var(--p-surface));
+  border-inline-start: 1px solid var(--p-line);
+  box-shadow: -24px 0 60px -30px color-mix(in oklab, var(--p-ink) 45%, transparent);
+  animation: goalSlideIn 240ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+:global([dir="rtl"]) .drawer { animation-name: goalSlideInRtl; }
+@keyframes goalSlideIn    { from { transform: translateX(100%); }  to { transform: none; } }
+@keyframes goalSlideInRtl { from { transform: translateX(-100%); } to { transform: none; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .overlay, .drawer { animation: none; }
+}
+
+.drawerHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 18px 20px 14px;
+  border-bottom: 1px solid var(--p-line);
+}
+
+/* The only scrolling region. The head stays put so the goal being read
+   is still named after ten weeks of scrolling. */
+.drawerBody {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 18px 20px 28px;
+}
+
+.closeBtn {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  flex: none;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--p-muted);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.closeBtn:hover { background: var(--p-paper-warm, var(--p-surface)); color: var(--p-ink); }
+.closeBtn:focus-visible { outline: 2px solid var(--p-accent); outline-offset: 2px; }
+
+/* A card that opens. The lift is small on purpose — it says "this is a
+   thing you can press" without competing with the drawer it opens. */
+.cardTap {
+  cursor: pointer;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
+}
+.cardTap:hover {
+  border-color: color-mix(in oklab, var(--p-accent) 45%, transparent);
+  box-shadow: 0 10px 26px -14px color-mix(in oklab, var(--p-ink) 40%, transparent);
+}
+.cardTap:focus-visible {
+  outline: 2px solid var(--p-accent);
+  outline-offset: 3px;
+}
+.cardTap:active { transform: translateY(1px); }
+
+/* The affordance. Coloured like a link because it is telling you what the
+   card does, but it is not a control — the card is. */
+.planHint {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  color: var(--p-accent);
+  transition: gap 0.18s ease;
+}
+.cardTap:hover .planHint { gap: 9px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .cardTap, .planHint { transition: none; }
+}
+
+/* The way out, which is the way in reversed.
+   Unmounting on the click removed the panel in one frame — nothing to
+   follow back to the list, so it read as a crash rather than a close. */
+.overlay[data-leaving] { animation: goalFadeOut 200ms ease both; }
+.drawer[data-leaving]  { animation: goalSlideOut 220ms cubic-bezier(0.4, 0, 1, 1) both; }
+:global([dir="rtl"]) .drawer[data-leaving] { animation-name: goalSlideOutRtl; }
+
+@keyframes goalFadeOut     { from { opacity: 1; } to { opacity: 0; } }
+@keyframes goalSlideOut    { from { transform: none; } to { transform: translateX(100%); } }
+@keyframes goalSlideOutRtl { from { transform: none; } to { transform: translateX(-100%); } }
+
+/* A drawer is for reading, not glancing. The week label is the one thing
+   that stays small — it is a marker, and the focus line under it is the
+   heading a teacher actually reads. */
+.weekNum {
+  font-size: 11px;
+  letter-spacing: 0.14em;
+}
+.week {
+  border-inline-start-width: 3px;
+  padding-inline-start: 18px;
+  padding-block: 2px 4px;
+}
+
+.drawerHead { padding: 22px 24px 18px; }
+.drawerBody { padding: 22px 24px 36px; }

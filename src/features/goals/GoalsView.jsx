@@ -22,9 +22,9 @@
 // through a server, because a server-side upload would need a
 // service-role key nothing in this system holds.
 // =====================================================================
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-  Target, Plus, Upload, FileText, Trash2, Sparkles, X, ChevronDown, ChevronUp,
+  Target, Plus, Upload, FileText, Trash2, Sparkles, X, ArrowRight,
 } from "lucide-react";
 import { api } from "@/views/_shared";
 import { supabase } from "@/lib/supabaseClient";
@@ -313,13 +313,91 @@ function NewGoal({ onCreated, onClose }) {
   );
 }
 
-function GoalCard({ goal, onDelete, onPlan, planning, planError }) {
-  const [open, setOpen] = useState(false);
+/**
+ * The plan, week by week and day by day.
+ *
+ * Lifted out of the card so one rendering serves both places it is read:
+ * nowhere on the card any more, and in full in the drawer. It used to be
+ * an accordion inside the card, which meant a ten-week plan pushed every
+ * goal below it off the screen the moment it opened — the list stopped
+ * being a list.
+ */
+function GoalPlan({ weeks }) {
+  return (
+    <div className="space-y-6">
+      {weeks.map((w, i) => (
+        <div key={i} className={s.week}>
+          <p className={s.weekNum}>Week {w.week ?? i + 1}</p>
+          <p className="text-[17px] font-serif font-semibold text-ink mt-1 leading-snug">{w.focus}</p>
+          {/* Days are the plan now. `lessons` is what plans made before
+              this looked like, and they still open. */}
+          {Array.isArray(w.days) && w.days.length > 0 ? (
+            <ul className="mt-3 space-y-3">
+              {w.days.map((d, j) => (
+                <li key={j} className="flex gap-3">
+                  <span className="font-mono text-[11px] font-bold uppercase tracking-[0.08em] text-accent shrink-0 mt-[5px]">
+                    Day {d.day ?? j + 1}
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-[15px] text-ink font-semibold leading-snug">
+                      {d.title}
+                    </span>
+                    {d.outline && (
+                      <span className="block text-[13.5px] text-ink-soft leading-relaxed mt-1">
+                        {d.outline}
+                      </span>
+                    )}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : Array.isArray(w.lessons) && w.lessons.length > 0 ? (
+            <ul className="mt-1.5 space-y-0.5">
+              {w.lessons.map((l, j) => (
+                <li key={j} className="text-[14px] text-ink-soft">
+                  · {typeof l === "string" ? l : l.title}
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function GoalCard({ goal, onDelete, onPlan, onOpen, planning, planError }) {
   const weeks = goal.plan?.weeks;
   const weeksTotal = goal.timeline_days ? Math.round(goal.timeline_days / 7) : null;
 
+  const hasPlan = Array.isArray(weeks) && weeks.length > 0;
+
+  /**
+   * The card IS the button.
+   *
+   * A link at the bottom made the teacher aim at four words to reach
+   * something the whole card is about; everything on it — the title, the
+   * brief, the verdict — is a summary of what the drawer holds, so the
+   * whole card should open it. The controls inside stop the click from
+   * reaching this: deleting a goal and reading it are not the same
+   * intention, and a card that opens when you meant to delete is worse
+   * than one that never opened at all.
+   */
+  const openIfPlanned = () => { if (hasPlan) onOpen(goal); };
+
   return (
-    <section className={`${s.glass} p-5`}>
+    <section
+      className={`${s.glass} p-5 ${hasPlan ? s.cardTap : ""}`}
+      {...(hasPlan && {
+        role: "button",
+        tabIndex: 0,
+        "aria-label": `Open the plan for ${goal.title}`,
+        onClick: openIfPlanned,
+        onKeyDown: (e) => {
+          if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openIfPlanned(); }
+        },
+      })}
+    >
       <div className="flex items-start gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2.5 flex-wrap">
@@ -340,7 +418,7 @@ function GoalCard({ goal, onDelete, onPlan, planning, planError }) {
         </div>
         <button
           type="button"
-          onClick={() => onDelete(goal.id)}
+          onClick={(e) => { e.stopPropagation(); onDelete(goal.id); }}
           aria-label={`Delete goal ${goal.title}`}
           className="grid place-items-center w-8 h-8 rounded-full text-muted hover:text-crit hover:bg-paper-warm transition-colors cursor-pointer flex-shrink-0"
         >
@@ -358,62 +436,14 @@ function GoalCard({ goal, onDelete, onPlan, planning, planError }) {
         </p>
       )}
 
-      {/* The plan itself, once the service has written one. */}
-      {Array.isArray(weeks) && weeks.length > 0 && (
-        <div className="mt-4">
-          <button
-            type="button"
-            onClick={() => setOpen((o) => !o)}
-            className="inline-flex items-center gap-1.5 text-[12.5px] text-accent hover:text-accent-hover transition-colors cursor-pointer"
-            aria-expanded={open}
-          >
-            {open ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
-            {open
-              ? "Hide the plan"
-              : `See the plan — ${weeks.length} ${weeks.length === 1 ? "week" : "weeks"}`}
-          </button>
-          {open && (
-            <div className="mt-3 space-y-3">
-              {weeks.map((w, i) => (
-                <div key={i} className={s.week}>
-                  <p className={s.weekNum}>Week {w.week ?? i + 1}</p>
-                  <p className="text-[13.5px] text-ink mt-0.5">{w.focus}</p>
-                  {/* Days are the plan now. `lessons` is what plans made
-                      before this looked like, and they still open. */}
-                  {Array.isArray(w.days) && w.days.length > 0 ? (
-                    <ul className="mt-2 space-y-1.5">
-                      {w.days.map((d, j) => (
-                        <li key={j} className="flex gap-2.5">
-                          <span className="font-mono text-[10px] uppercase tracking-[0.08em] text-accent shrink-0 mt-[3px]">
-                            Day {d.day ?? j + 1}
-                          </span>
-                          <span className="min-w-0">
-                            <span className="block text-[12.5px] text-ink font-medium leading-snug">
-                              {d.title}
-                            </span>
-                            {d.outline && (
-                              <span className="block text-[11.5px] text-muted leading-snug mt-0.5">
-                                {d.outline}
-                              </span>
-                            )}
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
-                  ) : Array.isArray(w.lessons) && w.lessons.length > 0 ? (
-                    <ul className="mt-1.5 space-y-0.5">
-                      {w.lessons.map((l, j) => (
-                        <li key={j} className="text-[12.5px] text-ink-soft">
-                          · {typeof l === "string" ? l : l.title}
-                        </li>
-                      ))}
-                    </ul>
-                  ) : null}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+      {/* A sign, not a second control. The card already carries the click;
+          a button here would be a second tab stop for the same action and
+          a smaller target for it. */}
+      {hasPlan && (
+        <span className={`${s.planHint} mt-4`} aria-hidden="true">
+          See the plan — {weeks.length} {weeks.length === 1 ? "week" : "weeks"}
+          <ArrowRight size={13} />
+        </span>
       )}
 
       {/* While it is working, the panel replaces the button entirely: a
@@ -428,7 +458,7 @@ function GoalCard({ goal, onDelete, onPlan, planning, planError }) {
         <div className="mt-4 flex items-center gap-3 flex-wrap">
           <button
             type="button"
-            onClick={() => onPlan(goal.id)}
+            onClick={(e) => { e.stopPropagation(); onPlan(goal.id); }}
             className="inline-flex items-center gap-2 h-10 px-5 rounded-full bg-accent text-on-accent text-[13px] font-medium hover:bg-accent-hover transition-colors cursor-pointer"
           >
             <Sparkles size={14} />
@@ -443,12 +473,140 @@ function GoalCard({ goal, onDelete, onPlan, planning, planError }) {
   );
 }
 
+/**
+ * The plan, opened beside the list.
+ *
+ * Modelled on the template library's detail drawer so the two read as the
+ * same gesture: click a card, its full contents arrive from the edge, and
+ * the list stays exactly where it was underneath. An accordion moved the
+ * page out from under the teacher every time she opened one.
+ *
+ * Escape closes it, the scrim closes it, and the body stops scrolling
+ * while it is open — a drawer that lets the page scroll behind it loses
+ * the reader's place, which is the one thing this was meant to protect.
+ */
+function GoalDetail({ goal, onClose }) {
+  const weeks = goal.plan?.weeks;
+  const weeksTotal = goal.timeline_days ? Math.round(goal.timeline_days / 7) : null;
+  const [leaving, setLeaving] = useState(false);
+
+  /**
+   * It slides out the way it slid in.
+   *
+   * Unmounting on the click took the panel off the screen in a single
+   * frame, which reads as a crash rather than a close — the eye has
+   * nothing to follow back to the list. So the close is announced first,
+   * the exit animation runs, and the component goes when it has finished.
+   *
+   * Reduced motion skips straight to gone: there is no animation to watch
+   * and a delay with nothing happening in it is just a slow app.
+   */
+  const close = useCallback(() => {
+    const still = typeof window !== "undefined"
+      && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    if (still) { onClose(); return; }
+    setLeaving(true);
+    setTimeout(onClose, 220);
+  }, [onClose]);
+
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === "Escape") close(); };
+    document.addEventListener("keydown", onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prev;
+    };
+  }, [close]);
+
+  return (
+    <>
+      <div
+        className={s.overlay}
+        data-leaving={leaving || undefined}
+        /**
+         * Closes on a press that STARTS on the scrim, not on a click that
+         * merely ends there.
+         *
+         * The card's click paints the scrim under the cursor, so the tail
+         * of that same press lands on a surface that did not exist when
+         * the press began — and closing on it shut the drawer in the act
+         * of opening. A mousedown the scrim actually received is always a
+         * new intention.
+         */
+        onMouseDown={(e) => { if (e.target === e.currentTarget) close(); }}
+        aria-hidden="true"
+      />
+      <aside
+        className={s.drawer}
+        data-leaving={leaving || undefined}
+        role="dialog"
+        aria-modal="true"
+        aria-label={`Plan for ${goal.title}`}
+      >
+        <header className={s.drawerHead}>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <h2 className="font-serif text-[26px] font-semibold text-ink leading-[1.15]">
+                {goal.title}
+              </h2>
+              <span className={s.chip} data-status={goal.status}>
+                {STATUS_LABEL[goal.status] || goal.status}
+              </span>
+            </div>
+            <p className="text-[13.5px] text-muted mt-1.5">
+              {[
+                weeksTotal ? `${weeksTotal} week${weeksTotal === 1 ? "" : "s"}` : null,
+                Array.isArray(weeks) && weeks.length
+                  ? `${weeks.length} planned`
+                  : null,
+                goal.material_ids?.length
+                  ? `${goal.material_ids.length} file${goal.material_ids.length === 1 ? "" : "s"} attached`
+                  : null,
+              ].filter(Boolean).join(" · ")}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={close}
+            aria-label="Close"
+            className={s.closeBtn}
+          >
+            <X size={16} />
+          </button>
+        </header>
+
+        <div className={s.drawerBody}>
+          {/* Full, not clamped. On the card the brief is two lines because
+              the card is a summary; here there is room for what it says. */}
+          {goal.plan?.brief && (
+            <p className="text-[15px] text-ink-soft leading-relaxed">{goal.plan.brief}</p>
+          )}
+          {goal.ai_verdict && (
+            <p className="text-[14.5px] text-ink mt-4 border-s-2 border-accent/40 ps-4 italic leading-relaxed">
+              {goal.ai_verdict}
+            </p>
+          )}
+          {Array.isArray(weeks) && weeks.length > 0 && (
+            <div className="mt-5">
+              <GoalPlan weeks={weeks} />
+            </div>
+          )}
+        </div>
+      </aside>
+    </>
+  );
+}
+
 export default function GoalsView() {
   const [goals, setGoals] = useState(null);
   const [error, setError] = useState(null);
   const [creating, setCreating] = useState(false);
   const [planning, setPlanning] = useState(null);
   const [planError, setPlanError] = useState(null);
+  // Which goal's plan is open beside the list, if any.
+  const [openGoal, setOpenGoal] = useState(null);
 
   useEffect(() => {
     let live = true;
@@ -626,10 +784,21 @@ export default function GoalsView() {
           goal={g}
           onDelete={remove}
           onPlan={plan}
+          onOpen={setOpenGoal}
           planning={planning}
           planError={planError}
         />
       ))}
+
+      {/* Read from the LIST, not from the click: re-planning a goal while
+          its drawer is open should update what the drawer is showing
+          rather than leave a stale copy of the row on screen. */}
+      {openGoal && (
+        <GoalDetail
+          goal={goals?.find((g) => g.id === openGoal.id) ?? openGoal}
+          onClose={() => setOpenGoal(null)}
+        />
+      )}
     </div>
   );
 }
