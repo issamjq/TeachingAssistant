@@ -334,21 +334,6 @@ function cleanTitle(raw) {
     .trim();
 }
 
-/**
- * Shorten to `max`, but never mid-word.
- *
- * A hard slice produced "Approach: Evaporation or Boiling? Sort I", which
- * looks like the text was lost rather than trimmed. Cutting at the last
- * space and adding an ellipsis says "there is more" instead.
- */
-function clip(text, max) {
-  const t = String(text || "").trim();
-  if (t.length <= max) return t;
-  const cut = t.slice(0, max - 1);
-  const space = cut.lastIndexOf(" ");
-  return `${(space > max * 0.6 ? cut.slice(0, space) : cut).trimEnd()}\u2026`;
-}
-
 function titleOf(kind, text, structured) {
   if (structured?.title) return cleanTitle(structured.title);
   const heading = (text || "").split(/\r?\n/).find((l) => /^#{1,3}\s+/.test(l));
@@ -411,7 +396,10 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
   // send() reads it. Saving a new approach bumps the version so the
   // picker refetches and the new skill appears selected.
   const skillSel = useRef(null);
-  const [skillsVersion, setSkillsVersion] = useState(0);
+  // Nothing on this screen writes a skill any more, so there is nothing
+  // to tell the picker to refetch for. Kept as a constant so the picker's
+  // contract is unchanged for the places that still bump it.
+  const skillsVersion = 0;
   const [busy, setBusy] = useState(false);
   /**
    * Files she has attached but not yet sent.
@@ -568,20 +556,6 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
   // phone drawer starts closed. What used to live here force-closed the
   // rail below 1100px on every visit, overriding that choice.
 
-  /** Has this conversation already been turned into a skill? */
-  const skillExistsForSession = async (id) => {
-    if (!id) return false;
-    try {
-      const rows = await api("/api/skills");
-      const list = Array.isArray(rows) ? rows : rows?.skills ?? [];
-      return list.some((sk) => sk?.source_session_id === id);
-    } catch {
-      // Unknown is treated as "not taken": offering twice is a smaller harm
-      // than never offering at all.
-      return false;
-    }
-  };
-
   const openSession = async (id) => {
     if (id === sessionId) return;
     setLoadingThread(true);
@@ -596,7 +570,6 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
        * from it. It stands until it is taken, and what marks it taken is a
        * skill recorded against this session.
        */
-      const taken = await skillExistsForSession(id);
 
       /**
        * Which generations in this thread were already kept.
@@ -632,7 +605,6 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
       setTurns(
         turns_.map((t) => ({
           ...t,
-          ...(taken ? { skillSaved: true } : {}),
           // Already in her library: show it as kept, not as offerable.
           ...(t.batchId && keptBatches.has(t.batchId) ? { saved: true } : {}),
         })),
@@ -1784,112 +1756,6 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
   // into a method profile; without it, a deterministic note (instruction
   // + reference excerpt) is still worth saving. Either way the row goes
   // browser→Supabase and future generations can be grounded in it.
-  const captureSkill = async (turn, index) => {
-    if (turn.skillSaving || turn.skillSaved) return;
-    const promptText = (() => {
-      for (let j = index - 1; j >= 0; j--) if (turns[j]?.role === "user") return turns[j].text;
-      return "";
-    })();
-    /**
-     * The corrections are the method.
-     *
-     * Only the kept document and the prompt beside it were ever sent, so
-     * everything the teacher actually taught the studio was thrown away: she
-     * asks for homework, reads it, says "make the questions come from their own
-     * kitchen", reads it again, says "and one sentence of reasoning each" — and
-     * the third version is the one she keeps. What she asked to change, and
-     * what she stopped changing, states her standard far more plainly than the
-     * final document does on its own.
-     *
-     * The service already asks for this ("read them as the strongest signal in
-     * the input"); nothing was sending it. Earlier versions of the SAME kind in
-     * this conversation now go too, each under the instruction that produced
-     * it, oldest first, so the distillation can see the direction of travel.
-     */
-    const history = (() => {
-      const rounds = [];
-      for (let j = 0; j < index; j++) {
-        const t = turns[j];
-        // Every document in the thread, not only the same kind: a teacher who
-        // fixed her homework and then made a quiz taught the studio the same
-        // standard twice, and the quiz was being thrown away.
-        if (t?.role !== "assistant" || !t.text) continue;
-        let asked = "";
-        for (let k = j - 1; k >= 0; k--) if (turns[k]?.role === "user") { asked = turns[k].text; break; }
-        rounds.push(
-          `### Earlier draft ${rounds.length + 1}\nShe asked: ${asked || "(the opening request)"}\n\n${t.text.slice(0, 2500)}`,
-        );
-      }
-      // The last three: the direction is what matters, and a long thread
-      // would crowd out the version she actually kept.
-      return rounds.slice(-3).join("\n\n");
-    })();
-
-    const title = titleOf(turn.kind, turn.text, turn.structured);
-    const label = (KIND_META[turn.kind]?.label || "material").toLowerCase();
-    setTurns((t) => t.map((x, i) => (i === index ? { ...x, skillSaving: true } : x)));
-    /* Truncated mid-word to "Approach: Evaporation or Boiling? Sort I",
-       which reads as a bug rather than as a shortened name. Clip on a word
-       boundary and mark it, and give it the same 60 characters the
-       distilled name below gets — there was no reason for the fallback to
-       be tighter than the good case. */
-    let name = clip(`Approach: ${title}`, 60);
-    let profile = "";
-    try {
-      const { streamSSE } = await import("@/shared/lib/apiStream");
-      let acc = "", done = null;
-      await streamSSE("/api/studio/skill-profile", {
-        body: {
-          source: "artifact",
-          artifact: {
-            kind: turn.kind,
-            prompt: promptText,
-            content: [
-              history &&
-                `## What came before, and what she asked to change\n\n${history}`,
-              `## The version she kept\nShe asked: ${promptText || "(not recorded)"}\n\n${(turn.text || "").slice(0, 6000)}`,
-            ]
-              .filter(Boolean)
-              .join("\n\n"),
-          },
-        },
-        onEvent: (ev) => {
-          if (ev.type === "delta" && typeof ev.text === "string") acc += ev.text;
-          else if (ev.type === "done") done = ev;
-        },
-      });
-      profile = String(done?.skill_profile || acc).trim();
-      if (done?.name) name = String(done.name).slice(0, 60);
-    } catch {
-      /* distillation unavailable — fall through to the deterministic note */
-    }
-    if (!profile) {
-      profile =
-        `# Approach — ${title}\n\n` +
-        `_Saved from an AI Studio ${label} the teacher wanted to reuse._\n\n` +
-        `## The instruction that produced it\n\n${promptText || "(not recorded)"}\n\n` +
-        `## How to reproduce it\n\nMatch the structure, difficulty and tone of the reference below when making another ${label}.\n\n` +
-        `## Reference\n\n${(turn.text || "").slice(0, 2000)}`;
-    }
-    try {
-      await api("/api/skills", {
-        method: "POST",
-        body: {
-          name,
-          source_type: "generation",
-          skill_profile: profile,
-          // Which conversation this came from, so the offer is not made twice.
-          ...(sessionRef.current ? { source_session_id: sessionRef.current } : {}),
-        },
-      });
-      setTurns((t) => t.map((x, i) => (i === index ? { ...x, skillSaving: false, skillSaved: true } : x)));
-      setSkillsVersion((v) => v + 1); // the picker refetches; new skill arrives selected
-    } catch (e) {
-      setTurns((t) => t.map((x, i) => (i === index ? { ...x, skillSaving: false } : x)));
-      setNotice(`Couldn't save the approach: ${e.message}`);
-    }
-  };
-
   const empty = turns.length === 0;
 
   const when = (iso) => {
@@ -2006,24 +1872,15 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
           </div>
         ) : (
           <div className={s.threadInner}>
-            {turns.map((turn, i, all) => {
+            {turns.map((turn, i) => {
               /**
                * One offer per conversation, at the end of it.
                *
-               * It was rendered under every document, so a thread with a
-               * lesson, a quiz and an activity in it carried three buttons
-               * that all did the same thing — and what they distil is the
-               * whole conversation, not the document above them. It sits
-               * under the last one, and once the approach has been taken
-               * from this thread there is no button anywhere in it.
+               * (An earlier version offered to distil the conversation into
+               * a teaching skill here. Teaching skills are written in one
+               * place now — the interview — so nothing reads a thread for
+               * them any more.)
                */
-              const takenAlready = all.some((t) => t.skillSaved);
-              let lastDocIndex = -1;
-              for (let j = all.length - 1; j >= 0; j--) {
-                const t = all[j];
-                if (t?.role === "assistant" && t.done && t.text) { lastDocIndex = j; break; }
-              }
-              const skillSlotHere = i === lastDocIndex;
               /**
                * The one question asked before writing anything.
                *
@@ -2314,24 +2171,6 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
                           document, in a new thread or an old one, and goes
                           only once a skill has been made from the conversation.
                         */}
-                        {(turn.saved || turn.restored) && skillSlotHere && (
-                          takenAlready ? (
-                            <span className={s.chipBtn} aria-disabled="true">
-                              <Check size={13} /> Approach saved to Teaching skills
-                            </span>
-                          ) : (
-                            <button
-                              type="button"
-                              className={s.chipBtn}
-                              data-primary
-                              disabled={turn.skillSaving}
-                              onClick={() => captureSkill(turn, i)}
-                            >
-                              <GraduationCap size={13} />
-                              {turn.skillSaving ? "Capturing the approach…" : "Loved it? Save this approach as a skill"}
-                            </button>
-                          )
-                        )}
                         {meta.section && (
                           <button
                             type="button" className={s.chipBtn}
