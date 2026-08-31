@@ -882,6 +882,21 @@
 }
 .askInput::placeholder { color: var(--p-muted); }
 
+/*
+   The field shows no focus of its own.
+   globals.css gives every input and textarea a 3px accent halo on focus,
+   which is right in a form and wrong here: inside a capsule it draws a
+   rectangle around the text, so clicking into the pill produced a box
+   within a box. The pill itself already answers — the ring brightens and
+   the bloom widens on :focus-within — and one answer is enough.
+*/
+.askInput:focus,
+.askInput:focus-visible {
+  outline: none;
+  box-shadow: none;
+  border-color: transparent;
+}
+
 /* Filled only once there is something to send: a permanently solid
    button on an empty box promises an action that does nothing. */
 .askSend {
