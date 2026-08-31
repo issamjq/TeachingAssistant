@@ -12,7 +12,11 @@
 // Every visual carries an accessible twin: charts have sr-only tables,
 // calendar days speak their counts, and nothing relies on colour alone.
 // =====================================================================
-import React, { useMemo } from "react";
+import React, { useMemo, useRef, useState } from "react";
+import {
+  ArrowUp, ArrowRight, Sparkles,
+  FileText, GraduationCap, ClipboardList, Layers, Puzzle,
+} from "lucide-react";
 import s from "./Dashboard.module.css";
 import { today } from "@/lib/localDate";
 
@@ -20,6 +24,13 @@ const MONTHS = ["January","February","March","April","May","June","July",
                 "August","September","October","November","December"];
 const MON_SHORT = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 const DOW = ["M", "T", "W", "T", "F", "S", "S"];
+
+/** A week's Monday, as "12 Jul". Shared so the two rhythm charts
+ *  cannot drift on how a week is spelled. */
+const weekLabel = (iso) => {
+  const d = new Date(iso + "T00:00:00");
+  return `${d.getDate()} ${MON_SHORT[d.getMonth()]}`;
+};
 
 /* ── pill bar chart ───────────────────────────────────────────────── */
 
@@ -191,7 +202,17 @@ export function WeekSchedule({ entries = [], onOpen }) {
  * a teaching week is. Days outside the month stay rendered so the grid
  * keeps its shape between months.
  */
-export function MiniCalendar({ entries = [], onPick }) {
+/**
+ * @param {boolean} [props.dense] Short rows instead of square cells.
+ *
+ * A square day is the right shape when the calendar has a tile to
+ * itself: six rows of them at a third of the page come to well over
+ * three hundred pixels. Pinned beside the day card it has that card's
+ * height and no more, so the cells give up their squareness — the one
+ * dimension a month grid does not actually need — rather than the month
+ * giving up two of its weeks.
+ */
+export function MiniCalendar({ entries = [], onPick, dense = false }) {
   const today = new Date();
   const y = today.getFullYear();
   const m = today.getMonth();
@@ -222,10 +243,10 @@ export function MiniCalendar({ entries = [], onPick }) {
 
   return (
     <div>
-      <div className={s.calGrid} aria-hidden="true">
+      <div className={s.calGrid} data-dense={dense} aria-hidden="true">
         {DOW.map((d, i) => <div key={i} className={s.calHead}>{d}</div>)}
       </div>
-      <div className={s.calGrid} role="grid" aria-label={`${MONTHS[m]} ${y}`}>
+      <div className={s.calGrid} data-dense={dense} role="grid" aria-label={`${MONTHS[m]} ${y}`}>
         {cells.map(({ d, outside }, i) => {
           const key = iso(d);
           const n = byDate.get(key) || 0;
@@ -235,6 +256,7 @@ export function MiniCalendar({ entries = [], onPick }) {
               type="button"
               role="gridcell"
               className={s.calDay}
+              data-dense={dense}
               data-outside={outside}
               data-today={key === todayIso}
               data-has={n > 0}
@@ -393,6 +415,119 @@ export function TaskList({ tasks = [], onOpen }) {
 /* ── the khatim watermark ─────────────────────────────────────────── */
 
 /** The landing's eight-point star, for the loud card's corner. */
+/* ── ask the studio, from the dashboard ───────────────────────────── */
+
+/**
+ * A composer on the dashboard, one screen before the studio.
+ *
+ * The dashboard is where a teacher lands, and until now the only way in
+ * was a button that took her to an empty box on another page. Two steps,
+ * and the first told her nothing about what the thing does. A box she
+ * can type into says it in the only way that lands: by being typeable.
+ *
+ * It deliberately does NOT generate here. Generation belongs in the
+ * studio — that is where the thread lives, where documents render, where
+ * the skills picker is, and where she can carry the conversation on.
+ * Half a studio inside a dashboard tile would be a worse studio and a
+ * worse dashboard. This takes the sentence and hands it over.
+ *
+ * Drawn as its own tinted surface rather than another white card,
+ * because it is the one tile that asks for something rather than
+ * reporting something, and a page of identical cards gives a teacher no
+ * clue which one is the door.
+ */
+const ASK_KINDS = [
+  { kind: "lesson_plan",  label: "Lesson",   Icon: FileText },
+  { kind: "quiz",         label: "Quiz",     Icon: GraduationCap },
+  { kind: "homework",     label: "Homework", Icon: ClipboardList },
+  { kind: "presentation", label: "Deck",     Icon: Layers },
+  { kind: "activity",     label: "Activity", Icon: Puzzle },
+];
+
+export function AskStudio({ onGo, onOpen, greeting, name, showGreeting = true }) {
+  const [text, setText] = useState("");
+  const [kind, setKind] = useState(null);
+  const ready = text.trim().length > 0;
+
+  const go = () => {
+    if (!ready) return;
+    onGo?.(text.trim(), kind);
+  };
+
+  return (
+    /* Greeting, box and chips are ONE block, centred in whatever height
+       the row happens to be. Pinned to the top and bottom instead, a
+       tile as tall as the calendar beside it left a third of a card of
+       nothing in the middle, which reads as unfinished rather than airy. */
+    <div className="flex h-full flex-col justify-center">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className={s.askEyebrow}>AI Studio</p>
+          {/* Two lines, the second carrying the weight — the greeting is
+              the manners and the question is the invitation. When the
+              hero is already greeting her by name (it does that on a day
+              with nothing scheduled) the first line is dropped rather
+              than said twice on one screen. */}
+          {showGreeting && (
+            <p className={s.askHello}>{greeting}{name ? `, ${name}` : ""}</p>
+          )}
+          <p className={s.askAsk}>What are we making?</p>
+        </div>
+        <button type="button" onClick={() => onOpen?.()} className={s.askOpen} aria-label="Open AI Studio">
+          <ArrowRight size={16} />
+        </button>
+      </div>
+
+      {/* Enter sends. A dashboard tile is not where anyone writes three
+          paragraphs, and shift+enter still gives a second line — the same
+          contract as the studio's own composer. */}
+      <div className={s.askBox} data-ready={ready}>
+        <Sparkles size={16} className={s.askBoxIcon} />
+        <textarea
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); go(); }
+          }}
+          rows={1}
+          className={s.askInput}
+          placeholder="A Grade 7 lesson on photosynthesis…"
+          aria-label="Describe what you want to make"
+        />
+        <button
+          type="button"
+          onClick={go}
+          disabled={!ready}
+          className={s.askSend}
+          aria-label="Open this in AI Studio"
+        >
+          <ArrowUp size={15} />
+        </button>
+      </div>
+
+      {/* One line that scrolls, rather than a block that wraps to three
+          rows and pushes the composer up. The overflow is the design: it
+          says there is more here without spending height saying so. */}
+      <div className={s.askChips}>
+        {ASK_KINDS.map(({ kind: k, label, Icon }) => (
+          <button
+            key={k}
+            type="button"
+            /* Tapping the chosen one again clears it — otherwise the only
+               way back to "let the studio decide" is a page reload. */
+            onClick={() => setKind((prev) => (prev === k ? null : k))}
+            className={s.askChip}
+            data-on={kind === k}
+          >
+            <Icon size={13} className="flex-shrink-0" />
+            {label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function KhatimMark({ className }) {
   // Two overlapping squares, one rotated 45° — the classic construction.
   return (
@@ -423,30 +558,89 @@ export function LineTrend({ data = [], compact = false }) {
       </p>
     );
   }
+
+  /**
+   * Drawn the way a price chart is drawn.
+   *
+   * Three things carry that reading and none of them is decoration.
+   * The line is MITRED, not rounded: rounded joins smooth a series into
+   * a suggestion, and a week that doubled should look like a corner.
+   * The fill fades to nothing rather than sitting as a block, so the
+   * shape reads as the line's shadow rather than a second object. And
+   * the last value gets a dashed rule carried across the whole width
+   * and out past the final point — where the run stands now, and the
+   * fact that it has not finished.
+   *
+   * The data therefore stops short of the right edge. That gap is the
+   * point: it is the part of the week that has not happened yet.
+   */
   const w = 320, h = compact ? 74 : 110, pad = 8;
+  const RUN = 0.88;                          // where the drawn data ends
   const max = Math.max(1, ...data.map((d) => d.n));
+  const span = (w - pad * 2) * RUN;
   const pts = data.map((d, i) => [
-    pad + (i / Math.max(1, data.length - 1)) * (w - pad * 2),
+    pad + (i / Math.max(1, data.length - 1)) * span,
     h - pad - (d.n / max) * (h - pad * 2),
   ]);
+  const [lastX, lastY] = pts[pts.length - 1];
   const line = pts.map(([x, y], i) => `${i ? "L" : "M"}${x.toFixed(1)} ${y.toFixed(1)}`).join(" ");
-  const area = `${line} L${pts[pts.length - 1][0].toFixed(1)} ${h - pad} L${pts[0][0].toFixed(1)} ${h - pad} Z`;
+  const area = `${line} L${lastX.toFixed(1)} ${h - pad} L${pts[0][0].toFixed(1)} ${h - pad} Z`;
+  const latest = data[data.length - 1]?.n ?? 0;
 
   return (
     <>
       <svg viewBox={`0 0 ${w} ${h}`} className="w-full h-auto" preserveAspectRatio="none"
-           role="img" aria-label={`Work created per week, ${total} items over ${data.length} weeks.`}>
+           role="img" aria-label={`Work created per week, ${total} items over ${data.length} weeks. Latest week ${latest}.`}>
         <defs>
           <linearGradient id="ltFill" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="var(--p-accent)" stopOpacity="0.22" />
+            <stop offset="0%" stopColor="var(--p-accent)" stopOpacity="0.30" />
+            <stop offset="70%" stopColor="var(--p-accent)" stopOpacity="0.07" />
             <stop offset="100%" stopColor="var(--p-accent)" stopOpacity="0" />
           </linearGradient>
         </defs>
+
+        {/* Where it stands, held across the whole width so the last week
+            can be read against every week before it. */}
+        <line
+          x1={pad} y1={lastY} x2={w - pad} y2={lastY}
+          stroke="var(--p-accent)" strokeOpacity="0.45"
+          strokeWidth="1" strokeDasharray="3 4" vectorEffect="non-scaling-stroke"
+        />
+
         <path d={area} fill="url(#ltFill)" />
-        <path d={line} fill="none" stroke="var(--p-accent)" strokeWidth="2.5"
-              strokeLinecap="round" strokeLinejoin="round" />
-        <circle cx={pts[pts.length - 1][0]} cy={pts[pts.length - 1][1]} r="4" fill="var(--p-accent)" />
+        {/* non-scaling-stroke because the viewBox is stretched to the
+            tile's width: without it the line thickens as the card grows
+            and the chart stops looking drawn and starts looking zoomed. */}
+        <path d={line} fill="none" stroke="var(--p-accent)" strokeWidth="1.75"
+              strokeLinecap="butt" strokeLinejoin="miter" vectorEffect="non-scaling-stroke" />
+
+        {/* Sits on the rule it defines, with a ring of the card behind it
+            so the dashes do not run through it. */}
+        <circle cx={lastX} cy={lastY} r="4.5" fill="var(--p-surface)" />
+        <circle cx={lastX} cy={lastY} r="3" fill="var(--p-accent)" />
       </svg>
+      {/* The weeks, back under the line.
+          The pills carried their own labels in the column beneath each
+          bar; a path has no columns, so the dates are placed against the
+          same x the points were drawn at — including the 88% run, so
+          "now" lands under the dot and not under the dashed tail. */}
+      <div className={s.trendAxis} aria-hidden="true">
+        {data.map((d, i) => {
+          const at = (pad + (i / Math.max(1, data.length - 1)) * span) / w * 100;
+          const now = i === data.length - 1;
+          if (compact && !now) return null;
+          return (
+            <span
+              key={d.week}
+              className={s.pillLabel}
+              data-now={now}
+              style={{ left: `${at}%` }}
+            >
+              {now ? "now" : weekLabel(d.week)}
+            </span>
+          );
+        })}
+      </div>
       <table className="sr-only">
         <caption>Work created per week</caption>
         <tbody>{data.map((d) => <tr key={d.week}><th scope="row">{d.week}</th><td>{d.n}</td></tr>)}</tbody>

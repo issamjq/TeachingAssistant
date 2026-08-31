@@ -24,10 +24,11 @@ import {
 } from "lucide-react";
 import { api } from "@/views/_shared";
 import {
-  MiniCalendar, WeekStrip, PillBars, LineTrend, Ring, WeekSchedule,
+  MiniCalendar, WeekStrip, PillBars, LineTrend, Ring, WeekSchedule, AskStudio,
   TypeBreakdown, KindDonut, TaskList, KhatimMark,
 } from "./widgets";
 import { WIDGETS, CHART_MODELS, loadPrefs, savePrefs, defaultPrefs } from "./prefs";
+import { PREFILL_KEY } from "@/shared/lib/assistantPrefill";
 import s from "./Dashboard.module.css";
 
 const fmtTime = (t) => (t ? t.slice(0, 5) : "—");
@@ -47,10 +48,23 @@ const QUICK = [
 // screen, where lg:col-span-3 measured 161px — narrower than the header
 // controls inside it, which spilled 20px out of the card. Both narrow
 // rungs therefore fall back to half a row below xl.
+/**
+ * The calendar's small rung is a different tile, not a smaller one.
+ *
+ * At SMALL it is pinned beside the day card, filling the third that card
+ * leaves and drawn dense to fit its height. At medium and large it goes
+ * back into the flow with its own square cells, where it can be dragged
+ * and reordered — and the day card takes the whole row back, because a
+ * card with a third of empty space beside it is worse than a wide one.
+ */
+const CAL_PINNED_SPAN = 4;
+
 const SPAN = {
   3: "lg:col-span-6 xl:col-span-3",
   4: "lg:col-span-6 xl:col-span-4",
+  5: "lg:col-span-6 xl:col-span-5",
   6: "lg:col-span-6",
+  8: "lg:col-span-8",
   12: "lg:col-span-12",
 };
 // Below this the month grid gives seven columns of under 30px: a grid
@@ -150,9 +164,30 @@ function FlowTile({ widget, span, className, editing, prefs, onChange, drag, ren
       (widget.key === "rhythm" || widget.key === "kinds") &&
       width < CHART_COMPACT_MAX);
 
+  /**
+   * The chart carries two rows on its own.
+   *
+   * The counts card takes only the height three numbers need, which
+   * left a band of nothing beneath it — and the card below could not
+   * reach up into it, because a grid row is a row. Spanning the chart
+   * across both rows instead puts the counts and the composer in one
+   * column, stacked, with no seam between them: the short card is
+   * followed immediately by the tall one rather than by a gap.
+   *
+   * The composer takes two rows for the opposite reason: it is not
+   * reporting anything, so it has nothing that runs out. Given one row
+   * it ended level with the counts and left a band of nothing beside
+   * the to-do; given both, the two columns finish together and the one
+   * card asking the teacher to do something is the largest on the page.
+   *
+   * Only at full width: at a third or a quarter these are ordinary
+   * tiles and the row they are in is the row they belong in.
+   */
+  const tall = ["rhythm", "ask"].includes(widget.key) && span === 6 && !short;
+
   return (
     <div
-      className={`${className} ${short ? "self-start" : ""}`}
+      className={`${className} ${short ? "self-start" : ""} ${tall ? "lg:row-span-2" : ""}`}
       data-widget-key={widget.key}
       ref={(node) => {
         el.current = node;
@@ -541,11 +576,36 @@ export default function DashboardView({ onJump }) {
     sub = today.length ? "Nothing more on the schedule today." : "A clear day. Make something with it.";
   }
 
+  const calPinned = show("calendar") && (prefs.sizes.calendar ?? CAL_PINNED_SPAN) === CAL_PINNED_SPAN;
+
   const stats = [
     { label: "Students",  value: counts.students ?? 0, unit: "in your roster",  section: "database" },
     { label: "Library",   value: counts.total ?? 0,    unit: "things you made", section: "lesson-plans" },
     { label: "Scheduled", value: calendar.length,      unit: "next 14 days",    section: "schedule" },
   ];
+
+  /**
+   * Carry the sentence to the studio and start it there.
+   *
+   * The same parking spot the assistant and the template library
+   * already use — sessionStorage, one navigation long — so there is one
+   * way into the studio's composer rather than three. `autostart` is
+   * this caller's addition: the assistant hands over a SUGGESTION and
+   * waits for the teacher to agree, but here she has written the words
+   * herself and pressed send, so asking her to press it a second time on
+   * the next screen would be asking her to confirm her own sentence.
+   */
+  const askStudio = (prompt, kind) => {
+    try {
+      sessionStorage.setItem(
+        PREFILL_KEY,
+        JSON.stringify({ action: "create_work", prompt, kind, autostart: true, at: Date.now() }),
+      );
+    } catch {
+      /* private browsing: the studio opens empty, which is the old behaviour */
+    }
+    onJump?.("studio");
+  };
 
   const kindsPick = (k) => onJump?.({
     lesson_plan: "lesson-plans", quiz: "quizzes", homework: "homework",
@@ -560,20 +620,37 @@ export default function DashboardView({ onJump }) {
     switch (key) {
       case "stats":
         return (
-          <div className={`grid gap-4 ${prefs.sizes.stats === 12 ? "grid-cols-1 sm:grid-cols-3" : "grid-cols-1 sm:grid-cols-3 lg:grid-cols-3"}`}>
+          /* Three counts of the same thing — how much of your work is in
+             here — so they are three columns of one card rather than
+             three cards. As separate tiles they claimed the weight of
+             three ideas and read as a row of scoreboards; in one card
+             the eye takes them in as a single line and the card above
+             keeps its authority. */
+          /* No h-full. Every other tile fills its row because a chart or a
+             month grid genuinely wants the height; three numbers do not,
+             and stretching them to match the chart beside it put ninety
+             pixels of nothing above and below the only three words on
+             the card. It takes the height it needs and the row carries
+             on around it. */
+          <section className={`${s.glass} grid grid-cols-1 sm:grid-cols-3 p-1.5`}>
             {stats.map((k) => (
               <button
                 key={k.label} type="button" onClick={() => onJump?.(k.section)}
-                className={`${s.glass} ${s.tap} p-5`}
+                /* Centred in its own third rather than ranged left across
+                   the card: with no dividers between them, three
+                   left-aligned columns read as one ragged list starting
+                   in three places. Centred, each count sits over its own
+                   share of the card and the three read as three. */
+                className={`${s.statCell} ${s.tap} px-4 py-6 text-center`}
               >
                 <p className={s.eyebrow}>{k.label}</p>
-                {loading ? <Bar w="w-16" h="h-10" /> : (
-                  <p className={`${s.figure} text-ink mt-2`}>{k.value}</p>
+                {loading ? <Bar w="w-14" h="h-8" /> : (
+                  <p className={`${s.statFigure} text-ink mt-1.5`}>{k.value}</p>
                 )}
-                <p className="text-[12px] text-muted mt-1.5">{k.unit}</p>
+                <p className="text-[12px] text-muted mt-1">{k.unit}</p>
               </button>
             ))}
-          </div>
+          </section>
         );
       case "rhythm":
         return (
@@ -614,6 +691,27 @@ export default function DashboardView({ onJump }) {
           </section>
         );
       }
+      case "ask":
+        return (
+          /* Its own tinted surface rather than .glass, and no <Head>: the
+             widget carries its own greeting, which is the whole point of
+             it — a card that speaks first. */
+          /* Roomier padding than a reporting tile: this one is asking a
+             question and then waiting, and a question set tight against
+             its own edges reads as a label. */
+          <section className={`${s.askCard} p-6 md:p-7 h-full min-h-[300px]`}>
+            <AskStudio
+              onGo={askStudio}
+              onOpen={() => onJump?.("studio")}
+              greeting={greeting}
+              name={me?.first_name || ""}
+              /* The hero greets by name on a day with nothing scheduled.
+                 Two greetings on one screen is one too many, so this one
+                 stands down and leads with the question instead. */
+              showGreeting={status.mode === "live" || status.mode === "next"}
+            />
+          </section>
+        );
       case "tasks":
         return (
           <section className={`${s.glass} p-5 h-full`}>
@@ -649,6 +747,9 @@ export default function DashboardView({ onJump }) {
   };
 
   const flowWidgets = visibleOrder
+    // Only while it is pinned. At medium and large it is an ordinary
+    // tile again and belongs in the order like everything else.
+    .filter((k) => !(k === "calendar" && calPinned))
     .map((k) => WIDGETS.find((w) => w.key === k))
     .filter(Boolean);
 
@@ -710,64 +811,75 @@ export default function DashboardView({ onJump }) {
         </div>
       )}
 
-      {/* ── row 1 · the loud card and its counterweight ─────────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-        <section className={`${s.loud} p-6 md:p-8 ${show("runway") ? "lg:col-span-8" : "lg:col-span-12"} flex flex-col justify-between min-h-[220px]`}>
-          <KhatimMark className={s.loudMark} />
-          <div className="relative">
-            {/* The date lives in the page header now; twice on one screen
-                was once too many. The eyebrow names the card instead. */}
-            <p className={s.loudEyebrow}>Today</p>
-            <h1 className="font-serif text-[30px] md:text-[40px] leading-[1.05] font-medium mt-2.5 max-w-xl">
-              {headline}
-            </h1>
-            <p className={`${s.loudSub} text-sm mt-2`}>{sub}</p>
-          </div>
-          <div className="relative flex flex-wrap gap-2.5 mt-6">
-            <button type="button" className={s.btnOnLoud} onClick={() => onJump?.("studio")}>
-              <Sparkles size={15} /> Open AI Studio
-            </button>
-            <button type="button" className={s.btnGhostOnLoud} onClick={() => onJump?.("planner")}>
-              <CalendarDays size={15} /> Plan the week
-            </button>
-          </div>
-        </section>
+      {/* ── row 1 · one card, two halves ────────────────────────────
+          What's happening now and what it costs were two cards sitting
+          side by side saying two halves of the same sentence: here is
+          your day, here is what you have left to spend on it. Merged,
+          the answer is one object — the teal of the studio bleeding into
+          the ink of the ledger, so the eye crosses from the lesson to
+          the balance without crossing a border.
 
-        {show("runway") && (
-          (() => {
-            const runwayCard = (
-              <section className={`${s.ink} p-6 h-full flex flex-col justify-between min-h-[220px]`}>
-                {plan ? (
+          The seam is a hairline, not a gap. Two ideas, one card: enough
+          to keep them legible as two, not enough to make them separate
+          things again.
+
+          With the credits hidden the hero takes the row back on its own,
+          as it always did — a lone card at a third of the page is a
+          header, not a hero. */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+        {show("runway") ? (
+          <section className={`${s.duo} ${calPinned ? "lg:col-span-8" : "lg:col-span-12"} min-h-[220px] flex flex-col md:flex-row`}>
+            <div className="relative flex-1 p-6 md:p-7 flex flex-col justify-center min-w-0">
+              {/* No watermark here. On the old wide teal card it sat off
+                  to the right as a quiet flourish; halved and merged, it
+                  landed dead centre across the crossover and read as a
+                  logo stamped on the seam. The gradient is the flourish
+                  now. It stays on the full-width card below, where it
+                  still has the room it was drawn for. */}
+              <div className="relative">
+              {/* The date lives in the page header now; twice on one screen
+              was once too many. The eyebrow names the card instead. */}
+              <p className={s.loudEyebrow}>Today</p>
+              <h1 className="font-serif text-[30px] md:text-[40px] leading-[1.05] font-medium mt-2.5 max-w-xl">
+              {headline}
+              </h1>
+              <p className={`${s.loudSub} text-sm mt-2`}>{sub}</p>
+              </div>
+              <div className="relative flex flex-wrap gap-2.5 mt-6">
+              <button type="button" className={s.btnOnLoud} onClick={() => onJump?.("studio")}>
+              <Sparkles size={15} /> Open AI Studio
+              </button>
+              <button type="button" className={s.btnGhostOnLoud} onClick={() => onJump?.("planner")}>
+              <CalendarDays size={15} /> Plan the week
+              </button>
+              </div>
+            </div>
+
+            {(() => {
+              const runwayHalf = (
+                <div className="relative flex-1 p-6 md:p-7 flex flex-col justify-center min-w-0">
+                  {plan ? (
                   <>
-                    {/* PUBLIC TEST PERIOD (db/tune.sql §89): there are no
-                        plans, so this card must not call itself one. It was
-                        the last surface still saying "TRIAL PLAN" to a
-                        teacher on a free grant. */}
-                    <p className={s.inkEyebrow}>
-                      {!planOn
-                        ? "Your credits"
-                        : plan.status === "trialing" ? "Free trial" : `${plan.plan} plan`}
-                    </p>
-                    <div className="flex items-end justify-between gap-4 mt-3">
-                      <div>
-                        <p className={s.figure}>{plan.days_left ?? "∞"}</p>
-                        <p className={`${s.inkMuted} text-[12.5px] mt-1.5`}>
-                          {plan.days_left === 1 ? "day left" : "days left"}
-                          {planOn && plan.status === "trialing" ? " — then choose a plan" : ""}
-                        </p>
-                        {/* The date the number is counting to. A bare
-                            countdown is unfalsifiable — this is what
-                            makes it checkable against a bank statement. */}
-                        {plan.ends_at && (
-                          <p className={`${s.inkMuted} text-[11px] mt-1 opacity-75`}>
-                            {plan.status === "trialing" ? "Ends " : "Renews "}
-                            {new Date(plan.ends_at).toLocaleDateString(undefined, {
-                              day: "numeric", month: "long",
-                            })}
-                          </p>
-                        )}
-                      </div>
-                      {plan.credits != null && (
+                  {/* PUBLIC TEST PERIOD (db/tune.sql §89): there are no
+                  plans, so this card must not call itself one. It was
+                  the last surface still saying "TRIAL PLAN" to a
+                  teacher on a free grant. */}
+                  {/* Flush right, the way "Today" is flush left: each half
+                      labels itself from its own outer edge, so the two
+                      eyebrows bracket the card instead of both leaning
+                      the same way. */}
+                  <p className={`${s.inkEyebrow} text-right`}>
+                  {!planOn
+                  ? "Your credits"
+                  : plan.status === "trialing" ? "Free trial" : `${plan.plan} plan`}
+                  </p>
+                  {/* The ring is the thing worth looking at here, so it
+                      takes the middle of its half instead of a corner,
+                      and the countdown reads back from the right edge
+                      towards it. */}
+                  <div className="flex items-center gap-4 mt-3">
+                    {plan.credits != null && (
+                      <div className="flex-1 flex justify-center">
                         <Ring value={plan.credits} max={plan.allowance || 1} size={92}>
                           <span className="text-center leading-none">
                             <span className="block font-serif text-[19px]">{plan.credits}</span>
@@ -776,34 +888,113 @@ export default function DashboardView({ onJump }) {
                             </span>
                           </span>
                         </Ring>
+                      </div>
+                    )}
+                    <div className="text-right">
+                      <p className={s.figure}>{plan.days_left ?? "∞"}</p>
+                      <p className={`${s.inkMuted} text-[12.5px] mt-1.5`}>
+                        {plan.days_left === 1 ? "day left" : "days left"}
+                        {planOn && plan.status === "trialing" ? " — then choose a plan" : ""}
+                      </p>
+                      {/* The date the number is counting to. A bare
+                          countdown is unfalsifiable — this is what makes
+                          it checkable against a bank statement. */}
+                      {plan.ends_at && (
+                        <p className={`${s.inkMuted} text-[11px] mt-1 opacity-75`}>
+                          {plan.status === "trialing" ? "Ends " : "Renews "}
+                          {new Date(plan.ends_at).toLocaleDateString(undefined, {
+                            day: "numeric", month: "long",
+                          })}
+                        </p>
                       )}
                     </div>
-                    {/* Nothing to manage while billing is off. Account is
-                        still one click away in the sidebar menu. */}
-                    {planOn && (
-                      <button
-                        type="button"
-                        onClick={() => onJump?.("account")}
-                        className="mt-5 self-start text-[12.5px] underline underline-offset-4 decoration-1 opacity-80 hover:opacity-100 transition-opacity cursor-pointer"
-                      >
-                        Manage plan
-                      </button>
-                    )}
+                  </div>
+                  {/* Nothing to manage while billing is off. Account is
+                  still one click away in the sidebar menu. */}
+                  {planOn && (
+                  <button
+                  type="button"
+                  onClick={() => onJump?.("account")}
+                  className="mt-5 self-start text-[12.5px] underline underline-offset-4 decoration-1 opacity-80 hover:opacity-100 transition-opacity cursor-pointer"
+                  >
+                  Manage plan
+                  </button>
+                  )}
                   </>
-                ) : (
+                  ) : (
                   <>
-                    <p className={s.inkEyebrow}>Your library</p>
-                    <p className={`${s.figure} mt-3`}>{counts.total ?? 0}</p>
-                    <p className={`${s.inkMuted} text-[12.5px] mt-1.5`}>things made so far</p>
+                  <p className={s.inkEyebrow}>Your library</p>
+                  <p className={`${s.figure} mt-3`}>{counts.total ?? 0}</p>
+                  <p className={`${s.inkMuted} text-[12.5px] mt-1.5`}>things made so far</p>
                   </>
-                )}
+                  )}
+                </div>
+              );
+              /* Still its own widget: it can be hidden and comes back
+                 with its own frame in edit mode, even though it no
+                 longer has its own card. */
+              return editing
+                ? <div className="flex-1 p-2"><EditFrame widget="runway" prefs={prefs} onChange={changePrefs}>{runwayHalf}</EditFrame></div>
+                : runwayHalf;
+            })()}
+          </section>
+        ) : (
+          <section className={`${s.loud} p-6 md:p-8 lg:col-span-12 flex flex-col justify-between min-h-[220px]`}>
+            <KhatimMark className={s.loudMark} />
+            <div className="relative">
+            {/* The date lives in the page header now; twice on one screen
+            was once too many. The eyebrow names the card instead. */}
+            <p className={s.loudEyebrow}>Today</p>
+            <h1 className="font-serif text-[30px] md:text-[40px] leading-[1.05] font-medium mt-2.5 max-w-xl">
+            {headline}
+            </h1>
+            <p className={`${s.loudSub} text-sm mt-2`}>{sub}</p>
+            </div>
+            <div className="relative flex flex-wrap gap-2.5 mt-6">
+            <button type="button" className={s.btnOnLoud} onClick={() => onJump?.("studio")}>
+            <Sparkles size={15} /> Open AI Studio
+            </button>
+            <button type="button" className={s.btnGhostOnLoud} onClick={() => onJump?.("planner")}>
+            <CalendarDays size={15} /> Plan the week
+            </button>
+            </div>
+          </section>
+        )}
+
+        {/* The calendar, pinned to the third the merged card left free.
+            It is still its own widget — it can be hidden, and it frames
+            itself in edit mode — but it no longer moves in the flow
+            order, because a fixed home and an order are two different
+            promises and the second one it can no longer keep. */}
+        {calPinned && (
+          (() => {
+            const monthCard = (
+              /* Height comes from the day card beside it, not from the
+                 month: p-4 and a one-line heading buy the six rows the
+                 dense grid needs inside 220px. */
+              <section className={`${s.glass} p-4 h-full flex flex-col`}>
+                <div className={s.calBar}>
+                  <p className={s.calBarMonth}>
+                    {new Date().toLocaleDateString(undefined, { month: "long", year: "numeric" })}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => onJump?.("schedule")}
+                    className="text-[12px] text-muted hover:text-accent transition-colors inline-flex items-center gap-1 cursor-pointer whitespace-nowrap"
+                  >
+                    Schedule <ArrowRight size={12} />
+                  </button>
+                </div>
+                {loading
+                  ? <div className="grid grid-cols-7 gap-0.5">{Array.from({ length: 35 }, (_, i) => <Bar key={i} w="w-full" h="h-5" />)}</div>
+                  : <MiniCalendar entries={calendar} onPick={() => onJump?.("schedule")} dense />}
               </section>
             );
             return (
               <div className="lg:col-span-4">
                 {editing
-                  ? <EditFrame widget="runway" prefs={prefs} onChange={changePrefs}>{runwayCard}</EditFrame>
-                  : runwayCard}
+                  ? <EditFrame widget="calendar" prefs={prefs} onChange={changePrefs}>{monthCard}</EditFrame>
+                  : monthCard}
               </div>
             );
           })()

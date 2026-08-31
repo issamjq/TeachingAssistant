@@ -534,17 +534,28 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
     return () => window.removeEventListener("resize", autosize);
   }, [autosize]);
 
-  // The assistant's "make me a …" hand-off: seed the composer with the
-  // action's payload so the teacher lands mid-thought rather than at a
-  // blank box. Nothing is generated until they press send.
+  // A "make me a …" hand-off: seed the composer with the payload so the
+  // teacher lands mid-thought rather than at a blank box.
+  //
+  // Whether it also RUNS depends on who is handing over. The assistant
+  // proposes — "shall I make you a quiz on this?" — and a proposal has
+  // to be agreed to, so its payload arrives without `autostart` and
+  // waits at the send button. The dashboard's composer is the teacher's
+  // own sentence, typed by her and sent by her; making her press send
+  // again on arrival would be asking her to confirm something she
+  // already said.
   useEffect(() => {
     import("@/shared/lib/assistantPrefill").then(({ takePrefill }) => {
       const pre = takePrefill("create_work");
       if (!pre) return;
       const text = [pre.prompt, pre.topic, pre.title, pre.description]
         .find((v) => typeof v === "string" && v.trim());
+      const kind = typeof pre.kind === "string" && KIND_META[pre.kind] ? pre.kind : null;
       if (text) setDraft(String(text).trim());
-      if (typeof pre.kind === "string" && KIND_META[pre.kind]) setKinds([pre.kind]);
+      if (kind) setKinds([kind]);
+      // send() takes the text as an argument rather than reading `draft`,
+      // which has not committed yet on this tick.
+      if (pre.autostart && text) send(String(text).trim(), kind || undefined);
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
