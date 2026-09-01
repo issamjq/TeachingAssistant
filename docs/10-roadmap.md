@@ -25,7 +25,7 @@ exists, trust the code and [11 — Next.js migration](11-nextjs-migration.md).
 - **Dead file:** `src/views/PortalSignIn.jsx` is unimported and describes
   the old popup auth flow. Delete it.
 - **Docs refresh:** `docs/03-tech-stack.md` and `docs/04-architecture.md`
-  still describe the Vite/Firebase/Neon stack, and `CLAUDE.md` still
+  still describe the pre-migration stack, and `CLAUDE.md` still
   describes the removed `app/[[...slug]]` catch-all and `src/legacy/`.
 
 ## Open — dashboards and the backend service

@@ -4,10 +4,10 @@ A living record of what the security model **is**, what it **isn't**, and
 what is knowingly deferred. Anything not listed here is unaudited.
 
 Rewritten after the Supabase migration. The previous version described an
-Express API on Render verifying Firebase tokens in middleware against a
-Neon database — none of which exists any more, and it stated the opposite
-of the truth on the most important point (it called row-level security
-"planned, not done"; RLS is now the whole authorisation layer).
+Express API on Render verifying tokens in middleware against a database
+that no longer exists, and it stated the opposite of the truth on the most
+important point (it called row-level security "planned, not done"; RLS is
+now the whole authorisation layer).
 
 ## The shape of the system
 

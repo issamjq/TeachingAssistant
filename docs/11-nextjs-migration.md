@@ -2,7 +2,13 @@
 
 Migrating the frontend from **Vite + React 18 (JS)** to **Next.js (App Router) + TypeScript + Tailwind v4 + CSS Modules**.
 
-**Scope:** frontend only. `backend/` (Express + Neon + Firebase Admin) is **untouched** and keeps running on Render. Auth stays Firebase-client-side. Backend modernisation is a later, separate project.
+**Scope:** frontend only.
+
+> Written before the Supabase migration, and its premises have since
+> changed: the Express backend, its database and Firebase auth are all
+> gone from this repository. The phases and the strangler strategy below
+> are still the record of how the frontend was moved; the stack they
+> describe around it is not the current one. See [03](03-tech-stack.md).
 
 ---
 

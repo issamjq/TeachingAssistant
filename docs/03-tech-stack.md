@@ -25,7 +25,7 @@ No router. View state lives in `src/App.jsx` as a plain `useState` machine. See 
 
 ## Database
 
-**Supabase** (Postgres + Auth + Row Level Security). The browser talks to it directly through `src/lib/data/`; `DATABASE_URL` in `.env` is for migrations only. *(Neon until the Supabase migration.)*
+**Supabase** (Postgres + Auth + Row Level Security). The browser talks to it directly through `src/lib/data/`; `DATABASE_URL` in `.env` is for migrations only.
 
 ## Why these picks
 

@@ -23,11 +23,6 @@ resolves to IPv6 only. Do not append `sslmode=require` — TLS is handled in
 [db/client.js](db/client.js) by pinning the Supabase root CA, and this `pg`
 version reads `sslmode=require` as `verify-full`, which then fails.
 
-> This project ran on **Neon** before Supabase. If you have an older `.env`,
-> that connection string is still in it and `db:tune` will fail on its first
-> statement — `relation "public.users" does not exist`. The scripts now warn
-> when the host is not Supabase.
-
 Checks: `npm run typecheck` · `npm run lint` · `npm run build` · `npm run test:e2e`
 
 Want data on screen? `npm run db:demo` fills the account in
@@ -63,6 +58,5 @@ Full project docs live in [`docs/`](docs/README.md).
 - [12 — Super admin](docs/12-super-admin.md) — the privileged console, roles, and who gets them
 - [13 — Student invites](docs/13-student-invites.md) — the invite gate, the mail, and the Supabase settings it needs
 
-⚠️ **Docs 01–10 predate the migration** and describe a Vite + Neon +
-Firebase stack that no longer exists. Trust the code and docs 11–13 until
-they are rewritten.
+⚠️ **Docs 01–10 predate the migration** and describe a stack that no
+longer exists. Trust the code and docs 11–13 until they are rewritten.

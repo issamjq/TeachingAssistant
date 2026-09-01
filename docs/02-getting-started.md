@@ -6,8 +6,7 @@
 - **npm** 9+
 - A **Supabase** project. `NEXT_PUBLIC_SUPABASE_*` go in `.env.local` for the app;
   the Supabase **transaction pooler** connection string goes in `.env` as
-  `DATABASE_URL`, read only by the migration scripts. *(Was Neon before the
-  Supabase migration — an old `.env` will fail `db:tune` on its first statement.)*
+  `DATABASE_URL`, read only by the migration scripts.
 
 ## Environment
 

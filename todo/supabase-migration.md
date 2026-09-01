@@ -167,7 +167,9 @@ flow and will mislead; delete it.
 
 ### 10. Refresh the docs
 
-`docs/03-tech-stack.md` and `docs/04-architecture.md` still describe Vite,
-Firebase and Neon. `CLAUDE.md` has drifted too — it describes the
-`app/[[...slug]]` catch-all, `src/legacy/` and `src/App.jsx`, all of which
-have since been removed; the migration is well past "Phase 1 complete".
+`docs/03-tech-stack.md` is corrected. `docs/04-architecture.md` still
+describes the pre-migration build and auth. `CLAUDE.md` has drifted too —
+it describes the `app/[[...slug]]` catch-all, `src/legacy/` and
+`src/App.jsx`, none of which exist on disk any more; the migration is well
+past "Phase 1 complete". That last one matters most: CLAUDE.md is the file
+that tells anyone working here where code goes.
