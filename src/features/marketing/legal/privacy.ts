@@ -49,7 +49,7 @@ export const PRIVACY: Section[] = [
         p: "Murchid drafts teaching material. The teacher directs it, reviews it and decides what reaches a class — the product is built on that order, and so is this policy. We hold the material you make, the classes you teach and the account you sign in with, and little else.",
       },
       {
-        p: "We do not sell personal data. We do not use your lessons, your pupils' records or your teaching notes to train AI models. There is no advertising anywhere in Murchid and no third-party analytics: no advertising script is loaded, no tracking pixel is embedded, and no profile of you is built or sold.",
+        p: "We do not sell personal data. We do not use your lessons, your pupils' records or your teaching notes to train AI models. There is no advertising anywhere in Murchid. We use two analytics services — Microsoft Clarity and Google Analytics — to see how the site is used and where the interface confuses people. Neither is used to advertise to you, and no profile of you is sold.",
       },
       {
         note: "Children's data is the most sensitive thing this service touches. Section 4 is about that specifically, and it is the section to read first if you are a school considering Murchid.",
@@ -141,6 +141,8 @@ export const PRIVACY: Section[] = [
           "Render — hosting the service that talks to the AI providers and to Stripe.",
           "Brevo and Resend — deliver sign-in links, invitations and notification emails, and so receive the recipient's email address.",
           "Google and LinkedIn — only if you choose to sign in with them; that sign-in is governed by their own privacy policies.",
+          "Microsoft Clarity — records how pages are used, so we can see where the interface is confusing: clicks, scrolling, and a replay of the screen. The project is set to mask text: what you type, and the words on the page, are replaced before the recording leaves your browser, so pupil names and marks are never sent.",
+          "Google Analytics — counts visits and reports which pages are opened, from where, and on what kind of device. It is configured for measurement only: no advertising audience is built from it.",
         ],
       },
     ],
@@ -183,7 +185,7 @@ export const PRIVACY: Section[] = [
     title: "Cookies and local storage",
     body: [
       {
-        p: "We set no cookie that tracks you across other websites, and no third-party advertising or analytics cookie is set at all. What we store:",
+        p: "We set no advertising cookie. What we store:",
       },
       {
         list: [
@@ -191,6 +193,8 @@ export const PRIVACY: Section[] = [
           "Your chosen language and text direction, so the interface opens in Arabic or English as you left it.",
           "A session identifier, used to keep your account to one device.",
           "Small interface preferences: which view a list was in, whether a panel was collapsed, and whether you have seen a first-run tour.",
+          "Two Microsoft Clarity cookies (_clck, _clsk) that recognise a returning session, so one visit is not counted as several.",
+          "Google Analytics cookies (_ga and one _ga_ per property) that tell a returning visit from a new one.",
         ],
       },
       {
