@@ -145,7 +145,7 @@ export default function ScheduleView() {
       <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-6">
         <div>
           <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-2 inline-flex items-center gap-2.5">
-            <span className="w-6 h-px bg-accent" /> Schedule
+            <span className="w-6 h-px bg-accent" /> Timetable
           </p>
           <h2 className="font-serif text-4xl font-medium text-ink">
             Your <em className="italic font-light text-accent">week</em>

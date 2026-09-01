@@ -12,6 +12,7 @@ import { X } from "lucide-react";
 import { api, inputClasses, selectClasses, DatePicker, AudienceSelect } from "./_shared";
 import { today as localToday } from "@/lib/localDate";
 import { findClash, HHMM } from "@/shared/lib/scheduleClash";
+import { AudiencePreview } from "@/features/delivery";
 
 export default function SchedulePopup({
   initial,
@@ -32,7 +33,7 @@ export default function SchedulePopup({
     const today = localToday();
     if (!initial) {
       return {
-        title: "", subject: "", grade: "", section: "",
+        title: "", subject: "", grade: "", section: "", draft_id: null,
         date: defaultDate || today, status: "planned",
         start_time: "", end_time: "", notes: "",
         ...(prefill || {}),
@@ -43,6 +44,7 @@ export default function SchedulePopup({
       subject: initial.subject || "",
       grade: initial.grade || "",
       section: initial.section || "",
+      draft_id: initial.draft_id || null,
       date: initial.date ? String(initial.date).slice(0, 10) : today,
       status: initial.status || "planned",
       start_time: initial.start_time ? String(initial.start_time).slice(0, 5) : "",
@@ -56,6 +58,11 @@ export default function SchedulePopup({
   const [conflict, setConflict] = useState(null);
   const [showDiscard, setShowDiscard] = useState(false);
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+
+  // A generation attached makes this entry the assignment itself —
+  // students receive the work by matching grade + subject (db/tune.sql
+  // §48). Without one it is a slot in the teacher's own week.
+  const carriesWork = Boolean(form.draft_id);
 
   const isDirty = JSON.stringify(form) !== JSON.stringify(initialForm);
   const attemptClose = useCallback(() => {
@@ -79,6 +86,23 @@ export default function SchedulePopup({
   // the click event here, which is truthy.
   const submit = async (opts) => {
     const ignoreConflict = opts === true;
+    // Refuse before the round trip, and say what it costs — the data
+    // layer enforces this too, but here the empty field is still in
+    // front of her.
+    if (carriesWork) {
+      const missing = [
+        !String(form.grade ?? "").trim() && "a grade",
+        !String(form.subject ?? "").trim() && "a subject",
+      ].filter(Boolean);
+      if (missing.length) {
+        setErr(
+          `Add ${missing.join(" and ")} before scheduling this. Students receive work by ` +
+          `matching their grade and subject, so without ${missing.length > 1 ? "them" : "it"} ` +
+          `nobody will see it.`
+        );
+        return;
+      }
+    }
     setSaving(true);
     setErr(null);
     // Empty strings for TIME columns trip Postgres' type cast; turn them
@@ -244,6 +268,26 @@ export default function SchedulePopup({
                 emptyNote="No sections on your profile"
               />
             </SerifField>
+            {carriesWork && (
+              /* The entry delivers work, so grade + subject decide who
+                 receives it. Chips are the teacher's real classes from her
+                 roster; the line under them is the delivery match, live. */
+              <div className="col-span-2">
+                <AudiencePreview
+                  audience={{ grade: form.grade, subject: form.subject, section: form.section }}
+                  onPick={(cls) =>
+                    setForm((f) => ({
+                      ...f,
+                      grade: cls.grade,
+                      // A class with no subject of its own must not erase
+                      // the one she typed.
+                      subject: cls.subject || f.subject,
+                      section: cls.section,
+                    }))
+                  }
+                />
+              </div>
+            )}
             <SerifField label="Date">
               <DatePicker value={form.date} onChange={(v) => set("date", v)} />
             </SerifField>

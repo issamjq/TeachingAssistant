@@ -10,14 +10,12 @@
 
 export const EN = {
   // global nav / sidebar
-  "nav.planning": "Planning",
-  "nav.teaching": "Teaching",
-  "nav.data": "Data",
   "nav.admin": "Admin",
   "nav.dev": "Dev",
   "nav.overview": "Overview",
-  "nav.planners": "Planners",
-  "nav.teacher": "Teacher",
+  "nav.plan": "Plan",
+  "nav.materials": "Materials",
+  "nav.classroom": "Classroom",
   "nav.settings": "Settings",
   "nav.support": "Support",
   "nav.logout": "Log out",
@@ -31,7 +29,7 @@ export const EN = {
   // item and stopping at nav.ts changes nothing on screen.
   "nav.goals": "Goals",
   "nav.library": "Templates",
-  "nav.planner": "Scheduler",
+  "nav.planner": "Calendar",
   "nav.bulletin-board": "Bulletin",
   "nav.lesson-plans": "Lessons",
   "nav.quizzes": "Quizzes",
@@ -40,11 +38,8 @@ export const EN = {
   "nav.activities": "Activities",
   "nav.database": "Students",
   "nav.teaching-skills": "Skills",
-  "nav.admin-console": "Teachers",
-  "nav.admin-dashboard": "Dashboard",
   "nav.superadmin-console": "Accounts",
   "nav.superadmin-dashboard": "Dashboard",
-  "nav.superadmin-accounts": "Accounts",
   "nav.superadmin-roles": "Roles",
   "nav.superadmin-product": "Usage",
   "nav.superadmin-friction": "Friction",
@@ -454,7 +449,7 @@ export const EN = {
   "dp.clear": "Clear",
   "dp.today": "Today",
   // planner
-  "nav.schedule": "Schedule",
+  "nav.schedule": "Timetable",
   "planner.subtitle": "Lesson plans, schedule, quizzes, homework, presentations, and activities — all on one grid.",
   "planner.all": "All",
   "planner.schedule": "Schedule",
@@ -513,10 +508,13 @@ export const EN = {
   "pr.sub": "Build slide-based presentations linked to your lessons.",
   "pr.new": "New presentation",
   "pr.empty": "No presentations yet — click “New presentation” to build one.",
-  "tp.eyebrow": "Templates",
-  "tp.titlePlain": "Templates ",
-  "tp.titleEm": "library",
-  "tp.sub": "Pick a starting point. Edit it once, reuse it forever.",
+  // "My templates", deliberately — the curated shelf in the sidebar is
+  // the "Template library", and two screens both called a templates
+  // library read as the same screen twice.
+  "tp.eyebrow": "My templates",
+  "tp.titlePlain": "My ",
+  "tp.titleEm": "templates",
+  "tp.sub": "Your own starting points. Edit one once, reuse it forever.",
   "tp.new": "New template",
   "tp.search": "Search templates by name, subject, topic…",
   "tp.loading": "Loading templates…",

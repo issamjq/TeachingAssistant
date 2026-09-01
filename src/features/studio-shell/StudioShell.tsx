@@ -26,6 +26,7 @@ import {
   PanelLeftOpen,
   LayoutDashboard,
   CalendarRange,
+  CalendarClock,
   Target,
   BookOpen,
   LibraryBig,
@@ -102,6 +103,8 @@ const NAV_ICON: Record<string, LucideIcon> = {
   dashboard: LayoutDashboard,
   studio: Sparkles,
   scheduler: CalendarRange,
+  // The weekly teaching grid — the surface where work is delivered.
+  timetable: CalendarClock,
   goals: Target,
   library: LibraryBig,
   lessons: BookOpen,

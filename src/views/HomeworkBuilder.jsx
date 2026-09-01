@@ -1,9 +1,11 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
+import { CheckCircle2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ExportMenu } from "@/components/ui/export-menu";
+import { DeliveryStatus } from "@/features/delivery";
 import {
   Field, AttachmentsList, inputClasses, selectClasses, api,
   useTeacherClasses, DatePicker, AudienceSelect,
@@ -30,6 +32,12 @@ export default function HomeworkBuilder({ homework, onClose }) {
     attachments: Array.isArray(homework?.attachments) ? homework.attachments : [],
   });
   const [saving, setSaving] = useState(false);
+  // A short "Saved" flash — the button label reverting was the only
+  // confirmation this screen gave. deliveryKey re-reads the timetable.
+  const [savedFlash, setSavedFlash] = useState(false);
+  const [deliveryKey, setDeliveryKey] = useState(0);
+  const flashTimer = useRef(null);
+  useEffect(() => () => clearTimeout(flashTimer.current), []);
   const [err, setErr] = useState(null);
 
   useEffect(() => {
@@ -59,6 +67,10 @@ export default function HomeworkBuilder({ homework, onClose }) {
         ? await api(`/api/homework/${hwId}`, { method: "PATCH", body: payload })
         : await api(`/api/homework`, { method: "POST", body: payload });
       setHwId(saved.id);
+      setSavedFlash(true);
+      setDeliveryKey((k) => k + 1);
+      clearTimeout(flashTimer.current);
+      flashTimer.current = setTimeout(() => setSavedFlash(false), 2500);
     } catch (e) {
       setErr(e.message);
     } finally {
@@ -86,7 +98,15 @@ export default function HomeworkBuilder({ homework, onClose }) {
           )}
           <Button variant="secondary" onClick={onClose}>Back to homework</Button>
           <Button onClick={save} disabled={saving}>
-            {saving ? "Saving…" : hwId ? "Save changes" : "Create homework"}
+            {saving ? (
+              "Saving…"
+            ) : savedFlash ? (
+              <><CheckCircle2 size={14} className="mr-2" /> Saved</>
+            ) : hwId ? (
+              "Save changes"
+            ) : (
+              "Create homework"
+            )}
           </Button>
         </div>
       </div>
@@ -96,6 +116,17 @@ export default function HomeworkBuilder({ homework, onClose }) {
           <p className="text-sm text-accent">{err}</p>
         </div>
       )}
+
+      {/* Whether the class will actually receive this homework — a due
+          date on the row delivers nothing by itself; only a timetable
+          slot carrying it reaches students. */}
+      <DeliveryStatus
+        draftId={hwId}
+        title={form.title}
+        audience={{ grade: form.grade, subject: form.subject, section: form.section }}
+        refreshKey={deliveryKey}
+        className="mb-4"
+      />
 
       <Card>
         <CardContent className="p-6">

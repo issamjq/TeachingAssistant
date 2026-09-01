@@ -25,6 +25,12 @@ export interface NavSection {
   items: NavItem[];
 }
 
+// The teacher nav tells the product's story in section order: get
+// oriented, plan the week, make the materials, run the classroom. The
+// old scheme filed nine of fourteen items under one header called
+// "Planners" — four of them content libraries that plan nothing — and
+// left /schedule, the screen where work is actually delivered to a
+// class, out of the nav entirely.
 const TEACHER_NAV: NavSection[] = [
   {
     section: "Overview",
@@ -33,29 +39,38 @@ const TEACHER_NAV: NavSection[] = [
       { key: "studio", label: "Studio", icon: "studio" },
     ],
   },
-  // "Planners" is everything the teacher sets ahead of time. Scheduler,
-  // not "Planner" — inside a section called Planners, an item called
-  // Planner said nothing; the thing it opens is the timetable.
+  // When things happen. Calendar is the month/week view over everything;
+  // Timetable is the weekly teaching grid — and the delivery mechanism:
+  // students receive work only through a timetable slot (db/tune.sql
+  // §48), so the surface that decides visibility must be in the rail.
   {
-    section: "Planners",
+    section: "Plan",
     items: [
-      { key: "planner", label: "Scheduler", icon: "scheduler" },
+      { key: "planner", label: "Calendar", icon: "scheduler" },
+      { key: "schedule", label: "Timetable", icon: "timetable" },
       { key: "goals", label: "Goals", icon: "goals" },
-      { key: "library", label: "Templates", icon: "library" },
+    ],
+  },
+  // What the teacher makes and reuses — the libraries, one per kind.
+  {
+    section: "Materials",
+    items: [
       { key: "lesson-plans", label: "Lessons", icon: "lessons" },
       { key: "quizzes", label: "Quizzes", icon: "quizzes" },
       { key: "homework", label: "Homework", icon: "homework" },
       { key: "presentations", label: "Presentations", icon: "presentations" },
       { key: "activities", label: "Activities", icon: "activities" },
-      { key: "bulletin-board", label: "Bulletin", icon: "bulletin" },
+      { key: "library", label: "Templates", icon: "library" },
     ],
   },
+  // The class itself: who is in it, what they see, how they are doing.
   {
-    section: "Teacher",
+    section: "Classroom",
     items: [
       { key: "database", label: "Students", icon: "students" },
-      { key: "teaching-skills", label: "Skills", icon: "skills" },
+      { key: "bulletin-board", label: "Bulletin", icon: "bulletin" },
       { key: "reports", label: "Reports", icon: "reports" },
+      { key: "teaching-skills", label: "Skills", icon: "skills" },
     ],
   },
 ];

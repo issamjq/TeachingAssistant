@@ -80,7 +80,9 @@ export default function PlannerView() {
       const pre = takePrefill("add_schedule_entry");
       if (!pre) return;
       const fields = {};
-      for (const k of ["title", "subject", "grade", "section", "date", "start_time", "end_time", "notes"]) {
+      // draft_id makes the new entry CARRY the work it came from — the
+      // "Put it on the timetable" hand-off from a builder or the studio.
+      for (const k of ["title", "subject", "grade", "section", "date", "start_time", "end_time", "notes", "draft_id"]) {
         if (typeof pre[k] === "string" && pre[k]) fields[k] = pre[k];
       }
       if (Object.keys(fields).length) {

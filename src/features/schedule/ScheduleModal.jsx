@@ -14,6 +14,7 @@ import {
 import { fmtTime } from "./timetable";
 import { today } from "@/lib/localDate";
 import { findClash, HHMM } from "@/shared/lib/scheduleClash";
+import { AudiencePreview } from "@/features/delivery";
 
 const EMPTY = {
   title: "",
@@ -218,6 +219,29 @@ export default function ScheduleModal({ initial, prefill, onClose, onSaved }) {
             <input className={inputClasses} value={form.section} onChange={(e) => set("section", e.target.value)} />
           )}
         </Field>
+        {carriesWork && (
+          /* This entry carries work, so these three fields decide who
+             receives it. The chips are the teacher's real classes read off
+             her roster — one tap fills all three with values that cannot
+             lose the text match — and the line beneath is the match itself,
+             run live. */
+          <div className="md:col-span-2">
+            <AudiencePreview
+              audience={{ grade: form.grade, subject: form.subject, section: form.section }}
+              onPick={(cls) =>
+                setForm((f) => ({
+                  ...f,
+                  grade: cls.grade,
+                  // Roster rows saved without a subject would otherwise
+                  // ERASE the one she typed — keep hers when the class
+                  // has none of its own.
+                  subject: cls.subject || f.subject,
+                  section: cls.section,
+                }))
+              }
+            />
+          </div>
+        )}
         <Field label="Date">
           <DatePicker value={form.date} onChange={(v) => set("date", v)} />
         </Field>

@@ -22,9 +22,13 @@
 // knows whether the second one is due yet.
 // =====================================================================
 import { useEffect, useRef, useState } from "react";
-import { Calendar, Check, Loader2 } from "lucide-react";
+import { Calendar, Check, CircleAlert, Loader2 } from "lucide-react";
 
 import { api } from "@/views/_shared";
+import { useRoster } from "@/features/delivery";
+import { classLabel, matchRoster, type Audience } from "@/shared/lib/classMatch";
+import { PREFILL_KEY } from "@/shared/lib/assistantPrefill";
+import { navigate } from "@/lib/route";
 import s from "./Studio.module.css";
 
 /** One generated document, as StudioChat holds it in a turn. */
@@ -109,7 +113,16 @@ export function FinaliseAndSchedule({
   save: (
     turns: StudioTurn[],
     replaceId?: string,
-  ) => Promise<{ id: string; also?: SavedExtra[] } | null>;
+  ) => Promise<
+    | ({ id: string; also?: SavedExtra[] } & {
+        /** The stored row is flattened, so the audience the AI decided on
+            rides back with it — the widget shows it instead of hiding it. */
+        grade?: string | null;
+        subject?: string | null;
+        section?: string | null;
+      })
+    | null
+  >;
   /** The slot, once written, so the library card can carry it too. */
   onScheduled?: (artifactId: string, entry: Proposed) => void;
   /**
@@ -129,6 +142,22 @@ export function FinaliseAndSchedule({
   const [clashes, setClashes] = useState<Clash[]>([]);
   const [primaryId, setPrimaryId] = useState<string | null>(null);
   const [error, setError] = useState("");
+  /**
+   * The class the saved work is labelled for — the decision that alone
+   * determines whether any student ever sees it, read back off the stored
+   * row so it can be SHOWN rather than left to a code comment.
+   */
+  const [audience, setAudience] = useState<Audience | null>(null);
+  const { roster, ready: rosterReady } = useRoster();
+  /** "reaches 24 students" / "reaches nobody" for an audience, or "" while unknown. */
+  const reachText = (a: Audience | null | undefined): string => {
+    if (!a || !rosterReady || !roster.length) return "";
+    if (!String(a.grade ?? "").trim() && !String(a.subject ?? "").trim()) return "";
+    const n = matchRoster(a, roster).length;
+    return n
+      ? ` — reaches ${n} student${n === 1 ? "" : "s"}`
+      : " — but it matches nobody on your roster";
+  };
   /** True when this run rewrote the work but left its timetable slot alone. */
   const [keptSlot, setKeptSlot] = useState(false);
   /**
@@ -170,6 +199,11 @@ export function FinaliseAndSchedule({
     if (!stored) throw new Error(`The ${label} could not be saved.`);
     extrasRef.current = stored.also ?? [];
     setPrimaryId(stored.id);
+    setAudience({
+      grade: stored.grade ?? null,
+      subject: stored.subject ?? null,
+      section: stored.section ?? null,
+    });
     onKept?.({ primaryId: stored.id });
     return stored.id;
   };
@@ -303,15 +337,7 @@ export function FinaliseAndSchedule({
     }
   };
 
-  /**
-   * `primary` is absent when this batch rewrote only a supporting document —
-   * the notes, say — and the plan it belongs to was left alone. That is still
-   * a lesson to keep, so the guard is on there being anything at all rather
-   * than on the primary part having been regenerated.
-   */
-  if (!turns.length) return null;
-
-  const savedTo = section || `${label[0]!.toUpperCase()}${label.slice(1)}s`;
+  const savedTo = section || `${label[0]?.toUpperCase() ?? ""}${label.slice(1)}s`;
 
   /**
    * Already kept — so say what actually happened to it.
@@ -340,14 +366,82 @@ export function FinaliseAndSchedule({
     };
   }, [settled, savedId, proposed]);
 
+  /**
+   * `primary` is absent when this batch rewrote only a supporting document —
+   * the notes, say — and the plan it belongs to was left alone. That is still
+   * a lesson to keep, so the guard is on there being anything at all rather
+   * than on the primary part having been regenerated. Below every hook, so
+   * an empty render never changes the hook order.
+   */
+  if (!turns.length) return null;
+
+  /**
+   * The class on the slot (or, failing that, on the saved row), spoken
+   * aloud: "for Grade 6 · Science". The audience decision was always
+   * being made — by the AI, by inheritance, by the scheduler — and never
+   * shown; every finished state now names it.
+   */
+  const classOf = (a: Audience | null | undefined): string => {
+    const name = a ? classLabel(a) : "";
+    return name ? ` for ${name}` : "";
+  };
+
+  /**
+   * Saved but on no timetable slot — the state in which the work is
+   * invisible to every student. Said plainly, with the one action that
+   * changes it: the planner opens its entry form already carrying this
+   * work, so placing it is a date and a class away.
+   */
+  const notDelivered = (id: string | null) => (
+    <div className="mt-2.5">
+      <p className="text-[12.5px] text-muted flex items-center gap-1.5">
+        <Check size={13} /> Saved to {savedTo}
+        {classOf(audience)}.
+      </p>
+      <p className="text-[12.5px] text-warn mt-1 flex items-center gap-1.5">
+        <CircleAlert size={13} className="flex-none" />
+        Not on the timetable yet, so students can&rsquo;t see it — work reaches your
+        class only through a timetable slot.
+      </p>
+      {id && (
+        <button
+          type="button"
+          className={`${s.chipBtn} mt-2`}
+          onClick={() => {
+            try {
+              sessionStorage.setItem(
+                PREFILL_KEY,
+                JSON.stringify({
+                  action: "add_schedule_entry",
+                  at: Date.now(),
+                  draft_id: String(id),
+                  title: primary?.text.match(/^#\s*(.+)$/m)?.[1]?.trim() || "",
+                  subject: String(audience?.subject ?? ""),
+                  grade: String(audience?.grade ?? ""),
+                  section: String(audience?.section ?? ""),
+                }),
+              );
+            } catch {
+              /* the planner still opens; she links the work by hand */
+            }
+            navigate(["planner"]);
+          }}
+        >
+          <Calendar size={13} /> Put it on the timetable
+        </button>
+      )}
+    </div>
+  );
+
   if (phase === "idle" && settled) {
+    if (!proposed) return notDelivered(savedId ?? primaryId);
     return (
       <p className="text-[12.5px] text-muted mt-2.5 flex items-center gap-1.5">
         <Check size={13} />
-        Saved to {savedTo}
-        {proposed
-          ? ` — on your timetable for ${readableWhen(proposed.date, proposed.start_time)}.`
-          : "."}
+        Saved to {savedTo} — on your timetable for{" "}
+        {readableWhen(proposed.date, proposed.start_time)}
+        {classOf(proposed)}
+        {reachText(proposed)}.
       </p>
     );
   }
@@ -358,18 +452,14 @@ export function FinaliseAndSchedule({
         <Check size={13} />
         {keptSlot ? "Updated in" : "Saved to"} {savedTo}
         {proposed
-          ? `${keptSlot ? " — still on your timetable for " : " — on your timetable for "}${readableWhen(proposed.date, proposed.start_time)}.`
+          ? `${keptSlot ? " — still on your timetable for " : " — on your timetable for "}${readableWhen(proposed.date, proposed.start_time)}${classOf(proposed)}${reachText(proposed)}.`
           : " and scheduled."}
       </p>
     );
   }
 
   if (phase === "kept") {
-    return (
-      <p className="text-[12.5px] text-muted mt-2.5 flex items-center gap-1.5">
-        <Check size={13} /> Saved to {savedTo} — no date set.
-      </p>
-    );
+    return notDelivered(primaryId);
   }
 
   if (phase === "confirming" && proposed) {
@@ -379,7 +469,8 @@ export function FinaliseAndSchedule({
           Ready for <strong>{readableWhen(proposed.date, proposed.start_time)}</strong>
           {proposed.end_time ? `–${proposed.end_time}` : ""}
           {proposed.subject ? ` · ${proposed.subject}` : ""}
-          {proposed.grade ? ` · Grade ${proposed.grade}` : ""}.
+          {proposed.grade ? ` · Grade ${proposed.grade}` : ""}
+          {reachText(proposed)}.
         </p>
         {clashes.length > 0 && (
           <p className="text-[12px] text-muted mt-1">

@@ -12,6 +12,7 @@ import {
 } from "./_data-view";
 import { ExportMenu } from "@/components/ui/export-menu";
 import { SkeletonCards, SkeletonList } from "@/components/ui/skeleton";
+import { DeliveryChip, useDeliveryMap } from "@/features/delivery";
 import { homeworkToDoc } from "../lib/toDoc";
 import { useT } from "../lib/i18n";
 
@@ -23,6 +24,9 @@ export default function Homework({ onOpenHomework }) {
   const [deleting, setDeleting] = useState(null);
   const [busy, setBusy] = useState(false);
   const [viewMode, setViewMode] = useViewMode("murchid.view.homework", "cards");
+  // draft_id → timetable entries. A due date on the row delivers nothing;
+  // only a timetable slot does, and each row says which state it is in.
+  const deliveryMap = useDeliveryMap();
   const [sortKey, setSortKey] = useState("due_date-asc");
   const [scope, setScope, scopeRange] = useDateScope();
 
@@ -124,8 +128,11 @@ export default function Homework({ onOpenHomework }) {
                 onClick={() => onOpenHomework?.(h)}
                 className="text-left pe-16 flex-1 flex flex-col gap-2"
               >
-                <span className="font-mono text-[10px] uppercase tracking-wider px-2 py-0.5 bg-paper border border-line text-ink-soft rounded self-start">
-                  {h.status}
+                <span className="flex flex-wrap items-center gap-1.5 self-start">
+                  <span className="font-mono text-[10px] uppercase tracking-wider px-2 py-0.5 bg-paper border border-line text-ink-soft rounded">
+                    {h.status}
+                  </span>
+                  {deliveryMap && <DeliveryChip entries={deliveryMap.get(String(h.id))} />}
                 </span>
                 <h3 className="font-serif text-lg font-medium text-ink leading-snug mt-1">
                   {h.title}
@@ -175,8 +182,11 @@ export default function Homework({ onOpenHomework }) {
                       {h.due_date ? new Date(h.due_date).toLocaleDateString() : "—"}
                     </td>
                     <td className="py-4">
-                      <span className="font-mono text-[10px] uppercase tracking-wider px-2.5 py-1 rounded-full border border-line text-ink-soft bg-paper">
-                        {h.status}
+                      <span className="inline-flex flex-wrap items-center gap-1.5">
+                        <span className="font-mono text-[10px] uppercase tracking-wider px-2.5 py-1 rounded-full border border-line text-ink-soft bg-paper">
+                          {h.status}
+                        </span>
+                        {deliveryMap && <DeliveryChip entries={deliveryMap.get(String(h.id))} />}
                       </span>
                     </td>
                     <td className="py-4 px-5 text-right" onClick={(e) => e.stopPropagation()}>

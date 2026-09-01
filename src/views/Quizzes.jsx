@@ -12,6 +12,7 @@ import {
 } from "./_data-view";
 import { ExportMenu } from "@/components/ui/export-menu";
 import { SkeletonCards, SkeletonList } from "@/components/ui/skeleton";
+import { DeliveryChip, useDeliveryMap } from "@/features/delivery";
 import { quizToDoc } from "../lib/toDoc";
 import { useT } from "../lib/i18n";
 
@@ -23,6 +24,9 @@ export default function Quizzes({ onOpenQuiz }) {
   const [deleting, setDeleting] = useState(null);
   const [busy, setBusy] = useState(false);
   const [viewMode, setViewMode] = useViewMode("murchid.view.quizzes", "cards");
+  // draft_id → timetable entries. A quiz's own scheduled_for is a label;
+  // only a timetable slot delivers it, and each row says which it has.
+  const deliveryMap = useDeliveryMap();
   const [sortKey, setSortKey] = useState("scheduled_for-desc");
   const [scope, setScope, scopeRange] = useDateScope();
 
@@ -132,8 +136,11 @@ export default function Quizzes({ onOpenQuiz }) {
                 onClick={() => onOpenQuiz?.(q)}
                 className="text-left flex-1 flex flex-col gap-2 pe-16 w-full"
               >
-                <span className="font-mono text-[10px] uppercase tracking-wider px-2 py-0.5 bg-paper border border-line text-ink-soft rounded self-start">
-                  {q.status}
+                <span className="flex flex-wrap items-center gap-1.5 self-start">
+                  <span className="font-mono text-[10px] uppercase tracking-wider px-2 py-0.5 bg-paper border border-line text-ink-soft rounded">
+                    {q.status}
+                  </span>
+                  {deliveryMap && <DeliveryChip entries={deliveryMap.get(String(q.id))} />}
                 </span>
                 {/* Title clamps to 2 lines and reserves that height so
                     the meta line below it sits at the same baseline
@@ -208,8 +215,11 @@ export default function Quizzes({ onOpenQuiz }) {
                       {q.scheduled_for ? new Date(q.scheduled_for).toLocaleDateString() : "—"}
                     </td>
                     <td className="py-4">
-                      <span className="font-mono text-[10px] uppercase tracking-wider px-2.5 py-1 rounded-full border border-line text-ink-soft bg-paper">
-                        {q.status}
+                      <span className="inline-flex flex-wrap items-center gap-1.5">
+                        <span className="font-mono text-[10px] uppercase tracking-wider px-2.5 py-1 rounded-full border border-line text-ink-soft bg-paper">
+                          {q.status}
+                        </span>
+                        {deliveryMap && <DeliveryChip entries={deliveryMap.get(String(q.id))} />}
                       </span>
                     </td>
                     <td className="py-4 px-5 text-right" onClick={(e) => e.stopPropagation()}>

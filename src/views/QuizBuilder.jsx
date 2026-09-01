@@ -1,10 +1,11 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
-import { Plus, Trash2, Scale, Wand2 } from "lucide-react";
+import React, { useEffect, useRef, useState } from "react";
+import { CheckCircle2, Plus, Trash2, Scale, Wand2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ExportMenu } from "@/components/ui/export-menu";
+import { DeliveryStatus } from "@/features/delivery";
 import { Field, inputClasses, selectClasses, api, useTeacherClasses, DatePicker, AudienceSelect } from "./_shared";
 import { quizToDoc } from "../lib/toDoc";
 import { useT } from "../lib/i18n";
@@ -36,6 +37,13 @@ export default function QuizBuilder({ quiz, onClose }) {
   const [quizId, setQuizId] = useState(quiz?.id || null);
   const [questions, setQuestions] = useState([]);
   const [savingMeta, setSavingMeta] = useState(false);
+  // A short "Saved" flash on the button — the only confirmation this
+  // screen ever gave was the label reverting, which reads as nothing
+  // having happened. deliveryKey re-reads the timetable after each save.
+  const [savedFlash, setSavedFlash] = useState(false);
+  const [deliveryKey, setDeliveryKey] = useState(0);
+  const flashTimer = useRef(null);
+  useEffect(() => () => clearTimeout(flashTimer.current), []);
   const [err, setErr] = useState(null);
   const [tweak, setTweak] = useState("");
   const [tweaking, setTweaking] = useState(false);
@@ -114,6 +122,10 @@ export default function QuizBuilder({ quiz, onClose }) {
         setQuizId(res.quiz.id);
         setQuestions(res.questions || []);
       }
+      setSavedFlash(true);
+      setDeliveryKey((k) => k + 1);
+      clearTimeout(flashTimer.current);
+      flashTimer.current = setTimeout(() => setSavedFlash(false), 2500);
     } catch (e) {
       setErr(e.message);
     } finally {
@@ -289,7 +301,15 @@ export default function QuizBuilder({ quiz, onClose }) {
           )}
           <Button variant="secondary" onClick={onClose}>Back to quizzes</Button>
           <Button onClick={saveMeta} disabled={savingMeta}>
-            {savingMeta ? "Saving…" : quizId ? "Save changes" : "Create quiz"}
+            {savingMeta ? (
+              "Saving…"
+            ) : savedFlash ? (
+              <><CheckCircle2 size={14} className="mr-2" /> Saved</>
+            ) : quizId ? (
+              "Save changes"
+            ) : (
+              "Create quiz"
+            )}
           </Button>
         </div>
       </div>
@@ -299,6 +319,19 @@ export default function QuizBuilder({ quiz, onClose }) {
           <p className="text-sm text-accent">{err}</p>
         </div>
       )}
+
+      {/* Whether the class will actually receive this quiz. The fields
+          below (grade, subject, even "Scheduled date") live on the quiz
+          row and deliver nothing by themselves — only a timetable slot
+          carrying the quiz reaches students, and this says which state
+          the quiz is in. */}
+      <DeliveryStatus
+        draftId={quizId}
+        title={meta.title}
+        audience={{ grade: meta.grade, subject: meta.subject, section: meta.section }}
+        refreshKey={deliveryKey}
+        className="mb-4"
+      />
 
       <Card>
         <CardContent className="p-6">
