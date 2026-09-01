@@ -42,12 +42,20 @@ export function DeliveryStatus({
   audience,
   /** Bump to re-read the timetable after a save. */
   refreshKey = 0,
+  status = null,
   className = "",
 }: {
   draftId: string | null | undefined;
   title?: string;
   audience: Audience;
   refreshKey?: number;
+  /**
+   * The row's own workflow status ("Draft" / "Ready" / …). Delivery never
+   * consults it — a timetabled Draft is open to students — so when the
+   * two disagree, the banner says so instead of letting "Draft" imply
+   * "hidden".
+   */
+  status?: string | null;
   /** Margin belongs to the caller — the banner may not render at all. */
   className?: string;
 }) {
@@ -149,6 +157,13 @@ export function DeliveryStatus({
           </>
         )}
       </p>
+      {String(status ?? "").trim().toLowerCase() === "draft" && matched.length > 0 && (
+        <p className="text-[12.5px] text-warn flex items-center gap-1.5 mt-1">
+          <CircleAlert size={14} className="flex-none" aria-hidden />
+          Still marked Draft — the timetable slot already makes it visible to the
+          class. Draft doesn&rsquo;t hide it; removing the slot does.
+        </p>
+      )}
     </div>
   );
 }

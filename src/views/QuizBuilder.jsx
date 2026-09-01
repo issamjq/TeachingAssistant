@@ -329,6 +329,7 @@ export default function QuizBuilder({ quiz, onClose }) {
         draftId={quizId}
         title={meta.title}
         audience={{ grade: meta.grade, subject: meta.subject, section: meta.section }}
+        status={meta.status}
         refreshKey={deliveryKey}
         className="mb-4"
       />

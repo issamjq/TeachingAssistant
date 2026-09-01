@@ -218,11 +218,16 @@ export async function deleteSession(sessionId) {
 }
 
 /**
- * Drop threads past the window.
+ * Drop UNPINNED threads past the window.
  *
  * Opportunistic, on load, for the same reason the assistant's purge was:
  * a cron that has to be deployed and watched is a weaker guarantee than
  * a DELETE that runs whenever the feature is used.
+ *
+ * Pinned threads are exempt. A pin is the teacher saying "keep this" in
+ * the strongest way the UI offers; deleting a pinned thread on a timer
+ * made the pin a lie, and the only warning lived on the empty state she
+ * would never see again.
  */
 export function purgeOld() {
   const cutoff = new Date(Date.now() - KEEP_DAYS * 864e5).toISOString();
@@ -230,6 +235,7 @@ export function purgeOld() {
     .from("chatbot_sessions")
     .delete()
     .eq("page_scope", "studio")
+    .is("pinned_at", null)
     .lt("updated_at", cutoff)
     .then(({ error }) => {
       if (error) console.warn("[studio] purge failed:", error.message);

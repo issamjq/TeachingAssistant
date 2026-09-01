@@ -59,6 +59,9 @@ import {
 import { ConversationListSkeleton, ThreadSkeleton } from "./DocumentSkeleton";
 import { renderMarkdown } from "@/lib/markdown";
 import { SkillsPicker } from "./SkillsPicker";
+import { ClassPicker } from "./ClassPicker";
+import { classLabel } from "@/shared/lib/classMatch";
+import { navigate } from "@/lib/route";
 import {
   listSessions, createSession, appendMessage, loadSession, deleteSession,
   renameSession, setPinned, purgeOld, KEEP_DAYS,
@@ -224,6 +227,26 @@ function statedFacts(text) {
 }
 
 const KNOWN_SUBJECTS = new Set(MAJORS.map((m) => m.toLowerCase()));
+
+/**
+ * The class a batch is for, best answer first: the teacher's own pick
+ * (carried on the turn), then the service's `scope` frame — its own
+ * decision, streamed with every generation and never rendered until
+ * now — then the title-line scrape. Null when nothing names one.
+ */
+function plannedAudienceOf(batchTurns) {
+  const picked = batchTurns.find((t) => t.audience)?.audience;
+  if (picked) return picked;
+  const sc = batchTurns.find((t) => t.scope)?.scope;
+  if (sc && (sc.grade || sc.subject)) {
+    return { grade: sc.grade || "", subject: sc.subject || "", section: sc.section || sc.class || "" };
+  }
+  const head = batchTurns.find((t) => SCHEDULABLE_KINDS.includes(t.kind)) || batchTurns[0];
+  const facts = head ? statedFacts(head.text) : {};
+  return facts.grade || facts.subject
+    ? { grade: facts.grade || "", subject: facts.subject || "", section: "" }
+    : null;
+}
 
 /**
  * Should this turn carry the finalise offer, and over which documents?
@@ -616,6 +639,13 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
   // send() reads it. Saving a new approach bumps the version so the
   // picker refetches and the new skill appears selected.
   const skillSel = useRef(null);
+  /**
+   * The class this generation is for — the teacher's pick from her real
+   * roster classes, or null when Murchid reads the brief alone. Read at
+   * send time; the pick travels on the TURN (finalizeTurn) so a save
+   * made later still files under the class the work was written for.
+   */
+  const classSel = useRef(null);
   // Nothing on this screen writes a skill any more, so there is nothing
   // to tell the picker to refetch for. Kept as a constant so the picker's
   // contract is unchanged for the places that still bump it.
@@ -1847,6 +1877,27 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
      *  document is whatever she happened to look at most recently. */
     const source = held?.lesson_plan ?? lastDoc.current;
 
+    /**
+     * The class she picked in the composer, captured for this run.
+     *
+     * Fresh briefs only: a rework pins its own grade ("keep the same
+     * topic, subject, grade…"), and a slot answer is not a brief. The
+     * pick becomes ground truth twice over — it steers the writing
+     * here, and it is stamped onto the saved row (see storeBatch), so
+     * grade and subject are no longer whatever the regex could scrape
+     * back out of the model's own title line.
+     */
+    const forClass = opts.skipAsk ? null : classSel.current;
+    const classWrapped =
+      forClass
+        ? [
+            `This is for the teacher's own class: ${classLabel(forClass)} (${forClass.count} student${forClass.count === 1 ? "" : "s"} on her roster).`,
+            "Write for exactly that grade and subject, and state both in the title line.",
+            "",
+            prompt,
+          ].join("\n")
+        : prompt;
+
     const carried = isPartial
       ? [
           `This is a revision of one part of an existing lesson on "${lastDoc.current?.title || ""}".`,
@@ -1892,7 +1943,7 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
           `Now rewrite the whole lesson applying this change: ${prompt}`,
           "Every part must reflect the change, including the title line stating subject, grade and duration.",
         ].join("\n")
-      : prompt;
+      : classWrapped;
 
     const controller = new AbortController();
     abortRef.current = controller;
@@ -1959,6 +2010,9 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
         patchLast({
           text: acc, structured, streaming: false, done: true, stage: null,
           batchId: curBatch, prompt,
+          // The class this was written for rides on the turn, so the
+          // save that happens later files it under the same class.
+          ...(forClass ? { audience: forClass } : {}),
           ...(isPartial ? { carryOver: untouched } : {}),
         });
         // The batch id travels with the turn, so reopening this thread
@@ -2184,6 +2238,13 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
      * documents are meant to be read.
      */
     const carried = batchTurns.find((t) => t.carryOver)?.carryOver || [];
+    /**
+     * The class the batch was written for — her composer pick, carried
+     * on the turn. It outranks the title-line scrape below: the scrape
+     * reads what the model happened to write, this is what she chose,
+     * and delivery (db/tune.sql §48) keys on these exact values.
+     */
+    const pickedAud = batchTurns.find((t) => t.audience)?.audience || null;
     const byKind = new Map();
     for (const d of carried) byKind.set(d.kind, d);
     // The regenerated version wins wherever both exist.
@@ -2297,6 +2358,11 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
       // What the document says about itself, so the card has something to
       // show the moment it is saved.
       ...statedFacts(primary.text),
+      // …and what she actually chose, which wins. Roster spellings can
+      // never lose the delivery text-match; a scraped title line can.
+      ...(pickedAud?.subject ? { subject: pickedAud.subject } : {}),
+      ...(pickedAud?.grade ? { grade: pickedAud.grade } : {}),
+      ...(pickedAud?.section ? { section: pickedAud.section } : {}),
       // From a live turn, never from a carried-forward document: those are
       // copies of earlier text and hold neither the batch that produced this
       // save nor the words that asked for it.
@@ -2376,7 +2442,11 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
             Boolean,
           ) || primaryGroup.parts[0];
         const facts = head ? statedFacts(head.text) : {};
-        return { subject: facts.subject, grade: facts.grade, section: facts.section };
+        return {
+          subject: pickedAud?.subject || facts.subject,
+          grade: pickedAud?.grade || facts.grade,
+          section: pickedAud?.section || facts.section,
+        };
       })();
 
       /**
@@ -2475,8 +2545,9 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
           <ConversationListSkeleton />
         ) : sessions.length === 0 ? (
           <p className={s.railEmpty}>
-            Nothing yet. Conversations you have here are kept for {KEEP_DAYS} days — anything
-            you save goes to your library and stays.
+            Nothing yet. Unpinned conversations are kept for {KEEP_DAYS} days — anything
+            you save goes to your library and stays, and a pinned thread is kept until
+            you delete it.
           </p>
         ) : (
           sessions.map((x) => (
@@ -2561,6 +2632,16 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
               </div>
             </div>
           ))
+        )}
+        {/* The retention rule, where the threads actually are. It used to
+            live only on the empty state — the one screen a teacher with
+            conversations never sees — so the 30-day deletion was a
+            surprise. Pinning is the way out, and this is where it says so. */}
+        {sessions.length > 0 && (
+          <p className={s.railEmpty}>
+            Unpinned conversations are kept for {KEEP_DAYS} days. Pin one to keep it;
+            saved work stays in your library either way.
+          </p>
         )}
       </div>
     </>
@@ -3070,6 +3151,7 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
                         label={batchOffer(turns, turn, i).label}
                         section={batchOffer(turns, turn, i).section}
                         turns={batchOffer(turns, turn, i).turns}
+                        planned={plannedAudienceOf(batchOffer(turns, turn, i).turns)}
                         replaces={
                           lastKept &&
                           /**
@@ -3144,7 +3226,10 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
                         {meta.section && (
                           <button
                             type="button" className={s.chipBtn}
-                            onClick={() => { window.location.href = `/${meta.section}`; }}
+                            // Client navigation, not a location change: a
+                            // full page load threw away the composer draft
+                            // and every unsaved turn on screen.
+                            onClick={() => navigate([meta.section])}
                           >
                             Open {(SECTION_FOR_KIND[turn.kind] || `${meta.label}s`).toLowerCase()}
                           </button>
@@ -3231,6 +3316,7 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
               ))}
             </div>
 
+            <ClassPicker onSelection={(cls) => { classSel.current = cls; }} />
             <SkillsPicker version={skillsVersion} onSelection={(sel) => { skillSel.current = sel; }} />
 
             <span className="flex-1" />

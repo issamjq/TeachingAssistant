@@ -22,7 +22,7 @@
 // knows whether the second one is due yet.
 // =====================================================================
 import { useEffect, useRef, useState } from "react";
-import { Calendar, Check, CircleAlert, Loader2 } from "lucide-react";
+import { Calendar, Check, CircleAlert, Loader2, Users } from "lucide-react";
 
 import { api } from "@/views/_shared";
 import { useRoster } from "@/features/delivery";
@@ -89,6 +89,7 @@ export function FinaliseAndSchedule({
   onScheduled,
   replaces,
   onKept,
+  planned = null,
 }: {
   /**
    * The documents finalised together. A lesson is three; a quiz is one.
@@ -134,6 +135,13 @@ export function FinaliseAndSchedule({
   replaces?: { title: string; id: string } | null;
   /** Called once the batch is kept, so the chat can remember it. */
   onKept?: (info: { primaryId: string }) => void;
+  /**
+   * The class this batch was written for — the teacher's composer pick,
+   * or the scope the service/document stated. Shown BEFORE saving, so
+   * "she made something — for whom?" is answered while the decision to
+   * keep it is still being made.
+   */
+  planned?: Audience | null;
 }) {
   const [phase, setPhase] = useState<Phase>("idle");
   const [question, setQuestion] = useState("");
@@ -148,6 +156,8 @@ export function FinaliseAndSchedule({
    * row so it can be SHOWN rather than left to a code comment.
    */
   const [audience, setAudience] = useState<Audience | null>(null);
+  /** Saved-row audience once it exists, else the pre-save plan. */
+  const knownAudience = audience ?? planned;
   const { roster, ready: rosterReady } = useRoster();
   /** "reaches 24 students" / "reaches nobody" for an audience, or "" while unknown. */
   const reachText = (a: Audience | null | undefined): string => {
@@ -396,7 +406,7 @@ export function FinaliseAndSchedule({
     <div className="mt-2.5">
       <p className="text-[12.5px] text-muted flex items-center gap-1.5">
         <Check size={13} /> Saved to {savedTo}
-        {classOf(audience)}.
+        {classOf(knownAudience)}.
       </p>
       <p className="text-[12.5px] text-warn mt-1 flex items-center gap-1.5">
         <CircleAlert size={13} className="flex-none" />
@@ -416,9 +426,9 @@ export function FinaliseAndSchedule({
                   at: Date.now(),
                   draft_id: String(id),
                   title: primary?.text.match(/^#\s*(.+)$/m)?.[1]?.trim() || "",
-                  subject: String(audience?.subject ?? ""),
-                  grade: String(audience?.grade ?? ""),
-                  section: String(audience?.section ?? ""),
+                  subject: String(knownAudience?.subject ?? ""),
+                  grade: String(knownAudience?.grade ?? ""),
+                  section: String(knownAudience?.section ?? ""),
                 }),
               );
             } catch {
@@ -543,6 +553,23 @@ export function FinaliseAndSchedule({
 
   return (
     <div className="mt-2.5">
+      {/* For whom — answered before she decides to keep it. The class is
+          her composer pick, the service's own scope decision, or what
+          the document states; whichever it is, it stops being invisible
+          here, with the live student count beside it. */}
+      {planned && (
+        <p
+          className={`text-[12.5px] mb-1.5 flex items-center gap-1.5 ${
+            rosterReady && roster.length && matchRoster(planned, roster).length === 0
+              ? "text-warn"
+              : "text-muted"
+          }`}
+        >
+          <Users size={13} className="flex-none" />
+          For {classLabel(planned)}
+          {reachText(planned)}.
+        </p>
+      )}
       <button
         type="button"
         className={s.chipBtn}
