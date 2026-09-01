@@ -2057,10 +2057,15 @@ function AuthPage({ onSignUp, onPage, mode = "signup", onEnterStudio, notice }) 
             </div>
             <div className="space-y-1.5">
               <p className="text-sm text-ink font-medium">Enter your 6-digit code.</p>
+              {/* "5 minutes" is the server's rule (see handleVerifyCheck:
+                  codes live 5 minutes, 5 attempts). This once said
+                  "1 minute" — a deadline four times tighter than the real
+                  one, panicking teachers for nothing. If the backend TTL
+                  changes, change this line with it. */}
               <p className="text-xs text-muted leading-relaxed">
                 We emailed a 6-digit verification code to{" "}
                 <span className="text-ink">{emailValue}</span>. It expires
-                in 1 minute.
+                in 5 minutes.
               </p>
             </div>
             {/* Single numeric input styled to look like 6 grouped boxes
