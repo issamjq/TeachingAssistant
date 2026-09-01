@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import ThemeSync from "@/shared/theme/ThemeSync";
+import Clarity from "@/shared/analytics/Clarity";
+import GoogleAnalytics from "@/shared/analytics/GoogleAnalytics";
 import {
   STORAGE_KEY as A11Y_KEY,
   DEFAULTS as A11Y_DEFAULTS,
@@ -231,6 +233,17 @@ review, the verdict, and DESIGN.md
         {/* After #root exists — a head script could not find it — and
             still before paint. */}
         <script dangerouslySetInnerHTML={{ __html: A11Y_BOOTSTRAP }} />
+        {/* Last in the body, after everything that touches first paint.
+            Both render nothing in development.
+
+            Google's console says to paste the gtag snippet "immediately
+            after <head>"; that instruction is for a plain HTML page with
+            no script scheduler. next/script's afterInteractive strategy
+            injects it once the page is interactive whatever the position
+            in this tree, so tag placement here buys nothing and would put
+            a third-party request ahead of the app's own. */}
+        <Clarity />
+        <GoogleAnalytics />
       </body>
     </html>
   );
