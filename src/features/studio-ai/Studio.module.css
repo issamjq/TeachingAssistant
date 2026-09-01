@@ -1341,6 +1341,18 @@
   border-radius: 14px;
   background: var(--p-surface);
   overflow: hidden;
+  /*
+     The plan arrives in one frame, so without this it simply appears —
+     a panel of eleven rows materialising at once, which reads as
+     something having gone wrong rather than something having finished.
+     Every other document in the thread arrives progressively; this
+     borrows the same manner.
+  */
+  animation: outlineIn 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes outlineIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: none; }
 }
 .outlineHead {
   padding: 14px 16px 12px;
@@ -1372,6 +1384,52 @@
   border-bottom: 1px solid color-mix(in oklab, var(--p-line) 40%, transparent);
 }
 .outlineItem:last-child { border-bottom: 0; }
+/* Row by row rather than all together, so the list reads as being
+   written down. Capped so a long deck does not crawl in. */
+.outlineItem {
+  animation: outlineRow 0.3s ease-out both;
+  animation-delay: calc(min(var(--i, 0) * 45ms, 700ms));
+}
+@keyframes outlineRow {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* A deck being written: the shape of a slide, not its source. */
+.deckPending {
+  aspect-ratio: 16 / 9;
+  border: 1px solid var(--p-line);
+  border-radius: 12px;
+  background: var(--p-surface);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 14px;
+  padding: 7% 8%;
+}
+.deckPendingBar {
+  height: 3.4cqw;
+  min-height: 14px;
+  width: 62%;
+  border-radius: 6px;
+  background: linear-gradient(
+    90deg,
+    color-mix(in oklab, var(--p-line) 55%, transparent) 25%,
+    color-mix(in oklab, var(--p-line) 22%, transparent) 37%,
+    color-mix(in oklab, var(--p-line) 55%, transparent) 50%
+  );
+  background-size: 260% 100%;
+  animation: deckShimmer 1.5s ease-in-out infinite;
+}
+.deckPendingBar[data-w="short"] { width: 34%; height: 2.2cqw; min-height: 10px; }
+@keyframes deckShimmer {
+  from { background-position: 130% 0; }
+  to   { background-position: -30% 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .outline, .outlineItem { animation: none; }
+  .deckPendingBar { animation: none; }
+}
 .outlineNum {
   font-family: var(--font-mono, ui-monospace, monospace);
   font-size: 11px;
@@ -1427,6 +1485,50 @@
   border-top: 1px solid color-mix(in oklab, var(--p-line) 60%, transparent);
   background: color-mix(in oklab, var(--p-paper-cool) 55%, transparent);
 }
+
+/*
+   A written deck, rendered as its own document.
+
+   The frame is 16:9 and the deck sets its own everything inside it, so
+   there is nothing to style here beyond the box and the pager. That is
+   the point: the design lives in the document the model wrote, not in
+   this file.
+*/
+.deckWrap { display: flex; flex-direction: column; gap: 10px; }
+.deckFrame {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border: 1px solid var(--p-line);
+  border-radius: 12px;
+  background: #111;
+  display: block;
+}
+.deckBar { display: flex; align-items: center; gap: 8px; justify-content: center; }
+
+/* Full screen: the deck and nothing else. */
+.present {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: #0a0a0a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.presentFrame { width: 100vw; height: 100vh; border: 0; display: block; }
+.presentClose {
+  position: absolute;
+  top: 16px;
+  inset-inline-end: 16px;
+  z-index: 2;
+  border: 0;
+  border-radius: 999px;
+  padding: 9px;
+  cursor: pointer;
+  color: #fff;
+  background: rgb(255 255 255 / 0.14);
+}
+.presentClose:hover { background: rgb(255 255 255 / 0.26); }
 
 /*
    A photograph on a slide.

@@ -41,6 +41,8 @@ import {
   namedSlides,
   slidesFromMarkdown,
   questionsFromMarkdown,
+  isHtmlDeck,
+  DeckFrame,
   markSchemeFromMarkdown,
 } from "./artifacts";
 import { RewritableBody } from "./RewritableBody";
@@ -500,7 +502,7 @@ function OutlinePlan({ turn, busy, onGenerate }) {
 
       <ol className={s.outlineList}>
         {slides.map((slide, i) => (
-          <li key={i} className={s.outlineItem}>
+          <li key={i} className={s.outlineItem} style={{ "--i": i }}>
             <span className={s.outlineNum}>{String(i + 1).padStart(2, "0")}</span>
             <div className="min-w-0 flex-1">
               <input
@@ -1023,6 +1025,8 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
   const threadRef = useRef(null);
   const inputRef = useRef(null);
   const fileRef = useRef(null);
+  /** A written deck shown full screen, as its own document. */
+  const [presentingHtml, setPresentingHtml] = useState(null);
   const abortRef = useRef(null);
   /** Distinguishes one agent turn's ids from the next one's. */
   const runSeq = useRef(0);
@@ -1131,7 +1135,7 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
    * agent reads the conversation itself, so all this does is carry
    * frames onto the screen.
    */
-  const runAgentTurn = useCallback(async (prompt, atts, hint) => {
+  const runAgentTurn = useCallback(async (prompt, atts, hint, display) => {
     const controller = new AbortController();
     abortRef.current = controller;
 
@@ -1147,7 +1151,17 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
         // worth having. She loses the history entry, not the answer.
       }
     }
-    if (sid) appendMessage(sid, { role: "user", text: prompt });
+    /**
+     * What she sees and what the model reads are not always the same.
+     *
+     * Approving a deck outline sends eleven numbered rows so the writer
+     * follows the plan exactly — and posting that into the thread as her
+     * message put a wall of text where a click had been. `display` is
+     * the short form: it is what the bubble shows and what the
+     * transcript keeps, so reopening the conversation does not bring the
+     * wall back either.
+     */
+    if (sid) appendMessage(sid, { role: "user", text: display || prompt });
 
     /**
      * The toggle is a hint, not an instruction.
@@ -1747,10 +1761,13 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
       setBusy(true);
       forceScroll.current = true;
       lastPrompt.current = prompt;
-      if (!opts.skipAsk) {
-        setTurns((t) => [...t, { role: "user", text: prompt, attachments: atts }]);
+      if (!opts.skipAsk || opts.display) {
+        setTurns((t) => [
+          ...t,
+          { role: "user", text: opts.display || prompt, attachments: atts },
+        ]);
       }
-      return runAgentTurn(prompt, atts, hint);
+      return runAgentTurn(prompt, atts, hint, opts.display);
     }
 
     const ks = isPartial
@@ -2599,6 +2616,24 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
   return (
     <div className={s.shell}>
       {deleteDialog}
+      {presentingHtml && (
+        <div className={s.present} role="dialog" aria-label="Presentation">
+          <button
+            type="button"
+            className={s.presentClose}
+            onClick={() => setPresentingHtml(null)}
+            aria-label="Close"
+          >
+            <XIcon size={18} />
+          </button>
+          <iframe
+            className={s.presentFrame}
+            title="Presentation"
+            srcDoc={presentingHtml}
+            sandbox=""
+          />
+        </div>
+      )}
       {/* Only once it is worth interrupting for: nothing above 20% left,
           because a banner she sees every day is one she stops reading. */}
       <div className="px-4 pt-3 max-w-[760px] mx-auto w-full">
@@ -2778,9 +2813,15 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
                           const plan = slides
                             .map((x, n) => `${n + 1}. ${x.title}${x.description ? ` — ${x.description}` : ""}${x.layout ? ` [${x.layout}]` : ""}`)
                             .join("\n");
-                          deckTheme.current = turn.theme || null;
+                          /* A written deck styles itself from the design
+                             direction above; the six-tone palette only
+                             applied to slides we drew ourselves. */
+                          deckTheme.current = null;
                           send(
                             `Write the presentation now, from this approved outline. ` +
+                              (turn.theme
+                                ? `\n\nDesign direction for this deck — follow it: ${turn.theme}\n\n`
+                                : "") +
                               `Follow it exactly: EXACTLY ${slides.length} slides, one for each ` +
                               `numbered row below, in that order, with that title. Do not add a ` +
                               `slide, do not merge two, do not split one. Count them before you ` +
@@ -2789,7 +2830,7 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
                               `${turn.grade ? ` ${turn.subject || ""} ${turn.grade}.` : ""}` +
                               `\n\n${plan}`,
                             "presentation",
-                            { skipAsk: true },
+                            { skipAsk: true, display: "Generate the deck" },
                           );
                         }}
                       />
@@ -2816,11 +2857,25 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
                * a wall of blockquotes just because a second model call came
                * back thin.
                */
+              /**
+               * A deck is a document the model wrote, not slides we draw.
+               *
+               * Described slides poured into our own components produced
+               * the same composition every time and varied only the
+               * accent colour. The presentation kind now emits its own
+               * HTML — its palette, its layouts, its SVG diagrams — and
+               * is rendered as written. Anything older, or anything that
+               * came back as prose, still parses as before.
+               */
+              const htmlDeck =
+                turn.kind === "presentation" && turn.done && isHtmlDeck(turn.text);
               const slides =
-                namedSlides(turn.structured?.slides) ??
-                (turn.kind === "presentation" && turn.done
-                  ? slidesFromMarkdown(turn.text)
-                  : undefined);
+                htmlDeck
+                  ? undefined
+                  : namedSlides(turn.structured?.slides) ??
+                    (turn.kind === "presentation" && turn.done
+                      ? slidesFromMarkdown(turn.text)
+                      : undefined);
               /** The same reading for a quiz: its own paper, parsed. */
               const questions =
                 turn.structured?.questions ??
@@ -2846,7 +2901,19 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
                  discarded with the rest of the markdown. */
               const markScheme =
                 turn.kind === "quiz" && turn.done ? markSchemeFromMarkdown(turn.text) : "";
-              const showArtifact = Boolean(slides || questions || turn.text);
+              /**
+               * A deck in progress shows a slide, not its source.
+               *
+               * The presentation kind writes an HTML document now, so
+               * streaming it into the card put "<!doctype html>" and a
+               * stylesheet on screen — the one document whose raw form
+               * is meaningless to a teacher. Every other kind still
+               * streams, because watching a lesson plan arrive is worth
+               * more than any placeholder.
+               */
+              const deckPending = turn.kind === "presentation" && !turn.done;
+              const showArtifact =
+                !deckPending && Boolean(htmlDeck || slides || questions || turn.text);
 
               return (
                 <div key={i} className={s.turn}>
@@ -2856,10 +2923,20 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
                         A sentence naming the document was something a
                         teacher read once and then had to keep reading for
                         the rest of the wait. */}
+                    {/* A deck being written: a slide-shaped placeholder,
+                        because its source is not something to read. */}
+                    {deckPending && (
+                      <div className={s.deckPending} role="status" aria-live="polite">
+                        <div className={s.deckPendingBar} />
+                        <div className={s.deckPendingBar} data-w="short" />
+                        <Working label="Designing the deck" />
+                      </div>
+                    )}
+
                     {/* Only for the gap before the first token. Once words
                         are arriving they are the progress indicator, and
                         showing both reads as two things happening. */}
-                    {turn.streaming && !turn.text && (
+                    {!deckPending && turn.streaming && !turn.text && (
                       <Working
                         label={`Writing the ${(KIND_META[turn.kind]?.label || "document").toLowerCase()}`}
                       />
@@ -2868,7 +2945,16 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
                     {showArtifact && (
                       <ArtifactCard
                         kind={turn.kind}
-                        title={titleOf(turn.kind, turn.text, turn.structured)}
+                        title={
+                          /* A written deck's first line is "<!doctype html>",
+                             which is not what a teacher should read on the
+                             card. Its own <title> or first heading is. */
+                          htmlDeck
+                            ? (turn.text.match(/<title>([^<]{2,90})<\/title>/i)?.[1] ||
+                               turn.text.match(/<h1[^>]*>([^<]{2,90})<\/h1>/i)?.[1] ||
+                               "Presentation").trim()
+                            : titleOf(turn.kind, turn.text, turn.structured)
+                        }
                         actions={
                           /* One generation, one action. A lesson arrives as
                              three documents and a Save on each read as three
@@ -2905,7 +2991,12 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
                           )
                         }
                       >
-                        {slides ? (
+                        {htmlDeck ? (
+                          <DeckFrame
+                            html={turn.text}
+                            onFullscreen={(doc) => setPresentingHtml(doc)}
+                          />
+                        ) : slides ? (
                           /* The deck's own palette rides on its first slide,
                              which is where deckToneIndex() looks for it. */
                           <SlideViewer

@@ -54,6 +54,107 @@ export const KIND_META = {
  * be read in code, exactly, every time, for nothing. The model is only asked
  * for the parts a model is needed for.
  */
+/* ══ An HTML deck ═════════════════════════════════════════════════════
+   The presentation kind no longer describes slides for us to draw. It
+   writes the document — its own CSS, its own layouts, its own SVG
+   diagrams — and this renders it.
+
+   That is the whole reason a deck can now look different from the last
+   one. Pouring headings and bullets into a template we wrote produced
+   the same composition every time and varied only the accent colour;
+   letting the model design the page is what gives a Grade 2 phonics
+   deck and a Grade 11 chemistry deck genuinely different shapes.
+
+   Sandboxed with allow-scripts but NOT allow-same-origin, so the frame
+   gets an opaque origin: the markup can run its own navigation and can
+   reach neither this page, its storage, nor the teacher's session. No
+   network either — the deck is told to inline everything, and nothing
+   in it is permitted to fetch.
+   ═══════════════════════════════════════════════════════════════════ */
+
+/** Is this artifact a written document rather than described slides? */
+export function isHtmlDeck(text) {
+  const head = String(text || "").trimStart().slice(0, 400).toLowerCase();
+  return head.startsWith("<!doctype html") || head.startsWith("<html") ||
+         (head.includes("<section") && head.includes("<style"));
+}
+
+/**
+ * Paging, injected rather than asked for.
+ *
+ * The deck is written as a run of sections; which one is on screen is a
+ * viewer concern, not the author's, so the model is not asked to write
+ * any of this and a deck that tried would be overridden. Runs inside the
+ * opaque frame and talks to us only through postMessage.
+ */
+const DECK_SHELL = `
+<style>
+  /*
+     Slides scroll, one per screen.
+
+     This used to hide every section and reveal one by script, with a
+     counter and arrows driving it. Scrolling is what a teacher does to a
+     deck without being taught: snap points make each slide land square
+     in the frame, and the same gesture works in the preview, full
+     screen, and on a trackpad or a touch screen.
+
+     It also removes the last reason for the frame to run any code at
+     all, so the sandbox no longer grants scripts.
+  */
+  html { scroll-snap-type: y mandatory; scroll-behavior: smooth; height: 100%; }
+  body { margin: 0; padding: 0; }
+  .slide, body > section {
+    scroll-snap-align: start;
+    scroll-snap-stop: always;
+    min-height: 100vh;
+  }
+</style>`;
+
+
+export function DeckFrame({ html, onFullscreen }) {
+  /**
+   * The shell goes in before </body> so its rules land after the deck's.
+   *
+   * A generation cut off at its token ceiling has no </body> — and worse,
+   * usually ends inside an open tag, so anything appended after it is
+   * swallowed by that tag. Closing the open elements first is what makes
+   * a truncated deck still scroll and still show what it finished.
+   */
+  const raw = String(html || "");
+  const closed = /<\/body>/i.test(raw) ? raw : `${raw}\n</section></body></html>`;
+  const withShell = closed.replace(/<\/body>/i, `${DECK_SHELL}</body>`);
+
+  return (
+    <div className={s.deckWrap}>
+      {/*
+          sandbox="" — no scripts at all.
+
+          Paging needed code in the frame; scrolling does not, so the
+          deck now runs with everything switched off. It is model-written
+          markup, and the least it can be trusted with is the most it
+          should be given.
+      */}
+      <iframe
+        className={s.deckFrame}
+        title="Presentation"
+        srcDoc={withShell}
+        sandbox=""
+      />
+      {onFullscreen && (
+        <div className={s.deckBar}>
+          <button
+            type="button"
+            className={s.chipBtn}
+            onClick={() => onFullscreen(withShell)}
+          >
+            <Maximize2 size={14} /> Present
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ══ Pictures on the slides ═══════════════════════════════════════════
    A deck of coloured text boxes is not what a teacher means by a
    presentation. Every teaching slide already carries a "Show:" cue — a
@@ -118,15 +219,21 @@ function photoQuery(visual, title) {
 }
 
 function useSlideImage(visual, title, active) {
-  const [photo, setPhoto] = useState(null);
   const query = active ? photoQuery(visual, title) : "";
+  const [fetched, setFetched] = useState(null);
+
+  /**
+   * A cache hit is read during render, not set from an effect.
+   *
+   * Setting state synchronously inside an effect to replay something we
+   * already knew costs an extra render pass for every cached slide, and
+   * on a deck that is every slide after the first.
+   */
+  const cached = query && PHOTO_CACHE.has(query) ? PHOTO_CACHE.get(query) : undefined;
+  const photo = cached !== undefined ? cached : fetched;
 
   useEffect(() => {
-    if (!query) return;
-    if (PHOTO_CACHE.has(query)) {
-      setPhoto(PHOTO_CACHE.get(query));
-      return;
-    }
+    if (!query || PHOTO_CACHE.has(query)) return;
     let alive = true;
     (async () => {
       try {
@@ -134,7 +241,7 @@ function useSlideImage(visual, title, active) {
         const res = await api(`/api/images/search?q=${encodeURIComponent(query)}&per_page=3`);
         const found = res?.photos?.[0] || null;
         PHOTO_CACHE.set(query, found);
-        if (alive) setPhoto(found);
+        if (alive) setFetched(found);
       } catch {
         // A deck without a photograph is still a deck. Remember the miss so
         // a dead term is not asked for again on every re-render.
