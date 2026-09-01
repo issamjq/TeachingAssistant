@@ -5,7 +5,7 @@ import SuperAdminFriction from "@/views/SuperAdminFriction";
 // sa_gate('admin.friction') — a capability of its own rather than a
 // slice of admin.analytics, because these two reads carry names.
 export const metadata: Metadata = {
-  title: "Where they get stuck — Murchid",
+  title: "Friction — Murchid",
   robots: { index: false, follow: false },
 };
 

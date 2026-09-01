@@ -6,7 +6,7 @@ import SuperAdminConsole from "@/views/SuperAdminConsole";
 // re-checked server-side by requireRole() — so this segment carries no
 // authorisation logic of its own.
 export const metadata: Metadata = {
-  title: "Account access — Murchid",
+  title: "Accounts — Murchid",
   robots: { index: false, follow: false },
 };
 

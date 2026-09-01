@@ -99,9 +99,17 @@ super-admin **dashboard**.
   editor** (credits balance/allowance, plan, status, end date), and a
   read-only **inspector** ("view their work" — the honest form of
   impersonation in a direct-Supabase app; there is no session takeover).
-- **Usage & heatmaps** (`superadmin-product`) and **Where they get
-  stuck** (`superadmin-friction`) — the product telemetry, below.
-- **Roles & access** (`superadmin-roles`) — the capability grid, below.
+- **Usage** (`superadmin-product`) and **Friction**
+  (`superadmin-friction`) — the product telemetry, below.
+- **Roles** (`superadmin-roles`) — the capability grid, below.
+
+Sidebar labels are one word each and carry an icon. The rail is read at a
+glance and collapses to icons, so a label is a name, not a description —
+"Where they get stuck" truncated to "Where they g…" identifies nothing.
+The sentence version lives in each screen's own heading, which has room
+for it. The labels come from `nav.<key>` in `src/shared/i18n/en.ts`, which
+**wins over** the `label` in `src/config/nav.ts`: renaming a nav item and
+stopping at the config changes nothing on screen.
 
 ## Product telemetry (§95)
 
@@ -164,7 +172,7 @@ them were visible anywhere:
 Step 3 used to be a literal inside `admin_can()` — `p_cap IN
 ('admin.dashboard','admin.accounts')` — which made giving a new kind of
 staff member a new kind of access a migration. It is now a table, and
-**Roles & access** is the screen that edits it. Every cell also carries
+**Roles** is the screen that edits it. Every cell also carries
 the number of accounts that override it, because a grid saying "admins
 cannot touch billing" while four admins carry an override saying
 otherwise is a confident lie.
@@ -265,7 +273,7 @@ configuration: it is the identity the platform trusts before anything
 has been granted, and reading it from an env var would make a deploy
 setting able to mint a super admin. That account is `super_admin` on
 sight, including on a first-ever sign-in. Everyone else is granted the
-role by an existing super admin (**Account access → change role**) or by
+role by an existing super admin (**Accounts → change role**) or by
 `npm run db:superadmin`.
 
 Applying §36 also **demotes every other elevated account to `teacher`**

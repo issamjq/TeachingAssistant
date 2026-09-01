@@ -30,7 +30,7 @@ const TEACHER_NAV: NavSection[] = [
     section: "Overview",
     items: [
       { key: "dashboard", label: "Dashboard", icon: "dashboard" },
-      { key: "studio", label: "AI Studio", icon: "studio" },
+      { key: "studio", label: "Studio", icon: "studio" },
     ],
   },
   // "Planners" is everything the teacher sets ahead of time. Scheduler,
@@ -40,21 +40,21 @@ const TEACHER_NAV: NavSection[] = [
     section: "Planners",
     items: [
       { key: "planner", label: "Scheduler", icon: "scheduler" },
-      { key: "goals", label: "Goal planner", icon: "goals" },
-      { key: "library", label: "Template library", icon: "library" },
+      { key: "goals", label: "Goals", icon: "goals" },
+      { key: "library", label: "Templates", icon: "library" },
       { key: "lesson-plans", label: "Lessons", icon: "lessons" },
-      { key: "quizzes", label: "Quizzes & exams", icon: "quizzes" },
+      { key: "quizzes", label: "Quizzes", icon: "quizzes" },
       { key: "homework", label: "Homework", icon: "homework" },
       { key: "presentations", label: "Presentations", icon: "presentations" },
       { key: "activities", label: "Activities", icon: "activities" },
-      { key: "bulletin-board", label: "Bulletin board", icon: "bulletin" },
+      { key: "bulletin-board", label: "Bulletin", icon: "bulletin" },
     ],
   },
   {
     section: "Teacher",
     items: [
-      { key: "database", label: "My students", icon: "students" },
-      { key: "teaching-skills", label: "Teaching skills", icon: "skills" },
+      { key: "database", label: "Students", icon: "students" },
+      { key: "teaching-skills", label: "Skills", icon: "skills" },
       { key: "reports", label: "Reports", icon: "reports" },
     ],
   },
@@ -70,12 +70,12 @@ export const ADMIN_SURFACES: AdminSurface[] = [
   { cap: "admin.accounts",  key: "superadmin-console",   label: "Accounts", icon: "keys" },
   { cap: "admin.dashboard", key: "superadmin-students",  label: "Students", icon: "students" },
   { cap: "admin.dashboard", key: "superadmin-orgs",      label: "Organisations", icon: "orgs" },
-  { cap: "admin.analytics", key: "superadmin-product",   label: "Product analytics", icon: "activity" },
+  { cap: "admin.analytics", key: "superadmin-product",   label: "Usage", icon: "activity" },
   { cap: "admin.friction",  key: "superadmin-friction",  label: "Friction", icon: "friction" },
-  { cap: "admin.dashboard", key: "superadmin-usage",     label: "AI usage", icon: "reports" },
+  { cap: "admin.dashboard", key: "superadmin-usage",     label: "Tokens", icon: "tokens" },
   { cap: "admin.billing",   key: "superadmin-revenue",   label: "Revenue", icon: "coins" },
-  { cap: "admin.platform",  key: "superadmin-costs",     label: "Credit costs", icon: "coins" },
-  { cap: "admin.roles",     key: "superadmin-roles",     label: "Roles & access", icon: "shield" },
+  { cap: "admin.platform",  key: "superadmin-costs",     label: "Pricing", icon: "pricing" },
+  { cap: "admin.roles",     key: "superadmin-roles",     label: "Roles", icon: "shield" },
 ];
 
 // Defaults an admin has before the super admin customises anything —
@@ -143,7 +143,7 @@ const ADMIN_NAV: NavSection[] = [
 ];
 
 const DEV_NAV: NavSection[] = [
-  { section: "Dev", items: [{ key: "dev-console", label: "Dev console", icon: "dashboard" }] },
+  { section: "Dev", items: [{ key: "dev-console", label: "Console", icon: "terminal" }] },
 ];
 
 const SUPERADMIN_NAV: NavSection[] = [
@@ -151,8 +151,8 @@ const SUPERADMIN_NAV: NavSection[] = [
     section: "Platform",
     items: [
       { key: "superadmin-dashboard", label: "Dashboard", icon: "dashboard" },
-      { key: "superadmin-console", label: "Account access", icon: "keys" },
-      { key: "superadmin-roles", label: "Roles & access", icon: "shield" },
+      { key: "superadmin-console", label: "Accounts", icon: "keys" },
+      { key: "superadmin-roles", label: "Roles", icon: "shield" },
     ],
   },
   // The two screens that answer "is the product working for people",
@@ -161,8 +161,8 @@ const SUPERADMIN_NAV: NavSection[] = [
   {
     section: "Product",
     items: [
-      { key: "superadmin-product", label: "Usage & heatmaps", icon: "activity" },
-      { key: "superadmin-friction", label: "Where they get stuck", icon: "friction" },
+      { key: "superadmin-product", label: "Usage", icon: "activity" },
+      { key: "superadmin-friction", label: "Friction", icon: "friction" },
       { key: "superadmin-students", label: "Students", icon: "students" },
       { key: "superadmin-orgs", label: "Organisations", icon: "orgs" },
     ],
@@ -170,21 +170,24 @@ const SUPERADMIN_NAV: NavSection[] = [
   {
     section: "Money",
     items: [
-      { key: "superadmin-usage", label: "AI usage", icon: "reports" },
+      { key: "superadmin-usage", label: "Tokens", icon: "tokens" },
       { key: "superadmin-revenue", label: "Revenue", icon: "coins" },
-      { key: "superadmin-costs", label: "Credit costs", icon: "coins" },
+      { key: "superadmin-costs", label: "Pricing", icon: "pricing" },
     ],
   },
 ];
 
+// `letter` badges were the fallback for a rail with no icon of its own.
+// Both of these have one now, so the badge is a real mark rather than an
+// initial standing in for a missing one.
 const MOE_NAV: NavSection[] = [
-  { section: "Ministry", items: [{ key: "moe-console", label: "MoE console", letter: "M" }] },
+  { section: "Ministry", items: [{ key: "moe-console", label: "Dashboard", icon: "ministry" }] },
 ];
 
 // A student sees their own world, nothing else.
 const STUDENT_NAV: NavSection[] = [
   {
-    section: "My work",
+    section: "Work",
     items: [
       { key: "student-dashboard", label: "Dashboard", icon: "dashboard" },
       /**
@@ -202,7 +205,7 @@ const STUDENT_NAV: NavSection[] = [
 ];
 
 const OWNER_NAV: NavSection[] = [
-  { section: "Owner", items: [{ key: "owner-console", label: "Owner console", letter: "O" }] },
+  { section: "Owner", items: [{ key: "owner-console", label: "Dashboard", icon: "owner" }] },
 ];
 
 export const NAV_BY_ROLE: Record<Role, NavSection[]> = {

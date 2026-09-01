@@ -6,7 +6,7 @@ import SuperAdminRoles from "@/views/SuperAdminRoles";
 // capability that grants capabilities is the one nobody should be able to
 // grant themselves.
 export const metadata: Metadata = {
-  title: "Roles & access — Murchid",
+  title: "Roles — Murchid",
   robots: { index: false, follow: false },
 };
 

@@ -6,7 +6,7 @@ import SuperAdminUsage from "@/views/SuperAdminUsage";
 // re-gated by sa_gate('admin.dashboard') in the database — so this
 // segment carries no authorisation logic of its own.
 export const metadata: Metadata = {
-  title: "AI usage — Murchid",
+  title: "Tokens — Murchid",
   robots: { index: false, follow: false },
 };
 

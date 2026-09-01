@@ -44,6 +44,11 @@ import {
   Activity,
   TriangleAlert,
   ShieldCheck,
+  Landmark,
+  Briefcase,
+  Terminal,
+  Cpu,
+  Tag,
   type LucideIcon,
 } from "lucide-react";
 import { asRoles, clearRole, getRole, onRoleChange, ROLE_LABELS, setRole, syncRoleFromServer } from "@/lib/role";
@@ -114,6 +119,14 @@ const NAV_ICON: Record<string, LucideIcon> = {
   activity: Activity,
   friction: TriangleAlert,
   shield: ShieldCheck,
+  ministry: Landmark,
+  owner: Briefcase,
+  terminal: Terminal,
+  // Tokens and pricing both used to be `coins`, which made Revenue and
+  // Credit costs indistinguishable in a rail read at a glance. One is
+  // what the models burn, the other is the price list.
+  tokens: Cpu,
+  pricing: Tag,
 };
 
 function NavBadge({ letter, icon }: { letter?: string; icon?: string }) {

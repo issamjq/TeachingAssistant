@@ -6,7 +6,7 @@ import SuperAdminProduct from "@/views/SuperAdminProduct";
 // sa_click_heatmap RPC is re-gated by sa_gate('admin.analytics') in the
 // database — so this segment carries no authorisation logic of its own.
 export const metadata: Metadata = {
-  title: "Usage & heatmaps — Murchid",
+  title: "Usage — Murchid",
   robots: { index: false, follow: false },
 };
 

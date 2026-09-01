@@ -21,26 +21,51 @@ export const EN = {
   "nav.settings": "Settings",
   "nav.support": "Support",
   "nav.logout": "Log out",
-  "nav.goals": "Goal planner",
-  "nav.library": "Template library",
+  // Sidebar item labels. One word each, on purpose: the rail is read at a
+  // glance and collapses to icons, and "Where they get stuck" truncated to
+  // "Where they g…" names nothing. What the screen does at length belongs
+  // in its own heading, which has the room for it.
+  //
+  // These WIN over the `label` in config/nav.ts — navT(item.key, item.label)
+  // falls back to the config only where no key exists here. Renaming a nav
+  // item and stopping at nav.ts changes nothing on screen.
+  "nav.goals": "Goals",
+  "nav.library": "Templates",
   "nav.planner": "Scheduler",
-  "nav.bulletin-board": "Bulletin board",
+  "nav.bulletin-board": "Bulletin",
   "nav.lesson-plans": "Lessons",
-  "nav.quizzes": "Quizzes & exams",
+  "nav.quizzes": "Quizzes",
   "nav.homework": "Homework",
   "nav.presentations": "Presentations",
   "nav.activities": "Activities",
-  "nav.database": "My students",
-  "nav.teaching-skills": "Teaching skills",
+  "nav.database": "Students",
+  "nav.teaching-skills": "Skills",
   "nav.admin-console": "Teachers",
-  "nav.admin-dashboard": "Admin dashboard",
-  "nav.superadmin-console": "Account access",
+  "nav.admin-dashboard": "Dashboard",
+  "nav.superadmin-console": "Accounts",
   "nav.superadmin-dashboard": "Dashboard",
-  "nav.superadmin-accounts": "Account access",
-  "nav.dev-console": "Dev console",
-  "nav.moe-console": "MoE console",
-  "nav.owner-console": "Owner console",
+  "nav.superadmin-accounts": "Accounts",
+  "nav.superadmin-roles": "Roles",
+  "nav.superadmin-product": "Usage",
+  "nav.superadmin-friction": "Friction",
+  "nav.superadmin-students": "Students",
+  "nav.superadmin-orgs": "Organisations",
+  // Not "Usage": that is the product screen two rows up. This one is
+  // tokens against what we charged for them.
+  "nav.superadmin-usage": "Tokens",
+  "nav.superadmin-revenue": "Revenue",
+  "nav.superadmin-costs": "Pricing",
+  "nav.dev-console": "Console",
+  "nav.moe-console": "Dashboard",
+  "nav.owner-console": "Dashboard",
   "nav.account": "Account",
+  // Section headings.
+  "nav.platform": "Platform",
+  "nav.product": "Product",
+  "nav.money": "Money",
+  "nav.ministry": "Ministry",
+  "nav.owner": "Owner",
+  "nav.work": "Work",
   "rail.today": "Today",
   "rail.tomorrow": "Tomorrow",
   "rail.none": "No events scheduled",
@@ -57,7 +82,7 @@ export const EN = {
   "sort.longestDuration": "Longest duration",
   "bb.placeholders": "This still has {list} in it — the writer leaves a blank rather than inventing a date. Fill them in, or press Save again to post as is.",
   "nav.dashboard": "Dashboard",
-  "nav.studio": "AI Studio",
+  "nav.studio": "Studio",
   "nav.reports": "Reports",
   // role consoles — placeholder for moe/owner until business rules land
   "console.coming.moe.eyebrow": "Ministry of Education",

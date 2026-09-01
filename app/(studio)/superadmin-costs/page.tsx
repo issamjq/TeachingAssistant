@@ -6,7 +6,7 @@ import SuperAdminCosts from "@/views/SuperAdminCosts";
 // path is re-checked by is_super_admin() in the database — so this segment
 // carries no authorisation logic of its own.
 export const metadata: Metadata = {
-  title: "AI credit costs — Murchid",
+  title: "Pricing — Murchid",
   robots: { index: false, follow: false },
 };
 
