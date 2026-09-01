@@ -60,7 +60,19 @@ export type PermissionKey =
   | "data.library"
   | "account.edit_profile"
   | "account.change_plan"
-  | "account.invite_others";
+  | "account.invite_others"
+  // Platform capabilities. Unlike everything above — which describes what
+  // an account may do with its OWN work — these describe what it may do
+  // across every tenant, and each one gates a SECURITY DEFINER function
+  // in db/tune.sql, not just a hidden button.
+  | "admin.dashboard"
+  | "admin.accounts"
+  | "admin.analytics"
+  | "admin.friction"
+  | "admin.billing"
+  | "admin.platform"
+  | "admin.audit"
+  | "admin.roles";
 
 export type PermissionMap = Partial<Record<PermissionKey, boolean>>;
 

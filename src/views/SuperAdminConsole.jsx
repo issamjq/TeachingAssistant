@@ -151,7 +151,8 @@ export default function SuperAdminConsole() {
           </h2>
           <p className="text-muted mt-2">
             Create and manage accounts across the pyramid — admin, MoE, owner, teacher.
-            Permissions per role land here once each dashboard is scoped.
+            What each role can reach once it is assigned is set in{" "}
+            <em className="italic">Roles &amp; access</em>.
           </p>
         </div>
         <Button onClick={() => setEditing("new")}>
@@ -321,10 +322,17 @@ export default function SuperAdminConsole() {
           to a viewer who holds the matching capability, so a sub-admin
           granted just "accounts" doesn't meet a card that would 403.
           (A super admin holds every capability, so both show.) */}
-      {(me?.permissions?.["admin.platform"] || me?.permissions?.["admin.dashboard"]) && (
+      {(me?.permissions?.["admin.platform"] || me?.permissions?.["admin.audit"]) && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-6">
           {me?.permissions?.["admin.platform"] && <FeatureFlagsCard />}
-          {me?.permissions?.["admin.dashboard"] && <AuditTrailCard />}
+          {/* admin.audit, not admin.dashboard. The trail names an actor
+              and a subject for every privileged action taken on the
+              platform — which is a narrower thing to hand out than the
+              dashboards, and since db/tune.sql §95 it has its own
+              capability. Gating it on `dashboard` would have left that
+              capability switchable in Roles & access and attached to
+              nothing, which is worse than not offering it. */}
+          {me?.permissions?.["admin.audit"] && <AuditTrailCard />}
         </div>
       )}
 
@@ -595,7 +603,8 @@ function AccountModal({ row, onClose, onSaved }) {
           <p className="text-xs text-muted">
             Built-in dev / super admin emails set in code (<code>BUILTIN_DEV_EMAILS</code>,
             <code> BUILTIN_SUPER_ADMIN_EMAILS</code>) get their role re-applied on every sign-in.
-            Per-role permissions land once each dashboard is scoped.
+            What each role can reach by default is edited in{" "}
+            <strong className="font-medium text-ink-soft">Roles &amp; access</strong>.
           </p>
         </div>
       </div>

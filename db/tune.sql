@@ -11411,3 +11411,1149 @@ BEGIN
 
   RAISE NOTICE 'a pin no longer counts as an edit';
 END $$;
+
+
+-- ═══════════════════════════════════════════════════════════════════════
+-- §95  Product telemetry: what people use, and where they get stuck
+--
+-- Everything the super-admin console showed until now is an inventory:
+-- how many accounts, how many lessons, how many credits. None of it
+-- answers the two questions that decide what to build next —
+--
+--   which screens do teachers actually open, and
+--   where do they try something and fail?
+--
+-- Neither is derivable from the content tables. A lesson row proves a
+-- generation finished; it says nothing about the four teachers who
+-- opened the studio, clicked Generate, got an error and left. That
+-- evidence only exists if the browser records it, so this section adds
+-- the ledger it records into and the reads that turn it into a picture.
+--
+-- Three deliberate choices:
+--
+-- 1. NO PAGE CONTENT, EVER. app_events stores a section key, a stable
+--    element label, normalised click coordinates and a duration. It does
+--    not store what a teacher typed, the title of her lesson, or a URL
+--    with an id in it. A heatmap needs to know that "studio → generate"
+--    is where people rage-click; it does not need to know whose lesson.
+--
+-- 2. INSERT-ONLY FROM THE BROWSER. The table has RLS on and exactly one
+--    client-reachable writer — record_app_events(), which stamps
+--    auth.uid() itself, so a caller cannot attribute an event to someone
+--    else, and cannot read a single row back. Every read is a definer
+--    function behind sa_gate().
+--
+-- 3. AGGREGATE IN POSTGRES. The console asks for a 24×7 grid or a 20×20
+--    click bin, not for a million rows to bucket in JavaScript. Every
+--    read below returns the finished shape.
+--
+-- The capability half of this section is the other half of the ask: new
+-- surfaces need new grants, so role_capabilities makes the per-role
+-- defaults a table a super admin edits rather than a constant a deploy
+-- edits.
+-- ═══════════════════════════════════════════════════════════════════════
+
+-- ── the ledger ────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS public.app_events (
+  id          bigserial PRIMARY KEY,
+  user_id     uuid NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  session_id  text NOT NULL,
+  kind        text NOT NULL,
+  -- The studio section (`planner`, `studio`, `quizzes`, …). Deliberately
+  -- the nav key and not the URL: a URL carries ids, a nav key does not.
+  section     text,
+  -- A stable label for the thing interacted with — `button:generate`,
+  -- `nav:quizzes`. Written by the browser from a data attribute or the
+  -- element's own accessible name, truncated, never free-form content.
+  target      text,
+  -- Click position as a FRACTION of the viewport, so a 13" laptop and a
+  -- 27" monitor land in the same bin.
+  x           real,
+  y           real,
+  vw          integer,
+  vh          integer,
+  role        text,
+  -- Milliseconds for `dwell` / `slow`, a count for everything else.
+  value       numeric,
+  meta        jsonb NOT NULL DEFAULT '{}'::jsonb,
+  created_at  timestamptz NOT NULL DEFAULT now()
+);
+
+-- Kinds are a closed set. An unknown kind is a bug in the emitter, and a
+-- CHECK turns it into a failed insert instead of a row nothing reads.
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+     WHERE conrelid = 'public.app_events'::regclass AND conname = 'app_events_kind_check'
+  ) THEN
+    ALTER TABLE public.app_events ADD CONSTRAINT app_events_kind_check
+      CHECK (kind IN (
+        'view',        -- a section was opened
+        'dwell',       -- …and left after `value` ms
+        'click',       -- a normal, productive click
+        'rage_click',  -- the same spot hit repeatedly in under a second
+        'dead_click',  -- a click on something that did nothing
+        'error',       -- a thrown error or a failed request
+        'slow',        -- an operation that took `value` ms to answer
+        'action',      -- a named feature was used
+        'milestone',   -- an activation step was reached
+        'abandon'      -- a flow was started and left unfinished
+      ));
+  END IF;
+END $$;
+
+CREATE INDEX IF NOT EXISTS app_events_created_idx  ON public.app_events (created_at DESC);
+CREATE INDEX IF NOT EXISTS app_events_kind_idx     ON public.app_events (kind, created_at DESC);
+CREATE INDEX IF NOT EXISTS app_events_section_idx  ON public.app_events (section, created_at DESC);
+CREATE INDEX IF NOT EXISTS app_events_user_idx     ON public.app_events (user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS app_events_session_idx  ON public.app_events (session_id);
+
+ALTER TABLE public.app_events ENABLE ROW LEVEL SECURITY;
+
+-- No policy at all. Not an omission: the only writer is the definer
+-- function below and the only readers are the definer functions after
+-- it, so there is nothing a browser should be able to do to this table
+-- directly. RLS with no policy denies everything, which is the intent.
+REVOKE ALL ON public.app_events FROM anon, authenticated;
+
+
+-- ── the one writer ────────────────────────────────────────────────────
+--
+-- Takes a BATCH. A teacher moving through the studio generates a click
+-- every second or two; one round trip per click would be a self-inflicted
+-- load test, so the browser queues and flushes.
+--
+-- Every field that could be forged is overwritten here: user_id is
+-- auth.uid() and role is read from the row, not taken from the payload.
+-- Everything else is clamped or truncated rather than rejected — a
+-- malformed event must never fail a flush that also carries good ones,
+-- and losing telemetry is not worth an error in a teacher's console.
+CREATE OR REPLACE FUNCTION public.record_app_events(p_events jsonb)
+RETURNS jsonb
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE
+  uid uuid := (SELECT auth.uid());
+  r   text;
+  n   int;
+BEGIN
+  IF uid IS NULL THEN RETURN jsonb_build_object('ok', false, 'written', 0); END IF;
+  IF p_events IS NULL OR jsonb_typeof(p_events) <> 'array' THEN
+    RETURN jsonb_build_object('ok', true, 'written', 0);
+  END IF;
+
+  SELECT role INTO r FROM users WHERE id = uid;
+
+  INSERT INTO app_events (user_id, session_id, kind, section, target, x, y, vw, vh, role, value, meta)
+  SELECT
+    uid,
+    left(COALESCE(e ->> 'session_id', 'unknown'), 64),
+    e ->> 'kind',
+    left(NULLIF(e ->> 'section', ''), 64),
+    left(NULLIF(e ->> 'target', ''), 120),
+    -- Out-of-range coordinates are dropped, not clamped: a click at
+    -- x = 4.2 is a bug in the emitter, and clamping it to 1.0 would pile
+    -- a phantom column onto the right edge of every heatmap.
+    -- Every cast is regex-guarded first. A cast that throws would abort
+    -- the whole INSERT, and a flush is a batch: one malformed event
+    -- would take fifty good ones down with it.
+    CASE WHEN e ->> 'x' ~ '^[0-9]+(\.[0-9]+)?$' AND (e ->> 'x')::real <= 1
+         THEN (e ->> 'x')::real END,
+    CASE WHEN e ->> 'y' ~ '^[0-9]+(\.[0-9]+)?$' AND (e ->> 'y')::real <= 1
+         THEN (e ->> 'y')::real END,
+    CASE WHEN e ->> 'vw' ~ '^[0-9]{1,5}$' THEN LEAST((e ->> 'vw')::int, 10000) ELSE 0 END,
+    CASE WHEN e ->> 'vh' ~ '^[0-9]{1,5}$' THEN LEAST((e ->> 'vh')::int, 10000) ELSE 0 END,
+    r,
+    -- A dwell of eleven days is a laptop lid, not attention. Capped at
+    -- four hours so one forgotten tab cannot dominate an average.
+    CASE WHEN e ->> 'value' ~ '^[0-9]+(\.[0-9]+)?$'
+         THEN LEAST((e ->> 'value')::numeric, 14400000) ELSE 0 END,
+    COALESCE(e -> 'meta', '{}'::jsonb)
+  FROM jsonb_array_elements(
+         -- 200 is a flush that fell far behind, not normal traffic. Take
+         -- the first 200 and drop the rest rather than reject the call.
+         CASE WHEN jsonb_array_length(p_events) > 200
+              THEN (SELECT jsonb_agg(v) FROM (
+                      SELECT v FROM jsonb_array_elements(p_events) v LIMIT 200) s)
+              ELSE p_events END
+       ) e
+  WHERE e ->> 'kind' IN ('view','dwell','click','rage_click','dead_click',
+                         'error','slow','action','milestone','abandon');
+
+  GET DIAGNOSTICS n = ROW_COUNT;
+  RETURN jsonb_build_object('ok', true, 'written', n);
+END $$;
+
+REVOKE ALL ON FUNCTION public.record_app_events(jsonb) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.record_app_events(jsonb) TO authenticated;
+
+
+-- ── retention: the ledger is not an archive ───────────────────────────
+--
+-- Click coordinates six months old answer nothing anybody asks. Kept for
+-- 180 days by default, which covers a full academic term and a term-on-
+-- term comparison; nothing calls this automatically, for the same reason
+-- migrations are not automatic — a delete runs from a machine that can
+-- read the output.
+CREATE OR REPLACE FUNCTION public.sa_prune_events(p_days int DEFAULT 180)
+RETURNS jsonb
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE n int; keep int := GREATEST(COALESCE(p_days, 180), 30);
+BEGIN
+  PERFORM public.sa_gate('admin.platform');
+  DELETE FROM app_events WHERE created_at < now() - (keep || ' days')::interval;
+  GET DIAGNOSTICS n = ROW_COUNT;
+  PERFORM public.sa_write_audit('superadmin.events.prune', 'app_events', NULL,
+                                jsonb_build_object('days', keep, 'deleted', n));
+  RETURN jsonb_build_object('ok', true, 'deleted', n, 'kept_days', keep);
+END $$;
+
+
+-- ═══════════════════════════════════════════════════════════════════════
+-- Capabilities as data
+--
+-- admin_can() has carried the per-role defaults as a literal since §36:
+--   `p_cap IN ('admin.dashboard', 'admin.accounts')`
+-- which means granting a new kind of staff member a new kind of access
+-- is a migration. That was fine while there were four capabilities and
+-- one delegated role. It stops being fine the moment the console has a
+-- screen for editing access, because the screen would be editing
+-- per-account overrides on top of defaults nobody can see or move.
+--
+-- role_capabilities makes the default layer a table. Resolution order,
+-- unchanged in shape from §36 and only now written down:
+--
+--   1. super_admin / dev            → everything, always
+--   2. users.permissions[cap]       → the per-account override, if set
+--   3. role_capabilities[role][cap] → the role's default
+--   4. the §36 literal              → so a fresh database behaves the
+--                                     same before the seed runs
+--
+-- With one hard floor that no row in this table can lift: a `teacher` or
+-- a `student` never holds an admin.* capability. The table decides how
+-- much a staff member gets, not who counts as staff — otherwise a typo
+-- in the roles screen would hand the platform console to every user of
+-- the product.
+-- ═══════════════════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS public.role_capabilities (
+  role       text    NOT NULL,
+  cap        text    NOT NULL,
+  allowed    boolean NOT NULL DEFAULT false,
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  updated_by uuid,
+  PRIMARY KEY (role, cap)
+);
+
+ALTER TABLE public.role_capabilities ENABLE ROW LEVEL SECURITY;
+-- Same argument as app_events: definer functions only. A table that says
+-- who may administer the platform is the last one to hand a browser.
+REVOKE ALL ON public.role_capabilities FROM anon, authenticated;
+
+-- The staff roles. A capability row for anything outside this list is
+-- inert — see cap_is_grantable() below.
+CREATE OR REPLACE FUNCTION public.staff_roles()
+RETURNS text[]
+LANGUAGE sql IMMUTABLE
+AS $$ SELECT ARRAY['dev','super_admin','admin','moe','owner'] $$;
+
+CREATE OR REPLACE FUNCTION public.cap_is_grantable(p_role text, p_cap text)
+RETURNS boolean
+LANGUAGE sql IMMUTABLE
+AS $$
+  SELECT p_cap LIKE 'admin.%'
+     AND p_role = ANY (public.staff_roles());
+$$;
+
+-- Seed the defaults. ON CONFLICT DO NOTHING, so this states the starting
+-- position once and never overwrites a decision made in the console.
+INSERT INTO public.role_capabilities (role, cap, allowed) VALUES
+  -- A sub-admin runs the day-to-day: sees the platform, works accounts,
+  -- reads the product analytics. Money, platform switches, the audit
+  -- trail and the ability to grant access are all withheld until a super
+  -- admin says otherwise.
+  ('admin', 'admin.dashboard', true),
+  ('admin', 'admin.accounts',  true),
+  ('admin', 'admin.analytics', true),
+  ('admin', 'admin.friction',  true),
+  ('admin', 'admin.billing',   false),
+  ('admin', 'admin.platform',  false),
+  ('admin', 'admin.audit',     false),
+  ('admin', 'admin.roles',     false),
+  -- The ministry reads outcomes across schools. It has no business in
+  -- billing, in the platform switches, or in anyone's account.
+  ('moe',   'admin.dashboard', true),
+  ('moe',   'admin.analytics', false),
+  ('moe',   'admin.friction',  false),
+  ('moe',   'admin.accounts',  false),
+  ('moe',   'admin.billing',   false),
+  ('moe',   'admin.platform',  false),
+  ('moe',   'admin.audit',     false),
+  ('moe',   'admin.roles',     false),
+  -- The owner is the business view: the numbers and what drives them.
+  -- Reads billing, cannot change an account.
+  ('owner', 'admin.dashboard', true),
+  ('owner', 'admin.analytics', true),
+  ('owner', 'admin.friction',  true),
+  ('owner', 'admin.billing',   true),
+  ('owner', 'admin.accounts',  false),
+  ('owner', 'admin.platform',  false),
+  ('owner', 'admin.audit',     false),
+  ('owner', 'admin.roles',     false)
+ON CONFLICT (role, cap) DO NOTHING;
+
+
+-- ── admin_can(), now reading the table ────────────────────────────────
+--
+-- Identical answers to §36 for the four original capabilities and the
+-- `admin` role; the difference is that `moe` and `owner` can now hold a
+-- capability at all, and that what a role gets by default is a row
+-- rather than a line of PL/pgSQL.
+CREATE OR REPLACE FUNCTION public.admin_can(p_cap text)
+RETURNS boolean
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE r text; perms jsonb; override boolean; dflt boolean;
+BEGIN
+  IF public.is_super_admin() THEN RETURN true; END IF;
+
+  SELECT role, permissions INTO r, perms FROM users WHERE id = (SELECT auth.uid());
+  IF r IS NULL THEN RETURN false; END IF;
+
+  -- The floor. Whatever the JSONB says and whatever the table says, a
+  -- teacher is not an administrator.
+  IF NOT public.cap_is_grantable(r, p_cap) THEN RETURN false; END IF;
+
+  -- 2. the per-account override
+  BEGIN
+    override := (perms ->> p_cap)::boolean;
+  EXCEPTION WHEN others THEN
+    override := NULL;   -- a non-boolean in the JSONB is not a grant
+  END;
+  IF override IS NOT NULL THEN RETURN override; END IF;
+
+  -- 3. the role default
+  SELECT allowed INTO dflt FROM role_capabilities WHERE role = r AND cap = p_cap;
+  IF dflt IS NOT NULL THEN RETURN dflt; END IF;
+
+  -- 4. the §36 literal, for a database where the seed has not run
+  RETURN r = 'admin' AND p_cap IN ('admin.dashboard', 'admin.accounts');
+END $$;
+
+REVOKE ALL ON FUNCTION public.admin_can(text) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.admin_can(text) TO authenticated;
+
+
+-- ── the roles screen: read and write the default layer ────────────────
+--
+-- Returns the whole matrix in one call — every staff role crossed with
+-- every capability, each cell carrying the default AND how many accounts
+-- currently override it. A grid that shows the default without showing
+-- the exceptions to it invites exactly the wrong conclusion.
+CREATE OR REPLACE FUNCTION public.sa_role_matrix()
+RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE out jsonb;
+BEGIN
+  PERFORM public.sa_gate('admin.roles');
+  SELECT jsonb_build_object(
+    'roles', to_jsonb(public.staff_roles()),
+    'cells', (
+      SELECT COALESCE(jsonb_agg(row_to_json(t)), '[]'::jsonb) FROM (
+        SELECT rc.role, rc.cap, rc.allowed, rc.updated_at,
+               (SELECT count(*) FROM users u
+                 WHERE u.role = rc.role AND u.permissions ? rc.cap) AS overrides
+          FROM role_capabilities rc
+         ORDER BY rc.role, rc.cap
+      ) t
+    ),
+    -- Who holds each staff role right now, so the person editing the
+    -- grid can see the blast radius of the switch they are about to flip.
+    'holders', (
+      SELECT COALESCE(jsonb_object_agg(role, n), '{}'::jsonb)
+        FROM (SELECT role, count(*) n FROM users
+               WHERE role = ANY (public.staff_roles()) GROUP BY role) h
+    ),
+    'staff', (
+      SELECT COALESCE(jsonb_agg(row_to_json(t)), '[]'::jsonb) FROM (
+        SELECT f.id AS faculty_id, u.id AS user_id, u.email, u.role, u.sub_role,
+               COALESCE(NULLIF(trim(COALESCE(u.first_name,'') || ' ' || COALESCE(u.last_name,'')), ''),
+                        u.full_name, u.email) AS name,
+               u.account_status AS status, u.last_login_at,
+               COALESCE(u.permissions, '{}'::jsonb) AS permissions
+          FROM users u
+          LEFT JOIN faculty f ON f.user_id = u.id
+         WHERE u.role = ANY (public.staff_roles())
+         ORDER BY u.role, u.email
+      ) t
+    )
+  ) INTO out;
+  RETURN out;
+END $$;
+
+-- Flip one cell. Deliberately NOT gated on admin.roles: the capability
+-- that grants capabilities is the one a delegated admin must never hold,
+-- so this is sa_require() — a real super admin, no delegation. An admin
+-- granted admin.roles can SEE the matrix and grant the rest; they cannot
+-- move the defaults underneath it, and cannot grant themselves anything.
+CREATE OR REPLACE FUNCTION public.sa_set_role_cap(p_role text, p_cap text, p_allowed boolean)
+RETURNS jsonb
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+BEGIN
+  PERFORM public.sa_require();
+  IF NOT (p_role = ANY (public.staff_roles())) THEN
+    RAISE EXCEPTION 'not a staff role: %', p_role USING ERRCODE = '22023';
+  END IF;
+  IF p_cap NOT LIKE 'admin.%' THEN
+    RAISE EXCEPTION 'not a platform capability: %', p_cap USING ERRCODE = '22023';
+  END IF;
+  -- super_admin and dev pass every gate before this table is consulted,
+  -- so a row for them would be a control that does nothing.
+  IF p_role IN ('super_admin', 'dev') THEN
+    RAISE EXCEPTION '% holds every capability by definition', p_role USING ERRCODE = '22023';
+  END IF;
+
+  INSERT INTO role_capabilities (role, cap, allowed, updated_at, updated_by)
+  VALUES (p_role, p_cap, COALESCE(p_allowed, false), now(), (SELECT auth.uid()))
+  ON CONFLICT (role, cap) DO UPDATE
+    SET allowed = EXCLUDED.allowed, updated_at = now(), updated_by = EXCLUDED.updated_by;
+
+  PERFORM public.sa_write_audit('superadmin.role_cap.set', 'role_capabilities', NULL,
+                                jsonb_build_object('role', p_role, 'cap', p_cap, 'allowed', p_allowed));
+  RETURN jsonb_build_object('ok', true, 'role', p_role, 'cap', p_cap, 'allowed', COALESCE(p_allowed, false));
+END $$;
+
+-- Clear a per-account override so the account falls back to its role's
+-- default. The drawer's matrix can only set true or false; without this
+-- there is no way back to "whatever the role says".
+CREATE OR REPLACE FUNCTION public.sa_clear_account_cap(p_faculty uuid, p_cap text)
+RETURNS jsonb
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE uid uuid;
+BEGIN
+  PERFORM public.sa_require();
+  uid := public.sa_user_of(p_faculty);
+  IF uid IS NULL THEN RAISE EXCEPTION 'account not found'; END IF;
+  UPDATE users SET permissions = COALESCE(permissions, '{}'::jsonb) - p_cap, updated_at = now()
+   WHERE id = uid;
+  PERFORM public.sa_write_audit('superadmin.permissions.clear', 'users', uid,
+                                jsonb_build_object('cap', p_cap));
+  RETURN jsonb_build_object('ok', true);
+END $$;
+
+-- What the CALLER holds. The studio shell asks this on hydration so the
+-- rail renders exactly the surfaces the gates will actually let through
+-- — the alternative is a nav item that 403s when clicked.
+CREATE OR REPLACE FUNCTION public.my_capabilities()
+RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE out jsonb; c text;
+BEGIN
+  out := '{}'::jsonb;
+  FOREACH c IN ARRAY ARRAY['admin.dashboard','admin.accounts','admin.billing',
+                           'admin.platform','admin.analytics','admin.friction',
+                           'admin.audit','admin.roles']
+  LOOP
+    out := out || jsonb_build_object(c, public.admin_can(c));
+  END LOOP;
+  RETURN out;
+END $$;
+
+REVOKE ALL ON FUNCTION public.sa_role_matrix()                    FROM PUBLIC, anon;
+REVOKE ALL ON FUNCTION public.sa_set_role_cap(text, text, boolean) FROM PUBLIC, anon;
+REVOKE ALL ON FUNCTION public.sa_clear_account_cap(uuid, text)     FROM PUBLIC, anon;
+REVOKE ALL ON FUNCTION public.my_capabilities()                    FROM PUBLIC, anon;
+REVOKE ALL ON FUNCTION public.sa_prune_events(int)                 FROM PUBLIC, anon;
+REVOKE ALL ON FUNCTION public.staff_roles()                        FROM PUBLIC, anon;
+REVOKE ALL ON FUNCTION public.cap_is_grantable(text, text)         FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.sa_role_matrix()                    TO authenticated;
+GRANT EXECUTE ON FUNCTION public.sa_set_role_cap(text, text, boolean) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.sa_clear_account_cap(uuid, text)     TO authenticated;
+GRANT EXECUTE ON FUNCTION public.my_capabilities()                    TO authenticated;
+GRANT EXECUTE ON FUNCTION public.sa_prune_events(int)                 TO authenticated;
+GRANT EXECUTE ON FUNCTION public.staff_roles()                        TO authenticated;
+GRANT EXECUTE ON FUNCTION public.cap_is_grantable(text, text)         TO authenticated;
+
+
+-- ═══════════════════════════════════════════════════════════════════════
+-- The reads: usage, heat, friction, funnel, adoption, retention
+--
+-- All gated on admin.analytics except the friction pair, which is
+-- admin.friction — the split exists because "which screens are busy" is
+-- a product question anyone on staff can see, while "these six named
+-- teachers are failing" is closer to support and worth granting
+-- separately.
+-- ═══════════════════════════════════════════════════════════════════════
+
+-- ── the headline numbers ──────────────────────────────────────────────
+CREATE OR REPLACE FUNCTION public.sa_product_overview(p_days int DEFAULT 30)
+RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE out jsonb; d int := LEAST(GREATEST(COALESCE(p_days, 30), 1), 365); since timestamptz;
+BEGIN
+  PERFORM public.sa_gate('admin.analytics');
+  since := now() - (d || ' days')::interval;
+
+  SELECT jsonb_build_object(
+    -- Telemetry health first. Every number under it is a lie if the
+    -- browser stopped reporting, and "0 rage clicks" reads like good
+    -- news, so the console needs to be able to tell the two apart.
+    'telemetry', jsonb_build_object(
+      'events',      (SELECT count(*) FROM app_events WHERE created_at > since),
+      'last_event',  (SELECT max(created_at) FROM app_events),
+      'first_event', (SELECT min(created_at) FROM app_events),
+      'reporting_users_24h',
+        (SELECT count(DISTINCT user_id) FROM app_events WHERE created_at > now() - INTERVAL '24 hours')
+    ),
+    'active', jsonb_build_object(
+      'dau', (SELECT count(DISTINCT user_id) FROM app_events WHERE created_at > now() - INTERVAL '1 day'),
+      'wau', (SELECT count(DISTINCT user_id) FROM app_events WHERE created_at > now() - INTERVAL '7 days'),
+      'mau', (SELECT count(DISTINCT user_id) FROM app_events WHERE created_at > now() - INTERVAL '30 days'),
+      'in_window', (SELECT count(DISTINCT user_id) FROM app_events WHERE created_at > since)
+    ),
+    'sessions', (
+      SELECT jsonb_build_object(
+        'count', count(*),
+        'avg_minutes', ROUND((COALESCE(avg(span_ms), 0) / 60000.0)::numeric, 1),
+        'median_minutes', ROUND(
+          (COALESCE(percentile_cont(0.5) WITHIN GROUP (ORDER BY span_ms), 0) / 60000.0)::numeric, 1),
+        'avg_sections', ROUND(COALESCE(avg(sections), 0), 1)
+      )
+      FROM (
+        SELECT session_id,
+               EXTRACT(EPOCH FROM (max(created_at) - min(created_at))) * 1000 AS span_ms,
+               count(DISTINCT section) FILTER (WHERE section IS NOT NULL) AS sections
+          FROM app_events WHERE created_at > since GROUP BY session_id
+      ) s
+    ),
+    -- The friction total, and the rate it happens at. A raw count grows
+    -- with the user base; the rate is the number that means something.
+    'friction', (
+      SELECT jsonb_build_object(
+        'rage',   count(*) FILTER (WHERE kind = 'rage_click'),
+        'dead',   count(*) FILTER (WHERE kind = 'dead_click'),
+        'errors', count(*) FILTER (WHERE kind = 'error'),
+        'slow',   count(*) FILTER (WHERE kind = 'slow'),
+        'abandoned', count(*) FILTER (WHERE kind = 'abandon'),
+        'per_100_views', ROUND(
+          100.0 * count(*) FILTER (WHERE kind IN ('rage_click','dead_click','error','abandon'))
+          / GREATEST(count(*) FILTER (WHERE kind = 'view'), 1), 1)
+      ) FROM app_events WHERE created_at > since
+    ),
+    'window_days', d
+  ) INTO out;
+  RETURN out;
+END $$;
+
+
+-- ── what people are using: one row per screen ─────────────────────────
+--
+-- Views, uniques, how long they stay, and how much goes wrong there.
+-- Sorted by views, which is what "what are people using" literally
+-- means; the friction column beside it is what makes the answer useful.
+CREATE OR REPLACE FUNCTION public.sa_screen_usage(p_days int DEFAULT 30)
+RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE out jsonb; d int := LEAST(GREATEST(COALESCE(p_days, 30), 1), 365); since timestamptz;
+BEGIN
+  PERFORM public.sa_gate('admin.analytics');
+  since := now() - (d || ' days')::interval;
+
+  SELECT COALESCE(jsonb_agg(row_to_json(t) ORDER BY t.views DESC), '[]'::jsonb) INTO out
+  FROM (
+    SELECT
+      section,
+      count(*) FILTER (WHERE kind = 'view')                       AS views,
+      count(DISTINCT user_id)                                     AS users,
+      count(DISTINCT session_id)                                  AS sessions,
+      count(*) FILTER (WHERE kind = 'click')                      AS clicks,
+      count(*) FILTER (WHERE kind = 'rage_click')                 AS rage,
+      count(*) FILTER (WHERE kind = 'dead_click')                 AS dead,
+      count(*) FILTER (WHERE kind = 'error')                      AS errors,
+      count(*) FILTER (WHERE kind = 'abandon')                    AS abandons,
+      ROUND(COALESCE(avg(value) FILTER (WHERE kind = 'dwell' AND value > 0), 0) / 1000.0, 1)
+                                                                  AS avg_seconds,
+      -- Median beats the mean here for the same reason it does for
+      -- salaries: one teacher who left a tab open all afternoon shifts
+      -- an average and does not shift this.
+      ROUND((COALESCE(percentile_cont(0.5) WITHIN GROUP (
+              ORDER BY value) FILTER (WHERE kind = 'dwell' AND value > 0), 0) / 1000.0)::numeric, 1)
+                                                                  AS median_seconds,
+      max(created_at)                                             AS last_seen
+    FROM app_events
+    WHERE created_at > since AND section IS NOT NULL
+    GROUP BY section
+  ) t;
+  RETURN out;
+END $$;
+
+
+-- ── heatmap 1: when the product is used ───────────────────────────────
+--
+-- Day-of-week × hour-of-day. This is the one that tells you whether
+-- teachers plan on Sunday evening or during a free period on Tuesday,
+-- and it is the difference between scheduling a deploy window and
+-- guessing at one. Timestamps are rendered in Gulf Standard Time, since
+-- that is where the users are and UTC would smear a school day across
+-- two rows.
+CREATE OR REPLACE FUNCTION public.sa_activity_heatmap(p_days int DEFAULT 30, p_tz text DEFAULT 'Asia/Dubai')
+RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE out jsonb; d int := LEAST(GREATEST(COALESCE(p_days, 30), 1), 365);
+        tz text := COALESCE(NULLIF(p_tz, ''), 'Asia/Dubai'); since timestamptz;
+BEGIN
+  PERFORM public.sa_gate('admin.analytics');
+  since := now() - (d || ' days')::interval;
+
+  -- A timezone the caller invented would raise mid-query; check it here
+  -- so the console gets a clean message instead of a 22023 from EXTRACT.
+  BEGIN
+    PERFORM now() AT TIME ZONE tz;
+  EXCEPTION WHEN others THEN
+    tz := 'Asia/Dubai';
+  END;
+
+  SELECT jsonb_build_object(
+    'tz', tz,
+    'window_days', d,
+    'max', COALESCE(max(n), 0),
+    'total', COALESCE(sum(n), 0),
+    'cells', COALESCE(jsonb_agg(jsonb_build_object('dow', dow, 'hour', hr, 'n', n, 'users', u)), '[]'::jsonb)
+  ) INTO out
+  FROM (
+    SELECT EXTRACT(DOW  FROM created_at AT TIME ZONE tz)::int AS dow,
+           EXTRACT(HOUR FROM created_at AT TIME ZONE tz)::int AS hr,
+           count(*) AS n,
+           count(DISTINCT user_id) AS u
+      FROM app_events
+     WHERE created_at > since AND kind IN ('view','click','action')
+     GROUP BY 1, 2
+  ) g;
+  RETURN out;
+END $$;
+
+
+-- ── heatmap 2: where on the screen people click ───────────────────────
+--
+-- The literal heatmap. Coordinates arrive normalised, so binning them
+-- into a grid gives a density map that overlays any screen size. The
+-- companion `targets` list is the same data by element name, which is
+-- what you actually act on — a bright patch tells you where, a target
+-- name tells you what.
+CREATE OR REPLACE FUNCTION public.sa_click_heatmap(
+  p_section text, p_days int DEFAULT 30, p_bins int DEFAULT 24
+)
+RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE out jsonb;
+        d int := LEAST(GREATEST(COALESCE(p_days, 30), 1), 365);
+        b int := LEAST(GREATEST(COALESCE(p_bins, 24), 4), 60);
+        since timestamptz;
+BEGIN
+  PERFORM public.sa_gate('admin.analytics');
+  since := now() - (d || ' days')::interval;
+
+  SELECT jsonb_build_object(
+    'section', p_section,
+    'bins', b,
+    'window_days', d,
+    'total',  (SELECT count(*) FROM app_events
+                WHERE created_at > since AND x IS NOT NULL AND y IS NOT NULL
+                  AND (p_section IS NULL OR section = p_section)),
+    'views',  (SELECT count(*) FROM app_events
+                WHERE created_at > since AND kind = 'view'
+                  AND (p_section IS NULL OR section = p_section)),
+    'max',    COALESCE((SELECT max(n) FROM (
+                SELECT count(*) n FROM app_events
+                 WHERE created_at > since AND x IS NOT NULL AND y IS NOT NULL
+                   AND (p_section IS NULL OR section = p_section)
+                 GROUP BY LEAST(floor(x * b)::int, b - 1), LEAST(floor(y * b)::int, b - 1)) m), 0),
+    'cells', COALESCE((
+      SELECT jsonb_agg(jsonb_build_object('bx', bx, 'by', by, 'n', n, 'rage', rage))
+        FROM (
+          SELECT LEAST(floor(x * b)::int, b - 1) AS bx,
+                 LEAST(floor(y * b)::int, b - 1) AS by,
+                 count(*) AS n,
+                 count(*) FILTER (WHERE kind = 'rage_click') AS rage
+            FROM app_events
+           WHERE created_at > since AND x IS NOT NULL AND y IS NOT NULL
+             AND (p_section IS NULL OR section = p_section)
+           GROUP BY 1, 2
+        ) c), '[]'::jsonb),
+    'targets', COALESCE((
+      SELECT jsonb_agg(row_to_json(t) ORDER BY t.clicks DESC)
+        FROM (
+          SELECT target,
+                 count(*) FILTER (WHERE kind IN ('click','rage_click','dead_click')) AS clicks,
+                 count(*) FILTER (WHERE kind = 'rage_click') AS rage,
+                 count(*) FILTER (WHERE kind = 'dead_click') AS dead,
+                 count(DISTINCT user_id) AS users
+            FROM app_events
+           WHERE created_at > since AND target IS NOT NULL
+             AND (p_section IS NULL OR section = p_section)
+           GROUP BY target
+           ORDER BY clicks DESC
+           LIMIT 40
+        ) t), '[]'::jsonb),
+    -- Which screens have coordinates at all, so the picker only offers
+    -- sections there is something to draw for.
+    'sections', COALESCE((
+      SELECT jsonb_agg(row_to_json(s) ORDER BY s.n DESC)
+        FROM (SELECT section, count(*) n FROM app_events
+               WHERE created_at > since AND x IS NOT NULL AND section IS NOT NULL
+               GROUP BY section) s), '[]'::jsonb)
+  ) INTO out;
+  RETURN out;
+END $$;
+
+
+-- ── where people get stuck, ranked ────────────────────────────────────
+--
+-- One row per (screen, thing), ordered by a weighted score rather than a
+-- raw count, because the four signals are not worth the same. An error
+-- stopped the teacher; a rage click means she thought it was broken; a
+-- dead click means the affordance lied; a slow response is only friction
+-- past a couple of seconds. Weighting them 5/3/2/1 keeps a screen with
+-- one genuine failure above a screen with a dozen impatient clicks.
+CREATE OR REPLACE FUNCTION public.sa_friction(p_days int DEFAULT 30, p_limit int DEFAULT 40)
+RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE out jsonb;
+        d int := LEAST(GREATEST(COALESCE(p_days, 30), 1), 365);
+        n int := LEAST(GREATEST(COALESCE(p_limit, 40), 1), 200);
+        since timestamptz;
+BEGIN
+  PERFORM public.sa_gate('admin.friction');
+  since := now() - (d || ' days')::interval;
+
+  SELECT jsonb_build_object(
+    'points', COALESCE((
+      SELECT jsonb_agg(row_to_json(t) ORDER BY t.score DESC)
+        FROM (
+          SELECT
+            section,
+            COALESCE(target, '(anywhere on the screen)') AS target,
+            count(*) FILTER (WHERE kind = 'error')      AS errors,
+            count(*) FILTER (WHERE kind = 'rage_click') AS rage,
+            count(*) FILTER (WHERE kind = 'dead_click') AS dead,
+            count(*) FILTER (WHERE kind = 'abandon')    AS abandons,
+            count(*) FILTER (WHERE kind = 'slow')       AS slow,
+            count(DISTINCT user_id)                     AS users,
+            count(DISTINCT session_id)                  AS sessions,
+            ROUND(COALESCE(avg(value) FILTER (WHERE kind = 'slow'), 0)) AS avg_wait_ms,
+            -- The most recent example's message, so the row is a lead and
+            -- not just a tally. meta.message is written by the emitter and
+            -- is a class of failure, never a teacher's content.
+            (SELECT e2.meta ->> 'message' FROM app_events e2
+              WHERE e2.created_at > since AND e2.kind = 'error'
+                AND e2.section IS NOT DISTINCT FROM e.section
+                AND e2.target  IS NOT DISTINCT FROM e.target
+              ORDER BY e2.created_at DESC LIMIT 1)      AS last_message,
+            max(created_at)                             AS last_seen,
+            ( 5 * count(*) FILTER (WHERE kind = 'error')
+            + 3 * count(*) FILTER (WHERE kind = 'rage_click')
+            + 2 * count(*) FILTER (WHERE kind = 'dead_click')
+            + 3 * count(*) FILTER (WHERE kind = 'abandon')
+            + 1 * count(*) FILTER (WHERE kind = 'slow') ) AS score
+          FROM app_events e
+          WHERE created_at > since
+            AND kind IN ('error','rage_click','dead_click','abandon','slow')
+          GROUP BY section, target
+          ORDER BY score DESC
+          LIMIT n
+        ) t), '[]'::jsonb),
+    -- The slowest things in the product, separately. Waiting is not the
+    -- same failure as breaking, and the fix is not the same either.
+    'slowest', COALESCE((
+      SELECT jsonb_agg(row_to_json(t) ORDER BY t.p95_ms DESC)
+        FROM (
+          SELECT section, COALESCE(target, '—') AS target,
+                 count(*) AS n,
+                 ROUND(avg(value))                                             AS avg_ms,
+                 ROUND((percentile_cont(0.95) WITHIN GROUP (ORDER BY value))::numeric) AS p95_ms
+            FROM app_events
+           WHERE created_at > since AND kind = 'slow' AND value > 0
+           GROUP BY 1, 2
+          HAVING count(*) >= 3
+           ORDER BY p95_ms DESC
+           LIMIT 20
+        ) t), '[]'::jsonb),
+    'window_days', d
+  ) INTO out;
+  RETURN out;
+END $$;
+
+
+-- ── and WHO is stuck ──────────────────────────────────────────────────
+--
+-- The list to act on: named accounts hitting more friction than they are
+-- getting work done. A support queue that builds itself, and the reason
+-- admin.friction is a capability of its own — this one has people's
+-- names on it.
+CREATE OR REPLACE FUNCTION public.sa_stuck_users(p_days int DEFAULT 30, p_limit int DEFAULT 25)
+RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE out jsonb;
+        d int := LEAST(GREATEST(COALESCE(p_days, 30), 1), 365);
+        n int := LEAST(GREATEST(COALESCE(p_limit, 25), 1), 200);
+        since timestamptz;
+BEGIN
+  PERFORM public.sa_gate('admin.friction');
+  since := now() - (d || ' days')::interval;
+
+  SELECT COALESCE(jsonb_agg(row_to_json(t) ORDER BY t.friction DESC), '[]'::jsonb) INTO out
+  FROM (
+    SELECT
+      f.id AS faculty_id, u.id AS user_id, u.email, u.role,
+      COALESCE(NULLIF(trim(COALESCE(u.first_name,'') || ' ' || COALESCE(u.last_name,'')), ''),
+               u.full_name, u.email) AS name,
+      e.friction, e.errors, e.rage, e.dead, e.abandons, e.views, e.worst_section,
+      e.last_seen,
+      -- Friction against work done. Someone with 40 rough edges and 200
+      -- finished lessons is power-using the product; someone with 12 and
+      -- nothing to show for it is stuck, and only the ratio separates them.
+      (SELECT count(*) FROM ai_studio a WHERE a.faculty_id = f.id AND a.deleted_at IS NULL) AS work_items
+    FROM (
+      SELECT user_id,
+             count(*) FILTER (WHERE kind IN ('error','rage_click','dead_click','abandon')) AS friction,
+             count(*) FILTER (WHERE kind = 'error')      AS errors,
+             count(*) FILTER (WHERE kind = 'rage_click') AS rage,
+             count(*) FILTER (WHERE kind = 'dead_click') AS dead,
+             count(*) FILTER (WHERE kind = 'abandon')    AS abandons,
+             count(*) FILTER (WHERE kind = 'view')       AS views,
+             max(created_at)                             AS last_seen,
+             (SELECT e2.section FROM app_events e2
+               WHERE e2.user_id = ae.user_id AND e2.created_at > since
+                 AND e2.kind IN ('error','rage_click','dead_click','abandon')
+               GROUP BY e2.section ORDER BY count(*) DESC NULLS LAST LIMIT 1) AS worst_section
+        FROM app_events ae
+       WHERE created_at > since
+       GROUP BY user_id
+      HAVING count(*) FILTER (WHERE kind IN ('error','rage_click','dead_click','abandon')) > 0
+    ) e
+    JOIN users u ON u.id = e.user_id
+    LEFT JOIN faculty f ON f.user_id = u.id
+    ORDER BY e.friction DESC
+    LIMIT n
+  ) t;
+  RETURN out;
+END $$;
+
+
+-- ── the activation funnel ─────────────────────────────────────────────
+--
+-- Read from the CONTENT TABLES, not from telemetry, on purpose. A funnel
+-- built on events can only describe accounts that signed up after the
+-- events started being recorded; this one answers for every account the
+-- product has ever had, today, and it keeps answering if the emitter is
+-- ever switched off.
+--
+-- The steps are the shortest path to a teacher getting value: an account,
+-- a finished profile, a class of real students, a timetable, something
+-- generated, and a second visit. Each is the count of accounts in the
+-- cohort that ever reached it — not that reached it in order, because
+-- the order is our idea of the journey, not necessarily hers.
+CREATE OR REPLACE FUNCTION public.sa_journey(p_days int DEFAULT 90)
+RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE out jsonb; d int := LEAST(GREATEST(COALESCE(p_days, 90), 1), 3650); since timestamptz;
+BEGIN
+  PERFORM public.sa_gate('admin.analytics');
+  since := now() - (d || ' days')::interval;
+
+  -- One CTE, read six ways. A temp table would be the obvious shape for
+  -- this and is not available: the function is STABLE, and PostgreSQL
+  -- will not let a non-volatile function write, temp table or not.
+  WITH j AS (
+    SELECT f.id AS faculty_id, u.id AS user_id, f.created_at,
+           (u.onboarding_status = 'complete') AS onboarded,
+           EXISTS (SELECT 1 FROM students s         WHERE s.created_by = f.id) AS has_students,
+           EXISTS (SELECT 1 FROM schedule_entries e WHERE e.faculty_id = f.id) AS has_schedule,
+           EXISTS (SELECT 1 FROM ai_studio a        WHERE a.faculty_id = f.id
+                                                      AND a.deleted_at IS NULL) AS has_work,
+           -- "Came back" means a login recorded at least a day after the
+           -- account was made. last_login_at alone cannot say it: for a
+           -- teacher who signed up an hour ago it is simply the signup.
+           EXISTS (SELECT 1 FROM audit_log l
+                    WHERE l.actor_id = u.id AND l.action = 'auth.login'
+                      AND l.created_at > f.created_at + INTERVAL '20 hours') AS returned
+      FROM faculty f JOIN users u ON u.id = f.user_id
+     WHERE f.created_at > since AND COALESCE(u.role, 'teacher') = 'teacher'
+  ),
+  tot AS (SELECT count(*)::int AS n FROM j)
+  SELECT jsonb_build_object(
+    'cohort', (SELECT n FROM tot),
+    'window_days', d,
+    'steps', jsonb_build_array(
+      jsonb_build_object('key','signed_up','label','Signed up',
+                         'n', (SELECT n FROM tot),
+                         'hint','Accounts created in the window'),
+      jsonb_build_object('key','onboarded','label','Finished setting up',
+                         'n', (SELECT count(*) FROM j WHERE onboarded),
+                         'hint','Onboarding marked complete'),
+      jsonb_build_object('key','students','label','Added students',
+                         'n', (SELECT count(*) FROM j WHERE has_students),
+                         'hint','At least one student on the roster'),
+      jsonb_build_object('key','schedule','label','Built a timetable',
+                         'n', (SELECT count(*) FROM j WHERE has_schedule),
+                         'hint','At least one scheduled class'),
+      jsonb_build_object('key','generated','label','Generated something',
+                         'n', (SELECT count(*) FROM j WHERE has_work),
+                         'hint','A lesson, quiz, homework, deck or activity'),
+      jsonb_build_object('key','returned','label','Came back',
+                         'n', (SELECT count(*) FROM j WHERE returned),
+                         'hint','Signed in again a day or more later')
+    ),
+    -- The single most useful cut of it: who signed up, stopped somewhere,
+    -- and has since gone quiet. This is the list a founder reads. The
+    -- three-day floor keeps yesterday's signups out of it — they have
+    -- not stalled, they have simply not finished yet.
+    'stalled', COALESCE((
+      SELECT jsonb_agg(row_to_json(t) ORDER BY t.created_at DESC)
+        FROM (
+          SELECT j.faculty_id, u.email,
+                 COALESCE(NULLIF(trim(COALESCE(u.first_name,'') || ' ' || COALESCE(u.last_name,'')), ''),
+                          u.full_name, u.email) AS name,
+                 j.created_at, u.last_login_at,
+                 CASE WHEN NOT j.onboarded    THEN 'Never finished setting up'
+                      WHEN NOT j.has_students THEN 'No students on the roster'
+                      WHEN NOT j.has_schedule THEN 'No timetable'
+                      WHEN NOT j.has_work     THEN 'Never generated anything'
+                      ELSE 'Stopped coming back' END AS stopped_at
+            FROM j JOIN users u ON u.id = j.user_id
+           WHERE NOT (j.onboarded AND j.has_students AND j.has_schedule
+                      AND j.has_work AND j.returned)
+             AND j.created_at < now() - INTERVAL '3 days'
+           ORDER BY j.created_at DESC
+           LIMIT 50
+        ) t), '[]'::jsonb)
+  ) INTO out;
+  RETURN out;
+END $$;
+
+
+-- ── which features earn their keep ────────────────────────────────────
+--
+-- Two sources joined into one table, because neither is complete on its
+-- own. The content tables know what was CREATED, all the way back; the
+-- event ledger knows what was OPENED and TRIED, including the attempts
+-- that produced nothing. A feature people open constantly and finish
+-- rarely is the most interesting row on this screen, and it is invisible
+-- to either source alone.
+CREATE OR REPLACE FUNCTION public.sa_feature_adoption(p_days int DEFAULT 30)
+RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE out jsonb; d int := LEAST(GREATEST(COALESCE(p_days, 30), 1), 365);
+        since timestamptz; base int;
+BEGIN
+  PERFORM public.sa_gate('admin.analytics');
+  since := now() - (d || ' days')::interval;
+
+  -- The denominator: teachers who did anything at all in the window.
+  -- Adoption against the whole account list would flatter every feature
+  -- equally and mean nothing.
+  SELECT GREATEST(count(DISTINCT u.id), 1) INTO base
+    FROM users u
+   WHERE COALESCE(u.role,'teacher') = 'teacher'
+     AND (u.last_login_at > since
+          OR EXISTS (SELECT 1 FROM app_events e WHERE e.user_id = u.id AND e.created_at > since));
+
+  SELECT jsonb_build_object(
+    'active_base', base,
+    'window_days', d,
+    'features', COALESCE((
+      SELECT jsonb_agg(row_to_json(t) ORDER BY t.users DESC)
+        FROM (
+          SELECT
+            label,
+            sum(created)                      AS created,
+            sum(opens)                        AS opens,
+            count(DISTINCT uid)               AS users,
+            ROUND(100.0 * count(DISTINCT uid) / base, 1) AS adoption_pct,
+            -- Repeat use is the honest measure of whether it landed. A
+            -- feature every teacher tried once is a demo, not a habit.
+            count(DISTINCT uid) FILTER (WHERE created + opens > 2) AS repeat_users
+          FROM (
+            SELECT CASE a.type
+                     WHEN 'lesson_plan'  THEN 'Lesson plans'
+                     WHEN 'quiz'         THEN 'Quizzes'
+                     WHEN 'homework'     THEN 'Homework'
+                     WHEN 'presentation' THEN 'Presentations'
+                     WHEN 'activity'     THEN 'Activities'
+                     WHEN 'template'     THEN 'Templates'
+                     ELSE a.type END AS label,
+                   f.user_id AS uid, count(*)::bigint AS created, 0::bigint AS opens
+              FROM ai_studio a JOIN faculty f ON f.id = a.faculty_id
+             WHERE a.created_at > since AND a.deleted_at IS NULL
+             GROUP BY 1, 2
+            UNION ALL
+            SELECT COALESCE(e.meta ->> 'feature', e.target, e.section) AS label,
+                   e.user_id, 0::bigint, count(*)::bigint
+              FROM app_events e
+             WHERE e.created_at > since AND e.kind = 'action'
+             GROUP BY 1, 2
+          ) src
+          WHERE label IS NOT NULL
+          GROUP BY label
+          ORDER BY users DESC
+          LIMIT 40
+        ) t), '[]'::jsonb)
+  ) INTO out;
+  RETURN out;
+END $$;
+
+
+-- ── weekly retention, as a triangle ───────────────────────────────────
+--
+-- Signup week down the side, weeks-since across the top. Built from
+-- audit_log's auth.login rows UNION the event ledger, so it reads the
+-- whole history rather than only the period since telemetry was turned
+-- on — a cohort chart that starts empty tells you nothing for three
+-- months, which is exactly when you most want it.
+CREATE OR REPLACE FUNCTION public.sa_retention(p_weeks int DEFAULT 10)
+RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE out jsonb; w int := LEAST(GREATEST(COALESCE(p_weeks, 10), 2), 26);
+BEGIN
+  PERFORM public.sa_gate('admin.analytics');
+
+  WITH cohort AS (
+    SELECT u.id AS user_id, date_trunc('week', f.created_at) AS wk
+      FROM faculty f JOIN users u ON u.id = f.user_id
+     WHERE COALESCE(u.role,'teacher') = 'teacher'
+       AND f.created_at >= date_trunc('week', now()) - ((w - 1) || ' weeks')::interval
+  ),
+  sizes AS (SELECT wk, count(*)::int AS n FROM cohort GROUP BY wk),
+  -- Activity from both sources. audit_log reaches back to the first
+  -- sign-in the product ever had; app_events is sharper but only exists
+  -- from the day the emitter shipped. A cohort chart that starts empty
+  -- is useless for the three months you most want one.
+  activity AS (
+    SELECT actor_id AS user_id, created_at FROM audit_log
+     WHERE action IN ('auth.login','auth.signup') AND actor_id IS NOT NULL
+    UNION ALL
+    SELECT user_id, created_at FROM app_events
+  ),
+  grid AS (
+    SELECT c.wk, k.k,
+           count(DISTINCT a.user_id) AS active
+      FROM sizes c
+      CROSS JOIN generate_series(0, w - 1) AS k(k)
+      LEFT JOIN cohort m ON m.wk = c.wk
+      LEFT JOIN activity a
+             ON a.user_id = m.user_id
+            AND a.created_at >= c.wk + (k.k || ' weeks')::interval
+            AND a.created_at <  c.wk + ((k.k + 1) || ' weeks')::interval
+     GROUP BY c.wk, k.k
+  )
+  SELECT jsonb_build_object(
+    'weeks', w,
+    'cohorts', COALESCE(jsonb_agg(row_to_json(c) ORDER BY c.cohort_week), '[]'::jsonb)
+  ) INTO out
+  FROM (
+    SELECT to_char(s.wk, 'YYYY-MM-DD') AS cohort_week,
+           s.n AS size,
+           (SELECT jsonb_agg(jsonb_build_object(
+                     'week', g.k, 'n', g.active,
+                     'pct', ROUND(100.0 * g.active / GREATEST(s.n, 1))) ORDER BY g.k)
+              FROM grid g WHERE g.wk = s.wk) AS offsets
+      FROM sizes s
+  ) c;
+  RETURN out;
+END $$;
+
+
+-- ── grants ────────────────────────────────────────────────────────────
+--
+-- Revoke from anon first, every time. §83: Supabase re-runs its default
+-- GRANT EXECUTE … TO anon on every CREATE OR REPLACE, so a function that
+-- was correctly locked down yesterday is open again the moment its body
+-- is edited. These functions read every tenant's rows; anon must not be
+-- able to call one even to be refused by the gate.
+REVOKE ALL ON FUNCTION public.sa_product_overview(int)            FROM PUBLIC, anon;
+REVOKE ALL ON FUNCTION public.sa_screen_usage(int)                FROM PUBLIC, anon;
+REVOKE ALL ON FUNCTION public.sa_activity_heatmap(int, text)      FROM PUBLIC, anon;
+REVOKE ALL ON FUNCTION public.sa_click_heatmap(text, int, int)    FROM PUBLIC, anon;
+REVOKE ALL ON FUNCTION public.sa_friction(int, int)               FROM PUBLIC, anon;
+REVOKE ALL ON FUNCTION public.sa_stuck_users(int, int)            FROM PUBLIC, anon;
+REVOKE ALL ON FUNCTION public.sa_journey(int)                     FROM PUBLIC, anon;
+REVOKE ALL ON FUNCTION public.sa_feature_adoption(int)            FROM PUBLIC, anon;
+REVOKE ALL ON FUNCTION public.sa_retention(int)                   FROM PUBLIC, anon;
+
+GRANT EXECUTE ON FUNCTION public.sa_product_overview(int)         TO authenticated;
+GRANT EXECUTE ON FUNCTION public.sa_screen_usage(int)             TO authenticated;
+GRANT EXECUTE ON FUNCTION public.sa_activity_heatmap(int, text)   TO authenticated;
+GRANT EXECUTE ON FUNCTION public.sa_click_heatmap(text, int, int) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.sa_friction(int, int)            TO authenticated;
+GRANT EXECUTE ON FUNCTION public.sa_stuck_users(int, int)         TO authenticated;
+GRANT EXECUTE ON FUNCTION public.sa_journey(int)                  TO authenticated;
+GRANT EXECUTE ON FUNCTION public.sa_feature_adoption(int)         TO authenticated;
+GRANT EXECUTE ON FUNCTION public.sa_retention(int)                TO authenticated;
+
+
+-- ── prove it, rather than assume it ───────────────────────────────────
+--
+-- §86 is why this asserts: the file is append-only and re-run whole, so
+-- a section that quietly no-ops is worse than one that fails. The three
+-- things worth failing the migration over are the two that would be a
+-- security hole and the one that would be a silent hole in the data.
+DO $$
+DECLARE
+  v_anon   int;
+  v_policy int;
+  v_caps   int;
+BEGIN
+  -- 1. Nothing here is callable by an unauthenticated request.
+  SELECT count(*) INTO v_anon
+    FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+   WHERE n.nspname = 'public'
+     AND p.proname IN ('record_app_events','sa_product_overview','sa_screen_usage',
+                       'sa_activity_heatmap','sa_click_heatmap','sa_friction',
+                       'sa_stuck_users','sa_journey','sa_feature_adoption',
+                       'sa_retention','sa_role_matrix','sa_set_role_cap',
+                       'sa_clear_account_cap','sa_prune_events','admin_can')
+     AND has_function_privilege('anon', p.oid, 'EXECUTE');
+  IF v_anon > 0 THEN
+    RAISE EXCEPTION 'anon can execute % of the new functions — every one reads or writes across tenants', v_anon;
+  END IF;
+
+  -- 2. The two new tables are RLS-on with no policy, so PostgREST cannot
+  --    reach them at all. A policy appearing here later would be someone
+  --    opening the telemetry ledger or the capability grid to the browser.
+  SELECT count(*) INTO v_policy FROM pg_policies
+   WHERE schemaname = 'public' AND tablename IN ('app_events','role_capabilities');
+  IF v_policy > 0 THEN
+    RAISE EXCEPTION 'app_events / role_capabilities have % client policies; they are definer-only tables', v_policy;
+  END IF;
+  IF NOT (SELECT relrowsecurity FROM pg_class WHERE oid = 'public.app_events'::regclass) THEN
+    RAISE EXCEPTION 'RLS is off on app_events';
+  END IF;
+  IF NOT (SELECT relrowsecurity FROM pg_class WHERE oid = 'public.role_capabilities'::regclass) THEN
+    RAISE EXCEPTION 'RLS is off on role_capabilities';
+  END IF;
+
+  -- 3. The floor holds: no row in role_capabilities can make a teacher or
+  --    a student an administrator, whatever anyone types into the grid.
+  IF public.cap_is_grantable('teacher', 'admin.dashboard')
+     OR public.cap_is_grantable('student', 'admin.accounts') THEN
+    RAISE EXCEPTION 'cap_is_grantable would let an ordinary user hold a platform capability';
+  END IF;
+
+  SELECT count(*) INTO v_caps FROM role_capabilities;
+  RAISE NOTICE 'product telemetry ready; % role/capability defaults seeded', v_caps;
+END $$;

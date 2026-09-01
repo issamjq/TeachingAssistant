@@ -99,6 +99,115 @@ super-admin **dashboard**.
   editor** (credits balance/allowance, plan, status, end date), and a
   read-only **inspector** ("view their work" — the honest form of
   impersonation in a direct-Supabase app; there is no session takeover).
+- **Usage & heatmaps** (`superadmin-product`) and **Where they get
+  stuck** (`superadmin-friction`) — the product telemetry, below.
+- **Roles & access** (`superadmin-roles`) — the capability grid, below.
+
+## Product telemetry (§95)
+
+Everything above counts things that exist: accounts, lessons, credits,
+dirhams. None of it can say which screens teachers open or where they
+try something and fail, because that evidence is not in the content
+tables — a lesson row proves a generation finished and is silent about
+the four teachers who pressed Generate, got a 500 and left.
+
+`app_events` is where the browser writes it down.
+[`src/lib/telemetry.ts`](../src/lib/telemetry.ts) batches events and
+flushes them on a timer, at a size cap, and on `pagehide` — the last
+being the one that matters, since the session that ends in a rage-quit
+is the session worth having. `startTelemetry()` is mounted once by
+`StudioShell`, and `apiClient` reports every failed or slow request from
+the one choke point every call already passes through.
+
+**What it does not record.** No page content, no form values, no lesson
+titles or student names, and no URLs — a URL carries ids, so the section
+KEY is stored (`quizzes`, never `/quizzes/8f2c…`). A click's label comes
+from a button, link or nav item's own accessible name, capped at 80
+characters, never from an input. A heatmap needs to know that
+"studio → generate" is where people rage-click; whose lesson it was adds
+nothing to that answer and everything to the cost of holding it.
+
+**Where it lands.** `app_events` has RLS on and *no policy* — deliberately,
+like `audit_log`. The only writer is `record_app_events()`, which stamps
+`auth.uid()` itself, so a caller cannot attribute an event to anyone
+else and cannot read one back. Every read is a definer function behind
+`sa_gate()`. Retention is 180 days, trimmed by `sa_prune_events()`,
+which is manual for the same reason migrations are.
+
+The reads: `sa_product_overview`, `sa_screen_usage`,
+`sa_activity_heatmap` (day × hour), `sa_click_heatmap` (binned x/y plus
+the same clicks by control name), `sa_feature_adoption`, `sa_friction`,
+`sa_stuck_users`, `sa_journey` and `sa_retention`.
+
+The last two deliberately do **not** read the ledger. `sa_journey`
+derives the activation funnel from the content tables and
+`sa_retention` builds its cohorts from `audit_log`'s sign-in trail, so
+both answer for every account the product has ever had rather than only
+for those who arrived after telemetry shipped — a cohort chart that
+starts empty is useless for exactly the three months you most want one.
+
+Friction is ranked by a weighted score, not a raw count: 5 for an error,
+3 for a rage click, 3 for an abandoned flow, 2 for a dead click, 1 for a
+slow response. One thing that genuinely broke should outrank a dozen
+impatient taps.
+
+## Roles & access (§95)
+
+Access resolves in four steps, and until this screen existed only two of
+them were visible anywhere:
+
+1. `super_admin` / `dev` — everything, always
+2. `users.permissions[cap]` — the per-account override
+3. `role_capabilities[role][cap]` — the role's default
+4. deny
+
+Step 3 used to be a literal inside `admin_can()` — `p_cap IN
+('admin.dashboard','admin.accounts')` — which made giving a new kind of
+staff member a new kind of access a migration. It is now a table, and
+**Roles & access** is the screen that edits it. Every cell also carries
+the number of accounts that override it, because a grid saying "admins
+cannot touch billing" while four admins carry an override saying
+otherwise is a confident lie.
+
+The capability catalog, each gating real definer functions:
+
+| | |
+|---|---|
+| `admin.dashboard` | platform dashboards — accounts, students, orgs |
+| `admin.accounts` | manage accounts: suspend, role, delete |
+| `admin.analytics` | product analytics — heatmaps, usage, adoption |
+| `admin.friction` | friction and stuck users — **this one carries names** |
+| `admin.billing` | credits and subscriptions |
+| `admin.platform` | feature flags, credit costs, the billing switch |
+| `admin.audit` | the audit trail |
+| `admin.roles` | see and grant capabilities |
+
+`admin.friction` is split from `admin.analytics` on purpose. "The studio's
+Generate button is rage-clicked" is a product fact anyone on staff can
+see; "it is Fatima who tried nine times on Tuesday" is a support fact,
+and handing it to everyone who can read a dashboard is how a console
+stops being trusted.
+
+**Two floors, both in the database.** `cap_is_grantable()` refuses an
+`admin.*` capability to a `teacher` or a `student` whatever is written
+in the grid — the table decides how much a staff member gets, not who
+counts as staff. And `sa_set_role_cap()` is gated on `sa_require()`, not
+on `admin.roles`: a delegated admin granted the access screen can see
+the matrix and grant the rest, but cannot move the defaults underneath
+it and cannot grant themselves anything.
+
+`moe` and `owner` can now hold a capability at all, which they could not
+before. A grant appears in their sidebar as a **Platform** section
+alongside their own console — `platformNav()` in `src/config/nav.ts`.
+
+**One trap worth naming.** `/api/me` resolves the `admin.*` half of its
+permission map from `my_capabilities()`, which runs the same
+`admin_can()` the gates run — *not* from `ROLE_DEFAULTS` in
+`src/lib/permissions.js`. Resolving them from a constant would mean a
+super admin granting `admin` the billing capability watched the RPC
+start allowing it while the sidebar kept the link hidden. The constant
+survives only as the value the rail assumes for the moment before
+`/api/me` answers, so it must stay in step with the seeded rows.
 
 ## Applying it
 

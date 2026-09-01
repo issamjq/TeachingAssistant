@@ -70,9 +70,12 @@ export const ADMIN_SURFACES: AdminSurface[] = [
   { cap: "admin.accounts",  key: "superadmin-console",   label: "Accounts", icon: "keys" },
   { cap: "admin.dashboard", key: "superadmin-students",  label: "Students", icon: "students" },
   { cap: "admin.dashboard", key: "superadmin-orgs",      label: "Organisations", icon: "orgs" },
+  { cap: "admin.analytics", key: "superadmin-product",   label: "Product analytics", icon: "activity" },
+  { cap: "admin.friction",  key: "superadmin-friction",  label: "Friction", icon: "friction" },
   { cap: "admin.dashboard", key: "superadmin-usage",     label: "AI usage", icon: "reports" },
   { cap: "admin.billing",   key: "superadmin-revenue",   label: "Revenue", icon: "coins" },
   { cap: "admin.platform",  key: "superadmin-costs",     label: "Credit costs", icon: "coins" },
+  { cap: "admin.roles",     key: "superadmin-roles",     label: "Roles & access", icon: "shield" },
 ];
 
 // Defaults an admin has before the super admin customises anything —
@@ -81,8 +84,12 @@ export const ADMIN_SURFACES: AdminSurface[] = [
 export const DEFAULT_ADMIN_PERMS: Record<string, boolean> = {
   "admin.dashboard": true,
   "admin.accounts": true,
+  "admin.analytics": true,
+  "admin.friction": true,
   "admin.billing": false,
   "admin.platform": false,
+  "admin.audit": false,
+  "admin.roles": false,
 };
 
 type Perms = Record<string, boolean> | null | undefined;
@@ -105,6 +112,32 @@ export function adminHome(perms: Perms): string {
   return grantedSurfaces(perms)[0]?.key || "account";
 }
 
+/**
+ * The same surfaces, for a role that is NOT `admin`.
+ *
+ * `admin` is defined by its grants — take them away and there is no
+ * screen left, which is why adminNav() returns the whole sidebar. An MoE
+ * officer or an owner is different: they have a console of their own,
+ * and a platform capability is something ADDED to it. Since db/tune.sql
+ * §95 both can hold one, so both need somewhere for it to appear.
+ *
+ * Returns nothing at all when nothing is granted — the common case, and
+ * an empty "Platform" heading over no items is worse than no heading.
+ */
+export function platformNav(perms: Perms): NavSection[] {
+  const items = ADMIN_SURFACES.filter((s) => perms?.[s.cap]).map(({ key, label, icon }) => ({
+    key,
+    label,
+    icon,
+  }));
+  return items.length ? [{ section: "Platform", items }] : [];
+}
+
+/** URL sections those grants open up, on top of the role's own. */
+export function platformSections(perms: Perms): string[] {
+  return ADMIN_SURFACES.filter((s) => perms?.[s.cap]).map((s) => s.key);
+}
+
 const ADMIN_NAV: NavSection[] = [
   { section: "Admin", items: ADMIN_SURFACES.map(({ key, label, icon }) => ({ key, label, icon })) },
 ];
@@ -115,12 +148,28 @@ const DEV_NAV: NavSection[] = [
 
 const SUPERADMIN_NAV: NavSection[] = [
   {
-    section: "Super admin",
+    section: "Platform",
     items: [
       { key: "superadmin-dashboard", label: "Dashboard", icon: "dashboard" },
       { key: "superadmin-console", label: "Account access", icon: "keys" },
+      { key: "superadmin-roles", label: "Roles & access", icon: "shield" },
+    ],
+  },
+  // The two screens that answer "is the product working for people",
+  // kept apart from the ones that answer "how many of them are there".
+  // They are read at different times and by different people.
+  {
+    section: "Product",
+    items: [
+      { key: "superadmin-product", label: "Usage & heatmaps", icon: "activity" },
+      { key: "superadmin-friction", label: "Where they get stuck", icon: "friction" },
       { key: "superadmin-students", label: "Students", icon: "students" },
       { key: "superadmin-orgs", label: "Organisations", icon: "orgs" },
+    ],
+  },
+  {
+    section: "Money",
+    items: [
       { key: "superadmin-usage", label: "AI usage", icon: "reports" },
       { key: "superadmin-revenue", label: "Revenue", icon: "coins" },
       { key: "superadmin-costs", label: "Credit costs", icon: "coins" },
@@ -208,13 +257,22 @@ export const SECTIONS_BY_ROLE: Record<Role, Set<string>> = {
     "teaching-skills",
     "reports",
     "account",
-  , "plans", "credit-usage", "billing"]),
+    "plans",
+    "credit-usage",
+    "billing",
+  ]),
   admin: new Set([
     "superadmin-dashboard", "superadmin-console", "superadmin-students",
-    "superadmin-orgs", "superadmin-usage", "superadmin-revenue", "superadmin-costs", "account",
+    "superadmin-orgs", "superadmin-usage", "superadmin-revenue", "superadmin-costs",
+    "superadmin-product", "superadmin-friction", "superadmin-roles", "account",
   ]),
   dev: new Set(["dev-console", "account"]),
-  super_admin: new Set(["superadmin-dashboard", "superadmin-console", "superadmin-students", "superadmin-orgs", "superadmin-usage", "superadmin-revenue", "superadmin-costs", "account"]),
+  super_admin: new Set([
+    "superadmin-dashboard", "superadmin-console", "superadmin-roles",
+    "superadmin-product", "superadmin-friction", "superadmin-students",
+    "superadmin-orgs", "superadmin-usage", "superadmin-revenue",
+    "superadmin-costs", "account",
+  ]),
   moe: new Set(["moe-console", "account"]),
   owner: new Set(["owner-console", "account"]),
   student: new Set([

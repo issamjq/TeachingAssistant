@@ -77,10 +77,14 @@ export const PERMISSION_GROUPS = /** @type {PermissionGroup[]} */ ([
     roles: ["admin"],
     description: "Which platform controls this admin can use.",
     keys: [
-      { key: "admin.dashboard", label: "Platform dashboards (analytics)" },
+      { key: "admin.dashboard", label: "Platform dashboards (accounts, students, orgs)" },
       { key: "admin.accounts",  label: "Manage accounts (suspend, role, delete)" },
+      { key: "admin.analytics", label: "Product analytics — heatmaps, usage, adoption" },
+      { key: "admin.friction",  label: "Friction & stuck users (names attached)" },
       { key: "admin.billing",   label: "Billing — credits & subscriptions" },
       { key: "admin.platform",  label: "Platform settings — feature flags & credit costs" },
+      { key: "admin.audit",     label: "Audit trail — who did what" },
+      { key: "admin.roles",     label: "Roles & access — see and grant capabilities" },
     ],
   },
 ]);
@@ -116,12 +120,20 @@ export const ROLE_DEFAULTS = /** @type {Record<Role, PermissionMap>} */ ({
     "account.edit_profile": true,
     "account.change_plan":  false,
     "account.invite_others": true,
-    // Sub-admin capability defaults — MUST match admin_can() in
-    // db/tune.sql §36. Dashboards + accounts on; billing + platform off.
+    // Sub-admin capability defaults. These now MIRROR a table rather
+    // than define anything: since db/tune.sql §95 the authority is
+    // role_capabilities, editable from Roles & access without a deploy,
+    // and admin_can() reads it. What is left here is the value the
+    // sidebar assumes for the moment before /api/me answers, so it must
+    // match the seeded row or the rail flickers on every load.
     "admin.dashboard":      true,
     "admin.accounts":       true,
+    "admin.analytics":      true,
+    "admin.friction":       true,
     "admin.billing":        false,
     "admin.platform":       false,
+    "admin.audit":          false,
+    "admin.roles":          false,
   },
   moe: {
     "studio.lesson_plans":  false,

@@ -237,7 +237,18 @@ export async function getProfile() {
     // Resolved capability map — per-account overrides over role defaults.
     // Drives what a delegated sub-admin sees and can reach; the RPCs
     // re-check the same keys server-side.
-    permissions: resolvePermissions({ role: user.role, permissions: user.permissions }),
+    //
+    // The admin.* half comes from the DATABASE, not from the JS defaults.
+    // Since db/tune.sql §95 the role defaults live in role_capabilities,
+    // editable from Roles & access without a deploy — so resolving them
+    // here from a constant would mean a super admin granting `admin` the
+    // billing capability watched the RPC start allowing it while the
+    // sidebar kept the link hidden. my_capabilities() runs the same
+    // admin_can() the gates run, which is the only way the two agree.
+    permissions: {
+      ...resolvePermissions({ role: user.role, permissions: user.permissions }),
+      ...(await platformCapabilities()),
+    },
     onboarding_status: user.onboarding_status,
     staff_id: fac.staff_id,
     // The renames the screens do not know about.
@@ -259,6 +270,24 @@ export async function getProfile() {
     created_at: fac.created_at,
     updated_at: fac.updated_at,
   };
+}
+
+/**
+ * The caller's platform capabilities, straight from the gate function.
+ *
+ * Best-effort by design: on a database where §95 has not been applied
+ * the RPC does not exist, and the honest fallback is the JS defaults
+ * already spread in above rather than an /api/me that fails outright —
+ * a teacher signing in must not be blocked by a console's migration.
+ */
+async function platformCapabilities(): Promise<Record<string, boolean>> {
+  try {
+    const { data, error } = await supabase.rpc("my_capabilities");
+    if (error || !data || typeof data !== "object") return {};
+    return data as Record<string, boolean>;
+  } catch {
+    return {};
+  }
 }
 
 const USER_FIELDS = ["first_name", "last_name", "email", "phone", "avatar_url", "locale"];

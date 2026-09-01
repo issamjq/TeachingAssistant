@@ -119,6 +119,75 @@ export async function resolveSuperadmin(
       return yes(await rpc("sa_set_billing", { p_enabled: !!body?.enabled }));
   }
 
+  /**
+   * Product analytics (db/tune.sql §95). Everything here reads the
+   * event ledger the browser writes through lib/telemetry.ts, plus the
+   * content tables for the parts that must answer for accounts older
+   * than the ledger — the funnel and the retention grid.
+   */
+  if (a === "product") {
+    const days = int(q.get("days"), 30);
+    if (b === "overview" && method === "GET")
+      return yes(await rpc("sa_product_overview", { p_days: days }));
+    if (b === "screens" && method === "GET")
+      return yes(await rpc("sa_screen_usage", { p_days: days }));
+    if (b === "activity-heatmap" && method === "GET")
+      return yes(await rpc("sa_activity_heatmap", {
+        p_days: days,
+        p_tz: q.get("tz") || "Asia/Dubai",
+      }));
+    if (b === "click-heatmap" && method === "GET")
+      return yes(await rpc("sa_click_heatmap", {
+        // No section means every screen at once, which is the right
+        // default: the first question is "where does anyone click", and
+        // picking a screen before seeing that is guessing.
+        p_section: q.get("section") || null,
+        p_days: days,
+        p_bins: int(q.get("bins"), 24),
+      }));
+    if (b === "adoption" && method === "GET")
+      return yes(await rpc("sa_feature_adoption", { p_days: days }));
+    if (b === "journey" && method === "GET")
+      return yes(await rpc("sa_journey", { p_days: int(q.get("days"), 90) }));
+    if (b === "retention" && method === "GET")
+      return yes(await rpc("sa_retention", { p_weeks: int(q.get("weeks"), 10) }));
+  }
+
+  // Friction is its own capability, not a slice of analytics: these two
+  // have people's names on them.
+  if (a === "friction" && !b && method === "GET")
+    return yes(await rpc("sa_friction", {
+      p_days: int(q.get("days"), 30),
+      p_limit: int(q.get("limit"), 40),
+    }));
+  if (a === "stuck-users" && method === "GET")
+    return yes(await rpc("sa_stuck_users", {
+      p_days: int(q.get("days"), 30),
+      p_limit: int(q.get("limit"), 25),
+    }));
+
+  /**
+   * Roles and capabilities. The matrix read is gated on admin.roles so a
+   * trusted admin can be given the access screen; every WRITE below is
+   * sa_require() in the database — a super admin, no delegation — because
+   * the capability that grants capabilities is the one nobody should be
+   * able to grant themselves.
+   */
+  if (a === "roles") {
+    if (!b && method === "GET") return yes(await rpc("sa_role_matrix"));
+    if (b === "cap" && method === "PATCH")
+      return yes(await rpc("sa_set_role_cap", {
+        p_role: body?.role,
+        p_cap: body?.cap,
+        p_allowed: !!body?.allowed,
+      }));
+  }
+
+  // Housekeeping: the event ledger keeps 180 days, and this is what
+  // trims it. Deliberately manual — see sa_prune_events.
+  if (a === "prune-events" && method === "POST")
+    return yes(await rpc("sa_prune_events", { p_days: Number(body?.days) || 180 }));
+
   if (a === "flags") {
     if (!b && method === "GET") return yes(await rpc("sa_flags"));
     if (b && method === "PATCH")
@@ -162,6 +231,12 @@ export async function resolveSuperadmin(
       return yes(await rpc("sa_account_content", { p_faculty: b, p_limit: int(q.get("limit"), 40) }));
     if (c === "permissions" && method === "PATCH")
       return yes(await rpc("sa_set_permissions", { p_faculty: b, p_perms: body?.permissions ?? {} }));
+    // Remove one key so the account falls back to its role's default.
+    // The matrix can only set true or false; without this there is no
+    // way back to "whatever the role says", and an account silently
+    // pinned to an old default is the bug that outlives the decision.
+    if (c === "permissions" && method === "DELETE")
+      return yes(await rpc("sa_clear_account_cap", { p_faculty: b, p_cap: body?.cap }));
     if (c === "credits" && method === "PATCH")
       return yes(await rpc("sa_adjust_credits", {
         p_faculty: b,

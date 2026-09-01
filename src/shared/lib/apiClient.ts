@@ -129,10 +129,30 @@ function asApiError(err: any): ApiError {
   return new ApiError(message, status, err?.code);
 }
 
+/**
+ * Tell the telemetry ledger that a request failed, or that it made
+ * someone wait.
+ *
+ * Here rather than in each screen because this is the only choke point
+ * every call already passes through — instrumenting 47 components would
+ * have missed some, and the ones it missed would be the ones nobody
+ * looks at, which are exactly where a silent failure lives.
+ *
+ * The path is recorded, never the body or the response. Loaded lazily so
+ * a module importing `api` outside React does not pull Supabase in, and
+ * wrapped so a telemetry fault can never fail a real request.
+ */
+function report(fn: "trackError" | "trackTiming", a: string, b: string | number): void {
+  import("@/lib/telemetry")
+    .then((tm) => (fn === "trackError" ? tm.trackError(a, String(b)) : tm.trackTiming(a, Number(b))))
+    .catch(() => {});
+}
+
 export async function api<TResponse = unknown, TBody = unknown>(
   path: string,
   { method = "GET", body, signal }: ApiOptions<TBody> = {}
 ): Promise<TResponse> {
+  const startedAt = Date.now();
   // Supabase first. A path it owns never reaches the network as HTTP —
   // it becomes a PostgREST call inside the client instead.
   //
@@ -143,10 +163,14 @@ export async function api<TResponse = unknown, TBody = unknown>(
   const { resolve } = await import("@/lib/data");
   try {
     const hit = await resolve(path, method, body);
-    if (hit.handled) return hit.data as TResponse;
+    if (hit.handled) {
+      report("trackTiming", `${method} ${path}`, Date.now() - startedAt);
+      return hit.data as TResponse;
+    }
   } catch (err) {
     const apiErr = await explainIfRefused(err);
     if (apiErr.code === "session_superseded") await handleSessionSuperseded();
+    report("trackError", apiErr.code || `HTTP ${apiErr.status}`, `${method} ${path}`);
     throw apiErr;
   }
 
@@ -164,12 +188,23 @@ export async function api<TResponse = unknown, TBody = unknown>(
   // out. A mismatch means the account signed in elsewhere.
   if (sessionId) headers["X-Session-Id"] = sessionId;
 
-  const res = await fetch(apiBase() + path, {
-    method,
-    headers: Object.keys(headers).length ? headers : undefined,
-    body: body ? JSON.stringify(body) : undefined,
-    signal,
-  });
+  let res: Response;
+  try {
+    res = await fetch(apiBase() + path, {
+      method,
+      headers: Object.keys(headers).length ? headers : undefined,
+      body: body ? JSON.stringify(body) : undefined,
+      signal,
+    });
+  } catch (err) {
+    // A dropped connection never reaches the !res.ok block below, so
+    // without this the most complete kind of failure would be the one
+    // the console could not see. An abort is not a failure — the screen
+    // moved on — so it is recorded as neither.
+    if ((err as any)?.name !== "AbortError") report("trackError", "network", `${method} ${path}`);
+    throw err;
+  }
+  report("trackTiming", `${method} ${path}`, Date.now() - startedAt);
 
   let data: unknown = null;
   try {
@@ -198,6 +233,7 @@ export async function api<TResponse = unknown, TBody = unknown>(
     const { needsServer } = await import("@/lib/data");
     const routeMissing = res.status === 404 && !payload.code;
     if (routeMissing && needsServer(path)) {
+      report("trackError", "no_backend", `${method} ${path}`);
       throw new ApiError(
         "This part of Murchid needs the API service, which isn't connected yet.",
         503,
@@ -209,6 +245,7 @@ export async function api<TResponse = unknown, TBody = unknown>(
     if (payload.code === "session_superseded") {
       await handleSessionSuperseded();
     }
+    report("trackError", payload.code || `HTTP ${res.status}`, `${method} ${path}`);
     throw new ApiError(
       payload.error || `HTTP ${res.status}`,
       res.status,

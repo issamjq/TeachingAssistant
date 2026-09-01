@@ -41,6 +41,9 @@ import {
   Coins,
   Building2,
   ChevronDown,
+  Activity,
+  TriangleAlert,
+  ShieldCheck,
   type LucideIcon,
 } from "lucide-react";
 import { asRoles, clearRole, getRole, onRoleChange, ROLE_LABELS, setRole, syncRoleFromServer } from "@/lib/role";
@@ -62,6 +65,7 @@ import DeviceNotice from "./DeviceNotice";
 import { ContextPanelRegion, useContextPanelState } from "@/shared/shell/ContextPanel";
 import { useMediaQuery } from "@/shared/hooks/useMediaQuery";
 import { ALLOW_API_OVERRIDE } from "@/config/env";
+import { startTelemetry, trackView } from "@/lib/telemetry";
 import {
   NAV_BY_ROLE,
   DEFAULT_ROUTE,
@@ -71,6 +75,8 @@ import {
   adminNav,
   adminSections,
   adminHome,
+  platformNav,
+  platformSections,
 } from "@/config/nav";
 
 const SIDEBAR_COLLAPSED_KEY = "murchid.sidebar.collapsed";
@@ -105,6 +111,9 @@ const NAV_ICON: Record<string, LucideIcon> = {
   keys: KeyRound,
   coins: Coins,
   orgs: Building2,
+  activity: Activity,
+  friction: TriangleAlert,
+  shield: ShieldCheck,
 };
 
 function NavBadge({ letter, icon }: { letter?: string; icon?: string }) {
@@ -209,7 +218,18 @@ export default function StudioShell({ children }: { children: React.ReactNode })
    */
   const [billingOn, setBillingOn] = useState<boolean | null>(null);
 
-  const roleSections = isAdmin ? adminSections(perms) : SECTIONS_BY_ROLE[role];
+  /**
+   * A platform capability granted to an MoE officer or an owner has to
+   * show up somewhere. `admin` is handled separately because that role
+   * IS its grants — strip them and no screen remains — whereas these
+   * two have a console of their own that the grants add to.
+   */
+  const roleSections = useMemo(() => {
+    if (isAdmin) return adminSections(perms);
+    const extra = platformSections(perms);
+    if (!extra.length) return SECTIONS_BY_ROLE[role];
+    return new Set([...SECTIONS_BY_ROLE[role], ...extra]);
+  }, [isAdmin, perms, role]);
 
   /**
    * Plans and billing are not features of a role, they are features of a
@@ -237,6 +257,23 @@ export default function StudioShell({ children }: { children: React.ReactNode })
   // The section is the first path segment — the shell needs it for active
   // nav state and to decide whether the teaching rail shows.
   const section = (pathname || "/").split("/").filter(Boolean)[0] || homeRoute;
+
+  /**
+   * Product telemetry. Mounted here rather than in the root layout for
+   * two reasons: the layout is a server component and must stay one, and
+   * the marketing site is measured by Clarity and Analytics already —
+   * this ledger is about the WORKSPACE, which those two cannot see
+   * behind the sign-in.
+   *
+   * It records a section key, a control's own label, click positions and
+   * durations. It does not record page content, form values, or a URL
+   * with an id in it. See lib/telemetry.ts for what that rules out.
+   */
+  useEffect(() => startTelemetry(), []);
+
+  useEffect(() => {
+    if (section) trackView(section);
+  }, [section]);
 
   const toggleSidebar = () => {
     setSidebarCollapsed((c) => {
@@ -483,7 +520,15 @@ export default function StudioShell({ children }: { children: React.ReactNode })
     };
   }, [role]);
 
-  const nav = isAdmin ? adminNav(perms) : NAV_BY_ROLE[role];
+  const nav = isAdmin
+    ? adminNav(perms)
+    : role === "super_admin" || role === "teacher" || role === "student"
+      // The super admin already lists every surface, and neither a
+      // teacher nor a student can hold a platform capability — the
+      // database refuses one. Appending a section here would be dead
+      // code in all three cases.
+      ? NAV_BY_ROLE[role]
+      : [...NAV_BY_ROLE[role], ...platformNav(perms)];
   const sidebarActive = section === "account" ? "account" : section;
   const handleNavClick = (key: string) => {
     // Classes is a container once it has subjects in it: clicking the
