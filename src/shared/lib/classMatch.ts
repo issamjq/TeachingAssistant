@@ -69,21 +69,30 @@ export function normSubject(value: string | null | undefined): string | null {
 /**
  * Does this audience reach this student? The §48 join, term by term:
  *
- *   - grade: normalised equality, null matching null (IS NOT DISTINCT FROM);
+ *   - grade: grade_matches — one value or a comma-joined list ("Grade 9,
+ *     Grade 11") reaching a student when ANY member matches; a blank
+ *     entry grade matches only a blank student grade;
  *   - subject: an entry with no subject reaches every subject;
- *   - section: an entry with no section reaches the whole grade.
- *
- * Faithful to a fault: a comma-joined grade like "Grade 9, Grade 11"
- * normalises to "911" in SQL and here, and matches nobody. The pickers
- * that feed this keep audiences single-valued for exactly that reason.
+ *   - section: section_matches — blank reaches the whole grade, and a
+ *     comma-joined list reaches any of its members.
  */
 export function audienceReaches(audience: Audience, student: RosterStudent): boolean {
-  if (normGrade(student.grade) !== normGrade(audience.grade)) return false;
+  const entryGrade = String(audience.grade ?? "");
+  const studentGrade = normGrade(student.grade);
+  if (normGrade(entryGrade) === null) {
+    if (studentGrade !== null) return false;
+  } else if (!entryGrade.split(",").some((g) => normGrade(g) === studentGrade)) {
+    return false;
+  }
   const subj = normSubject(audience.subject);
   if (subj !== null && subj !== normSubject(student.subject)) return false;
-  const section = String(audience.section ?? "").trim().toLowerCase();
-  if (section !== "" && section !== String(student.section ?? "").trim().toLowerCase()) {
-    return false;
+  const section = String(audience.section ?? "").trim();
+  if (section !== "") {
+    const division = String(student.section ?? "").trim().toLowerCase();
+    const hit = section
+      .split(",")
+      .some((s) => s.trim() !== "" && s.trim().toLowerCase() === division);
+    if (!hit) return false;
   }
   return true;
 }

@@ -4,7 +4,7 @@ import React, { useState, useMemo, useEffect } from "react";
 import { Search, Phone, Plus, Upload, Mail, CheckCircle2, AlertTriangle, FileDown, FileSpreadsheet } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { GRADE_LEVELS, NATIONALITIES } from "../lib/enums";
+import { GRADE_LEVELS, MAJORS, NATIONALITIES } from "../lib/enums";
 import BrandLoader from "../components/BrandLoader";
 import {
   Field,
@@ -758,6 +758,11 @@ const REQUIRED_STUDENT_FIELDS = [
   ["last_name", "Last name"],
   ["grade", "Grade"],
   ["section", "Section"],
+  // The subject is half of the delivery mechanism: work reaches a student
+  // by matching the grade AND subject on this row (db/tune.sql §48). A
+  // roster row without one can never receive subject-labelled work — the
+  // student exists on the register and gets nothing, silently.
+  ["subject", "Subject"],
   // The address is the whole of a student's identity: it is what the
   // invitation is sent to, what Google returns at sign-in, and the key the
   // roster row is claimed by. A row without one is a name that can never
@@ -971,9 +976,16 @@ function StudentEditModal({ initial, prefill = null, onClose, onSaved }) {
           <input className={inputClasses} value={form.section}
             onChange={(e) => set("section", e.target.value)} required />
         </SField>
-        <SField label="Subject" hint="what you teach them">
-          <input className={inputClasses} value={form.subject}
-            onChange={(e) => set("subject", e.target.value)} placeholder="e.g. Mathematics" />
+        {/* Required because it is half of the delivery mechanism: work
+            reaches this student by matching grade + subject (§48). The
+            datalist offers the standard subjects but the field stays free
+            text — schools have subjects the enum has never heard of. */}
+        <SField label="Subject" required hint="work is delivered by matching this">
+          <input className={inputClasses} value={form.subject} list="student-subject-options"
+            onChange={(e) => set("subject", e.target.value)} placeholder="e.g. Mathematics" required />
+          <datalist id="student-subject-options">
+            {MAJORS.map((m) => <option key={m} value={m} />)}
+          </datalist>
         </SField>
         <SField label="Enrollment date">
           <DatePicker value={form.enrollment_date} onChange={(v) => set("enrollment_date", v)} />

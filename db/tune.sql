@@ -4420,7 +4420,9 @@ END $$;
 -- Three normalisations stand between the two, and each one silently
 -- returns nothing if it is skipped:
 --
---   * grade is 'Grade 5' on the student and '5' on the schedule;
+--   * grade is 'Grade 5' on the student and '5' on the schedule — and
+--     may be a comma-joined LIST on the entry ("Grade 9, Grade 11"),
+--     which matches a student when any member does (grade_matches);
 --   * subject is free text on both sides — Math, Maths, Mathematics;
 --   * section is usually null on the schedule, and null means EVERY
 --     section, not none. Read literally it excludes the whole school.
@@ -4464,6 +4466,39 @@ AS $$
     WHEN 'computing'    THEN 'computer science'
     ELSE lower(regexp_replace(btrim(COALESCE(p,'')), '\s+', ' ', 'g'))
   END;
+$$;
+
+-- An entry's grade may be one value or a comma-joined list — the
+-- AudienceSelect control has always written "Grade 9, Grade 11", and
+-- norm_grade over the whole string turned that into '911', which
+-- matched nobody. The entry reaches a student when ANY member matches.
+-- A blank entry grade keeps the old IS NOT DISTINCT FROM semantics:
+-- it matches only a blank student grade.
+CREATE OR REPLACE FUNCTION public.grade_matches(p_entry text, p_student text)
+RETURNS boolean
+LANGUAGE sql IMMUTABLE
+AS $$
+  SELECT CASE
+    WHEN public.norm_grade(p_entry) IS NULL THEN public.norm_grade(p_student) IS NULL
+    ELSE EXISTS (
+      SELECT 1 FROM unnest(string_to_array(p_entry, ',')) AS g(v)
+      WHERE public.norm_grade(v) IS NOT DISTINCT FROM public.norm_grade(p_student)
+    )
+  END;
+$$;
+
+-- Same for section: blank means the whole grade, and a comma-joined
+-- list ("A, B") reaches any of its members.
+CREATE OR REPLACE FUNCTION public.section_matches(p_entry text, p_division text)
+RETURNS boolean
+LANGUAGE sql IMMUTABLE
+AS $$
+  SELECT COALESCE(btrim(p_entry), '') = ''
+      OR EXISTS (
+        SELECT 1 FROM unnest(string_to_array(p_entry, ',')) AS sec(v)
+        WHERE btrim(v) <> ''
+          AND lower(btrim(v)) = lower(btrim(COALESCE(p_division, '')))
+      );
 $$;
 
 -- ── an attempt belongs to a scheduled entry ───────────────────────────
@@ -4515,11 +4550,10 @@ AS $$
     FROM schedule_entries se
     JOIN students st
       ON st.created_by = se.faculty_id           -- her students, not everyone's
-     AND public.norm_grade(st.grade) IS NOT DISTINCT FROM public.norm_grade(se.grade)
+     AND public.grade_matches(se.grade, st.grade)
      AND (public.norm_subject(se.subject) IS NULL
           OR public.norm_subject(se.subject) = public.norm_subject(st.subject))
-     AND (COALESCE(btrim(se.section), '') = ''   -- no section named = the whole grade
-          OR lower(btrim(se.section)) = lower(btrim(COALESCE(st.division, ''))))
+     AND public.section_matches(se.section, st.division)
    WHERE st.user_id = (SELECT auth.uid())
      AND se.draft_id IS NOT NULL                 -- a slot with nothing in it is a timetable, not work
      AND COALESCE(se.status, 'planned') <> 'cancelled';
@@ -4594,11 +4628,10 @@ BEGIN
           FROM students st
           JOIN schedule_entries se
             ON st.created_by = se.faculty_id
-           AND public.norm_grade(st.grade) IS NOT DISTINCT FROM public.norm_grade(se.grade)
+           AND public.grade_matches(se.grade, st.grade)
            AND (public.norm_subject(se.subject) IS NULL
                 OR public.norm_subject(se.subject) = public.norm_subject(st.subject))
-           AND (COALESCE(btrim(se.section), '') = ''
-                OR lower(btrim(se.section)) = lower(btrim(COALESCE(st.division, ''))))
+           AND public.section_matches(se.section, st.division)
           JOIN ai_studio gen ON gen.id = se.draft_id AND gen.deleted_at IS NULL
           LEFT JOIN faculty f ON f.id = se.faculty_id
           LEFT JOIN users   u ON u.id = f.user_id
@@ -4696,11 +4729,10 @@ BEGIN
              WHERE se.faculty_id = st.created_by
                AND se.draft_id IS NOT NULL
                AND COALESCE(se.status,'planned') <> 'cancelled'
-               AND public.norm_grade(se.grade) IS NOT DISTINCT FROM public.norm_grade(st.grade)
+               AND public.grade_matches(se.grade, st.grade)
                AND (public.norm_subject(se.subject) IS NULL
                     OR public.norm_subject(se.subject) = public.norm_subject(st.subject))
-               AND (COALESCE(btrim(se.section),'') = ''
-                    OR lower(btrim(se.section)) = lower(btrim(COALESCE(st.division,''))))
+               AND public.section_matches(se.section, st.division)
            ) AS work_count
       FROM students st
       LEFT JOIN faculty f ON f.id = st.created_by
@@ -4868,11 +4900,10 @@ BEGIN
           LEFT JOIN quiz_attempts qa ON qa.assignment_id = se.id AND qa.student_id = st.id
          WHERE se.faculty_id = st.created_by
            AND COALESCE(se.status,'planned') <> 'cancelled'
-           AND public.norm_grade(se.grade) IS NOT DISTINCT FROM public.norm_grade(st.grade)
+           AND public.grade_matches(se.grade, st.grade)
            AND (public.norm_subject(se.subject) IS NULL
                 OR public.norm_subject(se.subject) = public.norm_subject(st.subject))
-           AND (COALESCE(btrim(se.section),'') = ''
-                OR lower(btrim(se.section)) = lower(btrim(COALESCE(st.division,''))))
+           AND public.section_matches(se.section, st.division)
       ) w
     )
   ) INTO out;
@@ -5062,7 +5093,7 @@ BEGIN
     FROM students st
    WHERE st.id IN (SELECT public.current_student_ids())
      AND st.created_by = se.faculty_id
-     AND public.norm_grade(st.grade) IS NOT DISTINCT FROM public.norm_grade(se.grade)
+     AND public.grade_matches(se.grade, st.grade)
      AND (public.norm_subject(se.subject) IS NULL
           OR public.norm_subject(se.subject) = public.norm_subject(st.subject))
    ORDER BY st.created_at
@@ -5199,7 +5230,7 @@ BEGIN
     FROM students st
    WHERE st.id IN (SELECT public.current_student_ids())
      AND st.created_by = se.faculty_id
-     AND public.norm_grade(st.grade) IS NOT DISTINCT FROM public.norm_grade(se.grade)
+     AND public.grade_matches(se.grade, st.grade)
    ORDER BY st.created_at LIMIT 1;
   IF row_id IS NULL THEN
     RAISE EXCEPTION 'that work is not yours' USING ERRCODE = '42501';
@@ -5329,7 +5360,7 @@ BEGIN
     FROM students st
    WHERE st.id IN (SELECT public.current_student_ids())
      AND st.created_by = se.faculty_id
-     AND public.norm_grade(st.grade) IS NOT DISTINCT FROM public.norm_grade(se.grade)
+     AND public.grade_matches(se.grade, st.grade)
      AND (public.norm_subject(se.subject) IS NULL
           OR public.norm_subject(se.subject) = public.norm_subject(st.subject))
    ORDER BY st.created_at
@@ -5606,7 +5637,7 @@ BEGIN
     FROM students st
    WHERE st.id IN (SELECT public.current_student_ids())
      AND st.created_by = se.faculty_id
-     AND public.norm_grade(st.grade) IS NOT DISTINCT FROM public.norm_grade(se.grade)
+     AND public.grade_matches(se.grade, st.grade)
    ORDER BY st.created_at LIMIT 1;
   IF row_id IS NULL THEN
     RAISE EXCEPTION 'that work is not yours' USING ERRCODE = '42501';
@@ -5847,7 +5878,7 @@ BEGIN
     FROM students st
    WHERE st.id IN (SELECT public.current_student_ids())
      AND st.created_by = se.faculty_id
-     AND public.norm_grade(st.grade) IS NOT DISTINCT FROM public.norm_grade(se.grade)
+     AND public.grade_matches(se.grade, st.grade)
      AND (public.norm_subject(se.subject) IS NULL
           OR public.norm_subject(se.subject) = public.norm_subject(st.subject))
    ORDER BY st.created_at
@@ -6034,11 +6065,10 @@ BEGIN
              WHERE se.faculty_id = fid
                AND COALESCE(se.status,'planned') <> 'cancelled'
                AND g.type IN ('quiz','homework','activity')
-               AND public.norm_grade(se.grade) IS NOT DISTINCT FROM public.norm_grade(st.grade)
+               AND public.grade_matches(se.grade, st.grade)
                AND (public.norm_subject(se.subject) IS NULL
                     OR public.norm_subject(se.subject) = public.norm_subject(st.subject))
-               AND (COALESCE(btrim(se.section),'') = ''
-                    OR lower(btrim(se.section)) = lower(btrim(COALESCE(st.division,''))))
+               AND public.section_matches(se.section, st.division)
            ) AS assigned,
 
            (SELECT count(*) FROM submissions sub
@@ -6139,11 +6169,10 @@ BEGIN
          WHERE se.faculty_id = fid
            AND COALESCE(se.status,'planned') <> 'cancelled'
            AND g.type IN ('quiz','homework','activity')
-           AND public.norm_grade(se.grade) IS NOT DISTINCT FROM public.norm_grade(st.grade)
+           AND public.grade_matches(se.grade, st.grade)
            AND (public.norm_subject(se.subject) IS NULL
                 OR public.norm_subject(se.subject) = public.norm_subject(st.subject))
-           AND (COALESCE(btrim(se.section),'') = ''
-                OR lower(btrim(se.section)) = lower(btrim(COALESCE(st.division,''))))
+           AND public.section_matches(se.section, st.division)
       ) w
     )
   ) INTO out;

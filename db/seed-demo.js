@@ -290,15 +290,18 @@ async function roster(fid, school, classIds) {
 
     const row = await one(
       `INSERT INTO public.students (
-         created_by, school_id, first_name, last_name, grade, division,
+         created_by, school_id, first_name, last_name, grade, division, subject,
          date_of_birth, gender, nationality, email, phone, enrollment_date,
          student_id, address,
          primary_guardian_name, primary_guardian_relationship,
          primary_guardian_email, primary_guardian_phone)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
        RETURNING id, first_name, last_name, grade`,
       [
-        fid, school?.id ?? null, s.first, s.last, cls.grade, cls.division,
+        // subject is half of the delivery match (db/tune.sql §48): a
+        // roster row without one can never receive subject-labelled
+        // work, and a demo roster full of those demonstrates nothing.
+        fid, school?.id ?? null, s.first, s.last, cls.grade, cls.division, cls.subject,
         dob, s.gender, s.nat,
         `${slug}@student.eis.ae`,
         `+971 5${pick(r, [0, 2, 4, 5, 6])} ${100 + Math.floor(r() * 890)} ${1000 + Math.floor(r() * 8999)}`,
@@ -488,16 +491,30 @@ async function handOut(fid, artifacts, classIds, students) {
   let attempts = 0;
 
   const jobs = [
-    { artifact: artifacts.quizForces, classKey: "p9a", startedDays: -12, max: 11 },
-    { artifact: artifacts.hwForces,   classKey: "p9a", startedDays: -5,  max: 6 },
+    { artifact: artifacts.quizForces, title: "Forces and motion — end of unit",
+      classKey: "p9a", startedDays: -12, max: 11 },
+    { artifact: artifacts.hwForces,   title: "Free-body diagrams — worksheet 3",
+      classKey: "p9a", startedDays: -5,  max: 6 },
   ].filter((j) => j.artifact);
 
   for (const job of jobs) {
+    const cls = CLASSES.find((c) => c.key === job.classKey);
+    /**
+     * The slot IS the assignment. Students receive work by matching
+     * their grade + subject against a schedule entry carrying the
+     * generation (db/tune.sql §48), and quiz_attempts.assignment_id is
+     * a FK onto that entry. This used to write the dead `assignments`
+     * table, which §48 repointed the FK away from — so the seed's last
+     * step failed, and every artifact it made was invisible to every
+     * student anyway.
+     */
     const asg = await one(
-      `INSERT INTO public.assignments (generation_id, class_id, starts_at, ends_at)
-       VALUES ($1, $2, now() - ($3 || ' days')::interval, now() - ($4 || ' days')::interval)
+      `INSERT INTO public.schedule_entries
+         (faculty_id, class_id, draft_id, title, subject, grade, section, date, status)
+       VALUES ($1,$2,$3,$4,$5,$6,$7, (now() + ($8 || ' days')::interval)::date, 'done')
        RETURNING id`,
-      [job.artifact, classIds[job.classKey], String(-job.startedDays), String(-job.startedDays - 4)],
+      [fid, classIds[job.classKey], job.artifact, job.title,
+       cls.subject, cls.grade, cls.division, String(job.startedDays)],
     );
 
     for (const s of students.filter((x) => x.classKey === job.classKey)) {
