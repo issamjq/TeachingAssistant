@@ -34,6 +34,26 @@ export const DECK_TONES = [
  * holds the row. Stable across reloads, and different between decks.
  */
 export function deckToneIndex(slides) {
+  /**
+   * The generator's own choice, when it made one.
+   *
+   * Hashing the title gave every deck a stable colour and an arbitrary one:
+   * a Grade 2 phonics deck and a Grade 11 organic chemistry deck were as
+   * likely to come out the same as different, and the palette the writer had
+   * chosen for the subject was thrown away before anything drew it. Now it
+   * picks — sage for biology, teal for water, rust for the youngest rooms —
+   * and this reads what it picked.
+   *
+   * Any slide may carry it, though the format asks for the first; a deck
+   * written before the field existed has none, and falls through to the hash
+   * so that its colour never moves under a teacher who has seen it.
+   */
+  const named = slides?.find((s) => s?.theme)?.theme;
+  if (named) {
+    const at = DECK_TONES.findIndex((t) => t.key === String(named).toLowerCase());
+    if (at >= 0) return at;
+  }
+
   const seed = String(slides?.[0]?.title || "deck");
   let h = 0;
   for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0;

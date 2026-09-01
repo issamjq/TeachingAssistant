@@ -264,11 +264,29 @@ export function renderMarkdown(markdown) {
     // Ordered list
     if (/^\s*\d+\.\s+/.test(line)) {
       const items = [];
+      /**
+       * Start where the author started.
+       *
+       * Without this every list renders from 1, and a document whose
+       * numbered items are separated by anything else — an exam paper,
+       * where each question is followed by its answer lines — becomes a
+       * run of one-item lists that all say "1.". A fifteen-question quiz
+       * printed as question 1 fifteen times is not a quiz.
+       */
+      const first = Number(line.match(/^\s*(\d+)\./)?.[1] ?? 1);
       while (i < lines.length && /^\s*\d+\.\s+/.test(lines[i])) {
         items.push(<li key={items.length} className="ml-1">{renderInline(lines[i].replace(/^\s*\d+\.\s+/, ""), `oli${i}`)}</li>);
         i++;
       }
-      out.push(<ol key={key++} className="list-decimal list-outside pl-5 space-y-1 my-2 text-sm text-ink-soft">{items}</ol>);
+      out.push(
+        <ol
+          key={key++}
+          {...(first !== 1 ? { start: first } : {})}
+          className="list-decimal list-outside pl-5 space-y-1 my-2 text-sm text-ink-soft"
+        >
+          {items}
+        </ol>,
+      );
       continue;
     }
 

@@ -151,9 +151,24 @@ export async function loadSession(sessionId) {
      * sentence inside an artifact card with a Save button under it. It goes
      * back to the plain note the chat renders it as.
      */
-    role: m.role === "user" ? "user" : m.kind === "note" ? "note" : "assistant",
+    /**
+     * Three kinds of assistant turn, not one.
+     *
+     * A note ("Moved to Thursday, 13:00") and the agent's own speech are
+     * both stored as assistant rows because that is what the column
+     * allows, and restoring either as a document put a single sentence
+     * inside an artifact card with a Save button under it.
+     */
+    role:
+      m.role === "user"
+        ? "user"
+        : m.kind === "note"
+          ? "note"
+          : m.kind === "say"
+            ? "say"
+            : "assistant",
     text: m.content || "",
-    kind: m.kind === "note" ? undefined : m.kind || undefined,
+    kind: m.kind === "note" || m.kind === "say" ? undefined : m.kind || undefined,
     batchId: m.artifact?.batch_id ?? undefined,
     // The wrapper is storage, not content: a viewer looking for `.slides`
     // or `.questions` must not be handed the envelope they arrived in.

@@ -54,6 +54,101 @@ export const KIND_META = {
  * be read in code, exactly, every time, for nothing. The model is only asked
  * for the parts a model is needed for.
  */
+/* ══ Pictures on the slides ═══════════════════════════════════════════
+   A deck of coloured text boxes is not what a teacher means by a
+   presentation. Every teaching slide already carries a "Show:" cue — a
+   plain description of what the class should be looking at — and until
+   now that description was printed in a frame, honestly labelled, for
+   the teacher to go and find the picture herself.
+
+   She should not have to. The cue is already a search query, and the
+   backend already proxies Openverse: no API key, openly licensed, and
+   attribution returned with every result, which is what a school
+   projecting to a class and archiving the deck actually needs.
+
+   Resolved per slide, on the slide she is looking at, so a fourteen-slide
+   deck does not fire fourteen searches to show one picture. Cached across
+   the whole session because the same deck asks for the same few terms
+   repeatedly, and failures are cached too — a term Openverse has nothing
+   for must not be retried on every render.
+   ═══════════════════════════════════════════════════════════════════ */
+
+const PHOTO_CACHE = new Map();
+
+/**
+ * A searchable query from a described picture.
+ *
+ * The cues are written for a person — "A map with one factory pipe marked
+ * in red versus a whole farming valley shaded in arrows" — and handing
+ * that to an image search returns nothing. The nouns are what matches, so
+ * the instruction words are dropped and the first few content words kept.
+ */
+function photoQuery(visual, title) {
+  /**
+   * The TITLE first, then the cue.
+   *
+   * Built from the cue alone this produced "three-step arrow warm
+   * rising" — every word present in the sentence and none of them the
+   * subject — and Openverse rightly returned nothing. The cue describes
+   * the drawing; the title names the thing. "From Vapour to Cloud"
+   * reduces to "vapour cloud", which finds a photograph of exactly
+   * that.
+   *
+   * The cue still contributes, after the title, so a slide whose title
+   * is vague ("What you will need") can still be matched on what it
+   * actually shows.
+   */
+  const text = `${String(title || "")} ${String(visual || "")}`.toLowerCase();
+  const stop = new Set([
+    "a","an","the","of","and","or","with","in","on","at","to","for","from","by",
+    "one","two","three","four","showing","show","shows","diagram","picture","photo",
+    "image","labelled","labeled","marked","versus","vs","side","that","this","its",
+    "into","over","under","above","below","up","down","out","is","are","be","being",
+    "each","every","some","any","their","there","where","which","what","how","then",
+  ]);
+  const seen = new Set();
+  const words = text
+    .replace(/[^a-z0-9\s]/g, " ")
+    .split(/\s+/)
+    .filter((w) => w.length > 2 && !stop.has(w))
+    .filter((w) => (seen.has(w) ? false : seen.add(w)));
+  // Three words. Openverse narrows hard on a fourth, and an empty result
+  // is worse than a loosely-related photograph.
+  return words.slice(0, 3).join(" ").trim();
+}
+
+function useSlideImage(visual, title, active) {
+  const [photo, setPhoto] = useState(null);
+  const query = active ? photoQuery(visual, title) : "";
+
+  useEffect(() => {
+    if (!query) return;
+    if (PHOTO_CACHE.has(query)) {
+      setPhoto(PHOTO_CACHE.get(query));
+      return;
+    }
+    let alive = true;
+    (async () => {
+      try {
+        const { api } = await import("@/shared/lib/apiClient");
+        const res = await api(`/api/images/search?q=${encodeURIComponent(query)}&per_page=3`);
+        const found = res?.photos?.[0] || null;
+        PHOTO_CACHE.set(query, found);
+        if (alive) setPhoto(found);
+      } catch {
+        // A deck without a photograph is still a deck. Remember the miss so
+        // a dead term is not asked for again on every re-render.
+        PHOTO_CACHE.set(query, null);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [query]);
+
+  return photo;
+}
+
 export function slidesFromMarkdown(markdown) {
   const text = String(markdown || "");
   if (!text.trim()) return [];
@@ -62,7 +157,19 @@ export function slidesFromMarkdown(markdown) {
     const m = block.match(
       new RegExp(`^>\\s*\\*{0,2}${name}:?\\*{0,2}\\s*(.+(?:\\n(?!>).*)*)`, "im"),
     );
-    return m ? m[1].replace(/\n>?\s*/g, " ").replace(/\*\*/g, "").trim() : "";
+    if (!m) return "";
+    /**
+     * A cue runs on until the next quoted line, which means it also
+     * swallows the "---" that ends the slide when the deck was split on
+     * its headings rather than on its rules. The teacher then reads
+     * "Science · Grade 9 ---" on the cover, with the separator printed
+     * as if it were part of her subtitle.
+     */
+    return m[1]
+      .replace(/\n>?\s*/g, " ")
+      .replace(/\*\*/g, "")
+      .replace(/\s*-{3,}\s*$/, "")
+      .trim();
   };
 
   /**
@@ -183,17 +290,42 @@ export function slidesFromMarkdown(markdown) {
           ? bullets.slice(1)
           : bullets;
 
+      /**
+       * The deck's colour, and this slide's one-word tag.
+       *
+       * Both are plain "Key: value" lines rather than cues, because they sit
+       * beside "Layout:" and are read the same way. Theme is written on the
+       * first slide only; a deck that predates the field simply has none and
+       * falls back to the old behaviour.
+       */
+      const theme = (block.match(/^\s*Theme:\s*([a-z]+)\s*$/im)?.[1] || "").toLowerCase();
+      /**
+       * Found anywhere, not only at the start of a line.
+       *
+       * The format puts Tag on its own line under Layout, and the writer
+       * routinely puts both on one — "Layout: title Tag: TOPIC". Anchoring
+       * to the line start read that as no tag at all, which is a silent
+       * miss: the deck renders, just without the label the design depends
+       * on. One word, so it cannot swallow the rest of the line.
+       */
+      const tag = (block.match(/(?:^|\s)Tag:\s*([A-Za-z][A-Za-z-]{0,18})\b/m)?.[1] || "")
+        .trim()
+        .toUpperCase();
+
       return {
         title,
         // What it says it is; failing that, what it looks like.
         layout: layout || (items.length ? "steps" : bullets.length ? "bullets" : "statement"),
         bullets: shown,
         items,
+        ...(theme ? { theme } : {}),
+        ...(tag ? { tag } : {}),
         note: cue(block, "Note"),
         visual: cue(block, "Show"),
         notes: cue(block, "Say"),
         onScreen: cue(block, "On screen"),
         pause: cue(block, "Pause"),
+        source: cue(block, "Source"),
       };
     })
     // A block with no title and no bullets is the preamble before slide one,
@@ -254,6 +386,22 @@ function Rich({ text }) {
  * under the ones that have them, and a mark scheme after the rule. Nothing
  * about the generation changes; only who does the reading.
  */
+/**
+ * The teacher's half of the paper.
+ *
+ * questionsFromMarkdown() splits the paper from the mark scheme and keeps
+ * only the paper, and QuizViewer renders only questions — so everything
+ * after the rule was parsed off and shown to nobody. The answers, the
+ * partial-credit notes and the table saying which skill each question
+ * tested were all generated, paid for, and then dropped on the floor.
+ *
+ * Returns the scheme as Markdown, or "" when the paper has none.
+ */
+export function markSchemeFromMarkdown(markdown) {
+  const parts = String(markdown || "").split(/\n-{3,}\s*\n+#+\s*Mark scheme\s*\n/i);
+  return parts[1] ? parts[1].trim() : "";
+}
+
 export function questionsFromMarkdown(markdown) {
   const text = String(markdown || "");
   if (!text.trim()) return [];
@@ -469,20 +617,39 @@ export function SlideItems({ layout, items, title, visual, index = 0, edit }) {
             </div>
           ))}
         </div>
-        {visual && (
-          // The picture is described, not drawn — the teacher sketches it or
-          // finds it. A framed caption is honest, and holds the space the
-          // diagram will occupy on the board.
-          <figure className={s.splitVisual}>
-            <span className={s.splitVisualTag}>Show</span>
-            <figcaption className={s.splitVisualText}>{visual}</figcaption>
-          </figure>
-        )}
+        {visual && <SplitVisual visual={visual} title={title} />}
       </div>
     );
   }
 
-  /** What they will be able to do by the end — numbered, near the front. */
+  /**
+ * The picture beside the words.
+ *
+ * A real photograph when one is found, and the described cue when one is
+ * not — the caption was the old behaviour and it is still the right
+ * fallback, because a slide that silently loses its visual is worse than
+ * one that tells the teacher what to draw.
+ */
+function SplitVisual({ visual, title }) {
+  const photo = useSlideImage(visual, title, true);
+  if (!photo) {
+    return (
+      <figure className={s.splitVisual}>
+        <span className={s.splitVisualTag}>Show</span>
+        <figcaption className={s.splitVisualText}>{visual}</figcaption>
+      </figure>
+    );
+  }
+  return (
+    <figure className={s.splitPhoto}>
+      <img src={photo.thumb || photo.full} alt={photo.alt || visual} loading="lazy" />
+      {/* Openly licensed, and the licence says to say so. */}
+      <figcaption className={s.photoCredit}>{photo.credit}</figcaption>
+    </figure>
+  );
+}
+
+/** What they will be able to do by the end — numbered, near the front. */
   if (layout === "objectives") {
     // The card is already numbered, so a label that is only "One" or "1" is
     // the same word twice. Where the generator counted instead of naming the
@@ -688,6 +855,20 @@ export function SlideViewer({ slides = [], onFullscreen }) {
             under it — they are one thing, centred. Rendering them through the
             same header-plus-body template is what made every slide in the deck
             look identical. */}
+        {/*
+            The eyebrow: "04 / CAUSES".
+
+            Small, above the title, in the deck's accent. It gives a class
+            two things before they read a word of content — where they are
+            in the deck, and what kind of moment this is. Skipped on the
+            opening and closing slides, which are one thing on a field and
+            have no "where are we" to answer.
+        */}
+        {cur?.tag && layout !== "title" ? (
+          <p className={s.slideTag}>
+            {String(i + 1).padStart(2, "0")} <span aria-hidden="true">/</span> {cur.tag}
+          </p>
+        ) : null}
         <p className={s.slideTitle} data-hero={layout === "title" || layout === "question"}>
           {cur?.title || `Slide ${i + 1}`}
         </p>

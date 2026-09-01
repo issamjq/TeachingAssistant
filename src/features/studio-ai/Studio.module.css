@@ -63,8 +63,31 @@
   color: var(--p-on-accent);
 }
 
-.userBubble {
+/*
+   The width of what she typed, and no less.
+
+   This carried `overflow-wrap: anywhere`, put there so a pasted URL or an
+   unbroken string could not blow the column open. It also does something
+   nobody wants: `anywhere` makes the element's MIN-CONTENT width one
+   character. The bubble is a flex item in a right-aligned row, so the
+   browser was free to shrink it to that — and "hello" came out as a
+   two-letter column reading "he / llo", one letter per line for anything
+   shorter.
+
+   `break-word` breaks a long word only when the line cannot hold it, and
+   leaves min-content as the longest word — so a short message is as wide
+   as its text. The cap moves to the wrapper, and min-width:0 lets that
+   wrapper shrink for the one case `anywhere` was guarding against: a
+   single word longer than the cap, which now breaks instead of pushing
+   the thread sideways.
+*/
+.turn[data-role="user"] > div {
+  min-width: 0;
   max-width: 78%;
+}
+.userBubble {
+  width: fit-content;
+  max-width: 100%;
   padding: 10px 15px;
   border-radius: 16px 16px 5px 16px;
   background: var(--p-accent);
@@ -72,7 +95,7 @@
   font-size: 14.5px;
   line-height: 1.55;
   white-space: pre-wrap;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 
 /* The assistant writes on the page itself, not in a bubble — the same
@@ -209,23 +232,48 @@
 
 /* ── slide viewer ─────────────────────────────────────────────────── */
 
+/*
+   Type on a slide is measured against the SLIDE, never the window.
+
+   Everything here was sized in vw with a small ceiling — clamp(16px,
+   2.2vw, 22px) for a title — which has two faults at once. It scales
+   with the browser window, so the same deck is typeset differently in
+   the chat panel and on the projector; and the cap means the title
+   never grows past 22px however large the slide gets.
+
+   Measured against a Canva deck, their title is 7.8% of the slide's
+   width at weight 700 with line-height 1.0. Ours was about 3% at weight
+   600 — less than half the relative size, which is the whole reason our
+   decks read as documents with headings rather than as slides. A wall
+   at the back of a classroom does not care how wide the browser is.
+
+   So the slide declares itself a container and every size below is in
+   cqw: 1cqw is one per cent of the slide's own width, and the deck is
+   typeset identically at any size.
+*/
 .slide {
+  container-type: inline-size;
   aspect-ratio: 16 / 9;
   border-radius: 12px;
   border: 1px solid var(--p-line);
   background: var(--p-surface);
-  padding: 22px 26px;
+  /* Canva's text block starts about 6% in. Generous margins are most of
+     what makes a slide look designed rather than filled. */
+  padding: 5.5cqw 6.2cqw;
   display: flex;
   flex-direction: column;
   overflow: hidden;
 }
 .slideTitle {
   font-family: var(--font-serif);
-  font-size: clamp(16px, 2.2vw, 22px);
-  font-weight: 600;
+  /* 5.8% of the slide. The single most important number in the file. */
+  font-size: 5.8cqw;
+  font-weight: 700;
   color: var(--p-ink);
-  line-height: 1.2;
-  margin-bottom: 12px;
+  line-height: 1.05;
+  letter-spacing: -0.015em;
+  margin-bottom: 2.6cqw;
+  text-wrap: balance;
 }
 .slideBody { flex: 1; min-height: 0; overflow-y: auto; }
 /* A title, a question and a statement fill the slide rather than sitting at
@@ -238,7 +286,9 @@
   text-align: center;
 }
 .slideTitle[data-hero="true"] {
-  font-size: clamp(20px, 3.4vw, 34px);
+  /* The opener and the question slides: one thing on a field, so it can
+     take the room Canva gives a cover — near 8% of the slide. */
+  font-size: 8.2cqw;
   text-align: center;
   margin: auto auto 0;
   padding-top: 8%;
@@ -251,10 +301,11 @@
 }
 .statement {
   font-family: var(--font-serif);
-  font-size: clamp(15px, 2.1vw, 24px);
-  line-height: 1.35;
+  font-size: 5cqw;
+  line-height: 1.22;
   color: var(--p-ink);
-  max-width: 24ch;
+  max-width: 22ch;
+  text-wrap: balance;
   margin: 0 auto;
 }
 
@@ -362,16 +413,18 @@
 .statWrap { text-align: center; margin: auto 0; }
 .statNumber {
   font-family: var(--font-serif);
-  font-size: clamp(34px, 7vw, 76px);
-  font-weight: 600;
-  line-height: 1;
+  font-size: 13cqw;
+  font-weight: 700;
+  line-height: 0.94;
+  letter-spacing: -0.03em;
   color: var(--p-accent);
 }
 .statCaption {
-  font-size: clamp(12px, 1.4vw, 15px);
+  font-size: 2.5cqw;
+  line-height: 1.35;
   color: var(--p-ink-soft);
-  margin-top: 8px;
-  max-width: 30ch;
+  margin-top: 1.4cqw;
+  max-width: 26ch;
   margin-inline: auto;
 }
 .slideBody li {
@@ -394,8 +447,8 @@
   border-inline-start: 3px solid var(--p-accent, #1f6f6b);
   border-radius: 0 6px 6px 0;
   background: color-mix(in srgb, var(--p-accent, #1f6f6b) 7%, transparent);
-  font-size: clamp(12px, 1.35vw, 14.5px);
-  line-height: 1.5;
+  font-size: 2.4cqw;
+  line-height: 1.45;
   color: var(--p-ink);
 }
 .slideNote span { color: var(--p-muted); letter-spacing: 0.12em; }
@@ -454,29 +507,156 @@
 .composerWrap {
   flex-shrink: 0;
   padding: 10px 16px 14px;
-  /* Opaque. A gradient fading to transparent looked elegant and let the
-     last artifact bleed through the composer's top edge — the card read
-     as half-drawn rather than scrolled. A chat's composer is a floor,
-     not a veil. */
-  background: var(--p-paper-cool);
-  border-top: 1px solid color-mix(in oklab, var(--p-line) 60%, transparent);
+  /*
+     No colour and no rule. This band was an opaque #f4f3ef floor with a
+     border along its top, and since it spans the whole pane while the
+     composer inside it is only 760px wide, it read as a second box
+     drawn around the first — the thing you were actually looking at
+     when the composer stopped looking like it belonged to the page.
+
+     The floor was there for a reason: the thread scrolls underneath,
+     and against nothing at all the last artifact bleeds through the
+     10px above the composer as it goes past. So the floor stays, as a
+     blur instead of a colour — whatever passes behind is smeared out,
+     and with no colour of its own the band cannot outline anything.
+  */
+  background: transparent;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
+/*
+   The same composer as the dashboard's, at the size this screen needs.
+   Glass over the page rather than a panel cut into it, a light that goes
+   round the border, and a sheen crossing the surface — one object a
+   teacher types into, in both places she meets it.
+
+   The ring reads bluer than the platform teal on purpose: it has to
+   separate from a page that is already teal-tinted while staying in the
+   same hue family.
+*/
+/* Registered here as well as in the dashboard's sheet: @property is
+   global, but only once the sheet declaring it is on the page, and the
+   studio does not load the dashboard's. Without it the angle is a plain
+   custom property, which cannot be animated — the ring would sit still. */
+@property --askAngle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+
 .composer {
+  --askGlow: color-mix(in oklab, var(--p-accent) 28%, #4a7fe0);
+
+  position: relative;
+  isolation: isolate;
   max-width: 760px;
   margin: 0 auto;
   border-radius: 22px;
-  border: 1px solid var(--p-line);
-  background: var(--p-surface);
-  box-shadow: 0 6px 22px -12px color-mix(in oklab, var(--p-ink) 26%, transparent);
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  border: 0;
+  background: transparent;
+  /* No ring. A crisp band of colour on the outside of the box is a
+     BORDER however softly it is coloured, and it fought the rounded
+     glass it was drawn around. The light now comes from behind
+     instead — see ::before — so the box has no edge of its own. */
+  box-shadow: 0 8px 24px -18px rgb(0 0 0 / 0.28);
 }
-.composer:focus-within {
-  /* An accent border that follows the composer's own 22px curve, plus a
-     soft accent-tinted lift — no hard square-cornered glow ring. */
-  border-color: var(--p-accent);
-  box-shadow:
-    0 6px 22px -12px color-mix(in oklab, var(--p-accent) 30%, transparent),
-    0 0 0 1px color-mix(in oklab, var(--p-accent) 40%, transparent);
+
+/*
+   The light, behind the box rather than around it.
+
+   This was a conic gradient masked to a 1.5px border, which is the
+   standard gradient-border trick and looked like exactly that: a bright
+   hairline tracing the outline. Blurred and pushed BEHIND the glass
+   instead, the same gradient stops being an edge and becomes a lamp the
+   composer is sitting on — the colour only reaches the eye as spill
+   past the box's sides.
+
+   The element is larger than the box on every side so there is
+   something to spill; the glass (::after, one layer in front) covers
+   the middle, so what remains visible is the halo. The ANGLE animates,
+   not the element: rotating the element would swing its blur envelope
+   round with it and the whole halo would wobble.
+*/
+.composer::before {
+  content: "";
+  position: absolute;
+  inset: -16px;
+  z-index: -3;
+  border-radius: 38px; /* the box's 22px + the 16px it is inset by */
+  background: conic-gradient(
+    from var(--askAngle, 0deg),
+    color-mix(in oklab, var(--askGlow) 30%, transparent) 0deg,
+    color-mix(in oklab, var(--askGlow) 30%, transparent) 170deg,
+    color-mix(in oklab, var(--askGlow) 66%, transparent) 245deg,
+    var(--askGlow) 300deg,
+    color-mix(in oklab, var(--askGlow) 66%, transparent) 350deg,
+    color-mix(in oklab, var(--askGlow) 30%, transparent) 360deg
+  );
+  filter: blur(20px);
+  opacity: 0.45;
+  /* Slower than the old border ring. A hairline can travel quickly and
+     still read as one moving point; a soft mass this size looks
+     agitated at the same speed. */
+  animation: composerOrbit 7s linear infinite;
+  transition: opacity 0.45s ease, filter 0.45s ease;
+}
+/*
+   Hover and focus brighten the lamp rather than thicken anything —
+   the dashboard pill's habit of answering the pointer, kept, now that
+   there is no border left for it to act on.
+*/
+.composer:hover::before,
+.composer:focus-within::before {
+  opacity: 0.68;
+  filter: blur(24px);
+}
+
+/* The glass, and one light crossing it top-right to bottom-left. */
+.composer::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  border-radius: inherit;
+  background:
+    linear-gradient(
+      225deg,
+      transparent 38%,
+      color-mix(in oklab, white 45%, transparent) 47%,
+      color-mix(in oklab, var(--p-accent-soft, var(--p-paper)) 60%, transparent) 50%,
+      color-mix(in oklab, white 45%, transparent) 53%,
+      transparent 62%
+    ),
+    color-mix(in oklab, var(--p-surface) 90%, transparent);
+  background-size: 260% 260%, auto;
+  background-repeat: no-repeat;
+  background-position: 130% -30%, 0 0;
+  backdrop-filter: blur(16px) saturate(150%);
+  -webkit-backdrop-filter: blur(16px) saturate(150%);
+  box-shadow: inset 0 1px 0 color-mix(in oklab, white 40%, transparent);
+  animation: composerSheen 5.5s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+}
+
+@keyframes composerOrbit { to { --askAngle: 360deg; } }
+@keyframes composerSheen {
+  0%        { background-position: 135% -35%, 0 0; }
+  55%, 100% { background-position: -35% 135%, 0 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .composer::before, .composer::after { animation: none; }
+  .composer::before { transition: none; }
+}
+/*
+   globals.css gives every input and textarea a 3px accent halo on focus.
+   Inside a rounded composer that draws a hard rectangle around the text —
+   a box inside a box — and the composer already answers focus on its own
+   border. One answer is enough.
+*/
+.input:focus,
+.input:focus-visible {
+  outline: none;
+  box-shadow: none;
+  border-color: transparent;
 }
 .input {
   width: 100%;
@@ -990,14 +1170,14 @@
 }
 .termWord {
   font-family: var(--font-serif);
-  font-size: clamp(24px, 5vw, 56px);
-  font-weight: 600; line-height: 1.05; color: var(--p-ink);
-  letter-spacing: -0.01em;
+  font-size: 9.5cqw;
+  font-weight: 700; line-height: 1; color: var(--p-ink);
+  letter-spacing: -0.03em;
 }
 .termMeaning {
-  font-size: clamp(12px, 1.7vw, 19px);
-  line-height: 1.45; color: var(--p-ink-soft, var(--p-ink));
-  max-width: 32ch;
+  font-size: 3cqw;
+  line-height: 1.4; color: var(--p-ink-soft, var(--p-ink));
+  max-width: 30ch;
 }
 .termAlso {
   font-size: clamp(10.5px, 1.25vw, 13.5px);
@@ -1084,12 +1264,12 @@
   border-inline-start: 3px solid color-mix(in srgb, var(--p-accent) 45%, transparent);
 }
 .splitLabel {
-  font-weight: 600; color: var(--p-ink); line-height: 1.25;
-  font-size: clamp(12px, 1.5vw, 17px);
+  font-weight: 700; color: var(--p-ink); line-height: 1.2;
+  font-size: 3.1cqw;
 }
 .splitDetail {
-  margin-top: 3px; color: var(--p-ink-soft, var(--p-ink)); line-height: 1.45;
-  font-size: clamp(11px, 1.3vw, 15px);
+  margin-top: 0.6cqw; color: var(--p-ink-soft, var(--p-ink)); line-height: 1.42;
+  font-size: 2.5cqw;
 }
 .splitVisual {
   display: flex; flex-direction: column; gap: 8px; align-items: center;
@@ -1125,12 +1305,12 @@
   background: color-mix(in srgb, var(--p-accent) 14%, transparent);
 }
 .objLabel {
-  font-weight: 600; color: var(--p-ink); line-height: 1.3;
-  font-size: clamp(12px, 1.45vw, 16px);
+  font-weight: 700; color: var(--p-ink); line-height: 1.22;
+  font-size: 2.9cqw;
 }
 .objDetail {
-  margin-top: 3px; color: var(--p-muted); line-height: 1.4;
-  font-size: clamp(10.5px, 1.2vw, 13.5px);
+  margin-top: 0.5cqw; color: var(--p-muted); line-height: 1.38;
+  font-size: 2.3cqw;
 }
 
 /* Projected. */
@@ -1147,6 +1327,160 @@
   .splitWrap[data-flip="true"] .splitText,
   .splitWrap[data-flip="true"] .splitVisual { order: initial; }
 }
+
+/*
+   The outline — the deck's plan, before the deck.
+
+   Reads as a document being drafted, not as a form: numbered rows, a
+   quiet rule between them, the title editable in place. The Generate
+   button is the only strong thing on it, because pressing it is the only
+   decision the screen is asking for.
+*/
+.outline {
+  border: 1px solid color-mix(in oklab, var(--p-line) 75%, transparent);
+  border-radius: 14px;
+  background: var(--p-surface);
+  overflow: hidden;
+}
+.outlineHead {
+  padding: 14px 16px 12px;
+  border-bottom: 1px solid color-mix(in oklab, var(--p-line) 60%, transparent);
+}
+.outlineKicker {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--p-accent);
+}
+.outlineTitle {
+  margin: 4px 0 2px;
+  font-family: var(--p-display, Georgia, serif);
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--p-ink);
+}
+.outlineMeta { margin: 0; font-size: 12px; color: var(--p-muted); }
+
+.outlineList { list-style: none; margin: 0; padding: 0; }
+.outlineItem {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 16px;
+  border-bottom: 1px solid color-mix(in oklab, var(--p-line) 40%, transparent);
+}
+.outlineItem:last-child { border-bottom: 0; }
+.outlineNum {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--p-accent);
+  padding-top: 5px;
+  flex-shrink: 0;
+}
+/* Editable in place: a slide whose name is wrong is the commonest fix,
+   and it should not need a dialog. */
+.outlineName {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--p-ink);
+  padding: 3px 0;
+  border-bottom: 1px solid transparent;
+}
+.outlineName:focus {
+  outline: none;
+  border-bottom-color: color-mix(in oklab, var(--p-accent) 45%, transparent);
+}
+.outlineDesc {
+  margin: 1px 0 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--p-muted);
+}
+.outlineDrop {
+  flex-shrink: 0;
+  border: 0;
+  background: transparent;
+  color: var(--p-muted);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 6px;
+  opacity: 0;
+  transition: opacity 0.15s ease, color 0.15s ease;
+}
+.outlineItem:hover .outlineDrop,
+.outlineDrop:focus-visible { opacity: 1; }
+.outlineDrop:hover { color: var(--p-crit, #b3261e); background: color-mix(in oklab, var(--p-line) 40%, transparent); }
+
+.outlineBar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 12px 16px;
+  border-top: 1px solid color-mix(in oklab, var(--p-line) 60%, transparent);
+  background: color-mix(in oklab, var(--p-paper-cool) 55%, transparent);
+}
+
+/*
+   A photograph on a slide.
+
+   Fills its half of the split completely — object-fit: cover, no letterbox,
+   no white margin — because a picture that does not reach the edges reads
+   as clip-art dropped into a document. The credit sits over the bottom of
+   the image in a dark scrim: the licence requires attribution and a wall
+   at the back of a room should not have to read it.
+*/
+.splitPhoto {
+  position: relative;
+  margin: 0;
+  border-radius: 2.2cqw;
+  overflow: hidden;
+  background: color-mix(in oklab, var(--s-card, var(--p-paper)) 70%, transparent);
+  min-height: 0;
+}
+.splitPhoto img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.photoCredit {
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  padding: 1.6cqw 2cqw 1.1cqw;
+  font-size: 1.5cqw;
+  line-height: 1.2;
+  color: #fff;
+  background: linear-gradient(to top, rgb(0 0 0 / 0.62), transparent);
+  text-align: end;
+}
+
+/*
+   The eyebrow — "04 / CAUSES".
+
+   Set in the deck's accent, small and letter-spaced, above the title. Two
+   jobs, both done before the class has read a word: where in the deck they
+   are, and what kind of moment this is. It is the cheapest device in
+   presentation design and the one most often left out.
+*/
+.slideTag {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 1.85cqw;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  color: var(--s-accent, var(--p-accent));
+  margin: 0 0 0.45em;
+  text-transform: uppercase;
+}
+.slideTag span { opacity: 0.5; margin: 0 0.15em; }
 
 /* ══ Deck palette ═════════════════════════════════════════════════════
    A deck had one accent at 6% over cream, which on a screen is white.
@@ -1523,4 +1857,116 @@
 
 @media (prefers-reduced-motion: reduce) {
   .confirmScrim, .confirmBox { animation: none; }
+}
+
+/*
+   The mark scheme, folded away under the paper.
+
+   Closed by default: she is looking at the questions first, and a wall of
+   answers under them is what she scrolls past to check question 12. Open
+   it and it is the teacher's copy — the marking notes and the table of
+   which skill each question tested.
+*/
+.scheme {
+  margin-top: 14px;
+  border-top: 1px solid color-mix(in oklab, var(--p-line) 70%, transparent);
+  padding-top: 10px;
+}
+.scheme > summary {
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--p-accent);
+  list-style: none;
+  padding: 4px 0;
+}
+.scheme > summary::-webkit-details-marker { display: none; }
+.scheme > summary::before {
+  content: "▸";
+  display: inline-block;
+  margin-right: 7px;
+  transition: transform 0.18s ease;
+}
+.scheme[open] > summary::before { transform: rotate(90deg); }
+.scheme > summary:hover { color: var(--p-ink); }
+
+/*
+   A document mid-flight.
+
+   The paced reveal does the work; this only softens the very end of it,
+   so the newest text arrives rather than blinks. `content-visibility`
+   keeps the cost of re-rendering a growing document off the frame
+   budget — without it a long lesson starts dropping frames near the end,
+   which is exactly when it should feel fastest.
+*/
+.streamingBody {
+  animation: streamFade 0.18s ease-out;
+  contain: layout style;
+}
+@keyframes streamFade {
+  from { opacity: 0.88; }
+  to   { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .streamingBody { animation: none; }
+}
+
+/*
+   The agent's own words in the thread.
+
+   Plain prose at the conversation's size, with the paragraph breaks it
+   actually typed preserved — it is instructed to answer in two or three
+   sentences, so this almost never runs long, and giving it a card or a
+   bubble would make a one-line reply look like a document.
+*/
+.said {
+  margin: 2px 0 4px;
+  font-size: 14.5px;
+  line-height: 1.62;
+  color: var(--p-ink);
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+}
+
+/* ── while it writes ──────────────────────────────────────────────── */
+/*
+   A ring of circles turning, after the reference: eight dots of unequal
+   size going round, each swelling and shrinking a beat behind the one
+   before it, so the ring breathes rather than merely spins.
+
+   Drawn in CSS rather than pulled in as a Lottie file. The whole app runs
+   on ten runtime dependencies, and a player plus a JSON payload is a lot
+   of weight for eight circles — this is thirty lines and takes the
+   platform's own colour, which a canned animation could not.
+
+   Two things carry the reference. The sizes are UNEVEN, which is what
+   stops it reading as a machine part; and the colour walks round the ring
+   from the accent to the blue the composer glows with, so the motion has
+   a direction even in a still frame.
+*/
+.spinner {
+  position: relative;
+  width: 34px;
+  height: 34px;
+  animation: spinnerTurn 2.4s linear infinite;
+}
+.spinnerDot {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  border-radius: 999px;
+  /* Each dot is placed by rotating a radius, so one variable moves it
+     round the ring and nothing has to be positioned by hand. */
+  transform: rotate(var(--a)) translate(13px) rotate(calc(-1 * var(--a)));
+  animation: spinnerPulse 1.6s ease-in-out infinite;
+  animation-delay: var(--d);
+}
+@keyframes spinnerTurn  { to { transform: rotate(1turn); } }
+@keyframes spinnerPulse {
+  0%, 100% { opacity: 0.35; }
+  50%      { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .spinner { animation-duration: 6s; }
+  .spinnerDot { animation: none; opacity: 0.7; }
 }

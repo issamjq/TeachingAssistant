@@ -41,9 +41,9 @@ import {
   namedSlides,
   slidesFromMarkdown,
   questionsFromMarkdown,
+  markSchemeFromMarkdown,
 } from "./artifacts";
 import { RewritableBody } from "./RewritableBody";
-import DocumentSkeleton, { ConversationListSkeleton, ThreadSkeleton } from "./DocumentSkeleton";
 import { FinaliseAndSchedule } from "./FinaliseAndSchedule";
 // `declined` still reads "you decide" out of an answer in an old ask
 // turn. missingFrom/askFor went with the question that used them.
@@ -51,6 +51,11 @@ import { declined } from "./missingDetails";
 import {
   isRework, isScheduleOnly, targetedKinds, asksToReschedule, namesNewWork, kindsNamedIn,
 } from "./revision";
+// Only the LIST and the THREAD keep a skeleton: those stand in for rows
+// that genuinely exist and are on their way. The document skeleton is
+// gone — it drew a shape the real document then did not match.
+import { ConversationListSkeleton, ThreadSkeleton } from "./DocumentSkeleton";
+import { renderMarkdown } from "@/lib/markdown";
 import { SkillsPicker } from "./SkillsPicker";
 import {
   listSessions, createSession, appendMessage, loadSession, deleteSession,
@@ -334,6 +339,217 @@ function cleanTitle(raw) {
     .replace(/[*_`]/g, "")
     .replace(/[\s—–-]+$/, "")
     .trim();
+}
+
+/**
+ * The studio is working.
+ *
+ * Eight circles going round, unequal in size, each swelling a beat after
+ * the one before it. No words: "Writing the quiz" was a sentence a
+ * teacher read once and then had to keep reading for the rest of the
+ * wait, and it told her nothing the spinner does not.
+ *
+ * The sizes and the colours are listed rather than computed — the whole
+ * point is that they are UNEVEN, and an even ring reads as a machine
+ * part rather than as something alive.
+ */
+const SPIN_DOTS = [
+  { a: "0deg",   size: 5,   c: "var(--p-accent)",  d: "0s" },
+  { a: "45deg",  size: 7,   c: "var(--p-accent)",  d: "-0.2s" },
+  { a: "90deg",  size: 4,   c: "var(--p-accent)",  d: "-0.4s" },
+  { a: "135deg", size: 8,   c: "#4a7fe0",          d: "-0.6s" },
+  { a: "180deg", size: 5.5, c: "#4a7fe0",          d: "-0.8s" },
+  { a: "225deg", size: 7,   c: "#4a7fe0",          d: "-1.0s" },
+  { a: "270deg", size: 4.5, c: "var(--p-accent)",  d: "-1.2s" },
+  { a: "315deg", size: 6,   c: "var(--p-accent)",  d: "-1.4s" },
+];
+
+function Working({ label }) {
+  return (
+    <div className={s.spinner} role="status" aria-live="polite">
+      <span className="sr-only">{label}</span>
+      {SPIN_DOTS.map((dot, i) => (
+        <span
+          key={i}
+          className={s.spinnerDot}
+          style={{
+            "--a": dot.a,
+            "--d": dot.d,
+            width: dot.size,
+            height: dot.size,
+            marginTop: -dot.size / 2,
+            marginLeft: -dot.size / 2,
+            background: dot.c,
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
+/**
+ * Which studio the composer talks to.
+ *
+ * `true` is the agent: one model reads the conversation and decides
+ * whether the turn wants an answer, a question or a document, then calls
+ * a tool that writes one. `false` is the original pipeline, where this
+ * component decided the kind from a row of toggles and the route always
+ * generated — which is why "hello" used to produce a lesson plan.
+ *
+ * Both backends are mounted, so this is a one-character rollback rather
+ * than a revert.
+ */
+/**
+ * A steady reveal, decoupled from how the network delivered the text.
+ *
+ * The model's tokens do not arrive evenly. Anthropic sends them in
+ * bursts — a few characters, then nothing for 300ms, then two hundred at
+ * once — and writing each burst straight into the DOM reproduces that
+ * unevenness exactly: the document lurches. Gemini looks smooth not
+ * because its stream is smooth but because the page paces the reveal
+ * itself, and that is the whole of the difference.
+ *
+ * So arriving text goes into a buffer, and a frame loop walks the
+ * visible end towards it. The step is proportional to how far behind it
+ * is, which self-corrects: a long burst is caught up quickly without a
+ * jump, and a trickle is revealed gently rather than one character every
+ * few frames. It can never overtake what has actually arrived, so
+ * nothing is ever invented — only delayed, by at most a few frames.
+ */
+function makeReveal(onFrame) {
+  let target = "";
+  let shown = 0;
+  let raf = null;
+  let ended = false;
+
+  const tick = () => {
+    raf = null;
+    const behind = target.length - shown;
+    if (behind > 0) {
+      // A sixth of the backlog per frame: ~60fps means a burst is
+      // absorbed in a handful of frames, which reads as fast rather
+      // than as a jump.
+      shown = Math.min(target.length, shown + Math.max(2, Math.ceil(behind / 6)));
+      onFrame(target.slice(0, shown));
+    }
+    if (shown < target.length) raf = requestAnimationFrame(tick);
+    else if (ended) onFrame(target);
+  };
+
+  return {
+    push(text) {
+      target += text;
+      if (raf == null) raf = requestAnimationFrame(tick);
+    },
+    /** Let the remainder catch up, then settle on the complete text. */
+    end() {
+      ended = true;
+      if (raf == null && shown < target.length) raf = requestAnimationFrame(tick);
+      else if (shown >= target.length) onFrame(target);
+    },
+    /** Abandon the animation and show everything that arrived. */
+    flush() {
+      if (raf != null) cancelAnimationFrame(raf);
+      raf = null;
+      shown = target.length;
+      onFrame(target);
+    },
+    get text() {
+      return target;
+    },
+  };
+}
+
+const USE_AGENT = true;
+
+/**
+ * The slide list, before a deck exists.
+ *
+ * A deck is the longest thing the studio writes and the most expensive
+ * thing to get wrong, and what is usually wrong with it is which ideas
+ * got a slide at all. That is visible here in ten seconds and only in
+ * two minutes from the finished deck — so it is shown first, she edits
+ * it, and nothing is drawn until she presses Generate.
+ *
+ * Editing is deliberately small: strike a slide, add one, retitle one.
+ * A full slide editor here would be a second product, and the thing she
+ * actually needs is to remove the two slides that do not belong and add
+ * the one that does.
+ */
+function OutlinePlan({ turn, busy, onGenerate }) {
+  const [slides, setSlides] = useState(turn.slides || []);
+  const [sent, setSent] = useState(false);
+
+  const drop = (at) => setSlides((v) => v.filter((_, i) => i !== at));
+  const rename = (at, title) =>
+    setSlides((v) => v.map((x, i) => (i === at ? { ...x, title } : x)));
+  const add = () =>
+    setSlides((v) => [...v, { title: "", description: "", layout: "split" }]);
+
+  const usable = slides.filter((x) => (x.title || "").trim());
+
+  return (
+    <div className={s.outline}>
+      <div className={s.outlineHead}>
+        <span className={s.outlineKicker}>Outline</span>
+        <h4 className={s.outlineTitle}>{turn.title}</h4>
+        <p className={s.outlineMeta}>
+          {[turn.subject, turn.grade, `${usable.length} slides`].filter(Boolean).join(" · ")}
+        </p>
+      </div>
+
+      <ol className={s.outlineList}>
+        {slides.map((slide, i) => (
+          <li key={i} className={s.outlineItem}>
+            <span className={s.outlineNum}>{String(i + 1).padStart(2, "0")}</span>
+            <div className="min-w-0 flex-1">
+              <input
+                className={s.outlineName}
+                value={slide.title}
+                placeholder="What is this slide called?"
+                aria-label={`Slide ${i + 1} title`}
+                onChange={(e) => rename(i, e.target.value)}
+                disabled={sent}
+              />
+              {slide.description ? (
+                <p className={s.outlineDesc}>{slide.description}</p>
+              ) : null}
+            </div>
+            {!sent && (
+              <button
+                type="button"
+                className={s.outlineDrop}
+                onClick={() => drop(i)}
+                aria-label={`Remove slide ${i + 1}`}
+              >
+                <XIcon size={13} />
+              </button>
+            )}
+          </li>
+        ))}
+      </ol>
+
+      {!sent && (
+        <div className={s.outlineBar}>
+          <button type="button" className={s.chipBtn} onClick={add}>
+            <Plus size={13} /> Add slide
+          </button>
+          <button
+            type="button"
+            className={s.chipBtn}
+            data-primary
+            disabled={busy || usable.length < 2}
+            onClick={() => {
+              setSent(true);
+              onGenerate(usable);
+            }}
+          >
+            <Sparkles size={13} /> Generate the deck
+          </button>
+        </div>
+      )}
+    </div>
+  );
 }
 
 function titleOf(kind, text, structured) {
@@ -808,6 +1024,21 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
   const inputRef = useRef(null);
   const fileRef = useRef(null);
   const abortRef = useRef(null);
+  /** Distinguishes one agent turn's ids from the next one's. */
+  const runSeq = useRef(0);
+  /** Finished documents, read back outside the updater that closed them. */
+  const finishedDocs = useRef(new Map());
+  /**
+   * The palette the agent chose when it planned the deck.
+   *
+   * It picks the colour in plan_presentation — teal for water, sage for
+   * biology — and the writer is asked to repeat it on the deck's first
+   * slide. It does not always remember to, and when it forgets the deck
+   * falls back to a colour hashed from its title, which is how a deck
+   * the agent deliberately made teal arrived olive. The decision is
+   * already here; carrying it is more reliable than asking twice.
+   */
+  const deckTheme = useRef(null);
 
   // Two different rules, because sending and streaming are different
   // acts. Pressing send ALWAYS scrolls — the teacher just spoke and
@@ -887,6 +1118,326 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
       return null;
     }
   };
+
+
+  /**
+   * One turn of the conversation, run by the agent.
+   *
+   * What is NOT here is the whole point. There is no kind to work out,
+   * no thread inheritance, no partial-edit detection and no prompt
+   * stitched together from the last three turns — every one of those
+   * heuristics existed because the old route had exactly one
+   * destination and this component had to guess what to send it. The
+   * agent reads the conversation itself, so all this does is carry
+   * frames onto the screen.
+   */
+  const runAgentTurn = useCallback(async (prompt, atts, hint) => {
+    const controller = new AbortController();
+    abortRef.current = controller;
+
+    let sid = sessionRef.current;
+    if (!sid) {
+      try {
+        const row = await createSession(prompt);
+        sid = row.session_id;
+        sessionRef.current = sid;
+        setSessions((list) => [row, ...list]);
+      } catch {
+        // A conversation that cannot be filed is still a conversation
+        // worth having. She loses the history entry, not the answer.
+      }
+    }
+    if (sid) appendMessage(sid, { role: "user", text: prompt });
+
+    /**
+     * The toggle is a hint, not an instruction.
+     *
+     * She may have tapped Quiz, and if she did that outranks the
+     * agent's own reading. But an untouched row of toggles means
+     * nothing at all — it resets to "Lesson" on every page load, which
+     * is how asking for homework in a thread holding a lesson used to
+     * rewrite the lesson.
+     */
+    const message = hint?.length
+      ? `${prompt}\n\n(She has the ${hint.map((k) => KIND_META[k]?.label || k).join(" and ")} tool selected.)`
+      : prompt;
+
+    /**
+     * Turns are addressed by id, and the id is decided OUT HERE.
+     *
+     * This was written to remember a turn's index by assigning it inside
+     * the setTurns updater, which is a bug React only shows you in
+     * development: it invokes an updater twice to catch impure ones, so
+     * the second pass saw the index already set, took the "append to
+     * existing" branch against the ORIGINAL array, found nothing at that
+     * index and returned the array untouched. The appended turn was
+     * dropped every time. The words still reached `said` and were still
+     * filed, which is why the reply appeared only after leaving the
+     * conversation and coming back to it.
+     *
+     * So nothing is decided inside an updater any more. Ids are made
+     * here, the "have I opened this one yet" flags live here, and the
+     * updaters do one pure thing: map over turns and replace by id.
+     */
+    const turnId = (suffix) => `agent-${runSeq.current}-${suffix}`;
+    runSeq.current += 1;
+
+    const docId = new Map();
+    const docKind = new Map();         // turn id → its kind, for filing a stopped one
+    const filed = new Set();           // turn ids already written to the transcript
+    const reveal = new Map();          // turn id → its paced reveal
+    const sayKey = turnId('say');
+    let batchId = null;
+
+    /** Everything a document actually received, for filing it complete. */
+    const fullText = new Map();
+
+    let speechFiled = false;
+    const fileSpeech = () => {
+      if (speechFiled) return;
+      speechFiled = true;
+      const spoken = (reveal.get(sayKey)?.text || "").trim();
+      if (sid && spoken) appendMessage(sid, { role: "assistant", text: spoken, kind: "say" });
+    };
+
+    const revealFor = (id) => {
+      let r = reveal.get(id);
+      if (!r) {
+        r = makeReveal((visible) =>
+          setTurns((t) => t.map((x) => (x.id === id ? { ...x, text: visible } : x))),
+        );
+        reveal.set(id, r);
+      }
+      return r;
+    };
+
+    /**
+     * The reply turn opens now, empty, not on the first token.
+     *
+     * Waiting for the model to speak before putting anything on screen
+     * left the thread showing her own message and nothing else for as
+     * long as the round trip took — which reads as a message that went
+     * nowhere. An empty reply turn renders the working indicator, and
+     * the first token replaces it in place.
+     */
+    setTurns((t) => [...t, { role: "say", id: sayKey, text: "", streaming: true }]);
+
+    // Loaded on use, as the batch path does: the streaming reader is only
+    // needed once she actually sends something.
+    const { streamSSE } = await import("@/shared/lib/apiStream");
+
+    try {
+      await streamSSE("/api/studio/agent", {
+        signal: controller.signal,
+        body: {
+          message,
+          ...(sid ? { sessionId: sid } : {}),
+          ...(atts.length ? { materials: atts.map((a) => ({ id: a.id, name: a.name })) } : {}),
+          ...(skillSel.current && !skillSel.current.all ? { skill_ids: skillSel.current.ids } : {}),
+        },
+        onEvent: (ev) => {
+          switch (ev.type) {
+            /* The agent's own words, streamed as it speaks them. */
+            case "say": {
+              revealFor(sayKey).push(ev.text);
+              break;
+            }
+
+            case "artifact_start": {
+              batchId = ev.batch_id || batchId;
+              /**
+               * File the spoken line before the first document, because
+               * that is the order she heard it in.
+               *
+               * Speech was filed in the `finally` block, which runs after
+               * every document has already been written — so the
+               * transcript recorded the agent's "Grade 7, 40 minutes"
+               * AFTER the lesson it introduces, and reopening the
+               * conversation showed the line underneath the document
+               * explaining what was about to be written. The agent always
+               * speaks before it calls a tool, so by the time a document
+               * opens the speech is complete and safe to store.
+               */
+              fileSpeech();
+              const id = turnId(ev.kind);
+              docId.set(ev.kind, id);
+              docKind.set(id, ev.kind);
+              setTurns((t) => [
+                ...t,
+                {
+                  role: "assistant", id, kind: ev.kind, text: "", streaming: true, batchId,
+                  ...(ev.kind === "presentation" && deckTheme.current
+                    ? { theme: deckTheme.current }
+                    : {}),
+                },
+              ]);
+              if (ev.kind === "presentation") deckTheme.current = null;
+              break;
+            }
+
+            case "delta": {
+              const id = docId.get(ev.kind);
+              if (!id) break;
+              fullText.set(id, (fullText.get(id) || "") + ev.text);
+              revealFor(id).push(ev.text);
+              break;
+            }
+
+            case "artifact": {
+              const id = docId.get(ev.kind);
+              if (!id) break;
+              const content = ev.content;
+              setTurns((t) => t.map((x) => (x.id === id ? { ...x, structured: content } : x)));
+              break;
+            }
+
+            case "artifact_end": {
+              const id = docId.get(ev.kind);
+              if (!id) break;
+              const kind = ev.kind;
+              /**
+               * Filed from a ref, not from inside the updater.
+               *
+               * Saving the row inside setTurns meant the row was written
+               * once per invocation of the updater — twice in
+               * development — so every document was filed to the library
+               * in duplicate.
+               */
+              /**
+               * Let the reveal finish, but file what ARRIVED.
+               *
+               * The visible text can be a few frames behind when the
+               * stream closes, and saving that prefix would file a
+               * lesson with its last paragraph missing — the teacher
+               * would see a complete document and open a truncated one.
+               */
+              revealFor(id).end();
+              const complete = fullText.get(id) || "";
+              setTurns((t) => {
+                const finished = t.find((x) => x.id === id);
+                if (finished) finishedDocs.current.set(id, { ...finished, text: complete });
+                return t.map((x) => (x.id === id ? { ...x, streaming: false, done: true } : x));
+              });
+              const doc = finishedDocs.current.get(id);
+              if (sid && doc) {
+                appendMessage(sid, {
+                  role: "assistant",
+                  text: complete,
+                  kind,
+                  structured: doc.structured,
+                  batchId,
+                });
+                filed.add(id);
+              }
+              lastDoc.current = { kind, title: ev.title || "" };
+              break;
+            }
+
+            /*
+               The plan, before anything is drawn. It is a turn like any
+               other so it survives a reload and sits in the thread where
+               she left it — but nothing has been generated yet.
+            */
+            case "outline": {
+              const id = turnId("outline");
+              setTurns((t) => [
+                ...t,
+                {
+                  role: "outline",
+                  id,
+                  kind: "presentation",
+                  batchId: ev.batch_id || batchId,
+                  title: ev.title || "Presentation",
+                  topic: ev.topic || "",
+                  grade: ev.grade || "",
+                  subject: ev.subject || "",
+                  theme: ev.theme || "",
+                  slides: Array.isArray(ev.slides) ? ev.slides : [],
+                  done: true,
+                },
+              ]);
+              break;
+            }
+
+            case "unread": {
+              if (ev.unread_materials?.length) {
+                setNotice(`Could not read: ${ev.unread_materials.join(", ")}`);
+              }
+              break;
+            }
+
+            case "error": {
+              setTurns((t) => [...t, { role: "error", text: ev.message }]);
+              break;
+            }
+
+            case "done": {
+              if (ev.batch_id) batchId = ev.batch_id;
+              revealFor(sayKey).end();
+              setTurns((t) =>
+                t.map((x) => (x.id === sayKey ? { ...x, streaming: false } : x)),
+              );
+              break;
+            }
+
+            default:
+              break;
+          }
+        },
+      });
+    } catch (error) {
+      if (!controller.signal.aborted) {
+        setTurns((t) => [...t, { role: "error", text: error?.message || "Something went wrong. Try again." }]);
+      }
+    } finally {
+      // Already done if a document followed; this covers the turns that
+      // were only ever an answer.
+      fileSpeech();
+      // An abandoned turn should not keep animating; show what arrived.
+      for (const r of reveal.values()) r.flush();
+
+      /**
+       * A document she stopped is still a document she has.
+       *
+       * Only `artifact_end` filed anything, and pressing Stop means that
+       * frame never arrives — so half a lesson lived in React state and
+       * nothing else. It looked saved, because it was on screen; leaving
+       * the conversation and coming back showed it had never existed.
+       * Whatever arrived is written now, under the same batch, so the
+       * transcript matches what she was actually looking at.
+       */
+      if (sid) {
+        for (const [id, text] of fullText) {
+          if (filed.has(id) || !text.trim()) continue;
+          appendMessage(sid, {
+            role: "assistant",
+            text,
+            kind: docKind.get(id),
+            structured: finishedDocs.current.get(id)?.structured ?? null,
+            batchId,
+          });
+          filed.add(id);
+        }
+      }
+      setTurns((t) =>
+        t
+          // A turn that opened and was never spoken into is not a reply.
+          // It happens when the agent goes straight to writing.
+          .filter((x) => !(x.id === sayKey && !x.text.trim()))
+          .map((x) =>
+            x.streaming
+              ? // `done` as well as `streaming: false`: the artifact card
+                // is gated on `done`, so a stopped document that only had
+                // its streaming flag cleared would keep the bare streaming
+                // view and lose its Save button.
+                { ...x, streaming: false, ...(x.kind ? { done: true } : {}) }
+              : x,
+          ),
+      );
+      abortRef.current = null;
+      setBusy(false);
+    }
+  }, []);
 
   const send = useCallback(async (text, useKind, opts = {}) => {
     const prompt = (text ?? draft).trim();
@@ -1176,6 +1727,32 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
      * about format, which is exactly the case it was written for ("give
      * question 9 more marks"), and never when she has.
      */
+    /**
+     * The agent decides the rest.
+     *
+     * Everything below this branch — the kind chain, the carried
+     * context, the partial-edit bookkeeping — exists to compensate for a
+     * route that could only generate. The agent reads the thread itself,
+     * so the only thing worth passing on is an EXPLICIT pick: a starter
+     * chip, or a toggle she has just moved. An untouched toggle row says
+     * nothing, because it resets to "Lesson" on every page load.
+     */
+    if (USE_AGENT) {
+      const hint = useKind ? [useKind] : kindsTouched.current ? kinds : [];
+      kindsTouched.current = false;
+      const atts = attachments;
+      setDraft("");
+      setAttachments([]);
+      setNotice(null);
+      setBusy(true);
+      forceScroll.current = true;
+      lastPrompt.current = prompt;
+      if (!opts.skipAsk) {
+        setTurns((t) => [...t, { role: "user", text: prompt, attachments: atts }]);
+      }
+      return runAgentTurn(prompt, atts, hint);
+    }
+
     const ks = isPartial
       ? partial
       : useKind
@@ -2156,6 +2733,71 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
                 );
               }
 
+              /**
+               * The agent talking.
+               *
+               * Prose beside the avatar, not a card: this is the half of
+               * the conversation that is an answer rather than a
+               * document, and putting it in an artifact card with a Save
+               * button under it was how a one-line reply used to end up
+               * looking like something she had to file.
+               */
+              if (turn.role === "say") {
+                return (
+                  <div key={i} className={s.turn}>
+                    <span className={s.avatar}><Sparkles size={15} /></span>
+                    <div className="flex-1 min-w-0">
+                      {turn.text ? (
+                        <p className={s.said}>{turn.text}</p>
+                      ) : (
+                        <Working label="Thinking" />
+                      )}
+                    </div>
+                  </div>
+                );
+              }
+
+              /* The plan, waiting on her. */
+              if (turn.role === "outline") {
+                return (
+                  <div key={turn.id || i} className={s.turn}>
+                    <span className={s.avatar}><Sparkles size={15} /></span>
+                    <div className="flex-1 min-w-0">
+                      <OutlinePlan
+                        turn={turn}
+                        busy={busy}
+                        onGenerate={(slides) => {
+                          /*
+                             Her approved plan goes back as the request. The
+                             agent reads it as the brief and writes the deck
+                             from exactly these slides, in this order — which
+                             is why the list is sent in full rather than as
+                             "the outline above": the agent's next turn does
+                             not see this component's state.
+                          */
+                          const plan = slides
+                            .map((x, n) => `${n + 1}. ${x.title}${x.description ? ` — ${x.description}` : ""}${x.layout ? ` [${x.layout}]` : ""}`)
+                            .join("\n");
+                          deckTheme.current = turn.theme || null;
+                          send(
+                            `Write the presentation now, from this approved outline. ` +
+                              `Follow it exactly: EXACTLY ${slides.length} slides, one for each ` +
+                              `numbered row below, in that order, with that title. Do not add a ` +
+                              `slide, do not merge two, do not split one. Count them before you ` +
+                              `finish.` +
+                              `${turn.theme ? ` Theme: ${turn.theme}.` : ""}` +
+                              `${turn.grade ? ` ${turn.subject || ""} ${turn.grade}.` : ""}` +
+                              `\n\n${plan}`,
+                            "presentation",
+                            { skipAsk: true },
+                          );
+                        }}
+                      />
+                    </div>
+                  </div>
+                );
+              }
+
               if (turn.role === "error") {
                 return (
                   <div key={i} className={s.turn}>
@@ -2185,28 +2827,42 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
                 (turn.kind === "quiz" && turn.done
                   ? questionsFromMarkdown(turn.text)
                   : undefined);
-              const showArtifact = turn.done && (slides || questions || turn.text);
+              /**
+               * Show it while it is being written, not after.
+               *
+               * This was `turn.done && …`, so for the whole of a
+               * generation the teacher saw a spinner and nothing else,
+               * and the document appeared all at once at the end. The
+               * words are arriving a token at a time and there is no
+               * reason to hide them — watching it write is the single
+               * clearest signal that anything is happening at all, and
+               * it is worth more than any spinner.
+               *
+               * The structured viewers still wait for `done`: half a
+               * deck is not a deck, and re-parsing markdown into slides
+               * on every token would fight the text as it arrives.
+               */
+              /* The teacher's copy, shown under the paper rather than
+                 discarded with the rest of the markdown. */
+              const markScheme =
+                turn.kind === "quiz" && turn.done ? markSchemeFromMarkdown(turn.text) : "";
+              const showArtifact = Boolean(slides || questions || turn.text);
 
               return (
                 <div key={i} className={s.turn}>
                   <span className={s.avatar}><Sparkles size={15} /></span>
                   <div className="flex-1 min-w-0">
-                    {/* The document's own shape until the document itself
-                        is ready — the whole wait, not just the part before
-                        the first token.
-                        
-                        Half-written markdown used to be shown as it
-                        arrived: headings landing one at a time, a table
-                        drawing itself column by column, a bold marker
-                        sitting as "**carbon diox" until its closing pair
-                        turned up. It read as the page loading in pieces,
-                        and the finished document then replaced all of it,
-                        so nothing on screen during the wait survived. The
-                        skeleton already says what is coming and holds the
-                        space it will take; showing the raw text on top of
-                        that was motion standing in for progress. */}
-                    {turn.streaming && (
-                      <DocumentSkeleton kind={turn.kind} stage={turn.stage} />
+                    {/* The studio is working, and that is all it says.
+                        A sentence naming the document was something a
+                        teacher read once and then had to keep reading for
+                        the rest of the wait. */}
+                    {/* Only for the gap before the first token. Once words
+                        are arriving they are the progress indicator, and
+                        showing both reads as two things happening. */}
+                    {turn.streaming && !turn.text && (
+                      <Working
+                        label={`Writing the ${(KIND_META[turn.kind]?.label || "document").toLowerCase()}`}
+                      />
                     )}
 
                     {showArtifact && (
@@ -2250,21 +2906,59 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
                         }
                       >
                         {slides ? (
-                          <SlideViewer slides={slides} onFullscreen={(at) => setPresenting({ slides, at })} />
+                          /* The deck's own palette rides on its first slide,
+                             which is where deckToneIndex() looks for it. */
+                          <SlideViewer
+                            slides={
+                              turn.theme
+                                ? slides.map((sl, n) => (n === 0 ? { ...sl, theme: turn.theme } : sl))
+                                : slides
+                            }
+                            onFullscreen={(at) => setPresenting({ slides, at })}
+                          />
                         ) : questions ? (
-                          <QuizViewer questions={questions} />
+                          <>
+                            <QuizViewer questions={questions} />
+                            {markScheme && (
+                              <details className={s.scheme}>
+                                <summary>Mark scheme and what the marks tell you</summary>
+                                <div className={s.reply}>{renderMarkdown(markScheme)}</div>
+                              </details>
+                            )}
+                          </>
                         ) : (
                           // Prose artifacts can be rewritten a section at a
                           // time (/api/studio/regenerate). A rewrite makes
                           // the turn saveable again — the library copy
                           // would otherwise be the stale text.
-                          <RewritableBody
-                            markdown={turn.text}
-                            kind={turn.kind}
-                            onChange={(next) =>
-                              setTurns((t) => t.map((x, j) => (j === i ? { ...x, text: next, saved: false } : x)))
-                            }
-                          />
+                          /*
+                             While it writes, the plain reading. Finished,
+                             the rewritable one.
+
+                             RewritableBody splits the document into
+                             editable sections on every render, and during
+                             a stream that runs on every animation frame
+                             over a document that is still growing — the
+                             section boundaries move as headings arrive,
+                             so React rebuilds the subtree instead of
+                             extending it, and the text visibly jumps.
+                             Nothing on it is usable mid-stream anyway:
+                             there is no point offering to rewrite a
+                             paragraph that is still being written.
+                          */
+                          turn.done ? (
+                            <RewritableBody
+                              markdown={turn.text}
+                              kind={turn.kind}
+                              onChange={(next) =>
+                                setTurns((t) => t.map((x, j) => (j === i ? { ...x, text: next, saved: false } : x)))
+                              }
+                            />
+                          ) : (
+                            <div className={`${s.reply} ${s.streamingBody}`}>
+                              {renderMarkdown(turn.text)}
+                            </div>
+                          )
                         )}
                       </ArtifactCard>
                     )}
