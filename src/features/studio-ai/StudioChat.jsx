@@ -1165,7 +1165,7 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
    * agent reads the conversation itself, so all this does is carry
    * frames onto the screen.
    */
-  const runAgentTurn = useCallback(async (prompt, atts, hint, display) => {
+  const runAgentTurn = useCallback(async (prompt, atts, hint, display, forClass = null) => {
     const controller = new AbortController();
     abortRef.current = controller;
 
@@ -1202,9 +1202,18 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
      * is how asking for homework in a thread holding a lesson used to
      * rewrite the lesson.
      */
-    const message = hint?.length
+    const hinted = hint?.length
       ? `${prompt}\n\n(She has the ${hint.map((k) => KIND_META[k]?.label || k).join(" and ")} tool selected.)`
       : prompt;
+    /**
+     * Her class, in the same parenthetical register as the tool hint.
+     * Last, where a model weights it most — the codebase's own rule for
+     * instructions. The agent reads the whole conversation, so on a
+     * rework this restates the class the thread is already for.
+     */
+    const message = forClass
+      ? `${hinted}\n\n(This is for her class ${classLabel(forClass)} — ${forClass.count} student${forClass.count === 1 ? "" : "s"} on her roster. Write for exactly that grade and subject, and state both in the title line.)`
+      : hinted;
 
     /**
      * Turns are addressed by id, and the id is decided OUT HERE.
@@ -1360,7 +1369,13 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
               setTurns((t) => {
                 const finished = t.find((x) => x.id === id);
                 if (finished) finishedDocs.current.set(id, { ...finished, text: complete });
-                return t.map((x) => (x.id === id ? { ...x, streaming: false, done: true } : x));
+                // The class this was written for rides on the turn, so the
+                // save files it under the same class (see storeBatch).
+                return t.map((x) =>
+                  x.id === id
+                    ? { ...x, streaming: false, done: true, ...(forClass ? { audience: forClass } : {}) }
+                    : x,
+                );
               });
               const doc = finishedDocs.current.get(id);
               if (sid && doc) {
@@ -1797,7 +1812,9 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
           { role: "user", text: opts.display || prompt, attachments: atts },
         ]);
       }
-      return runAgentTurn(prompt, atts, hint, opts.display);
+      // The class pick travels with the turn; a slot answer is not a
+      // brief, so it carries none.
+      return runAgentTurn(prompt, atts, hint, opts.display, opts.skipAsk ? null : classSel.current);
     }
 
     const ks = isPartial
