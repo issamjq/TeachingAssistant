@@ -5,45 +5,48 @@
 > requests is a folder nobody reads. This file is the whole outstanding
 > list. If it is not here, it is not waiting on anyone.
 
-## 🔴 Do this first: confirm what production is running
+## Answered: production is `backendv2`
 
-**Open question, and it decides everything below.** The frontend now
-points at `https://murchid-backend-no24.onrender.com` — a new Render
-service, healthy, `/healthz` 200 in 0.3s. **Is that `backendv2`, or is
-it `main` on a new host?**
+Settled 2 Sep, and not by probing — the service found our uniquely-named
+request in its own log, carrying `x-forwarded-host: www.murchid.com` and
+the same request id the browser was handed. Six releases are reachable
+and the `temperature: 0` repetition bug is gone.
 
-If it is `backendv2`, this section is already resolved and the rest of
-the list stands on its own. If it is `main`, the bug below is live and
-so is everything else that was said about the branch split. The blanket
-auth middleware 401s every path including nonsense ones, so this cannot
-be answered from outside — one word from you settles it.
+**One thing we got wrong.** "The frontend now points at the new host" was
+true in the repo and not in production: `API_PROXY_TARGET` in Vercel
+still held the old host until it was changed and redeployed — exactly
+the warning in our own commit. Until then none of phases 0–5 reached a
+teacher.
 
-### The bug, if `main` is still what serves teachers
-
-`main` pins `temperature: 0` on structured Gemini calls — which on a
-long enough input degenerates into a repetition loop: 65,520 output
-tokens of garbage, then *"Couldn't read that response."*
-The teacher sees a failure and the noise is billed.
-
-It hits **every** structured call: the goal planner, the quiz
-structurer, the CV parse. A term plan that fails on a big syllabus and
-works on a small one is this, and it has been true for as long as the
-pin has existed.
-
-One commit to cherry-pick, and it touches nothing in the wire contract.
-Do that, or deploy `backendv2` — but until one of them happens, none of
-the work below is reachable by a teacher, because it is all on the
-branch that is not serving anyone.
+**And an outage we could not have caught.** The cutover took every AI
+path down for ~25 minutes: the v2 service carried
+`ALLOWED_ORIGINS = localhost` only, so the live site was refused with
+403 before reaching auth. Probing the backend host directly sends no
+`Origin` header, and the service allows a request without one — so CORS
+never fired for us. It only fires through a browser, and non-AI pages
+stayed healthy throughout because they read Supabase directly.
 
 ## Waiting on the backend
 
 | # | What | Spec |
 |---|---|---|
-| 08 | `POST /api/studio/skill-profile` — the interview compiled into a written profile, and `skill_ids` honoured during generation. Open since August and not mentioned in any release since | [08](08-skills-refinement.md) |
 | — | **Grounded generation** — inject retrieved passages into lesson and quiz prompts, prefer her material over ours, cite which source a section drew on. The corpus and `/api/corpus/search` now exist; this is the step that uses them | this file, §3 |
 
-Everything else the frontend needs has shipped. The two items above are
-self-contained; nothing in them depends on anything else in this list.
+**§08 was never missing.** The route exists and `skill_ids` are honoured
+through `resolveSkills({ explicitIds })`, on both branches. Our 404 was
+the old host or the auth wall. The spec stays in the folder as
+documentation; it is not an ask. Worth re-testing before the frontend
+keeps falling back to its local compile.
+
+One open question of ours, in the other direction:
+
+- **What is `estimateCredits()`'s rule for a multi-document lesson?**
+  The composer quoted ~6 and the real spend was 9 (a lesson plan and
+  student notes, +5 and +4). Ours quotes the price-table entry for each
+  selected *kind*; a lesson evidently produces more than one document
+  and is metered per document. Send the formula and the quote will
+  mirror it — guessing a multiplier would replace a wrong number with a
+  differently wrong one.
 
 ### One line still owed on our side
 
@@ -62,16 +65,21 @@ shorter funnel copy and has no AI-providers section to correct.)*
 These are the ones that keep getting missed because they are not a pull
 request:
 
-- **Gemini is still on the free tier.** ~20 generations a day for the
-  whole product. This gates every AI feature above.
-- **A verified mail sending domain.** Until then verification codes
-  reach only the Resend account owner. (Supabase "Confirm email" is off
-  — that half is done.)
-- **A scheduled pinger on `/api/keepwarm`, every ~10 minutes.** Measured
+- **Gemini is still on the free tier** — but the blast radius is much
+  smaller than we said. Generation runs Anthropic (`claude-sonnet-5`);
+  Gemini now only serves embeddings, so the tier decision gates
+  retrieval, not the product.
+- **A Brevo-validated sender address.** Not Resend — that was dropped
+  for Brevo, and `env.ts` says so. The item is real but reframed: with
+  an unvalidated sender, Brevo answers 201 and silently drops the
+  message. (Supabase "Confirm email" is off — that half is done.)
+- **A scheduled pinger on `/api/keepwarm`, every ~10 minutes.** This is
+  a frontend route and it answers 200 in production today; there is
+  nothing to build, only a monitor to point at it. Measured
   2 Sep: a cold first request took **22.6 seconds**; the next one took
   **0.16**. The route is built and reports the real status; it just
-  needs any free monitor pointed at it. This is the cheapest
-  perceived-speed win available and it has been open the longest.
+  This is the cheapest perceived-speed win available and it has been
+  open the longest.
 - **A `render.yaml` that describes the service actually serving
   traffic.** The blueprint describes `main`/starter/Singapore; the v2
   service is Free/Oregon, and there is now a third host name in play
@@ -99,6 +107,21 @@ So it is an authenticated call she makes:
 **Read my unread files** whenever there is a backlog, one batch per
 press — every successful read is charged, and a button that keeps
 spending after she has stopped looking is not one she can trust.
+
+## §1b · Two things the service is currently breaking
+
+Both from the contract in §2 below, both small, both change what a
+teacher sees.
+
+- **A real 404 carries no `code`.** `notFoundHandler` sends
+  `{ error: 'Not found' }` and nothing else, so every genuine 404 from
+  the service renders as *"this part of Murchid isn't connected yet"* —
+  a missing lesson tells her the product is disconnected.
+- **No SSE heartbeat exists.** The routes set the `Connection:
+  keep-alive` header but never emit a periodic `:` frame. Our client
+  gives up after 90 seconds of silence, so any turn that thinks for
+  longer without emitting a token — a long term plan, a large attached
+  PDF — is killed while the model is still working.
 
 ## §2 · What is already handled on our side
 
@@ -157,7 +180,23 @@ ours where both match, say in the document which source a section drew
 on, and generate as today rather than forcing weak passages in when
 retrieval finds nothing useful.
 
-## §4 · Nothing has been run for real
+## §4 · What has now met a teacher, and what has not
+
+**One lesson has.** Generated through the studio on production against
+v2: it streamed a plan and student notes, no cut stream, and left
+`lesson_plan | ours=true | 1` — one row, written by the service, titled
+"Air Resistance and Terminal Velocity" rather than "Lesson plan". The
+writer flip and the trio merge both hold under a real session.
+
+Still unexercised: the term-plan placement path (`goal_days` is still
+empty, because nobody has pressed *Put N lessons on my timetable*),
+grounded generation, the student invite loop and checkout.
+
+The terminal-velocity check is **not meaningfully runnable yet** — it
+needs a class with real question-level marks behind it, and the account
+has one student with none. A pass today would prove nothing.
+
+### The original table, for the paths still untested
 
 Worth reading twice, and it is the service's own account rather than a
 suspicion: every path below typechecks, builds, boots against the live

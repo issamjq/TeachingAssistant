@@ -395,10 +395,17 @@
 @media (max-width: 820px) {
   .frame { grid-template-columns: minmax(0, 1fr); }
   .side { display: none; }
-  .top { padding-inline: 18px; }
+  .top { padding-inline: 16px; gap: 10px; }
   .search { display: none; }
-  .content { padding: 20px 16px 90px; }
+  .content { padding: 20px 16px 96px; }
+  .bar { padding-inline: 16px; gap: 10px; }
+  .barText { display: none; }
+  .barWord { display: inline; }
+  .pageTitle { font-size: 19px; }
+  .fab { inset-inline-end: 16px; inset-block-end: 16px; padding: 10px 16px; }
 }
+/* The word alone, once the sentence is gone. */
+.barWord { display: none; font-weight: 600; }
 
 @media (prefers-reduced-motion: reduce) {
   .item, .subject, .child, .chev, .fab, .addSubject, .iconBtn { transition: none; }
