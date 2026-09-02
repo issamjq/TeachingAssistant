@@ -45,7 +45,7 @@
 .brandMark {
   width: 30px; height: 30px;
   display: grid; place-items: center;
-  border-radius: 9px;
+  border-radius: 10px;
   background: var(--p-accent);
   color: var(--p-on-accent);
   flex: none;
@@ -186,7 +186,7 @@
   align-items: center;
   gap: 9px;
   padding: 6px 9px;
-  border-radius: 8px;
+  border-radius: 10px;
   border: 0;
   background: transparent;
   color: var(--p-ink-soft);
@@ -314,6 +314,44 @@
 .whoName { font-size: 13px; font-weight: 600; }
 .whoRole { font-size: 11px; color: var(--p-muted); }
 
+.mobileNav {
+  display: none;
+  gap: 7px;
+  padding: 9px 16px;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  background: var(--p-paper-cool);
+  border-bottom: 1px solid var(--p-line-soft);
+  scrollbar-width: none;
+  flex: none;
+}
+.mobileNav::-webkit-scrollbar { display: none; }
+.mobileItem {
+  flex: none;
+  padding: 6px 14px;
+  border: 1px solid var(--p-line);
+  border-radius: 999px;
+  background: var(--p-paper);
+  color: var(--p-ink-soft);
+  font: inherit;
+  font-size: 13px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.mobileItem[data-on="true"] {
+  background: color-mix(in oklab, var(--p-accent) 13%, transparent);
+  border-color: color-mix(in oklab, var(--p-accent) 34%, transparent);
+  color: var(--p-accent-hover);
+  font-weight: 600;
+}
+.mobileRule {
+  flex: none;
+  width: 1px;
+  align-self: stretch;
+  background: var(--p-line);
+  margin-inline: 3px;
+}
+
 .content {
   flex: 1;
   min-height: 0;
@@ -344,6 +382,9 @@
   font-size: 12px;
   flex: none;
 }
+/* The word alone, once the sentence is gone. Declared before the media
+   query below, or its `display: none` outranks the override. */
+.barWord { display: none; font-weight: 600; }
 .barText { flex: 1; min-width: 0; opacity: 0.78; }
 .barText b { font-weight: 600; opacity: 1; }
 .roles { display: flex; gap: 2px; padding: 2px; border-radius: 999px; background: color-mix(in oklab, var(--p-on-invert) 12%, transparent); }
@@ -366,7 +407,7 @@
 
 /* ── the floating assistant, exactly where the product keeps it ────── */
 .fab {
-  position: absolute;
+  position: fixed;
   inset-inline-end: 26px;
   inset-block-end: 22px;
   display: inline-flex; align-items: center; gap: 8px;
@@ -383,7 +424,6 @@
 }
 .fab:hover { background: var(--p-accent-hover); transform: translateY(-2px); box-shadow: var(--shadow-3); }
 .fab:active { transform: scale(0.97); }
-.mainWrap { position: relative; display: contents; }
 
 /* ── narrower ──────────────────────────────────────────────────────── */
 
@@ -403,9 +443,9 @@
   .barWord { display: inline; }
   .pageTitle { font-size: 19px; }
   .fab { inset-inline-end: 16px; inset-block-end: 16px; padding: 10px 16px; }
+  .mobileNav { display: flex; }
 }
-/* The word alone, once the sentence is gone. */
-.barWord { display: none; font-weight: 600; }
+
 
 @media (prefers-reduced-motion: reduce) {
   .item, .subject, .child, .chev, .fab, .addSubject, .iconBtn { transition: none; }

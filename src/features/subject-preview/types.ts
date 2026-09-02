@@ -215,4 +215,12 @@ export type StudentModel = {
   scores: { id: string; title: string; score: number | null; maxScore: number | null; submittedAt: string | null }[];
   grades: { subject: string | null; term: string | null; label: string | null; score: number | null; maxScore: number | null; recordedOn: string | null }[];
   noClasses: boolean;
+  /**
+   * Whether the signed-in account is actually a student.
+   *
+   * A teacher flipping to this tab gets the same empty answer from
+   * student_dashboard() as a student with no classes, and those are
+   * completely different situations to be told about.
+   */
+  isStudent: boolean;
 };

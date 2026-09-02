@@ -166,6 +166,9 @@
 }
 .btnIcon:hover { background: var(--p-paper-warm); border-color: var(--p-line-strong); color: var(--p-ink); }
 
+/* Cards keep their own hover lift; a button inside one must not fight it. */
+.work .btn:hover, .work .btnIcon:hover { border-color: var(--p-accent); color: var(--p-accent); }
+
 /* ── the week's prep, and what is waiting ──────────────────────────── */
 
 .rail { display: grid; gap: 14px; }
@@ -203,7 +206,7 @@
 .taskIcon {
   width: 28px; height: 28px; flex: none;
   display: grid; place-items: center;
-  border-radius: 9px;
+  border-radius: 10px;
   background: var(--p-accent-soft);
   color: var(--p-accent-hover);
 }
@@ -220,6 +223,7 @@
   gap: 14px;
 }
 .makeGrid3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
 @media (max-width: 1240px) { .makeGrid3 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 640px) {
   .makeGrid, .makeGrid3 { grid-template-columns: minmax(0, 1fr); }
@@ -247,7 +251,7 @@
 .makeIcon {
   width: 36px; height: 36px;
   display: grid; place-items: center;
-  border-radius: 11px;
+  border-radius: 10px;
   background: var(--p-accent-soft);
   color: var(--p-accent-hover);
   margin-bottom: 4px;
@@ -263,6 +267,21 @@
 }
 .make:hover .makeGo svg { transform: translateX(2px); }
 .makeGo svg { transition: transform var(--dur-hover) var(--ease-out-quart); }
+/* Beside the rail on Home the column is wide and the cards are short, so
+   they lie down: icon in a fixed first track, the three lines of text
+   stacked next to it. Stood upright at that width they were 220px tall
+   holding one line of copy. */
+.makeWide {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr);
+  column-gap: 14px;
+  row-gap: 5px;
+  align-items: start;
+}
+.makeWide .makeIcon { grid-row: 1 / 4; margin-bottom: 0; }
+.makeWide .makeGo { margin-top: 2px; padding-top: 0; }
+@media (max-width: 520px) { .makeWide { grid-template-columns: minmax(0, 1fr); } .makeWide .makeIcon { grid-row: auto; } }
+
 
 /* ── work cards ────────────────────────────────────────────────────── */
 
@@ -330,7 +349,7 @@
 .bannerIcon {
   width: 40px; height: 40px; flex: none;
   display: grid; place-items: center;
-  border-radius: 12px;
+  border-radius: 10px;
   background: var(--p-accent-soft);
   color: var(--p-accent-hover);
 }
@@ -401,7 +420,7 @@
 .compose {
   padding: 22px 24px;
   border: 1.5px solid color-mix(in oklab, var(--p-accent) 42%, transparent);
-  border-radius: 18px;
+  border-radius: 16px;
   background: var(--p-paper-cool);
 }
 .composeTitle {
@@ -499,7 +518,7 @@
 .emptyIcon {
   width: 40px; height: 40px;
   display: grid; place-items: center;
-  border-radius: 12px;
+  border-radius: 10px;
   background: var(--p-accent-soft);
   color: var(--p-accent-hover);
   margin-bottom: 2px;

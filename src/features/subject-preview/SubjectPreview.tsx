@@ -23,7 +23,8 @@ import { loadStudent, loadTeacher } from "./model";
 import Shell, { type Crumb, type SideSubject } from "./Shell";
 import { HOME, parse, roleOf, serialise, type Route } from "./route";
 import { Failed, Loading, classLine } from "./parts";
-import { Detail, Home, KindList, Library, SubjectHome, Week } from "./TeacherScreens";
+import { Home, KindList, Library, SubjectHome, Week } from "./TeacherScreens";
+import { Detail } from "./Detail";
 import { StudentHome, StudentSubjectView } from "./StudentScreens";
 
 export default function SubjectPreview() {
@@ -55,9 +56,8 @@ export default function SubjectPreview() {
 
   useEffect(() => {
     let alive = true;
-    setTeacherError(null);
     loadTeacher()
-      .then((m) => alive && setTeacher(m))
+      .then((m) => { if (alive) { setTeacher(m); setTeacherError(null); } })
       .catch((e) => alive && setTeacherError(e?.message || "Supabase did not answer."));
     return () => { alive = false; };
   }, [reload]);
@@ -67,9 +67,8 @@ export default function SubjectPreview() {
   useEffect(() => {
     if (role !== "student" || student) return;
     let alive = true;
-    setStudentError(null);
     loadStudent()
-      .then((m) => alive && setStudent(m))
+      .then((m) => { if (alive) { setStudent(m); setStudentError(null); } })
       .catch((e) => alive && setStudentError(e?.message || "Supabase did not answer."));
     return () => { alive = false; };
   }, [role, student, reload]);
@@ -114,7 +113,7 @@ export default function SubjectPreview() {
       ? student.subjects.find((x) => x.studentRowId === route.id) ?? null
       : null;
 
-  let title = "Home";
+  let title: string;
   let crumbs: Crumb[] = [];
 
   if (role === "teacher") {
@@ -218,7 +217,7 @@ export default function SubjectPreview() {
     if (!student) return <Loading rows={2} />;
     if (route.v === "studentSubject") {
       return studentSubject
-        ? <StudentSubjectView sub={studentSubject} go={go} />
+        ? <StudentSubjectView key={studentSubject.studentRowId} sub={studentSubject} go={go} />
         : <Missing what="subject" go={go} />;
     }
     return <StudentHome m={student} go={go} />;

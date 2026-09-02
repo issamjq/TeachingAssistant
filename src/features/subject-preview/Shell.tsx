@@ -174,6 +174,7 @@ export default function Shell({
 
       <div className={s.main}>
         <div className={s.bar}>
+          <b className={s.barWord}>Preview</b>
           <span className={s.barText}>
             <b>Preview</b> — subject-first studio. Read-only; nothing here writes to your library.
           </span>
@@ -218,6 +219,47 @@ export default function Shell({
             </span>
           </div>
         </header>
+
+        {/* Below 820px the sidebar is gone, and the subject list with it.
+            The same places, as a rail that scrolls sideways — tapping a
+            subject opens its page, where the six kinds are the grid. */}
+        <div className={s.mobileNav} aria-label="Sections">
+          {role === "teacher" ? (
+            <>
+              <button type="button" className={s.mobileItem} data-on={route.v === "home"} onClick={() => go({ v: "home" })}>Home</button>
+              <button type="button" className={s.mobileItem} data-on={route.v === "week"} onClick={() => go({ v: "week" })}>This week</button>
+              <button type="button" className={s.mobileItem} data-on={route.v === "library"} onClick={() => go({ v: "library" })}>My library</button>
+              {subjects.length > 0 && <span className={s.mobileRule} aria-hidden="true" />}
+              {subjects.map((sub) => (
+                <button
+                  key={sub.key}
+                  type="button"
+                  className={s.mobileItem}
+                  data-on={sub.key === openSubject}
+                  onClick={() => go({ v: "subject", s: sub.key })}
+                >
+                  {sub.name}
+                </button>
+              ))}
+            </>
+          ) : (
+            <>
+              <button type="button" className={s.mobileItem} data-on={route.v === "student"} onClick={() => go({ v: "student" })}>Home</button>
+              {studentSubjects.length > 0 && <span className={s.mobileRule} aria-hidden="true" />}
+              {studentSubjects.map((sub) => (
+                <button
+                  key={sub.id}
+                  type="button"
+                  className={s.mobileItem}
+                  data-on={route.v === "studentSubject" && route.id === sub.id}
+                  onClick={() => go({ v: "studentSubject", id: sub.id })}
+                >
+                  {sub.name}
+                </button>
+              ))}
+            </>
+          )}
+        </div>
 
         <main className={s.content}>{children}</main>
 

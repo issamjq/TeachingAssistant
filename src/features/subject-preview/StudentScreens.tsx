@@ -35,13 +35,24 @@ export function StudentHome({ m, go }: { m: StudentModel } & Nav) {
   const rate = att && att.total > 0 ? Math.round((att.present / att.total) * 100) : null;
 
   if (m.noClasses) {
+    // Two different situations answer identically from the database, and
+    // telling a teacher "you are not in any classes" when she is looking
+    // at the student design would read as the preview being broken.
     return (
       <div className={`${s.page} ${s.enter}`}>
         <Empty
           icon={<School size={19} />}
-          title="You are not in any classes yet"
-          text="When a teacher invites you, the subject appears here with everything they have set for it."
-          action={<a className={`${s.btn} ${s.btnQuiet}`} href="/student-classes">Check for invitations</a>}
+          title={m.isStudent ? "You are not in any classes yet" : "You are signed in as a teacher"}
+          text={
+            m.isStudent
+              ? "When a teacher invites you, the subject appears here with everything they have set for it."
+              : "This side of the preview reads the signed-in student's own rows, and row-level security means a teacher cannot read a child's. Sign in with a student account to see it filled in — the structure is the same: one card per subject, and inside each one the work grouped by what it is."
+          }
+          action={
+            m.isStudent
+              ? <a className={`${s.btn} ${s.btnQuiet}`} href="/student-classes">Check for invitations</a>
+              : <a className={`${s.btn} ${s.btnQuiet}`} href="/signin">Sign in as a student</a>
+          }
         />
       </div>
     );
@@ -149,15 +160,15 @@ const STUDENT_LABEL: Record<KindKey | "other", string> = {
 };
 
 export function StudentSubjectView({ sub, go }: { sub: StudentSubject } & Nav) {
+  // Mounted fresh per subject (the caller keys on studentRowId), so the
+  // initial state IS the reset — an effect that cleared three pieces of
+  // state by hand was doing the remount's job one render too late.
   const [work, setWork] = useState<StudentWorkItem[] | null>(sub.work);
   const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState(true);
 
   useEffect(() => {
     let alive = true;
-    setWork(null);
-    setError(null);
-    setBusy(true);
     loadStudentSubject(sub.studentRowId)
       .then((w) => alive && setWork(w))
       .catch((e) => alive && setError(e?.message || "That class did not load."))

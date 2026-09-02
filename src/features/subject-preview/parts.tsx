@@ -117,7 +117,7 @@ export function WorkCard({
       )}
 
       <div className={s.workActions}>
-        <button type="button" className={s.btn} onClick={onOpen}>Open</button>
+        <button type="button" className={`${s.btn} ${s.btnQuiet}`} onClick={onOpen}>Open</button>
         <button type="button" className={s.btnIcon} aria-label={`Print ${item.title}`}>
           <Printer size={15} />
         </button>

@@ -266,9 +266,10 @@ const STUDENT_KIND: Record<string, KindKey> = {
 };
 
 export async function loadStudent(): Promise<StudentModel> {
-  const [dash, subjects] = await Promise.all([
+  const [dash, subjects, me] = await Promise.all([
     softGet<any>("/api/student/dashboard", {}),
     softGet<any[]>("/api/student/subjects", []),
+    softGet<any>("/api/me", {}),
   ]);
 
   const st = dash.student ?? {};
@@ -306,6 +307,7 @@ export async function loadStudent(): Promise<StudentModel> {
       recordedOn: g.recorded_on ?? null,
     })),
     noClasses: !!dash.no_classes || !asArray(subjects).length,
+    isStudent: me.role === "student" || asArray(me.roles).includes("student"),
   };
 }
 
