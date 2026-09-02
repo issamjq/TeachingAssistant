@@ -1,6 +1,6 @@
 # Backend integration — what is still open
 
-Against `https://murchid-backend.onrender.com`. Pruned **2026-08-12**
+Against `https://murchid-backend-no24.onrender.com`. Pruned **2026-08-12**
 to open work only — everything that shipped and verified (routes, batch
 protocol, tool-calling chat, goal-plan, parse, image search, consoles,
 metering) is catalogued in `new-docs/FEATURES.md`. The one unbuilt
@@ -8,7 +8,7 @@ spec: [backend/08-skills-refinement.md](backend/08-skills-refinement.md).
 
 ## How the two are connected (keep this working)
 
-`API_PROXY_TARGET=https://murchid-backend.onrender.com` makes
+`API_PROXY_TARGET=https://murchid-backend-no24.onrender.com` makes
 `next.config.ts` rewrite `/api/*` to the service **server-side** — no
 CORS, no preflight, the token never crosses an origin. **It must be set
 in the Vercel project environment too**, or every AI path 404s in
