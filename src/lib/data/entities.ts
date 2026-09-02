@@ -1448,6 +1448,54 @@ export async function deleteGoal(id: string) {
   return { ok: true };
 }
 
+// ── the week ahead ────────────────────────────────────────────────────
+//
+// One question, answered in one place: what is happening, what is not
+// ready, and what is waiting for her. The dashboard is a configurable
+// overview; this is the working screen, so it fetches exactly what that
+// screen shows and nothing else.
+
+export async function weekAhead(from?: string, to?: string) {
+  const start = from || daysFromToday(0);
+  const end = to || daysFromToday(6);
+
+  const [entries, attempts] = await Promise.all([
+    supabase.from("schedule_entries").select(SCHED)
+      .gte("date", start).lte("date", end)
+      .order("date").order("start_time"),
+    // Handed in and not yet graded. Scoped by the entry, which is what
+    // carries faculty_id — quiz_attempts has no owner column of its own.
+    supabase.from("quiz_attempts")
+      .select("id, assignment_id, status, submitted_at, schedule_entries!inner(faculty_id, title, date)")
+      .not("submitted_at", "is", null).neq("status", "graded"),
+  ]);
+  if (entries.error) throw entries.error;
+
+  const rows = (entries.data || []) as any[];
+  const draftIds = [...new Set(rows.map((r) => r.draft_id).filter(Boolean))];
+
+  // Which of those lessons actually have material behind them. A slot
+  // with no draft is the thing this screen exists to surface.
+  let drafted = new Set<string>();
+  if (draftIds.length) {
+    const { data } = await supabase
+      .from("ai_studio").select("id").in("id", draftIds).is("deleted_at", null);
+    drafted = new Set((data || []).map((r: any) => r.id));
+  }
+
+  const waiting = (attempts.error ? [] : attempts.data || []) as any[];
+
+  return {
+    from: start,
+    to: end,
+    lessons: rows.map((r) => ({
+      ...r,
+      has_draft: !!(r.draft_id && drafted.has(r.draft_id)),
+    })),
+    to_mark: waiting.length,
+  };
+}
+
 // ── the curriculum, as structure (§99) ────────────────────────────────
 //
 // Reference data: readable by anyone signed in, writable by nobody.

@@ -33,6 +33,10 @@ const TEACHER_NAV: NavSection[] = [
   {
     section: "Overview",
     items: [
+      // The working screen, and the one a teacher opens in the morning:
+      // what am I teaching next, and is it ready. Dashboard stays as the
+      // configurable overview it is, one rung down.
+      { key: "week", label: "This week", icon: "week" },
       { key: "dashboard", label: "Dashboard", icon: "dashboard" },
       { key: "studio", label: "Studio", icon: "studio" },
     ],
@@ -239,7 +243,7 @@ export const NAV_BY_ROLE: Record<Role, NavSection[]> = {
 
 /** Landing section for each role when no section is specified. */
 export const DEFAULT_ROUTE: Record<Role, string> = {
-  teacher: "planner",
+  teacher: "week",
   admin: "superadmin-dashboard",
   dev: "dev-console",
   super_admin: "superadmin-dashboard",
@@ -263,6 +267,7 @@ export const TEACHING_RAIL_SECTIONS = new Set([
 // /quizzes from rendering for an admin who switched roles.
 export const SECTIONS_BY_ROLE: Record<Role, Set<string>> = {
   teacher: new Set([
+    "week",
     "dashboard",
     "studio",
     "planner",

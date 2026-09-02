@@ -252,6 +252,12 @@ export async function resolve(
       if (method === "GET") return yes(await E.dashboard());
       return { handled: false };
 
+    // What is happening this week, and what is not ready for it.
+    case "week":
+      if (method === "GET")
+        return yes(await E.weekAhead(q.get("from") || undefined, q.get("to") || undefined));
+      return { handled: false };
+
     // The curriculum spine (§99). Reference data, read-only.
     case "curriculum":
       if (!a && method === "GET") return yes(await E.listCurricula());

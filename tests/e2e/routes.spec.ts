@@ -19,6 +19,7 @@ const PUBLIC_ROUTES = ["/", "/reset-password"];
 const PORTAL_ROUTES = ["/dev", "/superadmin", "/admin", "/owner", "/moe"];
 
 const STUDIO_ROUTES = [
+  "/week",
   "/planner",
   "/dashboard",
   "/lesson-plans",
