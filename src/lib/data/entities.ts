@@ -1795,12 +1795,21 @@ export async function studentWorkReport(studentId: string) {
   return data;
 }
 
-/** Finish marking a quiz: her score for the written half, and it is done. */
-export async function gradeAttempt(attemptId: string, score: number, feedback?: string) {
+/**
+ * Finish marking a quiz: the total, her words, and the per-question
+ * breakdown (keyed like the answers) that makes the total explainable.
+ */
+export async function gradeAttempt(
+  attemptId: string,
+  score: number,
+  feedback?: string,
+  marks?: Record<string, number> | null,
+) {
   const { data, error } = await supabase.rpc("teacher_grade_attempt", {
     p_attempt: attemptId,
     p_score: score,
     p_feedback: feedback ?? null,
+    p_marks: marks ?? null,
   });
   if (error) throw error;
   return data;

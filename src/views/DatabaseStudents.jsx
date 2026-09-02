@@ -1,5 +1,6 @@
 "use client";
 
+import { flash } from "@/shared/lib/flash";
 import React, { useState, useMemo, useEffect } from "react";
 import { Search, Phone, Plus, Upload, Mail, CheckCircle2, AlertTriangle, FileDown, FileSpreadsheet } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -36,6 +37,45 @@ const ageYears = (dob) => {
 };
 
 const fullName = (s) => `${s.first_name} ${s.last_name}`;
+
+/**
+ * The guardian details, out of the database and into a hand.
+ *
+ * Eight fields per student were collected and used by nothing — no
+ * parent email, no list for a form tutor, nothing a head of department
+ * could take to a phone. This is the smallest genuinely useful shape:
+ * one CSV row per student with both guardians' contacts, built from
+ * the rows already on screen and downloaded locally.
+ */
+function exportGuardians(students) {
+  const esc = (v) => {
+    const t = String(v ?? "");
+    return /[",\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t;
+  };
+  const header = [
+    "Student", "Class", "Guardian", "Relationship", "Email", "Phone",
+    "Second guardian", "Relationship", "Email", "Phone",
+  ];
+  const lines = [header.join(",")];
+  for (const s of students) {
+    lines.push([
+      fullName(s),
+      `${s.grade || ""}${s.section ? ` ${s.section}` : ""}`.trim(),
+      s.primary_guardian_name, s.primary_guardian_relationship,
+      s.primary_guardian_email, s.primary_guardian_phone,
+      s.secondary_guardian_name, s.secondary_guardian_relationship,
+      s.secondary_guardian_email, s.secondary_guardian_phone,
+    ].map(esc).join(","));
+  }
+  // BOM so Excel opens Arabic names correctly.
+  const blob = new Blob(["\ufeff" + lines.join("\n")], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "guardian-contacts.csv";
+  a.click();
+  URL.revokeObjectURL(url);
+}
 
 // Turn whatever the data layer threw into a sentence a teacher can act on.
 // Raw Postgres/PostgREST messages ("new row violates row-level security…")
@@ -166,7 +206,7 @@ export default function DatabaseStudents() {
       setStudents((rows) => rows.filter((r) => r.id !== deleting.id));
       setDeleting(null);
     } catch (e) {
-      alert(`Could not delete: ${e.message}`);
+      flash(`Could not delete: ${e.message}`);
     } finally {
       setBusy(false);
     }
@@ -194,7 +234,7 @@ export default function DatabaseStudents() {
         setNotice({ student: updated, message: updated.invite_mail_error });
       }
     } catch (e) {
-      alert(friendlyError(e, "Couldn’t invite this student right now. Please try again."));
+      flash(friendlyError(e, "Couldn’t invite this student right now. Please try again."));
     }
   };
 
@@ -219,6 +259,14 @@ export default function DatabaseStudents() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {/* The guardian details this form insists on, handed back as a
+              list a form tutor or head of department can actually use.
+              Client-side: the rows are already on screen. */}
+          {students.length > 0 && (
+            <Button variant="secondary" onClick={() => exportGuardians(students)}>
+              <Phone size={15} className="mr-2" /> Guardian list
+            </Button>
+          )}
           <Button variant="secondary" onClick={() => setImporting(true)}>
             <Upload size={15} className="mr-2" /> Import
           </Button>
@@ -361,9 +409,22 @@ export default function DatabaseStudents() {
                             </p>
                           )}
                           {s.primary_guardian_phone && (
-                            <p className="inline-flex items-center gap-1.5 text-muted mt-1">
+                            <a
+                              href={`tel:${String(s.primary_guardian_phone).replace(/\s+/g, "")}`}
+                              onClick={(e) => e.stopPropagation()}
+                              className="inline-flex items-center gap-1.5 text-muted mt-1 hover:text-ink"
+                            >
                               <Phone size={11} /> {s.primary_guardian_phone}
-                            </p>
+                            </a>
+                          )}
+                          {s.primary_guardian_email && (
+                            <a
+                              href={`mailto:${s.primary_guardian_email}`}
+                              onClick={(e) => e.stopPropagation()}
+                              className="block text-muted mt-0.5 hover:text-ink truncate max-w-[180px]"
+                            >
+                              {s.primary_guardian_email}
+                            </a>
                           )}
                         </div>
                       </td>

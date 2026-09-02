@@ -1,5 +1,6 @@
 "use client";
 
+import { flash } from "@/shared/lib/flash";
 import React, { useState, useMemo, useEffect, useRef } from "react";
 import { Search, Star, Upload, Plus } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -105,7 +106,7 @@ export default function TemplatesLibrary({ onNewTemplate, onUseTemplate, onEditT
       });
       setTemplates((rows) => [created, ...rows]);
     } catch (err) {
-      alert(`Could not import: ${err.message}`);
+      flash(`Could not import: ${err.message}`);
     } finally {
       setImporting(false);
     }
@@ -185,7 +186,7 @@ export default function TemplatesLibrary({ onNewTemplate, onUseTemplate, onEditT
       setTemplates((rows) => rows.filter((r) => r.id !== deleting.id));
       setDeleting(null);
     } catch (e) {
-      alert(`Could not delete: ${e.message}`);
+      flash(`Could not delete: ${e.message}`);
     } finally {
       setBusy(false);
     }

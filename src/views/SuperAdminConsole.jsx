@@ -10,6 +10,7 @@
 // per-handler canGrantRole(). dev / super_admin / admin all reach
 // /api/admin/*; super_admin is the only one with full grant scope below.
 
+import { flash } from "@/shared/lib/flash";
 import React, { useEffect, useMemo, useState } from "react";
 import { Plus, Pause, Play, Trash2, Pencil, Flag, Activity } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -105,7 +106,7 @@ export default function SuperAdminConsole() {
       // an account the screen has just stopped showing.
       reload();
     } catch (e) {
-      alert(`Could not delete: ${e.message}`);
+      flash(`Could not delete: ${e.message}`);
     } finally {
       setBusy(false);
     }
@@ -385,7 +386,7 @@ function FeatureFlagsCard() {
       await api(`/api/superadmin/flags/${f.key}`, { method: "PATCH", body: { enabled: !f.enabled } });
       setFlags((rows) => rows.map((r) => (r.key === f.key ? { ...r, enabled: !r.enabled } : r)));
     } catch (e) {
-      alert(`Could not toggle: ${e.message}`);
+      flash(`Could not toggle: ${e.message}`);
     } finally {
       setBusy(null);
     }

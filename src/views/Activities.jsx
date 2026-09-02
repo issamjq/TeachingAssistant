@@ -1,5 +1,6 @@
 "use client";
 
+import { flash } from "@/shared/lib/flash";
 import React, { useEffect, useState } from "react";
 import { useAutoRefresh } from "@/shared/hooks/useAutoRefresh";
 import { ListChecks, Pencil, Trash2 } from "lucide-react";
@@ -67,7 +68,7 @@ export default function Activities({ onOpenActivity }) {
       setItems((rows) => rows.filter((r) => r.id !== deleting.id));
       setDeleting(null);
     } catch (e) {
-      alert(`Could not delete: ${e.message}`);
+      flash(`Could not delete: ${e.message}`);
     } finally {
       setBusy(false);
     }

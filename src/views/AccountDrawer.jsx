@@ -15,6 +15,7 @@
 // shows the effective value (role default | per-account override)
 // and lets you toggle to override.
 
+import { flash } from "@/shared/lib/flash";
 import React, { useEffect, useState, useMemo } from "react";
 import { X, Save, RotateCcw, Pause, Play, Coins, Eye, FileText, Users, Cpu } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -143,7 +144,7 @@ export default function AccountDrawer({ accountId, isSelf, onClose, onChanged })
       setDirty(false);
       onChanged && onChanged();
     } catch (e) {
-      alert(`Save failed: ${e.message}`);
+      flash(`Save failed: ${e.message}`);
     } finally {
       setSaving(false);
     }
@@ -192,7 +193,7 @@ export default function AccountDrawer({ accountId, isSelf, onClose, onChanged })
       const r = await api(`/api/superadmin/account/${accountId}`);
       setAccount(r);
     } catch (e) {
-      alert(`Billing update failed: ${e.message}`);
+      flash(`Billing update failed: ${e.message}`);
     } finally {
       setSavingBilling(false);
     }
@@ -216,7 +217,7 @@ export default function AccountDrawer({ accountId, isSelf, onClose, onChanged })
       await fn();
       await refreshAccount();
     } catch (e) {
-      alert(`Failed: ${e.message}`);
+      flash(`Failed: ${e.message}`);
     } finally {
       setActionBusy(false);
     }
@@ -256,7 +257,7 @@ export default function AccountDrawer({ accountId, isSelf, onClose, onChanged })
       const data = await api(`/api/superadmin/account/${accountId}/content`);
       setInspect(data);
     } catch (e) {
-      alert(`Could not load content: ${e.message}`);
+      flash(`Could not load content: ${e.message}`);
     } finally {
       setInspecting(false);
     }
@@ -274,7 +275,7 @@ export default function AccountDrawer({ accountId, isSelf, onClose, onChanged })
       const r = await api(`/api/superadmin/account/${accountId}`);
       setAccount(r);
     } catch (e) {
-      alert(`Status change failed: ${e.message}`);
+      flash(`Status change failed: ${e.message}`);
     }
   };
 

@@ -205,7 +205,7 @@ export async function resolve(
       if (a === "by-student" && b && method === "GET") return yes(await E.studentWorkReport(b));
       if (a === "file" && method === "POST") return yes({ url: await E.submissionFileUrl(body?.path) });
       if (a && b === "grade" && method === "POST")
-        return yes(await E.gradeAttempt(a, Number(body?.score), body?.feedback));
+        return yes(await E.gradeAttempt(a, Number(body?.score), body?.feedback, body?.marks));
       return { handled: false };
 
     /**

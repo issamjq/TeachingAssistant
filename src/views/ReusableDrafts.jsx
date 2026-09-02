@@ -1,5 +1,6 @@
 "use client";
 
+import { flash } from "@/shared/lib/flash";
 import React, { useState, useMemo, useEffect } from "react";
 import { useAutoRefresh } from "@/shared/hooks/useAutoRefresh";
 import { Search, AlertTriangle, Info } from "lucide-react";
@@ -87,7 +88,7 @@ export default function ReusableDrafts({ onEditDraft, onNewLesson }) {
       setDrafts((rows) => rows.filter((r) => r.id !== deleting.id));
       setDeleting(null);
     } catch (e) {
-      alert(`Could not delete: ${e.message}`);
+      flash(`Could not delete: ${e.message}`);
     } finally {
       setBusy(false);
     }
@@ -100,7 +101,7 @@ export default function ReusableDrafts({ onEditDraft, onNewLesson }) {
       setDrafts([]);
       setBulkOpen(false);
     } catch (e) {
-      alert(`Could not clear all: ${e.message}`);
+      flash(`Could not clear all: ${e.message}`);
     } finally {
       setBusy(false);
     }

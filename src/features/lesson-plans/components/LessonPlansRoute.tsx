@@ -1,5 +1,6 @@
 "use client";
 
+import { flash } from "@/shared/lib/flash";
 import { useEffect } from "react";
 import { navigate, replace } from "@/lib/route";
 import ReusableDrafts from "@/views/ReusableDrafts";
@@ -72,7 +73,7 @@ export default function LessonPlansRoute({ slug = [] }: { slug?: string[] }) {
             const draft = await cloneTemplateToDraft(t);
             navigate(["lesson-plans", "edit", draft.id]);
           } catch (e) {
-            alert(`Could not clone template: ${(e as Error).message}`);
+            flash(`Could not clone template: ${(e as Error).message}`);
           }
         }}
       />

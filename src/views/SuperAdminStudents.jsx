@@ -8,6 +8,7 @@
 // delete anywhere that reaches the person rather than a teacher's copy of
 // them — a teacher's Delete means "not in my class", this one means gone.
 
+import { flash } from "@/shared/lib/flash";
 import React, { useEffect, useMemo, useState } from "react";
 import { Users, UserCheck, ClipboardList, Activity, Percent, Search, Trash2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -59,7 +60,7 @@ export default function SuperAdminStudents() {
         setOv((o) => (o ? { ...o, with_account: Math.max(0, (o.with_account || 1) - 1) } : o));
       }
     } catch (e) {
-      alert(`Could not delete: ${e.message}`);
+      flash(`Could not delete: ${e.message}`);
     } finally {
       setBusy(false);
     }

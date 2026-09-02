@@ -9,6 +9,7 @@
 // of the same board, and everything a note can do is on the note.
 // =====================================================================
 
+import { flash } from "@/shared/lib/flash";
 import { useEffect, useMemo, useState } from "react";
 import { Archive, Check, Link2, Pin, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -87,7 +88,7 @@ export default function BulletinBoardRoute() {
   const patch = (post: BulletinPost, body: Parameters<typeof updatePost>[1]) =>
     updatePost(post.id, body)
       .then((row) => setPosts((xs) => xs.map((x) => (x.id === row.id ? row : x))))
-      .catch((e) => alert(`Could not update: ${e.message}`));
+      .catch((e) => flash(`Could not update: ${e.message}`));
 
   const confirmDelete = () => {
     if (!deleting) return;
@@ -102,7 +103,7 @@ export default function BulletinBoardRoute() {
       })
       .catch((e) => {
         setBusy(false);
-        alert(`Could not delete: ${e.message}`);
+        flash(`Could not delete: ${e.message}`);
       });
   };
 
@@ -122,7 +123,7 @@ export default function BulletinBoardRoute() {
       })
       .catch((e) => {
         setShareState("idle");
-        alert(`Could not copy the link: ${e.message}`);
+        flash(`Could not copy the link: ${e.message}`);
       });
   };
 

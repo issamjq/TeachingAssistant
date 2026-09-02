@@ -17,19 +17,21 @@ import {
   ArrowUp, ArrowRight, Sparkles,
   FileText, GraduationCap, ClipboardList, Layers, Puzzle,
 } from "lucide-react";
+import { useI18n, useT } from "@/shared/i18n";
 import s from "./Dashboard.module.css";
 import { today } from "@/lib/localDate";
 
-const MONTHS = ["January","February","March","April","May","June","July",
-                "August","September","October","November","December"];
-const MON_SHORT = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-const DOW = ["M", "T", "W", "T", "F", "S", "S"];
+// Weekday initials for the UI language — 2024-01-01 is a Monday, so
+// index 0 is Monday everywhere the grids expect it to be.
+const dowNarrow = (locale) =>
+  Array.from({ length: 7 }, (_, i) =>
+    new Date(2024, 0, 1 + i).toLocaleDateString(locale, { weekday: "narrow" }));
 
 /** A week's Monday, as "12 Jul". Shared so the two rhythm charts
  *  cannot drift on how a week is spelled. */
-const weekLabel = (iso) => {
+const weekLabel = (iso, locale) => {
   const d = new Date(iso + "T00:00:00");
-  return `${d.getDate()} ${MON_SHORT[d.getMonth()]}`;
+  return d.toLocaleDateString(locale, { day: "numeric", month: "short" });
 };
 
 /* ── pill bar chart ───────────────────────────────────────────────── */
@@ -41,6 +43,8 @@ const weekLabel = (iso) => {
  * existed and held nothing".
  */
 export function PillBars({ data = [], compact = false }) {
+  const { lang } = useI18n();
+  const locale = lang === "ar" ? "ar" : undefined;
   // Compact is a different drawing, not a scaled one: eight columns in a
   // 210px tile give 22px each, where the date labels collide and the
   // pills become tally marks. Five weeks, shorter bars, and only the
@@ -58,10 +62,7 @@ export function PillBars({ data = [], compact = false }) {
     );
   }
 
-  const label = (iso) => {
-    const d = new Date(iso + "T00:00:00");
-    return `${d.getDate()} ${MON_SHORT[d.getMonth()]}`;
-  };
+  const label = (iso) => weekLabel(iso, locale);
 
   return (
     <>
@@ -146,6 +147,8 @@ export function Ring({ value = 0, max = 1, size = 92, children }) {
  * the date is scannable before the title is read.
  */
 export function WeekSchedule({ entries = [], onOpen }) {
+  const { t, lang } = useI18n();
+  const locale = lang === "ar" ? "ar" : undefined;
   const todayIso = today();
   const rows = useMemo(
     () =>
@@ -176,11 +179,11 @@ export function WeekSchedule({ entries = [], onOpen }) {
             <button type="button" onClick={() => onOpen?.()} className={`${s.task} !py-2`}>
               <span className={s.dateChip} data-today={e.date === todayIso} aria-hidden="true">
                 <span className={s.dateChipDay}>{d.getDate()}</span>
-                <span className={s.dateChipMon}>{MON_SHORT[d.getMonth()]}</span>
+                <span className={s.dateChipMon}>{d.toLocaleDateString(locale, { month: "short" })}</span>
               </span>
               <span className="min-w-0 flex-1 pt-0.5">
                 <span className="block text-[13.5px] text-ink leading-snug truncate">
-                  {e.title || "Lesson"}
+                  {e.title || t("dash.week.lesson")}
                 </span>
                 <span className="block text-[11.5px] text-muted mt-0.5 truncate">
                   {[e.start_time ? e.start_time.slice(0, 5) : null, e.subject]
@@ -213,6 +216,8 @@ export function WeekSchedule({ entries = [], onOpen }) {
  * giving up two of its weeks.
  */
 export function MiniCalendar({ entries = [], onPick, dense = false }) {
+  const { lang } = useI18n();
+  const locale = lang === "ar" ? "ar" : undefined;
   const today = new Date();
   const y = today.getFullYear();
   const m = today.getMonth();
@@ -244,9 +249,9 @@ export function MiniCalendar({ entries = [], onPick, dense = false }) {
   return (
     <div>
       <div className={s.calGrid} data-dense={dense} aria-hidden="true">
-        {DOW.map((d, i) => <div key={i} className={s.calHead}>{d}</div>)}
+        {dowNarrow(locale).map((d, i) => <div key={i} className={s.calHead}>{d}</div>)}
       </div>
-      <div className={s.calGrid} data-dense={dense} role="grid" aria-label={`${MONTHS[m]} ${y}`}>
+      <div className={s.calGrid} data-dense={dense} role="grid" aria-label={new Date(y, m, 1).toLocaleDateString(locale, { month: "long", year: "numeric" })}>
         {cells.map(({ d, outside }, i) => {
           const key = iso(d);
           const n = byDate.get(key) || 0;
@@ -261,7 +266,7 @@ export function MiniCalendar({ entries = [], onPick, dense = false }) {
               data-today={key === todayIso}
               data-has={n > 0}
               onClick={() => onPick?.(key)}
-              aria-label={`${d.getDate()} ${MONTHS[d.getMonth()]}${n ? `, ${n} lesson${n > 1 ? "s" : ""}` : ", nothing scheduled"}`}
+              aria-label={`${d.toLocaleDateString(locale, { day: "numeric", month: "long" })}${n ? `, ${n}` : ""}`}
             >
               {d.getDate()}
               {n > 0 && <span className={s.calDot} aria-hidden="true" />}
@@ -289,6 +294,8 @@ export function MiniCalendar({ entries = [], onPick, dense = false }) {
  * size a summary line is cheaper than making the reader tally dots.
  */
 export function WeekStrip({ entries = [], onPick }) {
+  const { t, lang } = useI18n();
+  const locale = lang === "ar" ? "ar" : undefined;
   const today = new Date();
   const iso = (d) =>
     `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -329,9 +336,9 @@ export function WeekStrip({ entries = [], onPick }) {
               data-today={key === todayIso}
               data-has={n > 0}
               onClick={() => onPick?.(key)}
-              aria-label={`${d.getDate()} ${MONTHS[d.getMonth()]}${n ? `, ${n} lesson${n > 1 ? "s" : ""}` : ", nothing scheduled"}`}
+              aria-label={`${d.toLocaleDateString(locale, { day: "numeric", month: "long" })}${n ? `, ${n}` : ""}`}
             >
-              <span className={s.stripDow} aria-hidden="true">{DOW[i]}</span>
+              <span className={s.stripDow} aria-hidden="true">{dowNarrow(locale)[i]}</span>
               <span className={s.stripNum}>{d.getDate()}</span>
               <span className={s.stripDot} data-on={n > 0} aria-hidden="true" />
             </button>
@@ -340,8 +347,8 @@ export function WeekStrip({ entries = [], onPick }) {
       </div>
       <p className="text-[11.5px] text-muted mt-3 text-center">
         {total === 0
-          ? "Nothing scheduled this week."
-          : `${total} lesson${total === 1 ? "" : "s"} this week`}
+          ? t("dash.week.none")
+          : total === 1 ? t("dash.week.count1") : t("dash.week.count", { n: String(total) })}
       </p>
     </div>
   );
@@ -351,12 +358,13 @@ export function WeekStrip({ entries = [], onPick }) {
 
 /** Horizontal bars, sorted descending — the ranking is the point. */
 export function TypeBreakdown({ data = [], onPick, compact = false }) {
+  const t = useT();
   const rows = [...data].sort((a, b) => b.n - a.n);
   const max = Math.max(1, ...rows.map((r) => r.n));
   const total = rows.reduce((a, r) => a + r.n, 0);
 
   if (!total) {
-    return <p className="text-sm text-muted py-4">Your library is empty. Anything you make lands here.</p>;
+    return <p className="text-sm text-muted py-4">{t("dash.kinds.empty")}</p>;
   }
 
   return (
@@ -387,11 +395,12 @@ export function TypeBreakdown({ data = [], onPick, compact = false }) {
  * gets done.
  */
 export function TaskList({ tasks = [], onOpen }) {
+  const t = useT();
   if (!tasks.length) {
     return (
       <div className="py-5 text-center">
-        <p className="text-sm text-ink">Nothing needs you right now.</p>
-        <p className="text-xs text-muted mt-1">Unfinished drafts and today's lessons show up here.</p>
+        <p className="text-sm text-ink">{t("dash.tasks.empty1")}</p>
+        <p className="text-xs text-muted mt-1">{t("dash.tasks.empty2")}</p>
       </div>
     );
   }
@@ -437,14 +446,15 @@ export function TaskList({ tasks = [], onOpen }) {
  * clue which one is the door.
  */
 const ASK_KINDS = [
-  { kind: "lesson_plan",  label: "Lesson",   Icon: FileText },
-  { kind: "quiz",         label: "Quiz",     Icon: GraduationCap },
-  { kind: "homework",     label: "Homework", Icon: ClipboardList },
-  { kind: "presentation", label: "Deck",     Icon: Layers },
-  { kind: "activity",     label: "Activity", Icon: Puzzle },
+  { kind: "lesson_plan",  k: "lesson",   Icon: FileText },
+  { kind: "quiz",         k: "quiz",     Icon: GraduationCap },
+  { kind: "homework",     k: "homework", Icon: ClipboardList },
+  { kind: "presentation", k: "deck",     Icon: Layers },
+  { kind: "activity",     k: "activity", Icon: Puzzle },
 ];
 
 export function AskStudio({ onGo, onOpen, greeting, name, showGreeting = true }) {
+  const t = useT();
   const [text, setText] = useState("");
   const [kind, setKind] = useState(null);
   const ready = text.trim().length > 0;
@@ -462,7 +472,7 @@ export function AskStudio({ onGo, onOpen, greeting, name, showGreeting = true })
     <div className="flex h-full flex-col justify-center">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className={s.askEyebrow}>AI Studio</p>
+          <p className={s.askEyebrow}>{t("dash.ask.eyebrow")}</p>
           {/* Two lines, the second carrying the weight — the greeting is
               the manners and the question is the invitation. When the
               hero is already greeting her by name (it does that on a day
@@ -471,7 +481,7 @@ export function AskStudio({ onGo, onOpen, greeting, name, showGreeting = true })
           {showGreeting && (
             <p className={s.askHello}>{greeting}{name ? `, ${name}` : ""}</p>
           )}
-          <p className={s.askAsk}>What are we making?</p>
+          <p className={s.askAsk}>{t("dash.ask.question")}</p>
         </div>
         <button type="button" onClick={() => onOpen?.()} className={s.askOpen} aria-label="Open AI Studio">
           <ArrowRight size={16} />
@@ -491,7 +501,7 @@ export function AskStudio({ onGo, onOpen, greeting, name, showGreeting = true })
           }}
           rows={1}
           className={s.askInput}
-          placeholder="A Grade 7 lesson on photosynthesis…"
+          placeholder={t("dash.ask.placeholder")}
           aria-label="Describe what you want to make"
         />
         <button
@@ -509,18 +519,18 @@ export function AskStudio({ onGo, onOpen, greeting, name, showGreeting = true })
           rows and pushes the composer up. The overflow is the design: it
           says there is more here without spending height saying so. */}
       <div className={s.askChips}>
-        {ASK_KINDS.map(({ kind: k, label, Icon }) => (
+        {ASK_KINDS.map(({ kind: kd, k, Icon }) => (
           <button
-            key={k}
+            key={kd}
             type="button"
             /* Tapping the chosen one again clears it — otherwise the only
                way back to "let the studio decide" is a page reload. */
-            onClick={() => setKind((prev) => (prev === k ? null : k))}
+            onClick={() => setKind((prev) => (prev === kd ? null : kd))}
             className={s.askChip}
-            data-on={kind === k}
+            data-on={kind === kd}
           >
             <Icon size={13} className="flex-shrink-0" />
-            {label}
+            {t(`dash.kind.${k}`)}
           </button>
         ))}
       </div>
@@ -549,6 +559,8 @@ export function KhatimMark({ className }) {
  * the teacher picks.
  */
 export function LineTrend({ data = [], compact = false }) {
+  const { lang } = useI18n();
+  const locale = lang === "ar" ? "ar" : undefined;
   if (compact) data = data.slice(-5);
   const total = data.reduce((a, d) => a + d.n, 0);
   if (!total) {
@@ -636,7 +648,7 @@ export function LineTrend({ data = [], compact = false }) {
               data-now={now}
               style={{ left: `${at}%` }}
             >
-              {now ? "now" : weekLabel(d.week)}
+              {now ? "now" : weekLabel(d.week, locale)}
             </span>
           );
         })}

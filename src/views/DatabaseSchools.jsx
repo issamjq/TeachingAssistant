@@ -1,5 +1,6 @@
 "use client";
 
+import { flash } from "@/shared/lib/flash";
 import React, { useEffect, useMemo, useState } from "react";
 import { MapPin, Search, Star, Trash2, Plus, Check, Building2, Pencil, GraduationCap, X } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -52,7 +53,7 @@ export default function DatabaseSchools() {
       // into the grades & sections chips for the school they just added.
       setEditingGrades(row && row.id ? row : { ...school, grade_sections: {} });
     } catch (e) {
-      alert(`Could not add school: ${e.message}`);
+      flash(`Could not add school: ${e.message}`);
     } finally {
       setBusy(false);
     }
@@ -70,7 +71,7 @@ export default function DatabaseSchools() {
       // Same onboarding-style continuation: configure grades/sections now.
       setEditingGrades(row && row.id ? row : { ...created, grade_sections: {} });
     } catch (e) {
-      alert(`Could not add school: ${e.message}`);
+      flash(`Could not add school: ${e.message}`);
     } finally {
       setBusy(false);
     }
@@ -83,7 +84,7 @@ export default function DatabaseSchools() {
       });
       reload();
     } catch (e) {
-      alert(`Could not update: ${e.message}`);
+      flash(`Could not update: ${e.message}`);
     }
   };
   const saveGrades = async (school, gradeSections) => {
@@ -96,7 +97,7 @@ export default function DatabaseSchools() {
       setEditingGrades(null);
       reload();
     } catch (e) {
-      alert(`Could not save grades: ${e.message}`);
+      flash(`Could not save grades: ${e.message}`);
     } finally {
       setBusy(false);
     }
@@ -108,7 +109,7 @@ export default function DatabaseSchools() {
       setMine((r) => r.filter((s) => s.id !== removing.id));
       setRemoving(null);
     } catch (e) {
-      alert(`Could not remove: ${e.message}`);
+      flash(`Could not remove: ${e.message}`);
     } finally {
       setBusy(false);
     }

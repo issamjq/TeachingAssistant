@@ -17,7 +17,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
   PencilLine, Sparkles, ClipboardList, Paperclip, ExternalLink, Check,
-  Search, ChevronRight, ArrowLeft, AlertCircle,
+  Search, ChevronRight, ArrowLeft, AlertCircle, Send,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { api, inputClasses } from "./_shared";
@@ -26,6 +26,41 @@ import BrandLoader from "../components/BrandLoader";
 const ICON = { homework: PencilLine, activity: Sparkles, quiz: ClipboardList };
 
 const fullName = (s) => [s?.first_name, s?.last_name].filter(Boolean).join(" ") || "Student";
+
+/**
+ * A pre-written update home, computed from the same rows on screen.
+ *
+ * mailto:, deliberately — it opens in the teacher's own mail client,
+ * addressed and drafted, and nothing sends until she presses send. A
+ * one-click "Murchid emails the parent" would be a trust decision the
+ * owner has not made; a drafted letter is just saved typing.
+ */
+function guardianMailto(s, work) {
+  const assigned = work.length;
+  const returned = work.filter((w) => w.handed_in || w.attempted_at).length;
+  const scored = work.filter((w) => w.score != null && w.max_score);
+  const avg = scored.length
+    ? Math.round(
+        (scored.reduce((sum, w) => sum + Number(w.score) / Number(w.max_score), 0) / scored.length) * 100,
+      )
+    : null;
+  const first = s.first_name || "your child";
+  const lines = [
+    `Dear ${s.guardian_name || "guardian"},`,
+    "",
+    `A short update on ${first}${s.subject ? ` in ${s.subject}` : ""}:`,
+    "",
+    `- Work set so far: ${assigned}`,
+    `- Handed in: ${returned} of ${assigned}`,
+    ...(avg != null ? [`- Average on marked work: ${avg}%`] : []),
+    "",
+    "Do write back if you would like to talk anything through.",
+    "",
+    "Kind regards,",
+  ];
+  const subject = `${fullName(s)}${s.subject ? ` — ${s.subject}` : ""}: an update from school`;
+  return `mailto:${encodeURIComponent(s.guardian_email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(lines.join("\n"))}`;
+}
 
 export default function ReportsSubmissions() {
   const [rows, setRows] = useState(null);
@@ -193,13 +228,28 @@ function StudentReport({ studentId, onBack }) {
         <ArrowLeft size={12} /> All students
       </button>
 
-      <div>
-        <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-2 inline-flex items-center gap-2.5">
-          <span className="w-6 h-px bg-accent" />
-          {s.grade}{s.section ? ` · ${s.section}` : ""}{s.subject ? ` · ${s.subject}` : ""}
-        </p>
-        <h3 className="font-serif text-2xl text-ink">{fullName(s)}</h3>
-        {s.email && <p className="text-muted text-sm mt-1">{s.email}</p>}
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-2 inline-flex items-center gap-2.5">
+            <span className="w-6 h-px bg-accent" />
+            {s.grade}{s.section ? ` · ${s.section}` : ""}{s.subject ? ` · ${s.subject}` : ""}
+          </p>
+          <h3 className="font-serif text-2xl text-ink">{fullName(s)}</h3>
+          {s.email && <p className="text-muted text-sm mt-1">{s.email}</p>}
+        </div>
+        {/* Half a teacher's job is communicating home, and the guardian
+            details were collected for exactly this. A mailto: opens HER
+            mail app with the term summarised — she reads, edits, sends;
+            Murchid never emails a family on its own. */}
+        {s.guardian_email && (
+          <a
+            href={guardianMailto(s, work)}
+            className="inline-flex items-center gap-2 rounded-full border border-line px-4 py-2 text-[13px] text-ink-soft hover:border-ink hover:text-ink transition"
+          >
+            <Send size={13} />
+            Email {s.guardian_name ? s.guardian_name.split(/\s+/)[0] : "guardian"}
+          </a>
+        )}
       </div>
 
       {work.length === 0 ? (
@@ -217,24 +267,62 @@ function StudentReport({ studentId, onBack }) {
 
 function WorkRow({ w, onGraded }) {
   const Icon = ICON[w.type] || PencilLine;
-  const [expanded, setExpanded] = useState(false);
-  const [score, setScore] = useState(w.score ?? "");
-  const [busy, setBusy] = useState(false);
-
   const isQuiz = w.type === "quiz";
   const returned = isQuiz ? Boolean(w.attempted_at) : Boolean(w.handed_in);
   const needsMarking = isQuiz && w.attempted_at && w.attempt_status !== "graded";
 
+  // A paper waiting to be marked opens on its answers — marking IS the
+  // job on this screen, and hiding the questions behind a click made
+  // the whole attempt a single number box.
+  const [expanded, setExpanded] = useState(needsMarking && (w.answers?.length ?? 0) > 0);
+  const [busy, setBusy] = useState(false);
+  const [rowError, setRowError] = useState(null);
+
+  /**
+   * Per-question marks for the questions only she can judge, keyed the
+   * way the answers are (a.key). Auto questions carry their computed
+   * marks; her entries fill the rest, and the total writes itself.
+   */
+  const manual = (w.answers || []).filter((a) => !a.auto);
+  const autoEarned = (w.answers || []).reduce(
+    (sum, a) => sum + (a.auto && a.verdict?.correct === true ? Number(a.marks) || 0 : 0),
+    0,
+  );
+  const [perQ, setPerQ] = useState(() => {
+    const m = {};
+    for (const a of manual) {
+      if (a.teacher_marks != null && a.teacher_marks !== "") m[a.key] = String(a.teacher_marks);
+    }
+    return m;
+  });
+  const perQTotal = Object.values(perQ).reduce((sum, v) => sum + (Number(v) || 0), 0);
+  const [score, setScore] = useState(w.score ?? "");
+  const [scoreTouched, setScoreTouched] = useState(w.score != null);
+  // Until she overrides the total by hand, it follows the breakdown.
+  const shownScore = scoreTouched ? score : String(autoEarned + perQTotal);
+  const [feedback, setFeedback] = useState(w.feedback ?? "");
+
+  const setMark = (key, v) => setPerQ((m) => ({ ...m, [key]: v }));
+
   const grade = async () => {
     setBusy(true);
+    setRowError(null);
     try {
+      const marks = {};
+      for (const [k, v] of Object.entries(perQ)) {
+        if (v !== "" && v != null) marks[k] = Number(v);
+      }
       await api(`/api/submissions/${w.attempt_id}/grade`, {
         method: "POST",
-        body: { score: Number(score) },
+        body: {
+          score: Number(shownScore),
+          feedback: feedback.trim() || null,
+          marks: Object.keys(marks).length ? marks : null,
+        },
       });
       await onGraded();
     } catch (e) {
-      alert(e.message);
+      setRowError(e.message);
     } finally {
       setBusy(false);
     }
@@ -247,7 +335,7 @@ function WorkRow({ w, onGraded }) {
       const { url } = await api("/api/submissions/file", { method: "POST", body: { path } });
       if (url) window.open(url, "_blank", "noopener");
     } catch {
-      alert(`Couldn't open ${name}.`);
+      setRowError(`Couldn't open ${name}.`);
     }
   };
 
@@ -308,12 +396,13 @@ function WorkRow({ w, onGraded }) {
               <div className="flex items-center gap-1.5">
                 <input
                   type="number"
-                  value={score}
-                  onChange={(e) => setScore(e.target.value)}
+                  value={shownScore}
+                  onChange={(e) => { setScoreTouched(true); setScore(e.target.value); }}
+                  aria-label="Total score"
                   className={`${inputClasses} w-16 text-center`}
                 />
                 <span className="text-xs text-muted">/ {w.max_score}</span>
-                <Button onClick={grade} disabled={busy || score === ""}>
+                <Button onClick={grade} disabled={busy || shownScore === ""}>
                   {busy ? "…" : "Mark"}
                 </Button>
               </div>
@@ -333,6 +422,10 @@ function WorkRow({ w, onGraded }) {
           )}
         </div>
       </div>
+
+      {rowError && (
+        <p className="px-4 pb-3 text-[12.5px] text-crit">{rowError}</p>
+      )}
 
       {expanded && isQuiz && (
         <div className="border-t border-line divide-y divide-line/60">
@@ -368,15 +461,61 @@ function WorkRow({ w, onGraded }) {
                       <span className="text-ink-soft">{a.correct}</span>
                     </p>
                   )}
-                  <p className="font-mono text-[9px] uppercase tracking-wider text-muted">
-                    {a.auto
-                      ? right ? `Correct · ${a.marks} mark${a.marks === 1 ? "" : "s"}` : "Wrong · 0"
-                      : `Yours to mark · ${a.marks} mark${a.marks === 1 ? "" : "s"}`}
-                  </p>
+                  {a.auto ? (
+                    <p className="font-mono text-[9px] uppercase tracking-wider text-muted">
+                      {right ? `Correct · ${a.marks} mark${a.marks === 1 ? "" : "s"}` : "Wrong · 0"}
+                    </p>
+                  ) : needsMarking ? (
+                    /* The question she has to judge gets its own marks box —
+                       the total above follows these until she overrides it. */
+                    <p className="flex items-center gap-1.5">
+                      <input
+                        type="number"
+                        min="0"
+                        max={a.marks}
+                        value={perQ[a.key] ?? ""}
+                        onChange={(e) => setMark(a.key, e.target.value)}
+                        aria-label={`Marks for question ${i + 1}`}
+                        className={`${inputClasses} w-14 py-1 text-center text-xs`}
+                      />
+                      <span className="font-mono text-[9px] uppercase tracking-wider text-muted">
+                        / {a.marks} mark{a.marks === 1 ? "" : "s"}
+                      </span>
+                    </p>
+                  ) : (
+                    <p className="font-mono text-[9px] uppercase tracking-wider text-muted">
+                      {a.teacher_marks != null && a.teacher_marks !== ""
+                        ? `Marked · ${a.teacher_marks} / ${a.marks}`
+                        : `${a.marks} mark${a.marks === 1 ? "" : "s"}`}
+                    </p>
+                  )}
                 </div>
               </div>
             );
           })}
+          <div className="px-4 py-3">
+            {needsMarking ? (
+              <label className="block">
+                <span className="font-mono text-[9px] uppercase tracking-wider text-muted block mb-1">
+                  Feedback to the student
+                </span>
+                <textarea
+                  rows={2}
+                  value={feedback}
+                  onChange={(e) => setFeedback(e.target.value)}
+                  placeholder="One line goes a long way — what was strong, what to look at again."
+                  className={`${inputClasses} text-sm`}
+                />
+              </label>
+            ) : w.feedback ? (
+              <div>
+                <p className="font-mono text-[9px] uppercase tracking-wider text-muted mb-0.5">
+                  Your feedback
+                </p>
+                <p className="text-sm text-ink-soft italic">{w.feedback}</p>
+              </div>
+            ) : null}
+          </div>
         </div>
       )}
     </div>

@@ -5508,10 +5508,21 @@ GRANT EXECUTE ON FUNCTION public.teacher_submissions(integer) TO authenticated;
  * touch an attempt after submission — the §49 trigger lets a teacher
  * through and refuses everyone else.
  */
+-- The marker's per-question breakdown, keyed the same way answers are
+-- (qid / id / position). An attempt used to be gradable only as one
+-- number over the whole paper; the breakdown is what makes a mark
+-- explainable to a student and a parent.
+ALTER TABLE public.quiz_attempts ADD COLUMN IF NOT EXISTS question_marks jsonb;
+
+-- The 3-arg form is replaced by the 4-arg one below; dropping it keeps
+-- PostgREST from facing an ambiguous overload.
+DROP FUNCTION IF EXISTS public.teacher_grade_attempt(uuid, numeric, text);
+
 CREATE OR REPLACE FUNCTION public.teacher_grade_attempt(
   p_attempt uuid,
   p_score numeric,
-  p_feedback text DEFAULT NULL
+  p_feedback text DEFAULT NULL,
+  p_marks jsonb DEFAULT NULL
 )
 RETURNS jsonb
 LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp
@@ -5531,13 +5542,14 @@ BEGIN
   UPDATE quiz_attempts
      SET score = p_score,
          feedback = COALESCE(p_feedback, feedback),
+         question_marks = COALESCE(p_marks, question_marks),
          status = 'graded',
          updated_at = now()
    WHERE id = p_attempt;
 
   RETURN jsonb_build_object('graded', true, 'id', p_attempt, 'score', p_score);
 END $$;
-GRANT EXECUTE ON FUNCTION public.teacher_grade_attempt(uuid, numeric, text) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.teacher_grade_attempt(uuid, numeric, text, jsonb) TO authenticated;
 
 DO $$
 BEGIN
@@ -6142,7 +6154,12 @@ BEGIN
     'student', jsonb_build_object(
       'id', st.id, 'first_name', st.first_name, 'last_name', st.last_name,
       'email', st.email, 'grade', st.grade, 'section', st.division,
-      'subject', st.subject, 'invite_status', st.invite_status
+      'subject', st.subject, 'invite_status', st.invite_status,
+      -- Guardian contact rides along so the report screen can write
+      -- home — eight collected fields were used by nothing at all.
+      'guardian_name',  st.primary_guardian_name,
+      'guardian_email', st.primary_guardian_email,
+      'guardian_phone', st.primary_guardian_phone
     ),
     'work', (
       SELECT COALESCE(jsonb_agg(row_to_json(w) ORDER BY w.date DESC NULLS LAST), '[]'::jsonb) FROM (
@@ -6165,6 +6182,12 @@ BEGIN
                           'marks',   COALESCE(NULLIF(q->>'marks','')::numeric, 1),
                           'auto',    (q ? 'choices' OR q ? 'options')
                                        AND COALESCE(q->>'correct_answer','') <> '',
+                          -- The key her per-question marks are stored under,
+                          -- and any mark already given — so reopening a
+                          -- graded paper shows the breakdown, not just a sum.
+                          'key',     COALESCE(q->>'qid', q->>'id', q->>'position', (ord-1)::text),
+                          'teacher_marks',
+                                     qa.question_marks->>COALESCE(q->>'qid', q->>'id', q->>'position', (ord-1)::text),
                           'verdict', qa.flags->'marking'
                                        ->COALESCE(q->>'qid', q->>'id', q->>'position', (ord-1)::text)
                         ) ORDER BY ord), '[]'::jsonb)

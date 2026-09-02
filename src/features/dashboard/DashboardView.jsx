@@ -23,6 +23,7 @@ import {
   SlidersHorizontal, Plus, RotateCcw, X, GripVertical,
 } from "lucide-react";
 import { api } from "@/views/_shared";
+import { useI18n, useT } from "@/shared/i18n";
 import {
   MiniCalendar, WeekStrip, PillBars, LineTrend, Ring, WeekSchedule, AskStudio,
   TypeBreakdown, KindDonut, TaskList, KhatimMark,
@@ -34,11 +35,13 @@ import s from "./Dashboard.module.css";
 const fmtTime = (t) => (t ? t.slice(0, 5) : "—");
 const hm = (t) => { if (!t) return null; const [h, m] = t.split(":"); return Number(h) * 60 + Number(m); };
 
+// Titles and hints live in the dictionary (dash.quick.*) — this holds
+// only the icon and the destination.
 const QUICK = [
-  { icon: Sparkles,   title: "Open AI Studio", hint: "Describe it; edit what comes back", section: "studio" },
-  { icon: FileText,   title: "Draft a lesson", hint: "Objectives, activity, assessment",  section: "lesson-plans" },
-  { icon: HelpCircle, title: "Build a quiz",   hint: "MCQ, short answer, essay",          section: "quizzes" },
-  { icon: Users,      title: "Add students",   hint: "Register, attendance, marks",       section: "database" },
+  { icon: Sparkles,   k: "studio",   section: "studio" },
+  { icon: FileText,   k: "lesson",   section: "lesson-plans" },
+  { icon: HelpCircle, k: "quiz",     section: "quizzes" },
+  { icon: Users,      k: "students", section: "database" },
 ];
 
 // Tailwind needs the class names written out — a template string span
@@ -212,7 +215,9 @@ const Bar = ({ w = "w-24", h = "h-4" }) => (
  * card cannot also navigate to My students.
  */
 function EditFrame({ widget, prefs, onChange, drag, children }) {
+  const t = useT();
   const meta = WIDGETS.find((w) => w.key === widget);
+  const name = t(`dash.wid.${widget}`);
   const hide = () =>
     onChange({ ...prefs, visible: prefs.visible.filter((k) => k !== widget) });
   const resize = (span) =>
@@ -228,7 +233,7 @@ function EditFrame({ widget, prefs, onChange, drag, children }) {
           <button
             type="button"
             className={s.dragBtn}
-            aria-label={`Move ${meta.label}. Drag, or press the arrow keys.`}
+            aria-label={`Move ${name}. Drag, or press the arrow keys.`}
             title="Drag to move — or use the arrow keys"
             onPointerDown={drag.start(widget)}
             onKeyDown={(e) => {
@@ -249,14 +254,14 @@ function EditFrame({ widget, prefs, onChange, drag, children }) {
       )}
       <div className={s.tileControls}>
         {!meta.locked && (
-          <button type="button" className={s.tileBtn} onClick={hide} aria-label={`Hide ${meta.label}`}>
+          <button type="button" className={s.tileBtn} onClick={hide} aria-label={`Hide ${name}`}>
             <span><X size={15} strokeWidth={2.4} /></span>
           </button>
         )}
       </div>
       <div className={s.tileDock}>
         {CHART_MODELS[widget] ? (
-          <span className={s.sizeSeg} role="radiogroup" aria-label={`${meta.label} chart style`}>
+          <span className={s.sizeSeg} role="radiogroup" aria-label={`${name} chart style`}>
             {CHART_MODELS[widget].map((m) => (
               <button
                 key={m.id} type="button" role="radio"
@@ -271,7 +276,7 @@ function EditFrame({ widget, prefs, onChange, drag, children }) {
           </span>
         ) : <span />}
         {meta.sizes && (
-          <span className={s.sizeSeg} role="radiogroup" aria-label={`${meta.label} size`}>
+          <span className={s.sizeSeg} role="radiogroup" aria-label={`${name} size`}>
             {meta.sizes.map((sp, i) => (
               <button
                 key={sp} type="button" role="radio"
@@ -279,7 +284,7 @@ function EditFrame({ widget, prefs, onChange, drag, children }) {
                 data-on={prefs.sizes[widget] === sp}
                 className={s.sizeBtn}
                 onClick={() => resize(sp)}
-                aria-label={`${meta.label} size ${SIZE_LABELS[i]}`}
+                aria-label={`${name} size ${SIZE_LABELS[i]}`}
               >
                 {SIZE_LABELS[i]}
               </button>
@@ -292,6 +297,11 @@ function EditFrame({ widget, prefs, onChange, drag, children }) {
 }
 
 export default function DashboardView({ onJump }) {
+  // The audit counted two translation calls in ~1,090 lines — an Arabic
+  // teacher signed in to an English page. Everything visible now goes
+  // through the dictionary, and dates format in the UI language.
+  const { t, lang } = useI18n();
+  const locale = lang === "ar" ? "ar" : undefined;
   const [me, setMe] = useState(null);
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
@@ -557,31 +567,37 @@ export default function DashboardView({ onJump }) {
 
   const hour = now?.getHours() ?? null;
   const greeting =
-    hour == null ? "Hello" : hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+    hour == null
+      ? t("dash.greet.hello")
+      : hour < 12
+        ? t("dash.greet.morning")
+        : hour < 17
+          ? t("dash.greet.afternoon")
+          : t("dash.greet.evening");
   const dateLine = now
-    ? now.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })
+    ? now.toLocaleDateString(locale, { weekday: "long", month: "long", day: "numeric" })
     : "";
 
   let headline, sub;
   if (status.mode === "live") {
-    headline = <>Right now — <em className="italic">{status.lesson.title || "your class"}</em></>;
-    sub = `${status.left} min left · ${status.lesson.section || status.lesson.grade || "your group"}`;
+    headline = <>{t("dash.hero.rightNow")}<em className="italic">{status.lesson.title || t("dash.hero.yourClass")}</em></>;
+    sub = `${t("dash.hero.minLeft", { n: String(status.left) })} · ${status.lesson.section || status.lesson.grade || t("dash.hero.yourGroup")}`;
   } else if (status.mode === "next") {
-    headline = <>Next up — <em className="italic">{status.lesson.title || "your next class"}</em></>;
+    headline = <>{t("dash.hero.nextUp")}<em className="italic">{status.lesson.title || t("dash.hero.yourNextClass")}</em></>;
     sub = status.until < 60
-      ? `in ${status.until} min · ${fmtTime(status.lesson.start_time)}`
-      : `at ${fmtTime(status.lesson.start_time)}`;
+      ? t("dash.hero.inMin", { n: String(status.until), time: fmtTime(status.lesson.start_time) })
+      : t("dash.hero.at", { time: fmtTime(status.lesson.start_time) });
   } else {
-    headline = <>{greeting}, <em className="italic">{me?.first_name || "there"}</em></>;
-    sub = today.length ? "Nothing more on the schedule today." : "A clear day. Make something with it.";
+    headline = <>{greeting}, <em className="italic">{me?.first_name || t("dash.hero.there")}</em></>;
+    sub = today.length ? t("dash.hero.nothingMore") : t("dash.hero.clearDay");
   }
 
   const calPinned = show("calendar") && (prefs.sizes.calendar ?? CAL_PINNED_SPAN) === CAL_PINNED_SPAN;
 
   const stats = [
-    { label: "Students",  value: counts.students ?? 0, unit: "in your roster",  section: "database" },
-    { label: "Library",   value: counts.total ?? 0,    unit: "things you made", section: "lesson-plans" },
-    { label: "Scheduled", value: calendar.length,      unit: "next 14 days",    section: "schedule" },
+    { label: t("dash.stat.students"),  value: counts.students ?? 0, unit: t("dash.stat.studentsUnit"),  section: "database" },
+    { label: t("dash.stat.library"),   value: counts.total ?? 0,    unit: t("dash.stat.libraryUnit"),   section: "lesson-plans" },
+    { label: t("dash.stat.scheduled"), value: calendar.length,      unit: t("dash.stat.scheduledUnit"), section: "schedule" },
   ];
 
   /**
@@ -656,8 +672,8 @@ export default function DashboardView({ onJump }) {
         return (
           <section className={`${s.glass} p-5 md:p-6 h-full flex flex-col`}>
             <Head
-              eyebrow={chartCompact ? "Last five weeks" : "Last eight weeks"}
-              title={<>Your <em>rhythm</em></>}
+              eyebrow={chartCompact ? t("dash.w.rhythm.eyebrow5") : t("dash.w.rhythm.eyebrow8")}
+              title={<>{t("dash.w.rhythm.titlePlain")}<em>{t("dash.w.rhythm.titleEm")}</em></>}
             />
             <div className={`flex-1 flex flex-col justify-end ${chartCompact ? "min-h-[104px]" : "min-h-[150px]"}`}>
               {loading ? <Bar w="w-full" h={chartCompact ? "h-20" : "h-28"} />
@@ -679,9 +695,9 @@ export default function DashboardView({ onJump }) {
           <section className={`${s.glass} p-5 h-full`}>
             <Head
               eyebrow={compact
-                ? "This week"
-                : new Date().toLocaleDateString(undefined, { month: "long", year: "numeric" })}
-              title="Calendar" action="Schedule" onAction={() => onJump?.("schedule")}
+                ? t("dash.w.calendar.thisWeek")
+                : new Date().toLocaleDateString(locale, { month: "long", year: "numeric" })}
+              title={t("dash.w.calendar.title")} action={t("dash.w.calendar.action")} onAction={() => onJump?.("schedule")}
             />
             {loading
               ? <div className="grid grid-cols-7 gap-1.5">{Array.from({ length: compact ? 7 : 28 }, (_, i) => <Bar key={i} w="w-full" h="h-8" />)}</div>
@@ -715,7 +731,7 @@ export default function DashboardView({ onJump }) {
       case "tasks":
         return (
           <section className={`${s.glass} p-5 h-full`}>
-            <Head eyebrow="To do" title="Needs you" />
+            <Head eyebrow={t("dash.w.tasks.eyebrow")} title={t("dash.w.tasks.title")} />
             {loading
               ? <div className="space-y-2">{[0, 1, 2, 3].map((i) => <Bar key={i} w="w-full" h="h-11" />)}</div>
               : <TaskList tasks={data?.tasks || []} onOpen={(sec) => onJump?.(sec)} />}
@@ -724,7 +740,7 @@ export default function DashboardView({ onJump }) {
       case "week":
         return (
           <section className={`${s.glass} p-5 h-full`}>
-            <Head eyebrow="Coming up" title="This week" action="Plan" onAction={() => onJump?.("planner")} />
+            <Head eyebrow={t("dash.w.week.eyebrow")} title={t("dash.w.week.title")} action={t("dash.w.week.action")} onAction={() => onJump?.("planner")} />
             {loading
               ? <div className="space-y-2">{[0, 1, 2].map((i) => <Bar key={i} w="w-full" h="h-12" />)}</div>
               : <WeekSchedule entries={calendar} onOpen={() => onJump?.("schedule")} />}
@@ -733,7 +749,7 @@ export default function DashboardView({ onJump }) {
       case "kinds":
         return (
           <section className={`${s.glass} p-5 h-full`}>
-            <Head eyebrow="Library" title="By kind" action="All" onAction={() => onJump?.("lesson-plans")} />
+            <Head eyebrow={t("dash.w.kinds.eyebrow")} title={t("dash.w.kinds.title")} action={t("dash.w.kinds.action")} onAction={() => onJump?.("lesson-plans")} />
             {loading
               ? <div className="space-y-3">{[0, 1, 2, 3].map((i) => <Bar key={i} w="w-full" h="h-7" />)}</div>
               : prefs.charts.kinds === "donut"
@@ -759,9 +775,9 @@ export default function DashboardView({ onJump }) {
       {editing ? (
         <div className={s.editBar}>
           <p className="font-serif text-[16px] font-semibold text-ink flex-1">
-            Edit dashboard
+            {t("dash.edit.title")}
             <span className="font-sans text-[12px] font-normal text-muted ms-3 hidden sm:inline">
-              Drag the grip to move a tile; hide, resize, or switch a chart — it rearranges as you go.
+              {t("dash.edit.hint")}
             </span>
           </p>
           <button
@@ -769,14 +785,14 @@ export default function DashboardView({ onJump }) {
             onClick={() => changePrefs(defaultPrefs())}
             className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-full text-[12.5px] text-ink-soft hover:bg-paper-warm hover:text-ink transition-colors cursor-pointer"
           >
-            <RotateCcw size={13} /> Reset
+            <RotateCcw size={13} /> {t("dash.edit.reset")}
           </button>
           <button
             type="button"
             onClick={() => setEditing(false)}
             className="inline-flex items-center gap-1.5 h-9 px-5 rounded-full bg-accent text-on-accent text-[13px] font-medium hover:bg-accent-hover transition-colors cursor-pointer"
           >
-            Done
+            {t("dash.edit.done")}
           </button>
         </div>
       ) : (
@@ -787,7 +803,7 @@ export default function DashboardView({ onJump }) {
             onClick={() => setEditing(true)}
             className="inline-flex items-center gap-1.5 h-9 px-4 rounded-full border border-line bg-surface/70 text-[12.5px] text-ink-soft hover:border-accent hover:text-ink transition-colors cursor-pointer"
           >
-            <SlidersHorizontal size={13} /> Edit
+            <SlidersHorizontal size={13} /> {t("dash.edit.button")}
           </button>
         </div>
       )}
@@ -795,7 +811,7 @@ export default function DashboardView({ onJump }) {
       {/* ── the tray of hidden tiles ────────────────────────────────── */}
       {editing && hidden.length > 0 && (
         <div className={s.tray}>
-          <p className={`${s.eyebrow} mb-2.5`}>Hidden — tap to add back</p>
+          <p className={`${s.eyebrow} mb-2.5`}>{t("dash.edit.tray")}</p>
           <div className="flex flex-wrap gap-2">
             {hidden.map((w) => (
               <button
@@ -804,7 +820,7 @@ export default function DashboardView({ onJump }) {
                 className={s.trayChip}
                 onClick={() => changePrefs({ ...prefs, visible: [...prefs.visible, w.key] })}
               >
-                <Plus size={14} className="text-accent" /> {w.label}
+                <Plus size={14} className="text-accent" /> {t(`dash.wid.${w.key}`)}
               </button>
             ))}
           </div>
@@ -839,7 +855,7 @@ export default function DashboardView({ onJump }) {
               <div className="relative">
               {/* The date lives in the page header now; twice on one screen
               was once too many. The eyebrow names the card instead. */}
-              <p className={s.loudEyebrow}>Today</p>
+              <p className={s.loudEyebrow}>{t("dash.today")}</p>
               <h1 className="font-serif text-[30px] md:text-[40px] leading-[1.05] font-medium mt-2.5 max-w-xl">
               {headline}
               </h1>
@@ -847,10 +863,10 @@ export default function DashboardView({ onJump }) {
               </div>
               <div className="relative flex flex-wrap gap-2.5 mt-6">
               <button type="button" className={s.btnOnLoud} onClick={() => onJump?.("studio")}>
-              <Sparkles size={15} /> Open AI Studio
+              <Sparkles size={15} /> {t("dash.openStudio")}
               </button>
               <button type="button" className={s.btnGhostOnLoud} onClick={() => onJump?.("planner")}>
-              <CalendarDays size={15} /> Plan the week
+              <CalendarDays size={15} /> {t("dash.planWeek")}
               </button>
               </div>
             </div>
@@ -870,8 +886,8 @@ export default function DashboardView({ onJump }) {
                       the same way. */}
                   <p className={`${s.inkEyebrow} text-right`}>
                   {!planOn
-                  ? "Your credits"
-                  : plan.status === "trialing" ? "Free trial" : `${plan.plan} plan`}
+                  ? t("dash.plan.credits")
+                  : plan.status === "trialing" ? t("dash.plan.trial") : t("dash.plan.named", { plan: plan.plan })}
                   </p>
                   {/* The ring is the thing worth looking at here, so it
                       takes the middle of its half instead of a corner,
@@ -884,7 +900,7 @@ export default function DashboardView({ onJump }) {
                           <span className="text-center leading-none">
                             <span className="block font-serif text-[19px]">{plan.credits}</span>
                             <span className={`${s.inkMuted} block text-[8.5px] font-mono uppercase tracking-widest mt-1`}>
-                              credits
+                              {t("dash.plan.creditsWord")}
                             </span>
                           </span>
                         </Ring>
@@ -893,16 +909,16 @@ export default function DashboardView({ onJump }) {
                     <div className="text-right">
                       <p className={s.figure}>{plan.days_left ?? "∞"}</p>
                       <p className={`${s.inkMuted} text-[12.5px] mt-1.5`}>
-                        {plan.days_left === 1 ? "day left" : "days left"}
-                        {planOn && plan.status === "trialing" ? " — then choose a plan" : ""}
+                        {plan.days_left === 1 ? t("dash.plan.dayLeft") : t("dash.plan.daysLeft")}
+                        {planOn && plan.status === "trialing" ? t("dash.plan.thenChoose") : ""}
                       </p>
                       {/* The date the number is counting to. A bare
                           countdown is unfalsifiable — this is what makes
                           it checkable against a bank statement. */}
                       {plan.ends_at && (
                         <p className={`${s.inkMuted} text-[11px] mt-1 opacity-75`}>
-                          {plan.status === "trialing" ? "Ends " : "Renews "}
-                          {new Date(plan.ends_at).toLocaleDateString(undefined, {
+                          {plan.status === "trialing" ? t("dash.plan.ends") : t("dash.plan.renews")}
+                          {new Date(plan.ends_at).toLocaleDateString(locale, {
                             day: "numeric", month: "long",
                           })}
                         </p>
@@ -917,15 +933,15 @@ export default function DashboardView({ onJump }) {
                   onClick={() => onJump?.("account")}
                   className="mt-5 self-start text-[12.5px] underline underline-offset-4 decoration-1 opacity-80 hover:opacity-100 transition-opacity cursor-pointer"
                   >
-                  Manage plan
+                  {t("dash.plan.manage")}
                   </button>
                   )}
                   </>
                   ) : (
                   <>
-                  <p className={s.inkEyebrow}>Your library</p>
+                  <p className={s.inkEyebrow}>{t("dash.plan.libraryEyebrow")}</p>
                   <p className={`${s.figure} mt-3`}>{counts.total ?? 0}</p>
-                  <p className={`${s.inkMuted} text-[12.5px] mt-1.5`}>things made so far</p>
+                  <p className={`${s.inkMuted} text-[12.5px] mt-1.5`}>{t("dash.plan.thingsMade")}</p>
                   </>
                   )}
                 </div>
@@ -944,7 +960,7 @@ export default function DashboardView({ onJump }) {
             <div className="relative">
             {/* The date lives in the page header now; twice on one screen
             was once too many. The eyebrow names the card instead. */}
-            <p className={s.loudEyebrow}>Today</p>
+            <p className={s.loudEyebrow}>{t("dash.today")}</p>
             <h1 className="font-serif text-[30px] md:text-[40px] leading-[1.05] font-medium mt-2.5 max-w-xl">
             {headline}
             </h1>
@@ -952,10 +968,10 @@ export default function DashboardView({ onJump }) {
             </div>
             <div className="relative flex flex-wrap gap-2.5 mt-6">
             <button type="button" className={s.btnOnLoud} onClick={() => onJump?.("studio")}>
-            <Sparkles size={15} /> Open AI Studio
+            <Sparkles size={15} /> {t("dash.openStudio")}
             </button>
             <button type="button" className={s.btnGhostOnLoud} onClick={() => onJump?.("planner")}>
-            <CalendarDays size={15} /> Plan the week
+            <CalendarDays size={15} /> {t("dash.planWeek")}
             </button>
             </div>
           </section>
@@ -975,14 +991,14 @@ export default function DashboardView({ onJump }) {
               <section className={`${s.glass} p-4 h-full flex flex-col`}>
                 <div className={s.calBar}>
                   <p className={s.calBarMonth}>
-                    {new Date().toLocaleDateString(undefined, { month: "long", year: "numeric" })}
+                    {new Date().toLocaleDateString(locale, { month: "long", year: "numeric" })}
                   </p>
                   <button
                     type="button"
                     onClick={() => onJump?.("schedule")}
                     className="text-[12px] text-muted hover:text-accent transition-colors inline-flex items-center gap-1 cursor-pointer whitespace-nowrap"
                   >
-                    Schedule <ArrowRight size={12} />
+                    {t("dash.w.calendar.action")} <ArrowRight size={12} />
                   </button>
                 </div>
                 {loading
@@ -1005,34 +1021,41 @@ export default function DashboardView({ onJump }) {
         <div className={`${s.glass} px-4 py-3 flex items-center gap-3 flex-wrap`}>
           <p className="text-sm text-ink flex-1 min-w-[220px]">
             {plan.days_left === 0
-              ? <>Your {plan.status === "trialing" ? "trial" : "plan"} has ended. Everything you have made stays readable.</>
-              : <>Your {plan.status === "trialing" ? "trial" : "plan"} ends in <b>{plan.days_left} {plan.days_left === 1 ? "day" : "days"}</b>.</>}
+              ? t("dash.expiry.ended", { kind: t(plan.status === "trialing" ? "dash.word.trial" : "dash.word.plan") })
+              : <>
+                  {t("dash.expiry.endsIn", { kind: t(plan.status === "trialing" ? "dash.word.trial" : "dash.word.plan") })}
+                  <b>
+                    {plan.days_left === 1
+                      ? t("dash.expiry.day", { n: "1" })
+                      : t("dash.expiry.days", { n: String(plan.days_left) })}
+                  </b>.
+                </>}
           </p>
           <button
             type="button"
             onClick={() => onJump?.("account")}
             className="h-9 px-4 rounded-full bg-accent text-on-accent text-[13px] font-medium hover:bg-accent-hover transition-colors cursor-pointer"
           >
-            Choose a plan
+            {t("dash.choosePlan")}
           </button>
         </div>
       )}
 
       {error && (
         <div className={`${s.glass} p-4`}>
-          <p className={s.eyebrow}>Could not load the dashboard</p>
+          <p className={s.eyebrow}>{t("dash.error")}</p>
           <p className="text-sm text-ink-soft mt-1">{error}</p>
         </div>
       )}
 
       {isNew && !editing && (
         <section className={`${s.glassRaised} p-5 md:p-6`}>
-          <p className={s.eyebrow}>First steps</p>
+          <p className={s.eyebrow}>{t("dash.first.eyebrow")}</p>
           <h2 className="font-serif text-2xl md:text-[28px] font-medium text-ink leading-tight mt-1.5">
-            Nothing here yet — <em className="italic text-accent">that is the right place to start.</em>
+            {t("dash.first.titlePlain")}<em className="italic text-accent">{t("dash.first.titleEm")}</em>
           </h2>
           <p className="text-sm text-ink-soft mt-2 max-w-xl">
-            Draft one lesson and the rest of this page fills itself in.
+            {t("dash.first.sub")}
           </p>
           <div className="grid sm:grid-cols-2 gap-2.5 mt-4">
             {QUICK.map((a) => (
@@ -1044,8 +1067,8 @@ export default function DashboardView({ onJump }) {
               >
                 <a.icon size={17} className="text-accent flex-shrink-0" />
                 <span className="min-w-0 text-start">
-                  <span className="block text-sm text-ink">{a.title}</span>
-                  <span className="block text-xs text-muted mt-0.5">{a.hint}</span>
+                  <span className="block text-sm text-ink">{t(`dash.quick.${a.k}`)}</span>
+                  <span className="block text-xs text-muted mt-0.5">{t(`dash.quick.${a.k}Hint`)}</span>
                 </span>
               </button>
             ))}

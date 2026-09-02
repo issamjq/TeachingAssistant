@@ -1,5 +1,6 @@
 "use client";
 
+import { flash } from "@/shared/lib/flash";
 import React, { useEffect, useRef, useState } from "react";
 import { Download, FileCode2, FileText, FileType2, Loader2 } from "lucide-react";
 import { printDoc, exportDocx, exportMarkdown } from "../../lib/export";
@@ -45,7 +46,7 @@ export function ExportMenu({ formats = ["pdf"], buildDoc, compact = false, class
       else printDoc(doc);
     } catch (e) {
       console.error("Export failed", e);
-      alert(`${t("export.failed") === "export.failed" ? "Could not export" : t("export.failed")}: ${e.message || e}`);
+      flash(`${t("export.failed") === "export.failed" ? "Could not export" : t("export.failed")}: ${e.message || e}`);
     } finally {
       setBusy(null);
     }

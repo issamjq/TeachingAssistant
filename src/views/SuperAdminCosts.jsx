@@ -9,6 +9,7 @@
 // is_super_admin() in the database, so this surface carries no auth of its
 // own — StudioShell only routes a super_admin here.
 
+import { flash } from "@/shared/lib/flash";
 import React, { useEffect, useState } from "react";
 import { Coins, RotateCcw } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -38,7 +39,7 @@ export default function SuperAdminCosts() {
       setSavedFlash(feature);
       setTimeout(() => setSavedFlash((f) => (f === feature ? null : f)), 1400);
     } catch (e) {
-      alert(`Could not save ${feature}: ${e.message}`);
+      flash(`Could not save ${feature}: ${e.message}`);
       reload();
     } finally {
       setBusy(null);
