@@ -12822,3 +12822,121 @@ BEGIN
   END IF;
   RAISE NOTICE 'goal_days ready: a plan can be placed on the timetable';
 END $$;
+
+
+-- ─────────────────────────────────────────────────────────────────────
+-- §98  What a class found hard, from the marks already in the table
+-- ─────────────────────────────────────────────────────────────────────
+--
+-- Per-question marking (§ teacher_grade_attempt) and auto-marking both
+-- write a breakdown per question, and nothing has ever read either one
+-- back. So the product knows that nine of twenty-four missed both
+-- questions on balancing equations and has never once said so.
+--
+-- This is the whole of the behaviour loop's data half. Deliberately SQL
+-- and not a model call: it is counting, it is exact, it costs nothing,
+-- and a teacher can check it against her own gradebook. A sentence a
+-- model wrote about numbers it was shown is a worse version of this.
+--
+-- THE PRIVACY RULE, and it is not negotiable: this returns aggregates
+-- only. No student id, no name, no per-child score ever leaves the
+-- function, because its output is destined for a prompt. These are
+-- minors and UAE PDPL applies. Anything added here later must hold that
+-- line — the moment one row identifies a child, it is a different
+-- feature with different obligations.
+--
+-- Two mark shapes exist and both are read:
+--   teacher   quiz_attempts.question_marks ->> key      = marks earned
+--   automatic quiz_attempts.flags->'marking'->key       = {correct, marks}
+-- A question that is merely PENDING (written, not yet marked) carries
+-- {pending: true, marks: <max>} — marks there is the maximum, not what
+-- was earned, so counting it would read as a full score for work nobody
+-- has looked at. Pending questions are excluded until she marks them.
+
+CREATE OR REPLACE FUNCTION public.class_weak_spots(
+  p_grade   text,
+  p_subject text,
+  p_section text DEFAULT NULL,
+  p_since   date DEFAULT NULL,
+  p_min_n   int  DEFAULT 5,
+  p_below   numeric DEFAULT 0.6
+)
+RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE fid uuid; out jsonb;
+BEGIN
+  -- A definer function bypasses RLS, so the gate is written by hand.
+  fid := public.current_faculty_id();
+  IF fid IS NULL THEN RAISE EXCEPTION 'not a teacher' USING ERRCODE = '42501'; END IF;
+
+  SELECT COALESCE(jsonb_agg(row_to_json(x) ORDER BY x.mean_pct ASC, x.n DESC), '[]'::jsonb)
+    INTO out
+  FROM (
+    SELECT
+      COALESCE(q->>'prompt', q->>'question', q->>'text')        AS question,
+      COALESCE(NULLIF(se.title,''), g.content->>'title','Quiz') AS quiz,
+      max(se.date)                                              AS last_set,
+      count(*)                                                  AS n,
+      round(
+        avg(
+          LEAST(1, GREATEST(0,
+            COALESCE(
+              NULLIF(qa.question_marks ->> COALESCE(q->>'qid', q->>'id', q->>'position', (ord-1)::text), '')::numeric,
+              (qa.flags->'marking'->COALESCE(q->>'qid', q->>'id', q->>'position', (ord-1)::text)->>'marks')::numeric
+            ) / NULLIF(COALESCE(NULLIF(q->>'marks','')::numeric, 1), 0)
+          ))
+        ) * 100
+      )                                                         AS mean_pct
+      FROM schedule_entries se
+      JOIN ai_studio      g  ON g.id = se.draft_id AND g.deleted_at IS NULL AND g.type = 'quiz'
+      JOIN quiz_attempts  qa ON qa.assignment_id = se.id AND qa.submitted_at IS NOT NULL
+      CROSS JOIN LATERAL jsonb_array_elements(COALESCE(g.content->'questions','[]'::jsonb))
+                    WITH ORDINALITY AS t(q, ord)
+     WHERE se.faculty_id = fid
+       AND COALESCE(se.status,'planned') <> 'cancelled'
+       AND public.grade_matches(se.grade, p_grade)
+       AND (p_subject IS NULL
+            OR public.norm_subject(se.subject) IS NULL
+            OR public.norm_subject(se.subject) = public.norm_subject(p_subject))
+       AND (p_section IS NULL OR public.section_matches(se.section, p_section))
+       AND (p_since IS NULL OR se.date >= p_since)
+       -- Marked, one way or the other. A pending written answer is not
+       -- a zero; it is a question nobody has looked at yet.
+       AND (
+         NULLIF(qa.question_marks ->> COALESCE(q->>'qid', q->>'id', q->>'position', (ord-1)::text), '') IS NOT NULL
+         OR (qa.flags->'marking'->COALESCE(q->>'qid', q->>'id', q->>'position', (ord-1)::text)) ? 'correct'
+       )
+       AND COALESCE(q->>'prompt', q->>'question', q->>'text') IS NOT NULL
+     GROUP BY 1, 2
+    HAVING count(*) >= GREATEST(1, p_min_n)
+       AND avg(
+             LEAST(1, GREATEST(0,
+               COALESCE(
+                 NULLIF(qa.question_marks ->> COALESCE(q->>'qid', q->>'id', q->>'position', (ord-1)::text), '')::numeric,
+                 (qa.flags->'marking'->COALESCE(q->>'qid', q->>'id', q->>'position', (ord-1)::text)->>'marks')::numeric
+               ) / NULLIF(COALESCE(NULLIF(q->>'marks','')::numeric, 1), 0)
+             ))
+           ) < p_below
+  ) x;
+
+  RETURN out;
+END $$;
+
+-- §83 again: Supabase re-grants EXECUTE to anon on every CREATE OR
+-- REPLACE, and this function reads every attempt the caller's own
+-- classes have made. anon must not be able to call it even to be refused.
+REVOKE ALL ON FUNCTION public.class_weak_spots(text, text, text, date, int, numeric) FROM PUBLIC, anon;
+GRANT  EXECUTE ON FUNCTION public.class_weak_spots(text, text, text, date, int, numeric) TO authenticated;
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.role_routine_grants
+     WHERE routine_schema = 'public' AND routine_name = 'class_weak_spots'
+       AND grantee = 'anon'
+  ) THEN
+    RAISE EXCEPTION 'class_weak_spots is executable by anon';
+  END IF;
+  RAISE NOTICE 'class_weak_spots ready: the marks can be read back as a signal';
+END $$;

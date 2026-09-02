@@ -252,6 +252,16 @@ export async function resolve(
       if (method === "GET") return yes(await E.dashboard());
       return { handled: false };
 
+    // What a class found hard, from marks already recorded (§98).
+    case "insights":
+      if (a === "weak-spots" && method === "GET")
+        return yes(await E.classWeakSpots({
+          grade: q.get("grade"), subject: q.get("subject"),
+          section: q.get("section"), since: q.get("since"),
+          min_n: q.get("min_n"), below: q.get("below"),
+        }));
+      return { handled: false };
+
     case "students":
       if (a === "bulk" && method === "POST") return yes(await E.bulkCreateStudents(body?.students));
       if (a === "known" && method === "GET") return yes(await E.knownStudents());

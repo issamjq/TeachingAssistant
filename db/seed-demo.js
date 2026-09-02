@@ -500,6 +500,44 @@ async function handOut(fid, artifacts, classIds, students) {
   for (const job of jobs) {
     const cls = CLASSES.find((c) => c.key === job.classKey);
     /**
+     * The questions, so the attempts can carry a per-question breakdown.
+     *
+     * Without one the class_weak_spots signal (§98) has nothing to read
+     * and a demo account can never show it — the seed wrote a total and
+     * a comment, which is what marking looked like before per-question
+     * marking existed. Keys are resolved exactly the way the graders and
+     * the readers resolve them: qid, then id, then position, then index.
+     */
+    const questions = (await one(
+      `SELECT COALESCE(content->'questions','[]'::jsonb) AS qs FROM public.ai_studio WHERE id = $1`,
+      [job.artifact],
+    ))?.qs || [];
+    const keys = questions.map((qq, i) =>
+      String(qq.qid ?? qq.id ?? qq.position ?? i));
+    const maxes = questions.map((qq) => Number(qq.marks) || 1);
+    /**
+     * Spend the attempt's score across its questions, hardest last.
+     *
+     * The last two questions are deliberately the weak ones in every
+     * attempt, so the signal has something true to find: a class that
+     * genuinely struggled with the same thing, which is the shape a real
+     * cohort produces and the whole reason the feature exists.
+     */
+    const breakdownFor = (earned) => {
+      const total = maxes.reduce((a, b) => a + b, 0) || 1;
+      let left = earned;
+      const out = {};
+      keys.forEach((k, i) => {
+        const share = maxes[i] / total;
+        // Later questions get a smaller fraction of what is left.
+        const weight = i >= keys.length - 2 ? 0.35 : 1.15;
+        const got = Math.min(maxes[i], Math.round(earned * share * weight * 2) / 2);
+        out[k] = Math.max(0, Math.min(got, left));
+        left -= out[k];
+      });
+      return out;
+    };
+    /**
      * The slot IS the assignment. Students receive work by matching
      * their grade + subject against a schedule entry carrying the
      * generation (db/tune.sql §48), and quiz_attempts.assignment_id is
@@ -531,14 +569,16 @@ async function handOut(fid, artifacts, classIds, students) {
         const score = Math.round(Math.max(0.35, Math.min(1, 0.62 + r() * 0.4)) * job.max * 2) / 2;
         await q(
           `INSERT INTO public.quiz_attempts
-             (assignment_id, student_id, status, started_at, submitted_at, score, max_score, feedback)
+             (assignment_id, student_id, status, started_at, submitted_at, score, max_score,
+              feedback, question_marks)
            VALUES ($1,$2,'graded', now() - ($3 || ' days')::interval,
-                   now() - ($4 || ' days')::interval, $5, $6, $7)`,
+                   now() - ($4 || ' days')::interval, $5, $6, $7, $8)`,
           [asg.id, s.id, String(-job.startedDays), String(-job.startedDays - 3),
            score, job.max,
            score / job.max > 0.85 ? "Clear method throughout. Try the stretch question next time."
              : score / job.max > 0.6 ? "Solid. Show the rearrangement step — it carries a mark."
-             : "Come and see me: the free-body diagrams need another look together."],
+             : "Come and see me: the free-body diagrams need another look together.",
+           JSON.stringify(breakdownFor(score))],
         );
       }
       attempts++;

@@ -1448,6 +1448,29 @@ export async function deleteGoal(id: string) {
   return { ok: true };
 }
 
+// ── what a class found hard (§98) ─────────────────────────────────────
+//
+// Per-question marks, read back as a signal. Aggregates only — the
+// function returns no student id and no per-child score, because the
+// answer is destined for a prompt and these are minors.
+
+export async function classWeakSpots(q: Record<string, any> = {}) {
+  if (!q.grade) return [];
+  const { data, error } = await supabase.rpc("class_weak_spots", {
+    p_grade: q.grade,
+    p_subject: q.subject ?? null,
+    p_section: q.section ?? null,
+    p_since: q.since ?? null,
+    // A class of two dozen doing one quiz is thin evidence: two children
+    // missing a question can mean the QUESTION was ambiguous. Speak only
+    // when enough of them did, and only when the gap is real.
+    p_min_n: Number(q.min_n) || 5,
+    p_below: Number(q.below) || 0.6,
+  });
+  if (error) throw error;
+  return data || [];
+}
+
 // ── goal days (§97) ───────────────────────────────────────────────────
 //
 // One row per teaching day of a plan. The narrative — a week's focus,

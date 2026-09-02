@@ -59,6 +59,7 @@ import { ConversationListSkeleton, ThreadSkeleton } from "./DocumentSkeleton";
 import { renderMarkdown } from "@/lib/markdown";
 import { SkillsPicker } from "./SkillsPicker";
 import { ClassPicker } from "./ClassPicker";
+import ClassSignal from "./ClassSignal";
 import { classLabel } from "@/shared/lib/classMatch";
 import { navigate } from "@/lib/route";
 import {
@@ -710,6 +711,9 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
    * made later still files under the class the work was written for.
    */
   const classSel = useRef(null);
+  // A ref carries the pick into send(); this mirrors it so the signal
+  // above the composer can re-render when she changes class.
+  const [pickedClass, setPickedClass] = useState(null);
   // Nothing on this screen writes a skill any more, so there is nothing
   // to tell the picker to refetch for. Kept as a constant so the picker's
   // contract is unchanged for the places that still bump it.
@@ -3449,6 +3453,13 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
       </div>
 
       <div className={s.composerWrap}>
+        {/* What this class found hard last time, from marks already in
+            the table. Above the composer because it is context for what
+            she is about to write, not a verdict on what she wrote. */}
+        <ClassSignal
+          cls={pickedClass}
+          onUse={(lead) => setDraft((d) => (d ? `${lead}${d}` : lead))}
+        />
         <div className={s.composer}>
           {notice && (
             <p className="text-[12.5px] text-crit px-4 pt-3">{notice}</p>
@@ -3520,7 +3531,9 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
               ))}
             </div>
 
-            <ClassPicker onSelection={(cls) => { classSel.current = cls; }} />
+            <ClassPicker
+              onSelection={(cls) => { classSel.current = cls; setPickedClass(cls); }}
+            />
             {/* The paperclip uploads; this attaches what she already has.
                 Without it the same textbook was re-uploaded — and its
                 read re-charged — for every lesson of the term. */}
