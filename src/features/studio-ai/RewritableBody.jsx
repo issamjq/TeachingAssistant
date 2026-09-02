@@ -38,10 +38,12 @@ export function RewritableBody({ markdown, kind, onChange }) {
     setError(null);
     setPreview("");
     try {
-      const { streamSSE } = await import("@/shared/lib/apiStream");
+      const { streamSSE, AI_FIRST_BYTE_MS, AI_IDLE_MS } = await import("@/shared/lib/apiStream");
       let acc = "";
       await streamSSE("/api/studio/regenerate", {
         body: { kind, section: section.title, current: section.markdown, prompt },
+        firstByteMs: AI_FIRST_BYTE_MS,
+        idleMs: AI_IDLE_MS,
         onEvent: (ev) => {
           if (ev.type === "delta") {
             acc += ev.text || "";

@@ -73,15 +73,45 @@ export async function findClash(
   payload: { date: string; start_time?: string | null; end_time?: string | null; grade?: string; section?: string },
   selfId: string | null = null,
 ): Promise<ScheduleRow | null> {
-  if (!payload.start_time) return null;
+  const hit = await findClashes(payload, [payload.date], selfId);
+  return hit?.row || null;
+}
+
+/**
+ * The first clash across a whole series, or null.
+ *
+ * A weekly repeat asked this question once, about its first date, and
+ * then wrote thirteen more rows unchecked — so a term laid over an
+ * existing series double-booked in silence while the UI presented
+ * itself as having looked. One read spans the range; the rows are
+ * bucketed by date and each occurrence is tested against its own day.
+ */
+export async function findClashes(
+  payload: { start_time?: string | null; end_time?: string | null; grade?: string; section?: string },
+  dates: string[],
+  selfId: string | null = null,
+): Promise<{ date: string; row: ScheduleRow } | null> {
+  if (!payload.start_time || !dates.length) return null;
+  const sorted = [...dates].sort();
   try {
-    const rows = await api<ScheduleRow[]>(`/api/schedule?from=${payload.date}&to=${payload.date}`);
-    return (
-      (Array.isArray(rows) ? rows : []).find(
-        (r) => !(selfId && r.id === selfId) && entriesClash(payload, r),
-      ) || null
+    const rows = await api<ScheduleRow[]>(
+      `/api/schedule?from=${sorted[0]}&to=${sorted[sorted.length - 1]}`,
     );
+    const byDate = new Map<string, ScheduleRow[]>();
+    for (const r of Array.isArray(rows) ? rows : []) {
+      if (selfId && r.id === selfId) continue;
+      const key = String(r.date || "").slice(0, 10);
+      const bucket = byDate.get(key);
+      if (bucket) bucket.push(r);
+      else byDate.set(key, [r]);
+    }
+    for (const date of sorted) {
+      const hit = (byDate.get(date) || []).find((r) => entriesClash(payload, r));
+      if (hit) return { date, row: hit };
+    }
+    return null;
   } catch {
+    // A failed read must never stop a save.
     return null;
   }
 }

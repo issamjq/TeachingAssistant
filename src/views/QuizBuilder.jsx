@@ -187,7 +187,7 @@ export default function QuizBuilder({ quiz, onClose }) {
     setTweaking(true);
     setErr(null);
     try {
-      const { streamSSE } = await import("@/shared/lib/apiStream");
+      const { streamSSE, AI_FIRST_BYTE_MS, AI_IDLE_MS } = await import("@/shared/lib/apiStream");
       const toWire = (q) => ({
         position: q.position,
         type: q.type === "tf" ? "true_false" : q.type,
@@ -199,6 +199,8 @@ export default function QuizBuilder({ quiz, onClose }) {
       let revised = null;
       await streamSSE("/api/studio/quiz-tweak", {
         body: { quiz: { questions: questions.map(toWire) }, instruction },
+        firstByteMs: AI_FIRST_BYTE_MS,
+        idleMs: AI_IDLE_MS,
         onEvent: (ev) => {
           if (ev.type === "done" && ev.quiz?.questions?.length) revised = ev.quiz.questions;
         },

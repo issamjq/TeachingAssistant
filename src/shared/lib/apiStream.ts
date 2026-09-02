@@ -38,6 +38,15 @@ export interface StreamEvent {
   [key: string]: unknown;
 }
 
+/**
+ * The timeout pair every AI call should use unless it has a reason not
+ * to. Named here rather than repeated at each call site, because the
+ * numbers encode one fact — how long a cold Render instance may take to
+ * wake — and that fact should have a single home.
+ */
+export const AI_FIRST_BYTE_MS = 45_000;
+export const AI_IDLE_MS = 90_000;
+
 export interface StreamOptions {
   body?: unknown;
   signal?: AbortSignal;
@@ -271,6 +280,13 @@ export async function streamText(
   body: unknown,
   opts: {
     signal?: AbortSignal;
+    /**
+     * Forwarded to streamSSE. Without these a caller waits forever on a
+     * service that accepted the connection and then went quiet — which is
+     * exactly what a cold Render instance does.
+     */
+    firstByteMs?: number;
+    idleMs?: number;
     onText?: (full: string, delta: string) => void;
     onTool?: (name: string) => void;
     /**
@@ -291,6 +307,8 @@ export async function streamText(
   await streamSSE(path, {
     body,
     signal: opts.signal,
+    firstByteMs: opts.firstByteMs,
+    idleMs: opts.idleMs,
     onEvent: (e) => {
       if (e.type === "delta" && typeof e.text === "string") {
         text += e.text;

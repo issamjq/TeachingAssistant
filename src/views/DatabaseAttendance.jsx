@@ -70,7 +70,13 @@ export default function DatabaseAttendance() {
     try {
       await api("/api/attendance", {
         method: "PUT",
-        body: { student_id: row.student_id, date, status: row.status || "present", notes },
+        body: {
+          student_id: row.student_id, date, status: row.status || "present", notes,
+          // Annotating an existing mark must not claim she made it. When
+          // there is no mark yet, typing a note does create one — and
+          // that one really is hers, so it stamps normally.
+          ...(row.status ? { notes_only: true } : {}),
+        },
       });
     } catch (e) {
       setError(`Could not save: ${e.message}`);
@@ -211,7 +217,10 @@ export default function DatabaseAttendance() {
           <p className="text-[13px] text-ink-soft leading-relaxed">
             {rows.filter((r) => r.source === "portal").length} student
             {rows.filter((r) => r.source === "portal").length === 1 ? " was" : "s were"} marked
-            present automatically by opening their student portal today — those rows carry a
+            present automatically by opening their student portal
+            {/* Not "today": this screen steps through dates, and browsing
+                to last Tuesday described its rows as this morning's. */}
+            {date === isoDate(new Date()) ? " today" : ` on ${date}`} — those rows carry a
             door icon. Your marks always win: click any letter to override, and the flag comes
             off.
           </p>

@@ -25,7 +25,7 @@ import { useEffect, useRef, useState } from "react";
 import { Calendar, Check, CircleAlert, Loader2, Users } from "lucide-react";
 
 import { api } from "@/views/_shared";
-import { useRoster } from "@/features/delivery";
+import { useRoster, invalidateDeliveryCache } from "@/features/delivery";
 import { classLabel, matchRoster, type Audience } from "@/shared/lib/classMatch";
 import { PREFILL_KEY } from "@/shared/lib/assistantPrefill";
 import { navigate } from "@/lib/route";
@@ -292,6 +292,11 @@ export function FinaliseAndSchedule({
         entry?: Proposed;
         clashes?: Clash[];
       }>("/api/studio/schedule", { method: "POST", body: { draft_id: id, ...body } });
+
+      // A slot may have just been written; the delivery chips cache the
+      // timetable for a minute and would otherwise call this work
+      // undelivered on the next screen she opens.
+      if (reply.status === "scheduled") invalidateDeliveryCache();
 
       setClashes(reply.clashes || []);
 

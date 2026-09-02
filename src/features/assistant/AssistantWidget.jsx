@@ -227,12 +227,14 @@ export default function AssistantWidget({ scope = "landing", onNavigate }) {
         // typewriter below; re-typing prose that already arrived a word
         // at a time would only make it slower.
         try {
-          const { streamText } = await import("@/shared/lib/apiStream");
+          const { streamText, AI_FIRST_BYTE_MS, AI_IDLE_MS } = await import("@/shared/lib/apiStream");
           let printed = "";
           const { text: full, sessionId } = await streamText(
             "/api/chat",
             { message, scope: "studio", sessionId: chatSessionRef.current || undefined },
             {
+              firstByteMs: AI_FIRST_BYTE_MS,
+              idleMs: AI_IDLE_MS,
               onText: (all) => {
                 printed = all;
                 setDoing(null);

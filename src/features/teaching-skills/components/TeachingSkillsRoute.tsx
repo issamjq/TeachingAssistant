@@ -195,10 +195,12 @@ export function TeachingSkillsRoute() {
     setRefineNote(null);
     setReviewText("");
     try {
-      const { streamSSE } = await import("@/shared/lib/apiStream");
+      const { streamSSE, AI_FIRST_BYTE_MS, AI_IDLE_MS } = await import("@/shared/lib/apiStream");
       let acc = "";
       let done: any = null;
       await streamSSE("/api/studio/skill-profile", {
+        firstByteMs: AI_FIRST_BYTE_MS,
+        idleMs: AI_IDLE_MS,
         body: {
           teacher_name: teacherName || undefined,
           answers: QUESTIONS.filter((q) => finalAnswers[q.id]?.trim()).map((q) => ({

@@ -182,7 +182,7 @@ const PATH_FOR_KIND = {
  * on a service that never saves server-side this simply finds
  * nothing, and the ordinary error (with its Retry) follows.
  */
-async function recoverBatch(batchIdVal, kindsGuess) {
+async function recoverBatch(batchIdVal, kindsGuess, signal) {
   if (!batchIdVal) return null;
   const paths = [
     ...new Set((kindsGuess?.length ? kindsGuess : SCHEDULABLE_KINDS).map(
@@ -191,7 +191,12 @@ async function recoverBatch(batchIdVal, kindsGuess) {
   ];
   const deadline = Date.now() + 60_000;
   while (Date.now() < deadline) {
+    // Stop has to reach in here. Without it `busy` stayed true for the
+    // whole minute and the button did nothing — the teacher watched a
+    // poll she had already asked to end.
+    if (signal?.aborted) return null;
     await new Promise((r) => setTimeout(r, 5_000));
+    if (signal?.aborted) return null;
     try {
       const lists = await Promise.all(paths.map((p) => api(p).catch(() => [])));
       const rows = lists
@@ -1322,15 +1327,15 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
 
     // Loaded on use, as the batch path does: the streaming reader is only
     // needed once she actually sends something.
-    const { streamSSE } = await import("@/shared/lib/apiStream");
+    const { streamSSE, AI_FIRST_BYTE_MS, AI_IDLE_MS } = await import("@/shared/lib/apiStream");
 
     try {
       await streamSSE("/api/studio/agent", {
         signal: controller.signal,
         // Generous, because a cold Render instance needs seconds to wake —
         // but bounded, because "forever" was the previous timeout.
-        firstByteMs: 45_000,
-        idleMs: 90_000,
+        firstByteMs: AI_FIRST_BYTE_MS,
+        idleMs: AI_IDLE_MS,
         body: {
           message,
           ...(sid ? { sessionId: sid } : {}),
@@ -1480,8 +1485,10 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
                 text: ev.message,
                 // The same brief, one press away — a teacher should never
                 // have to retype what she already wrote because a proxy
-                // hiccuped.
-                retry: { text: prompt, kind: hint?.[0] ?? null },
+                // hiccuped. Materials and the full kind set travel with
+                // it: a retry that quietly dropped her chapter would
+                // answer a different question than the one that failed.
+                retry: { text: prompt, kinds: hint || [], attachments: atts },
               }]);
               break;
             }
@@ -1511,7 +1518,7 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
          * a failure.
          */
         const rescued = batchId
-          ? await recoverBatch(batchId, hint?.length ? hint : null)
+          ? await recoverBatch(batchId, hint?.length ? hint : null, controller.signal)
           : null;
         if (rescued) {
           applyRescuedRows(rescued, batchId);
@@ -1519,7 +1526,7 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
           setTurns((t) => [...t, {
             role: "error",
             text: error?.message || "Something went wrong. Try again.",
-            retry: { text: prompt, kind: hint?.[0] ?? null },
+            retry: { text: prompt, kinds: hint || [], attachments: atts },
           }]);
         }
       }
@@ -1872,9 +1879,19 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
      * nothing, because it resets to "Lesson" on every page load.
      */
     if (USE_AGENT) {
-      const hint = useKind ? [useKind] : kindsTouched.current ? kinds : [];
+      // A retry replays what the failed turn actually sent. Reading the
+      // live state instead would rebuild the brief WITHOUT her materials,
+      // because send() clears them — she would get a quietly worse
+      // document rather than an error.
+      const hint = opts.kinds?.length
+        ? opts.kinds
+        : useKind
+          ? [useKind]
+          : kindsTouched.current
+            ? kinds
+            : [];
       kindsTouched.current = false;
-      const atts = attachments;
+      const atts = opts.attachments ?? attachments;
       setDraft("");
       setAttachments([]);
       setNotice(null);
@@ -1892,20 +1909,22 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
       return runAgentTurn(prompt, atts, hint, opts.display, opts.skipAsk ? null : classSel.current);
     }
 
-    const ks = isPartial
-      ? partial
-      : useKind
-        ? [useKind]
-        : spoken.length
-          ? spoken
-          : kindsTouched.current
-            ? kinds
-            : reworking && heldKinds.length
-              ? heldKinds
-              : kinds;
+    const ks = opts.kinds?.length
+      ? opts.kinds
+      : isPartial
+        ? partial
+        : useKind
+          ? [useKind]
+          : spoken.length
+            ? spoken
+            : kindsTouched.current
+              ? kinds
+              : reworking && heldKinds.length
+                ? heldKinds
+                : kinds;
     kindsTouched.current = false;
     const k = ks[0];
-    const atts = attachments;
+    const atts = opts.attachments ?? attachments;
 
     setDraft("");
     setAttachments([]);
@@ -2066,7 +2085,7 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
       // the `data:` line (a keep-alive comment or an `event:` line used
       // to make this parser drop the whole frame), separates a refusal
       // from a failure, and turns a code-less 404 into "not built yet".
-      const { streamSSE } = await import("@/shared/lib/apiStream");
+      const { streamSSE, AI_FIRST_BYTE_MS, AI_IDLE_MS } = await import("@/shared/lib/apiStream");
 
       // Generate is a batch protocol: `batch → status → scope →
       // artifact_start → delta(kind) → artifact → artifact_end → done`,
@@ -2125,8 +2144,8 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
 
       await streamSSE("/api/studio/generate", {
         signal: controller.signal,
-        firstByteMs: 45_000,
-        idleMs: 90_000,
+        firstByteMs: AI_FIRST_BYTE_MS,
+        idleMs: AI_IDLE_MS,
         refusalAsAnswer: true,
         body: {
           kinds: ks,
@@ -2241,7 +2260,7 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
             }
             return n;
           });
-          rescued = await recoverBatch(curBatch, ks);
+          rescued = await recoverBatch(curBatch, ks, controller.signal);
         }
         if (rescued) {
           applyRescuedRows(rescued, curBatch);
@@ -2251,7 +2270,13 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
             // Drop the empty placeholder rather than leaving a blank reply
             // above the error.
             if (n[n.length - 1]?.role === "assistant" && !n[n.length - 1].text) n.pop();
-            return [...n, { role: "error", text: err.message, retry: { text: prompt, kind: useKind ?? null } }];
+            return [...n, {
+              role: "error",
+              text: err.message,
+              // ks, not useKind: a lesson+quiz+homework batch must retry
+              // as all three, not narrow itself to the first.
+              retry: { text: prompt, kinds: ks, attachments: atts },
+            }];
           });
         }
       }
@@ -3053,7 +3078,12 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
                           className={`${s.chipBtn} mt-2`}
                           data-primary
                           disabled={busy}
-                          onClick={() => send(turn.retry.text, turn.retry.kind ?? undefined)}
+                          onClick={() =>
+                            send(turn.retry.text, undefined, {
+                              kinds: turn.retry.kinds,
+                              attachments: turn.retry.attachments,
+                            })
+                          }
                         >
                           <RotateCcw size={13} /> Try again
                         </button>

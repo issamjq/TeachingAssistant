@@ -12,8 +12,8 @@ import { X } from "lucide-react";
 import { api, inputClasses, selectClasses, DatePicker, AudienceSelect } from "./_shared";
 import { MAJORS } from "../lib/enums";
 import { today as localToday } from "@/lib/localDate";
-import { findClash, HHMM } from "@/shared/lib/scheduleClash";
-import { AudiencePreview, useRoster } from "@/features/delivery";
+import { findClashes, HHMM } from "@/shared/lib/scheduleClash";
+import { AudiencePreview, useRoster, invalidateDeliveryCache } from "@/features/delivery";
 import { distinctClasses } from "@/shared/lib/classMatch";
 import { repeatDates, addDays } from "@/shared/lib/repeatWeekly";
 
@@ -129,6 +129,14 @@ export default function SchedulePopup({
     };
   }, [attemptClose]);
 
+  // Every write ends here. The delivery chips read a cached timetable,
+  // so a save has to drop that cache or a list opened a moment later
+  // still reports "not visible to students" for work now on the week.
+  const afterWrite = useCallback(() => {
+    invalidateDeliveryCache();
+    onSaved?.();
+  }, [onSaved]);
+
   // `opts === true` means the teacher pressed "Save anyway" on the
   // clash warning. Compared with === because the footer button passes
   // the click event here, which is truthy.
@@ -160,12 +168,18 @@ export default function SchedulePopup({
       start_time: form.start_time || null,
       end_time: form.end_time || null,
     };
+    // Every date this save will write. Computed BEFORE the clash check,
+    // because a repeat used to ask about its first week and then write
+    // thirteen more unchecked — the answer to "does this collide?" was
+    // true of one row out of fourteen.
+    const dates =
+      !isEdit && repeat === "weekly" ? repeatDates(payload.date, repeatUntil) : [payload.date];
     // Teachers sometimes run parallel activities on purpose, so a clash
     // is a question, never a refusal.
     if (!ignoreConflict && payload.start_time && payload.status !== "cancelled") {
-      const clash = await findClash(payload, isEdit ? initial.id : null);
+      const clash = await findClashes(payload, dates, isEdit ? initial.id : null);
       if (clash) {
-        setConflict(clash);
+        setConflict(dates.length > 1 ? { ...clash.row, onDate: clash.date } : clash.row);
         setSaving(false);
         return;
       }
@@ -176,9 +190,8 @@ export default function SchedulePopup({
         await api(`/api/schedule/${initial.id}`, { method: "PATCH", body: payload });
       } else {
         // One row per week when repeating. Sequential, so a mid-series
-        // failure can say how far it got.
-        const dates =
-          repeat === "weekly" ? repeatDates(payload.date, repeatUntil) : [payload.date];
+        // failure can say how far it got. `dates` was computed above so
+        // the clash check could see the whole series.
         let written = 0;
         try {
           for (const d of dates) {
@@ -193,11 +206,11 @@ export default function SchedulePopup({
             `The saved weeks are on your timetable; add the rest when the connection is back.`,
           );
           setSaving(false);
-          onSaved?.();
+          afterWrite();
           return;
         }
       }
-      onSaved?.();
+      afterWrite();
       onClose();
     } catch (e) {
       setErr(e.message);
@@ -212,7 +225,7 @@ export default function SchedulePopup({
     setErr(null);
     try {
       await api(`/api/schedule/${initial.id}`, { method: "DELETE" });
-      onSaved?.();
+      afterWrite();
       onClose();
     } catch (e) {
       setErr(e.message);
@@ -234,7 +247,7 @@ export default function SchedulePopup({
           end_time: form.end_time || null,
         },
       });
-      onSaved?.();
+      afterWrite();
       onClose();
     } catch (e) {
       setErr(e.message);
@@ -287,7 +300,11 @@ export default function SchedulePopup({
                 This clashes with <strong>“{conflict.title}”</strong>
                 {conflict.start_time &&
                   ` (${HHMM(conflict.start_time)}${conflict.end_time ? `–${HHMM(conflict.end_time)}` : ""})`}
-                {conflict.grade && ` for ${conflict.grade}${conflict.section ? ` ${conflict.section}` : ""}`}.
+                {conflict.grade && ` for ${conflict.grade}${conflict.section ? ` ${conflict.section}` : ""}`}
+                {/* Which week — otherwise a repeat reports a collision the
+                    teacher cannot find, because it is not on the day she
+                    is looking at. */}
+                {conflict.onDate ? ` on ${conflict.onDate}` : ""}.
               </p>
               <p className="text-xs text-muted mt-1">
                 Running two things in parallel is sometimes the plan — your call.

@@ -767,7 +767,7 @@ export async function listAttendance(params: URLSearchParams) {
 
 export async function markAttendance(studentId: string, body: Record<string, any>) {
   const fid = await facultyId();
-  const { date, status, notes, class_id, schedule_id } = body || {};
+  const { date, status, notes, class_id, schedule_id, notes_only } = body || {};
   if (!date) throw Object.assign(new Error("date is required"), { status: 400 });
   if (!status) throw Object.assign(new Error("status is required"), { status: 400 });
 
@@ -781,7 +781,12 @@ export async function markAttendance(studentId: string, body: Record<string, any
     note: notes ?? null, class_id: class_id ?? null, schedule_id: schedule_id ?? null,
     // Her hand outranks the portal: a corrected mark stops carrying the
     // "marked by portal sign-in" hint.
-    source: "teacher",
+    //
+    // But only when she actually set the MARK. Annotating a portal row
+    // reused this same write and relabelled it as hand-marked — the row
+    // then claimed a provenance nobody had given it, which is the exact
+    // lie the source column was added to stop.
+    ...(notes_only ? {} : { source: "teacher" }),
   };
   const { data, error } = await supabase
     .from("attendance")

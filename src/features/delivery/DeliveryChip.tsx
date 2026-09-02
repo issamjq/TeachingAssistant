@@ -22,6 +22,21 @@ interface EntryLite {
 let cache: { at: number; promise: Promise<EntryLite[]> } | null = null;
 const TTL_MS = 60_000;
 
+/**
+ * Forget the cached timetable.
+ *
+ * Scheduling something and then opening a list within the minute showed
+ * "NOT VISIBLE TO STUDENTS" for work that was, in fact, delivered — the
+ * exact false alarm this chip exists to prevent. Anything that writes a
+ * schedule entry calls this.
+ */
+export function invalidateDeliveryCache() {
+  cache = null;
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event("murchid:schedule-changed"));
+  }
+}
+
 function fetchEntries(): Promise<EntryLite[]> {
   const now = Date.now();
   if (cache && now - cache.at < TTL_MS) return cache.promise;
@@ -43,6 +58,14 @@ function fetchEntries(): Promise<EntryLite[]> {
  */
 export function useDeliveryMap(): Map<string, EntryLite[]> | null {
   const [map, setMap] = useState<Map<string, EntryLite[]> | null>(null);
+  const [tick, setTick] = useState(0);
+  // Re-read when anything schedules work, so a chip written a moment ago
+  // is not still reporting the state from before the save.
+  useEffect(() => {
+    const bump = () => setTick((n) => n + 1);
+    window.addEventListener("murchid:schedule-changed", bump);
+    return () => window.removeEventListener("murchid:schedule-changed", bump);
+  }, []);
   useEffect(() => {
     let live = true;
     fetchEntries().then((rows) => {
@@ -60,7 +83,7 @@ export function useDeliveryMap(): Map<string, EntryLite[]> | null {
     return () => {
       live = false;
     };
-  }, []);
+  }, [tick]);
   return map;
 }
 

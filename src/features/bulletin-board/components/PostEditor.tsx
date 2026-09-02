@@ -153,7 +153,7 @@ export default function PostEditor({ post, onClose, onSaved }: Props) {
     setErr(null);
     let streamed = "";
     try {
-      const { streamSSE } = await import("@/shared/lib/apiStream");
+      const { streamSSE, AI_FIRST_BYTE_MS, AI_IDLE_MS } = await import("@/shared/lib/apiStream");
       await streamSSE("/api/studio/bulletin", {
         body: {
           prompt: gist,
@@ -161,6 +161,8 @@ export default function PostEditor({ post, onClose, onSaved }: Props) {
           ...(grade ? { grade } : {}),
           ...(section ? { section } : {}),
         },
+        firstByteMs: AI_FIRST_BYTE_MS,
+        idleMs: AI_IDLE_MS,
         onEvent: (ev) => {
           if (ev.type === "delta" && typeof ev.text === "string") {
             streamed += ev.text;
