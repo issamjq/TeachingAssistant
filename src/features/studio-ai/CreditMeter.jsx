@@ -46,12 +46,21 @@ export function useCredits() {
  * one charge for reading attachments however many were attached. A
  * feature the table has never heard of falls back to 2 rather than 0, so
  * a new format cannot quietly appear as free.
+ *
+ * `hasMaterials` means "a file the service would have to OPEN", not "a
+ * file is attached". Once a material has been extracted its text is on
+ * the row, and the service stopped charging the reading surcharge for
+ * serving its own cache — a teacher working through one chapter all week
+ * was quoted it every day for a file read once on Monday.
  */
 export function estimateFor(costs, kinds, hasMaterials) {
   if (!costs) return null;
   const work = (kinds || []).reduce((sum, k) => sum + (costs[k] ?? 2), 0);
   return work + (hasMaterials ? costs.materials ?? 3 : 0);
 }
+
+/** Would this attachment still cost a read? Only if it has never been read. */
+export const chargesRead = (att) => att?.status !== "ready";
 
 const pct = (c) =>
   c && c.allowance ? Math.round((c.balance / c.allowance) * 100) : null;

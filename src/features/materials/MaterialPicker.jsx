@@ -118,7 +118,7 @@ export default function MaterialPicker({ attached = [], onPick, audience = null 
                 role="option"
                 aria-selected={isOn(m.id)}
                 onClick={() => {
-                  onPick({ id: m.id, name: materialLabel(m), path: m.file_path, mime: m.mime_type });
+                  onPick({ id: m.id, name: materialLabel(m), path: m.file_path, mime: m.mime_type, status: m.status });
                   setOpen(false);
                 }}
                 disabled={isOn(m.id)}

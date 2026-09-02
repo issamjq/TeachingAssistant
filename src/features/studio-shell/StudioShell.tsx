@@ -197,9 +197,11 @@ export default function StudioShell({ children }: { children: React.ReactNode })
    * pinger for the first hit of the day.
    */
   useEffect(() => {
-    import("@/shared/lib/apiBase").then(({ apiBase }) => {
-      fetch(apiBase() + "/api/studio/health", { cache: "no-store" }).catch(() => {});
-    });
+    // Our own route, which knows the service's real health path and
+    // resolves server-side. It used to hit /api/studio/health, which the
+    // service does not have — that woke it, but by 404ing, so nothing
+    // could tell a cold start from a broken deploy.
+    fetch("/api/keepwarm", { cache: "no-store" }).catch(() => {});
   }, []);
   // Every role this account holds, from /api/me. One entry is the ordinary
   // case and the switcher stays hidden; more than one means the person is

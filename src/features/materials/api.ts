@@ -34,6 +34,12 @@ export interface Attachment {
   name: string;
   path?: string;
   mime?: string;
+  /**
+   * Extraction state, carried so the composer can quote honestly: a
+   * material already `ready` costs no reading surcharge, because the
+   * service serves its stored text rather than opening the file again.
+   */
+  status?: string | null;
 }
 
 export const listMaterials = (q: { grade?: string; subject?: string } = {}) => {
@@ -114,5 +120,6 @@ export async function uploadMaterial(
   // has not shipped it yet must not block an upload that already worked.
   void api(`/api/materials/${row.id}/extract`, { method: "POST" }).catch(() => {});
 
-  return { id: row.id, name: file.name, path, mime: file.type };
+  // Freshly uploaded, so not read yet — this one still costs a read.
+  return { id: row.id, name: file.name, path, mime: file.type, status: "uploaded" };
 }

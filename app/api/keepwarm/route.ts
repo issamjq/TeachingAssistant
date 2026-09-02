@@ -24,8 +24,14 @@ export async function GET() {
   }
   const t0 = Date.now();
   try {
-    const res = await fetch(target, { cache: "no-store", signal: AbortSignal.timeout(30_000) });
-    return Response.json({ ok: true, status: res.status, ms: Date.now() - t0 });
+    // /healthz, with the z. The service has no /health — pinging the bare
+    // origin woke it but answered 404, so a monitor pointed here reported
+    // an outage on a service that was fine.
+    const res = await fetch(`${target.replace(/\/$/, "")}/healthz`, {
+      cache: "no-store",
+      signal: AbortSignal.timeout(30_000),
+    });
+    return Response.json({ ok: res.ok, status: res.status, ms: Date.now() - t0 });
   } catch (e) {
     return Response.json(
       { ok: false, error: e instanceof Error ? e.message : String(e), ms: Date.now() - t0 },

@@ -32,7 +32,7 @@ import {
   MoreHorizontal, Pencil, Pin, PinOff,
 } from "lucide-react";
 import { api } from "@/views/_shared";
-import { useCredits, CreditEstimate, CreditWarning } from "./CreditMeter";
+import { useCredits, CreditEstimate, CreditWarning, chargesRead } from "./CreditMeter";
 import { MAJORS } from "@/lib/enums";
 import { uploadMaterial, MaterialPicker } from "@/features/materials";
 import {
@@ -155,6 +155,24 @@ function normaliseArtifact(raw) {
  * contains them is still a lesson, and the lesson is what gets finalised.
  */
 const SCHEDULABLE_KINDS = ["lesson_plan", "quiz", "homework", "presentation", "activity"];
+
+/**
+ * Failures a second press cannot fix.
+ *
+ * The Retry chip is a promise that trying again might work. For a daily
+ * cap, an empty balance or a file that is not hers, it cannot — and
+ * offering it sends a teacher round a loop that spends her attention and
+ * changes nothing. The service names these; anything unrecognised keeps
+ * the chip, because an unknown failure is usually transient.
+ */
+const NO_RETRY_CODES = new Set([
+  "quota_exhausted",
+  "insufficient_credits",
+  "material_not_found",
+  "material_has_no_file",
+  "NO_AI_KEY",
+  "no_backend",
+]);
 
 /** Where each kind is stored — see the note above storeBatch. */
 const PATH_FOR_KIND = {
@@ -1409,12 +1427,24 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
               const complete = fullText.get(id) || "";
               setTurns((t) => {
                 const finished = t.find((x) => x.id === id);
-                if (finished) finishedDocs.current.set(id, { ...finished, text: complete });
+                if (finished) {
+                  finishedDocs.current.set(id, {
+                    ...finished, text: complete, ...(ev.id ? { serverId: ev.id } : {}),
+                  });
+                }
                 // The class this was written for rides on the turn, so the
                 // save files it under the same class (see storeBatch).
                 return t.map((x) =>
                   x.id === id
-                    ? { ...x, streaming: false, done: true, ...(forClass ? { audience: forClass } : {}) }
+                    ? {
+                        ...x, streaming: false, done: true,
+                        ...(forClass ? { audience: forClass } : {}),
+                        // The service writes the row now and tells us which
+                        // one. Its ABSENCE is meaningful — never a null —
+                        // and means the insert failed there, so the browser
+                        // must still save. See storeBatch.
+                        ...(ev.id ? { serverId: ev.id } : {}),
+                      }
                     : x,
                 );
               });
@@ -1470,6 +1500,7 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
               setTurns((t) => [...t, {
                 role: "error",
                 text: ev.message,
+                code: ev.code || null,
                 // The same brief, one press away — a teacher should never
                 // have to retype what she already wrote because a proxy
                 // hiccuped. Materials and the full kind set travel with
@@ -1513,6 +1544,7 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
           setTurns((t) => [...t, {
             role: "error",
             text: error?.message || "Something went wrong. Try again.",
+            code: error?.code || null,
             retry: { text: prompt, kinds: hint || [], attachments: atts },
           }]);
         }
@@ -2192,6 +2224,11 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
               structured = normaliseArtifact(ev.content ?? ev.artifact ?? ev);
               break;
             case "artifact_end":
+              // The service wrote this document's row and is naming it.
+              // Stamped on the turn so storeBatch does not insert a
+              // second one. Absent means its own insert failed and the
+              // browser is still the writer — which is the old path.
+              if (ev.id) patchLast({ serverId: ev.id });
               finalizeTurn();
               break;
             case "done":
@@ -2260,6 +2297,7 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
             return [...n, {
               role: "error",
               text: err.message,
+              code: err.code || null,
               // ks, not useKind: a lesson+quiz+homework batch must retry
               // as all three, not narrow itself to the first.
               retry: { text: prompt, kinds: ks, attachments: atts },
@@ -2440,6 +2478,23 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
         SCHEDULABLE_KINDS.map((k) => group.parts.find((t) => t.kind === k)).find(Boolean) ||
         group.parts[0];
       if (!head) return null;
+
+      /**
+       * The service saved this one already.
+       *
+       * It inserts each finished document before sending `artifact_end`
+       * and returns the row id there, so writing our own would leave two
+       * rows for one document. Only for a group of ONE: the lesson trio
+       * is merged into a single library row here, while the service
+       * writes its parts separately, so those two models do not line up
+       * and the browser's merged write is still the correct one.
+       *
+       * A rework still goes through the PATCH below — that is an update,
+       * not an insert, so it cannot duplicate anything.
+       */
+      if (!replaceForThis && group.parts.length === 1 && head.serverId) {
+        return { id: head.serverId };
+      }
 
       const title = titleOf(head.kind, head.text, head.structured);
       const path = PATH_FOR_KIND[head.kind] || "/api/drafts";
@@ -3059,7 +3114,7 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
                           what a dropped connection cost her. Only on the
                           LAST error, so an old failure mid-thread does not
                           offer to redo work that has moved on since. */}
-                      {turn.retry && i === turns.length - 1 && (
+                      {turn.retry && i === turns.length - 1 && !NO_RETRY_CODES.has(turn.code) && (
                         <button
                           type="button"
                           className={`${s.chipBtn} mt-2`}
@@ -3485,7 +3540,7 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
             <CreditEstimate
               credits={credits}
               kinds={kinds}
-              hasMaterials={attachments.length > 0}
+              hasMaterials={attachments.some(chargesRead)}
             />
 
             {busy ? (
