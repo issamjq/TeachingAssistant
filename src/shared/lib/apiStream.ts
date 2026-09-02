@@ -50,6 +50,20 @@ export interface StreamOptions {
    * answer to show, not an error banner inviting a retry.
    */
   refusalAsAnswer?: boolean;
+  /**
+   * Give up if the service has not answered AT ALL within this window.
+   * Without it, a Render cold start that hangs (or a proxy that
+   * blackholes the request) left the teacher watching a spinner forever.
+   * Generous by design: a cold instance needs several seconds to wake,
+   * and a false timeout costs a whole regeneration.
+   */
+  firstByteMs?: number;
+  /**
+   * Give up if the stream goes silent for this long MID-WRITE. The
+   * generator emits keep-alive comments while thinking, so a long dead
+   * silence means the connection is gone, not that the model is slow.
+   */
+  idleMs?: number;
 }
 
 /**
@@ -60,40 +74,95 @@ export interface StreamOptions {
  */
 export async function streamSSE(
   path: string,
-  { body, signal, onEvent, refusalAsAnswer }: StreamOptions,
+  { body, signal, onEvent, refusalAsAnswer, firstByteMs, idleMs }: StreamOptions,
 ): Promise<void> {
   const { getIdToken } = await import("@/lib/supabaseAuth");
   const token = await getIdToken().catch(() => null);
 
-  const res = await fetch(apiBase() + path, {
-    method: "POST",
-    signal,
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    body: JSON.stringify(body ?? {}),
-  });
+  /**
+   * The timeout aborts through its own controller, chained to the
+   * caller's signal — so Stop still works, and a timeout is
+   * distinguishable from the teacher pressing it.
+   */
+  const ctrl = new AbortController();
+  const onCallerAbort = () => ctrl.abort();
+  signal?.addEventListener("abort", onCallerAbort);
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let timedOut: "first" | "idle" | null = null;
+  const arm = (ms: number | undefined, why: "first" | "idle") => {
+    clearTimeout(timer);
+    if (!ms) return;
+    timer = setTimeout(() => {
+      timedOut = why;
+      ctrl.abort();
+    }, ms);
+  };
+  const timeoutError = () =>
+    new ApiError(
+      timedOut === "first"
+        ? "The AI service took too long to answer. It may just be waking up — try again in a few seconds."
+        : "The connection went quiet while the answer was being written.",
+      504,
+      "stream_timeout",
+    );
 
-  if (!res.ok || !res.body) throw await refusal(res, path);
+  try {
+    arm(firstByteMs, "first");
+    let res: Response;
+    try {
+      res = await fetch(apiBase() + path, {
+        method: "POST",
+        signal: ctrl.signal,
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify(body ?? {}),
+      });
+    } catch (e) {
+      if (timedOut) throw timeoutError();
+      // fetch's own vocabulary ("Failed to fetch") is browser-speak; a
+      // network failure deserves a sentence a teacher can act on.
+      if (e instanceof TypeError) {
+        throw new ApiError(
+          "Couldn't reach the AI service. Check your connection and try again.",
+          0,
+          "network",
+        );
+      }
+      throw e;
+    }
 
-  const reader = res.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-  let streamError: ApiError | null = null;
+    if (!res.ok || !res.body) throw await refusal(res, path);
 
-  // Credit metering, collected as the stream runs. `generate` is a batch,
-  // so it is charged per artifact (one per artifact_end, keyed on the kind
-  // from its artifact_start); single-output endpoints charge once on `done`.
-  // A refusal produces neither, so a declined request costs nothing.
-  const meterKinds: string[] = [];
-  let lastKind = "";
-  let sawDone = false;
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    let streamError: ApiError | null = null;
 
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
+    // Credit metering, collected as the stream runs. `generate` is a batch,
+    // so it is charged per artifact (one per artifact_end, keyed on the kind
+    // from its artifact_start); single-output endpoints charge once on `done`.
+    // A refusal produces neither, so a declined request costs nothing.
+    const meterKinds: string[] = [];
+    let lastKind = "";
+    let sawDone = false;
+
+    // Headers are not an answer — a cold service returns them and then
+    // thinks. The first-byte window covers up to the first actual chunk;
+    // after that the idle window takes over, reset on every read.
+    while (true) {
+      let step: ReadableStreamReadResult<Uint8Array>;
+      try {
+        step = await reader.read();
+      } catch (e) {
+        if (timedOut) throw timeoutError();
+        throw e;
+      }
+      arm(idleMs, "idle");
+      const { done, value } = step;
+      if (done) break;
+      if (value) buffer += decoder.decode(value, { stream: true });
 
     let cut: number;
     while ((cut = buffer.indexOf("\n\n")) !== -1) {
@@ -142,7 +211,11 @@ export async function streamSSE(
    * service ever sees the token counts that decide the real price.
    */
 
-  if (streamError) throw streamError;
+    if (streamError) throw streamError;
+  } finally {
+    clearTimeout(timer);
+    signal?.removeEventListener("abort", onCallerAbort);
+  }
 }
 
 /**

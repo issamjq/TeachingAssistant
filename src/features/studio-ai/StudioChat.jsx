@@ -160,6 +160,51 @@ function normaliseArtifact(raw) {
  */
 const SCHEDULABLE_KINDS = ["lesson_plan", "quiz", "homework", "presentation", "activity"];
 
+/** Where each kind is stored — see the note above storeBatch. */
+const PATH_FOR_KIND = {
+  lesson_plan: "/api/drafts",
+  teaching_guide: "/api/teaching-guides",
+  student_notes: "/api/student-notes",
+  quiz: "/api/quizzes",
+  homework: "/api/homework",
+  presentation: "/api/presentations",
+  activity: "/api/activities",
+};
+
+/**
+ * Did the batch land anyway? The Goals screen learned this the hard
+ * way: the proxy cuts long requests at thirty seconds while the
+ * service is still writing, and the service writes its result BEFORE
+ * replying — so the row is already correct when the browser gives up.
+ * Poll the library for rows carrying this batch id; a minute is long
+ * enough to catch a finish and short enough that a real failure is
+ * still reported while she is watching. Null when nothing landed —
+ * on a service that never saves server-side this simply finds
+ * nothing, and the ordinary error (with its Retry) follows.
+ */
+async function recoverBatch(batchIdVal, kindsGuess) {
+  if (!batchIdVal) return null;
+  const paths = [
+    ...new Set((kindsGuess?.length ? kindsGuess : SCHEDULABLE_KINDS).map(
+      (k) => PATH_FOR_KIND[k] || "/api/drafts",
+    )),
+  ];
+  const deadline = Date.now() + 60_000;
+  while (Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, 5_000));
+    try {
+      const lists = await Promise.all(paths.map((p) => api(p).catch(() => [])));
+      const rows = lists
+        .flat()
+        .filter((r) => r && String(r.batch_id || "") === String(batchIdVal));
+      if (rows.length) return rows;
+    } catch {
+      /* the service is busy writing; ask again */
+    }
+  }
+  return null;
+}
+
 /**
  * The order a lesson's documents are read in.
  *
@@ -1282,6 +1327,10 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
     try {
       await streamSSE("/api/studio/agent", {
         signal: controller.signal,
+        // Generous, because a cold Render instance needs seconds to wake —
+        // but bounded, because "forever" was the previous timeout.
+        firstByteMs: 45_000,
+        idleMs: 90_000,
         body: {
           message,
           ...(sid ? { sessionId: sid } : {}),
@@ -1426,7 +1475,14 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
             }
 
             case "error": {
-              setTurns((t) => [...t, { role: "error", text: ev.message }]);
+              setTurns((t) => [...t, {
+                role: "error",
+                text: ev.message,
+                // The same brief, one press away — a teacher should never
+                // have to retype what she already wrote because a proxy
+                // hiccuped.
+                retry: { text: prompt, kind: hint?.[0] ?? null },
+              }]);
               break;
             }
 
@@ -1445,8 +1501,27 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
         },
       });
     } catch (error) {
-      if (!controller.signal.aborted) {
-        setTurns((t) => [...t, { role: "error", text: error?.message || "Something went wrong. Try again." }]);
+      if (!controller.signal.aborted || error?.code === "stream_timeout") {
+        /**
+         * The Goals screen's poll-after-proxy-cut pattern, extended here.
+         * A proxy that cuts at thirty seconds kills the STREAM, not the
+         * work — when the service finishes anyway it saves the batch
+         * itself, and the rows are already in her library by the time the
+         * browser gives up. So the library is asked before this is called
+         * a failure.
+         */
+        const rescued = batchId
+          ? await recoverBatch(batchId, hint?.length ? hint : null)
+          : null;
+        if (rescued) {
+          applyRescuedRows(rescued, batchId);
+        } else {
+          setTurns((t) => [...t, {
+            role: "error",
+            text: error?.message || "Something went wrong. Try again.",
+            retry: { text: prompt, kind: hint?.[0] ?? null },
+          }]);
+        }
       }
     } finally {
       // Already done if a document followed; this covers the turns that
@@ -1983,6 +2058,9 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
       console.warn("[studio] history unavailable:", e.message);
     }
 
+    // Hoisted out of the try so the catch can ask the library whether
+    // this batch landed despite the cut (recoverBatch).
+    let curBatch = null;
     try {
       // The shared SSE reader, not a hand-rolled one: it scans frames for
       // the `data:` line (a keep-alive comment or an `event:` line used
@@ -1997,10 +2075,10 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
       // below rolls a new bubble per artifact, and each renders as its
       // own reply with its own viewer and Save.
       let acc = "", structured = null, savedId = null;
-      // Every artifact in one request shares this. Without it the three
-      // documents of a lesson are three unrelated rows, and nothing can find
-      // the guide and the notes that belong to a plan.
-      let curBatch = null;
+      // Every artifact in one request shares this (curBatch, hoisted
+      // above the try). Without it the three documents of a lesson are
+      // three unrelated rows, and nothing can find the guide and the
+      // notes that belong to a plan.
       let curKind = k;
       let open = true; // the placeholder bubble pushed at send time
 
@@ -2047,6 +2125,8 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
 
       await streamSSE("/api/studio/generate", {
         signal: controller.signal,
+        firstByteMs: 45_000,
+        idleMs: 90_000,
         refusalAsAnswer: true,
         body: {
           kinds: ks,
@@ -2146,13 +2226,34 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
           return n;
         });
       } else {
-        setTurns((t) => {
-          const n = [...t];
-          // Drop the empty placeholder rather than leaving a blank reply
-          // above the error.
-          if (n[n.length - 1]?.role === "assistant" && !n[n.length - 1].text) n.pop();
-          return [...n, { role: "error", text: err.message }];
-        });
+        /**
+         * Ask the library before declaring failure — the Goals pattern.
+         * The service saves a finished batch itself; a cut stream does
+         * not unwrite those rows.
+         */
+        let rescued = null;
+        if (curBatch) {
+          setTurns((t) => {
+            const n = [...t];
+            const last = n[n.length - 1];
+            if (last?.role === "assistant" && !last.done) {
+              n[n.length - 1] = { ...last, stage: "connection dropped — checking whether it finished" };
+            }
+            return n;
+          });
+          rescued = await recoverBatch(curBatch, ks);
+        }
+        if (rescued) {
+          applyRescuedRows(rescued, curBatch);
+        } else {
+          setTurns((t) => {
+            const n = [...t];
+            // Drop the empty placeholder rather than leaving a blank reply
+            // above the error.
+            if (n[n.length - 1]?.role === "assistant" && !n[n.length - 1].text) n.pop();
+            return [...n, { role: "error", text: err.message, retry: { text: prompt, kind: useKind ?? null } }];
+          });
+        }
       }
     } finally {
       setBusy(false);
@@ -2164,22 +2265,21 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
     }
   }, [draft, busy, kinds, attachments, refreshSessions, refreshCredits]);
 
-  /**
-   * Where each kind is stored.
-   *
-   * The guide and the notes used to fall through to `/api/drafts`, which
-   * filed them as lesson plans — one lesson became three near-identical
-   * entries in the library, none of them labelled for what it was.
-   */
-  const PATH_FOR_KIND = {
-    lesson_plan: "/api/drafts",
-    teaching_guide: "/api/teaching-guides",
-    student_notes: "/api/student-notes",
-    quiz: "/api/quizzes",
-    homework: "/api/homework",
-    presentation: "/api/presentations",
-    activity: "/api/activities",
-  };
+  /** Rescued rows become finished, already-saved turns — which they are. */
+  const applyRescuedRows = (rows, batchIdVal) =>
+    setTurns((t) =>
+      t.map((x) => {
+        if (x.role !== "assistant" || x.done || !x.kind) return x;
+        if (batchIdVal && x.batchId && x.batchId !== batchIdVal) return x;
+        const row = rows.find((r) => r.type === x.kind);
+        if (!row) return x;
+        const text = row.body_md || row.main_activity || row.instructions || x.text || "";
+        return {
+          ...x, text, streaming: false, done: true, stage: null,
+          saved: true, artifactId: row.id, batchId: batchIdVal || x.batchId,
+        };
+      }),
+    );
 
   /**
    * Keep a whole generation as ONE library row.
@@ -2943,6 +3043,21 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
                     <span className={s.avatar}><Sparkles size={15} /></span>
                     <div className="flex-1 min-w-0">
                       <div className={s.notice}>{turn.text}</div>
+                      {/* The same brief goes back out — she never retypes
+                          what a dropped connection cost her. Only on the
+                          LAST error, so an old failure mid-thread does not
+                          offer to redo work that has moved on since. */}
+                      {turn.retry && i === turns.length - 1 && (
+                        <button
+                          type="button"
+                          className={`${s.chipBtn} mt-2`}
+                          data-primary
+                          disabled={busy}
+                          onClick={() => send(turn.retry.text, turn.retry.kind ?? undefined)}
+                        >
+                          <RotateCcw size={13} /> Try again
+                        </button>
+                      )}
                     </div>
                   </div>
                 );

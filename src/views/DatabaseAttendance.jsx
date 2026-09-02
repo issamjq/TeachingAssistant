@@ -133,6 +133,14 @@ export default function DatabaseAttendance() {
             <strong className="font-medium text-ink-soft">L</strong>ate ·{" "}
             <strong className="font-medium text-ink-soft">E</strong>xcused. Saves on each click.
           </p>
+          {/* Said always, not only on days it happened: the rule must be
+              learned BEFORE the first surprise green row, or the register
+              stops being trusted the day it appears. */}
+          <p className="text-muted mt-1 text-[13px] inline-flex items-center gap-1.5">
+            <DoorOpen size={13} className="flex-none text-ink-soft" aria-hidden />
+            Students are marked present automatically when they open their portal — those rows
+            carry this door icon, and your own marks always override them.
+          </p>
         </div>
         <Button onClick={markAllPresent} variant="secondary">
           Mark unmarked → Present

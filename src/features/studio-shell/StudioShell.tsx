@@ -183,6 +183,22 @@ export default function StudioShell({ children }: { children: React.ReactNode })
     if (stored !== "teacher") setRoleState(stored);
     setRoleReady(true);
   }, []);
+
+  /**
+   * Wake the AI service the moment the studio opens.
+   *
+   * Render's free tier spins down; first byte on a cold generate was
+   * ~6.2s vs ~175ms warm (todo/backend-integration.md §6). Any request
+   * wakes it — a 404 included — so one fire-and-forget ping when the
+   * shell mounts means by the time a teacher has typed a brief, the
+   * service is already up. /api/keepwarm does the same from a scheduled
+   * pinger for the first hit of the day.
+   */
+  useEffect(() => {
+    import("@/shared/lib/apiBase").then(({ apiBase }) => {
+      fetch(apiBase() + "/api/studio/health", { cache: "no-store" }).catch(() => {});
+    });
+  }, []);
   // Every role this account holds, from /api/me. One entry is the ordinary
   // case and the switcher stays hidden; more than one means the person is
   // genuinely both things and gets to choose which interface they are in.
