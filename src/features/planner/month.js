@@ -184,3 +184,68 @@ export function layoutDay(events) {
   flush();
   return timed;
 }
+
+/**
+ * What a stretch of the calendar adds up to.
+ *
+ * This is the part of the old Timetable screen worth keeping when that
+ * screen folded into this one: the week's load, at a glance, without
+ * counting blocks by eye. Teaching hours count only entries carrying
+ * both clock times, so an untimed one adds to the count and not to the
+ * load — which is honest, because nobody knows how long it is.
+ */
+export function weekSummary(events, todayIso, now = new Date()) {
+  let minutes = 0;
+  const perDay = new Map();
+
+  for (const e of events) {
+    perDay.set(e.date, (perDay.get(e.date) || 0) + 1);
+    const a = toMin(e.raw?.start_time);
+    const b = toMin(e.raw?.end_time);
+    if (a != null && b != null && b > a) minutes += b - a;
+  }
+
+  let busiest = null;
+  for (const [day, n] of perDay) if (!busiest || n > busiest.n) busiest = { day, n };
+
+  // The next thing still to come today, then the next day that has one.
+  const nowMins = now.getHours() * 60 + now.getMinutes();
+  const next =
+    events
+      .filter((e) => {
+        if (e.date > todayIso) return true;
+        if (e.date < todayIso) return false;
+        const a = toMin(e.raw?.start_time);
+        return a == null || a >= nowMins;
+      })
+      .sort(
+        (a, b) =>
+          a.date.localeCompare(b.date) ||
+          ((toMin(a.raw?.start_time) ?? 1e9) - (toMin(b.raw?.start_time) ?? 1e9)),
+      )[0] || null;
+
+  return { count: events.length, hours: minutes / 60, busiest, next };
+}
+
+/**
+ * Every day that has something on it, in order, split at today.
+ *
+ * The agenda view's spine. `ahead` runs forward from today because that
+ * is what a teacher opens an agenda to read; `earlier` runs backwards
+ * behind a disclosure, because a term of past lessons above the thing
+ * you came for is the reason flat lists get abandoned.
+ */
+export function agendaDays(eventsByDate, todayIso) {
+  const ahead = [];
+  const earlier = [];
+  for (const [key, list] of eventsByDate) {
+    if (!list.length) continue;
+    const sorted = [...list].sort(
+      (a, b) => (toMin(a.raw?.start_time) ?? 1e9) - (toMin(b.raw?.start_time) ?? 1e9),
+    );
+    (key >= todayIso ? ahead : earlier).push({ key, events: sorted });
+  }
+  ahead.sort((a, b) => a.key.localeCompare(b.key));
+  earlier.sort((a, b) => b.key.localeCompare(a.key));
+  return { ahead, earlier };
+}

@@ -60,7 +60,36 @@ export default function SchedulePopup({
   const [err, setErr] = useState(null);
   const [conflict, setConflict] = useState(null);
   const [showDiscard, setShowDiscard] = useState(false);
+  const [drafts, setDrafts] = useState([]);
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+
+  // The lesson plans this entry can carry. Came over from the Timetable
+  // screen's form when that screen folded into the calendar — it was
+  // the one thing this form did not have, and it is the difference
+  // between a slot in the week and work students actually receive.
+  useEffect(() => {
+    let live = true;
+    api("/api/drafts")
+      .then((rows) => { if (live) setDrafts(Array.isArray(rows) ? rows : []); })
+      .catch(() => { /* the picker just stays on "no linked plan" */ });
+    return () => { live = false; };
+  }, []);
+
+  // Picking a plan fills in whatever the teacher has left blank, and
+  // never overwrites what she typed. Ids are uuids, so compared as
+  // strings — Number() on one is NaN, which silently matched nothing.
+  const linkDraft = (id) => {
+    const d = drafts.find((x) => String(x.id) === String(id));
+    if (!d) { set("draft_id", null); return; }
+    setForm((f) => ({
+      ...f,
+      draft_id: d.id,
+      title: f.title || d.name,
+      subject: f.subject || d.subject || "",
+      grade: f.grade || d.grade || "",
+      section: f.section || d.section || "",
+    }));
+  };
 
   // A generation attached makes this entry the assignment itself —
   // students receive the work by matching grade + subject (db/tune.sql
@@ -283,6 +312,20 @@ export default function SchedulePopup({
             </div>
           )}
           <div className="grid grid-cols-2 gap-x-4 gap-y-3">
+            <SerifField label="Link to lesson plan (optional)" wide>
+              <select
+                className={selectClasses}
+                value={form.draft_id || ""}
+                onChange={(e) => linkDraft(e.target.value)}
+              >
+                <option value="">— Standalone entry, no linked plan</option>
+                {drafts.map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.name}{d.subject ? ` · ${d.subject}` : ""}{d.grade ? ` · ${d.grade}` : ""}
+                  </option>
+                ))}
+              </select>
+            </SerifField>
             <SerifField label="Title" wide>
               <input className={inputClasses} value={form.title} onChange={(e) => set("title", e.target.value)} />
             </SerifField>

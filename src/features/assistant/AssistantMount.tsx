@@ -20,7 +20,8 @@ const ROUTES: Record<string, string> = {
   "bulletin-board": "/bulletin-board",
   database: "/database/students",
   reports: "/reports",
-  schedule: "/schedule",
+  // The timetable folded into the calendar — one screen, one URL.
+  schedule: "/planner",
   account: "/account",
 };
 

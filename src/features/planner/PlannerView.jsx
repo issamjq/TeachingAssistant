@@ -9,6 +9,14 @@
 // calendars are on, what is next), and one main surface that is a
 // month grid, a week drawer or a day drawer depending on the view.
 //
+// The Timetable screen used to draw this same week, over the same
+// table, in a second grid with a second entry form — two calendars for
+// one set of lessons, and a teacher who put something in one of them
+// could not find it in the other. It folded into this screen: its time
+// axis was already here (see WeekGrid), its week's-load figures are in
+// the rail, and its flat list of entries became the Agenda view, which
+// now covers every kind rather than schedule entries alone.
+//
 // The week and day views are the new capability, not just new paint:
 // schedule entries have clock times, and a month cell cannot show that
 // 09:00 and 09:30 collide — the time grid can, and does, the same way
@@ -31,13 +39,17 @@ import DayPeek from "./DayPeek";
 import EventPeek from "./EventPeek";
 import MiniMonth from "./MiniMonth";
 import WeekGrid from "./WeekGrid";
+import Agenda from "./Agenda";
 import {
   KINDS, KIND_BY_KEY, tintOf, isoKey, sameYMD,
-  monthGrid, daysOfMonth, monthStats, weekOf,
+  monthGrid, daysOfMonth, monthStats, weekOf, weekSummary,
 } from "./month";
 import s from "./Planner.module.css";
 
-const VIEWS = ["day", "week", "month"];
+// Agenda is the fourth because the calendar is now the only calendar:
+// the Timetable screen's list of entries had nowhere else to go, and
+// "what is coming" is the question the grids answer worst.
+const VIEWS = ["day", "week", "month", "agenda"];
 const VIEW_KEY = "murchid.planner.view";
 
 export default function PlannerView() {
@@ -193,6 +205,13 @@ export default function PlannerView() {
     [events, todayIso],
   );
 
+  // What the anchored week adds up to — the four figures the Timetable
+  // screen carried above its grid, kept when the screen was folded in.
+  const load = useMemo(
+    () => weekSummary(week.flatMap((d) => eventsByDate.get(isoKey(d)) || []), todayIso),
+    [week, eventsByDate, todayIso],
+  );
+
   const weekdayLabels = useMemo(
     () => Array.from({ length: 7 }, (_, i) =>
       new Intl.DateTimeFormat(locale, { weekday: "short" }).format(new Date(2024, 0, 1 + i))),
@@ -202,6 +221,9 @@ export default function PlannerView() {
   // What the toolbar calls the period depends on the view: the month,
   // the week's span, or the day itself.
   const title = useMemo(() => {
+    // The agenda is not a period — it runs from today to whatever the
+    // last dated thing is — so it names itself rather than a range.
+    if (view === "agenda") return t("planner.agenda.title");
     if (view === "day") {
       return new Intl.DateTimeFormat(locale, { weekday: "long", day: "numeric", month: "long" }).format(anchor);
     }
@@ -214,7 +236,7 @@ export default function PlannerView() {
       }
     }
     return new Intl.DateTimeFormat(locale, { month: "long", year: "numeric" }).format(anchor);
-  }, [view, anchor, week, locale]);
+  }, [view, anchor, week, locale, t]);
 
   // Prev/next move by whatever the view shows.
   const step = (dir) =>
@@ -297,6 +319,33 @@ export default function PlannerView() {
     };
   }, [peek, peekEnd]);
 
+  // Phrased once; the rail and the phone strip render the same four.
+  const loadFigures = useMemo(() => {
+    const busiestDay = load.busiest
+      ? new Date(`${load.busiest.day}T00:00:00`).toLocaleDateString(locale, { weekday: "short" })
+      : "—";
+    return [
+      { label: t("planner.load.entries"), value: String(load.count), note: t("planner.load.thisWeek") },
+      {
+        label: t("planner.load.hours"),
+        value: load.hours ? load.hours.toFixed(load.hours % 1 ? 1 : 0) : "0",
+        note: t("planner.load.timetabled"),
+      },
+      {
+        label: t("planner.load.busiest"),
+        value: busiestDay,
+        note: load.busiest
+          ? t("planner.load.itemsN", { n: String(load.busiest.n) })
+          : t("planner.load.nothingYet"),
+      },
+      {
+        label: t("planner.load.next"),
+        value: load.next ? load.next.time || t("planner.allDay") : "—",
+        note: load.next ? load.next.title : t("planner.load.clear"),
+      },
+    ];
+  }, [load, locale, t]);
+
   const fallToDay = (d) => {
     setAnchor(new Date(d));
     pickView("day");
@@ -306,25 +355,31 @@ export default function PlannerView() {
     <div className="relative max-w-[1440px] mx-auto flex flex-col lg:h-full lg:min-h-0">
       {/* ── the toolbar ─────────────────────────────────────────── */}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2.5 mb-4">
+        {/* The arrows step a period; the agenda has none, and arrows
+            that move nothing are worse than absent ones. */}
         <div className="flex items-center gap-2">
           <button
             type="button" onClick={goToday}
             className="h-9 px-3.5 rounded-lg border border-line hover:border-accent hover:bg-paper-warm font-mono text-[10.5px] uppercase tracking-wider cursor-pointer transition"
           >
-            Today
+            {t("planner.today")}
           </button>
-          <button
-            type="button" onClick={() => step(-1)} aria-label={`Previous ${view}`}
-            className="h-9 w-9 rounded-lg border border-line hover:border-accent hover:bg-paper-warm grid place-items-center cursor-pointer transition"
-          >
-            <ChevronLeft size={15} className="rtl:rotate-180" />
-          </button>
-          <button
-            type="button" onClick={() => step(1)} aria-label={`Next ${view}`}
-            className="h-9 w-9 rounded-lg border border-line hover:border-accent hover:bg-paper-warm grid place-items-center cursor-pointer transition"
-          >
-            <ChevronRight size={15} className="rtl:rotate-180" />
-          </button>
+          {view !== "agenda" && (
+            <>
+              <button
+                type="button" onClick={() => step(-1)} aria-label={t("planner.prev")}
+                className="h-9 w-9 rounded-lg border border-line hover:border-accent hover:bg-paper-warm grid place-items-center cursor-pointer transition"
+              >
+                <ChevronLeft size={15} className="rtl:rotate-180" />
+              </button>
+              <button
+                type="button" onClick={() => step(1)} aria-label={t("planner.next")}
+                className="h-9 w-9 rounded-lg border border-line hover:border-accent hover:bg-paper-warm grid place-items-center cursor-pointer transition"
+              >
+                <ChevronRight size={15} className="rtl:rotate-180" />
+              </button>
+            </>
+          )}
         </div>
 
         <h1 className="font-serif text-[22px] md:text-[26px] font-medium text-ink leading-none min-w-0 truncate">
@@ -336,8 +391,8 @@ export default function PlannerView() {
           ) : title}
         </h1>
 
-        <div className="ms-auto flex items-center gap-2">
-          <div className={s.viewSeg} role="radiogroup" aria-label="Calendar view">
+        <div className="ms-auto flex items-center gap-2 flex-wrap justify-end">
+          <div className={s.viewSeg} role="radiogroup" aria-label={t("planner.viewLabel")}>
             {VIEWS.map((v) => (
               <button
                 key={v} type="button" role="radio"
@@ -346,14 +401,28 @@ export default function PlannerView() {
                 className={s.viewBtn}
                 onClick={() => pickView(v)}
               >
-                {v}
+                {t(`planner.view.${v}`)}
               </button>
             ))}
           </div>
-          <Button onClick={() => openNewForDay(view === "month" ? todayIso : isoKey(anchor))}>
-            <Plus size={15} className="mr-2" /> New entry
+          <Button onClick={() => openNewForDay(view === "month" || view === "agenda" ? todayIso : isoKey(anchor))}>
+            <Plus size={15} className="mr-2" /> {t("planner.newEntry")}
           </Button>
         </div>
+      </div>
+
+      {/* ── the week's load ──────────────────────────────────────
+          Rail on desktop, strip here on a phone — the rail is hidden
+          below lg, and these four numbers are the reason a teacher
+          used to open the Timetable screen. */}
+      <div className={s.sumStrip}>
+        {loadFigures.map((f) => (
+          <div key={f.label} className={s.sumTile}>
+            <p className={s.sumLabel}>{f.label}</p>
+            <p className="font-serif text-[22px] leading-none text-ink mt-1.5">{f.value}</p>
+            <p className="text-[11px] text-muted mt-1 truncate">{f.note}</p>
+          </div>
+        ))}
       </div>
 
       {/* ── sidebar + main ──────────────────────────────────────── */}
@@ -365,14 +434,32 @@ export default function PlannerView() {
               view={view}
               eventsByDate={eventsByDate}
               locale={locale}
-              onPick={(d) => setAnchor(new Date(d))}
+              // In agenda view the anchor steers nothing, so a picked
+              // day would be a click that did not move — fall into it.
+              onPick={(d) => {
+                setAnchor(new Date(d));
+                if (view === "agenda") pickView("day");
+              }}
               onMonthStep={(dir) =>
                 setAnchor((a) => new Date(a.getFullYear(), a.getMonth() + dir, Math.min(a.getDate(), 28)))}
             />
           </div>
 
           <div className={s.railSection}>
-            <p className={s.railTitle}>Calendars</p>
+            <p className={s.railTitle}>{t("planner.thisWeek")}</p>
+            {loadFigures.map((f) => (
+              <div key={f.label} className={s.sumRow}>
+                <span className={s.sumLabel}>{f.label}</span>
+                <span className={s.sumValue} title={f.note}>
+                  {f.value}
+                  <span className={s.sumNote}>{f.note}</span>
+                </span>
+              </div>
+            ))}
+          </div>
+
+          <div className={s.railSection}>
+            <p className={s.railTitle}>{t("planner.calendars")}</p>
             <button
               type="button"
               className={s.calRow}
@@ -404,10 +491,10 @@ export default function PlannerView() {
           </div>
 
           <div className={`${s.railSection} ${s.railGrow}`}>
-            <p className={s.railTitle}>Upcoming</p>
+            <p className={s.railTitle}>{t("planner.upcoming")}</p>
             {upcoming.length === 0 ? (
               <p className="text-[12.5px] text-muted leading-relaxed">
-                Nothing ahead. Click a day to put something in it.
+                {t("planner.nothingAhead")}
               </p>
             ) : upcoming.map((e) => {
               const d = new Date(`${e.date}T00:00:00`);
@@ -437,16 +524,25 @@ export default function PlannerView() {
           <div className={s.railSection}>
             <div className="flex items-center justify-between font-mono text-[10px] text-muted">
               <span className="inline-flex items-center gap-1.5">
-                <CalendarCheck2 size={11} className="text-accent" /> {stats.done} done
+                <CalendarCheck2 size={11} className="text-accent" />{" "}
+                {t("planner.doneN", { n: String(stats.done) })}
               </span>
-              <span>{stats.ahead} ahead this month</span>
+              <span>{t("planner.aheadN", { n: String(stats.ahead) })}</span>
             </div>
           </div>
         </aside>
 
         {/* ── the main surface ───────────────────────────────────── */}
         <div className={`${s.grid} order-1 lg:order-2`}>
-          {view === "month" ? (
+          {view === "agenda" ? (
+            <Agenda
+              eventsByDate={eventsByDate}
+              todayIso={todayIso}
+              locale={locale}
+              onSelect={openEditEntry}
+              onNew={() => openNewForDay(todayIso)}
+            />
+          ) : view === "month" ? (
             <>
               <div className={s.dowRow}>
                 {weekdayLabels.map((d, i) => <div key={i} className={s.dow}>{d}</div>)}

@@ -28,9 +28,7 @@ export interface NavSection {
 // The teacher nav tells the product's story in section order: get
 // oriented, plan the week, make the materials, run the classroom. The
 // old scheme filed nine of fourteen items under one header called
-// "Planners" — four of them content libraries that plan nothing — and
-// left /schedule, the screen where work is actually delivered to a
-// class, out of the nav entirely.
+// "Planners" — four of them content libraries that plan nothing.
 const TEACHER_NAV: NavSection[] = [
   {
     section: "Overview",
@@ -39,15 +37,18 @@ const TEACHER_NAV: NavSection[] = [
       { key: "studio", label: "Studio", icon: "studio" },
     ],
   },
-  // When things happen. Calendar is the month/week view over everything;
-  // Timetable is the weekly teaching grid — and the delivery mechanism:
-  // students receive work only through a timetable slot (db/tune.sql
-  // §48), so the surface that decides visibility must be in the rail.
+  // When things happen. ONE calendar, not two: Calendar and Timetable
+  // were the same week over the same table, drawn twice, with a
+  // separate entry form each — so a lesson added in one was missing
+  // from the other and nobody could say which was the real week. The
+  // timetable folded into the calendar (day/week/month/agenda), which
+  // is also the delivery surface: students receive work only through a
+  // schedule slot (db/tune.sql §48). Goals stays its own thing — it
+  // plans a term's arc, not a week's hours.
   {
     section: "Plan",
     items: [
       { key: "planner", label: "Calendar", icon: "scheduler" },
-      { key: "schedule", label: "Timetable", icon: "timetable" },
       { key: "goals", label: "Goals", icon: "goals" },
     ],
   },
@@ -266,7 +267,6 @@ export const SECTIONS_BY_ROLE: Record<Role, Set<string>> = {
     "library",
     "bulletin-board",
     "lesson-plans",
-    "schedule",
     "quizzes",
     "homework",
     "presentations",
@@ -304,5 +304,10 @@ export function navTargetFor(key: string): string[] {
   // Lessons lands on the teacher's own saved lessons now — the in-section
   // template list was superseded by the Template library section.
   if (key === "database") return ["database", "students"];
+  // "schedule" is still the key a dashboard tile, an alert and the
+  // assistant reach for — it is the word for the thing. There is just
+  // one screen behind it now. Resolved here rather than left to the
+  // config redirect so an in-app jump does not cost a round trip.
+  if (key === "schedule") return ["planner"];
   return [key];
 }

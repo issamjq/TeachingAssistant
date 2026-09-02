@@ -39,6 +39,12 @@
   color: var(--p-paper-cool);
 }
 .viewBtn:focus-visible { outline: 2px solid var(--p-accent); outline-offset: -2px; }
+/* Four views, not three, and on a 390px phone the fourth pushed the
+   "New entry" button off the screen edge. The labels are what give, not
+   the button — a clipped primary action is the worse loss. */
+@media (max-width: 520px) {
+  .viewBtn { padding-inline: 9px; letter-spacing: 0.05em; }
+}
 
 /* ── the sidebar ─────────────────────────────────────────────────────
    The calendar convention again: create, the little month, then which
@@ -732,3 +738,173 @@
   .cell { min-height: 74px; }
   .cellChip { font-size: 10px; }
 }
+
+/* ── the week's load ─────────────────────────────────────────────────
+   Four numbers the old Timetable screen carried as a row of tiles above
+   its grid. Here they are a rail section, because the calendar is
+   already full-height and a tile row would come out of the grid's
+   budget; on a phone, where there is no rail, they come back as a
+   two-column strip above the surface. */
+
+.sumRow {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 5px 0;
+  border-block-start: 1px solid var(--p-line-soft);
+}
+.sumRow:first-of-type { border-block-start: 0; padding-block-start: 0; }
+.sumLabel {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--p-muted);
+  white-space: nowrap;
+}
+.sumValue {
+  margin-inline-start: auto;
+  font-family: var(--font-serif);
+  font-size: 17px;
+  line-height: 1;
+  color: var(--p-ink);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sumNote {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--p-muted);
+  margin-block-start: 2px;
+}
+
+/* The breakpoint lives here, not as a Tailwind `lg:hidden` on the
+   element: both set `display`, at the same specificity, and the module
+   sheet loads after the utilities — so the utility lost and the strip
+   showed on desktop too, doubling the rail. */
+.sumStrip {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 12px;
+}
+@media (min-width: 1024px) {
+  .sumStrip { display: none; }
+}
+.sumTile {
+  border: 1px solid var(--p-line);
+  border-radius: 14px;
+  padding: 9px 11px;
+  background: color-mix(in oklab, var(--p-surface) 88%, transparent);
+}
+
+/* ── the agenda ──────────────────────────────────────────────────────
+   A scrolling list inside the same panel the month and the time grid
+   use, so switching view changes the surface and nothing around it. */
+
+.agenda {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  padding: 6px 14px 18px;
+}
+.agDay { padding-block: 12px; border-block-start: 1px solid var(--p-line-soft); }
+.agDay:first-of-type { border-block-start: 0; }
+.agDay[data-past="true"] { opacity: 0.62; }
+.agDate {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--p-muted);
+  margin-bottom: 6px;
+}
+.agDay[data-today="true"] .agDate { color: var(--p-accent); }
+.agToday { margin-inline-start: 7px; color: var(--p-accent); }
+
+.agRow {
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
+  width: 100%;
+  text-align: start;
+  padding: 7px 8px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.agRow:hover { background: color-mix(in oklab, var(--tint) 8%, transparent); }
+.agRow:focus-visible { outline: 2px solid var(--p-accent); outline-offset: -2px; }
+.agTime {
+  flex-shrink: 0;
+  width: 58px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--p-muted);
+  padding-block-start: 2px;
+}
+.agBar {
+  flex-shrink: 0;
+  width: 2.5px;
+  border-radius: 999px;
+  background: var(--tint);
+}
+.agTitle {
+  display: block;
+  font-size: 13.5px;
+  line-height: 1.25;
+  color: var(--p-ink);
+}
+.agMeta {
+  display: block;
+  font-size: 11px;
+  color: var(--p-muted);
+  margin-block-start: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agEarlier {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-block: 10px 2px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--p-muted);
+  cursor: pointer;
+}
+.agEarlier:hover { color: var(--p-ink); }
+.agChevOpen { transform: rotate(180deg); }
+
+.agEmpty {
+  margin: 18px 0;
+  border: 1px dashed var(--p-line-strong);
+  border-radius: 18px;
+  padding: 40px 24px;
+  text-align: center;
+  background: color-mix(in oklab, var(--p-paper-warm) 40%, transparent);
+}
+.agEmptyAdd {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-block-start: 16px;
+  padding: 8px 15px;
+  border-radius: 999px;
+  background: var(--p-ink);
+  color: var(--p-paper-cool);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.agEmptyAdd:hover { background: var(--p-accent); color: var(--p-on-accent); }

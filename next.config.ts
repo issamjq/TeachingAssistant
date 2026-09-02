@@ -28,6 +28,20 @@ const nextConfig: NextConfig = {
     return [{ source: "/api/:path*", destination: `${API_TARGET}/api/:path*` }];
   },
 
+  // /schedule was the Timetable screen. It drew the same week over the
+  // same table as the calendar, with its own entry form, so a lesson
+  // added in one was missing from the other. The screen folded into
+  // /planner (see src/features/planner) and the URL follows it —
+  // permanently, because it is a move and not an experiment.
+  //
+  // Here rather than as a page that calls redirect(): redirects are
+  // checked before the filesystem, so nothing of the studio has to boot
+  // to bounce. In-app jumps never reach this — navTargetFor("schedule")
+  // resolves to /planner directly (src/config/nav.ts).
+  async redirects() {
+    return [{ source: "/schedule", destination: "/planner", permanent: true }];
+  },
+
   // Response headers. The Express app used to set these with Helmet; when
   // the API was deleted they went with it, and nothing replaced them —
   // SECURITY.md went on describing a policy that no response carried.

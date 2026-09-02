@@ -28,6 +28,8 @@ const STUDIO_ROUTES = [
   "/presentations",
   "/activities",
   "/bulletin-board",
+  // The Timetable screen folded into the calendar; the URL 308s to
+  // /planner (next.config.ts). Kept here so the move stays proven.
   "/schedule",
   "/goals",
   "/library",
