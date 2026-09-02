@@ -265,6 +265,7 @@ export default function SubjectPreview() {
             classes={teacher.subjects}
             rosterClasses={teacher.rosterClasses}
             units={teacher.units}
+            all={teacher.all}
             go={go}
           />
         );

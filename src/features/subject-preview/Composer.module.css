@@ -253,10 +253,23 @@
 
 /* ── the same composer, run full width on the planner ──────────────── */
 
+/* The page variant reuses the dock's insides and none of its placement.
+   Without these it inherited `position: fixed` and floated over the
+   planner in the corner, which is the same panel it was meant to stop
+   being. */
 .page {
+  position: static;
+  inset: auto;
+  z-index: auto;
+  width: auto;
+  max-width: 760px;
+  margin-inline: auto;
+  max-height: none;
+  animation: none;
   border: 1.5px solid color-mix(in oklab, var(--p-accent) 42%, transparent);
   border-radius: 16px;
   background: var(--p-paper-cool);
+  box-shadow: none;
   overflow: visible;
 }
 .page .head { padding: 20px 22px 12px; }

@@ -1,0 +1,127 @@
+/* =====================================================================
+   The planner as a conversation
+
+   The reference design draws this surface as a chat: an assistant
+   bubble, the teacher's own words opposite it, and what came out sitting
+   under the reply as a card you can open. That shape is kept here.
+
+   What is NOT kept is an invented transcript. Every user bubble below is
+   a real `ai_studio.prompt_text` — the sentence this teacher actually
+   typed — and every card under a reply is the row that request produced,
+   grouped by the `batch_id` they came out of together. A conversation
+   made up to demonstrate a conversation would be the one thing on this
+   page nobody could trust.
+   ===================================================================== */
+
+.thread {
+  display: grid;
+  gap: 22px;
+  max-width: 760px;
+  margin: 0 auto;
+}
+
+.turn { display: flex; gap: 11px; align-items: flex-start; }
+.mine { flex-direction: row-reverse; }
+
+.face {
+  width: 30px; height: 30px; flex: none;
+  display: grid; place-items: center;
+  border-radius: 999px;
+  background: var(--p-accent-soft);
+  color: var(--p-accent-hover);
+  font-size: 11px; font-weight: 600;
+}
+.mine .face { background: color-mix(in oklab, var(--p-ink) 9%, transparent); color: var(--p-ink-soft); }
+
+.side { min-width: 0; display: grid; gap: 10px; }
+.mine .side { justify-items: end; }
+
+/* The corner nearest the speaker tightens — the one detail that makes a
+   rounded rectangle read as coming FROM somebody. */
+.bubble {
+  max-width: 62ch;
+  padding: 11px 16px;
+  border-radius: 16px 16px 16px 6px;
+  background: var(--p-paper-cool);
+  box-shadow: var(--shadow-1);
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--p-ink);
+  overflow-wrap: anywhere;
+}
+.bubbleMine {
+  border-radius: 16px 16px 6px 16px;
+  background: var(--p-invert);
+  color: var(--p-on-invert);
+  box-shadow: none;
+}
+
+.chips { display: flex; flex-wrap: wrap; gap: 7px; }
+.chip {
+  padding: 7px 14px;
+  border: 1px solid var(--p-line);
+  border-radius: 999px;
+  background: var(--p-paper-cool);
+  color: var(--p-ink-soft);
+  font: inherit; font-size: 12.5px;
+  text-align: start;
+  cursor: pointer;
+  transition: border-color var(--dur-hover) var(--ease-out-quart),
+              color var(--dur-hover) var(--ease-out-quart);
+}
+.chip:hover { border-color: var(--p-accent); color: var(--p-accent); }
+
+/* ── what a turn produced ──────────────────────────────────────────── */
+
+.result {
+  width: 100%;
+  max-width: 520px;
+  padding: 16px 18px 14px;
+  border: 1px solid var(--p-line-soft);
+  border-radius: 16px;
+  background: var(--p-paper-cool);
+}
+.resultKind {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 11.5px; font-weight: 500;
+  color: var(--p-accent);
+  margin-bottom: 5px;
+}
+.resultTitle {
+  font-family: var(--font-serif);
+  font-weight: 500;
+  font-size: 18px;
+  line-height: 1.2;
+  letter-spacing: -0.016em;
+  margin: 0 0 3px;
+}
+.resultMeta { font-size: 12.5px; color: var(--p-muted); margin: 0; }
+
+/* Several documents out of one request — a plan with its guide and its
+   notes — listed rather than stacked as three separate cards, because
+   they were one thing the teacher asked for. */
+.also { margin: 12px 0 0; padding: 10px 0 0; border-top: 1px solid var(--p-line-soft); display: grid; gap: 6px; }
+.alsoRow { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.alsoIcon { display: grid; place-items: center; color: var(--p-muted); flex: none; }
+.alsoName { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.resultActions { display: flex; gap: 8px; margin-top: 14px; }
+
+.stamp { font-size: 11.5px; color: var(--p-muted); }
+/* Said inside the reply rather than left as a silent gap, so an absent
+   user bubble reads as a missing record and not as a missing feature. */
+.noPrompt { color: var(--p-muted); }
+.mine .stamp { text-align: end; }
+
+.empty {
+  font-size: 13px;
+  color: var(--p-muted);
+  line-height: 1.55;
+  max-width: 56ch;
+}
+
+@media (max-width: 620px) {
+  .bubble { max-width: none; }
+  .result { max-width: none; }
+  .resultActions { flex-wrap: wrap; }
+}
