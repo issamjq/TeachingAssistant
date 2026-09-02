@@ -377,7 +377,11 @@ export async function signInOrSignUp(email, password) {
 export async function sendPasswordReset(email) {
   unwrap(
     await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: redirectTo("/?resetPassword=1"),
+      // A real screen, not a query flag on the marketing page. The old
+      // "/?resetPassword=1" was read by nothing: EntryGate saw the fresh
+      // recovery session and bounced her to the dashboard with the
+      // password still unchanged.
+      redirectTo: redirectTo("/reset-password"),
     })
   );
 }
