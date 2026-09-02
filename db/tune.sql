@@ -13247,3 +13247,245 @@ BEGIN
     RAISE NOTICE 'materials: one row per stored file, enforced';
   END IF;
 END $$;
+
+
+-- ─────────────────────────────────────────────────────────────────────
+-- §102  A class belongs to a year, and a year can be started over
+-- ─────────────────────────────────────────────────────────────────────
+--
+-- A faculty teaches almost the same subject, at the same school, from
+-- the same syllabus, every year — to different children. Until now the
+-- only way to start the next one was to empty the roster by hand and
+-- delete a term of homework to make room: destroying last year's record
+-- in order to begin this year's, and losing the answer to "what did she
+-- score in the January mock" along with it.
+--
+-- `classes` already carried `academic_year` and `is_archived` — the
+-- console created them and nothing ever used them. Two rows had a year,
+-- written with an en dash; three had none. This section makes that
+-- column load-bearing and gives the rest of a class's work the same
+-- sense of which year it belongs to.
+--
+-- What gets a year, and what deliberately does not:
+--
+--   classes           yes — the class IS the thing that repeats
+--   students          yes — a roster is one cohort, and they leave
+--   goals             yes — a term plan is written for a term
+--   schedule_entries  yes — periods and rooms are set fresh each year
+--   ai_studio         yes — and it is the one thing that gets COPIED
+--   materials         NO  — a syllabus is not re-uploaded every August.
+--                     The shelf is keyed on (grade, subject), which is
+--                     already year-independent, and §101 holds one row
+--                     per stored file, so copying a row would collide
+--                     with that index for no gain.
+--
+-- The year is a text label rather than a range or an integer because a
+-- school year is a name people say — "2026-2027" — and every place that
+-- shows it wants that string. `academic_year_of()` is the only thing
+-- that decides where the boundary falls, so a school starting in April
+-- rather than September is one function to change.
+
+CREATE OR REPLACE FUNCTION public.academic_year_of(p_at timestamptz)
+RETURNS text
+LANGUAGE sql STABLE
+SET search_path = public, pg_temp
+AS $$
+  -- September starts the year, which is the UAE calendar and the one
+  -- the product is built for.
+  SELECT CASE
+    WHEN EXTRACT(MONTH FROM p_at) >= 9
+      THEN EXTRACT(YEAR FROM p_at)::int || '-' || (EXTRACT(YEAR FROM p_at)::int + 1)
+      ELSE (EXTRACT(YEAR FROM p_at)::int - 1) || '-' || EXTRACT(YEAR FROM p_at)::int
+  END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.current_academic_year()
+RETURNS text
+LANGUAGE sql STABLE
+SET search_path = public, pg_temp
+AS $$ SELECT public.academic_year_of(now()) $$;
+
+GRANT EXECUTE ON FUNCTION public.academic_year_of(timestamptz) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.current_academic_year()       TO authenticated;
+
+-- One spelling. Two rows arrived carrying an en dash, which reads the
+-- same and compares differently — and this value ends up in a URL.
+UPDATE public.classes
+   SET academic_year = replace(replace(academic_year, '–', '-'), '—', '-')
+ WHERE academic_year IS NOT NULL AND academic_year <> replace(replace(academic_year, '–', '-'), '—', '-');
+
+-- The column on everything that belongs to one year.
+ALTER TABLE public.classes          ALTER COLUMN academic_year SET DEFAULT public.current_academic_year();
+ALTER TABLE public.students         ADD COLUMN IF NOT EXISTS academic_year text;
+ALTER TABLE public.goals            ADD COLUMN IF NOT EXISTS academic_year text;
+ALTER TABLE public.schedule_entries ADD COLUMN IF NOT EXISTS academic_year text;
+ALTER TABLE public.ai_studio        ADD COLUMN IF NOT EXISTS academic_year text;
+
+-- Where a carried-over copy came from, so a teacher can see that this
+-- year's quiz is last year's quiz and follow it back.
+ALTER TABLE public.ai_studio ADD COLUMN IF NOT EXISTS copied_from uuid REFERENCES public.ai_studio(id) ON DELETE SET NULL;
+ALTER TABLE public.goals     ADD COLUMN IF NOT EXISTS copied_from uuid REFERENCES public.goals(id)     ON DELETE SET NULL;
+
+DO $$
+DECLARE t text;
+BEGIN
+  FOREACH t IN ARRAY ARRAY['students','goals','schedule_entries','ai_studio'] LOOP
+    EXECUTE format(
+      'ALTER TABLE public.%I ALTER COLUMN academic_year SET DEFAULT public.current_academic_year()', t);
+    -- Backfill from when the row was made, not from today: work written
+    -- last November belongs to last November's year, and stamping it
+    -- with the current one would move a finished term into this one.
+    EXECUTE format(
+      'UPDATE public.%I SET academic_year = public.academic_year_of(created_at) WHERE academic_year IS NULL', t);
+  END LOOP;
+END $$;
+
+UPDATE public.classes
+   SET academic_year = public.academic_year_of(created_at)
+ WHERE academic_year IS NULL;
+
+-- Every listing this feeds reads "mine, this year, newest first".
+CREATE INDEX IF NOT EXISTS ai_studio_year_idx
+  ON public.ai_studio (faculty_id, academic_year, updated_at DESC) WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS students_year_idx
+  ON public.students (created_by, academic_year);
+CREATE INDEX IF NOT EXISTS goals_year_idx
+  ON public.goals (faculty_id, academic_year);
+CREATE INDEX IF NOT EXISTS schedule_year_idx
+  ON public.schedule_entries (faculty_id, academic_year, date);
+CREATE INDEX IF NOT EXISTS classes_year_idx
+  ON public.classes (faculty_id, academic_year) WHERE is_archived = false;
+
+-- ── starting the year over ────────────────────────────────────────────
+--
+-- A copy, not a clear-out. Named rows of `ai_studio` and every goal are
+-- duplicated into the new year; students, attendance, marks, hand-ins
+-- and the timetable are not, because they belong to the people who left.
+-- The old class is archived rather than deleted, which is what makes
+-- last year answerable — `is_archived` hides it from the sidebar and
+-- from nothing else.
+--
+-- SECURITY DEFINER because it writes rows the caller owns across four
+-- tables; the ownership check is the first thing it does, and there is
+-- no id a teacher could pass to roll somebody else's class.
+CREATE OR REPLACE FUNCTION public.roll_class_year(
+  p_class   uuid,
+  p_year    text    DEFAULT NULL,
+  p_carry   uuid[]  DEFAULT NULL,   -- ai_studio ids; NULL means all of them
+  p_goals   boolean DEFAULT true,
+  p_archive boolean DEFAULT true
+)
+RETURNS jsonb
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+  src        public.classes%ROWTYPE;
+  fid        uuid;
+  year_new   text;
+  new_class  uuid;
+  n_work     int := 0;
+  n_goals    int := 0;
+BEGIN
+  SELECT f.id INTO fid FROM public.faculty f WHERE f.user_id = (SELECT auth.uid());
+  IF fid IS NULL THEN
+    RAISE EXCEPTION 'no teaching profile for this account' USING ERRCODE = '42501';
+  END IF;
+
+  SELECT * INTO src FROM public.classes WHERE id = p_class AND faculty_id = fid;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'that class is not yours' USING ERRCODE = '42501';
+  END IF;
+
+  year_new := COALESCE(NULLIF(btrim(p_year), ''), public.current_academic_year());
+  IF year_new = src.academic_year THEN
+    RAISE EXCEPTION 'that class is already in %', year_new USING ERRCODE = '22023';
+  END IF;
+
+  -- Idempotent: rolling the same class into the same year twice lands on
+  -- the class already made rather than making a second one.
+  SELECT c.id INTO new_class
+    FROM public.classes c
+   WHERE c.faculty_id = fid
+     AND c.academic_year = year_new
+     AND public.norm_subject(c.subject) IS NOT DISTINCT FROM public.norm_subject(src.subject)
+     AND public.norm_grade(c.grade)     IS NOT DISTINCT FROM public.norm_grade(src.grade)
+     AND btrim(lower(coalesce(c.division, ''))) = btrim(lower(coalesce(src.division, '')))
+   LIMIT 1;
+
+  IF new_class IS NULL THEN
+    INSERT INTO public.classes (faculty_id, name, subject, grade, division, academic_year, is_archived)
+    VALUES (fid, src.name, src.subject, src.grade, src.division, year_new, false)
+    RETURNING id INTO new_class;
+  END IF;
+
+  -- The material. `copied_from` is what lets the new year say where a
+  -- deck came from, and what stops a second roll duplicating it.
+  WITH picked AS (
+    SELECT a.* FROM public.ai_studio a
+     WHERE a.faculty_id = fid
+       AND a.deleted_at IS NULL
+       AND a.academic_year IS NOT DISTINCT FROM src.academic_year
+       AND (p_carry IS NULL OR a.id = ANY (p_carry))
+       AND public.norm_subject(a.content->>'subject') IS NOT DISTINCT FROM public.norm_subject(src.subject)
+       AND public.norm_grade(a.content->>'grade')     IS NOT DISTINCT FROM public.norm_grade(src.grade)
+       AND NOT EXISTS (
+         SELECT 1 FROM public.ai_studio b
+          WHERE b.copied_from = a.id AND b.academic_year = year_new AND b.deleted_at IS NULL)
+  )
+  INSERT INTO public.ai_studio (faculty_id, type, status, content, prompt_text, academic_year, copied_from)
+  SELECT fid, p.type, p.status, p.content, p.prompt_text, year_new, p.id FROM picked p;
+  GET DIAGNOSTICS n_work = ROW_COUNT;
+
+  IF p_goals THEN
+    WITH picked AS (
+      SELECT g.* FROM public.goals g
+       WHERE g.faculty_id = fid
+         AND g.academic_year IS NOT DISTINCT FROM src.academic_year
+         AND public.norm_subject(g.subject) IS NOT DISTINCT FROM public.norm_subject(src.subject)
+         AND public.norm_grade(g.grade)     IS NOT DISTINCT FROM public.norm_grade(src.grade)
+         AND NOT EXISTS (
+           SELECT 1 FROM public.goals h
+            WHERE h.copied_from = g.id AND h.academic_year = year_new)
+    )
+    INSERT INTO public.goals (faculty_id, title, plan, timeline_days, grade, subject, section,
+                              periods_per_week, status, academic_year, copied_from)
+    SELECT fid, p.title, p.plan, p.timeline_days, p.grade, p.subject, p.section,
+           p.periods_per_week, 'processing', year_new, p.id
+      FROM picked p;
+    GET DIAGNOSTICS n_goals = ROW_COUNT;
+  END IF;
+
+  IF p_archive THEN
+    UPDATE public.classes SET is_archived = true, updated_at = now() WHERE id = src.id;
+  END IF;
+
+  RETURN jsonb_build_object(
+    'class_id', new_class,
+    'academic_year', year_new,
+    'carried_work', n_work,
+    'carried_goals', n_goals,
+    'archived', p_archive,
+    -- Said back explicitly so a caller cannot mistake silence for these
+    -- having come along: they never do.
+    'left_behind', jsonb_build_array('students', 'attendance', 'marks', 'submissions', 'timetable')
+  );
+END $$;
+
+GRANT EXECUTE ON FUNCTION public.roll_class_year(uuid, text, uuid[], boolean, boolean) TO authenticated;
+
+DO $$
+DECLARE v_missing int; v_null int;
+BEGIN
+  SELECT count(*) INTO v_missing FROM (VALUES ('students'),('goals'),('schedule_entries'),('ai_studio'),('classes')) t(n)
+   WHERE NOT EXISTS (
+     SELECT 1 FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = t.n AND column_name = 'academic_year');
+  IF v_missing > 0 THEN
+    RAISE EXCEPTION '§102: % table(s) still have no academic_year', v_missing;
+  END IF;
+
+  SELECT count(*) INTO v_null FROM public.ai_studio WHERE academic_year IS NULL AND deleted_at IS NULL;
+  RAISE NOTICE 'academic year ready: % live ai_studio row(s) still unstamped, current year is %',
+    v_null, public.current_academic_year();
+END $$;

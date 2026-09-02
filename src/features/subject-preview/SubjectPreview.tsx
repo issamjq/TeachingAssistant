@@ -28,8 +28,8 @@ import { Detail } from "./Detail";
 import { StudentHome, StudentSubjectView } from "./StudentScreens";
 import GoalPlanner from "./GoalPlanner";
 import Composer from "./Composer";
-import AdminHome, { grantedSurfaces, isAdmin } from "./AdminScreens";
-import Rollover, { academicYear } from "./Rollover";
+import AdminHome, { grantedSurfaces, isAdmin, roleLabel } from "./AdminScreens";
+import Rollover from "./Rollover";
 
 export default function SubjectPreview() {
   const [route, setRoute] = useState<Route>(HOME);
@@ -157,7 +157,7 @@ export default function SubjectPreview() {
         title = `A new year for ${subject?.name ?? "this class"}`;
         crumbs = [
           { label: subject?.name ?? "Class", to: { v: "subject", s: route.s } },
-          { label: academicYear() },
+          { label: subject?.academicYear ?? teacher?.currentYear ?? "" },
         ];
         break;
       case "subject":
@@ -204,7 +204,7 @@ export default function SubjectPreview() {
       ? {
           name: teacher?.name ?? "…",
           initials: teacher?.initials ?? "—",
-          role: identity?.roles.join(" · ") || "Admin",
+          role: identity?.roles.map(roleLabel).join(" · ") || "Admin",
         }
       : role === "teacher"
       ? { name: teacher?.name ?? "…", initials: teacher?.initials ?? "—", role: teacher?.school ?? "Teacher" }
@@ -270,7 +270,9 @@ export default function SubjectPreview() {
           />
         );
       case "rollover":
-        return subject ? <Rollover sub={subject} go={go} /> : <Missing what="class" go={go} />;
+        return subject
+          ? <Rollover sub={subject} currentYear={teacher.currentYear} go={go} />
+          : <Missing what="class" go={go} />;
       case "library":
         return <Library m={teacher} go={go} />;
       case "subject":

@@ -65,7 +65,7 @@ export type ComposerProps = {
   contextKind?: KindKey | null;
   /** Suggested openings, drawn from real units. */
   starters?: string[];
-  variant?: "dock" | "page";
+  variant?: "dock" | "page" | "bar";
   onClose?: () => void;
 };
 
@@ -192,16 +192,24 @@ export default function Composer({
   }
 
   return (
-    <div className={variant === "dock" ? c.dock : `${c.dock} ${c.page}`} role="dialog" aria-label="Studio composer">
+    <div
+      className={
+        variant === "dock" ? c.dock
+          : variant === "bar" ? `${c.dock} ${c.page} ${c.bar}`
+          : `${c.dock} ${c.page}`
+      }
+      role={variant === "dock" ? "dialog" : "group"}
+      aria-label="Studio composer"
+    >
       <div className={c.head}>
         <div className={c.headText}>
           <h2 className={c.headTitle}>
-            {variant === "page" ? "Tell the studio what you need" : "Studio"}
+            {variant === "dock" ? "Studio" : "Tell the studio what you need"}
           </h2>
           <p className={c.headNote}>
-            {variant === "page"
-              ? "In your own words. The class and the kind are already set from where you are — change them here if this one is for somewhere else."
-              : "The class and kind come from the screen you are on."}
+            {variant === "dock"
+              ? "The class and kind come from the screen you are on."
+              : "In your own words. The class and the kind are already set from where you are — change them here if this one is for somewhere else."}
           </p>
         </div>
         {onClose && (

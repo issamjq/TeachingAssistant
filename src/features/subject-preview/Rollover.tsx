@@ -16,13 +16,17 @@
 // it was, readable, until she deletes it — which is what makes it a
 // history rather than a backup.
 //
-// ── What is real here, and what is proposed ─────────────────────────
+// ── What is real here ───────────────────────────────────────────────
 //
-// The counts, the titles and the roll are this account's rows. The YEAR
-// is not: there is no academic-year column anywhere in db/tune.sql — the
-// only thing close is student_grades.term. So this screen is a proposal
-// with real material in it, and it says so on the page rather than
-// letting a reviewer assume the column exists. Nothing here writes.
+// All of it, now. db/tune.sql §102 put `academic_year` on classes,
+// students, goals, schedule_entries and ai_studio, backfilled every
+// existing row from when it was created, and added roll_class_year() —
+// a SECURITY DEFINER copy that duplicates the named material into the
+// new year, archives the old class rather than deleting it, and never
+// touches students, attendance, marks, hand-ins or the timetable.
+//
+// The button below is still inert, for one reason only: this preview
+// reads and does not write. The call it would make is one line.
 // =====================================================================
 
 import { useState } from "react";
@@ -35,13 +39,17 @@ import s from "./Screens.module.css";
 import r from "./Rollover.module.css";
 
 /**
- * The academic year containing a date. September starts a new one, which
- * is the UAE school calendar and the one the product is built for.
+ * The year after a given one. "2026-2027" → "2027-2028".
+ *
+ * The year itself is never computed here — public.current_academic_year()
+ * decides it, so a school starting in April rather than September is one
+ * function in the database to change and not a second opinion in the
+ * browser. This only walks forward from whatever it said.
  */
-export function academicYear(d = new Date()): string {
-  const y = d.getFullYear();
-  const start = d.getMonth() >= 8 ? y : y - 1;
-  return `${start}/${String(start + 1).slice(2)}`;
+export function nextYear(year: string): string {
+  const [a, b] = year.split("-").map((n) => Number(n));
+  if (!Number.isFinite(a) || !Number.isFinite(b)) return year;
+  return `${a + 1}-${b + 1}`;
 }
 
 /** What a new year deliberately does NOT bring with it, and why. */
@@ -54,9 +62,14 @@ const LEFT_BEHIND = [
 ];
 
 export default function Rollover({
-  sub, go,
-}: { sub: SubjectGroup; go: (r: Route) => void }) {
-  const year = academicYear();
+  sub, currentYear, go,
+}: { sub: SubjectGroup; currentYear: string; go: (r: Route) => void }) {
+  // Where the class is now, and where a roll would take it. A class
+  // already in the current year rolls into the next one; a class still
+  // sitting in a past year rolls into the current one, which is the
+  // commoner case in September.
+  const from = sub.academicYear || currentYear;
+  const year = from === currentYear ? nextYear(currentYear) : currentYear;
   // Everything is brought forward unless she says otherwise: the whole
   // point is that she taught this before, so the default is that she
   // keeps what she made.
@@ -94,10 +107,10 @@ export default function Rollover({
         <div className={r.note}>
           <span className={r.noteIcon}><Info size={15} /></span>
           <p>
-            <b>Proposed, not built.</b> The material, counts and roll below are this
-            account&rsquo;s real rows, but a class has no academic year in the schema yet —
-            there is no column for it in <code>db/tune.sql</code>. This screen is the design
-            for one, so it can be judged before anything is migrated.
+            This class sits in <b>{from}</b>. <code>db/tune.sql §102</code> put the year on
+            classes, students, goals, the timetable and everything the studio makes, and
+            added <code>roll_class_year()</code> to do the copy below. The button is inert
+            here for one reason: <b>this preview reads and never writes.</b>
           </p>
         </div>
       </section>
@@ -233,10 +246,9 @@ export default function Rollover({
               {sub.grade ? ` · ${classLine(sub.grade, null)}` : ""} · {year}
             </p>
             <p className={r.commitNote}>
-              Carries <b>{carried}</b> piece{carried === 1 ? "" : "s"} of material forward.
-              The class you have now is kept, readable, under its own year — and stays until
-              you delete it, which is how last year&rsquo;s marks and hand-ins remain
-              answerable.
+              Carries <b>{carried}</b> piece{carried === 1 ? "" : "s"} of material forward
+              from <b>{from}</b>. That class is archived, not deleted — it keeps its roll,
+              its marks and its hand-ins, and stays readable until you remove it yourself.
             </p>
           </div>
           <div className={r.commitActions}>
@@ -253,9 +265,15 @@ export default function Rollover({
           </div>
         </div>
         <p className={r.disabled}>
-          The button is inert: this preview only reads. Building it needs a year on the
-          class and a copy that rewrites owner ids — the design is what is being asked
-          about here.
+          Behind the button:{" "}
+          <code>
+            roll_class_year(&apos;{sub.classIds[0] ?? "<class>"}&apos;, &apos;{year}&apos;,
+            [{carried} ids], goals, archive)
+          </code>
+          {sub.classIds.length === 0 && (
+            <> — except this class has no <code>classes</code> row yet, so one is created
+            first. Work derived from grade and subject alone has never needed one.</>
+          )}
         </p>
       </section>
     </div>

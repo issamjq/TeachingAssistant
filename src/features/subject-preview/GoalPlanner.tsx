@@ -116,7 +116,7 @@ export default function GoalPlanner({
       <Composer
         classes={classes}
         rosterClasses={rosterClasses}
-        variant="page"
+        variant="bar"
         starters={units.filter((u) => !DONE.has(u.status ?? "")).slice(0, 3).map((u) => u.title)}
       />
 

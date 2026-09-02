@@ -21,12 +21,13 @@
 // mouth to complete the shape is the one thing this page must not do.
 // =====================================================================
 
-import { Printer, Sparkles } from "lucide-react";
+import { ArrowRight, Printer, RotateCcw, Sparkles } from "lucide-react";
 import { KIND_BY_KEY, type Item } from "./types";
 import { KIND_ICON } from "./Shell";
 import type { Route } from "./route";
 import { ago, classLine } from "./parts";
 import { classKey } from "./model";
+import { outlineMeta, outlineOf } from "./outline";
 import s from "./Screens.module.css";
 import g from "./GoalPlanner.module.css";
 
@@ -84,6 +85,9 @@ export function TurnView({
   const [lead, ...rest] = turn.items;
   const def = KIND_BY_KEY[lead.kind];
   const Icon = KIND_ICON[lead.kind];
+  const outline = outlineOf(lead);
+  const labelled = outline.some((row) => row.left);
+  const meta = outlineMeta(lead);
   const where = [lead.subject, classLine(lead.grade, lead.section)].filter(Boolean).join(" · ");
 
   return (
@@ -103,10 +107,29 @@ export function TurnView({
             <span className={g.resultKind}>
               <Icon size={13} strokeWidth={2} aria-hidden="true" />
               {def.one[0].toUpperCase() + def.one.slice(1)}
-              {lead.raw.duration_minutes ? ` · ${lead.raw.duration_minutes} minutes` : ""}
+              {meta ? ` · ${meta}` : ""}
             </span>
             <h3 className={g.resultTitle}>{lead.title}</h3>
             <p className={g.resultMeta}>{where || "No class set"}</p>
+
+            {/* What is in it, four lines. The reference puts a run-sheet
+                here; these rows are whatever the row actually holds —
+                the plan's phases, the quiz's questions, the deck's
+                slides — and never a timing nobody wrote. */}
+            {outline.length > 0 && (
+              <div className={g.outline}>
+                {outline.map((row, i) => (
+                  <div key={i} className={g.outlineRow}>
+                    {/* The left track only exists when something names the
+                        rows — a phase, a number, a slide. Rows that have
+                        no such label run the full width instead of
+                        indenting past an empty column. */}
+                    {labelled && <span className={g.outlineLeft}>{row.left}</span>}
+                    <span className={g.outlineRight}>{row.right}</span>
+                  </div>
+                ))}
+              </div>
+            )}
 
             {rest.length > 0 && (
               <div className={g.also}>
@@ -123,20 +146,25 @@ export function TurnView({
               </div>
             )}
 
+            {/* Open, print, try again — the three the reference offers,
+                in its order and its weights. */}
             <div className={g.resultActions}>
               <button
                 type="button"
-                className={`${s.btn} ${s.btnQuiet} ${s.btnSmall}`}
+                className={`${s.btn} ${s.btnMake} ${s.btnSmall}`}
                 onClick={() => {
                   const key = classKey(lead.subject, lead.grade);
                   go(key ? { v: "item", s: key, k: lead.kind, id: lead.id } : { v: "library" });
                 }}
               >
-                Open {def.one}
+                Open {def.one} <ArrowRight size={13} />
               </button>
               <button type="button" className={`${s.btn} ${s.btnQuiet} ${s.btnSmall}`}>
                 <Printer size={13} /> Print
               </button>
+              <a className={`${s.btn} ${s.btnQuiet} ${s.btnSmall}`} href="/studio">
+                <RotateCcw size={13} /> Try again
+              </a>
             </div>
           </article>
         </div>

@@ -84,9 +84,12 @@ export async function loadTeacher(): Promise<TeacherModel> {
     softGet<any[]>("/api/goals", []),
     softGet<any[]>("/api/skills", []),
     softGet<any[]>("/api/skill-assignments", []),
+    softGet<any[]>("/api/classes", []),
+    softGet<any>("/api/classes/current-year", {}),
     ...KINDS.map((k) => softGet<any[]>(`/api/${k.path}`, [])),
   ]);
-  const [skills, skillAssignments] = byKind.splice(0, 2) as [any[], any[]];
+  const [skills, skillAssignments, classRows, yearNow] =
+    byKind.splice(0, 4) as [any[], any[], any[], any];
 
   // ── flatten every artefact into one list, tagged with its kind ──
   const all: Item[] = [];
@@ -167,6 +170,7 @@ export async function loadTeacher(): Promise<TeacherModel> {
         grades: gradeText ? [gradeText] : [],
         sections: [],
         divisions: [], skills: [],
+        academicYear: null, classIds: [], archived: false,
         items: Object.fromEntries(KINDS.map((k) => [k.key, [] as Item[]])) as Record<KindKey, Item[]>,
         total: 0, students: 0, lessons: [],
         weekTotal: 0, weekWithPlan: 0,
@@ -238,6 +242,18 @@ export async function loadTeacher(): Promise<TeacherModel> {
       .map((name): Division => ({ name, students: counted.get(name) ?? 0 }))
       .sort((a, b) => a.name.localeCompare(b.name));
     g.skills = skillsFor(g, asArray(skills), asArray(skillAssignments));
+
+    // The year comes off the `classes` row, not off a calendar. A class
+    // taught across two divisions has two rows; they are the same class
+    // in the same year, so the newest year among them wins and every id
+    // is kept for the rollover to name.
+    const mine = asArray(classRows).filter(
+      (c) => normSubject(c.subject) === normSubject(g.name)
+        && normGrade(c.grade) === (g.gradeKey || null),
+    );
+    g.classIds = mine.map((c) => String(c.id));
+    g.academicYear = mine.map((c) => c.academic_year).filter(Boolean).sort().at(-1) ?? null;
+    g.archived = mine.length > 0 && mine.every((c) => c.is_archived);
     g.materials.sort(byRecent);
     // A subject is built on ONE document, and that is the one it says is
     // loaded. Prefer a file the teacher tagged as the syllabus; fall
@@ -296,6 +312,15 @@ export async function loadTeacher(): Promise<TeacherModel> {
       })),
     ) as RosterClass[],
     units,
+    currentYear: String(yearNow?.academic_year ?? ""),
+    // Every year anything actually sits in, newest first. Read off the
+    // rows rather than generated, so a year with nothing in it never
+    // appears as a place a teacher could go and find an empty term.
+    years: [...new Set([
+      ...asArray(classRows).map((c) => c.academic_year),
+      ...all.map((i) => i.raw.academic_year),
+      ...asArray(goals).map((g) => g.academic_year),
+    ].filter(Boolean).map(String))].sort().reverse(),
     identity: {
       roles: asArray(me.roles).map(String),
       permissions: (me.permissions && typeof me.permissions === "object" ? me.permissions : {}) as Identity["permissions"],

@@ -55,13 +55,33 @@ const BLURB: Record<string, string> = {
   "superadmin-roles": "Who may reach which console, and the defaults behind it.",
 };
 
-/** An account holding the `admin` role but no resolved map falls back. */
+/**
+ * The role strings the database actually uses.
+ *
+ * my_roles() ranks over ARRAY['dev','super_admin','admin','moe','owner',
+ * 'teacher','student'] — `super_admin` with an underscore. This file
+ * checked for "superadmin", which matches nothing, so the Admin switch
+ * would never have appeared for the one account that most needs it. The
+ * capability path happened to cover for it, since admin_can() returns
+ * true for a super admin on everything, but a bug that is only invisible
+ * because a second check saved it is still a bug.
+ */
+const PLATFORM_ROLES = new Set(["super_admin", "dev", "admin"]);
+/** super_admin and dev bypass admin_can() entirely — they can reach all of it. */
+const UNLIMITED = new Set(["super_admin", "dev"]);
+
+/** Roles as a person would say them, not as the column stores them. */
+export const roleLabel = (r: string) =>
+  ({ super_admin: "super admin", dev: "developer", moe: "ministry" }[r] ?? r);
+
+/** An account holding a platform role but no resolved map falls back. */
 export function permsOf(identity: Identity): Record<string, boolean> {
+  if (identity.roles.some((r) => UNLIMITED.has(r))) {
+    return Object.fromEntries(ADMIN_SURFACES.map((x) => [x.cap, true]));
+  }
   const has = Object.keys(identity.permissions).some((k) => k.startsWith("admin."));
   if (has) return identity.permissions;
-  return identity.roles.some((r) => r === "admin" || r === "superadmin")
-    ? DEFAULT_ADMIN_PERMS
-    : {};
+  return identity.roles.includes("admin") ? DEFAULT_ADMIN_PERMS : {};
 }
 
 /** The consoles this account may reach, in nav order. */
@@ -73,7 +93,7 @@ export function grantedSurfaces(identity: Identity) {
 /** Whether the Admin option belongs on the preview's role switch at all. */
 export function isAdmin(identity: Identity): boolean {
   return (
-    identity.roles.some((r) => r === "admin" || r === "superadmin") ||
+    identity.roles.some((r) => PLATFORM_ROLES.has(r)) ||
     Object.entries(identity.permissions).some(([k, v]) => k.startsWith("admin.") && v)
   );
 }
@@ -88,7 +108,7 @@ export default function AdminHome({ identity }: { identity: Identity }) {
         <Empty
           icon={<Lock size={19} />}
           title="This account holds no admin role"
-          text={`You are signed in as ${identity.roles.join(" and ") || "a teacher"}. The platform consoles are granted per account in Roles and access, and the switch only offers Admin once one of them is.`}
+          text={`You are signed in as ${identity.roles.map(roleLabel).join(" and ") || "a teacher"}. The platform consoles are granted per account in Roles and access, and the switch only offers Admin once one of them is.`}
         />
       </div>
     );
@@ -97,7 +117,7 @@ export default function AdminHome({ identity }: { identity: Identity }) {
   const perms = permsOf(identity);
   const granted = ADMIN_SURFACES.filter((x) => perms[x.cap]);
   const withheld = ADMIN_SURFACES.filter((x) => !perms[x.cap]);
-  const superAdmin = identity.roles.includes("superadmin");
+  const superAdmin = identity.roles.some((r) => UNLIMITED.has(r));
 
   return (
     <div className={`${s.page} ${s.enter}`}>
@@ -105,7 +125,7 @@ export default function AdminHome({ identity }: { identity: Identity }) {
         <p className={s.sectionMeta} style={{ marginBottom: 10 }}>
           {[
             identity.roles.length
-              ? `You hold ${identity.roles.join(" and ")}`
+              ? `You hold ${identity.roles.map(roleLabel).join(" and ")}`
               : "No role resolved",
             `${granted.length} of ${ADMIN_SURFACES.length} consoles granted`,
           ].join(" · ")}
@@ -128,7 +148,7 @@ export default function AdminHome({ identity }: { identity: Identity }) {
       <section>
         <SectionHead
           title="Consoles you can reach"
-          meta={superAdmin ? "Super admin — every console" : "Resolved from your grants"}
+          meta={superAdmin ? "You bypass the capability check — every console" : "Resolved from your grants"}
         />
         {granted.length ? (
           <div className={s.makeGrid}>

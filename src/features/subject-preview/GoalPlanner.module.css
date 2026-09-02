@@ -23,25 +23,33 @@
 .turn { display: flex; gap: 11px; align-items: flex-start; }
 .mine { flex-direction: row-reverse; }
 
+/* The reference marks the two speakers by SHAPE as much as by side: the
+   studio is a filled rounded square, the person a circle. That reads at
+   a glance even in a screenshot with no colour. */
 .face {
   width: 30px; height: 30px; flex: none;
   display: grid; place-items: center;
-  border-radius: 999px;
-  background: var(--p-accent-soft);
-  color: var(--p-accent-hover);
+  border-radius: 10px;
+  background: var(--p-accent);
+  color: var(--p-on-accent);
   font-size: 11px; font-weight: 600;
 }
-.mine .face { background: color-mix(in oklab, var(--p-ink) 9%, transparent); color: var(--p-ink-soft); }
+.mine .face {
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--p-ink) 10%, transparent);
+  color: var(--p-ink-soft);
+}
 
 .side { min-width: 0; display: grid; gap: 10px; }
 .mine .side { justify-items: end; }
 
-/* The corner nearest the speaker tightens — the one detail that makes a
-   rounded rectangle read as coming FROM somebody. */
+/* Uniform corners, as the reference draws them. An earlier pass tightened
+   the corner nearest the speaker; the reference does not, and the side
+   plus the avatar shape already say who is talking. */
 .bubble {
   max-width: 62ch;
-  padding: 11px 16px;
-  border-radius: 16px 16px 16px 6px;
+  padding: 12px 17px;
+  border-radius: 14px;
   background: var(--p-paper-cool);
   box-shadow: var(--shadow-1);
   font-size: 14px;
@@ -50,26 +58,31 @@
   overflow-wrap: anywhere;
 }
 .bubbleMine {
-  border-radius: 16px 16px 6px 16px;
   background: var(--p-invert);
   color: var(--p-on-invert);
   box-shadow: none;
 }
 
-.chips { display: flex; flex-wrap: wrap; gap: 7px; }
+/* Openings, not controls. The reference sets these as plain text under
+   the first bubble — no border, no pill — because a row of outlined
+   buttons under a sentence reads as the sentence having four answers.
+   They are things you could say, offered quietly. */
+.chips { display: flex; flex-wrap: wrap; gap: 6px 22px; padding-inline-start: 3px; }
 .chip {
-  padding: 7px 14px;
-  border: 1px solid var(--p-line);
-  border-radius: 999px;
-  background: var(--p-paper-cool);
+  padding: 0;
+  border: 0;
+  background: transparent;
   color: var(--p-ink-soft);
-  font: inherit; font-size: 12.5px;
+  font: inherit; font-size: 13px;
   text-align: start;
   cursor: pointer;
-  transition: border-color var(--dur-hover) var(--ease-out-quart),
-              color var(--dur-hover) var(--ease-out-quart);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  text-decoration-color: transparent;
+  transition: color var(--dur-hover) var(--ease-out-quart),
+              text-decoration-color var(--dur-hover) var(--ease-out-quart);
 }
-.chip:hover { border-color: var(--p-accent); color: var(--p-accent); }
+.chip:hover { color: var(--p-accent); text-decoration-color: currentColor; }
 
 /* ── what a turn produced ──────────────────────────────────────────── */
 
@@ -96,6 +109,28 @@
   margin: 0 0 3px;
 }
 .resultMeta { font-size: 12.5px; color: var(--p-muted); margin: 0; }
+
+/* The run-sheet the reference puts inside the card: a narrow left column
+   and the step beside it, so you can tell from the conversation whether
+   the thing it made is the thing you wanted without opening it. */
+.outline { margin: 13px 0 0; display: grid; gap: 9px; }
+.outlineRow { display: flex; gap: 16px; align-items: baseline; }
+.outlineLeft {
+  width: 108px; flex: none;
+  font-size: 12.5px;
+  color: var(--p-muted);
+  font-variant-numeric: tabular-nums;
+}
+.outlineRight {
+  flex: 1; min-width: 0;
+  font-size: 13.5px;
+  line-height: 1.45;
+  color: var(--p-ink);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
 
 /* Several documents out of one request — a plan with its guide and its
    notes — listed rather than stacked as three separate cards, because

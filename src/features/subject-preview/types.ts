@@ -180,6 +180,19 @@ export type SubjectGroup = {
   divisions: Division[];
   /** Teaching skills whose assignment reaches this class. */
   skills: Skill[];
+  /**
+   * The year this class belongs to, off `classes.academic_year` (§102).
+   *
+   * Null when no `classes` row matches — the table predates the rest of
+   * the product and a teacher who never opened the console has work but
+   * no class row for it. The screens say "not filed under a year" rather
+   * than stamping one on, because guessing which year a term belongs to
+   * is exactly the mistake the column exists to stop.
+   */
+  academicYear: string | null;
+  /** The matching `classes` row(s) — one per division. */
+  classIds: string[];
+  archived: boolean;
   items: Record<KindKey, Item[]>;
   total: number;
   students: number;
@@ -240,6 +253,10 @@ export type TeacherModel = {
   /** Every goal, so the planner can group them by class. */
   units: (Unit & { subject: string | null; grade: string | null })[];
   identity: Identity;
+  /** What the DATABASE says this year is — never computed in the browser. */
+  currentYear: string;
+  /** Every year that has anything in it, newest first. */
+  years: string[];
 };
 
 // ── the student's side of the same structure ─────────────────────────

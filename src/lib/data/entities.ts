@@ -1496,6 +1496,37 @@ export async function weekAhead(from?: string, to?: string) {
   };
 }
 
+// ── the classes a teacher holds (§102) ────────────────────────────────
+//
+// `classes` predates the migration and was written by the console, so it
+// has never had a read path here — every screen derived a "class" from
+// the grade/subject text on the rows it was already loading. It carries
+// the academic year and the archive flag, which is what a year rollover
+// turns on, so it needs one now.
+//
+// Archived classes are returned too, and flagged. A past year is the
+// whole point of archiving rather than deleting; a caller that wants
+// only the current one filters on `is_archived`.
+
+const CLASS_COLS =
+  "id, name, subject, grade, division, class_code, academic_year, is_archived, created_at, updated_at";
+
+export async function listClasses() {
+  const { data, error } = await supabase
+    .from("classes").select(CLASS_COLS)
+    .order("academic_year", { ascending: false })
+    .order("name");
+  if (error) throw error;
+  return data || [];
+}
+
+/** The year a school is in today, decided by the database, not the browser. */
+export async function currentAcademicYear() {
+  const { data, error } = await supabase.rpc("current_academic_year");
+  if (error) throw error;
+  return String(data ?? "");
+}
+
 // ── the curriculum, as structure (§99) ────────────────────────────────
 //
 // Reference data: readable by anyone signed in, writable by nobody.

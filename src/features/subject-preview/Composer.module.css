@@ -282,6 +282,32 @@
 .page .foot { padding: 13px 22px; border-radius: 0 0 15px 15px; }
 .page .field textarea { min-height: 76px; }
 
+/* ── the planner's bottom bar ──────────────────────────────────────── */
+/*
+   The reference ends the conversation with a single bordered composer and
+   no title on it — the opening bubble has already said what this is for,
+   and repeating it in a serif heading two inches below would be the page
+   asking the same question twice. So this is the page variant with its
+   head removed and the two destination controls set side by side above
+   the prompt, which keeps one bordered object rather than three.
+*/
+.bar { max-width: 760px; }
+.bar .head { display: none; }
+.bar .body {
+  padding: 15px 17px;
+  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+/* The prompt and its openings take the full width; only the two pickers
+   share the first row. */
+.bar .body > :nth-child(n + 3) { grid-column: 1 / -1; }
+.bar .foot { padding: 12px 17px; border-radius: 0 0 15px 15px; }
+.bar .field { border-radius: 14px; }
+@media (max-width: 720px) {
+  .bar .body { grid-template-columns: minmax(0, 1fr); }
+  .bar .body > * { grid-column: 1 / -1; }
+}
+
 @media (max-width: 620px) {
   .dock {
     inset-inline: 8px;

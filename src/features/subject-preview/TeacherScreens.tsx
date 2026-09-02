@@ -21,7 +21,7 @@ import {
 import { KINDS, KIND_BY_KEY, type KindKey, type Lesson, type RosterClass, type SubjectGroup, type TeacherModel } from "./types";
 import Composer from "./Composer";
 import ClassSettings from "./ClassSettings";
-import { academicYear } from "./Rollover";
+
 import { KIND_ICON } from "./Shell";
 import type { Route } from "./route";
 import {
@@ -339,7 +339,7 @@ export function SubjectHome({ sub, go, onMake }: { sub: SubjectGroup } & Nav & M
             className={s.sectionLink}
             onClick={() => go({ v: "rollover", s: sub.key })}
           >
-            {academicYear()} · start a new year
+            {sub.academicYear ?? "No year set"} · start a new year
           </button>
         </div>
         {sub.syllabus ? (

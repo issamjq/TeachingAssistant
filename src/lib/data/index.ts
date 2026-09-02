@@ -289,6 +289,13 @@ export async function resolve(
       if (a && method === "DELETE") return yes(await E.deleteStudent(a));
       return { handled: false };
 
+    // The teacher's classes, and the year each one belongs to (§102).
+    case "classes":
+      if (!a && method === "GET") return yes(await E.listClasses());
+      if (a === "current-year" && method === "GET")
+        return yes({ academic_year: await E.currentAcademicYear() });
+      return { handled: false };
+
     case "schedule":
       if (!a && method === "GET") return yes(await E.listSchedule(q));
       if (!a && method === "POST") return yes(await E.createSchedule(body));
