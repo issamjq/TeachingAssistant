@@ -100,14 +100,7 @@ scaffold them rather than assume them.
   than no callback at all.
 - **Never name a child**, even if you somehow have the data.
 
-## §4 · Also worth doing, cheaply
-
-**Set `goal_days.draft_id` when a day is drafted** (from
-[12 · goal days](12-goal-days.md) §4). Independent of this phase, one
-line, and it is what stops a placed term offering to write the same
-lesson twice.
-
-## §5 · A note on the demo account
+## §4 · A note on the demo account
 
 `npm run db:demo` now writes a per-question breakdown on graded attempts,
 because it previously wrote only a total and this feature had nothing to

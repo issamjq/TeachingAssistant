@@ -49,7 +49,12 @@ function draftDay(goal, day) {
 
   try {
     sessionStorage.setItem(PREFILL_KEY, JSON.stringify({
-      action: "create_work", prompt: brief, kind: "lesson_plan", at: Date.now(),
+      action: "create_work", prompt: brief, kind: "lesson_plan",
+      // Travels to the service on the generate call, which sets the
+      // day's draft_id and marks it drafted — so the plan stops
+      // offering to write Tuesday's lesson a second time.
+      goal_day_id: day.id,
+      at: Date.now(),
     }));
   } catch { /* a brief she can retype is better than a crash */ }
   navigate(["studio"]);

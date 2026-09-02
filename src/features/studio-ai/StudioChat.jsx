@@ -711,6 +711,7 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
    * made later still files under the class the work was written for.
    */
   const classSel = useRef(null);
+  const goalDayRef = useRef(null);
   // A ref carries the pick into send(); this mirrors it so the signal
   // above the composer can re-render when she changes class.
   const [pickedClass, setPickedClass] = useState(null);
@@ -890,6 +891,10 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
       const text = [pre.prompt, pre.topic, pre.title, pre.description]
         .find((v) => typeof v === "string" && v.trim());
       const kind = typeof pre.kind === "string" && KIND_META[pre.kind] ? pre.kind : null;
+      // A day of a placed term. Carried through the send so the service
+      // can mark that day drafted; it survives exactly one generation,
+      // because the second lesson she writes is not that Tuesday.
+      if (typeof pre.goal_day_id === "string") goalDayRef.current = pre.goal_day_id;
       if (text) setDraft(String(text).trim());
       if (kind) setKinds([kind]);
       // send() takes the text as an argument rather than reading `draft`,
@@ -1224,7 +1229,7 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
    * agent reads the conversation itself, so all this does is carry
    * frames onto the screen.
    */
-  const runAgentTurn = useCallback(async (prompt, atts, hint, display, forClass = null) => {
+  const runAgentTurn = useCallback(async (prompt, atts, hint, display, forClass = null, goalDay = null) => {
     const controller = new AbortController();
     abortRef.current = controller;
 
@@ -1349,6 +1354,9 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
           message,
           ...(sid ? { sessionId: sid } : {}),
           ...(atts.length ? { materials: atts.map((a) => ({ id: a.id, name: a.name })) } : {}),
+          // The parameter, not the ref: send() spends the marker before
+          // calling this, so the ref is already null by now.
+          ...(goalDay ? { goal_day_id: goalDay } : {}),
           ...(skillSel.current && !skillSel.current.all ? { skill_ids: skillSel.current.ids } : {}),
         },
         onEvent: (ev) => {
@@ -1915,6 +1923,10 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
             : [];
       kindsTouched.current = false;
       const atts = opts.attachments ?? attachments;
+      // Spent here: the day is marked drafted by THIS turn, and the next
+      // thing she writes is not that Tuesday.
+      const goalDay = goalDayRef.current;
+      goalDayRef.current = null;
       setDraft("");
       setAttachments([]);
       setNotice(null);
@@ -1929,7 +1941,7 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
       }
       // The class pick travels with the turn; a slot answer is not a
       // brief, so it carries none.
-      return runAgentTurn(prompt, atts, hint, opts.display, opts.skipAsk ? null : classSel.current);
+      return runAgentTurn(prompt, atts, hint, opts.display, opts.skipAsk ? null : classSel.current, goalDay);
     }
 
     const ks = opts.kinds?.length
@@ -1948,6 +1960,9 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
     kindsTouched.current = false;
     const k = ks[0];
     const atts = opts.attachments ?? attachments;
+    // Spent here, for the same reason as the agent path above.
+    const goalDay = goalDayRef.current;
+    goalDayRef.current = null;
 
     setDraft("");
     setAttachments([]);
@@ -2174,6 +2189,7 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
           kinds: ks,
           prompt: carried,
           materials: atts.map((a) => ({ id: a.id, name: a.name })),
+        ...(goalDay ? { goal_day_id: goalDay } : {}),
           // Explicit only when the teacher narrowed the pick — "all
           // selected" omits the field so the service's assignment-aware
           // defaults decide. See todo/backend/08-skills-refinement.md.

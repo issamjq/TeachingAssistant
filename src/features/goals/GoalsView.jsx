@@ -127,6 +127,7 @@ function NewGoal({ onCreated, onClose }) {
   // Carried straight onto the goal when the unit came from the
   // curriculum, so the plan already knows who it is for.
   const [pickedClass, setPickedClass] = useState(null);
+  const [periods, setPeriods] = useState(null);
   const [busy, setBusy] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState(null);
@@ -164,6 +165,7 @@ function NewGoal({ onCreated, onClose }) {
           title, brief, timeline_days: days ?? 42,
           material_ids: docs.map((d) => d.id),
           ...(pickedClass || {}),
+          ...(periods ? { periods_per_week: periods } : {}),
         },
       });
       onCreated(goal);
@@ -250,6 +252,36 @@ function NewGoal({ onCreated, onClose }) {
                 ? "Not sure what that means — say it as days, weeks, or a date to work towards."
                 : "Days, weeks, a term, or the date you are working towards."}
           </p>
+        </div>
+
+        {/* Asked BEFORE planning, not at placement, because it changes
+            the plan's shape rather than its dates: the same unit over two
+            periods a week and over five is a different number of lessons,
+            not the same plan spread thinner. */}
+        <div>
+          <label className={s.label} htmlFor="goal-periods">
+            How many periods a week? <span className="font-normal text-muted">— optional</span>
+          </label>
+          <div className="flex items-center gap-1.5" id="goal-periods">
+            {[1, 2, 3, 4, 5].map((n) => (
+              <button
+                key={n}
+                type="button"
+                onClick={() => setPeriods((p) => (p === n ? null : n))}
+                aria-pressed={periods === n}
+                className={`h-9 w-9 rounded-lg border text-[13px] ${
+                  periods === n ? "border-ink bg-ink text-paper" : "border-line text-ink-soft"
+                }`}
+              >
+                {n}
+              </button>
+            ))}
+            <span className="text-[12px] text-muted ms-2">
+              {periods
+                ? `About ${periods} lesson${periods === 1 ? "" : "s"} a week.`
+                : "Murchid will guess if you skip this."}
+            </span>
+          </div>
         </div>
 
         <div>
@@ -624,7 +656,25 @@ export default function GoalsView() {
     try {
       // The planner lives on the API service — it needs the model key and
       // reads the teacher's skills server-side. See todo/backend/01.
-      const res = await api("/api/studio/goal-plan", { method: "POST", body: { goal_id: id } });
+      //
+      // The class and the pattern travel with it. periods_per_week is the
+      // fact that most changes a plan's SHAPE — the same unit over two
+      // periods a week and over five is a different number of lessons,
+      // not the same plan paced differently — and the class is what
+      // decides which of her saved skills ground the term.
+      const g = goals?.find((x) => x.id === id);
+      const res = await api("/api/studio/goal-plan", {
+        method: "POST",
+        body: {
+          goal_id: id,
+          ...(g?.grade
+            ? { class: { grade: g.grade, subject: g.subject, section: g.section } }
+            : {}),
+          ...(g?.start_date ? { start_date: g.start_date } : {}),
+          ...(g?.periods_per_week ? { periods_per_week: g.periods_per_week } : {}),
+          ...(g?.material_ids?.length ? { material_ids: g.material_ids } : {}),
+        },
+      });
       // The service answers { goal, unread_materials }. Spreading the raw
       // envelope onto the row left status/plan untouched, so a finished
       // plan looked like the button had done nothing.

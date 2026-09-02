@@ -105,15 +105,14 @@ human decision and a seed-file edit.
 ## §4 · The other thing this unlocks
 
 Once a goal starts from a unit, it carries `grade` and `subject` from the
-first save, so Phase 2's placement already knows the class. Combined with
-[12 · goal days](12-goal-days.md), the chain is:
+first save, so placement already knows the class. The chain then reads:
 
 > curriculum unit → a goal that knows its class → a dated week-by-week
 > plan → lessons on the timetable → drafted material → and, after a
 > quiz, the weak-spot signal feeding the next lesson.
 
-That is the whole product in one line, and every link but the outcomes in
-§12 now exists.
+Every link exists today except the one this file asks for: a sequence
+for the classes nobody has authored.
 
 ---
 
