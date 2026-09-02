@@ -9,11 +9,20 @@ sign-in until item 2. *(Pruned 2026-08-12 to open work only.)*
 
 ## 🔴 Blocking — sign-in is broken until these are done
 
-### 1. Turn OFF "Confirm email"
+> **2 Sep 2026:** §1 is done. §2 (Azure) is not a blocker in practice —
+> the Outlook button is disabled with a "Soon" badge, so nothing is
+> broken by its absence. The live sign-up blocker is now the **mail
+> sending domain**, tracked in [backend/00-open.md](backend/00-open.md):
+> until Resend is out of test mode, verification codes reach only the
+> account owner.
+
+### 1. Turn OFF "Confirm email" — ✅ DONE (2 Sep 2026)
 
 **Where:** Supabase dashboard → Authentication → Providers → Email → *Confirm email*
 
-**Why it blocks:** the project currently reports `mailer_autoconfirm: false`.
+Kept for the reasoning, which still explains why the 6-digit code exists.
+
+**Why it blocked:** the project reported `mailer_autoconfirm: false`.
 With confirmation on, `signUp()` returns a user but **no session** — so the very
 next call in the sign-up flow (`POST /api/auth/email-verify/send`, which reads
 the email off the access token) has no token to send and fails.

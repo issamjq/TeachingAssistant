@@ -164,6 +164,9 @@ export const PRIVACY: Section[] = [
         p: "One exception, and it is about the class rather than any child in it: where a class has recently scored poorly on a question, that question and two figures — how many pupils answered it and the class average — may be sent so the new material re-teaches the sticking point. No pupil's name, identifier or individual score is included, and nothing identifies who answered what.",
       },
       {
+        p: "A file you upload is also read once and indexed, so that later lessons can draw on it without you attaching it again. Reading it sends its text to the same providers; indexing stores the passages and a numerical fingerprint of each, kept against your account and readable only by you. Material we publish ourselves is indexed separately and is the only kind shared between teachers — your books and notes are never added to anyone else's shelf.",
+      },
+      {
         p: "Your email address, account identifier and payment records are never sent to an AI provider.",
       },
     ],
