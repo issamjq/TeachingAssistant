@@ -21,11 +21,15 @@ import { KINDS, type KindKey } from "./types";
 import type { StudentModel, SubjectGroup, TeacherModel } from "./types";
 import { loadStudent, loadTeacher } from "./model";
 import Shell, { type Crumb, type SideSubject } from "./Shell";
-import { HOME, parse, roleOf, serialise, type Route } from "./route";
+import { HOME, parse, roleOf, serialise, subjectOf, type Route, type Surface } from "./route";
 import { Failed, Loading, classLine } from "./parts";
 import { Home, KindList, Library, SubjectHome, Week } from "./TeacherScreens";
 import { Detail } from "./Detail";
 import { StudentHome, StudentSubjectView } from "./StudentScreens";
+import GoalPlanner from "./GoalPlanner";
+import Composer from "./Composer";
+import AdminHome, { grantedSurfaces, isAdmin } from "./AdminScreens";
+import Rollover, { academicYear } from "./Rollover";
 
 export default function SubjectPreview() {
   const [route, setRoute] = useState<Route>(HOME);
@@ -35,6 +39,13 @@ export default function SubjectPreview() {
   const [student, setStudent] = useState<StudentModel | null>(null);
   const [studentError, setStudentError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
+  // The studio is a panel over whatever screen you are on, not a place.
+  const [studioOpen, setStudioOpen] = useState(false);
+  const [studioKind, setStudioKind] = useState<KindKey | null>(null);
+  const openStudio = useCallback((k?: KindKey) => {
+    setStudioKind(k ?? null);
+    setStudioOpen(true);
+  }, []);
 
   const role = roleOf(route);
 
@@ -74,8 +85,17 @@ export default function SubjectPreview() {
   }, [role, student, reload]);
 
   const onRole = useCallback(
-    (r: "teacher" | "student") => go(r === "teacher" ? HOME : { v: "student" }),
+    (r: Surface) => go(r === "teacher" ? HOME : r === "student" ? { v: "student" } : { v: "admin" }),
     [go],
+  );
+
+  // Admin is offered off the account's real grants, never off a guess:
+  // `roles` from my_roles(), plus the resolved admin.* capability map.
+  const identity = teacher?.identity ?? null;
+  const showAdmin = !!identity && isAdmin(identity);
+  const consoles = useMemo(
+    () => (identity ? grantedSurfaces(identity).map(({ key, label, icon }) => ({ key, label, icon })) : []),
+    [identity],
   );
 
   const sideSubjects: SideSubject[] = useMemo(
@@ -83,7 +103,8 @@ export default function SubjectPreview() {
       (teacher?.subjects ?? []).map((sub) => ({
         key: sub.key,
         name: sub.name,
-        grade: sub.grades[0] ? classLine(sub.grades[0], null) : null,
+        grade: sub.grade ? classLine(sub.grade, null) : null,
+        gradeKey: sub.gradeKey,
         counts: Object.fromEntries(
           KINDS.map((k) => [k.key, sub.items[k.key].length]),
         ) as Record<KindKey, number>,
@@ -103,10 +124,12 @@ export default function SubjectPreview() {
   );
 
   // ── what this route is called, and how you got here ────────────────
+  // subjectOf() already knows which routes carry a class key; asking it
+  // rather than repeating the list is what stops the next route added
+  // from resolving to null the way `rollover` just did.
+  const subjectKey = subjectOf(route);
   const subject: SubjectGroup | null =
-    (route.v === "subject" || route.v === "kind" || route.v === "item") && teacher
-      ? teacher.subjects.find((x) => x.key === route.s) ?? null
-      : null;
+    subjectKey && teacher ? teacher.subjects.find((x) => x.key === subjectKey) ?? null : null;
 
   const studentSubject =
     route.v === "studentSubject" && student
@@ -122,20 +145,31 @@ export default function SubjectPreview() {
         title = "This week";
         crumbs = [{ label: "Home", to: HOME }];
         break;
+      case "planner":
+        title = "Goal planner";
+        crumbs = [{ label: "Home", to: HOME }];
+        break;
       case "library":
         title = "My library";
         crumbs = [{ label: "Home", to: HOME }];
         break;
+      case "rollover":
+        title = `A new year for ${subject?.name ?? "this class"}`;
+        crumbs = [
+          { label: subject?.name ?? "Class", to: { v: "subject", s: route.s } },
+          { label: academicYear() },
+        ];
+        break;
       case "subject":
         title = subject?.name ?? "Subject";
-        crumbs = subject?.grades[0] ? [{ label: classLine(subject.grades[0], null) }] : [];
+        crumbs = subject?.grade ? [{ label: classLine(subject.grade, null) }] : [];
         break;
       case "kind": {
         const def = KINDS.find((k) => k.key === route.k);
         title = def?.label ?? "Materials";
         crumbs = [
           { label: subject?.name ?? "Subject", to: { v: "subject", s: route.s } },
-          ...(subject?.grades[0] ? [{ label: classLine(subject.grades[0], null) }] : []),
+          ...(subject?.grade ? [{ label: classLine(subject.grade, null) }] : []),
         ];
         break;
       }
@@ -152,6 +186,9 @@ export default function SubjectPreview() {
       default:
         title = teacher ? `Good day, ${teacher.name.split(" ")[0]}.` : "Home";
     }
+  } else if (role === "admin") {
+    title = "Platform";
+    crumbs = [{ label: "Preview" }];
   } else if (route.v === "studentSubject") {
     title = studentSubject?.subject ?? "Subject";
     crumbs = [
@@ -163,7 +200,13 @@ export default function SubjectPreview() {
   }
 
   const who =
-    role === "teacher"
+    role === "admin"
+      ? {
+          name: teacher?.name ?? "…",
+          initials: teacher?.initials ?? "—",
+          role: identity?.roles.join(" · ") || "Admin",
+        }
+      : role === "teacher"
       ? { name: teacher?.name ?? "…", initials: teacher?.initials ?? "—", role: teacher?.school ?? "Teacher" }
       : {
           name: student?.name ?? "…",
@@ -181,11 +224,31 @@ export default function SubjectPreview() {
       crumbs={crumbs}
       subjects={sideSubjects}
       studentSubjects={studentSideSubjects}
+      showAdmin={showAdmin}
+      adminSurfaces={consoles}
       fab={role === "teacher" ? "Ask the studio" : "Ask for help"}
+      onFab={() => setStudioOpen(true)}
     >
-      {role === "teacher"
-        ? renderTeacher()
-        : renderStudent()}
+      {role === "teacher" ? renderTeacher() : role === "admin" ? renderAdmin() : renderStudent()}
+
+      {/* Open over any screen, already knowing what that screen is
+          about. The class and kind below are the whole proposal: a
+          teacher standing in Physics → Quizzes has already said what she
+          is making and who for, and being asked again is the friction
+          this removes. */}
+      {studioOpen && teacher && role === "teacher" && (
+        <Composer
+          classes={teacher.subjects}
+          rosterClasses={teacher.rosterClasses}
+          contextClass={subject}
+          contextKind={studioKind ?? (route.v === "kind" || route.v === "item" ? route.k : null)}
+          starters={(subject?.units ?? [])
+            .filter((u) => u.status !== "achieved")
+            .slice(0, 3)
+            .map((u) => u.title)}
+          onClose={() => { setStudioOpen(false); setStudioKind(null); }}
+        />
+      )}
     </Shell>
   );
 
@@ -196,20 +259,41 @@ export default function SubjectPreview() {
     switch (route.v) {
       case "week":
         return <Week m={teacher} go={go} />;
+      case "planner":
+        return (
+          <GoalPlanner
+            classes={teacher.subjects}
+            rosterClasses={teacher.rosterClasses}
+            units={teacher.units}
+            go={go}
+          />
+        );
+      case "rollover":
+        return subject ? <Rollover sub={subject} go={go} /> : <Missing what="class" go={go} />;
       case "library":
         return <Library m={teacher} go={go} />;
       case "subject":
-        return subject ? <SubjectHome sub={subject} go={go} /> : <Missing what="subject" go={go} />;
+        return subject
+          ? <SubjectHome sub={subject} go={go} onMake={openStudio} />
+          : <Missing what="class" go={go} />;
       case "kind":
-        return subject ? <KindList sub={subject} kind={route.k} go={go} /> : <Missing what="subject" go={go} />;
+        return subject
+          ? <KindList sub={subject} kind={route.k} go={go} classes={teacher.subjects} rosterClasses={teacher.rosterClasses} />
+          : <Missing what="class" go={go} />;
       case "item": {
         if (!subject) return <Missing what="subject" go={go} />;
         const item = subject.items[route.k].find((x) => x.id === route.id);
         return item ? <Detail sub={subject} item={item} go={go} /> : <Missing what="piece of work" go={go} />;
       }
       default:
-        return <Home m={teacher} go={go} />;
+        return <Home m={teacher} go={go} onMake={openStudio} />;
     }
+  }
+
+  function renderAdmin() {
+    if (teacherError) return <Failed message={teacherError} onRetry={() => setReload((n) => n + 1)} />;
+    if (!identity) return <Loading rows={2} />;
+    return <AdminHome identity={identity} />;
   }
 
   function renderStudent() {

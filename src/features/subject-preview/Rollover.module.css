@@ -1,0 +1,180 @@
+/* Starting a year over. Two columns because there are exactly two
+   answers — what comes with you and what does not — and setting them
+   side by side is the argument: a new year is a copy, not a clear-out. */
+
+.note {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  padding: 13px 16px;
+  border-radius: 16px;
+  background: color-mix(in oklab, var(--p-accent) 8%, var(--p-paper-cool));
+  box-shadow: 0 0 0 1px color-mix(in oklab, var(--p-accent) 26%, transparent);
+}
+.note p { margin: 0; font-size: 12.5px; line-height: 1.55; color: var(--p-ink-soft); }
+.note b { color: var(--p-ink); font-weight: 600; }
+.note code {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  padding: 1px 5px;
+  border-radius: 6px;
+  background: color-mix(in oklab, var(--p-ink) 7%, transparent);
+}
+.noteIcon {
+  width: 26px; height: 26px; flex: none;
+  display: grid; place-items: center;
+  border-radius: 10px;
+  background: var(--p-accent-soft);
+  color: var(--p-accent-hover);
+}
+
+.split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 330px;
+  gap: 18px;
+  align-items: start;
+}
+@media (max-width: 1040px) { .split { grid-template-columns: minmax(0, 1fr); } }
+
+/* ── what you keep ─────────────────────────────────────────────────── */
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 11px 18px;
+  border-top: 1px solid var(--p-line-soft);
+}
+.row:first-child { border-top: 0; }
+
+/* A checkbox that draws its own three states. The native control cannot
+   show "some of these", which is the state a half-picked deck is in. */
+.box {
+  width: 18px; height: 18px; flex: none;
+  display: grid; place-items: center;
+  border: 1px solid var(--p-line-strong);
+  /* Off the 10/16 scale on purpose: 10px on an 18px box is a circle, and
+     a round checkbox reads as a radio — "pick one of these" rather than
+     "keep this". The one control in the system that needs its own. */
+  border-radius: 6px;
+  background: var(--p-paper);
+  color: var(--p-on-accent);
+  cursor: pointer;
+  transition: background-color var(--dur-hover) var(--ease-out-quart),
+              border-color var(--dur-hover) var(--ease-out-quart);
+}
+.box[data-state="on"], .box[data-state="some"] {
+  background: var(--p-accent);
+  border-color: var(--p-accent);
+}
+.box:hover { border-color: var(--p-accent); }
+.box:disabled { opacity: 0.4; cursor: not-allowed; }
+.box:disabled:hover { border-color: var(--p-line-strong); }
+/* Nothing to carry is not a choice to make. */
+.row[data-empty="true"] .rowName, .row[data-empty="true"] .rowCount { opacity: 0.5; }
+/* Half the bar's height: the cap of a 2px line, not a corner. */
+.dash { width: 8px; height: 2px; border-radius: 2px; background: currentColor; }
+
+.rowIcon {
+  width: 18px; flex: none;
+  display: grid; place-items: center;
+  color: var(--p-muted);
+}
+.rowName { flex: 1; min-width: 0; font-size: 14px; font-weight: 500; }
+.rowCount {
+  font-size: 12.5px; color: var(--p-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.expand {
+  display: inline-flex; align-items: center; gap: 3px;
+  border: 0; background: transparent; padding: 0 0 0 6px;
+  font: inherit; font-size: 12.5px;
+  color: var(--p-accent);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.expand:hover { text-decoration: underline; text-underline-offset: 3px; }
+.expand svg { transition: transform var(--dur-hover) var(--ease-out-quart); }
+.expand[aria-expanded="true"] svg { transform: rotate(90deg); }
+
+.items {
+  display: grid;
+  padding: 2px 18px 10px 47px;
+  background: color-mix(in oklab, var(--p-ink) 3%, transparent);
+}
+.item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 6px 0;
+  cursor: pointer;
+}
+.itemName {
+  flex: 1; min-width: 0;
+  font-size: 13px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.itemMeta { font-size: 11.5px; color: var(--p-muted); white-space: nowrap; }
+
+/* ── what starts fresh ─────────────────────────────────────────────── */
+
+.left { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+.left li { display: flex; align-items: flex-start; gap: 10px; }
+.left li > span:last-child { display: grid; gap: 1px; }
+.left b { font-size: 13.5px; font-weight: 600; }
+.left span span { font-size: 12.5px; color: var(--p-muted); line-height: 1.45; }
+.leftIcon {
+  width: 22px; height: 22px; flex: none;
+  display: grid; place-items: center;
+  border-radius: 10px;
+  background: color-mix(in oklab, var(--p-ink) 7%, transparent);
+  color: var(--p-muted);
+}
+.leftFoot {
+  margin: 14px 0 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--p-line-soft);
+  font-size: 12.5px;
+  color: var(--p-muted);
+  line-height: 1.5;
+}
+
+/* ── the commitment ────────────────────────────────────────────────── */
+
+.commit {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  flex-wrap: wrap;
+  padding: 18px 20px;
+  border-radius: 16px;
+  background: var(--p-invert);
+  color: var(--p-on-invert);
+}
+.commitText { flex: 1; min-width: 240px; }
+.commitTitle {
+  font-family: var(--font-serif);
+  font-weight: 400;
+  font-size: 19px;
+  letter-spacing: -0.018em;
+  margin: 0 0 4px;
+}
+.commitNote {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: color-mix(in oklab, var(--p-on-invert) 74%, transparent);
+  max-width: 62ch;
+}
+.commitNote b { color: var(--p-on-invert); font-weight: 600; }
+.commitActions { display: flex; gap: 10px; flex-wrap: wrap; }
+
+.disabled {
+  margin: 10px 2px 0;
+  font-size: 12px;
+  color: var(--p-muted);
+  line-height: 1.5;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .box, .expand svg { transition: none; }
+}

@@ -1,0 +1,288 @@
+/* =====================================================================
+   The composer — where a generation gets its destination
+
+   The argument this makes visually: the destination is ALREADY decided,
+   and the controls are there to correct it, not to fill it in. So the
+   class and the kind read as a sentence at the top of the panel rather
+   than as two empty dropdowns, and the footer says in words where the
+   result will land before anything is generated.
+   ===================================================================== */
+
+.dock {
+  position: fixed;
+  inset-inline-end: 22px;
+  inset-block-end: 22px;
+  z-index: 40;
+  width: min(408px, calc(100vw - 32px));
+  max-height: min(640px, calc(100vh - 120px));
+  display: flex;
+  flex-direction: column;
+  border-radius: 16px;
+  background: var(--p-paper-cool);
+  box-shadow: var(--shadow-3);
+  overflow: hidden;
+  animation: dockIn var(--dur-transition) var(--ease-out-expo) both;
+}
+@keyframes dockIn {
+  from { transform: translateY(14px) scale(0.985); }
+  to { transform: none; }
+}
+
+.head {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 14px 14px 10px;
+  flex: none;
+}
+.headText { flex: 1; min-width: 0; }
+.headTitle {
+  font-family: var(--font-serif);
+  font-weight: 400;
+  font-size: 18px;
+  letter-spacing: -0.018em;
+  line-height: 1.2;
+  margin: 0;
+}
+.headNote { font-size: 12px; color: var(--p-muted); margin: 2px 0 0; line-height: 1.45; }
+.close {
+  width: 28px; height: 28px; flex: none;
+  display: grid; place-items: center;
+  border: 0; border-radius: 999px;
+  background: transparent;
+  color: var(--p-muted);
+  cursor: pointer;
+  transition: background-color var(--dur-hover) var(--ease-out-quart), color var(--dur-hover) var(--ease-out-quart);
+}
+.close:hover { background: color-mix(in oklab, var(--p-ink) 7%, transparent); color: var(--p-ink); }
+
+.body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0 14px 14px;
+  display: grid;
+  gap: 12px;
+  align-content: start;
+  scrollbar-width: thin;
+  scrollbar-color: var(--p-line-strong) transparent;
+}
+.body::-webkit-scrollbar { width: 8px; }
+.body::-webkit-scrollbar-thumb {
+  background: var(--p-line-strong);
+  border-radius: 99px;
+  border: 2px solid var(--p-paper-cool);
+}
+
+/* ── the destination, said as a sentence ───────────────────────────── */
+
+.label {
+  display: block;
+  font-size: 11.5px;
+  color: var(--p-muted);
+  margin-bottom: 6px;
+}
+
+.kinds { display: flex; flex-wrap: wrap; gap: 6px; }
+.kind {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 12px;
+  border: 1px solid var(--p-line);
+  border-radius: 999px;
+  background: var(--p-paper);
+  color: var(--p-ink-soft);
+  font: inherit; font-size: 12.5px;
+  cursor: pointer;
+  transition: border-color var(--dur-hover) var(--ease-out-quart),
+              background-color var(--dur-hover) var(--ease-out-quart),
+              color var(--dur-hover) var(--ease-out-quart);
+}
+.kind:hover { border-color: var(--p-line-strong); color: var(--p-ink); }
+.kind[data-on="true"] {
+  background: color-mix(in oklab, var(--p-accent) 13%, transparent);
+  border-color: color-mix(in oklab, var(--p-accent) 38%, transparent);
+  color: var(--p-accent-hover);
+  font-weight: 600;
+}
+
+.pickWrap { position: relative; }
+.pick {
+  width: 100%;
+  display: flex; align-items: center; gap: 9px;
+  padding: 9px 12px;
+  border: 1px solid var(--p-line);
+  border-radius: 10px;
+  background: var(--p-paper);
+  color: var(--p-ink);
+  font: inherit; font-size: 13.5px;
+  text-align: start;
+  cursor: pointer;
+  transition: border-color var(--dur-hover) var(--ease-out-quart);
+}
+.pick:hover { border-color: var(--p-line-strong); }
+.pick[aria-expanded="true"] { border-color: var(--p-accent); }
+.pickText { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pickNew { color: var(--p-accent); font-size: 11.5px; white-space: nowrap; }
+
+.menu {
+  position: absolute;
+  inset-inline: 0;
+  top: calc(100% + 5px);
+  z-index: 2;
+  max-height: 264px;
+  overflow-y: auto;
+  padding: 6px;
+  border-radius: 16px;
+  background: var(--p-paper-cool);
+  box-shadow: var(--shadow-3);
+}
+.menuHead {
+  padding: 8px 10px 4px;
+  font-size: 11px;
+  color: var(--p-muted);
+}
+.menuItem {
+  width: 100%;
+  display: flex; align-items: center; gap: 8px;
+  padding: 7px 10px;
+  border: 0; border-radius: 10px;
+  background: transparent;
+  color: var(--p-ink);
+  font: inherit; font-size: 13px;
+  text-align: start;
+  cursor: pointer;
+  transition: background-color var(--dur-hover) var(--ease-out-quart);
+}
+.menuItem:hover { background: color-mix(in oklab, var(--p-ink) 6%, transparent); }
+.menuItem[data-on="true"] {
+  background: color-mix(in oklab, var(--p-accent) 12%, transparent);
+  color: var(--p-accent-hover);
+  font-weight: 600;
+}
+.menuName { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.menuMeta { font-size: 11.5px; color: var(--p-muted); }
+.menuItem[data-on="true"] .menuMeta { color: inherit; }
+.menuRule { height: 1px; background: var(--p-line-soft); margin: 6px 4px; }
+.menuAdd { color: var(--p-accent); }
+
+.newRow { display: grid; grid-template-columns: minmax(0, 1fr) 96px auto; gap: 6px; padding: 6px 4px; }
+.newRow input {
+  min-width: 0;
+  padding: 7px 11px;
+  border: 1px solid var(--p-line);
+  border-radius: 10px;
+  background: var(--p-paper);
+  font: inherit; font-size: 13px; color: var(--p-ink);
+  outline: none;
+}
+.newRow input:focus {
+  border-color: var(--p-accent);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--p-accent) 16%, transparent);
+}
+
+.sections { display: flex; flex-wrap: wrap; gap: 6px; }
+
+/* ── the prompt ────────────────────────────────────────────────────── */
+
+.field {
+  border: 1px solid var(--p-line);
+  border-radius: 10px;
+  background: var(--p-paper);
+  padding: 10px 12px;
+  transition: border-color var(--dur-hover) var(--ease-out-quart),
+              box-shadow var(--dur-hover) var(--ease-out-quart);
+}
+.field:focus-within {
+  border-color: var(--p-accent);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--p-accent) 16%, transparent);
+}
+.field textarea {
+  width: 100%;
+  min-height: 62px;
+  max-height: 168px;
+  resize: none;
+  border: 0; background: transparent; outline: none;
+  font: inherit; font-size: 14px; line-height: 1.5; color: var(--p-ink);
+}
+.field textarea::placeholder { color: var(--p-muted); }
+
+.starters { display: flex; flex-wrap: wrap; gap: 6px; }
+.starter {
+  padding: 6px 12px;
+  border: 1px solid var(--p-line);
+  border-radius: 999px;
+  background: var(--p-paper);
+  color: var(--p-ink-soft);
+  font: inherit; font-size: 12.5px;
+  text-align: start;
+  cursor: pointer;
+  transition: border-color var(--dur-hover) var(--ease-out-quart), color var(--dur-hover) var(--ease-out-quart);
+}
+.starter:hover { border-color: var(--p-accent); color: var(--p-accent); }
+
+/* ── where it lands ────────────────────────────────────────────────── */
+
+.foot {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 14px;
+  border-top: 1px solid var(--p-line-soft);
+  background: var(--p-paper-warm);
+}
+.footText { flex: 1; min-width: 0; font-size: 12px; color: var(--p-muted); line-height: 1.4; }
+.footText b { color: var(--p-ink); font-weight: 600; }
+.footNew { color: var(--p-accent); }
+
+.send {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 9px 17px;
+  border: 0; border-radius: 999px;
+  background: var(--p-accent);
+  color: var(--p-on-accent);
+  font: inherit; font-size: 13px; font-weight: 500;
+  cursor: pointer;
+  flex: none;
+  transition: background-color var(--dur-hover) var(--ease-out-quart),
+              transform var(--dur-press) var(--ease-out-quart);
+}
+.send:hover:not(:disabled) { background: var(--p-accent-hover); }
+.send:active:not(:disabled) { transform: scale(0.97); }
+.send:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* ── the same composer, run full width on the planner ──────────────── */
+
+.page {
+  border: 1.5px solid color-mix(in oklab, var(--p-accent) 42%, transparent);
+  border-radius: 16px;
+  background: var(--p-paper-cool);
+  overflow: visible;
+}
+.page .head { padding: 20px 22px 12px; }
+.page .headTitle { font-size: 24px; letter-spacing: -0.022em; }
+.page .headNote { font-size: 13.5px; }
+.page .body { padding: 0 22px 18px; overflow: visible; gap: 14px; }
+/* 15, not 16: this is the inner edge of a 16px surface with a 1.5px
+   border, and radii decrease inward or the corner shows a sliver of
+   paper between the footer and the panel edge. */
+.page .foot { padding: 13px 22px; border-radius: 0 0 15px 15px; }
+.page .field textarea { min-height: 76px; }
+
+@media (max-width: 620px) {
+  .dock {
+    inset-inline: 8px;
+    inset-block-end: 8px;
+    width: auto;
+    max-height: min(78vh, 620px);
+  }
+  .newRow { grid-template-columns: minmax(0, 1fr); }
+  .foot { flex-wrap: wrap; }
+  .footText { flex: 1 1 100%; }
+  .send { margin-inline-start: auto; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dock { animation: none; }
+  .kind, .pick, .starter, .send, .menuItem, .close { transition: none; }
+}

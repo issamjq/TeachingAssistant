@@ -18,7 +18,10 @@ import {
   BookMarked, CalendarDays, CheckCheck, FileWarning, FolderOpen,
   Pencil, RefreshCw, Sparkles, Upload,
 } from "lucide-react";
-import { KINDS, KIND_BY_KEY, type KindKey, type Lesson, type SubjectGroup, type TeacherModel } from "./types";
+import { KINDS, KIND_BY_KEY, type KindKey, type Lesson, type RosterClass, type SubjectGroup, type TeacherModel } from "./types";
+import Composer from "./Composer";
+import ClassSettings from "./ClassSettings";
+import { academicYear } from "./Rollover";
 import { KIND_ICON } from "./Shell";
 import type { Route } from "./route";
 import {
@@ -27,6 +30,8 @@ import {
 import s from "./Screens.module.css";
 
 type Nav = { go: (r: Route) => void };
+/** Open the studio panel, already making this kind. */
+type Make = { onMake: (k: KindKey) => void };
 
 /** The status a timetabled class is in, in the teacher's words. */
 function lessonState(l: { hasPlan: boolean; status: string | null; endTime: string | null; date: string }) {
@@ -42,11 +47,11 @@ function lessonState(l: { hasPlan: boolean; status: string | null; endTime: stri
 
 // ── Home ──────────────────────────────────────────────────────────────
 
-export function Home({ m, go }: { m: TeacherModel } & Nav) {
-  // Which kind the teacher just picked, waiting on a subject. Home is the
-  // one screen with no subject in scope, so rather than guessing one — or
-  // opening a modal for a two-click decision — the grid asks in place.
-  const [pending, setPending] = useState<KindKey | null>(null);
+export function Home({ m, go, onMake }: { m: TeacherModel } & Nav & Make) {
+  // Home is the one screen with no class in scope. It does not have to
+  // guess one or ask before the teacher has said anything: the card opens
+  // the composer on that kind, and the composer already carries a class —
+  // the one she used last, correctable in a tap.
   const missing = m.weekTotal - m.weekWithPlan;
   const firstFour = KINDS.filter((k) =>
     ["lesson_plan", "quiz", "student_notes", "activity"].includes(k.key));
@@ -120,7 +125,7 @@ export function Home({ m, go }: { m: TeacherModel } & Nav) {
           <div>
             <SectionHead
               title="What would you like to make?"
-              meta={pending ? "Pick the class it is for" : "Everything you make belongs to a subject"}
+              meta="The studio opens knowing the class"
             />
             <div className={s.makeGrid}>
               {firstFour.map((k) => {
@@ -130,41 +135,16 @@ export function Home({ m, go }: { m: TeacherModel } & Nav) {
                     key={k.key}
                     type="button"
                     className={`${s.make} ${s.makeWide}`}
-                    data-on={pending === k.key}
-                    onClick={() => setPending(pending === k.key ? null : k.key)}
+                    onClick={() => onMake(k.key)}
                   >
                     <span className={s.makeIcon}><Icon size={17} strokeWidth={1.9} /></span>
                     <span className={s.makeTitle}>{k.label}</span>
                     <span className={s.makeBlurb}>{k.blurb}</span>
-                    <span className={s.makeGo}>
-                      {pending === k.key ? "Which subject?" : "Make one"} <Go />
-                    </span>
+                    <span className={s.makeGo}>Make one <Go /></span>
                   </button>
                 );
               })}
             </div>
-
-            {pending && (
-              <div className={s.chips} style={{ marginTop: 14, marginBottom: 0 }}>
-                <span className={s.sectionMeta} style={{ alignSelf: "center", marginInlineEnd: 4 }}>
-                  {KIND_BY_KEY[pending].one} for
-                </span>
-                {m.subjects.map((sub) => (
-                  <button
-                    key={sub.key}
-                    type="button"
-                    className={s.chip}
-                    onClick={() => go({ v: "kind", s: sub.key, k: pending })}
-                  >
-                    {sub.name}
-                    {sub.grades[0] ? ` · ${classLine(sub.grades[0], null)}` : ""}
-                  </button>
-                ))}
-                {!m.subjects.length && (
-                  <span className={s.sectionMeta}>No subjects yet — add a class first.</span>
-                )}
-              </div>
-            )}
           </div>
         </div>
 
@@ -334,13 +314,14 @@ export function Week({ m, go }: { m: TeacherModel } & Nav) {
 
 const UNIT_DONE = new Set(["achieved"]);
 
-export function SubjectHome({ sub, go }: { sub: SubjectGroup } & Nav) {
+export function SubjectHome({ sub, go, onMake }: { sub: SubjectGroup } & Nav & Make) {
   const [allUnits, setAllUnits] = useState(false);
   const covered = sub.units.filter((u) => UNIT_DONE.has(u.status ?? "")).length;
   const shown = allUnits ? sub.units : sub.units.slice(0, 4);
 
   const facts = [
-    classLine(sub.grades[0] ?? null, sub.sections[0] ?? null),
+    classLine(sub.grade, sub.sections.length === 1 ? sub.sections[0] : null),
+    sub.divisions.length > 1 ? `${sub.divisions.length} divisions` : null,
     sub.students ? `${sub.students} student${sub.students === 1 ? "" : "s"}` : null,
     sub.weekTotal ? `${sub.weekTotal} class${sub.weekTotal === 1 ? "" : "es"} this week` : null,
     sub.total ? `${sub.total} piece${sub.total === 1 ? "" : "s"} of material` : null,
@@ -349,9 +330,18 @@ export function SubjectHome({ sub, go }: { sub: SubjectGroup } & Nav) {
   return (
     <div className={`${s.page} ${s.enter}`}>
       <section>
-        {facts.length > 0 && (
-          <p className={s.sectionMeta} style={{ marginBottom: 10 }}>{facts.join(" · ")}</p>
-        )}
+        <div className={s.sectionHead} style={{ marginBottom: 10 }}>
+          {facts.length > 0 && <span className={s.sectionMeta}>{facts.join(" · ")}</span>}
+          {/* The year the class belongs to, and the way into a new one.
+              Proposed rather than stored — the rollover screen says so. */}
+          <button
+            type="button"
+            className={s.sectionLink}
+            onClick={() => go({ v: "rollover", s: sub.key })}
+          >
+            {academicYear()} · start a new year
+          </button>
+        </div>
         {sub.syllabus ? (
           <div className={s.banner}>
             <span className={s.bannerIcon}><BookMarked size={19} /></span>
@@ -396,7 +386,7 @@ export function SubjectHome({ sub, go }: { sub: SubjectGroup } & Nav) {
                 key={k.key}
                 type="button"
                 className={s.make}
-                onClick={() => go({ v: "kind", s: sub.key, k: k.key })}
+                onClick={() => (n ? go({ v: "kind", s: sub.key, k: k.key }) : onMake(k.key))}
               >
                 <span className={s.makeIcon}><Icon size={17} strokeWidth={1.9} /></span>
                 <span className={s.makeTitle}>{k.label}</span>
@@ -450,44 +440,35 @@ export function SubjectHome({ sub, go }: { sub: SubjectGroup } & Nav) {
           />
         )}
       </section>
+
+      <ClassSettings sub={sub} go={go} />
     </div>
   );
 }
 
 // ── One subject, one kind ─────────────────────────────────────────────
 
-export function KindList({ sub, kind, go }: { sub: SubjectGroup; kind: KindKey } & Nav) {
+export function KindList({
+  sub, kind, go, classes, rosterClasses,
+}: { sub: SubjectGroup; kind: KindKey; classes: SubjectGroup[]; rosterClasses: RosterClass[] } & Nav) {
   const def = KIND_BY_KEY[kind];
   const Icon = KIND_ICON[kind];
   const items = sub.items[kind];
-  const starters = sub.units.filter((u) => !UNIT_DONE.has(u.status ?? "")).slice(0, 2);
 
   return (
     <div className={`${s.page} ${s.enter}`}>
-      <section className={s.compose}>
-        <h2 className={s.composeTitle}>Make a new {def.one}</h2>
-        <p className={s.composeLede}>
-          Type what you need.{" "}
-          {sub.syllabus
-            ? `The studio writes it against your ${sub.name} syllabus.`
-            : `It will be filed under ${sub.name}${sub.grades[0] ? `, ${classLine(sub.grades[0], null)}` : ""}.`}
-        </p>
-        <div className={s.field}>
-          <input
-            placeholder={`A 45-minute ${def.one} on…`}
-            aria-label={`Describe the ${def.one} you want`}
-          />
-          <a className={`${s.btn} ${s.btnMake}`} href="/studio">Create <Go /></a>
-        </div>
-        {starters.length > 0 && (
-          <div className={s.starters}>
-            <span className={s.startersLabel}>Or start with:</span>
-            {starters.map((u) => (
-              <a key={u.id} className={s.starter} href="/studio">{u.title}</a>
-            ))}
-          </div>
-        )}
-      </section>
+      {/* The same composer the launcher opens, run full width — one
+          implementation, so the destination rules cannot drift between
+          the panel and the page. It arrives already set to this class
+          and this kind, which is the whole argument for nesting. */}
+      <Composer
+        classes={classes}
+        rosterClasses={rosterClasses}
+        contextClass={sub}
+        contextKind={kind}
+        variant="page"
+        starters={sub.units.filter((u) => !UNIT_DONE.has(u.status ?? "")).map((u) => u.title)}
+      />
 
       <section>
         <SectionHead

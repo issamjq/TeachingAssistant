@@ -126,14 +126,60 @@ export type Unit = {
   covered: boolean;
 };
 
-export type SubjectGroup = {
-  /** Case-folded, whitespace-collapsed — the grouping key. */
-  key: string;
-  /** As the teacher last typed it. */
+/**
+ * A class: one subject taught to one grade.
+ *
+ * Keyed on subject AND grade, because Grade 8 Science and Grade 9
+ * Science are not the same class — different syllabus, different
+ * material, different children. Grouping on the subject alone put both
+ * behind one sidebar row labelled with whichever grade happened to be
+ * commonest, and quietly merged two terms' work into one library.
+ *
+ * Section is deliberately NOT part of the key. A lesson is written once
+ * for Grade 9 and taught to 9A, 9B and 9C — db/tune.sql §48 says an
+ * entry with a blank section reaches the whole grade — so keying on it
+ * would triple the sidebar for classes that share every file. Sections
+ * stay visible on the class page and in the composer, which is where
+ * delivery is actually decided.
+ *
+ * The key uses normSubject/normGrade from shared/lib/classMatch, the
+ * same mirrors of the SQL the delivery match uses. A sidebar that split
+ * "Math" from "Mathematics" would be showing two classes the database
+ * treats as one.
+ */
+/** One division of a class — `students.division`, which is real today. */
+export type Division = {
   name: string;
-  /** Every grade this subject is taught to, most-used first. */
+  students: number;
+};
+
+/** A teaching_skills row, and whether it is pointed at this class. */
+export type Skill = {
+  id: string;
+  name: string;
+  sourceType: string | null;
+  status: string | null;
+  /** How the assignment reaches this class: "this class", "the grade", … */
+  via: string;
+};
+
+export type SubjectGroup = {
+  /** `${normSubject}|${normGrade}` — the class key. */
+  key: string;
+  /** The subject, as the teacher last typed it. */
+  name: string;
+  /** The grade, as stored. */
+  grade: string | null;
+  /** Normalised grade, for grouping the sidebar. */
+  gradeKey: string;
+  /** Kept for the callers that still ask; always one entry now. */
   grades: string[];
+  /** Every section of this class that appears in the data. */
   sections: string[];
+  /** Those sections with a roster count each — what the settings card shows. */
+  divisions: Division[];
+  /** Teaching skills whose assignment reaches this class. */
+  skills: Skill[];
   items: Record<KindKey, Item[]>;
   total: number;
   students: number;
@@ -154,6 +200,28 @@ export type Waiting = {
   urgent: boolean;
 };
 
+/** One real class off the roster, section and all — what the composer offers. */
+export type RosterClass = {
+  grade: string;
+  subject: string;
+  section: string;
+  count: number;
+};
+
+/**
+ * Which of the three surfaces this account may actually look at.
+ *
+ * `roles` is my_roles() — a person can genuinely hold more than one, and
+ * an admin who also teaches holds both. `permissions` is the resolved
+ * capability map, admin.* half read from role_capabilities in the
+ * database rather than from a constant, so a grant made in Roles & access
+ * shows up here without a deploy.
+ */
+export type Identity = {
+  roles: string[];
+  permissions: Record<string, boolean>;
+};
+
 export type TeacherModel = {
   name: string;
   initials: string;
@@ -167,6 +235,11 @@ export type TeacherModel = {
   waiting: Waiting[];
   /** Every artefact, newest first — what My Library reads. */
   all: Item[];
+  /** Distinct (grade, section, subject) off the roster, for the composer. */
+  rosterClasses: RosterClass[];
+  /** Every goal, so the planner can group them by class. */
+  units: (Unit & { subject: string | null; grade: string | null })[];
+  identity: Identity;
 };
 
 // ── the student's side of the same structure ─────────────────────────

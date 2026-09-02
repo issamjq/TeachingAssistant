@@ -127,6 +127,92 @@
 }
 .groupAction:hover { text-decoration-color: currentColor; }
 
+/* ── finding a class among many ────────────────────────────────────── */
+/*
+   A teacher with four subjects across four grades has sixteen classes,
+   and six kinds under each is a ninety-row rail. Three things keep it
+   short, and each only appears when it is earning its place:
+
+   1. Grade groups, once there is more than one grade. The grade moves
+      into a header instead of repeating on every row, and a whole grade
+      collapses to one line.
+   2. Only the grade you are working in is open. Sixteen classes then
+      draw as four headers, that grade's few subjects, and the open
+      class's six kinds — about fourteen rows however many classes
+      exist, instead of growing without limit.
+   3. A filter, past six classes. Two letters beat any amount of
+      scrolling, and it opens every group that matches.
+*/
+.filterRow {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 4px 2px 6px;
+  padding: 6px 10px;
+  border: 1px solid var(--p-line);
+  border-radius: 999px;
+  background: var(--p-paper);
+  color: var(--p-muted);
+  transition: border-color var(--dur-hover) var(--ease-out-quart),
+              box-shadow var(--dur-hover) var(--ease-out-quart);
+}
+.filterRow:focus-within {
+  border-color: var(--p-accent);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--p-accent) 16%, transparent);
+}
+.filterRow input {
+  flex: 1; min-width: 0;
+  border: 0; background: transparent; outline: none;
+  font: inherit; font-size: 12.5px; color: var(--p-ink);
+}
+.filterRow input::placeholder { color: var(--p-muted); }
+.filterClear {
+  border: 0; background: transparent; padding: 0; display: grid; place-items: center;
+  color: var(--p-muted); cursor: pointer; flex: none;
+}
+.filterClear:hover { color: var(--p-ink); }
+
+.gradeHead {
+  position: sticky;
+  top: -4px;
+  z-index: 1;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 8px;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--p-paper-cool);
+  color: var(--p-muted);
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-align: start;
+  cursor: pointer;
+  transition: color var(--dur-hover) var(--ease-out-quart);
+}
+.gradeHead:hover { color: var(--p-ink); }
+.gradeHead[data-here="true"] { color: var(--p-ink); }
+.gradeName { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gradeCount { font-variant-numeric: tabular-nums; }
+.gradeChev {
+  display: grid; place-items: center; flex: none;
+  transition: transform var(--dur-hover) var(--ease-out-quart);
+}
+.gradeHead[aria-expanded="true"] .gradeChev { transform: rotate(90deg); }
+/* A closed grade still says which class inside it you were last in. */
+.gradeHint {
+  padding: 0 10px 4px 27px;
+  font-size: 11.5px;
+  color: var(--p-muted);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+.noMatch { padding: 10px; font-size: 12.5px; color: var(--p-muted); }
+
 /* A subject row. The dot carries "is this the one I am in" at a glance
    even when the row is collapsed, which a chevron alone does not. */
 .subject {
@@ -448,6 +534,7 @@
 
 
 @media (prefers-reduced-motion: reduce) {
-  .item, .subject, .child, .chev, .fab, .addSubject, .iconBtn { transition: none; }
+  .item, .subject, .child, .chev, .fab, .addSubject, .iconBtn,
+  .gradeHead, .gradeChev, .filterRow { transition: none; }
   .fab:hover { transform: none; }
 }

@@ -14,14 +14,23 @@
 // =====================================================================
 
 import { api } from "@/shared/lib/apiClient";
+// The product's own mirrors of the SQL that decides delivery. Grouping the
+// sidebar with anything else would draw classes the database does not
+// agree exist — "Math" and "Mathematics" as two, for one obvious example.
+import { distinctClasses, normGrade, normSubject } from "@/shared/lib/classMatch";
 import { KINDS, type KindKey } from "./types";
 import type {
-  Item, Lesson, MaterialRow, StudentModel, StudentSubject, StudentWorkItem,
-  SubjectGroup, TeacherModel, Unit, Waiting,
+  Item, Lesson, MaterialRow, RosterClass, StudentModel, StudentSubject,
+  Division, Identity, Skill, StudentWorkItem, SubjectGroup, TeacherModel,
+  Unit, Waiting,
 } from "./types";
 
-const normSubject = (s: unknown) =>
-  String(s ?? "").trim().toLowerCase().replace(/\s+/g, " ");
+/** `${subject}|${grade}` — one class. Null when there is no subject to key on. */
+export function classKey(subject: unknown, grade: unknown): string | null {
+  const s = normSubject(subject as string);
+  if (!s) return null;
+  return `${s}|${normGrade(grade as string) ?? ""}`;
+}
 
 const iso = (d: Date) => d.toISOString().slice(0, 10);
 const shiftDays = (n: number) => {
@@ -73,8 +82,11 @@ export async function loadTeacher(): Promise<TeacherModel> {
     softGet<any[]>("/api/students", []),
     softGet<any[]>("/api/materials", []),
     softGet<any[]>("/api/goals", []),
+    softGet<any[]>("/api/skills", []),
+    softGet<any[]>("/api/skill-assignments", []),
     ...KINDS.map((k) => softGet<any[]>(`/api/${k.path}`, [])),
   ]);
+  const [skills, skillAssignments] = byKind.splice(0, 2) as [any[], any[]];
 
   // ── flatten every artefact into one list, tagged with its kind ──
   const all: Item[] = [];
@@ -141,15 +153,20 @@ export async function loadTeacher(): Promise<TeacherModel> {
   // Biology student still teaches Biology. Deriving subjects from the
   // roster alone hid exactly the work she had just done.
   const groups = new Map<string, SubjectGroup>();
-  const ensure = (raw: unknown): SubjectGroup | null => {
-    const key = normSubject(raw);
+  const ensure = (raw: unknown, grade: unknown): SubjectGroup | null => {
+    const key = classKey(raw, grade);
     if (!key) return null;
     let g = groups.get(key);
     if (!g) {
+      const gradeText = String(grade ?? "").trim();
       g = {
         key,
         name: String(raw).trim(),
-        grades: [], sections: [],
+        grade: gradeText || null,
+        gradeKey: normGrade(gradeText) ?? "",
+        grades: gradeText ? [gradeText] : [],
+        sections: [],
+        divisions: [], skills: [],
         items: Object.fromEntries(KINDS.map((k) => [k.key, [] as Item[]])) as Record<KindKey, Item[]>,
         total: 0, students: 0, lessons: [],
         weekTotal: 0, weekWithPlan: 0,
@@ -160,52 +177,67 @@ export async function loadTeacher(): Promise<TeacherModel> {
     return g;
   };
 
-  const gradeSeen = new Map<string, string[]>();
   const sectionSeen = new Map<string, string[]>();
-  const note = (g: SubjectGroup, grade: unknown, section: unknown) => {
-    if (!gradeSeen.has(g.key)) gradeSeen.set(g.key, []);
+  const note = (g: SubjectGroup, section: unknown) => {
     if (!sectionSeen.has(g.key)) sectionSeen.set(g.key, []);
-    gradeSeen.get(g.key)!.push(String(grade ?? ""));
     sectionSeen.get(g.key)!.push(String(section ?? ""));
   };
 
   for (const it of all) {
-    const g = ensure(it.subject);
+    const g = ensure(it.subject, it.grade);
     if (!g) continue;
     g.items[it.kind].push(it);
     g.total += 1;
-    note(g, it.grade, it.section);
+    note(g, it.section);
   }
   for (const l of lessons) {
-    const g = ensure(l.subject);
+    const g = ensure(l.subject, l.grade);
     if (!g) continue;
     g.lessons.push(l);
     g.weekTotal += 1;
     if (l.hasPlan) g.weekWithPlan += 1;
-    note(g, l.grade, l.section);
+    note(g, l.section);
   }
   for (const s of asArray(students)) {
-    const g = ensure(s.subject);
+    const g = ensure(s.subject, s.grade);
     if (!g) continue;
     g.students += 1;
-    note(g, s.grade, s.section ?? s.division);
+    note(g, s.section ?? s.division);
   }
   for (const m of mats) {
-    const g = ensure(m.subject);
+    const g = ensure(m.subject, m.grade);
     if (!g) continue;
     g.materials.push(m);
-    note(g, m.grade, null);
   }
   for (const u of units) {
-    const g = ensure(u.subject);
+    const g = ensure(u.subject, u.grade);
     if (!g) continue;
     g.units.push(u);
-    note(g, u.grade, null);
+  }
+
+  // A division is a real column (students.division), so its roll is a
+  // count, not an estimate. Sections that appear only on a lesson or a
+  // quiz are listed too, at zero — a class taught to 9C with nobody on
+  // the roster for 9C is a delivery problem worth seeing.
+  const rosterByClass = new Map<string, Map<string, number>>();
+  for (const s of asArray(students)) {
+    const k = classKey(s.subject, s.grade);
+    if (!k) continue;
+    const div = String(s.section ?? s.division ?? "").trim() || "—";
+    if (!rosterByClass.has(k)) rosterByClass.set(k, new Map());
+    const m = rosterByClass.get(k)!;
+    m.set(div, (m.get(div) ?? 0) + 1);
   }
 
   for (const g of groups.values()) {
-    g.grades = commonest(gradeSeen.get(g.key) ?? []);
     g.sections = commonest(sectionSeen.get(g.key) ?? []);
+    const counted = rosterByClass.get(g.key) ?? new Map<string, number>();
+    const names = new Set<string>([...counted.keys(), ...g.sections]);
+    names.delete("");
+    g.divisions = [...names]
+      .map((name): Division => ({ name, students: counted.get(name) ?? 0 }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+    g.skills = skillsFor(g, asArray(skills), asArray(skillAssignments));
     g.materials.sort(byRecent);
     // A subject is built on ONE document, and that is the one it says is
     // loaded. Prefer a file the teacher tagged as the syllabus; fall
@@ -218,9 +250,15 @@ export async function loadTeacher(): Promise<TeacherModel> {
     for (const k of KINDS) g.items[k.key].sort(byRecent);
   }
 
-  // Busiest first — the subject she is actually teaching this week leads.
+  // Grade first so the sidebar's grade groups come out in school order,
+  // then the busiest class inside each — the one being taught this week
+  // leads its own grade rather than the whole list.
   const subjects = [...groups.values()].sort(
-    (a, b) => b.weekTotal - a.weekTotal || b.total - a.total || a.name.localeCompare(b.name),
+    (a, b) =>
+      a.gradeKey.localeCompare(b.gradeKey, undefined, { numeric: true }) ||
+      b.weekTotal - a.weekTotal ||
+      b.total - a.total ||
+      a.name.localeCompare(b.name),
   );
 
   const todayLessons = lessons
@@ -249,7 +287,57 @@ export async function loadTeacher(): Promise<TeacherModel> {
     recent: all.slice(0, 6),
     waiting,
     all,
+    rosterClasses: distinctClasses(
+      asArray(students).map((s) => ({
+        id: String(s.id),
+        grade: s.grade ?? null,
+        section: s.section ?? s.division ?? null,
+        subject: s.subject ?? null,
+      })),
+    ) as RosterClass[],
+    units,
+    identity: {
+      roles: asArray(me.roles).map(String),
+      permissions: (me.permissions && typeof me.permissions === "object" ? me.permissions : {}) as Identity["permissions"],
+    },
   };
+}
+
+/**
+ * Which teaching skills ground generation for this class.
+ *
+ * An assignment's grade / section / subject are the scheduler's audience
+ * vocabulary, where NULL means "any" — so a skill assigned with no
+ * subject reaches every class, and one naming this subject and grade
+ * reaches only this one. Said in words on the card, because "why is this
+ * profile being used here" is otherwise unanswerable from the screen.
+ */
+function skillsFor(g: SubjectGroup, skills: any[], assignments: any[]): Skill[] {
+  const byId = new Map(skills.map((s) => [String(s.id), s]));
+  const out = new Map<string, Skill>();
+  for (const a of assignments) {
+    const aSubject = normSubject(a.subject);
+    const aGrade = normGrade(a.grade);
+    if (aSubject && aSubject !== normSubject(g.name)) continue;
+    if (aGrade && aGrade !== (g.gradeKey || null)) continue;
+    const skill = byId.get(String(a.skill_id));
+    if (!skill) continue;
+    const via = aSubject && aGrade ? "this class"
+      : aSubject ? "every grade of this subject"
+      : aGrade ? "every subject in this grade"
+      : "everything you make";
+    // The narrowest assignment wins the label — a skill reaching this
+    // class both ways should read as reaching this class.
+    if (out.get(String(skill.id))?.via === "this class") continue;
+    out.set(String(skill.id), {
+      id: String(skill.id),
+      name: String(skill.name || "Untitled skill"),
+      sourceType: skill.source_type ?? null,
+      status: skill.status ?? null,
+      via,
+    });
+  }
+  return [...out.values()].sort((a, b) => a.name.localeCompare(b.name));
 }
 
 // ── the student ───────────────────────────────────────────────────────

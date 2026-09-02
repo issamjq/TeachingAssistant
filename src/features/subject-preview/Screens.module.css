@@ -138,6 +138,10 @@
 }
 .btn:hover { background: color-mix(in oklab, var(--p-invert) 88%, var(--p-paper)); }
 .btn:active { transform: scale(0.97); }
+/* A disabled action has to LOOK unavailable. An accent-filled pill that
+   does nothing when pressed reads as a broken button, not a locked one. */
+.btn:disabled { opacity: 0.42; cursor: not-allowed; }
+.btn:disabled:hover { transform: none; }
 
 .btnMake { background: var(--p-accent); color: var(--p-on-accent); }
 .btnMake:hover { background: var(--p-accent-hover); }
