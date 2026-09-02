@@ -1,19 +1,36 @@
 # What is still open
 
-> **Updated 2026-09-02.** Work orders 09–13 are done and have been
+> **Updated 2026-09-02.** Work orders 09–14 are done and have been
 > deleted — the specs served their purpose and a folder of finished
 > requests is a folder nobody reads. This file is the whole outstanding
 > list. If it is not here, it is not waiting on anyone.
+
+## 🔴 Do this first: production is running a known bug
+
+Everything the service has built sits on **`backendv2`**. Production is
+**`main`**, and `main` still pins `temperature: 0` on structured Gemini
+calls — which on a long enough input degenerates into a repetition loop:
+65,520 output tokens of garbage, then *"Couldn't read that response."*
+The teacher sees a failure and the noise is billed.
+
+It hits **every** structured call: the goal planner, the quiz
+structurer, the CV parse. A term plan that fails on a big syllabus and
+works on a small one is this, and it has been true for as long as the
+pin has existed.
+
+One commit to cherry-pick, and it touches nothing in the wire contract.
+Do that, or deploy `backendv2` — but until one of them happens, none of
+the work below §2 is reachable by a teacher, because it is all on the
+branch that is not serving anyone.
 
 ## Waiting on the backend
 
 | # | What | Spec |
 |---|---|---|
-| 14 | `POST /api/curriculum/derive` — a sequence read off her own syllabus, for the classes nobody has authored | [14](14-curriculum-derive.md) |
-| 08 | `POST /api/studio/skill-profile` — the interview compiled into a written profile, and `skill_ids` honoured during generation | [08](08-skills-refinement.md) |
+| 08 | `POST /api/studio/skill-profile` — the interview compiled into a written profile, and `skill_ids` honoured during generation. Open since August and not mentioned in any release since | [08](08-skills-refinement.md) |
 | — | The corpus: embedding pipeline + `/api/corpus/search`. Schema and the scope wall are already in place — see §3 below | this file |
 
-Everything else the frontend needs has shipped. The two specs above are
+Everything else the frontend needs has shipped. The two items above are
 self-contained; nothing in them depends on anything else in this list.
 
 ### One line still owed on our side
@@ -23,6 +40,10 @@ generated material — its old wording ("what is not sent: … marks or
 submissions") stops being true the moment the weak-spot prompt
 deploys. Written and sitting on branch `privacy-performance-line`,
 waiting on the owner because it is visitor-facing legal text.
+
+*(The service asked for this in `src/lib/legal.ts`. The rendered policy
+is `src/features/marketing/legal/privacy.ts` — `legal.js` is the older,
+shorter funnel copy and has no AI-providers section to correct.)*
 
 ## Waiting on nobody's code
 
@@ -39,6 +60,9 @@ request:
   **0.16**. The route is built and reports the real status; it just
   needs any free monitor pointed at it. This is the cheapest
   perceived-speed win available and it has been open the longest.
+- **A `backendv2` service block in the backend's `render.yaml`.** The
+  blueprint describes `main`/starter/Singapore while the v2 service is
+  Free/Oregon; that drift has already cost one failed deploy.
 - **A curriculum specialist** to verify and extend
   `src/lib/curriculum.js`. The 12 seeded units carry `source: 'starter'`
   and the UI says they are our draft. That is honest, but it is not a
@@ -122,7 +146,28 @@ For the ingest:
 - **Chunk on meaning, not length.** Respect headings and paragraph
   boundaries. This is the one decision here that is expensive to redo.
 
-## §4 · Verifying a real run
+## §4 · Nothing has been run for real
+
+Worth reading twice, and it is the service's own account rather than a
+suspicion: every path below typechecks, builds, boots against the live
+database and has had its logic verified in isolation — but **no teacher
+session has exercised any of it end to end.** Driving the app needs a
+signed-in teacher, which that side does not have.
+
+| Path | Verified | Not verified |
+|---|---|---|
+| Row id on `done` | Insert against the live schema | That a real generation writes exactly one row |
+| Trio merge | Full and partial trio, order, title | A real three-document lesson |
+| 429 split | Classification against captured bodies | A live quota exhaustion |
+| Extract | Mounted, auth-gated, insert shape | A real upload → ready → attach cycle |
+| Goal days | Patterns 1–5, wrapping, mid-week starts | A real term plan |
+| Weak spots | Real marked data, no id in the prompt | A lesson that opens with the recap |
+| Derive | 15 units from a real CBSE syllabus | The HTTP route; the not-a-syllabus refusal |
+
+So the queries below are not a formality. They are the first time any
+of this meets a teacher.
+
+## §5 · Verifying a real run
 
 Two queries settle almost everything, and neither needs a teacher
 session beyond making one thing.
