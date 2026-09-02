@@ -118,10 +118,15 @@ export default function CurriculumStart({ onPick }) {
   const shown = derived?.units?.length
     ? derived.units.map((u, i) => ({ ...u, id: `derived-${i}`, source: "derived" }))
     : units;
-  const note = shown?.length
-    ? SOURCE_NOTE[shown[0].source] ||
-      (derived?.confidence === "low" ? SOURCE_NOTE.derived_low : null)
-    : null;
+  // Confidence decides FIRST. Keying the note off `source` alone meant
+  // "derived" always matched and the low-confidence wording could never
+  // appear — which is the one case it exists for. The service treats
+  // anything that is not exactly "high" as low; so does this.
+  const note = !shown?.length
+    ? null
+    : derived
+      ? (derived.confidence === "high" ? SOURCE_NOTE.derived : SOURCE_NOTE.derived_low)
+      : SOURCE_NOTE[shown[0].source] || null;
 
   return (
     <div className="rounded-lg border border-line p-3.5">
@@ -173,23 +178,41 @@ export default function CurriculumStart({ onPick }) {
                 const mats = await api(
                   `/api/materials?${new URLSearchParams({ grade, subject })}`,
                 ).catch(() => []);
+                const ids = (Array.isArray(mats) ? mats : []).map((m) => m.id);
+                // material_ids is required — there is nothing to read
+                // without it. Say so here rather than spending a round
+                // trip to be told.
+                if (!ids.length) {
+                  flash(
+                    "Nothing on your shelf for that class yet. Add the syllabus under My material, then try again.",
+                  );
+                  return;
+                }
                 const r = await api("/api/curriculum/derive", {
                   method: "POST",
-                  body: {
-                    curriculum: cur, grade, subject,
-                    material_ids: (Array.isArray(mats) ? mats : []).map((m) => m.id),
-                  },
+                  body: { curriculum: cur, grade, subject, material_ids: ids },
                 });
                 setDerived(r?.units?.length ? r : null);
-                if (!r?.units?.length) {
-                  flash("Nothing in those files reads like a syllabus. Describe the unit below instead.");
+                if (r?.unread_materials?.length) {
+                  flash(`Couldn't read: ${r.unread_materials.join(", ")}.`);
                 }
               } catch (e) {
-                flash(
-                  e?.code === "no_backend"
-                    ? "Reading a syllabus isn't switched on yet. Describe the unit below and Murchid will plan it from your words."
-                    : `Could not read a sequence out of that: ${e.message}`,
-                );
+                // The service distinguishes "that isn't a syllabus" from
+                // "we couldn't read the file" from "it read but found
+                // nothing usable", and none of them are charged. They
+                // need different things from her, so they say different
+                // things.
+                const said = {
+                  not_a_syllabus:
+                    "That file doesn't read like a syllabus, so Murchid won't invent units from it — you'd find out in week three. Describe the unit below instead.",
+                  derive_empty:
+                    "It read the file but couldn't find a sequence in it. The contents pages usually work better than the whole book.",
+                  no_readable_material:
+                    "There's no text Murchid can read in those files — a scan needs a PDF with selectable text.",
+                  no_backend:
+                    "Reading a syllabus isn't switched on yet. Describe the unit below and Murchid will plan it from your words.",
+                }[e?.code];
+                flash(said || e?.message || "Could not read a sequence out of that.");
               } finally {
                 setDeriving(false);
               }
@@ -244,9 +267,12 @@ export default function CurriculumStart({ onPick }) {
               </li>
             ))}
           </ol>
-          {note && (
+          {(note || derived?.note) && (
             <p className="text-[11.5px] text-muted mt-3 leading-relaxed border-s-2 border-line ps-3">
-              {note}
+              {/* What it actually read — "the last two terms are not in
+                  this document" is the sort of thing she must know
+                  before building a term on it. */}
+              {derived?.note ? `${derived.note} ` : ""}{note}
             </p>
           )}
         </>
