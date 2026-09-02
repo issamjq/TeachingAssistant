@@ -2486,18 +2486,25 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
       /**
        * The service saved this one already.
        *
-       * It inserts each finished document before sending `artifact_end`
-       * and returns the row id there, so writing our own would leave two
-       * rows for one document. Only for a group of ONE: the lesson trio
-       * is merged into a single library row here, while the service
-       * writes its parts separately, so those two models do not line up
-       * and the browser's merged write is still the correct one.
+       * It writes one row per DELIVERABLE — the lesson trio merged under
+       * the same `##` headings this file builds — and returns that row's
+       * id on the `artifact_end` of every document in it. So one id on
+       * any part means the row exists, and writing our own would make a
+       * second copy of a lesson she only asked for once.
        *
-       * A rework still goes through the PATCH below — that is an update,
-       * not an insert, so it cannot duplicate anything.
+       * Any part, not the head: a partial insert still leaves the row
+       * there, and the id can arrive on whichever document landed.
+       *
+       * The merge below is NOT dead. When the service's own insert fails
+       * it sends no id at all — never a null — and the browser saving
+       * the merged row is what keeps her lesson.
+       *
+       * A rework goes through the PATCH below regardless: that is an
+       * update, not an insert, so it cannot duplicate anything.
        */
-      if (!replaceForThis && group.parts.length === 1 && head.serverId) {
-        return { id: head.serverId };
+      const serverId = group.parts.find((p) => p.serverId)?.serverId;
+      if (!replaceForThis && serverId) {
+        return { id: serverId };
       }
 
       const title = titleOf(head.kind, head.text, head.structured);
