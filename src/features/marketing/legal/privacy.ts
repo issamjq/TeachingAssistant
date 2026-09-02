@@ -23,7 +23,7 @@ export interface Section {
   body: Block[];
 }
 
-export const PRIVACY_UPDATED = "25 August 2026";
+export const PRIVACY_UPDATED = "2 September 2026";
 
 export const PRIVACY: Section[] = [
   {
@@ -158,7 +158,10 @@ export const PRIVACY: Section[] = [
         p: "What is sent: your brief, the subject, grade and class context it applies to, any teaching material or syllabus you attach, and your revision instructions.",
       },
       {
-        p: "What is not sent: your pupils' names, dates of birth, guardian contacts, attendance, marks or submissions. Pupil records are not part of a generation request. If you type a pupil's name into a brief yourself it will be sent with it, so please do not.",
+        p: "What is not sent: your pupils' names, dates of birth, guardian contacts, attendance, individual marks or submissions. No pupil is identified in a generation request. If you type a pupil's name into a brief yourself it will be sent with it, so please do not.",
+      },
+      {
+        p: "One exception, and it is about the class rather than any child in it: where a class has recently scored poorly on a question, that question and two figures — how many pupils answered it and the class average — may be sent so the new material re-teaches the sticking point. No pupil's name, identifier or individual score is included, and nothing identifies who answered what.",
       },
       {
         p: "Your email address, account identifier and payment records are never sent to an AI provider.",
