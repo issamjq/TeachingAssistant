@@ -982,18 +982,35 @@ async function clearPrimary(fid: string) {
     .eq("faculty_id", fid).eq("is_primary", true);
 }
 
-// ── library (uploaded material) ───────────────────────────────────────
+// ── materials (the teacher's own uploads) ─────────────────────────────
+//
+// Served at /api/materials, NOT /api/library. The two were one word for
+// two different things: /api/library is the curated shelf the API
+// service publishes, and it is on the SERVER_ONLY list — so it shadowed
+// this local handler completely and every function below was
+// unreachable. The collision is why a whole personal-material feature
+// existed in the codebase and could not be opened.
+//
+// extracted_text is deliberately NOT in the list column set. It is the
+// full text of a textbook; a shelf of twenty files would ship megabytes
+// to render a list of names.
 
-const MAT = "id, file_name, file_path, mime_type, status, extracted_text, created_at, updated_at";
+const MAT = "id, title, file_name, file_path, mime_type, status, kind, grade, subject, section, pages, created_at, updated_at";
 
-export async function listLibrary() {
-  const { data, error } = await supabase
-    .from("materials").select(MAT).is("deleted_at", null).order("updated_at", { ascending: false });
+export async function listMaterials(query: Record<string, any> = {}) {
+  let q = supabase
+    .from("materials").select(MAT).is("deleted_at", null)
+    .order("updated_at", { ascending: false });
+  // Narrowing is optional: the shelf shows everything by default, and a
+  // class filter is a view of it rather than a different query.
+  if (query.grade) q = q.eq("grade", query.grade);
+  if (query.subject) q = q.eq("subject", query.subject);
+  const { data, error } = await q;
   if (error) throw error;
   return data || [];
 }
 
-export async function createLibrary(body: Record<string, any>) {
+export async function createMaterial(body: Record<string, any>) {
   const fid = await facultyId();
   const { data, error } = await supabase
     .from("materials").insert({ ...body, faculty_id: fid }).select(MAT).single();
@@ -1001,15 +1018,22 @@ export async function createLibrary(body: Record<string, any>) {
   return data;
 }
 
-export async function updateLibrary(id: string, body: Record<string, any>) {
+export async function updateMaterial(id: string, body: Record<string, any>) {
+  // Only what a teacher may change by hand. status, extracted_text and
+  // pages belong to the extraction service — a browser that could write
+  // them could claim a file was read when it never was.
+  const patch: Record<string, any> = { updated_at: iso() };
+  for (const k of ["title", "kind", "grade", "subject", "section"]) {
+    if (body?.[k] !== undefined) patch[k] = body[k];
+  }
   const { data, error } = await supabase
-    .from("materials").update({ ...body, updated_at: iso() }).eq("id", id).select(MAT).maybeSingle();
+    .from("materials").update(patch).eq("id", id).select(MAT).maybeSingle();
   if (error) throw error;
   if (!data) throw notFound();
   return data;
 }
 
-export async function deleteLibrary(id: string) {
+export async function deleteMaterial(id: string) {
   const { error, count } = await supabase
     .from("materials").update({ deleted_at: iso() }, { count: "exact" }).eq("id", id).is("deleted_at", null);
   if (error) throw error;

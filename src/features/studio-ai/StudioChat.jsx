@@ -33,9 +33,8 @@ import {
 } from "lucide-react";
 import { api } from "@/views/_shared";
 import { useCredits, CreditEstimate, CreditWarning } from "./CreditMeter";
-import { supabase } from "@/lib/supabaseClient";
-import { facultyId } from "@/lib/data/session";
 import { MAJORS } from "@/lib/enums";
+import { uploadMaterial, MaterialPicker } from "@/features/materials";
 import {
   ArtifactCard, QuizViewer, SlideViewer, SlideFullscreen, DocViewer, KIND_META,
   namedSlides,
@@ -90,9 +89,6 @@ const STARTERS = [
 // from the library, capped so the thread and send bar stay on screen.
 const COMPOSER_MAX_VH = 0.45; // up to 45% of the window height…
 const COMPOSER_MAX_H = 520;   // …but never taller than this
-
-const safeName = (name) =>
-  name.normalize("NFKD").replace(/[^\w.-]+/g, "-").replace(/-+/g, "-").slice(-80) || "file";
 
 /** Pull a usable title out of whatever came back. */
 /**
@@ -1154,24 +1150,15 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
     setUploading(true);
     setNotice(null);
     try {
-      const { data: auth } = await supabase.auth.getUser();
-      const uid = auth?.user?.id;
-      const fid = await facultyId();
       for (const f of files) {
-        if (f.size > 25 * 1024 * 1024) throw new Error(`"${f.name}" is over 25 MB.`);
-        // Browser → Storage under the teacher's own session. A
-        // server-side upload would need a service-role key, and nothing
-        // in this system holds one.
-        const path = `${uid}/studio/${Date.now()}-${safeName(f.name)}`;
-        const { error } = await supabase.storage.from("imports").upload(path, f, {
-          contentType: f.type || "application/octet-stream", upsert: false,
+        // One upload path for the studio, the goal planner and the
+        // shelf — see features/materials/api.ts. It also stamps the
+        // class, so a file attached while teaching 6B is filed as 6B's.
+        const att = await uploadMaterial(f, {
+          where: "studio",
+          audience: classSel.current,
         });
-        if (error) throw error;
-        const { data: row } = await supabase
-          .from("materials")
-          .insert({ faculty_id: fid, file_name: f.name, file_path: path, mime_type: f.type, status: "uploaded" })
-          .select("id").single();
-        setAttachments((a) => [...a, { id: row?.id, name: f.name, path, mime: f.type }]);
+        setAttachments((a) => [...a, att]);
       }
     } catch (err) {
       setNotice(err.message);
@@ -3479,6 +3466,16 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
             </div>
 
             <ClassPicker onSelection={(cls) => { classSel.current = cls; }} />
+            {/* The paperclip uploads; this attaches what she already has.
+                Without it the same textbook was re-uploaded — and its
+                read re-charged — for every lesson of the term. */}
+            <MaterialPicker
+              attached={attachments}
+              audience={classSel.current}
+              onPick={(att) =>
+                setAttachments((a) => (a.some((x) => x.id === att.id) ? a : [...a, att]))
+              }
+            />
             <SkillsPicker version={skillsVersion} onSelection={(sel) => { skillSel.current = sel; }} />
 
             <span className="flex-1" />

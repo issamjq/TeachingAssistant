@@ -358,11 +358,15 @@ export async function resolve(
       if (a && method === "DELETE") return yes(await E.deleteBulletin(a));
       return { handled: false };
 
-    case "library":
-      if (!a && method === "GET") return yes(await E.listLibrary());
-      if (!a && method === "POST") return yes(await E.createLibrary(body));
-      if (a && method === "PATCH") return yes(await E.updateLibrary(a, body));
-      if (a && method === "DELETE") return yes(await E.deleteLibrary(a));
+    // Her own uploads. Was "library", which collided with the curated
+    // shelf on SERVER_ONLY and made this branch unreachable — the switch
+    // never ran because needsServer() short-circuits above.
+    case "materials":
+      if (!a && method === "GET")
+        return yes(await E.listMaterials({ grade: q.get("grade"), subject: q.get("subject") }));
+      if (!a && method === "POST") return yes(await E.createMaterial(body));
+      if (a && method === "PATCH") return yes(await E.updateMaterial(a, body));
+      if (a && method === "DELETE") return yes(await E.deleteMaterial(a));
       return { handled: false };
 
     default:

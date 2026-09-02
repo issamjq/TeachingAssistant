@@ -33,6 +33,7 @@ const STUDIO_ROUTES = [
   "/schedule",
   "/goals",
   "/library",
+  "/materials",
   "/database",
   "/database/students",
   "/account",

@@ -12618,3 +12618,71 @@ BEGIN
   SELECT count(*) INTO v_caps FROM role_capabilities;
   RAISE NOTICE 'product telemetry ready; % role/capability defaults seeded', v_caps;
 END $$;
+
+
+-- ─────────────────────────────────────────────────────────────────────
+-- §96  Uploaded material becomes a thing she owns, not a passing byte
+-- ─────────────────────────────────────────────────────────────────────
+--
+-- A file attached in the studio or the goal planner already lands in
+-- `materials` and in the private `imports` bucket. Nothing has ever
+-- LISTED those rows, so every generation re-uploaded the same chapter —
+-- and paid the `materials` read again, because the price is per request
+-- that carries an attachment. The table was write-only in practice.
+--
+-- Phase 1 of the curriculum-first plan turns it into a shelf: her
+-- textbook, uploaded once, kept, and re-attachable. Two things were
+-- missing for that.
+--
+-- 1. A NAME. `file_name` is whatever the file was called on her laptop
+--    ("Scan_2024_final(2).pdf"). `title` is what she calls it.
+--
+-- 2. A CLASS. Every layer of this product binds to a class, not to a
+--    teacher — 6A and 6B are different rooms and may use different
+--    notes. Stamping it at upload is cheap; retrofitting it later means
+--    a migration and asking her to upload everything again.
+--
+-- `pages` is filled by the service when it extracts text, and is here
+-- so the shelf can say "48 pages" without opening the file.
+--
+-- RLS needs nothing: `materials` is already faculty-owned through the
+-- §27 gate driver.
+
+ALTER TABLE public.materials ADD COLUMN IF NOT EXISTS title   text;
+ALTER TABLE public.materials ADD COLUMN IF NOT EXISTS grade   text;
+ALTER TABLE public.materials ADD COLUMN IF NOT EXISTS subject text;
+ALTER TABLE public.materials ADD COLUMN IF NOT EXISTS section text;
+ALTER TABLE public.materials ADD COLUMN IF NOT EXISTS kind    text;
+ALTER TABLE public.materials ADD COLUMN IF NOT EXISTS pages   int;
+
+-- The shelf reads "mine, for this class, newest first". Partial on
+-- deleted_at because every listing excludes the trash.
+CREATE INDEX IF NOT EXISTS materials_class_idx
+  ON public.materials (faculty_id, grade, subject, updated_at DESC)
+  WHERE deleted_at IS NULL;
+
+-- The §8 vocabulary driver ran ~11,000 lines above this, so a column
+-- added here carries its own CHECK. Nullable on purpose: everything
+-- uploaded before today has no kind, and guessing one would be worse
+-- than leaving it blank.
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint
+                 WHERE conname = 'materials_kind_check'
+                   AND connamespace = 'public'::regnamespace) THEN
+    ALTER TABLE public.materials ADD CONSTRAINT materials_kind_check
+      CHECK (kind IS NULL OR kind IN ('textbook','syllabus','notes','other'));
+  END IF;
+END $$;
+
+DO $$
+DECLARE v_cols int;
+BEGIN
+  SELECT count(*) INTO v_cols FROM information_schema.columns
+   WHERE table_schema = 'public' AND table_name = 'materials'
+     AND column_name IN ('title','grade','subject','section','kind','pages');
+  IF v_cols <> 6 THEN
+    RAISE EXCEPTION 'materials is missing % of the 6 shelf columns', 6 - v_cols;
+  END IF;
+  RAISE NOTICE 'materials shelf ready: title, class binding, kind, pages';
+END $$;

@@ -62,6 +62,9 @@ const TEACHER_NAV: NavSection[] = [
       { key: "presentations", label: "Presentations", icon: "presentations" },
       { key: "activities", label: "Activities", icon: "activities" },
       { key: "library", label: "Templates", icon: "library" },
+      // Her own uploads, as opposed to Templates, which is the curated
+      // shelf the service publishes. Two different shelves, two words.
+      { key: "materials", label: "Material", icon: "materials" },
     ],
   },
   // The class itself: who is in it, what they see, how they are doing.
@@ -265,6 +268,7 @@ export const SECTIONS_BY_ROLE: Record<Role, Set<string>> = {
     "planner",
     "goals",
     "library",
+    "materials",
     "bulletin-board",
     "lesson-plans",
     "quizzes",

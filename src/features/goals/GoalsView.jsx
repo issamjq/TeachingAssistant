@@ -27,8 +27,7 @@ import {
   Target, Plus, Upload, FileText, Trash2, Sparkles, X, ArrowRight,
 } from "lucide-react";
 import { api } from "@/views/_shared";
-import { supabase } from "@/lib/supabaseClient";
-import { facultyId } from "@/lib/data/session";
+import { uploadMaterial } from "@/features/materials";
 import s from "./Goals.module.css";
 import PlanningProgress from "./PlanningProgress";
 
@@ -107,35 +106,13 @@ const STATUS_LABEL = {
   failed: "failed",
 };
 
-const safeName = (name) =>
-  name.normalize("NFKD").replace(/[^\w.\-]+/g, "-").replace(/-+/g, "-").slice(-80) || "document";
-
-/**
- * Upload one syllabus/textbook file and register it as a material.
- *
- * Storage first, then the materials row pointing at it — the same
- * two-step the CV upload uses, under the teacher's own session.
- */
-async function uploadMaterial(file) {
-  const { data: auth } = await supabase.auth.getUser();
-  const uid = auth?.user?.id;
-  if (!uid) throw new Error("You're not signed in.");
-  const fid = await facultyId();
-
-  const path = `${uid}/goals/${Date.now()}-${safeName(file.name)}`;
-  const { error: upErr } = await supabase.storage.from("imports").upload(path, file, {
-    contentType: file.type || "application/octet-stream",
-    upsert: false,
-  });
-  if (upErr) throw upErr;
-
-  const { data, error } = await supabase
-    .from("materials")
-    .insert({ faculty_id: fid, file_name: file.name, file_path: path, mime_type: file.type, status: "uploaded" })
-    .select("id, file_name")
-    .single();
-  if (error) throw error;
-  return data;
+// The shared upload — same row, same bucket folder rules, and the file
+// lands on her shelf instead of being invisible after this one plan.
+// A syllabus attached here is exactly the file the curriculum work will
+// want to read later, so it must not be a one-off.
+async function uploadGoalMaterial(file) {
+  const att = await uploadMaterial(file, { where: "goals", kind: "syllabus" });
+  return { id: att.id, file_name: att.name };
 }
 
 function NewGoal({ onCreated, onClose }) {
@@ -158,8 +135,7 @@ function NewGoal({ onCreated, onClose }) {
     setError(null);
     try {
       for (const f of files) {
-        if (f.size > 25 * 1024 * 1024) throw new Error(`"${f.name}" is over 25 MB.`);
-        const row = await uploadMaterial(f);
+        const row = await uploadGoalMaterial(f);
         setDocs((d) => [...d, row]);
       }
     } catch (err) {
