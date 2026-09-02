@@ -335,6 +335,31 @@ export default function Plans() {
         })}
       </div>
 
+      {/* One-time credit packs. plan_options has always served these and
+          the "Top up" banners have always pointed here — but the page
+          never rendered them, so the button sold something the shelf
+          did not stock. */}
+      {(data.topups || []).length > 0 && (
+        <div>
+          <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-3 text-center">
+            Or just top up
+          </p>
+          <div className="grid gap-4 sm:grid-cols-3">
+            {data.topups.map((t) => (
+              <div key={t.key} className="border border-line rounded-xl p-5 bg-paper-cool text-center">
+                <p className="font-serif text-3xl text-ink">${t.price}</p>
+                <p className="font-mono text-[10px] uppercase tracking-wider text-accent mt-1.5 mb-4">
+                  {t.credits} credits · one time
+                </p>
+                <Button variant="secondary" onClick={() => choose(t.key)} disabled={busy === t.key}>
+                  {busy === t.key ? "Taking you to Stripe…" : "Top up"}
+                </Button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Stripe unreachable. The buttons above still go to checkout and
           will fail loudly there rather than silently doing nothing —
           this says why before she finds out the hard way. */}
@@ -350,6 +375,11 @@ export default function Plans() {
         <p className="text-center text-xs text-muted">
           Payments are handled by Stripe. Your card details never reach Murchid.
           Cancel any time from Billing.
+          {/* Plans quote USD; Stripe charges — and Billing reports — the
+              AED equivalent. Said here once, so the two screens stop
+              looking like they disagree about the price. */}
+          {" "}Prices are in US dollars; your card is charged the AED equivalent,
+          which is what Billing shows.
         </p>
       )}
 

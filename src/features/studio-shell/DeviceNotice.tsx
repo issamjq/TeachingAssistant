@@ -31,8 +31,17 @@ import React, { useCallback, useEffect, useState } from "react";
 import { MonitorSmartphone, LogOut, RefreshCw } from "lucide-react";
 import { claimDevice, deviceState } from "@/lib/data/device";
 
-/** How often to re-check while the tab is open. */
-const EVERY_MS = 20000;
+/**
+ * How often to re-check while the tab is open.
+ *
+ * 5s, down from 20s: the scary case is a laptop sitting OPEN while the
+ * phone signs in — its screens re-fetch and drain to "no students yet"
+ * with no explanation until this poll notices. Twenty seconds of
+ * apparently-lost term work is how a teacher stops trusting the
+ * product; the check is one tiny read, so ask often. Focus and
+ * visibility changes still check immediately.
+ */
+const EVERY_MS = 5000;
 
 export default function DeviceNotice({ onSignOut }: { onSignOut: () => void }) {
   const [superseded, setSuperseded] = useState(false);

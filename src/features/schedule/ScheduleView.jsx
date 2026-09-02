@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { RowActions, ConfirmDelete, api } from "@/views/_shared";
+import { useI18n, useT } from "@/shared/i18n";
 import BrandLoader from "@/components/BrandLoader";
 import { isoDay, today as todayIso } from "@/lib/localDate";
 import ScheduleModal from "./ScheduleModal";
@@ -35,7 +36,6 @@ import s from "./Schedule.module.css";
 // real lesson was "short" and the subject never appeared at all — which
 // left the colour rule carrying meaning with nothing to decode it against.
 const HOUR_PX = 68;
-const DOW = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 export default function ScheduleView() {
   const [items, setItems] = useState([]);
@@ -46,6 +46,11 @@ export default function ScheduleView() {
   const [busy, setBusy] = useState(false);
   const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date()));
   const [view, setView] = useState("week");
+  // The audit's exact finding: the bilingual promise ended at this
+  // screen — zero translation calls. Every visible string now goes
+  // through the dictionary, and dates format in the UI language.
+  const { t, lang } = useI18n();
+  const locale = lang === "ar" ? "ar" : undefined;
 
   // Re-rendered every minute so the "now" line creeps rather than
   // jumping whenever something else happens to change.
@@ -137,7 +142,7 @@ export default function ScheduleView() {
     });
   };
 
-  const label = (d) => d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  const label = (d) => d.toLocaleDateString(locale, { month: "short", day: "numeric" });
 
   return (
     <div>
@@ -145,42 +150,42 @@ export default function ScheduleView() {
       <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-6">
         <div>
           <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-2 inline-flex items-center gap-2.5">
-            <span className="w-6 h-px bg-accent" /> Timetable
+            <span className="w-6 h-px bg-accent" /> {t("sched.eyebrow")}
           </p>
           <h2 className="font-serif text-4xl font-medium text-ink">
-            Your <em className="italic font-light text-accent">week</em>
+            {t("sched.titlePlain")}<em className="italic font-light text-accent">{t("sched.titleEm")}</em>
           </h2>
           <p className={`text-muted mt-2 text-[14.5px] ${s.deskHint}`}>
-            Click any empty slot to put a lesson in it.
+            {t("sched.hint")}
           </p>
         </div>
         <Button onClick={() => setEditing({ __new: true })}>
-          <Plus size={15} className="mr-2" /> New entry
+          <Plus size={15} className="mr-2" /> {t("sched.new")}
         </Button>
       </div>
 
       {/* ── what the week adds up to ────────────────────────────── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
-        <Stat icon={CalendarDays} label="Lessons" value={summary.count} note="this week" />
+        <Stat icon={CalendarDays} label={t("sched.stat.lessons")} value={summary.count} note={t("sched.stat.thisWeek")} />
         <Stat
           icon={Clock3}
-          label="Teaching hours"
+          label={t("sched.stat.hours")}
           value={summary.hours ? summary.hours.toFixed(summary.hours % 1 ? 1 : 0) : "0"}
-          note="timetabled"
+          note={t("sched.stat.timetabled")}
         />
         <Stat
           icon={Flame}
-          label="Busiest day"
+          label={t("sched.stat.busiest")}
           value={summary.busiest
-            ? new Date(`${summary.busiest.day}T00:00:00`).toLocaleDateString(undefined, { weekday: "short" })
+            ? new Date(`${summary.busiest.day}T00:00:00`).toLocaleDateString(locale, { weekday: "short" })
             : "—"}
-          note={summary.busiest ? `${summary.busiest.n} lessons` : "nothing yet"}
+          note={summary.busiest ? t("sched.stat.lessonsN", { n: String(summary.busiest.n) }) : t("sched.stat.nothingYet")}
         />
         <Stat
           icon={ArrowRight}
-          label="Next up"
-          value={summary.next ? fmtTime(summary.next.start_time) || "Any time" : "—"}
-          note={summary.next ? summary.next.title : "clear from here"}
+          label={t("sched.stat.next")}
+          value={summary.next ? fmtTime(summary.next.start_time) || t("sched.anytime") : "—"}
+          note={summary.next ? summary.next.title : t("sched.stat.clear")}
           truncate
         />
       </div>
@@ -198,7 +203,7 @@ export default function ScheduleView() {
                 view === v ? "bg-ink text-paper-cool" : "text-muted hover:text-ink"
               }`}
             >
-              <Icon size={12} /> {v}
+              <Icon size={12} /> {t(v === "week" ? "sched.view.week" : "sched.view.list")}
             </button>
           ))}
         </div>
@@ -206,7 +211,7 @@ export default function ScheduleView() {
         {view === "week" && (
           <div className="flex items-center gap-2">
             <button
-              type="button" onClick={() => shiftWeek(-1)} aria-label="Previous week"
+              type="button" onClick={() => shiftWeek(-1)} aria-label={t("sched.prevWeek")}
               className="h-8 w-8 rounded-lg border border-line hover:border-accent hover:bg-paper-warm flex items-center justify-center cursor-pointer transition"
             >
               <ChevronLeft size={14} />
@@ -215,7 +220,7 @@ export default function ScheduleView() {
               {label(days[0])} — {label(days[6])}
             </span>
             <button
-              type="button" onClick={() => shiftWeek(1)} aria-label="Next week"
+              type="button" onClick={() => shiftWeek(1)} aria-label={t("sched.nextWeek")}
               className="h-8 w-8 rounded-lg border border-line hover:border-accent hover:bg-paper-warm flex items-center justify-center cursor-pointer transition"
             >
               <ChevronRight size={14} />
@@ -225,7 +230,7 @@ export default function ScheduleView() {
               onClick={() => setWeekStart(startOfWeek(new Date()))}
               className="ms-1 font-mono text-[10px] uppercase tracking-wider text-accent border-b border-accent hover:text-ink hover:border-ink cursor-pointer"
             >
-              Today
+              {t("sched.today")}
             </button>
           </div>
         )}
@@ -255,9 +260,11 @@ export default function ScheduleView() {
                   data-today={key === today}
                   data-weekend={d.getDay() === 0 || d.getDay() === 6}
                 >
-                  <p className={s.headDow}>{DOW[(d.getDay() + 6) % 7]}</p>
+                  <p className={s.headDow}>{d.toLocaleDateString(locale, { weekday: "short" })}</p>
                   <p className={s.headNum}>{d.getDate()}</p>
-                  <p className={s.headCount}>{n ? `${n} lesson${n === 1 ? "" : "s"}` : "—"}</p>
+                  <p className={s.headCount}>
+                    {n ? (n === 1 ? t("sched.list.count1") : t("sched.list.count", { n: String(n) })) : "—"}
+                  </p>
                 </div>
               );
             })}
@@ -296,7 +303,7 @@ export default function ScheduleView() {
                           type="button"
                           className={s.slot}
                           onClick={() => newAt(d, mins)}
-                          aria-label={`Add a lesson on ${d.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" })} at ${fmtMinutes(mins)}`}
+                          aria-label={`Add a lesson on ${d.toLocaleDateString(locale, { weekday: "long", day: "numeric", month: "long" })} at ${fmtMinutes(mins)}`}
                         />
                       );
                     })}
@@ -353,7 +360,7 @@ export default function ScheduleView() {
               return (
                 <div key={`a-${key}`} className={s.agendaDay} data-today={key === today}>
                   <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted mb-1.5">
-                    {d.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "short" })}
+                    {d.toLocaleDateString(locale, { weekday: "long", day: "numeric", month: "short" })}
                     {key === today && <span className="text-accent"> · today</span>}
                   </p>
                   {list.map((it) => (
@@ -404,8 +411,8 @@ export default function ScheduleView() {
         onClose={() => setDeleting(null)}
         onConfirm={confirmDelete}
         busy={busy}
-        title={deleting ? `Delete "${deleting.title}"?` : ""}
-        message="This entry will be removed from your schedule."
+        title={deleting ? t("sched.delete.title", { title: deleting.title }) : ""}
+        message={t("sched.delete.msg")}
       />
     </div>
   );
@@ -433,12 +440,13 @@ function Stat({ icon: Icon, label, value, note, truncate }) {
  * lesson — so the week keeps a strip above the grid for them.
  */
 function AnytimeStrip({ days, byDay, onOpen }) {
+  const t = useT();
   const any = days.some((d) => (byDay.get(isoDay(d)) || []).some((e) => minutesOf(e.start_time) == null));
   if (!any) return null;
 
   return (
     <div className={s.anytime}>
-      <div className={s.anytimeLabel}>Any time</div>
+      <div className={s.anytimeLabel}>{t("sched.anytime")}</div>
       {days.map((d) => {
         const key = isoDay(d);
         const list = (byDay.get(key) || []).filter((e) => minutesOf(e.start_time) == null);
@@ -463,15 +471,15 @@ function AnytimeStrip({ days, byDay, onOpen }) {
 }
 
 function EmptyWeek({ onAdd }) {
+  const t = useT();
   return (
     <div className="mt-4 rounded-2xl border border-dashed border-line-strong bg-paper-warm/40 px-6 py-10 text-center">
-      <p className="font-serif text-[19px] text-ink">Nothing timetabled this week.</p>
+      <p className="font-serif text-[19px] text-ink">{t("sched.empty.title")}</p>
       <p className="text-[13px] text-muted mt-1.5 max-w-[380px] mx-auto leading-relaxed">
-        Click any empty slot in the grid to add a lesson at that hour, or start
-        from a plan you have already written.
+        {t("sched.empty.body")}
       </p>
       <Button className="mt-4" onClick={onAdd}>
-        <Plus size={15} className="mr-2" /> Add a lesson
+        <Plus size={15} className="mr-2" /> {t("sched.empty.add")}
       </Button>
     </div>
   );
@@ -492,6 +500,8 @@ const STATUS_STYLE = {
  * lands on what is still ahead.
  */
 function ListView({ items, onEdit, onDelete }) {
+  const { t, lang } = useI18n();
+  const locale = lang === "ar" ? "ar" : undefined;
   const groups = useMemo(() => {
     const map = new Map();
     for (const it of items) {
@@ -508,7 +518,7 @@ function ListView({ items, onEdit, onDelete }) {
   if (!items.length) {
     return (
       <div className="rounded-2xl border border-dashed border-line-strong bg-paper-warm/40 px-6 py-12 text-center">
-        <p className="text-muted text-sm">No schedule entries yet.</p>
+        <p className="text-muted text-sm">{t("sched.list.empty")}</p>
       </div>
     );
   }
@@ -524,16 +534,16 @@ function ListView({ items, onEdit, onDelete }) {
           <div key={date} className={`rounded-2xl border border-line bg-surface/85 overflow-hidden ${past ? "opacity-70" : ""}`}>
             <div className="flex items-baseline gap-2.5 px-5 py-3 border-b border-line-soft bg-paper-warm/40">
               <span className="font-serif text-[17px] text-ink">
-                {d.toLocaleDateString(undefined, { weekday: "long" })}
+                {d.toLocaleDateString(locale, { weekday: "long" })}
               </span>
               <span className="font-mono text-[10px] uppercase tracking-wider text-muted">
-                {d.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}
+                {d.toLocaleDateString(locale, { day: "numeric", month: "short", year: "numeric" })}
               </span>
               {date === today && (
-                <span className="font-mono text-[9.5px] uppercase tracking-wider text-accent">· today</span>
+                <span className="font-mono text-[9.5px] uppercase tracking-wider text-accent">{t("sched.list.today")}</span>
               )}
               <span className="ms-auto font-mono text-[10px] text-muted">
-                {list.length} lesson{list.length === 1 ? "" : "s"}
+                {list.length === 1 ? t("sched.list.count1") : t("sched.list.count", { n: String(list.length) })}
               </span>
             </div>
 
@@ -548,7 +558,7 @@ function ListView({ items, onEdit, onDelete }) {
                   aria-hidden="true"
                 />
                 <span className="font-mono text-[11px] text-ink-soft w-[92px] flex-shrink-0">
-                  {it.start_time ? `${fmtTime(it.start_time)}–${fmtTime(it.end_time)}` : "Any time"}
+                  {it.start_time ? `${fmtTime(it.start_time)}–${fmtTime(it.end_time)}` : t("sched.anytime")}
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="block text-[14px] text-ink leading-tight truncate">{it.title}</span>

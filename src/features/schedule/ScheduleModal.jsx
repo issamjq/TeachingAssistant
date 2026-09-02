@@ -6,7 +6,7 @@
 // Tuesday at nine is one click and a title rather than four fields.
 import React, { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { GRADE_LEVELS } from "@/lib/enums";
+import { GRADE_LEVELS, MAJORS } from "@/lib/enums";
 import {
   Field, Modal, inputClasses, selectClasses, api, DatePicker,
   AudienceSelect, useTeacherClasses,
@@ -14,7 +14,9 @@ import {
 import { fmtTime } from "./timetable";
 import { today } from "@/lib/localDate";
 import { findClash, HHMM } from "@/shared/lib/scheduleClash";
-import { AudiencePreview } from "@/features/delivery";
+import { AudiencePreview, useRoster } from "@/features/delivery";
+import { distinctClasses } from "@/shared/lib/classMatch";
+import { repeatDates, addDays } from "@/shared/lib/repeatWeekly";
 
 const EMPTY = {
   title: "",
@@ -32,6 +34,29 @@ const EMPTY = {
 export default function ScheduleModal({ initial, prefill, onClose, onSaved }) {
   const isNew = !initial;
   const { grades: teacherGrades, sections: teacherSections } = useTeacherClasses();
+  /**
+   * The profile's sections list has never been populated (getProfile
+   * returns none), so every Section field degraded to free text — on the
+   * exact fields whose string-match controls student delivery. The
+   * roster knows her real grades and sections; offer those.
+   */
+  const { roster } = useRoster();
+  const rosterClasses = distinctClasses(roster);
+  const rosterSections = [...new Set(rosterClasses.map((c) => c.section).filter(Boolean))].sort();
+  const rosterGrades = [...new Set(rosterClasses.map((c) => c.grade).filter(Boolean))];
+  const gradeOptions = teacherGrades.length ? teacherGrades : rosterGrades.length ? rosterGrades : GRADE_LEVELS;
+  const sectionOptions = teacherSections.length ? teacherSections : rosterSections;
+  const subjectOptions = [...new Set([...rosterClasses.map((c) => c.subject).filter(Boolean), ...MAJORS])];
+
+  /**
+   * Weekly repetition — new entries only. "Every Sunday, period 2" was
+   * impossible: a 30-period week over a 14-week term meant ~420
+   * hand-entered rows, the single largest data-entry burden in the
+   * product. The expansion happens at save (see repeatWeekly.ts); each
+   * week is an ordinary entry, editable and cancellable on its own.
+   */
+  const [repeat, setRepeat] = useState("none");
+  const [repeatUntil, setRepeatUntil] = useState("");
   const [form, setForm] = useState(() => {
     // A slot clicked in the grid arrives as `prefill`, so the editor
     // opens on the day and hour the teacher actually pointed at.
@@ -119,10 +144,34 @@ export default function ScheduleModal({ initial, prefill, onClose, onSaved }) {
     }
     setConflict(null);
     try {
-      const saved = isNew
-        ? await api("/api/schedule", { method: "POST", body: form })
-        : await api(`/api/schedule/${initial.id}`, { method: "PATCH", body: form });
-      onSaved(saved, isNew);
+      if (isNew) {
+        // One row per week. Sequential, so a mid-series failure reports
+        // how far it got instead of scattering unknown holes.
+        const dates =
+          repeat === "weekly" ? repeatDates(form.date, repeatUntil) : [form.date];
+        let saved = null;
+        let written = 0;
+        try {
+          for (const d of dates) {
+            // eslint-disable-next-line no-await-in-loop
+            saved = await api("/api/schedule", { method: "POST", body: { ...form, date: d } });
+            written += 1;
+          }
+        } catch (e) {
+          if (!written) throw e;
+          setErr(
+            `Saved ${written} of ${dates.length} weeks, then: ${e.message}. ` +
+            `The saved weeks are on your timetable; add the rest when the connection is back.`,
+          );
+          setSaving(false);
+          onSaved(saved, isNew);
+          return;
+        }
+        onSaved(saved, isNew);
+      } else {
+        const saved = await api(`/api/schedule/${initial.id}`, { method: "PATCH", body: form });
+        onSaved(saved, isNew);
+      }
     } catch (e) {
       setErr(e.message);
       setSaving(false);
@@ -139,7 +188,13 @@ export default function ScheduleModal({ initial, prefill, onClose, onSaved }) {
       footer={
         <>
           <Button variant="secondary" onClick={onClose} disabled={saving}>Cancel</Button>
-          <Button onClick={submit} disabled={saving}>{saving ? "Saving…" : "Save"}</Button>
+          <Button onClick={submit} disabled={saving}>
+            {saving
+              ? "Saving…"
+              : isNew && repeat === "weekly" && repeatUntil
+                ? `Save ${repeatDates(form.date, repeatUntil).length} weeks`
+                : "Save"}
+          </Button>
         </>
       }
     >
@@ -196,26 +251,37 @@ export default function ScheduleModal({ initial, prefill, onClose, onSaved }) {
           required={carriesWork}
           hint={carriesWork ? "students match on this" : undefined}
         >
-          <input className={inputClasses} value={form.subject} onChange={(e) => set("subject", e.target.value)} />
+          {/* Free text with her real subjects offered — the app already
+              knows them from the roster and the majors list, and this is
+              one of the two fields whose string-match controls delivery. */}
+          <input
+            className={inputClasses}
+            value={form.subject}
+            list="schedule-subject-options"
+            onChange={(e) => set("subject", e.target.value)}
+          />
+          <datalist id="schedule-subject-options">
+            {subjectOptions.map((m) => <option key={m} value={m} />)}
+          </datalist>
         </Field>
         <Field label="Grade" required={carriesWork}>
           <AudienceSelect
             value={form.grade}
             onChange={(v) => set("grade", v)}
-            options={teacherGrades.length ? teacherGrades : GRADE_LEVELS}
+            options={gradeOptions}
             allLabel="All grades"
           />
         </Field>
         <Field label="Section">
-          {teacherSections.length ? (
+          {sectionOptions.length ? (
             <AudienceSelect
               value={form.section}
               onChange={(v) => set("section", v)}
-              options={teacherSections}
+              options={sectionOptions}
               allLabel="All sections"
             />
           ) : (
-            // No sections on the profile yet — free text, commas for several.
+            // Nothing known yet — free text, commas for several.
             <input className={inputClasses} value={form.section} onChange={(e) => set("section", e.target.value)} />
           )}
         </Field>
@@ -245,6 +311,39 @@ export default function ScheduleModal({ initial, prefill, onClose, onSaved }) {
         <Field label="Date">
           <DatePicker value={form.date} onChange={(v) => set("date", v)} />
         </Field>
+        {isNew && (
+          <Field
+            label="Repeat"
+            hint={
+              repeat === "weekly" && repeatUntil
+                ? `${repeatDates(form.date, repeatUntil).length} weeks, same day and time`
+                : undefined
+            }
+          >
+            <select
+              className={selectClasses}
+              value={repeat}
+              onChange={(e) => {
+                const v = e.target.value;
+                setRepeat(v);
+                // A sensible horizon offered, not demanded: ~a term.
+                if (v === "weekly" && !repeatUntil && form.date) {
+                  setRepeatUntil(addDays(form.date, 7 * 13));
+                }
+              }}
+            >
+              <option value="none">Just this day</option>
+              <option value="weekly">Every week</option>
+            </select>
+          </Field>
+        )}
+        {isNew && repeat === "weekly" && (
+          <div className="md:col-span-2">
+            <Field label="Repeat until" hint="each week is its own entry — edit or cancel any one alone">
+              <DatePicker value={repeatUntil} onChange={setRepeatUntil} min={form.date || undefined} />
+            </Field>
+          </div>
+        )}
         <Field label="Status">
           <select className={selectClasses} value={form.status} onChange={(e) => set("status", e.target.value)}>
             <option value="planned">Planned</option>

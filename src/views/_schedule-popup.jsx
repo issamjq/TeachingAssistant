@@ -10,9 +10,12 @@ import { createPortal } from "react-dom";
 import { useMounted } from "../shared/hooks/useMounted";
 import { X } from "lucide-react";
 import { api, inputClasses, selectClasses, DatePicker, AudienceSelect } from "./_shared";
+import { MAJORS } from "../lib/enums";
 import { today as localToday } from "@/lib/localDate";
 import { findClash, HHMM } from "@/shared/lib/scheduleClash";
-import { AudiencePreview } from "@/features/delivery";
+import { AudiencePreview, useRoster } from "@/features/delivery";
+import { distinctClasses } from "@/shared/lib/classMatch";
+import { repeatDates, addDays } from "@/shared/lib/repeatWeekly";
 
 export default function SchedulePopup({
   initial,
@@ -63,6 +66,22 @@ export default function SchedulePopup({
   // students receive the work by matching grade + subject (db/tune.sql
   // §48). Without one it is a slot in the teacher's own week.
   const carriesWork = Boolean(form.draft_id);
+
+  // The profile's sections list is never populated, so these fields
+  // degraded to free text. The roster knows her real classes — offer
+  // those, with the majors list behind the subject field.
+  const { roster } = useRoster();
+  const rosterClasses = distinctClasses(roster);
+  const rosterSections = [...new Set(rosterClasses.map((c) => c.section).filter(Boolean))].sort();
+  const rosterGrades = [...new Set(rosterClasses.map((c) => c.grade).filter(Boolean))];
+  const gradeOptions = teacherGrades.length ? teacherGrades : rosterGrades;
+  const sectionOptions = teacherSections.length ? teacherSections : rosterSections;
+  const subjectOptions = [...new Set([...rosterClasses.map((c) => c.subject).filter(Boolean), ...MAJORS])];
+
+  // Weekly repetition, new entries only — see shared/lib/repeatWeekly.ts.
+  // Each week becomes an ordinary entry, editable on its own.
+  const [repeat, setRepeat] = useState("none");
+  const [repeatUntil, setRepeatUntil] = useState("");
 
   const isDirty = JSON.stringify(form) !== JSON.stringify(initialForm);
   const attemptClose = useCallback(() => {
@@ -127,7 +146,27 @@ export default function SchedulePopup({
       if (isEdit) {
         await api(`/api/schedule/${initial.id}`, { method: "PATCH", body: payload });
       } else {
-        await api("/api/schedule", { method: "POST", body: payload });
+        // One row per week when repeating. Sequential, so a mid-series
+        // failure can say how far it got.
+        const dates =
+          repeat === "weekly" ? repeatDates(payload.date, repeatUntil) : [payload.date];
+        let written = 0;
+        try {
+          for (const d of dates) {
+            // eslint-disable-next-line no-await-in-loop
+            await api("/api/schedule", { method: "POST", body: { ...payload, date: d } });
+            written += 1;
+          }
+        } catch (e) {
+          if (!written) throw e;
+          setErr(
+            `Saved ${written} of ${dates.length} weeks, then: ${e.message}. ` +
+            `The saved weeks are on your timetable; add the rest when the connection is back.`,
+          );
+          setSaving(false);
+          onSaved?.();
+          return;
+        }
       }
       onSaved?.();
       onClose();
@@ -248,24 +287,34 @@ export default function SchedulePopup({
               <input className={inputClasses} value={form.title} onChange={(e) => set("title", e.target.value)} />
             </SerifField>
             <SerifField label="Subject">
-              <input className={inputClasses} value={form.subject} onChange={(e) => set("subject", e.target.value)} />
+              {/* Her real subjects offered behind free text — this is one
+                  of the two fields whose string-match controls delivery. */}
+              <input
+                className={inputClasses}
+                value={form.subject}
+                list="popup-subject-options"
+                onChange={(e) => set("subject", e.target.value)}
+              />
+              <datalist id="popup-subject-options">
+                {subjectOptions.map((m) => <option key={m} value={m} />)}
+              </datalist>
             </SerifField>
             <SerifField label="Grade">
               <AudienceSelect
                 value={form.grade}
                 onChange={(v) => set("grade", v)}
-                options={teacherGrades}
+                options={gradeOptions}
                 allLabel="All grades"
-                emptyNote="No grades on your profile"
+                emptyNote="No grades yet — add students first"
               />
             </SerifField>
             <SerifField label="Section">
               <AudienceSelect
                 value={form.section}
                 onChange={(v) => set("section", v)}
-                options={teacherSections}
+                options={sectionOptions}
                 allLabel="All sections"
-                emptyNote="No sections on your profile"
+                emptyNote="No sections yet — add students first"
               />
             </SerifField>
             {carriesWork && (
@@ -291,6 +340,33 @@ export default function SchedulePopup({
             <SerifField label="Date">
               <DatePicker value={form.date} onChange={(v) => set("date", v)} />
             </SerifField>
+            {!isEdit && (
+              <SerifField label="Repeat">
+                <select
+                  className={selectClasses}
+                  value={repeat}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setRepeat(v);
+                    if (v === "weekly" && !repeatUntil && form.date) {
+                      setRepeatUntil(addDays(form.date, 7 * 13));
+                    }
+                  }}
+                >
+                  <option value="none">Just this day</option>
+                  <option value="weekly">Every week</option>
+                </select>
+              </SerifField>
+            )}
+            {!isEdit && repeat === "weekly" && (
+              <SerifField label="Repeat until" wide>
+                <DatePicker value={repeatUntil} onChange={setRepeatUntil} min={form.date || undefined} />
+                <p className="text-[11.5px] text-muted mt-1.5">
+                  {repeatDates(form.date, repeatUntil).length} weeks, same day and time — each
+                  week is its own entry, so any one can be edited or cancelled alone.
+                </p>
+              </SerifField>
+            )}
             <SerifField label="Start time">
               <input type="time" className={inputClasses} value={form.start_time} onChange={(e) => set("start_time", e.target.value)} />
             </SerifField>
@@ -346,7 +422,11 @@ export default function SchedulePopup({
             disabled={saving || !form.title}
             className="planner-nav-btn px-4 py-2 rounded-lg bg-ink text-paper-cool text-sm font-medium hover:bg-ink-soft disabled:opacity-50"
           >
-            {saving ? "Saving…" : "Save"}
+            {saving
+              ? "Saving…"
+              : !isEdit && repeat === "weekly" && repeatUntil
+                ? `Save ${repeatDates(form.date, repeatUntil).length} weeks`
+                : "Save"}
           </button>
         </div>
 

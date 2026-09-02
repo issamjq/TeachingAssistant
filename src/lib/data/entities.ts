@@ -744,7 +744,7 @@ export async function listAttendance(params: URLSearchParams) {
   // second condition (this date)" in one.
   const [roster, marks] = await Promise.all([
     listStudents(),
-    supabase.from("attendance").select("id, student_id, status, note").eq("date", date),
+    supabase.from("attendance").select("id, student_id, status, note, source").eq("date", date),
   ]);
   if (marks.error) throw marks.error;
   const byStudent = new Map((marks.data || []).map((m: any) => [m.student_id, m]));
@@ -758,6 +758,9 @@ export async function listAttendance(params: URLSearchParams) {
         student_id: s.id, first_name: s.first_name, last_name: s.last_name,
         code: s.student_id, grade: s.grade, section: s.section,
         attendance_id: m?.id ?? null, status: m?.status ?? null, notes: m?.note ?? null,
+        // 'portal' = the student was marked by opening their portal, not
+        // by the teacher — her register renders the two differently.
+        source: m?.source ?? null,
       };
     });
 }
@@ -776,6 +779,9 @@ export async function markAttendance(studentId: string, body: Record<string, any
   const row = {
     faculty_id: fid, student_id: studentId, date, status,
     note: notes ?? null, class_id: class_id ?? null, schedule_id: schedule_id ?? null,
+    // Her hand outranks the portal: a corrected mark stops carrying the
+    // "marked by portal sign-in" hint.
+    source: "teacher",
   };
   const { data, error } = await supabase
     .from("attendance")

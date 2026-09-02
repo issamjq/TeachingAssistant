@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, DoorOpen } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { GRADE_LEVELS } from "../lib/enums";
@@ -40,7 +40,7 @@ export default function DatabaseAttendance() {
     if (grade) qs.set("grade", grade);
     if (section) qs.set("section", section);
     api(`/api/attendance?${qs}`)
-      .then((data) => { setRows(data); setLoading(false); })
+      .then((data) => { setRows(data); setError(null); setLoading(false); })
       .catch((err) => { setError(err.message); setLoading(false); });
   };
   useEffect(reload, [date, grade, section]);
@@ -51,14 +51,17 @@ export default function DatabaseAttendance() {
   }, [rows]);
 
   const setStatus = async (row, status) => {
-    setRows((prev) => prev.map((r) => r.student_id === row.student_id ? { ...r, status } : r));
+    // Her click makes it her mark — the "portal" hint comes off the row.
+    setRows((prev) =>
+      prev.map((r) => (r.student_id === row.student_id ? { ...r, status, source: "teacher" } : r)),
+    );
     try {
       await api("/api/attendance", {
         method: "PUT",
         body: { student_id: row.student_id, date, status },
       });
     } catch (e) {
-      alert(`Could not save: ${e.message}`);
+      setError(`Could not save: ${e.message}`);
       reload();
     }
   };
@@ -70,7 +73,7 @@ export default function DatabaseAttendance() {
         body: { student_id: row.student_id, date, status: row.status || "present", notes },
       });
     } catch (e) {
-      alert(`Could not save: ${e.message}`);
+      setError(`Could not save: ${e.message}`);
     }
   };
 
@@ -124,7 +127,12 @@ export default function DatabaseAttendance() {
           <h2 className="font-serif text-4xl font-medium text-ink">
             Daily <em className="italic font-light text-accent">attendance</em>
           </h2>
-          <p className="text-muted mt-2">Pick a date, mark present / absent / late / excused. Saves on each click.</p>
+          <p className="text-muted mt-2">
+            Pick a date, mark <strong className="font-medium text-ink-soft">P</strong>resent ·{" "}
+            <strong className="font-medium text-ink-soft">A</strong>bsent ·{" "}
+            <strong className="font-medium text-ink-soft">L</strong>ate ·{" "}
+            <strong className="font-medium text-ink-soft">E</strong>xcused. Saves on each click.
+          </p>
         </div>
         <Button onClick={markAllPresent} variant="secondary">
           Mark unmarked → Present
@@ -184,6 +192,24 @@ export default function DatabaseAttendance() {
         </div>
       )}
 
+      {/* The register must never quietly contain marks the teacher did
+          not make. Students are marked present when they open their
+          portal (db/tune.sql §student_mark_present) — said HERE, on the
+          day it happened, with the rows flagged and one click to
+          override. Silence was the biggest trust gap in the product. */}
+      {rows.some((r) => r.source === "portal") && (
+        <div className="mb-4 flex items-start gap-2.5 rounded-lg border border-line bg-paper px-4 py-3">
+          <DoorOpen size={15} className="flex-none mt-0.5 text-ink-soft" aria-hidden />
+          <p className="text-[13px] text-ink-soft leading-relaxed">
+            {rows.filter((r) => r.source === "portal").length} student
+            {rows.filter((r) => r.source === "portal").length === 1 ? " was" : "s were"} marked
+            present automatically by opening their student portal today — those rows carry a
+            door icon. Your marks always win: click any letter to override, and the flag comes
+            off.
+          </p>
+        </div>
+      )}
+
       <Card>
         <CardContent>
           <div className="overflow-x-auto">
@@ -211,20 +237,33 @@ export default function DatabaseAttendance() {
                       {r.grade}{r.section ? ` · ${r.section}` : ""}
                     </td>
                     <td className="py-3">
-                      <div className="inline-flex bg-paper border border-line rounded-full p-0.5">
-                        {STATUSES.map((s) => (
-                          <button
-                            key={s}
-                            onClick={() => setStatus(r, s)}
-                            className={`px-3 py-1 rounded-full font-mono text-[10px] uppercase tracking-wider border transition ${
-                              r.status === s
-                                ? STATUS_COLORS[s]
-                                : "border-transparent text-muted hover:text-ink"
-                            }`}
+                      <div className="inline-flex items-center gap-1.5">
+                        <div className="inline-flex bg-paper border border-line rounded-full p-0.5">
+                          {STATUSES.map((s) => (
+                            <button
+                              key={s}
+                              onClick={() => setStatus(r, s)}
+                              title={s[0].toUpperCase() + s.slice(1)}
+                              aria-label={`Mark ${r.first_name} ${r.last_name} ${s}`}
+                              aria-pressed={r.status === s}
+                              className={`px-3 py-1 rounded-full font-mono text-[10px] uppercase tracking-wider border transition ${
+                                r.status === s
+                                  ? STATUS_COLORS[s]
+                                  : "border-transparent text-muted hover:text-ink"
+                              }`}
+                            >
+                              {s[0].toUpperCase()}
+                            </button>
+                          ))}
+                        </div>
+                        {r.source === "portal" && (
+                          <span
+                            className="text-ink-soft"
+                            title="Marked present automatically when they opened the student portal. Click a letter to override."
                           >
-                            {s[0].toUpperCase()}
-                          </button>
-                        ))}
+                            <DoorOpen size={13} aria-label="Marked by portal sign-in" />
+                          </span>
+                        )}
                       </div>
                     </td>
                     <td className="py-3 px-5">

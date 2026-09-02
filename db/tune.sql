@@ -476,6 +476,13 @@ CREATE UNIQUE INDEX IF NOT EXISTS attendance_student_session_key
 CREATE UNIQUE INDEX IF NOT EXISTS attendance_student_day_key
   ON public.attendance (student_id, date) WHERE schedule_id IS NULL;
 
+-- Who marked it. 'portal' is written by student_mark_present() when a
+-- student opens their portal; 'teacher' when the register is marked by
+-- hand. NULL on rows from before the column existed. The teacher's
+-- screen renders the two differently — an auto-mark she was never told
+-- about is the fastest way to make her stop trusting the register.
+ALTER TABLE public.attendance ADD COLUMN IF NOT EXISTS source text;
+
 CREATE TABLE IF NOT EXISTS public.student_grades (
   id         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   faculty_id uuid NOT NULL REFERENCES public.faculty(id) ON DELETE CASCADE,
@@ -4834,8 +4841,10 @@ LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp
 AS $$
 DECLARE marked int := 0;
 BEGIN
-  INSERT INTO attendance (faculty_id, student_id, date, status)
-  SELECT st.created_by, st.id, current_date, 'present'
+  -- source = 'portal', so the teacher's register can SAY this mark came
+  -- from the student opening their portal rather than from her hand.
+  INSERT INTO attendance (faculty_id, student_id, date, status, source)
+  SELECT st.created_by, st.id, current_date, 'present', 'portal'
     FROM students st
    WHERE st.id IN (SELECT public.current_student_ids())
      AND st.created_by IS NOT NULL

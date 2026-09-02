@@ -116,8 +116,38 @@ export default function DatabaseScores() {
     setMatchOnly(matchCount > 0);
   }, [quiz, matchCount]);
 
-  const setCell = (sid, patch) =>
+  // Rows edited since their last save — what "Save all" writes. Thirty
+  // students used to mean thirty Save clicks; now it is one.
+  const [dirty, setDirty] = useState(() => new Set());
+  const [savingAll, setSavingAll] = useState(false);
+
+  const setCell = (sid, patch) => {
     setScores((m) => ({ ...m, [sid]: { ...(m[sid] || {}), ...patch } }));
+    setDirty((d) => new Set(d).add(sid));
+  };
+
+  const postRow = (sid) => {
+    const row = scores[sid] || {};
+    return api("/api/quiz-scores", {
+      method: "POST",
+      body: {
+        quiz_id: quizId,
+        student_id: sid,
+        score: Number(row.score),
+        max_score: row.max_score === "" || row.max_score == null
+          ? (quiz?.total_marks ?? null)
+          : Number(row.max_score),
+        feedback: row.feedback || null,
+      },
+    });
+  };
+
+  const clearDirty = (sid) =>
+    setDirty((d) => {
+      const next = new Set(d);
+      next.delete(sid);
+      return next;
+    });
 
   const saveRow = async (sid) => {
     const row = scores[sid] || {};
@@ -125,24 +155,41 @@ export default function DatabaseScores() {
     setSavingId(sid);
     setError(null);
     try {
-      await api("/api/quiz-scores", {
-        method: "POST",
-        body: {
-          quiz_id: quizId,
-          student_id: sid,
-          score: Number(row.score),
-          max_score: row.max_score === "" || row.max_score == null
-            ? (quiz?.total_marks ?? null)
-            : Number(row.max_score),
-          feedback: row.feedback || null,
-        },
-      });
+      await postRow(sid);
       setSavedAt((m) => ({ ...m, [sid]: Date.now() }));
+      clearDirty(sid);
     } catch (e) {
       setError(e.message);
     } finally {
       setSavingId(null);
     }
+  };
+
+  /**
+   * Every edited row with a score, in one press. Sequential, and a
+   * failure stops with the untouched rows still marked unsaved — so
+   * what is green is exactly what reached the database.
+   */
+  const saveAll = async () => {
+    const targets = [...dirty].filter((sid) => {
+      const row = scores[sid];
+      return row && row.score !== "" && row.score != null;
+    });
+    if (!targets.length || savingAll) return;
+    setSavingAll(true);
+    setError(null);
+    for (const sid of targets) {
+      try {
+        // eslint-disable-next-line no-await-in-loop
+        await postRow(sid);
+        setSavedAt((m) => ({ ...m, [sid]: Date.now() }));
+        clearDirty(sid);
+      } catch (e) {
+        setError(`Stopped at a save that failed: ${e.message}. Rows already saved are marked.`);
+        break;
+      }
+    }
+    setSavingAll(false);
   };
 
   return (
@@ -169,6 +216,19 @@ export default function DatabaseScores() {
             ))}
           </select>
         </div>
+        {dirty.size > 0 && (
+          <button
+            type="button"
+            onClick={saveAll}
+            disabled={savingAll}
+            className="murchid-pressable murchid-focus inline-flex items-center gap-2 rounded-full bg-ink px-4 py-2 text-[13px] font-medium text-paper-cool disabled:opacity-60"
+          >
+            <Save size={13} />
+            {savingAll
+              ? "Saving…"
+              : `Save all changes (${dirty.size})`}
+          </button>
+        )}
       </div>
 
       {/* Filter chip + name search — shown once a quiz is picked.
