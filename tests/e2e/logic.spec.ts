@@ -2,6 +2,7 @@ import { test, expect } from "@playwright/test";
 import { splitAudience, joinAudience, audienceOverlaps } from "@/shared/lib/audience";
 import { entriesClash } from "@/shared/lib/scheduleClash";
 import { docToMarkdown } from "@/lib/export";
+import { daysFromPlan, placeDays } from "@/features/goals/placePlan";
 
 // Rules that decide what a teacher sees, checked without a browser.
 //
@@ -158,5 +159,65 @@ test.describe("Markdown export", () => {
     const md = docToMarkdown({});
     expect(md).toContain("# Untitled");
     expect(md).toContain("Made with Murchid");
+  });
+});
+
+// A plan becomes a term when its days get dates. The arithmetic is small
+// and entirely wrong-able: a term that starts mid-week, a pattern that
+// wraps into the next week, a plan whose own week numbering does not
+// start at one. None of it is visible by eye on a calendar.
+test.describe("placing a plan on the timetable", () => {
+  const plan = {
+    weeks: [
+      { week: 1, days: [{ day: 1, title: "Cells" }, { day: 2, title: "Microscopes" }] },
+      { week: 2, days: [{ day: 1, title: "Diffusion" }] },
+    ],
+  };
+
+  test("flattens weeks into teaching order", () => {
+    const days = daysFromPlan(plan);
+    expect(days.map((d) => d.title)).toEqual(["Cells", "Microscopes", "Diffusion"]);
+    expect(days.map((d) => d.week)).toEqual([1, 1, 2]);
+  });
+
+  test("reads the older lessons[] shape too", () => {
+    const days = daysFromPlan({ weeks: [{ week: 1, lessons: ["Intro", "Practical"] }] });
+    expect(days.map((d) => d.title)).toEqual(["Intro", "Practical"]);
+  });
+
+  test("a week with no days contributes none", () => {
+    expect(daysFromPlan({ weeks: [{ week: 1 }] })).toEqual([]);
+    expect(daysFromPlan(null)).toEqual([]);
+  });
+
+  test("hands out the chosen weekdays, wrapping into the next week", () => {
+    // 2026-09-06 is a Sunday. Sunday + Tuesday.
+    const placed = placeDays(daysFromPlan(plan), "2026-09-06", [0, 2]);
+    expect(placed.map((d) => d.date)).toEqual(["2026-09-06", "2026-09-08", "2026-09-13"]);
+  });
+
+  test("a term starting mid-week waits for the first real slot", () => {
+    // 2026-09-07 is a Monday; the pattern is Sunday + Tuesday, so the
+    // first lesson is the Tuesday, never the Sunday that already passed.
+    const placed = placeDays(daysFromPlan(plan), "2026-09-07", [0, 2]);
+    expect(placed[0].date).toBe("2026-09-08");
+    expect(placed[1].date).toBe("2026-09-13");
+  });
+
+  test("the plan's own week numbers are not an offset", () => {
+    // A plan calling its first week "week 3" still starts on the date
+    // the teacher gave, not a fortnight later.
+    const late = { weeks: [{ week: 3, days: [{ day: 1, title: "Later" }] }] };
+    expect(placeDays(daysFromPlan(late), "2026-09-06", [0])[0].date).toBe("2026-09-06");
+  });
+
+  test("no weekdays picked leaves every day undated rather than guessing", () => {
+    const placed = placeDays(daysFromPlan(plan), "2026-09-06", []);
+    expect(placed.every((d) => d.date === null)).toBe(true);
+  });
+
+  test("an unreadable start date does not invent one", () => {
+    expect(placeDays(daysFromPlan(plan), "", [0]).every((d) => d.date === null)).toBe(true);
+    expect(placeDays(daysFromPlan(plan), "not-a-date", [0]).every((d) => d.date === null)).toBe(true);
   });
 });

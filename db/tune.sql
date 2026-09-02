@@ -11367,7 +11367,14 @@ BEGIN
            ('presentation', 3), ('activity', 2), ('goal_plan', 4),
            ('skill_profile', 1), ('materials', 3), ('template', 2),
            ('bulletin', 1), ('quiz_tweak', 1), ('regenerate', 2),
-           ('chat', 0), ('scheduling', 0)
+           ('chat', 0), ('scheduling', 0),
+           -- Reading one uploaded file, once, at upload. Added by the
+           -- service with Phase 1 (todo/backend/10-phase1-materials.md).
+           -- Edited into this list rather than corrected in a later
+           -- section, which is the house rule: an assertion aborts the
+           -- transaction where it stands, so nothing appended after it
+           -- ever runs to put it right.
+           ('extract', 1)
          );
   IF v_wrong IS NOT NULL THEN
     RAISE EXCEPTION 'credit costs differ from the measured set: %', v_wrong;
@@ -12685,4 +12692,133 @@ BEGIN
     RAISE EXCEPTION 'materials is missing % of the 6 shelf columns', 6 - v_cols;
   END IF;
   RAISE NOTICE 'materials shelf ready: title, class binding, kind, pages';
+END $$;
+
+
+-- ─────────────────────────────────────────────────────────────────────
+-- §97  A term plan you can put on the timetable
+-- ─────────────────────────────────────────────────────────────────────
+--
+-- The goal planner already writes a real scheme of work — weeks, a focus
+-- per week, days with titles and outlines, an assessment, a feasibility
+-- verdict. And it stopped there. `goals.plan` is one opaque jsonb with
+-- no class, no subject and no start date, so nothing could be placed on
+-- a calendar; the screen said so out loud, telling the teacher that the
+-- drafting happens when she carries a day into the Studio herself. She
+-- retyped her own plan, one day at a time.
+--
+-- Two things were missing.
+--
+-- 1. The goal did not know WHO or WHEN. A plan is for a class, starting
+--    on a date, at so many periods a week. Without those a day cannot
+--    become an hour in the week.
+--
+-- 2. A day was a position in a jsonb array. Nothing durable could point
+--    at one, so a day could not remember the slot it was given or the
+--    lesson that was drafted for it.
+--
+-- goal_days fixes the second: one row per teaching day, carrying the
+-- schedule entry it was placed in and the ai_studio row that was written
+-- for it. The narrative stays in `plan` — focus, assessment, risks are
+-- prose about a week and belong there. This table is the placeable part.
+--
+-- Materialised in the browser today, from the plan the service already
+-- returns plus her start date and period pattern. When the service
+-- starts emitting days with dates and outcomes of its own
+-- (todo/backend/12-goal-days.md) it writes these rows instead, and
+-- nothing downstream changes.
+
+ALTER TABLE public.goals ADD COLUMN IF NOT EXISTS grade            text;
+ALTER TABLE public.goals ADD COLUMN IF NOT EXISTS subject          text;
+ALTER TABLE public.goals ADD COLUMN IF NOT EXISTS section          text;
+ALTER TABLE public.goals ADD COLUMN IF NOT EXISTS start_date       date;
+ALTER TABLE public.goals ADD COLUMN IF NOT EXISTS periods_per_week int;
+
+CREATE TABLE IF NOT EXISTS public.goal_days (
+  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  goal_id     uuid NOT NULL REFERENCES public.goals(id)   ON DELETE CASCADE,
+  faculty_id  uuid NOT NULL REFERENCES public.faculty(id) ON DELETE CASCADE,
+  week        int  NOT NULL,
+  day_index   int  NOT NULL,
+  date        date,
+  title       text NOT NULL,
+  outline     text,
+  outcomes    text[],
+  -- Where it landed, and what was written for it. Both SET NULL: losing
+  -- a timetable slot or a draft must not delete the plan's day.
+  schedule_entry_id uuid REFERENCES public.schedule_entries(id) ON DELETE SET NULL,
+  draft_id          uuid REFERENCES public.ai_studio(id)        ON DELETE SET NULL,
+  status      text NOT NULL DEFAULT 'planned',
+  created_at  timestamptz NOT NULL DEFAULT now(),
+  updated_at  timestamptz NOT NULL DEFAULT now()
+);
+
+-- The plan reads in order; the calendar reads by date.
+CREATE INDEX IF NOT EXISTS goal_days_goal_idx    ON public.goal_days (goal_id, week, day_index);
+CREATE INDEX IF NOT EXISTS goal_days_faculty_idx ON public.goal_days (faculty_id, date);
+-- Re-materialising a plan must correct it, not double it.
+CREATE UNIQUE INDEX IF NOT EXISTS goal_days_slot_key
+  ON public.goal_days (goal_id, week, day_index);
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint
+                 WHERE conname = 'goal_days_status_check'
+                   AND connamespace = 'public'::regnamespace) THEN
+    ALTER TABLE public.goal_days ADD CONSTRAINT goal_days_status_check
+      CHECK (status IN ('planned','scheduled','drafted','taught','skipped'));
+  END IF;
+END $$;
+
+-- The §27 gate driver ran ~11,700 lines above this and cannot see a
+-- table created here, so goal_days carries the same four policies in the
+-- same shape: reads survive an expired subscription, writes do not, and
+-- a superseded device gets neither.
+ALTER TABLE public.goal_days ENABLE ROW LEVEL SECURITY;
+DO $$
+DECLARE pol record;
+BEGIN
+  FOR pol IN SELECT policyname FROM pg_policies
+              WHERE schemaname = 'public' AND tablename = 'goal_days'
+  LOOP
+    EXECUTE format('DROP POLICY IF EXISTS %I ON public.goal_days', pol.policyname);
+  END LOOP;
+END $$;
+
+CREATE POLICY goal_days_read ON public.goal_days
+  FOR SELECT TO authenticated
+  USING (faculty_id = current_faculty_id() AND is_current_device());
+CREATE POLICY goal_days_ins ON public.goal_days
+  FOR INSERT TO authenticated
+  WITH CHECK (faculty_id = current_faculty_id() AND is_current_device() AND subscription_active());
+CREATE POLICY goal_days_upd ON public.goal_days
+  FOR UPDATE TO authenticated
+  USING (faculty_id = current_faculty_id() AND is_current_device() AND subscription_active())
+  WITH CHECK (faculty_id = current_faculty_id() AND is_current_device() AND subscription_active());
+CREATE POLICY goal_days_del ON public.goal_days
+  FOR DELETE TO authenticated
+  USING (faculty_id = current_faculty_id() AND is_current_device() AND subscription_active());
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_trigger tg JOIN pg_class c ON c.oid = tg.tgrelid
+                  WHERE c.relname = 'goal_days' AND tg.tgname = 'set_updated_at'
+                    AND NOT tg.tgisinternal) THEN
+    CREATE TRIGGER set_updated_at BEFORE UPDATE ON public.goal_days
+      FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+  END IF;
+END $$;
+
+DO $$
+DECLARE v_pol int;
+BEGIN
+  SELECT count(*) INTO v_pol FROM pg_policies
+   WHERE schemaname = 'public' AND tablename = 'goal_days';
+  IF v_pol <> 4 THEN
+    RAISE EXCEPTION 'goal_days has % policies, expected 4', v_pol;
+  END IF;
+  IF NOT (SELECT relrowsecurity FROM pg_class WHERE oid = 'public.goal_days'::regclass) THEN
+    RAISE EXCEPTION 'RLS is off on goal_days';
+  END IF;
+  RAISE NOTICE 'goal_days ready: a plan can be placed on the timetable';
 END $$;

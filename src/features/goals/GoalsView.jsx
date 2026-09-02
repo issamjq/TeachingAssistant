@@ -30,6 +30,7 @@ import { api } from "@/views/_shared";
 import { uploadMaterial } from "@/features/materials";
 import s from "./Goals.module.css";
 import PlanningProgress from "./PlanningProgress";
+import PlaceOnTimetable from "./PlaceOnTimetable";
 
 /**
  * How long she has, in her own words.
@@ -568,6 +569,11 @@ function GoalDetail({ goal, onClose }) {
             <div className="mt-5">
               <GoalPlan weeks={weeks} />
             </div>
+          )}
+          {/* The verb the plan never had. Everything above describes a
+              term; this puts it in her week. */}
+          {Array.isArray(weeks) && weeks.length > 0 && (
+            <PlaceOnTimetable goal={goal} />
           )}
         </div>
       </aside>

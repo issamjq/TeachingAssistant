@@ -333,8 +333,16 @@ export async function resolve(
     case "goals":
       if (!a && method === "GET") return yes(await E.listGoals());
       if (!a && method === "POST") return yes(await E.createGoal(body));
+      // /api/goals/:id/days — the placeable half of a plan (§97).
+      if (a && b === "days" && method === "GET") return yes(await E.listGoalDays(a));
+      if (a && b === "days" && method === "POST")
+        return yes(await E.materialiseGoalDays(a, body?.days));
       if (a && method === "PATCH") return yes(await E.updateGoal(a, body));
       if (a && method === "DELETE") return yes(await E.deleteGoal(a));
+      return { handled: false };
+
+    case "goal-days":
+      if (a && method === "PATCH") return yes(await E.updateGoalDay(a, body));
       return { handled: false };
 
     case "skills":

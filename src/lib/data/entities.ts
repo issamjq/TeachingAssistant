@@ -1388,7 +1388,7 @@ export async function deleteQuizScore(id: string) {
 // at creation: the teacher's own description of what the goal covers is
 // input the planner needs, and the table has no other column for it.
 
-const GOAL_COLS = "id, title, material_ids, timeline_days, plan, ai_verdict, status, created_at, updated_at";
+const GOAL_COLS = "id, title, material_ids, timeline_days, plan, ai_verdict, status, grade, subject, section, start_date, periods_per_week, created_at, updated_at";
 
 export async function listGoals() {
   const { data, error } = await supabase
@@ -1399,7 +1399,8 @@ export async function listGoals() {
 
 export async function createGoal(body: Record<string, any>) {
   const fid = await facultyId();
-  const { title, brief, timeline_days, material_ids } = body || {};
+  const { title, brief, timeline_days, material_ids,
+          grade, subject, section, start_date, periods_per_week } = body || {};
   if (!title?.trim()) throw Object.assign(new Error("Give the goal a name."), { status: 400 });
   const { data, error } = await supabase
     .from("goals")
@@ -1408,6 +1409,11 @@ export async function createGoal(body: Record<string, any>) {
       title: title.trim(),
       timeline_days: timeline_days ?? null,
       material_ids: material_ids?.length ? material_ids : null,
+      grade: grade ?? null,
+      subject: subject ?? null,
+      section: section ?? null,
+      start_date: start_date ?? null,
+      periods_per_week: periods_per_week ?? null,
       plan: brief?.trim() ? { brief: brief.trim() } : null,
       status: "processing",
     })
@@ -1420,7 +1426,12 @@ export async function updateGoal(id: string, body: Record<string, any>) {
   const patch: Record<string, any> = { updated_at: iso() };
   // Only what a teacher may change by hand. The plan and the verdict are
   // the AI's to write, through the service.
-  for (const k of ["title", "timeline_days", "status"]) {
+  // grade/subject/section/start_date/periods_per_week are hers to set:
+  // they are what turns a plan into dated hours in her week (§97).
+  for (const k of [
+    "title", "timeline_days", "status",
+    "grade", "subject", "section", "start_date", "periods_per_week",
+  ]) {
     if (body?.[k] !== undefined) patch[k] = body[k];
   }
   const { data, error } = await supabase
@@ -1435,6 +1446,65 @@ export async function deleteGoal(id: string) {
   if (error) throw error;
   if (!count) throw notFound();
   return { ok: true };
+}
+
+// ── goal days (§97) ───────────────────────────────────────────────────
+//
+// One row per teaching day of a plan. The narrative — a week's focus,
+// its assessment, the risks — stays in `goals.plan`, which is prose
+// about a week. This is the part that can be pointed at: a day carries
+// the timetable slot it was placed in and the lesson drafted for it, and
+// neither of those can live at an index in a jsonb array.
+
+const DAY_COLS =
+  "id, goal_id, week, day_index, date, title, outline, outcomes, schedule_entry_id, draft_id, status, created_at, updated_at";
+
+export async function listGoalDays(goalId: string) {
+  const { data, error } = await supabase
+    .from("goal_days").select(DAY_COLS).eq("goal_id", goalId)
+    .order("week", { ascending: true }).order("day_index", { ascending: true });
+  if (error) throw error;
+  return data || [];
+}
+
+/**
+ * Write a plan's days, replacing whatever was there.
+ *
+ * Upsert on (goal_id, week, day_index) rather than delete-then-insert:
+ * re-materialising after she moves the start date must correct the rows,
+ * not orphan the slots and drafts already attached to them.
+ */
+export async function materialiseGoalDays(goalId: string, days: any[]) {
+  const fid = await facultyId();
+  if (!Array.isArray(days) || !days.length) return [];
+  const rows = days.map((d, i) => ({
+    goal_id: goalId,
+    faculty_id: fid,
+    week: Number(d.week) || 1,
+    day_index: Number.isFinite(d.day_index) ? d.day_index : i,
+    date: d.date ?? null,
+    title: String(d.title || "Untitled day").slice(0, 300),
+    outline: d.outline ?? null,
+    outcomes: d.outcomes?.length ? d.outcomes : null,
+  }));
+  const { data, error } = await supabase
+    .from("goal_days")
+    .upsert(rows, { onConflict: "goal_id,week,day_index", ignoreDuplicates: false })
+    .select(DAY_COLS);
+  if (error) throw error;
+  return data || [];
+}
+
+export async function updateGoalDay(id: string, body: Record<string, any>) {
+  const patch: Record<string, any> = { updated_at: iso() };
+  for (const k of ["date", "title", "outline", "status", "schedule_entry_id", "draft_id"]) {
+    if (body?.[k] !== undefined) patch[k] = body[k];
+  }
+  const { data, error } = await supabase
+    .from("goal_days").update(patch).eq("id", id).select(DAY_COLS).maybeSingle();
+  if (error) throw error;
+  if (!data) throw notFound();
+  return data;
 }
 
 // ── teaching skills ──────────────────────────────────────────────────
