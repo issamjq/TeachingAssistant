@@ -20,7 +20,7 @@ import { flash } from "@/shared/lib/flash";
 import { GRADE_LEVELS, MAJORS, QUIZ_SECTIONS } from "@/lib/enums";
 import {
   listMaterials, updateMaterial, deleteMaterial, uploadMaterial, extractMaterial,
-  materialLabel, type Material,
+  extractPending, materialLabel, type Material,
 } from "./api";
 
 const KINDS = [
@@ -78,6 +78,41 @@ export default function MaterialsView() {
   const [busy, setBusy] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [reading, setReading] = useState<string | null>(null);
+  const [sweeping, setSweeping] = useState(false);
+
+  /**
+   * Read everything that has never been read.
+   *
+   * One batch per press, never a loop: each successful read is charged,
+   * and a button that keeps spending after she stopped looking is not
+   * one she can trust. The count tells her whether to press again.
+   */
+  const readAll = async () => {
+    setSweeping(true);
+    try {
+      const r = await extractPending();
+      reload();
+      const done = [
+        r.read ? `${r.read} read` : null,
+        r.failed ? `${r.failed} couldn't be read` : null,
+      ].filter(Boolean).join(", ");
+      flash(
+        r.remaining
+          ? `${done || "Nothing read"} — ${r.remaining} still to go, press again when you like.`
+          : done
+            ? `${done}. Attaching them costs nothing now.`
+            : "Nothing left to read.",
+      );
+    } catch (e: any) {
+      flash(
+        e?.code === "no_backend"
+          ? "Reading documents isn't switched on yet. Your files are safe and can still be attached."
+          : `Could not read those: ${e.message}`,
+      );
+    } finally {
+      setSweeping(false);
+    }
+  };
 
   /**
    * Ask the service to read one file.
@@ -124,6 +159,10 @@ export default function MaterialsView() {
     return rows.filter((m) =>
       `${materialLabel(m)} ${m.subject || ""} ${m.grade || ""}`.toLowerCase().includes(t));
   }, [rows, term]);
+
+  const unread = (rows || []).filter(
+    (m) => m.status !== "ready" && m.status !== "processing",
+  ).length;
 
   const onFiles = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = [...(e.target.files || [])];
@@ -213,6 +252,25 @@ export default function MaterialsView() {
             aria-label="Search your material"
             className={`${inputClasses} pl-9`}
           />
+        </div>
+      )}
+
+      {/* Only when there is a backlog. A standing button for a job with
+          nothing to do is a button she learns to ignore. */}
+      {unread > 1 && (
+        <div className="mb-4 flex flex-wrap items-center gap-3 rounded-lg border border-line bg-paper-warm px-4 py-3">
+          <p className="text-[13px] text-ink-soft flex-1 min-w-[16rem]">
+            {unread} file{unread === 1 ? "" : "s"} here {unread === 1 ? "has" : "have"} never
+            been read. Reading them once makes attaching them free after that.
+          </p>
+          <button
+            type="button"
+            onClick={readAll}
+            disabled={sweeping}
+            className="inline-flex items-center gap-2 h-9 px-3.5 rounded-lg border border-ink text-[13px] disabled:opacity-50"
+          >
+            {sweeping ? "Reading…" : "Read my unread files"}
+          </button>
         </div>
       )}
 

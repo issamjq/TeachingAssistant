@@ -6,6 +6,7 @@ export {
   deleteMaterial,
   uploadMaterial,
   extractMaterial,
+  extractPending,
   materialLabel,
   MAX_BYTES,
   type Material,

@@ -136,3 +136,25 @@ export const extractMaterial = (id: string) =>
   api<{ id: string; status: string; chars?: number; pages?: number }>(
     `/api/materials/${id}/extract`, { method: "POST" },
   );
+
+/**
+ * Read everything of hers that has never been read.
+ *
+ * Files uploaded before extraction existed sit at `uploaded` with no
+ * text, and nothing goes back for them on its own — each one costing the
+ * reading surcharge on every generation that attaches it. A server-side
+ * cron cannot do this: the service holds no service-role key on purpose,
+ * and storage is read with the teacher's own token, so the sweep has to
+ * be a call SHE makes.
+ *
+ * 25 per call. `remaining` above zero means there are more; deliberately
+ * one batch per press rather than a loop, because every successful read
+ * is charged and a button that quietly spends is not one she can trust.
+ */
+export const extractPending = () =>
+  api<{
+    read: number;
+    failed: number;
+    remaining: number;
+    files?: { id: string; status: string; chars?: number; pages?: number }[];
+  }>("/api/materials/extract-pending", { method: "POST" });

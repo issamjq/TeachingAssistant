@@ -28,7 +28,7 @@ branch that is not serving anyone.
 | # | What | Spec |
 |---|---|---|
 | 08 | `POST /api/studio/skill-profile` — the interview compiled into a written profile, and `skill_ids` honoured during generation. Open since August and not mentioned in any release since | [08](08-skills-refinement.md) |
-| — | The corpus: embedding pipeline + `/api/corpus/search`. Schema and the scope wall are already in place — see §3 below | this file |
+| — | **Grounded generation** — inject retrieved passages into lesson and quiz prompts, prefer her material over ours, cite which source a section drew on. The corpus and `/api/corpus/search` now exist; this is the step that uses them | this file, §3 |
 
 Everything else the frontend needs has shipped. The two items above are
 self-contained; nothing in them depends on anything else in this list.
@@ -63,25 +63,27 @@ request:
 - **A `backendv2` service block in the backend's `render.yaml`.** The
   blueprint describes `main`/starter/Singapore while the v2 service is
   Free/Oregon; that drift has already cost one failed deploy.
+- **`EMBEDDING_API_KEY` and `GEMINI_EMBED_MODEL`** in the backend
+  environment. The first falls back to `GEMINI_API_KEY`, so retrieval
+  inherits whatever the Gemini tier decision above lands on.
 - **A curriculum specialist** to verify and extend
   `src/lib/curriculum.js`. The 12 seeded units carry `source: 'starter'`
   and the UI says they are our draft. That is honest, but it is not a
   ministry sequence, and it should not be shown as one.
 
-## §1 · The 14 files nobody has read
+## §1 · The 14 files nobody has read — now one press
 
-There are still real teacher uploads sitting at `status: 'uploaded'`
-with no `extracted_text`. Extraction exists now, but nothing has gone
-back for the files that predate it, and each one silently costs the
-3-credit reading surcharge on every generation that attaches it.
+Solved, and the reason it could not be a cron job is worth keeping: the
+service **holds no service-role key on purpose**, because that key mints
+access to every teacher's files. Storage is read with the teacher's own
+token, so a sweep of everyone's backlog is not something a scheduled job
+can do without becoming a far more dangerous thing to run.
 
-The shelf's **Read it now** button does one at a time. A server-side
-sweep would be kinder, and the query is the whole job:
-
-```sql
-select id from public.materials
- where status = 'uploaded' and extracted_text is null and deleted_at is null;
-```
+So it is an authenticated call she makes:
+`POST /api/materials/extract-pending`, 25 files a batch. The shelf shows
+**Read my unread files** whenever there is a backlog, one batch per
+press — every successful read is charged, and a button that keeps
+spending after she has stopped looking is not one she can trust.
 
 ## §2 · What is already handled on our side
 
@@ -108,43 +110,37 @@ So it is not built twice:
   shared `(goal_id, week, day_index)` key. Both sides upsert; whichever
   runs second corrects the first.
 
-## §3 · Before writing the corpus ingest
+## §3 · The corpus exists; grounding does not
 
-`db/tune.sql` §100 is applied. `pgvector` is on, `corpus_chunks` exists,
-and the HNSW index is built while the table is empty.
+The ingest and `POST /api/corpus/search` shipped. Chunks are written by
+the service with the teacher's own token — it holds no service-role key
+on purpose — and the scope wall behaves: all four shapes were run against
+the live table, and a planted-chunk search returned her chunk and ours
+while excluding another teacher's and the wrong grade.
 
-The table holds two populations that must never mix, and the separation
-is a CHECK constraint rather than a convention:
+Worth knowing about the chunker, because it was written against a real
+19,000-character syllabus rather than a sample, and all three of these
+were bugs found by reading its output:
 
-```
-scope='global'   MUST have faculty_id IS NULL     -- ours to publish
-scope='faculty'  MUST have faculty_id NOT NULL    -- one teacher's own
-```
+- A PDF text layer often has **no blank lines at all**, so
+  paragraph-based scanning found zero headings. Headings are found per
+  line now.
+- A shouted line must **look like language** before it is believed —
+  otherwise every passage gets labelled "TOTAL 80" or "CG-9", because a
+  syllabus is mostly a table.
+- A heading that labels **every** section names none of them, so a
+  running header is dropped. On that document 1 chunk in 10 has a
+  heading, because the document genuinely has one. A citation pointing
+  at the wrong section is worse than one pointing at nothing.
 
-Both illegal shapes are refused at insert — verified against the live
-schema, not assumed. So a bug in the pipeline fails loudly at write time
-instead of silently at read time, months later, as one school's textbook
-appearing in another school's lesson.
+PDFs are read page by page and merged afterwards, so each passage keeps
+its page — that cannot be recovered from the merged string later.
 
-For the ingest:
-
-- A chunk from a teacher's `materials` row is **always**
-  `scope='faculty'` with her `faculty_id`. There is ~2MB of third-party
-  textbook text in `materials` on one account already; publishing that
-  to every teacher is the line drawn in §99 and §100.
-- `scope='global'` is only for material **we wrote or licensed**.
-- `(material_id, chunk_no)` is unique, so re-ingesting replaces rather
-  than doubles.
-- `curriculum_code`, `grade` and `subject` are on the chunk so retrieval
-  filters **before** the vector scan. Post-filtering a
-  nearest-neighbour result cannot stop a Grade 4 lesson pulling a
-  Grade 10 passage.
-- `heading` and `page` are what turn a citation into something she can
-  check against her own book. Please fill them.
-- `embedding` is `vector(768)` — Gemini `text-embedding-004`. Changing
-  the dimension later means re-embedding everything.
-- **Chunk on meaning, not length.** Respect headings and paragraph
-  boundaries. This is the one decision here that is expensive to redo.
+**What is left is the use of it.** Retrieved passages are not yet
+injected into generation. When that is built: prefer her material over
+ours where both match, say in the document which source a section drew
+on, and generate as today rather than forcing weak passages in when
+retrieval finds nothing useful.
 
 ## §4 · Nothing has been run for real
 
@@ -163,6 +159,7 @@ signed-in teacher, which that side does not have.
 | Goal days | Patterns 1–5, wrapping, mid-week starts | A real term plan |
 | Weak spots | Real marked data, no id in the prompt | A lesson that opens with the recap |
 | Derive | 15 units from a real CBSE syllabus | The HTTP route; the not-a-syllabus refusal |
+| Corpus | Chunker on a real syllabus, scope CHECK, tenant isolation | A real embedding call; upload → index → search |
 
 So the queries below are not a formality. They are the first time any
 of this meets a teacher.
