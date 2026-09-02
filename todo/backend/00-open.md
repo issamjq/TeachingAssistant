@@ -5,12 +5,24 @@
 > requests is a folder nobody reads. This file is the whole outstanding
 > list. If it is not here, it is not waiting on anyone.
 
-## 🔴 Do this first: production is running a known bug
+## 🔴 Do this first: confirm what production is running
 
-Everything the service has built sits on **`backendv2`**. Production is
-**`main`**, and `main` still pins `temperature: 0` on structured Gemini
-calls — which on a long enough input degenerates into a repetition loop:
-65,520 output tokens of garbage, then *"Couldn't read that response."*
+**Open question, and it decides everything below.** The frontend now
+points at `https://murchid-backend-no24.onrender.com` — a new Render
+service, healthy, `/healthz` 200 in 0.3s. **Is that `backendv2`, or is
+it `main` on a new host?**
+
+If it is `backendv2`, this section is already resolved and the rest of
+the list stands on its own. If it is `main`, the bug below is live and
+so is everything else that was said about the branch split. The blanket
+auth middleware 401s every path including nonsense ones, so this cannot
+be answered from outside — one word from you settles it.
+
+### The bug, if `main` is still what serves teachers
+
+`main` pins `temperature: 0` on structured Gemini calls — which on a
+long enough input degenerates into a repetition loop: 65,520 output
+tokens of garbage, then *"Couldn't read that response."*
 The teacher sees a failure and the noise is billed.
 
 It hits **every** structured call: the goal planner, the quiz
@@ -20,7 +32,7 @@ pin has existed.
 
 One commit to cherry-pick, and it touches nothing in the wire contract.
 Do that, or deploy `backendv2` — but until one of them happens, none of
-the work below §2 is reachable by a teacher, because it is all on the
+the work below is reachable by a teacher, because it is all on the
 branch that is not serving anyone.
 
 ## Waiting on the backend
@@ -60,9 +72,12 @@ request:
   **0.16**. The route is built and reports the real status; it just
   needs any free monitor pointed at it. This is the cheapest
   perceived-speed win available and it has been open the longest.
-- **A `backendv2` service block in the backend's `render.yaml`.** The
-  blueprint describes `main`/starter/Singapore while the v2 service is
-  Free/Oregon; that drift has already cost one failed deploy.
+- **A `render.yaml` that describes the service actually serving
+  traffic.** The blueprint describes `main`/starter/Singapore; the v2
+  service is Free/Oregon, and there is now a third host name in play
+  (`murchid-backend-no24`). That drift has already cost one failed
+  deploy, and it is the reason the question at the top of this file
+  cannot be answered by reading the repo.
 - **`EMBEDDING_API_KEY` and `GEMINI_EMBED_MODEL`** in the backend
   environment. The first falls back to `GEMINI_API_KEY`, so retrieval
   inherits whatever the Gemini tier decision above lands on.
