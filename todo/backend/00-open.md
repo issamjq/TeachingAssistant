@@ -1,6 +1,6 @@
 # What is still open
 
-> **Updated 2026-09-02.** Work orders 09–12 are done and have been
+> **Updated 2026-09-02.** Work orders 09–13 are done and have been
 > deleted — the specs served their purpose and a folder of finished
 > requests is a folder nobody reads. This file is the whole outstanding
 > list. If it is not here, it is not waiting on anyone.
@@ -9,14 +9,20 @@
 
 | # | What | Spec |
 |---|---|---|
-| 13 | Weak spots in the generation prompt — lessons that scaffold what the class actually got wrong | [13](13-performance-context.md) |
 | 14 | `POST /api/curriculum/derive` — a sequence read off her own syllabus, for the classes nobody has authored | [14](14-curriculum-derive.md) |
 | 08 | `POST /api/studio/skill-profile` — the interview compiled into a written profile, and `skill_ids` honoured during generation | [08](08-skills-refinement.md) |
 | — | The corpus: embedding pipeline + `/api/corpus/search`. Schema and the scope wall are already in place — see §3 below | this file |
 
-Everything else the frontend needs has shipped. The three specs above
-are self-contained; nothing in them depends on anything else in this
-list.
+Everything else the frontend needs has shipped. The two specs above are
+self-contained; nothing in them depends on anything else in this list.
+
+### One line still owed on our side
+
+The privacy policy has to say that class-level performance now shapes
+generated material — its old wording ("what is not sent: … marks or
+submissions") stops being true the moment the weak-spot prompt
+deploys. Written and sitting on branch `privacy-performance-line`,
+waiting on the owner because it is visitor-facing legal text.
 
 ## Waiting on nobody's code
 
@@ -71,6 +77,8 @@ So it is not built twice:
   `ready` adds nothing to the quote.
 - **`goal_day_id`** is now sent on `/api/studio/generate` and
   `/api/studio/agent` whenever a lesson was started from a placed term.
+- **The class pick** is sent on both studio routes, and on
+  `goal-plan` along with `start_date` and `periods_per_week`.
 - **Weekday placement**: the browser has her real pattern because she
   picks the days, so it overwrites the service's even spread through the
   shared `(goal_id, week, day_index)` key. Both sides upsert; whichever
@@ -129,6 +137,13 @@ select type, count(*) from public.ai_studio
 
 Any row typed `teaching_guide` or `student_notes`, or `lesson_plan`
 above 1, means the merge is not live on the deployed branch.
+
+**A lesson for a class with recent weak marks scaffolds them, and says
+why** — ask for a Grade 9 Physics lesson adjacent to forces and the plan
+should recap terminal velocity with a line explaining that it is there
+because of a recent quiz. Ask for one on cells and it should not mention
+it at all. A recap in the cells lesson is the failure mode worth
+reporting fast.
 
 **A placed term has dated days with real outcomes:**
 
