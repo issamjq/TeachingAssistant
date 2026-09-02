@@ -12940,3 +12940,102 @@ BEGIN
   END IF;
   RAISE NOTICE 'class_weak_spots ready: the marks can be read back as a signal';
 END $$;
+
+
+-- ─────────────────────────────────────────────────────────────────────
+-- §99  The curriculum, as structure
+-- ─────────────────────────────────────────────────────────────────────
+--
+-- The blank page is the oldest complaint in this product: the studio
+-- opens with "what are we making today?" and asks a teacher of twelve
+-- years to supply context the system could already know. She does not
+-- need help DECIDING what to teach — the syllabus decided that in
+-- August. She needs the production work.
+--
+-- So: what must be taught, in what order, expressed once.
+--
+-- STRUCTURE ONLY, and the line matters legally as well as practically.
+-- A unit is a title, a position and a set of outcomes — the shape a
+-- ministry or an exam board publishes. Textbook CONTENT is copyrighted
+-- and is never stored here; the teacher's own book lives in her own
+-- private bucket, bound to her own class (§96). That is cleaner and it
+-- is better product, because schools sequence differently and her copy
+-- is the authority for her room.
+--
+-- `source` is not decoration. A sequence taken from a ministry document
+-- and one we drafted as a starting point are different claims, and the
+-- UI says which it is showing — a plan presented with more confidence
+-- than it has earned makes a veteran audit every week before she can
+-- trust any of it, which costs her more than building it herself.
+--
+-- Reference data: readable by every signed-in user, writable by none.
+-- No write policy at all rather than a restrictive one — an absent
+-- policy is something you have to notice you are adding.
+
+CREATE TABLE IF NOT EXISTS public.curricula (
+  code    text PRIMARY KEY,
+  name    text NOT NULL,
+  name_ar text,
+  region  text,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS public.curriculum_units (
+  id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  curriculum_code text NOT NULL REFERENCES public.curricula(code) ON DELETE CASCADE,
+  grade           text NOT NULL,
+  subject         text NOT NULL,
+  seq             int  NOT NULL,
+  title           text NOT NULL,
+  title_ar        text,
+  outcomes        text[],
+  typical_weeks   int,
+  -- Where this sequence came from. 'starter' means we drafted it.
+  source          text,
+  created_at      timestamptz NOT NULL DEFAULT now(),
+  updated_at      timestamptz NOT NULL DEFAULT now()
+);
+
+-- One unit per position per class. Re-seeding corrects a title or a set
+-- of outcomes rather than appending a second copy of the sequence.
+CREATE UNIQUE INDEX IF NOT EXISTS curriculum_units_key
+  ON public.curriculum_units (curriculum_code, grade, subject, seq);
+-- The lookup every screen makes: "what do I teach, in order".
+CREATE INDEX IF NOT EXISTS curriculum_units_class_idx
+  ON public.curriculum_units (curriculum_code, grade, subject, seq);
+
+ALTER TABLE public.curricula         ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.curriculum_units  ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS curricula_read ON public.curricula;
+CREATE POLICY curricula_read ON public.curricula
+  FOR SELECT TO authenticated USING (true);
+
+DROP POLICY IF EXISTS curriculum_units_read ON public.curriculum_units;
+CREATE POLICY curriculum_units_read ON public.curriculum_units
+  FOR SELECT TO authenticated USING (true);
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_trigger tg JOIN pg_class c ON c.oid = tg.tgrelid
+                  WHERE c.relname = 'curriculum_units' AND tg.tgname = 'set_updated_at'
+                    AND NOT tg.tgisinternal) THEN
+    CREATE TRIGGER set_updated_at BEFORE UPDATE ON public.curriculum_units
+      FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+  END IF;
+END $$;
+
+DO $$
+DECLARE v_write int;
+BEGIN
+  -- Reference data stays read-only: a teacher must never be able to
+  -- edit the sequence another teacher is being shown.
+  SELECT count(*) INTO v_write FROM pg_policies
+   WHERE schemaname = 'public'
+     AND tablename IN ('curricula','curriculum_units')
+     AND cmd <> 'SELECT';
+  IF v_write > 0 THEN
+    RAISE EXCEPTION 'curriculum tables have % write policies; they are reference data', v_write;
+  END IF;
+  RAISE NOTICE 'curriculum tables ready (seed them with npm run db:seed)';
+END $$;

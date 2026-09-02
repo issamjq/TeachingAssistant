@@ -31,6 +31,7 @@ import { uploadMaterial } from "@/features/materials";
 import s from "./Goals.module.css";
 import PlanningProgress from "./PlanningProgress";
 import PlaceOnTimetable from "./PlaceOnTimetable";
+import CurriculumStart from "./CurriculumStart";
 
 /**
  * How long she has, in her own words.
@@ -123,6 +124,9 @@ function NewGoal({ onCreated, onClose }) {
   // Parsed as she types, so what the planner will be told is always on screen.
   const days = daysFromTimeline(timeline);
   const [docs, setDocs] = useState([]);          // { id, file_name }
+  // Carried straight onto the goal when the unit came from the
+  // curriculum, so the plan already knows who it is for.
+  const [pickedClass, setPickedClass] = useState(null);
   const [busy, setBusy] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState(null);
@@ -156,7 +160,11 @@ function NewGoal({ onCreated, onClose }) {
         // Six weeks when she left it blank — the planner needs a number, and
         // refusing to create the goal over an unparsed phrase would lose the
         // brief and the upload she has already done.
-        body: { title, brief, timeline_days: days ?? 42, material_ids: docs.map((d) => d.id) },
+        body: {
+          title, brief, timeline_days: days ?? 42,
+          material_ids: docs.map((d) => d.id),
+          ...(pickedClass || {}),
+        },
       });
       onCreated(goal);
     } catch (err) {
@@ -185,6 +193,18 @@ function NewGoal({ onCreated, onClose }) {
       </div>
 
       <div className="space-y-4 max-w-2xl">
+        {/* Before the empty box, not after it. The syllabus already
+            decided what she is teaching; asking her to type it first is
+            asking for the easy half in order to unlock the hard half. */}
+        <CurriculumStart
+          onPick={(u) => {
+            setTitle(u.title);
+            setBrief(u.brief);
+            if (u.timeline) setTimeline(u.timeline);
+            setPickedClass({ grade: u.grade, subject: u.subject });
+          }}
+        />
+
         <div>
           <label className={s.label} htmlFor="goal-title">Goal</label>
           <input

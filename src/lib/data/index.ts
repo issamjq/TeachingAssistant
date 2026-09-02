@@ -252,6 +252,16 @@ export async function resolve(
       if (method === "GET") return yes(await E.dashboard());
       return { handled: false };
 
+    // The curriculum spine (§99). Reference data, read-only.
+    case "curriculum":
+      if (!a && method === "GET") return yes(await E.listCurricula());
+      if (a === "coverage" && method === "GET") return yes(await E.curriculumCoverage());
+      if (a === "units" && method === "GET")
+        return yes(await E.listCurriculumUnits({
+          curriculum: q.get("curriculum"), grade: q.get("grade"), subject: q.get("subject"),
+        }));
+      return { handled: false };
+
     // What a class found hard, from marks already recorded (§98).
     case "insights":
       if (a === "weak-spots" && method === "GET")

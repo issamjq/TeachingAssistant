@@ -1448,6 +1448,43 @@ export async function deleteGoal(id: string) {
   return { ok: true };
 }
 
+// ── the curriculum, as structure (§99) ────────────────────────────────
+//
+// Reference data: readable by anyone signed in, writable by nobody.
+// Units are a SEQUENCE and its outcomes — never textbook content, which
+// is copyrighted and belongs in the teacher's own private bucket.
+
+export async function listCurricula() {
+  const { data, error } = await supabase
+    .from("curricula").select("code, name, name_ar, region").order("name");
+  if (error) throw error;
+  return data || [];
+}
+
+export async function listCurriculumUnits(q: Record<string, any> = {}) {
+  if (!q.curriculum || !q.grade || !q.subject) return [];
+  const { data, error } = await supabase
+    .from("curriculum_units")
+    .select("id, curriculum_code, grade, subject, seq, title, outcomes, typical_weeks, source")
+    .eq("curriculum_code", q.curriculum).eq("grade", q.grade).eq("subject", q.subject)
+    .order("seq", { ascending: true });
+  if (error) throw error;
+  return data || [];
+}
+
+/** Which classes have a sequence at all, so the UI can offer only those. */
+export async function curriculumCoverage() {
+  const { data, error } = await supabase
+    .from("curriculum_units").select("curriculum_code, grade, subject");
+  if (error) throw error;
+  const seen = new Map<string, any>();
+  for (const r of data || []) {
+    const k = `${r.curriculum_code}|${r.grade}|${r.subject}`;
+    if (!seen.has(k)) seen.set(k, r);
+  }
+  return [...seen.values()];
+}
+
 // ── what a class found hard (§98) ─────────────────────────────────────
 //
 // Per-question marks, read back as a signal. Aggregates only — the
