@@ -62,8 +62,19 @@ export function estimateFor(costs, kinds, hasMaterials) {
 /** Would this attachment still cost a read? Only if it has never been read. */
 export const chargesRead = (att) => att?.status !== "ready";
 
+/**
+ * How much of the allowance is left, or null when there is no real one.
+ *
+ * An allowance BELOW the balance is not an allowance: while billing is
+ * off every teacher holds a fixed grant and `monthly_allowance` still
+ * carries the old paid default, so 791/40 reads as 1978% and every
+ * threshold below is silently unreachable. Null means "no allowance to
+ * measure against", which the warnings already handle.
+ */
 const pct = (c) =>
-  c && c.allowance ? Math.round((c.balance / c.allowance) * 100) : null;
+  c && c.allowance > 0 && c.allowance >= c.balance
+    ? Math.round((c.balance / c.allowance) * 100)
+    : null;
 
 /** The line under the composer: what this costs, and what is left. */
 export function CreditEstimate({ credits, kinds, hasMaterials }) {

@@ -13195,3 +13195,55 @@ BEGIN
 
   RAISE NOTICE 'corpus_chunks ready: pgvector on, scope wall asserted, no write policy';
 END $$;
+
+
+-- ─────────────────────────────────────────────────────────────────────
+-- §101  One storage object, one material row
+-- ─────────────────────────────────────────────────────────────────────
+--
+-- Walking the live site turned up 15 files stored once and recorded
+-- twice: 10 `materials` rows over 5 distinct `file_path` values, exactly
+-- two rows per upload, every time. The doubling ran between 18 and 21
+-- August and has not recurred since, so this is a guard against its
+-- return rather than a fix for a live fault — the cause was never
+-- reproduced, and a rule the database enforces is worth more than a
+-- cause we would be guessing at.
+--
+-- It also costs money. "Read once, free after" is priced per material
+-- row, so a file recorded twice is extracted twice and charged twice,
+-- and the shelf offers her the same book under two entries.
+--
+-- `file_path` carries a timestamp (`<uid>/<where>/<ms>-<name>`), so a
+-- genuine second upload of the same document has a different path and
+-- is untouched by this. Only a path recorded twice is refused, which is
+-- a thing that can only happen by writing the row twice for one upload.
+--
+-- Partial on `deleted_at IS NULL`: a file she removed and uploaded again
+-- is her business, and the trash keeps its rows.
+
+DO $$
+DECLARE v_dupes int;
+BEGIN
+  SELECT count(*) INTO v_dupes FROM (
+    SELECT file_path FROM public.materials
+     WHERE deleted_at IS NULL
+     GROUP BY file_path HAVING count(*) > 1
+  ) t;
+
+  IF v_dupes > 0 THEN
+    -- Deliberately NOT resolved here. Removing rows is a decision about
+    -- a teacher's own shelf, and this file does not delete anything.
+    RAISE NOTICE 'materials: % duplicated file_path(s) still present — index not created.', v_dupes;
+    RAISE NOTICE '  To resolve, keeping the earliest row of each pair:';
+    RAISE NOTICE '    UPDATE public.materials m SET deleted_at = now()';
+    RAISE NOTICE '      WHERE deleted_at IS NULL AND EXISTS (';
+    RAISE NOTICE '        SELECT 1 FROM public.materials k';
+    RAISE NOTICE '         WHERE k.file_path = m.file_path AND k.deleted_at IS NULL';
+    RAISE NOTICE '           AND (k.created_at, k.id) < (m.created_at, m.id));';
+    RAISE NOTICE '  Then re-run npm run db:tune to put the index in place.';
+  ELSE
+    CREATE UNIQUE INDEX IF NOT EXISTS materials_file_path_key
+      ON public.materials (file_path) WHERE deleted_at IS NULL;
+    RAISE NOTICE 'materials: one row per stored file, enforced';
+  END IF;
+END $$;

@@ -62,7 +62,29 @@ function draftDay(goal, day) {
 
 export default function PlaceOnTimetable({ goal, onPlaced }) {
   const { roster } = useRoster();
-  const classes = distinctClasses(roster);
+  /**
+   * Her real classes, plus the one this goal is FOR.
+   *
+   * The list came only from the roster, so a goal for "Grade 8 Science"
+   * on an account whose only class is Grade 9 · A · Maths offered
+   * nothing she could pick — the plan was unplaceable and the screen
+   * gave no way out. A goal that already names its class carries that
+   * class as an option, listed first, whether or not anyone is enrolled
+   * in it yet.
+   */
+  const classes = useMemo(() => {
+    const fromRoster = distinctClasses(roster);
+    if (!goal.grade) return fromRoster;
+    const same = (c) =>
+      c.grade === goal.grade &&
+      (c.subject || null) === (goal.subject || null) &&
+      (c.section || null) === (goal.section || null);
+    if (fromRoster.some(same)) return fromRoster;
+    return [
+      { grade: goal.grade, subject: goal.subject, section: goal.section, count: 0 },
+      ...fromRoster,
+    ];
+  }, [roster, goal.grade, goal.subject, goal.section]);
 
   const planDays = useMemo(() => daysFromPlan(goal.plan), [goal.plan]);
   const [days, setDays] = useState(null);          // saved goal_days rows
@@ -71,7 +93,26 @@ export default function PlaceOnTimetable({ goal, onPlaced }) {
   const [cls, setCls] = useState(() =>
     goal.grade ? { grade: goal.grade, section: goal.section, subject: goal.subject } : null);
   const [start, setStart] = useState(goal.start_date || todayISO());
-  const [picked, setPicked] = useState([0, 2]); // Sun + Tue, the common shape
+  /**
+   * How many days a week the plan actually needs.
+   *
+   * A fixed Sun+Tue default contradicted the plan it was placing: ten
+   * teaching days across two weeks is five a week, and spreading them
+   * over two put the last lesson a month past the end of the unit. The
+   * plan knows its own shape — the busiest week in it — so the default
+   * follows that, and she moves the days rather than the count.
+   */
+  const perWeek = useMemo(() => {
+    if (goal.periods_per_week) return Math.min(5, Math.max(1, goal.periods_per_week));
+    const byWeek = new Map();
+    for (const d of planDays) byWeek.set(d.week, (byWeek.get(d.week) || 0) + 1);
+    return Math.min(5, Math.max(1, ...(byWeek.size ? [...byWeek.values()] : [2])));
+  }, [goal.periods_per_week, planDays]);
+
+  // Spread across the teaching week rather than bunched: 2 → Sun+Tue,
+  // 3 → Sun+Tue+Thu, 5 → the whole week.
+  const [picked, setPicked] = useState(() =>
+    ({ 1: [0], 2: [0, 2], 3: [0, 2, 4], 4: [0, 1, 2, 3], 5: [0, 1, 2, 3, 4] })[perWeek] || [0, 2]);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {

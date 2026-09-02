@@ -1,0 +1,534 @@
+/* =====================================================================
+   The screens inside the shell
+
+   Two type voices and no third: Fraunces carries every title, Inter
+   Tight carries everything a teacher reads at speed — times, rooms,
+   counts, statuses. Hairlines separate rows, gaps separate groups,
+   and shadow is reserved for the things that are meant to be picked up.
+
+   On buttons. DESIGN.md makes the studio's workhorse primary INK, not
+   the accent, and the accent rationed to about one filled action per
+   screen. The reference design fills every button with its green, which
+   in this palette would put fourteen firozeh pills on the home screen
+   and leave none of them meaning anything. So the two acts are split:
+   opening something you already have is ink, and MAKING something new
+   is the accent. That reads as a hierarchy rather than as a wash, and
+   it is legible before you read a single label.
+   ===================================================================== */
+
+.page { max-width: 1180px; margin: 0 auto; display: grid; gap: 30px; }
+.wide { max-width: 1180px; margin: 0 auto; }
+
+/* ── section headings ──────────────────────────────────────────────── */
+
+.sectionHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+.sectionTitle {
+  font-family: var(--font-serif);
+  font-weight: 400;
+  font-size: 19px;
+  line-height: 1.2;
+  letter-spacing: -0.018em;
+  margin: 0;
+}
+.sectionMeta { font-size: 12.5px; color: var(--p-muted); }
+.sectionLink {
+  border: 0; background: transparent; padding: 0;
+  font: inherit; font-size: 12.5px;
+  color: var(--p-accent);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: color-mix(in oklab, var(--p-accent) 35%, transparent);
+}
+.sectionLink:hover { text-decoration-color: currentColor; }
+
+/* ── surfaces ──────────────────────────────────────────────────────── */
+
+.card {
+  background: var(--p-paper-cool);
+  border-radius: 16px;
+  box-shadow: var(--shadow-1);
+  padding: 20px;
+}
+.tight { padding: 0; }
+
+.split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 316px;
+  gap: 18px;
+  align-items: start;
+}
+@media (max-width: 1100px) { .split { grid-template-columns: minmax(0, 1fr); } }
+
+/* ── today's classes ───────────────────────────────────────────────── */
+
+.rows { display: grid; }
+.row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 20px;
+  border-top: 1px solid var(--p-line-soft);
+}
+.row:first-child { border-top: 0; }
+.when { width: 74px; flex: none; }
+.time {
+  font-size: 14.5px; font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.25;
+}
+.where { font-size: 11.5px; color: var(--p-muted); }
+.rowMain { flex: 1; min-width: 0; }
+.rowTitle {
+  font-size: 14px; font-weight: 600;
+  line-height: 1.3;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.rowSub { font-size: 12px; color: var(--p-muted); margin-top: 1px; }
+.rowSub button {
+  border: 0; background: transparent; padding: 0;
+  font: inherit; color: var(--p-accent); cursor: pointer;
+}
+.rowSub button:hover { text-decoration: underline; text-underline-offset: 3px; }
+
+/* ── status pills ──────────────────────────────────────────────────── */
+
+.pill {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 3px 11px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 500;
+  white-space: nowrap;
+  flex: none;
+}
+.pillReady { background: color-mix(in oklab, var(--p-ok) 13%, transparent); color: var(--p-ok); }
+.pillDone  { background: color-mix(in oklab, var(--p-ink) 8%, transparent); color: var(--p-muted); }
+.pillNone  { background: color-mix(in oklab, var(--p-warn) 15%, transparent); color: var(--p-warn); }
+
+/* ── buttons ───────────────────────────────────────────────────────── */
+
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  padding: 8px 16px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: var(--p-invert);
+  color: var(--p-on-invert);
+  font: inherit; font-size: 13px; font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background-color var(--dur-hover) var(--ease-out-quart),
+              border-color var(--dur-hover) var(--ease-out-quart),
+              color var(--dur-hover) var(--ease-out-quart),
+              transform var(--dur-press) var(--ease-out-quart);
+}
+.btn:hover { background: color-mix(in oklab, var(--p-invert) 88%, var(--p-paper)); }
+.btn:active { transform: scale(0.97); }
+
+.btnMake { background: var(--p-accent); color: var(--p-on-accent); }
+.btnMake:hover { background: var(--p-accent-hover); }
+
+.btnQuiet {
+  background: var(--p-paper-cool);
+  color: var(--p-ink);
+  border-color: var(--p-line);
+}
+.btnQuiet:hover { background: var(--p-paper-warm); border-color: var(--p-line-strong); }
+
+.btnSmall { padding: 6px 13px; font-size: 12.5px; }
+.btnWide { width: 100%; }
+
+.btnIcon {
+  width: 34px; height: 34px; padding: 0;
+  display: inline-grid; place-items: center;
+  border: 1px solid var(--p-line);
+  border-radius: 999px;
+  background: var(--p-paper-cool);
+  color: var(--p-ink-soft);
+  cursor: pointer;
+  flex: none;
+  transition: background-color var(--dur-hover) var(--ease-out-quart),
+              border-color var(--dur-hover) var(--ease-out-quart);
+}
+.btnIcon:hover { background: var(--p-paper-warm); border-color: var(--p-line-strong); color: var(--p-ink); }
+
+/* ── the week's prep, and what is waiting ──────────────────────────── */
+
+.rail { display: grid; gap: 14px; }
+
+.prep { display: flex; align-items: center; gap: 16px; margin-bottom: 14px; }
+.ring { flex: none; }
+.ringTrack { stroke: color-mix(in oklab, var(--p-ink) 10%, transparent); }
+.ringFill { stroke: var(--p-accent); transition: stroke-dashoffset var(--dur-transition) var(--ease-out-quart); }
+.ringText {
+  font-family: var(--font-sans);
+  font-size: 17px; font-weight: 600;
+  fill: var(--p-ink);
+  font-variant-numeric: tabular-nums;
+}
+.prepText { font-size: 13px; line-height: 1.5; color: var(--p-ink-soft); }
+.prepText b { color: var(--p-ink); font-weight: 600; }
+
+.railHead {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 12.5px; font-weight: 600;
+  margin-bottom: 12px;
+}
+.badge {
+  min-width: 19px; height: 19px; padding: 0 6px;
+  display: inline-grid; place-items: center;
+  border-radius: 999px;
+  background: var(--p-accent-soft);
+  color: var(--p-accent-hover);
+  font-size: 11px; font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.taskRow { display: flex; align-items: flex-start; gap: 10px; padding: 9px 0; border-top: 1px solid var(--p-line-soft); }
+.taskRow:first-of-type { border-top: 0; padding-top: 0; }
+.taskIcon {
+  width: 28px; height: 28px; flex: none;
+  display: grid; place-items: center;
+  border-radius: 9px;
+  background: var(--p-accent-soft);
+  color: var(--p-accent-hover);
+}
+.taskTitle { font-size: 13px; font-weight: 500; line-height: 1.35; }
+.taskMeta { font-size: 11.5px; color: var(--p-muted); margin-top: 1px; }
+
+/* ── the make-one grid ─────────────────────────────────────────────── */
+
+.makeGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(212px, 1fr));
+  gap: 14px;
+}
+.make {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 8px;
+  padding: 18px;
+  border: 1px solid var(--p-line-soft);
+  border-radius: 16px;
+  background: var(--p-paper-cool);
+  text-align: start;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  text-decoration: none;
+  transition: transform var(--dur-hover) var(--ease-out-quint),
+              box-shadow var(--dur-hover) var(--ease-out-quint),
+              border-color var(--dur-hover) var(--ease-out-quart);
+}
+.make:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-2);
+  border-color: transparent;
+}
+.makeIcon {
+  width: 36px; height: 36px;
+  display: grid; place-items: center;
+  border-radius: 11px;
+  background: var(--p-accent-soft);
+  color: var(--p-accent-hover);
+  margin-bottom: 4px;
+}
+.makeTitle { font-size: 14.5px; font-weight: 600; line-height: 1.25; }
+.makeBlurb { font-size: 12.5px; color: var(--p-muted); line-height: 1.45; }
+.makeGo {
+  display: inline-flex; align-items: center; gap: 5px;
+  margin-top: auto;
+  padding-top: 6px;
+  font-size: 12.5px; font-weight: 500;
+  color: var(--p-accent);
+}
+.make:hover .makeGo svg { transform: translateX(2px); }
+.makeGo svg { transition: transform var(--dur-hover) var(--ease-out-quart); }
+
+/* ── work cards ────────────────────────────────────────────────────── */
+
+.workGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(268px, 1fr));
+  gap: 14px;
+}
+.work {
+  display: flex; flex-direction: column;
+  padding: 16px 16px 14px;
+  border: 1px solid var(--p-line-soft);
+  border-radius: 16px;
+  background: var(--p-paper-cool);
+  transition: transform var(--dur-hover) var(--ease-out-quint),
+              box-shadow var(--dur-hover) var(--ease-out-quint),
+              border-color var(--dur-hover) var(--ease-out-quart);
+}
+.work:hover { transform: translateY(-2px); box-shadow: var(--shadow-2); border-color: transparent; }
+.workTop { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.workKind {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 11.5px; font-weight: 500;
+  color: var(--p-accent);
+}
+.workTitle {
+  font-family: var(--font-serif);
+  font-weight: 500;
+  font-size: 17px;
+  line-height: 1.22;
+  letter-spacing: -0.015em;
+  margin: 0 0 4px;
+  overflow-wrap: anywhere;
+}
+.workMeta { font-size: 12.5px; color: var(--p-muted); line-height: 1.45; }
+.workTime {
+  display: inline-flex; align-items: center; gap: 5px;
+  margin-top: 6px;
+  font-size: 11.5px; color: var(--p-muted);
+  font-variant-numeric: tabular-nums;
+}
+.workActions { display: flex; align-items: center; gap: 8px; margin-top: 14px; }
+.workActions > .btn { flex: 1; }
+.star {
+  width: 26px; height: 26px; padding: 0;
+  display: grid; place-items: center;
+  border: 0; border-radius: 999px;
+  background: transparent;
+  color: var(--p-muted);
+  cursor: pointer;
+  transition: color var(--dur-hover) var(--ease-out-quart), background-color var(--dur-hover) var(--ease-out-quart);
+}
+.star:hover { color: var(--p-warn); background: color-mix(in oklab, var(--p-ink) 6%, transparent); }
+
+/* ── the syllabus banner ───────────────────────────────────────────── */
+
+.banner {
+  display: flex; align-items: center; gap: 14px;
+  padding: 16px 18px;
+  border-radius: 16px;
+  background: var(--p-paper-cool);
+  box-shadow: var(--shadow-1);
+}
+.bannerIcon {
+  width: 40px; height: 40px; flex: none;
+  display: grid; place-items: center;
+  border-radius: 12px;
+  background: var(--p-accent-soft);
+  color: var(--p-accent-hover);
+}
+.bannerText { flex: 1; min-width: 0; }
+.bannerTitle { font-size: 14px; font-weight: 600; line-height: 1.3; }
+.bannerMeta {
+  font-size: 12.5px; color: var(--p-muted); margin-top: 1px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+/* ── units ─────────────────────────────────────────────────────────── */
+
+.unit {
+  display: flex; align-items: center; gap: 14px;
+  padding: 14px 18px;
+  border-top: 1px solid var(--p-line-soft);
+}
+.unit:first-child { border-top: 0; }
+.unitMark {
+  width: 26px; height: 26px; flex: none;
+  display: grid; place-items: center;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--p-ink) 8%, transparent);
+  color: var(--p-muted);
+  font-size: 11.5px; font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.unitDone { background: var(--p-ok); color: var(--p-on-accent); }
+.unitName { flex: 1; min-width: 0; font-size: 14px; font-weight: 500; }
+.unitMeta { font-size: 12.5px; color: var(--p-muted); white-space: nowrap; }
+
+.more {
+  display: inline-flex; align-items: center; gap: 6px;
+  margin-top: 10px;
+  border: 0; background: transparent; padding: 0;
+  font: inherit; font-size: 13px;
+  color: var(--p-accent);
+  cursor: pointer;
+}
+.more:hover { text-decoration: underline; text-underline-offset: 3px; }
+
+/* ── filter chips ──────────────────────────────────────────────────── */
+
+.chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 18px; }
+.chip {
+  padding: 7px 16px;
+  border: 1px solid var(--p-line);
+  border-radius: 999px;
+  background: var(--p-paper-cool);
+  color: var(--p-ink-soft);
+  font: inherit; font-size: 13px;
+  cursor: pointer;
+  transition: background-color var(--dur-hover) var(--ease-out-quart),
+              color var(--dur-hover) var(--ease-out-quart),
+              border-color var(--dur-hover) var(--ease-out-quart);
+}
+.chip:hover { border-color: var(--p-line-strong); color: var(--p-ink); }
+.chip[data-on="true"] {
+  background: var(--p-invert);
+  border-color: var(--p-invert);
+  color: var(--p-on-invert);
+  font-weight: 500;
+}
+
+/* ── the make-a-new panel (subject → kind) ─────────────────────────── */
+
+.compose {
+  padding: 22px 24px;
+  border: 1.5px solid color-mix(in oklab, var(--p-accent) 42%, transparent);
+  border-radius: 18px;
+  background: var(--p-paper-cool);
+}
+.composeTitle {
+  font-family: var(--font-serif);
+  font-weight: 400;
+  font-size: 24px;
+  line-height: 1.15;
+  letter-spacing: -0.022em;
+  margin: 0 0 5px;
+}
+.composeLede { font-size: 13.5px; color: var(--p-muted); margin: 0 0 16px; line-height: 1.5; }
+.field {
+  display: flex; align-items: center; gap: 10px;
+  padding: 7px 8px 7px 18px;
+  border: 1px solid var(--p-line);
+  border-radius: 999px;
+  background: var(--p-paper);
+  transition: border-color var(--dur-hover) var(--ease-out-quart),
+              box-shadow var(--dur-hover) var(--ease-out-quart);
+}
+.field:focus-within {
+  border-color: var(--p-accent);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--p-accent) 16%, transparent);
+}
+.field input {
+  flex: 1; min-width: 0;
+  border: 0; background: transparent; outline: none;
+  font: inherit; font-size: 14px; color: var(--p-ink);
+}
+.field input::placeholder { color: var(--p-muted); }
+
+.starters { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+.startersLabel { font-size: 12.5px; color: var(--p-muted); }
+.starter {
+  padding: 6px 14px;
+  border: 1px solid var(--p-line);
+  border-radius: 999px;
+  background: var(--p-paper);
+  color: var(--p-ink-soft);
+  font: inherit; font-size: 12.5px;
+  cursor: pointer;
+  transition: border-color var(--dur-hover) var(--ease-out-quart), color var(--dur-hover) var(--ease-out-quart);
+}
+.starter:hover { border-color: var(--p-accent); color: var(--p-accent); }
+
+/* ── one artefact, opened ──────────────────────────────────────────── */
+
+.doc { max-width: 720px; }
+.docMeta { font-size: 12.5px; color: var(--p-muted); margin-bottom: 8px; }
+.docTitle {
+  font-family: var(--font-serif);
+  font-weight: 400;
+  font-size: clamp(28px, 3.4vw, 38px);
+  line-height: 1.08;
+  letter-spacing: -0.028em;
+  margin: 0 0 12px;
+  text-wrap: balance;
+}
+.docLede { font-size: 15px; line-height: 1.6; color: var(--p-ink-soft); margin: 0 0 20px; max-width: 66ch; }
+.docActions { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 32px; }
+.docSection {
+  font-family: var(--font-serif);
+  font-weight: 400;
+  font-size: 19px;
+  letter-spacing: -0.018em;
+  margin: 0 0 4px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--p-line);
+}
+.step { display: flex; gap: 20px; padding: 16px 0; border-bottom: 1px solid var(--p-line-soft); }
+.stepWhen {
+  width: 78px; flex: none;
+  font-size: 12.5px; color: var(--p-muted);
+  font-variant-numeric: tabular-nums;
+  padding-top: 1px;
+}
+.stepBody { flex: 1; min-width: 0; }
+.stepTitle { font-size: 14px; font-weight: 600; line-height: 1.35; margin-bottom: 3px; }
+.stepText { font-size: 13.5px; line-height: 1.55; color: var(--p-ink-soft); max-width: 62ch; }
+.bullets { margin: 0; padding-left: 20px; display: grid; gap: 7px; }
+.bullets li { font-size: 13.5px; line-height: 1.55; color: var(--p-ink-soft); }
+
+/* ── empty, loading, error ─────────────────────────────────────────── */
+
+.empty {
+  display: grid; justify-items: center; gap: 8px;
+  padding: 40px 24px;
+  border: 1px dashed var(--p-line);
+  border-radius: 16px;
+  text-align: center;
+  background: color-mix(in oklab, var(--p-paper-cool) 60%, transparent);
+}
+.emptyIcon {
+  width: 40px; height: 40px;
+  display: grid; place-items: center;
+  border-radius: 12px;
+  background: var(--p-accent-soft);
+  color: var(--p-accent-hover);
+  margin-bottom: 2px;
+}
+.emptyTitle { font-size: 14.5px; font-weight: 600; }
+.emptyText { font-size: 13px; color: var(--p-muted); max-width: 44ch; line-height: 1.5; }
+.emptyAction { margin-top: 8px; }
+
+.skel {
+  border-radius: 10px;
+  background: linear-gradient(
+    90deg,
+    color-mix(in oklab, var(--p-ink) 6%, transparent) 25%,
+    color-mix(in oklab, var(--p-ink) 10%, transparent) 37%,
+    color-mix(in oklab, var(--p-ink) 6%, transparent) 63%
+  );
+  background-size: 400% 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+@keyframes shimmer { from { background-position: 100% 0; } to { background-position: 0 0; } }
+
+.error {
+  display: grid; gap: 8px; justify-items: start;
+  padding: 20px;
+  border-radius: 16px;
+  border: 1px solid color-mix(in oklab, var(--p-crit) 30%, transparent);
+  background: color-mix(in oklab, var(--p-crit) 7%, transparent);
+}
+.errorTitle { font-size: 14.5px; font-weight: 600; color: var(--p-crit); }
+.errorText { font-size: 13px; color: var(--p-ink-soft); line-height: 1.5; max-width: 60ch; }
+
+/* ── entrance: one authored moment, on the content that just arrived ─ */
+
+.enter { animation: rise var(--dur-entrance) var(--ease-out-expo) both; }
+@keyframes rise { from { transform: translateY(14px); } to { transform: none; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .enter, .skel { animation: none; }
+  .make, .work, .btn { transition: none; }
+  .make:hover, .work:hover { transform: none; }
+}
+
+@media (max-width: 620px) {
+  .row { flex-wrap: wrap; }
+  .when { width: 62px; }
+  .split { gap: 14px; }
+  .docActions .btn { flex: 1; }
+}

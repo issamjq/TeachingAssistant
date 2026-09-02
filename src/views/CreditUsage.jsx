@@ -65,8 +65,21 @@ export default function CreditUsage() {
   const balance = Number(data.balance ?? 0);
   const allowance = Number(data.allowance ?? 0);
   const spent = Number(data.spent ?? 0);
-  const used = allowance ? Math.min(100, Math.round(((allowance - balance) / allowance) * 100)) : 0;
-  const low = allowance > 0 && balance / allowance <= 0.2;
+  /**
+   * An allowance smaller than the balance is not an allowance.
+   *
+   * While billing is off (db/tune.sql §89) every teacher holds a fixed
+   * grant — 800 — and `monthly_allowance` still carries the old paid
+   * default of 40. Rendered literally that reads "791 of 40", pins the
+   * bar full and makes the percentage meaningless. There is no monthly
+   * allowance in public testing, so the honest thing is to show the
+   * balance alone rather than a denominator that is not one.
+   */
+  const hasAllowance = allowance > 0 && allowance >= balance;
+  const used = hasAllowance
+    ? Math.min(100, Math.max(0, Math.round(((allowance - balance) / allowance) * 100)))
+    : 0;
+  const low = hasAllowance && balance / allowance <= 0.2;
   /**
    * Whether plans exist right now (db/tune.sql §89). This page stays in
    * both modes — a teacher on a fixed grant needs to see where it went
@@ -115,7 +128,7 @@ export default function CreditUsage() {
             <Coins size={11} /> Balance
           </p>
           <p className="font-serif text-4xl text-ink">{balance}</p>
-          {allowance > 0 && (
+          {hasAllowance && (
             <>
               <p className="text-xs text-muted mt-1">
                 of {allowance}{billingOn ? " this month" : ""}

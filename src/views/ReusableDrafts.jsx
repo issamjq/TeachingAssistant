@@ -223,17 +223,23 @@ export default function ReusableDrafts({ onEditDraft, onNewLesson }) {
                     )}
                   </div>
                   <div className="mt-3 pt-3 border-t border-dashed border-line">
-                    <div className="flex items-center gap-2 mb-2">
-                      <div className="flex-1 h-1.5 bg-paper-warm rounded-full overflow-hidden border border-line">
-                        <div
-                          className={`h-full ${d.progress === 100 ? "bg-sage" : "bg-ink"}`}
-                          style={{ width: `${d.progress}%` }}
-                        />
+                    {/* `progress` predates the studio — a teacher set it by
+                        hand on a draft she was working through. A generated
+                        lesson has none, and rendering it anyway drew an empty
+                        bar beside a bare "%" on 39 of 40 cards. */}
+                    {Number.isFinite(d.progress) && (
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className="flex-1 h-1.5 bg-paper-warm rounded-full overflow-hidden border border-line">
+                          <div
+                            className={`h-full ${d.progress === 100 ? "bg-sage" : "bg-ink"}`}
+                            style={{ width: `${d.progress}%` }}
+                          />
+                        </div>
+                        <span className="font-mono text-[10px] uppercase tracking-wider text-muted w-10 text-right">
+                          {d.progress}%
+                        </span>
                       </div>
-                      <span className="font-mono text-[10px] uppercase tracking-wider text-muted w-10 text-right">
-                        {d.progress}%
-                      </span>
-                    </div>
+                    )}
                     <div className="flex items-center justify-between">
                       <span className="font-mono text-[10px] uppercase tracking-wider text-muted">
                         {timeAgo(d.last_edited)}
@@ -295,15 +301,19 @@ export default function ReusableDrafts({ onEditDraft, onNewLesson }) {
                     <td className="py-4 text-muted text-xs">{timeAgo(d.last_edited)}</td>
                     <td className="py-4">
                       <div className="flex items-center gap-3">
-                        <div className="w-24 h-1.5 bg-paper-warm rounded-full overflow-hidden border border-line">
-                          <div
-                            className={`h-full ${d.progress === 100 ? "bg-sage" : "bg-ink"}`}
-                            style={{ width: `${d.progress}%` }}
-                          />
-                        </div>
-                        <span className="font-mono text-[10px] uppercase tracking-wider text-muted w-10">
-                          {d.progress}%
-                        </span>
+                        {Number.isFinite(d.progress) && (
+                          <>
+                            <div className="w-24 h-1.5 bg-paper-warm rounded-full overflow-hidden border border-line">
+                              <div
+                                className={`h-full ${d.progress === 100 ? "bg-sage" : "bg-ink"}`}
+                                style={{ width: `${d.progress}%` }}
+                              />
+                            </div>
+                            <span className="font-mono text-[10px] uppercase tracking-wider text-muted w-10">
+                              {d.progress}%
+                            </span>
+                          </>
+                        )}
                         <button
                           onClick={() => onEditDraft(d)}
                           className="text-accent hover:text-ink font-serif italic text-sm border-b border-accent hover:border-ink transition"
