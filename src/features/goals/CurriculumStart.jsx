@@ -22,10 +22,15 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { BookMarked, ChevronRight, Check } from "lucide-react";
 import { api } from "@/views/_shared";
+import { flash } from "@/shared/lib/flash";
 import { GRADE_LEVELS, MAJORS } from "@/lib/enums";
 import s from "./Goals.module.css";
 
 const SOURCE_NOTE = {
+  derived:
+    "Read off your own syllabus just now. Check the order against your scheme of work before you rely on it.",
+  derived_low:
+    "Read off your own syllabus, but the order had to be guessed — that file may not be a syllabus. Worth checking every unit.",
   starter:
     "A starter sequence, drafted by us — the topics almost every board covers, in the usual order. Check it against your school's scheme and change what differs.",
 };
@@ -38,6 +43,8 @@ export default function CurriculumStart({ onPick }) {
   const [subject, setSubject] = useState("");
   const [units, setUnits] = useState(null);
   const [open, setOpen] = useState(false);
+  const [deriving, setDeriving] = useState(false);
+  const [derived, setDerived] = useState(null);
 
   useEffect(() => {
     let live = true;
@@ -106,7 +113,15 @@ export default function CurriculumStart({ onPick }) {
     );
   }
 
-  const note = units?.length ? SOURCE_NOTE[units[0].source] : null;
+  // Derived units render through the same list as curated ones — same
+  // shape, different provenance, and the note below says which.
+  const shown = derived?.units?.length
+    ? derived.units.map((u, i) => ({ ...u, id: `derived-${i}`, source: "derived" }))
+    : units;
+  const note = shown?.length
+    ? SOURCE_NOTE[shown[0].source] ||
+      (derived?.confidence === "low" ? SOURCE_NOTE.derived_low : null)
+    : null;
 
   return (
     <div className="rounded-lg border border-line p-3.5">
@@ -141,18 +156,55 @@ export default function CurriculumStart({ onPick }) {
         </select>
       </div>
 
-      {units && !units.length && (cur && grade && subject) && (
-        <p className="text-[12.5px] text-muted mt-3 leading-relaxed">
-          No sequence for that one yet. Describe the unit below and Murchid
-          will plan it from your own words — attach your syllabus and it
-          will read that too.
-        </p>
+      {units && !units.length && !derived && (cur && grade && subject) && (
+        <div className="mt-3">
+          <p className="text-[12.5px] text-muted leading-relaxed">
+            Nobody has written that sequence out yet. If you have the syllabus
+            on your shelf, Murchid can read the units straight off it.
+          </p>
+          <button
+            type="button"
+            disabled={deriving}
+            onClick={async () => {
+              setDeriving(true);
+              try {
+                // Everything on her shelf for this class — usually the
+                // syllabus she uploaded when the term started.
+                const mats = await api(
+                  `/api/materials?${new URLSearchParams({ grade, subject })}`,
+                ).catch(() => []);
+                const r = await api("/api/curriculum/derive", {
+                  method: "POST",
+                  body: {
+                    curriculum: cur, grade, subject,
+                    material_ids: (Array.isArray(mats) ? mats : []).map((m) => m.id),
+                  },
+                });
+                setDerived(r?.units?.length ? r : null);
+                if (!r?.units?.length) {
+                  flash("Nothing in those files reads like a syllabus. Describe the unit below instead.");
+                }
+              } catch (e) {
+                flash(
+                  e?.code === "no_backend"
+                    ? "Reading a syllabus isn't switched on yet. Describe the unit below and Murchid will plan it from your words."
+                    : `Could not read a sequence out of that: ${e.message}`,
+                );
+              } finally {
+                setDeriving(false);
+              }
+            }}
+            className="mt-2 text-[12.5px] text-accent hover:underline disabled:opacity-50"
+          >
+            {deriving ? "Reading your syllabus…" : "Build one from my syllabus"}
+          </button>
+        </div>
       )}
 
-      {!!units?.length && (
+      {!!shown?.length && (
         <>
           <ol className="mt-3 space-y-1.5">
-            {units.map((u) => (
+            {shown.map((u) => (
               <li key={u.id}>
                 <button
                   type="button"

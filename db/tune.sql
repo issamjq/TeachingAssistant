@@ -13039,3 +13039,159 @@ BEGIN
   END IF;
   RAISE NOTICE 'curriculum tables ready (seed them with npm run db:seed)';
 END $$;
+
+
+-- ─────────────────────────────────────────────────────────────────────
+-- §100  The corpus, and the wall down the middle of it
+-- ─────────────────────────────────────────────────────────────────────
+--
+-- Retrieval over teaching material: her own books and notes, and the
+-- curated material we publish. Written here AHEAD of the pipeline that
+-- fills it, because the pipeline is the easy half and this is not.
+--
+-- ── Why this table is the dangerous one ──────────────────────────────
+--
+-- Every other table in this schema holds one teacher's rows and answers
+-- one question: is this yours. This one holds two populations in the
+-- same table — material that belongs to a person, and material that
+-- belongs to everyone — and a mistake does not show up as an error. It
+-- shows up as one school's textbook quietly appearing in another
+-- school's lesson, months later, with no way to tell how long it had
+-- been happening.
+--
+-- So the separation is structural, not procedural. The CHECK makes the
+-- two populations impossible to confuse:
+--
+--   scope='global'   MUST have faculty_id IS NULL
+--   scope='faculty'  MUST have faculty_id NOT NULL
+--
+-- A row cannot be private-but-ownerless or public-but-owned. That means
+-- the read policy cannot be written wrongly in a way the constraint
+-- would allow, and a bug in the ingest pipeline fails loudly at insert
+-- rather than silently at read.
+--
+-- ── The copyright line, again ────────────────────────────────────────
+--
+-- §99 said it about curriculum units and it matters more here: a
+-- teacher's own textbook is HERS. It is chunked under her faculty id and
+-- served back only to her. Publishing a publisher's book to every
+-- teacher on the platform is the exact thing `scope='global'` must never
+-- be used for — global is for material we wrote or licensed. There is
+-- already ~2MB of third-party textbook text in `materials` on one
+-- account; when the pipeline runs, it belongs to that faculty and to
+-- nobody else.
+--
+-- ── No write policy ──────────────────────────────────────────────────
+--
+-- Chunks are written by the ingest service with the service credential,
+-- never from a browser. As everywhere else in this file, that is
+-- expressed by writing NO write policy rather than a restrictive one: an
+-- absent policy is a thing someone has to notice they are adding.
+
+CREATE EXTENSION IF NOT EXISTS vector;
+
+CREATE TABLE IF NOT EXISTS public.corpus_chunks (
+  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  -- 'global' = ours to publish. 'faculty' = one teacher's own material.
+  scope       text NOT NULL,
+  faculty_id  uuid REFERENCES public.faculty(id) ON DELETE CASCADE,
+  -- Where it came from. A faculty chunk always has a material; a global
+  -- chunk may instead hang off a curriculum unit.
+  material_id uuid REFERENCES public.materials(id)         ON DELETE CASCADE,
+  unit_id     uuid REFERENCES public.curriculum_units(id)  ON DELETE SET NULL,
+  -- Metadata carried on the chunk so retrieval can filter BEFORE the
+  -- vector search. A Grade 4 lesson must never pull a Grade 10 passage,
+  -- and post-filtering a nearest-neighbour result cannot guarantee that.
+  curriculum_code text,
+  grade       text,
+  subject     text,
+  chunk_no    int  NOT NULL,
+  -- What a citation shows the teacher: the heading and page it came
+  -- from, so she can check the lesson against her own book.
+  heading     text,
+  page        int,
+  text        text NOT NULL,
+  -- 768 = Gemini text-embedding-004, which the service already has a key
+  -- for. Changing this later means re-embedding everything, so it is
+  -- deliberately the same family the generator uses.
+  embedding   vector(768),
+  created_at  timestamptz NOT NULL DEFAULT now()
+);
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint
+                 WHERE conname = 'corpus_chunks_scope_check'
+                   AND connamespace = 'public'::regnamespace) THEN
+    ALTER TABLE public.corpus_chunks ADD CONSTRAINT corpus_chunks_scope_check
+      CHECK (
+        (scope = 'global'  AND faculty_id IS NULL)
+        OR (scope = 'faculty' AND faculty_id IS NOT NULL)
+      );
+  END IF;
+END $$;
+
+-- Re-ingesting a document replaces its chunks rather than doubling them.
+CREATE UNIQUE INDEX IF NOT EXISTS corpus_chunks_material_key
+  ON public.corpus_chunks (material_id, chunk_no) WHERE material_id IS NOT NULL;
+-- The metadata pre-filter, which runs before the vector scan.
+CREATE INDEX IF NOT EXISTS corpus_chunks_filter_idx
+  ON public.corpus_chunks (scope, curriculum_code, grade, subject);
+CREATE INDEX IF NOT EXISTS corpus_chunks_faculty_idx
+  ON public.corpus_chunks (faculty_id) WHERE faculty_id IS NOT NULL;
+
+-- HNSW over cosine distance. Built now while the table is empty, which
+-- is the cheap moment to build it.
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname = 'corpus_chunks_vec_idx') THEN
+    CREATE INDEX corpus_chunks_vec_idx
+      ON public.corpus_chunks USING hnsw (embedding vector_cosine_ops);
+  END IF;
+END $$;
+
+ALTER TABLE public.corpus_chunks ENABLE ROW LEVEL SECURITY;
+DO $$
+DECLARE pol record;
+BEGIN
+  FOR pol IN SELECT policyname FROM pg_policies
+              WHERE schemaname = 'public' AND tablename = 'corpus_chunks'
+  LOOP
+    EXECUTE format('DROP POLICY IF EXISTS %I ON public.corpus_chunks', pol.policyname);
+  END LOOP;
+END $$;
+
+-- One policy, both populations, no ambiguity about which arm applies:
+-- the CHECK above guarantees exactly one of them can ever match a row.
+CREATE POLICY corpus_chunks_read ON public.corpus_chunks
+  FOR SELECT TO authenticated
+  USING (
+    (scope = 'global' AND faculty_id IS NULL)
+    OR (scope = 'faculty' AND faculty_id = current_faculty_id())
+  );
+
+DO $$
+DECLARE v_write int; v_bad int;
+BEGIN
+  SELECT count(*) INTO v_write FROM pg_policies
+   WHERE schemaname = 'public' AND tablename = 'corpus_chunks' AND cmd <> 'SELECT';
+  IF v_write > 0 THEN
+    RAISE EXCEPTION 'corpus_chunks has % write policies; the ingest service writes it, not a browser', v_write;
+  END IF;
+
+  IF NOT (SELECT relrowsecurity FROM pg_class WHERE oid = 'public.corpus_chunks'::regclass) THEN
+    RAISE EXCEPTION 'RLS is off on corpus_chunks';
+  END IF;
+
+  -- The wall itself. If either of these can exist, one teacher's book
+  -- can be served to another, so refuse the migration rather than ship
+  -- a schema that permits it.
+  SELECT count(*) INTO v_bad FROM public.corpus_chunks
+   WHERE (scope = 'global' AND faculty_id IS NOT NULL)
+      OR (scope = 'faculty' AND faculty_id IS NULL);
+  IF v_bad > 0 THEN
+    RAISE EXCEPTION '% corpus chunks break the scope/owner rule', v_bad;
+  END IF;
+
+  RAISE NOTICE 'corpus_chunks ready: pgvector on, scope wall asserted, no write policy';
+END $$;

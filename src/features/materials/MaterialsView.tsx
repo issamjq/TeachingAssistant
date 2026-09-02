@@ -19,7 +19,7 @@ import BrandLoader from "@/components/BrandLoader";
 import { flash } from "@/shared/lib/flash";
 import { GRADE_LEVELS, MAJORS, QUIZ_SECTIONS } from "@/lib/enums";
 import {
-  listMaterials, updateMaterial, deleteMaterial, uploadMaterial,
+  listMaterials, updateMaterial, deleteMaterial, uploadMaterial, extractMaterial,
   materialLabel, type Material,
 } from "./api";
 
@@ -77,6 +77,35 @@ export default function MaterialsView() {
   const [removing, setRemoving] = useState<Material | null>(null);
   const [busy, setBusy] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [reading, setReading] = useState<string | null>(null);
+
+  /**
+   * Ask the service to read one file.
+   *
+   * Two jobs in one button. It retries a file that failed, and it is the
+   * only way anything uploaded BEFORE extraction existed ever gets read
+   * — those rows sit at `uploaded` for good otherwise, and each one
+   * silently costs the reading surcharge on every generation that
+   * attaches it.
+   */
+  const readNow = async (m: Material) => {
+    setReading(m.id);
+    try {
+      const r = await extractMaterial(m.id);
+      setRows((rs) => rs?.map((x) => (x.id === m.id ? { ...x, status: r.status } : x)) ?? rs);
+      if (r.status === "failed") {
+        flash(`Murchid could not pull any text out of “${materialLabel(m)}”. It can still be attached.`);
+      }
+    } catch (e: any) {
+      flash(
+        e?.code === "no_backend"
+          ? "Reading documents isn't switched on yet. The file is safe and can still be attached."
+          : `Could not read that: ${e.message}`,
+      );
+    } finally {
+      setReading(null);
+    }
+  };
 
   const reload = () => setReloadKey((n) => n + 1);
 
@@ -217,7 +246,19 @@ export default function MaterialsView() {
                   </p>
                 </div>
                 <div className="flex-none flex items-center gap-3">
-                  <ReadState status={m.status} />
+                  {m.status !== "ready" && m.status !== "processing" ? (
+                    <button
+                      type="button"
+                      onClick={() => readNow(m)}
+                      disabled={reading === m.id}
+                      className="font-mono text-[10px] uppercase tracking-wider text-accent hover:underline disabled:opacity-50"
+                      title="Read this once, so attaching it later costs nothing"
+                    >
+                      {reading === m.id ? "Reading…" : "Read it now"}
+                    </button>
+                  ) : (
+                    <ReadState status={m.status} />
+                  )}
                   <button
                     type="button"
                     onClick={() => setEditing(m)}

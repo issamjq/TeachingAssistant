@@ -118,8 +118,21 @@ export async function uploadMaterial(
   // text instead of re-downloading and re-charging for the same pages.
   // Fire-and-forget: extraction is an optimisation, and a service that
   // has not shipped it yet must not block an upload that already worked.
-  void api(`/api/materials/${row.id}/extract`, { method: "POST" }).catch(() => {});
+  void extractMaterial(row.id).catch(() => {});
 
   // Freshly uploaded, so not read yet — this one still costs a read.
   return { id: row.id, name: file.name, path, mime: file.type, status: "uploaded" };
 }
+
+/**
+ * Ask the service to read a file, once.
+ *
+ * Idempotent by contract: a row already `ready` returns what is there
+ * and charges nothing, so retrying is free. Also the BACKFILL path —
+ * everything uploaded before extraction existed is sitting at
+ * `uploaded` with no text, and nothing else would ever ask again.
+ */
+export const extractMaterial = (id: string) =>
+  api<{ id: string; status: string; chars?: number; pages?: number }>(
+    `/api/materials/${id}/extract`, { method: "POST" },
+  );
