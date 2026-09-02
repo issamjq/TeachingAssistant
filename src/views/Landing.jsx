@@ -24,6 +24,7 @@ import {
 import { api as apiFetch } from "./_shared";
 import { setSessionId, clearSessionId } from "../lib/session";
 import { PLANS } from "../lib/plans";
+import { passwordChecks, passwordScore, validatePassword } from "@/shared/lib/password";
 import { useBillingMode } from "@/features/marketing/useBillingMode";
 import { PRIVACY, TERMS, SECURITY, LEGAL_VERSION, LEGAL_EFFECTIVE_DATE } from "../lib/legal";
 import ProfileForm from "./onboarding/ProfileForm";
@@ -1195,38 +1196,8 @@ function validateEmail(email) {
 
 // Live rule checks — used to drive the per-rule checklist + strength
 // bar under the password input. Keep in sync with validatePassword().
-function passwordChecks(password) {
-  const p = password || "";
-  return {
-    length:  p.length >= 8,
-    upper:   /[A-Z]/.test(p),
-    lower:   /[a-z]/.test(p),
-    number:  /[0-9]/.test(p),
-    special: /[^A-Za-z0-9\s]/.test(p),
-  };
-}
-
-// 0..5 — count of passed rules. Drives the colored strength bar.
-function passwordScore(password) {
-  const c = passwordChecks(password);
-  return [c.length, c.upper, c.lower, c.number, c.special].filter(Boolean).length;
-}
-
-// Returns a human error string, or null when the password is valid.
-// Sign-in mode skips strength rules — existing accounts may have been
-// created before tightening, and forcing them to reset client-side
-// would lock people out when the server-side password is already fine.
-function validatePassword(password, { isSignin = false } = {}) {
-  if (!password) return "Password is required.";
-  if (isSignin) return null;
-  if (/\s/.test(password)) return "Password can't contain spaces.";
-  if (password.length < 8) return "Password must be at least 8 characters.";
-  if (!/[A-Z]/.test(password)) return "Add at least one uppercase letter (A–Z).";
-  if (!/[a-z]/.test(password)) return "Add at least one lowercase letter (a–z).";
-  if (!/[0-9]/.test(password)) return "Add at least one number (0–9).";
-  if (!/[^A-Za-z0-9]/.test(password)) return "Add at least one symbol (e.g. ! @ # ?).";
-  return null;
-}
+// The rules moved to shared/lib/password.ts when the reset screen was
+// built — it sets a password too, and two copies of five regexes drift.
 
 // One page for both. A visitor types an email and a password; which of
 // the two this turns out to be is decided by the ANSWER, not by which
@@ -2181,7 +2152,7 @@ function AuthPage({ onSignUp, onPage, mode = "signup", onEnterStudio, notice }) 
             <p className="text-sm text-ink">Password reset sent.</p>
             <p className="text-xs text-muted leading-relaxed">
               We emailed a reset link to <span className="text-ink">{emailValue}</span>.
-              Click it, pick a new password, then come back here to sign in.
+              Click it and pick a new password — it opens Murchid straight away.
               <br />
               <button
                 type="button"

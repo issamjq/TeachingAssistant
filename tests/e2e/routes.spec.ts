@@ -11,7 +11,10 @@ import { test, expect, type Page } from "@playwright/test";
 // proves the route resolved and the bundle mounted, which is what's being
 // tested here.
 
-const PUBLIC_ROUTES = ["/"];
+// /reset-password is public on purpose: it is reached from an email, by
+// someone who by definition cannot sign in. Signed out it shows the
+// expired-link state, which is exactly what the smoke test should see.
+const PUBLIC_ROUTES = ["/", "/reset-password"];
 
 const PORTAL_ROUTES = ["/dev", "/superadmin", "/admin", "/owner", "/moe"];
 
