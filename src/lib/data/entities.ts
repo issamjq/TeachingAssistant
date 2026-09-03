@@ -2560,3 +2560,94 @@ export async function archiveClass(id: string) {
   if (error) throw error;
   return { ok: true };
 }
+
+export async function updateDivision(id: string, body: { grade?: string; division?: string }) {
+  const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
+  if (body?.grade !== undefined) patch.grade = String(body.grade).trim();
+  if (body?.division !== undefined) patch.division = String(body.division).trim();
+  const { data, error } = await supabase
+    .from("divisions").update(patch).eq("id", id)
+    .select(DIV_COLS).single();
+  if (error?.code === "23505") throw new Error("You already have that division this year.");
+  if (error) throw error;
+  return data;
+}
+
+/**
+ * Archived, not deleted — same reasoning as archiveSubject: a class
+ * still points at this division_id, and orphaning that reference would
+ * cost more (a class settings screen that cannot resolve its own grade)
+ * than a division sitting quietly out of the active list.
+ */
+export async function archiveDivision(id: string) {
+  const { error } = await supabase
+    .from("divisions")
+    .update({ is_archived: true, updated_at: new Date().toISOString() })
+    .eq("id", id);
+  if (error) throw error;
+  return { ok: true };
+}
+
+
+// ── §106: the paperwork a class needs ────────────────────────────────
+
+const CLASS_DOC_COLS = "id, class_id, name, path, mime_type, size_bytes, created_at";
+
+export async function listClassDocuments(classId: string) {
+  if (!classId) throw new Error("A class is required.");
+  const { data, error } = await supabase
+    .from("class_documents")
+    .select(CLASS_DOC_COLS)
+    .eq("class_id", classId)
+    .order("created_at");
+  if (error) throw error;
+  return data || [];
+}
+
+/**
+ * Index one file already sitting in the `class-documents` bucket.
+ *
+ * The upload itself happens in the browser, straight to Storage under
+ * the teacher's own session (see uploadClassDocument) — this only
+ * writes the row that makes it show up on the class it belongs to.
+ */
+export async function createClassDocument(body: {
+  class_id?: string;
+  name?: string;
+  path?: string;
+  mime_type?: string | null;
+  size_bytes?: number | null;
+}) {
+  const class_id = String(body?.class_id ?? "").trim();
+  const name = String(body?.name ?? "").trim();
+  const path = String(body?.path ?? "").trim();
+  if (!class_id) throw new Error("A document needs a class.");
+  if (!name || !path) throw new Error("A document needs a file.");
+  const { data, error } = await supabase
+    .from("class_documents")
+    .insert({
+      faculty_id: await facultyId(),
+      class_id, name, path,
+      mime_type: body?.mime_type ?? null,
+      size_bytes: body?.size_bytes ?? null,
+    })
+    .select(CLASS_DOC_COLS)
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function deleteClassDocument(id: string) {
+  const { data, error: e1 } = await supabase
+    .from("class_documents").select("path").eq("id", id).maybeSingle();
+  if (e1) throw e1;
+  const { error } = await supabase.from("class_documents").delete().eq("id", id);
+  if (error) throw error;
+  // Best-effort: the row is gone either way, and a stray file left in a
+  // private per-teacher folder is a smaller problem than an index row
+  // deletion that fails because storage is briefly unreachable.
+  if (data?.path) {
+    await supabase.storage.from("class-documents").remove([data.path]).catch(() => {});
+  }
+  return { ok: true };
+}

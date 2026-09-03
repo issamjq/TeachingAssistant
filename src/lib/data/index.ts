@@ -336,6 +336,16 @@ export async function resolve(
         return yes(await E.addToDivision(a, body?.student_ids || []));
       if (a && b === "roll" && method === "DELETE")
         return yes(await E.removeFromDivision(a, body?.student_id));
+      if (a && !b && method === "PATCH") return yes(await E.updateDivision(a, body));
+      if (a && !b && method === "DELETE") return yes(await E.archiveDivision(a));
+      return { handled: false };
+
+    // §106: files a class needs, indexed here — the upload itself goes
+    // straight from the browser to Storage (see uploadClassDocument).
+    case "class-documents":
+      if (!a && method === "GET") return yes(await E.listClassDocuments(q.get("class_id") || ""));
+      if (!a && method === "POST") return yes(await E.createClassDocument(body));
+      if (a && method === "DELETE") return yes(await E.deleteClassDocument(a));
       return { handled: false };
 
     case "schedule":

@@ -46,10 +46,24 @@ export type ClassRow = {
   is_archived: boolean;
 };
 
+export type ClassDocument = {
+  id: string;
+  class_id: string;
+  name: string;
+  path: string;
+  mime_type: string | null;
+  size_bytes: number | null;
+  created_at: string;
+};
+
 export const listSubjects = () => api<Subject[]>("/api/subjects");
 
 export const createSubject = (name: string, name_ar?: string) =>
   api<Subject>("/api/subjects", { method: "POST", body: { name, name_ar: name_ar || null } });
+
+/** Rename a subject of the teacher's own. Built-ins have no row to patch. */
+export const updateSubject = (id: string, name: string) =>
+  api<Subject>(`/api/subjects/${id}`, { method: "PATCH", body: { name } });
 
 export const archiveSubject = (id: string) =>
   api<{ ok: true }>(`/api/subjects/${id}`, { method: "DELETE" });
@@ -58,6 +72,26 @@ export const listDivisions = () => api<Division[]>("/api/divisions");
 
 export const createDivision = (grade: string, division: string) =>
   api<Division>("/api/divisions", { method: "POST", body: { grade, division } });
+
+export const updateDivision = (id: string, grade: string, division: string) =>
+  api<Division>(`/api/divisions/${id}`, { method: "PATCH", body: { grade, division } });
+
+export const archiveDivision = (id: string) =>
+  api<{ ok: true }>(`/api/divisions/${id}`, { method: "DELETE" });
+
+/** Stop teaching this subject to this division. The division is untouched. */
+export const archiveClass = (id: string) =>
+  api<{ ok: true }>(`/api/classes/${id}`, { method: "DELETE" });
+
+export const listClassDocuments = (classId: string) =>
+  api<ClassDocument[]>(`/api/class-documents?class_id=${encodeURIComponent(classId)}`);
+
+export const createClassDocument = (body: {
+  class_id: string; name: string; path: string; mime_type?: string | null; size_bytes?: number | null;
+}) => api<ClassDocument>("/api/class-documents", { method: "POST", body });
+
+export const deleteClassDocument = (id: string) =>
+  api<{ ok: true }>(`/api/class-documents/${id}`, { method: "DELETE" });
 
 export const divisionRoll = (id: string) => api<RollEntry[]>(`/api/divisions/${id}/roll`);
 

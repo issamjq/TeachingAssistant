@@ -35,7 +35,7 @@
 import { Fragment, useMemo, useState } from "react";
 import {
   BookOpen, ChevronRight, ClipboardCheck, FileText, MonitorPlay,
-  PenLine, Puzzle, Search, Settings2, X, type LucideIcon,
+  PenLine, Plus, Puzzle, Search, Settings2, X, type LucideIcon,
 } from "lucide-react";
 import { navigate } from "@/lib/route";
 import {
@@ -138,6 +138,21 @@ export default function ClassNav({
       <section className="murchid-sidebar-section">
         <p className="murchid-sidebar-section-label">{navT("materials", "Materials")}</p>
         <div className="space-y-0.5 px-1">
+          {/* THE WAY IN. Without this the rail was a closed loop: no
+              classes means the fallback library list, which has no way to
+              make a class, so a teacher with none could never get one. It
+              leads here rather than sitting quietly at the end, because
+              with nothing on the roster it is the only thing worth doing
+              on this screen. */}
+          <button
+            type="button"
+            onClick={() => { navigate(["subjects"]); onNavigated?.(); }}
+            title={navT("addclass", "Add a class")}
+            className="murchid-sidebar-item !text-accent"
+          >
+            <span className="murchid-nav-badge" aria-hidden><Plus size={15} strokeWidth={2} /></span>
+            <span className="truncate flex-1 text-start">{navT("addclass", "Add a class")}</span>
+          </button>
           {KINDS.map((k) => (
             <button
               key={k.key}
@@ -234,6 +249,21 @@ export default function ClassNav({
 
         {q && matches.length === 0 && (
           <p className="px-4 py-2 text-[12px] text-muted">No class matches &ldquo;{filter}&rdquo;.</p>
+        )}
+
+        {/* Last, and quiet: with classes on screen this is a setup act,
+            not the daily one. Hidden while filtering, where it would sit
+            under a list it is not part of. */}
+        {!q && (
+          <button
+            type="button"
+            onClick={() => { navigate(["subjects"]); onNavigated?.(); }}
+            title={navT("addclass", "Add a class")}
+            className="murchid-sidebar-item !text-muted hover:!text-accent"
+          >
+            <span className="murchid-nav-badge" aria-hidden><Plus size={14} strokeWidth={2} /></span>
+            <span className="truncate flex-1 text-start">{navT("addclass", "Add a class")}</span>
+          </button>
         )}
       </div>
     </section>

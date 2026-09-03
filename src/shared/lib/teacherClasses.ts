@@ -51,9 +51,17 @@ export const teacherClassKey = (c: { grade?: string | null; section?: string | n
 const TTL_MS = 60_000;
 let cached: { at: number; promise: Promise<TeacherClass[]> } | null = null;
 
+// Every mounted useTeacherClasses(), so an invalidation reaches a rail
+// that was already on screen when the write happened. Dropping the
+// cache alone was not enough — ClassNav fetches once on mount, so a
+// class added from /subjects sat invisible in the sidebar until the
+// next full navigation happened to remount it.
+const listeners = new Set<() => void>();
+
 /** Drop the cache when a class or a roster row changes under us. */
 export function invalidateTeacherClasses() {
   cached = null;
+  listeners.forEach((l) => l());
 }
 
 async function load(): Promise<TeacherClass[]> {
@@ -110,8 +118,10 @@ export function useTeacherClasses(): { classes: TeacherClass[]; ready: boolean }
   });
   useEffect(() => {
     let live = true;
-    fetchClasses().then((classes) => { if (live) setState({ classes, ready: true }); });
-    return () => { live = false; };
+    const run = () => fetchClasses().then((classes) => { if (live) setState({ classes, ready: true }); });
+    run();
+    listeners.add(run);
+    return () => { live = false; listeners.delete(run); };
   }, []);
   return state;
 }

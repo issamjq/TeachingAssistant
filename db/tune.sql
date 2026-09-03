@@ -14181,3 +14181,103 @@ BEGIN
     n_div, n_mem, n_linked, n_unlinked;
   RAISE NOTICE '§105: class_members untouched — legacy delivery unchanged until cutover';
 END $$;
+
+
+-- ─────────────────────────────────────────────────────────────────────
+-- §106  The paperwork a class needs, attached to the class that needs it
+--
+-- A subject can require documents a teacher has of her own — a syllabus,
+-- a rubric, a permission template — and they belong to the (subject ×
+-- grade × division) that asked for them, the same unit §105 gave a
+-- roll. Two Grade 9 divisions taught the same subject can want different
+-- paperwork, so this hangs off `classes.id`, not off the subject or the
+-- division alone.
+--
+-- The file itself lives in Storage, one bucket, one folder per teacher —
+-- the same shape as `resumes` and `submissions` above. This table is the
+-- index: what a file is called, which class it belongs to, and where it
+-- landed, so the class settings screen can list and remove without a
+-- storage listing call.
+-- ─────────────────────────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS public.class_documents (
+  id         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  class_id   uuid NOT NULL REFERENCES public.classes(id) ON DELETE CASCADE,
+  faculty_id uuid NOT NULL REFERENCES public.faculty(id) ON DELETE CASCADE,
+  name       text NOT NULL,
+  path       text NOT NULL,
+  mime_type  text,
+  size_bytes bigint,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint
+                 WHERE conname = 'class_documents_named'
+                   AND connamespace = 'public'::regnamespace) THEN
+    ALTER TABLE public.class_documents ADD CONSTRAINT class_documents_named
+      CHECK (btrim(name) <> '' AND btrim(path) <> '');
+  END IF;
+END $$;
+
+CREATE INDEX IF NOT EXISTS class_documents_class_idx ON public.class_documents (class_id);
+
+ALTER TABLE public.class_documents ENABLE ROW LEVEL SECURITY;
+
+DO $$
+DECLARE n text;
+BEGIN
+  FOREACH n IN ARRAY ARRAY['class_documents_read','class_documents_ins',
+                           'class_documents_upd','class_documents_del'] LOOP
+    EXECUTE format('DROP POLICY IF EXISTS %I ON public.class_documents', n);
+  END LOOP;
+END $$;
+
+-- Owned two ways at once: the row's own faculty_id (fast, indexed) AND
+-- the class it claims to belong to must actually be hers — otherwise a
+-- teacher could file a document against a class_id she does not teach.
+CREATE POLICY class_documents_read ON public.class_documents FOR SELECT
+  USING (faculty_id = public.current_faculty_id() AND public.is_current_device());
+CREATE POLICY class_documents_ins ON public.class_documents FOR INSERT
+  WITH CHECK (faculty_id = public.current_faculty_id() AND public.is_current_device()
+              AND public.subscription_active()
+              AND EXISTS (SELECT 1 FROM public.classes c
+                           WHERE c.id = class_id AND c.faculty_id = public.current_faculty_id()));
+CREATE POLICY class_documents_upd ON public.class_documents FOR UPDATE
+  USING (faculty_id = public.current_faculty_id() AND public.is_current_device()
+         AND public.subscription_active());
+CREATE POLICY class_documents_del ON public.class_documents FOR DELETE
+  USING (faculty_id = public.current_faculty_id() AND public.is_current_device());
+
+
+-- ── Storage: one private bucket, one folder per teacher ─────────────
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES (
+  'class-documents', 'class-documents', false,
+  26214400,  -- 25 MB
+  ARRAY['application/pdf',
+        'application/msword',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'application/vnd.ms-excel',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'application/vnd.ms-powerpoint',
+        'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+        'image/png','image/jpeg','image/webp',
+        'text/plain','text/csv']
+)
+ON CONFLICT (id) DO UPDATE
+  SET file_size_limit = EXCLUDED.file_size_limit,
+      allowed_mime_types = EXCLUDED.allowed_mime_types,
+      public = false;
+
+DROP POLICY IF EXISTS class_documents_own_folder ON storage.objects;
+CREATE POLICY class_documents_own_folder ON storage.objects
+  FOR ALL TO authenticated
+  USING      (bucket_id = 'class-documents' AND (storage.foldername(name))[1] = (SELECT auth.uid()::text))
+  WITH CHECK (bucket_id = 'class-documents' AND (storage.foldername(name))[1] = (SELECT auth.uid()::text));
+
+DO $$
+BEGIN
+  RAISE NOTICE '§106: class_documents ready — % row(s) so far', (SELECT count(*) FROM public.class_documents);
+END $$;
