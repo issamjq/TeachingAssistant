@@ -912,13 +912,8 @@ export default function StudioShell({ children }: { children: React.ReactNode })
                   bearing — see StudioLauncher. */}
               <div className="flex-1 min-w-0 min-h-full flex flex-col">
                 {children}
-                {/* `mt-auto` and not sticky alone: sticky is relative
-                    until something scrolls past it, so on a screen with
-                    one card there is no scroll, no threshold, and the
-                    bar stayed wherever the content happened to end.
-                    Pushed to the foot of a full-height column it is at
-                    the bottom either way, and sticky takes over the
-                    moment the list is long enough to move. */}
+                {/* `mt-auto`, not sticky alone: with nothing to scroll
+                    sticky never crosses its threshold. See StudioLauncher. */}
                 <div data-studio-dock className="mt-auto" />
               </div>
               <div className="hidden lg:block flex-shrink-0">

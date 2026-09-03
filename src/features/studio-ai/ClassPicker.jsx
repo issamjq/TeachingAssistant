@@ -15,11 +15,11 @@
 // nothing asks. The pick is remembered per browser — a teacher preps
 // for the same class in the gaps around teaching it.
 // =====================================================================
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Users, Check } from "lucide-react";
 import { readStorage, writeStorage } from "@/shared/lib/storage";
-import { useRoster } from "@/features/delivery";
-import { classLabel, distinctClasses, normGrade, normSubject } from "@/shared/lib/classMatch";
+import { classLabel, normGrade, normSubject } from "@/shared/lib/classMatch";
+import { useTeacherClasses } from "@/shared/lib/teacherClasses";
 import s from "./Studio.module.css";
 
 const PICK_KEY = "murchid.studio.class";
@@ -33,7 +33,7 @@ const keyOf = (c) =>
  * parent keeps it in a ref and reads it at send time.
  */
 export function ClassPicker({ onSelection, preferred = null }) {
-  const { roster, ready } = useRoster();
+  const { classes, ready } = useTeacherClasses();
   /**
    * `preferred` is the class the screen was opened for — the sidebar
    * sends a teacher to /quizzes FROM Physics · Grade 9, and the composer
@@ -56,16 +56,6 @@ export function ClassPicker({ onSelection, preferred = null }) {
   const onSelectionRef = useRef(onSelection);
   useEffect(() => { onSelectionRef.current = onSelection; });
 
-  /**
-   * Memoised, and it has to be.
-   *
-   * distinctClasses() builds fresh objects every call, so an unmemoised
-   * call made `picked` a new reference on every render — and the effect
-   * below, which reports the pick to the parent, fired every time. A
-   * parent that keeps the pick in state then re-rendered us, and the two
-   * chased each other until React gave up with "maximum update depth".
-   */
-  const classes = useMemo(() => (ready ? distinctClasses(roster) : []), [ready, roster]);
   // A remembered pick whose class has left the roster resolves to null
   // rather than silently labelling work for a class that no longer exists.
   const stored = classes.find((c) => keyOf(c) === pickedKey) || null;
@@ -131,7 +121,7 @@ export function ClassPicker({ onSelection, preferred = null }) {
       >
         <Users size={13} />{" "}
         {picked
-          ? `For ${classLabel(picked)} · ${picked.count} student${picked.count === 1 ? "" : "s"}`
+          ? `For ${classLabel(picked)}${picked.count ? ` · ${picked.count} student${picked.count === 1 ? "" : "s"}` : ""}`
           : "For · any class"}
       </button>
 
@@ -167,7 +157,10 @@ export function ClassPicker({ onSelection, preferred = null }) {
                   {on && <Check size={12} />}
                 </span>
                 <span className={s.skillsPopName}>
-                  {classLabel(c)} · {c.count} student{c.count === 1 ? "" : "s"}
+                  {classLabel(c)} ·{" "}
+                  {c.count
+                    ? `${c.count} student${c.count === 1 ? "" : "s"}`
+                    : "nobody enrolled yet"}
                 </span>
               </button>
             );
