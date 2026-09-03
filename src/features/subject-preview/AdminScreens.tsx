@@ -20,7 +20,7 @@
 // =====================================================================
 
 import {
-  Activity, BarChart3, Coins, KeyRound, LayoutDashboard, Lock, Shield,
+  Activity, BarChart3, Coins, KeyRound, KeySquare, LayoutDashboard, Lock, Shield,
   Building2, Tags, TrendingDown, Users, type LucideIcon,
 } from "lucide-react";
 import { ADMIN_SURFACES, DEFAULT_ADMIN_PERMS } from "@/config/nav";
@@ -39,6 +39,7 @@ const ICON: Record<string, LucideIcon> = {
   coins: Coins,
   pricing: Tags,
   shield: Shield,
+  keypool: KeySquare,
 };
 
 /** What each console is for, in one line — the nav label alone is thin. */
@@ -53,6 +54,7 @@ const BLURB: Record<string, string> = {
   "superadmin-revenue": "Plans, payments and what came in.",
   "superadmin-costs": "What generation costs, and what it is priced at.",
   "superadmin-roles": "Who may reach which console, and the defaults behind it.",
+  "superadmin-keys": "The OpenRouter keys every generation is dialled through.",
 };
 
 /**

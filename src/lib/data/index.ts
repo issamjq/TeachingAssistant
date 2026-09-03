@@ -40,6 +40,13 @@ const SERVER_ONLY = [
   // endpoints. The one exception, creating an account, still needs the
   // GoTrue admin key, so that single path returns { handled: false } from
   // the resolver and falls through to the backend here.
+  // The OpenRouter key pool. Named here rather than left to fall
+  // through resolveSuperadmin, for the FAILURE: without it a build
+  // with no API_PROXY_TARGET shows the console a bare "HTTP 404"
+  // where "needs the API service" is the true answer. Both paths are
+  // listed because /api/superadmin/keys-settings is a sibling of
+  // /api/superadmin/keys, not a child of it.
+  "/api/superadmin/keys", "/api/superadmin/keys-settings",
   "/api/owner", "/api/moe", "/api/dev",
   "/api/teachers",
   // The shared template library — curated CBSE materials the service

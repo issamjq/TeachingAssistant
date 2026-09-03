@@ -41,6 +41,7 @@ export const AR: Partial<Record<TranslationKey, string>> = {
   "nav.superadmin-usage": "الرموز",
   "nav.superadmin-revenue": "الإيرادات",
   "nav.superadmin-costs": "التسعير",
+  "nav.superadmin-keys": "المفاتيح",
   "nav.dev-console": "اللوحة",
   "nav.moe-console": "اللوحة",
   "nav.owner-console": "اللوحة",

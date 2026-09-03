@@ -50,6 +50,7 @@ export const EN = {
   "nav.superadmin-usage": "Tokens",
   "nav.superadmin-revenue": "Revenue",
   "nav.superadmin-costs": "Pricing",
+  "nav.superadmin-keys": "Keys",
   "nav.dev-console": "Console",
   "nav.moe-console": "Dashboard",
   "nav.owner-console": "Dashboard",

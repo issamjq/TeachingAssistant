@@ -102,6 +102,7 @@ super-admin **dashboard**.
 - **Usage** (`superadmin-product`) and **Friction**
   (`superadmin-friction`) — the product telemetry, below.
 - **Roles** (`superadmin-roles`) — the capability grid, below.
+- **Keys** (`superadmin-keys`) — the OpenRouter key pool, below.
 
 Sidebar labels are one word each and carry an icon. The rail is read at a
 glance and collapses to icons, so a label is a name, not a description —
@@ -110,6 +111,96 @@ The sentence version lives in each screen's own heading, which has room
 for it. The labels come from `nav.<key>` in `src/shared/i18n/en.ts`, which
 **wins over** the `label` in `src/config/nav.ts`: renaming a nav item and
 stopping at the config changes nothing on screen.
+
+## The key pool (`superadmin-keys`)
+
+One free OpenRouter key has a daily allowance, so with one key the whole
+product stops the moment it is spent — until somebody edits an
+environment variable and redeploys. The pool moves the keys into a table
+the rotation walks: when one caps out the next answers and the teacher
+never learns anything happened.
+
+**This surface is the one super-admin screen that is NOT answered by
+Supabase.** The pool holds live credentials, so it lives on the separate
+backend (`src/ai/keyPool.ts`, `src/routes/consoles.ts`) behind
+`requireRole('superadmin')`, and the key values never reach a browser —
+`/api/superadmin/keys` returns a mask, first 8 and last 4, and there is
+deliberately no endpoint that reveals more. `src/lib/data/index.ts`
+therefore lists `/api/superadmin/keys` **and** `/api/superadmin/keys-settings`
+in `SERVER_ONLY`: they are siblings, not parent and child, so one entry
+would not have covered both. Naming them is also what turns a build with
+no `API_PROXY_TARGET` into "needs the API service" instead of a bare
+`HTTP 404`.
+
+The five endpoints, all under `/api/superadmin`:
+
+| | |
+|---|---|
+| `GET /keys` | the pool, the settings, the last 100 events, and `usable` |
+| `POST /keys` | a paste of keys — split on whitespace or comma, deduped, ≤200 |
+| `PATCH /keys/:id` | `status` and/or `clear_cooldown` |
+| `DELETE /keys/:id` | the only delete in the system, always a human |
+| `PATCH /keys-settings` | `min_active_keys` (0–50), `cooldown_minutes` (5–2880) |
+
+**Unproven means keep.** Two failures look identical in a log and are
+opposites in fact: a key at its limit is fine and works again tomorrow, a
+revoked credential fails for ever. So a spent key rests, a refused key
+goes to probation, and nothing is ever deleted automatically. A wasted
+rotation slot costs one retry; a wrongly deleted credential cannot be
+recovered.
+
+That distinction is the whole design of the screen, which is why
+`keyState()` in [`src/features/key-pool/api.ts`](../src/features/key-pool/api.ts)
+exists rather than each row reading `status` directly. `active` covers
+two opposite situations — in rotation, and resting out a spent allowance
+— and **resting is the most common state in a healthy pool**. A screen
+that paints it red has an admin deleting working keys by Thursday.
+
+| Server state | Screen |
+|---|---|
+| `active`, no cooldown | **In use** — sage |
+| `active`, cooldown in the future | **Resting**, with the time it returns — grey, not an alarm |
+| `probation` | **Refused — needs a human** — the credential was refused (401/403) |
+| `disabled` | **Off** — an admin switched it off |
+
+Three things the screen has to get right, all of them learned from the
+API rather than invented:
+
+- **Adding is slow, and it says so.** Every key is probed with one real
+  completion through that key alone before it is stored, sequentially, up
+  to ~20 seconds each — ten keys is a couple of minutes. `AddKeysPanel`
+  counts the elapsed time and states the ceiling for the batch instead of
+  showing a spinner that looks hung, and `addKeys()` passes no
+  `AbortSignal`: a timeout would abandon a run that is still writing keys.
+  A key that answers **429** passes — a free key whose allowance is
+  already spent today is a real credential and is exactly what the pool
+  exists to rotate around.
+- **Rejections render per key, never as a count.** "3 of 5 worked"
+  without saying which three is not an answer an admin can act on.
+  Rejected keys are never stored, so re-pasting a corrected batch is
+  safe: keys already in the pool are skipped silently and do not consume
+  a label.
+- **`refused` in the trail is the loud one.** It means a key is failing,
+  the service knows, and it is *still in rotation* because removing it
+  would breach the floor. That is a pool about to stop working, so it is
+  raised as a banner next to the usable count rather than left as a line
+  in the feed.
+
+`usable` — active and not resting — is the header number because it is
+the only one that predicts an outage. It is read against
+`min_active_keys`, which ships at 1: right for a pool of one and far too
+low for a pool of twenty, so raise the floor as the pool grows. The floor
+is enforced on `DELETE`, which answers 409 with the sentence worth
+reading; the screen shows it as the server wrote it rather than restating
+it.
+
+**Not built, if it is wanted later:** a probe/reaper cron that
+periodically re-tests idle keys and retires the truly dead ones. The
+reference implementation (the MJQ trip planner's standalone key-pool
+service) has one, along with an approval gate for large removals and a
+per-provider capacity read. It is worth adding once the pool is large
+enough that an idle key is normal — with one key, idle is evidence of
+nothing.
 
 ## Product telemetry (§95)
 

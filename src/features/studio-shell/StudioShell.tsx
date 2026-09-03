@@ -40,6 +40,7 @@ import {
   Users,
   BarChart3,
   KeyRound,
+  KeySquare,
   GraduationCap,
   Coins,
   Building2,
@@ -135,6 +136,9 @@ const NAV_ICON: Record<string, LucideIcon> = {
   // what the models burn, the other is the price list.
   tokens: Cpu,
   pricing: Tag,
+  // Distinct from `keys` (Accounts) on purpose: two identical keys in a
+  // rail read at a glance identify neither.
+  keypool: KeySquare,
 };
 
 function NavBadge({ letter, icon }: { letter?: string; icon?: string }) {

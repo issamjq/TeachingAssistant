@@ -110,6 +110,7 @@ export const ADMIN_SURFACES: AdminSurface[] = [
   { cap: "admin.dashboard", key: "superadmin-usage",     label: "Tokens", icon: "tokens" },
   { cap: "admin.billing",   key: "superadmin-revenue",   label: "Revenue", icon: "coins" },
   { cap: "admin.platform",  key: "superadmin-costs",     label: "Pricing", icon: "pricing" },
+  { cap: "admin.platform",  key: "superadmin-keys",      label: "Keys", icon: "keypool" },
   { cap: "admin.roles",     key: "superadmin-roles",     label: "Roles", icon: "shield" },
 ];
 
@@ -188,6 +189,10 @@ const SUPERADMIN_NAV: NavSection[] = [
       { key: "superadmin-dashboard", label: "Dashboard", icon: "dashboard" },
       { key: "superadmin-console", label: "Accounts", icon: "keys" },
       { key: "superadmin-roles", label: "Roles", icon: "shield" },
+      // The credentials every AI generation is dialled through. Platform
+      // plumbing, not money: it sits with the things that decide whether
+      // the product answers at all.
+      { key: "superadmin-keys", label: "Keys", icon: "keypool" },
     ],
   },
   // The two screens that answer "is the product working for people",
@@ -303,14 +308,15 @@ export const SECTIONS_BY_ROLE: Record<Role, Set<string>> = {
   admin: new Set([
     "superadmin-dashboard", "superadmin-console", "superadmin-students",
     "superadmin-orgs", "superadmin-usage", "superadmin-revenue", "superadmin-costs",
-    "superadmin-product", "superadmin-friction", "superadmin-roles", "account",
+    "superadmin-product", "superadmin-friction", "superadmin-roles", "superadmin-keys",
+    "account",
   ]),
   dev: new Set(["dev-console", "account"]),
   super_admin: new Set([
     "superadmin-dashboard", "superadmin-console", "superadmin-roles",
     "superadmin-product", "superadmin-friction", "superadmin-students",
     "superadmin-orgs", "superadmin-usage", "superadmin-revenue",
-    "superadmin-costs", "account",
+    "superadmin-costs", "superadmin-keys", "account",
   ]),
   moe: new Set(["moe-console", "account"]),
   owner: new Set(["owner-console", "account"]),
