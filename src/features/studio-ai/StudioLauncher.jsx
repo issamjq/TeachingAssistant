@@ -315,6 +315,25 @@ export default function StudioLauncher({ kind, scope = null, existing = [] }) {
         {pickedClass
           ? "Murchid drafts; you decide. Check anything before it reaches a class."
           : "Pick a class and the grade decides the reading level. Murchid drafts; you decide."}
+        {" · "}
+        {/*
+          The studio left the sidebar, and this is what stops that
+          orphaning anything.
+
+          Sending from here opens the studio with the request running,
+          so the ROOM is reachable from every library. What sending
+          cannot do is take you back to a conversation you already had —
+          listSessions() is called from nowhere else in the product, and
+          without a way in, every thread a teacher has ever had would be
+          one she could not return to.
+        */}
+        <button
+          type="button"
+          onClick={() => navigate(["studio"])}
+          className="underline underline-offset-2 hover:text-accent"
+        >
+          Past conversations
+        </button>
       </p>
     </div>
   );

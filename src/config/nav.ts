@@ -34,63 +34,56 @@ export interface NavSection {
   dynamic?: "classes";
 }
 
-// The teacher nav tells the product's story in section order: get
-// oriented, plan the week, make the materials, run the classroom. The
-// old scheme filed nine of fourteen items under one header called
-// "Planners" — four of them content libraries that plan nothing.
+/**
+ * The teacher nav, in the order the work happens: get oriented, then the
+ * classes, then the classroom.
+ *
+ * Two items came out of it, and both for the same reason — a rail entry
+ * should be a place, not a second way to do something you can already do
+ * where you are.
+ *
+ * "This week" and Calendar were the same seven days over the same table.
+ * The calendar has a Week view and a panel of its own headed This week;
+ * what the screen had that it did not was READINESS, and that moved —
+ * the calendar's rail carries "Not ready · N with nothing behind them"
+ * and pressing it opens the list with its Make it buttons.
+ *
+ * "Studio" left because the studio is now on every class's shelf. Each
+ * library carries the composer, already set to that class and that
+ * format, and sending opens the studio with the request running. A rail
+ * entry to a screen you only ever arrive at by asking for something is a
+ * door beside an open door.
+ *
+ * Both routes stay reachable and neither is orphaned: /week from the
+ * calendar, /studio from every composer and from the conversations link
+ * under it.
+ */
 const TEACHER_NAV: NavSection[] = [
   {
     section: "Overview",
     items: [
-      /**
-       * "This week" is no longer a rail item.
-       *
-       * It and Calendar were the same seven days over the same table
-       * drawn twice — the calendar has a Week view and a panel headed
-       * "This week" of its own. What the screen had that the calendar
-       * did not is READINESS, and that moved: the calendar's rail now
-       * carries "Not ready · N with nothing behind them", and pressing
-       * it opens the list with its Make it buttons. The route stays
-       * reachable, from there and from a bookmark; it just is not a
-       * second entry for the same week.
-       */
       { key: "dashboard", label: "Dashboard", icon: "dashboard" },
-      { key: "studio", label: "Studio", icon: "studio" },
-    ],
-  },
-  // When things happen. ONE calendar, not two: Calendar and Timetable
-  // were the same week over the same table, drawn twice, with a
-  // separate entry form each — so a lesson added in one was missing
-  // from the other and nobody could say which was the real week. The
-  // timetable folded into the calendar (day/week/month/agenda), which
-  // is also the delivery surface: students receive work only through a
-  // schedule slot (db/tune.sql §48). Goals stays its own thing — it
-  // plans a term's arc, not a week's hours.
-  {
-    section: "Plan",
-    items: [
+      // ONE calendar, not two: Calendar and Timetable were the same week
+      // over the same table with a separate entry form each, so a lesson
+      // added in one was missing from the other. The timetable folded
+      // into the calendar (day/week/month/agenda), which is also the
+      // delivery surface — students receive work only through a schedule
+      // slot (db/tune.sql §48).
       { key: "planner", label: "Calendar", icon: "scheduler" },
+      // Goals stays its own thing: it plans a term's arc, not a week's
+      // hours.
       { key: "goals", label: "Goals", icon: "goals" },
       // The curated shelf the service publishes, as opposed to anything
       // she made. It belongs to no class of hers, so it cannot go under
-      // one — and it is what a teacher plans FROM, which is here.
+      // one.
       { key: "library", label: "Templates", icon: "library" },
     ],
   },
-  /**
-   * The libraries used to be listed here, flat, under "Materials":
-   * Lessons, Quizzes, Homework, Presentations, Activities, Material —
-   * seven rows, each holding every class she teaches at once. So "the
-   * Grade 9 Physics quizzes" was never a place, only a filter she
-   * reapplied every time she went looking.
-   *
-   * They are nested under the class they belong to now. The list is her
-   * classes, which is a roster and not a constant, so the shell fills
-   * this section in — and falls back to exactly the flat list above when
-   * she has no classes yet, because a new teacher must not find her own
-   * lesson plans unreachable while the rail waits for one to exist.
-   */
-  { section: "My classes", items: [], dynamic: "classes" },
+  {
+    section: "My classes",
+    items: [],
+    dynamic: "classes",
+  },
   // The class itself: who is in it, what they see, how they are doing.
   {
     section: "Classroom",
