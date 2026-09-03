@@ -25,38 +25,10 @@
 // =====================================================================
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { supabaseUrl } from "@/config/env";
 import LandingPage from "@/features/marketing/LandingPage";
-
-/** The key supabase-js writes its session to: sb-<project-ref>-auth-token. */
-function sessionKey(): string | null {
-  try {
-    return `sb-${new URL(supabaseUrl).hostname.split(".")[0]}-auth-token`;
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Is there a stored session worth redirecting on?
- *
- * A stored session whose access token has expired still counts: it
- * carries a refresh token, and supabase-js will renew it on load. Only a
- * missing or unreadable entry means "signed out".
- */
-function hasStoredSession(): boolean {
-  if (typeof window === "undefined") return false;
-  const key = sessionKey();
-  if (!key) return false;
-  try {
-    const raw = localStorage.getItem(key);
-    if (!raw) return false;
-    const parsed = JSON.parse(raw);
-    return !!(parsed?.refresh_token || parsed?.access_token);
-  } catch {
-    return false;
-  }
-}
+// Moved to a shared module: the marketing nav needs the same answer, to
+// decide whether it offers "Sign in" or a way back into the app.
+import { hasStoredSession } from "@/shared/lib/session";
 
 export default function EntryGate({
   billingOn = true,
