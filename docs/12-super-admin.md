@@ -186,6 +186,28 @@ API rather than invented:
   raised as a banner next to the usable count rather than left as a line
   in the feed.
 
+The table carries search, a state filter and sort, all client-side —
+the whole pool arrives in one GET, so paging it over the network would
+add a round trip per keystroke to answer a question the browser already
+holds the data for. Three details in it are deliberate:
+
+- **The state counts live on the filter chips**, not in a summary strip
+  above them. On a chip the number is also the way to act on it, and the
+  same five numbers printed twice a few hundred pixels apart is noise.
+  They count within the current search, so "Refused 0" while a query is
+  typed means none of *your matches* are refused rather than
+  contradicting the table beneath it.
+- **Labels sort naturally.** They are `openrouter-<n>`, and a plain
+  string compare files `openrouter-10` before `openrouter-2` — the list
+  stops being readable at exactly the size where sorting starts to
+  matter.
+- **Sorting by state sorts by how much it wants attention** (refused, in
+  use, resting, off), not alphabetically, which would produce "off, in
+  use, refused, resting". A key that has never succeeded sinks to the
+  bottom of the last-success sort in *both* directions: "never" is not a
+  date, and sorting it as one puts a key added a minute ago and not yet
+  dialled at the top of a list about recency.
+
 `usable` — active and not resting — is the header number because it is
 the only one that predicts an outage. It is read against
 `min_active_keys`, which ships at 1: right for a pool of one and far too
