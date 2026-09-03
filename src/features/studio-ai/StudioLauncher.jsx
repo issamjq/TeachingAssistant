@@ -34,7 +34,7 @@
 
 import React, { useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
-import { FileText, Paperclip, Send, X } from "lucide-react";
+import { FileText, Paperclip, Plus, Send, X } from "lucide-react";
 import { navigate } from "@/lib/route";
 import { PREFILL_KEY } from "@/shared/lib/assistantPrefill";
 import { writeStorage } from "@/shared/lib/storage";
@@ -70,7 +70,9 @@ export default function StudioLauncher({ kind, scope = null, existing = [] }) {
   // The screen's own kind is on, and the rest are there to be added:
   // "a lesson and the quiz that goes with it" is one request, and asking
   // for it from the Lessons shelf should not mean starting again.
-  const [kinds, setKinds] = useState(() => (kind ? [kind] : ["lesson_plan"]));
+  const base = kind || "lesson_plan";
+  const [kinds, setKinds] = useState([base]);
+  const [alsoOpen, setAlsoOpen] = useState(false);
   const [draft, setDraft] = useState("");
   const [attachments, setAttachments] = useState([]);
   const [uploading, setUploading] = useState(false);
@@ -81,12 +83,19 @@ export default function StudioLauncher({ kind, scope = null, existing = [] }) {
   const fileRef = useRef(null);
   const { credits } = useCredits();
 
-  const toggleKind = (v) =>
-    setKinds((prev) =>
-      // One format always stays on: a send with none selected has no
-      // shape to write in, and the studio would pick one for her.
-      prev.includes(v) ? (prev.length === 1 ? prev : prev.filter((k) => k !== v)) : [...prev, v],
-    );
+  /**
+   * The screen's own format is always on and is never offered as a
+   * choice — /activities makes activities, and a row of five toggles
+   * with Activity already lit asks a teacher to work out what the page
+   * she is standing on is for.
+   *
+   * The other four are still reachable, because "a lesson and the quiz
+   * that goes with it" is one request. They are just not shouted on
+   * every screen: they appear when she asks for them.
+   */
+  const extras = KINDS.filter((k) => k.value !== base);
+  const toggleExtra = (v) =>
+    setKinds((prev) => (prev.includes(v) ? prev.filter((k) => k !== v) : [...prev, v]));
 
   const attach = async (e) => {
     const files = [...(e.target.files || [])];
@@ -167,7 +176,7 @@ export default function StudioLauncher({ kind, scope = null, existing = [] }) {
         {existing.length > 0 && (
           <p className={L.already}>
             <span className={L.alreadyCount}>
-              {existing.length} {one ? `${one.toLowerCase()}${existing.length === 1 ? "" : "s"}` : "already"}
+              {existing.length} {KIND_LABEL[base].toLowerCase()}{existing.length === 1 ? "" : "s"}
             </span>
             <span className={L.alreadyList}>
               already here{titles.length ? ` — ${titles.join(", ")}` : ""}
@@ -233,23 +242,30 @@ export default function StudioLauncher({ kind, scope = null, existing = [] }) {
           />
 
           <div className={`${s.kindRow} ${L.kinds}`}>
-            {KINDS.map((k) => (
+            {alsoOpen || kinds.length > 1 ? (
+              extras.map((k) => (
+                <button
+                  key={k.value}
+                  type="button"
+                  className={s.kindBtn}
+                  data-on={kinds.includes(k.value)}
+                  onClick={() => toggleExtra(k.value)}
+                  aria-pressed={kinds.includes(k.value)}
+                  title={`Also make a ${k.label.toLowerCase()}`}
+                >
+                  <k.icon size={13} /> {k.label}
+                </button>
+              ))
+            ) : (
               <button
-                key={k.value}
                 type="button"
                 className={s.kindBtn}
-                data-on={kinds.includes(k.value)}
-                onClick={() => toggleKind(k.value)}
-                aria-pressed={kinds.includes(k.value)}
-                title={
-                  kinds.includes(k.value) && kinds.length === 1
-                    ? `${k.label} — at least one format stays on`
-                    : `Toggle ${k.label.toLowerCase()}`
-                }
+                onClick={() => setAlsoOpen(true)}
+                title="Ask for another format in the same request"
               >
-                <k.icon size={13} /> {k.label}
+                <Plus size={13} /> Also make
               </button>
-            ))}
+            )}
           </div>
 
           <ClassPicker
