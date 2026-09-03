@@ -62,7 +62,6 @@ export default function Steps() {
   return (
     <section className={`${s.shell} ${s.section}`} id="how">
       <div className={s.sectionHead} data-reveal-stagger>
-        <p className={s.eyebrow} data-reveal-item>{t("mk.how.eyebrow")}</p>
         <h2 className={s.sectionTitle} data-reveal-item>{t("mk.how.title")}</h2>
         <p className={s.body} data-reveal-item>{t("mk.how.lede")}</p>
       </div>

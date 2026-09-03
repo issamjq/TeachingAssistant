@@ -38,7 +38,6 @@ export default function Questions({
   return (
     <section className={`${s.shell} ${s.section} ${s.faqGrid}`} id="questions">
       <header className={s.faqHead}>
-        <p className={s.eyebrow}>{t("mk.faq.eyebrow")}</p>
         <h2 className={s.faqTitle}>
           {t("mk.faq.title.a")} <em>{t("mk.faq.title.em")}</em>
         </h2>
@@ -49,10 +48,9 @@ export default function Questions({
       </header>
 
       <div className={s.faqList} ref={list}>
-        {ITEMS.map((k, i) => (
+        {ITEMS.map((k) => (
           <details key={k} className={s.faqItem} onToggle={closeSiblings}>
             <summary className={s.faqQ}>
-              <span className={s.faqNum}>{String(i + 1).padStart(2, "0")}</span>
               <span className={s.faqQText}>
                 {!billingOn && k === "q5"
                   ? t("mk.free.q5.q")

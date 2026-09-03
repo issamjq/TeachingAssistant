@@ -181,8 +181,8 @@ export default function Outputs() {
 
         <div className={`${s.cell} ${s.cellTall}`} data-cell data-tilt>
           <ThemedShot
-            src="/marketing/dashboard.jpg"
-            alt={t("mk.shot.dashboard")}
+            src="/marketing/presentations.jpg"
+            alt={t("mk.shot.decks")}
             width={1800}
             height={1125}
             sizes="(max-width: 860px) 100vw, 45vw"

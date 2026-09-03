@@ -37,17 +37,33 @@
   --shadow-shot: 0 2px 6px rgba(16, 23, 24, 0.06), 0 30px 70px -20px rgba(16, 23, 24, 0.26);
   --band-fg: #f4f3ef;
 
-  --paper: #e8e7e2;
-  --paper-warm: #e0dfd9;
-  --chalk: #f4f3ef;
-  --ink: #101718;
-  --ink-soft: #364043;
-  --muted: #5f696c;
-  --line: #cdcdc6;
-  --line-soft: #dcdbd6;
-  --accent: #16646c;
-  --accent-deep: #0f4e55;
-  --accent-wash: #dfeaea;
+  /* MEASURED, not eyeballed. The page read as one flat grey field, and the
+     cause was not the text — ink sat at 14.65:1 and muted at 4.55:1, both
+     fine. It was the STRUCTURE: plaster ground against chalk surface was
+     1.12:1 and the hairline against the ground was 1.29:1, so every card,
+     every bento cell and every rule was very nearly invisible. A card you
+     cannot see the edge of is not a card, it is a paragraph.
+
+     So the ground drops, the chalk lifts, and the hairline darkens:
+     ground/card goes 1.12 -> 1.28, hairline on card 1.44 -> 1.75, and the
+     accent gains presence at 6.08:1 on the ground (was 5.52). Every text
+     pair still clears 4.5:1 and most improved — muted is 4.72 (was 4.55),
+     which matters because it sets 13px and 14.5px copy.
+
+     Deliberately NOT pushed further. A bigger step turns plaster-and-chalk
+     into white-cards-on-grey, which is the generic SaaS ground this world
+     exists to avoid. The material difference should be felt, not announced. */
+  --paper: #e1dfd6;
+  --paper-warm: #d8d5ca;
+  --chalk: #fbfaf7;
+  --ink: #0e1516;
+  --ink-soft: #333c3f;
+  --muted: #586260;
+  --line: #c2c0b4;
+  --line-soft: #d4d1c6;
+  --accent: #12585f;
+  --accent-deep: #0d454b;
+  --accent-wash: #dbe8e8;
   /* The accent, lifted for the two ink grounds. Firozeh at full strength
      is too dark to read on ink; this is the same hue raised. */
   --accent-on-ink: #8fc9c4;
@@ -55,7 +71,10 @@
 
   --shell: 1280px;
   --gutter: clamp(20px, 5vw, 56px);
-  --band: clamp(72px, 11vh, 140px);
+  /* Tightened with the scale change: 140px of air above a 54px heading
+     read as generous, the same air above a 100px heading reads as a gap.
+     Space is relative to what it separates. */
+  --band: clamp(56px, 7.5vh, 104px);
 
   --r-lg: 20px;
   --r-md: 14px;
@@ -73,19 +92,30 @@
   --t-6: 24px;      /* the lockup */
   --t-body: clamp(15.5px, 1.15vw, 18px);
 
-  --d-1: clamp(24px, 2.5vw, 34px);   /* step and week titles */
-  --d-2: clamp(28px, 3vw, 40px);     /* auth title */
-  --d-3: clamp(30px, 3.6vw, 50px);   /* section titles */
-  --d-4: clamp(34px, 3.8vw, 54px);   /* hero and closing */
+  /* SCALE, rebuilt 2026-09-03. The old ramp topped out at 54px for the
+     hero and 50px for a section title — four points apart, on a 1440px
+     screen. Everything on the page was therefore the same size, and a
+     page with no scale contrast reads as a page with no hierarchy: the
+     eye finds no entry point and the whole thing flattens into one grey
+     field regardless of what the colours do.
+
+     The ramp now actually ramps. The hero is roughly twice a section
+     title, a section title is roughly twice a step title, and body copy
+     stays where it was — the contrast comes from the top moving up, not
+     from the bottom shrinking into illegibility. */
+  --d-1: clamp(24px, 2.8vw, 40px);   /* step and week titles */
+  --d-2: clamp(28px, 3vw, 44px);     /* auth title */
+  --d-3: clamp(32px, 4.8vw, 68px);   /* section titles */
+  --d-4: clamp(38px, 5.6vw, 82px);   /* hero and closing */
   --d-5: clamp(34px, 3.4vw, 46px);   /* the price, on the cadence board */
-  --d-6: clamp(44px, 7vw, 110px);    /* the colossal closing question */
+  --d-6: clamp(44px, 7.4vw, 116px);  /* the colossal closing question */
   --t-serif: clamp(18px, 1.7vw, 24px); /* serif inline voice: FAQ questions,
                                           the closing sub, the footer tagline */
 
   position: relative;
   background: var(--paper);
   color: var(--ink);
-  font-family: "Inter Tight", ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--font-sans);
   overflow-x: clip;
 }
 
@@ -100,20 +130,27 @@
 
 /* ── Type ───────────────────────────────────────────────────────── */
 
+/* RETUNED FOR GAMBETTA. Weight 300 and -0.035em were Fraunces settings and
+   they do not transfer: Fraunces is a wide, high-x-height soft serif that
+   stays sturdy when it is light and needs pulling in, while Gambetta is a
+   calligraphic face with real stroke modulation — at 300 it went spindly at
+   hero size, and -0.035em jammed its already-close fit until the terminals
+   collided. 400 gives it back its stroke weight; -0.016em keeps the line
+   tight without crowding. */
 .display {
-  font-family: Fraunces, Georgia, serif;
-  font-weight: 300;
-  letter-spacing: -0.035em;
-  line-height: 1.02;
+  font-family: var(--font-serif);
+  font-weight: 400;
+  letter-spacing: -0.016em;
+  line-height: 1.04;
   margin: 0;
   text-wrap: balance;
 }
 
 .display em {
   font-style: italic;
-  font-weight: 300;
+  font-weight: 400;
   color: var(--accent);
-  /* Descender clearance: Fraunces italic drops well below the baseline. */
+  /* Descender clearance: Gambetta italic drops well below the baseline. */
   line-height: 1.12;
   padding-bottom: 0.06em;
 }
@@ -171,10 +208,10 @@
 }
 
 .lockup {
-  font-family: Fraunces, Georgia, serif;
+  font-family: var(--font-serif);
   font-size: var(--t-6);
   font-weight: 400;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.01em;
   color: var(--ink);
   text-decoration: none;
   display: inline-flex;
@@ -212,6 +249,22 @@
 @media (max-width: 860px) {
   .navLinks a[data-secondary="true"] {
     display: none;
+  }
+}
+
+/* Below 560px even the two primary anchors stop fitting, and what got
+   squeezed out was "Sign in" — the one item in the bar that is not
+   reachable any other way. The section links are in-page anchors on a
+   single-scroll page, so dropping them costs a visitor nothing; they
+   scroll. Identity, language and the account door are what the bar is
+   for at this width. */
+@media (max-width: 560px) {
+  .navLinks a[href^="#"] {
+    display: none;
+  }
+
+  .navLinks {
+    gap: 12px;
   }
 }
 
@@ -268,22 +321,32 @@
 
 /* ── Hero: asymmetric split ─────────────────────────────────────── */
 
+/* THE HERO SITS ON THE SHELL LINE, like everything else on the page.
+
+   It bled to the trailing viewport edge for a while, which bought the
+   product width but cost alignment: the screenshot ended on the edge of
+   the screen while the nav above it and every section below it ended on
+   the shell's gutter line. Nothing on the right lined up with anything
+   else, and the frame had no margin to breathe into.
+
+   Both columns are inside the shell now. The stage's trailing edge is the
+   same vertical as the nav's last item and the section rules underneath,
+   and the page's gutter sits between it and the viewport.
+
+   Logical properties throughout, so Arabic mirrors it for free. */
 .hero {
   max-width: var(--shell);
   margin-inline: auto;
   padding-inline: var(--gutter);
-  padding-top: clamp(28px, 5vh, 72px);
-  padding-bottom: clamp(40px, 7vh, 90px);
+  padding-top: clamp(24px, 4vh, 60px);
+  padding-bottom: clamp(36px, 6vh, 84px);
   display: grid;
-  /* The stage takes the larger share. Pulling it in off the right edge
-     left a gap on that side; growing it LEFTWARDS into the column gap
-     spends that gap on the product instead of on air, without putting
-     the second window back against the viewport. */
-  grid-template-columns: minmax(0, 0.86fr) minmax(0, 1.14fr);
-  gap: clamp(20px, 2.6vw, 40px);
+  grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.05fr);
+  gap: clamp(24px, 3vw, 56px);
   align-items: center;
-  min-height: min(76vh, 720px);
+  min-height: min(74vh, 720px);
 }
+
 
 .heroCopy {
   max-width: none;
@@ -327,7 +390,7 @@
 .wordAccent {
   color: var(--accent);
   font-style: italic;
-  font-weight: 300;
+  font-weight: 400;
 }
 
 /* ── The stage: the shot, its wash, and the pills ────────────────────
@@ -348,9 +411,22 @@
      bleed put three stacked objects hard against the viewport with no
      air behind them. A positive gutter gives the whole stage — frame,
      second window and pills alike — somewhere to sit. */
-  margin-inline-end: clamp(10px, 3vw, 46px);
-  /* Room for the pills that hang past the frame on both sides. */
+  /* No trailing margin: the stage runs to the viewport edge.
+     The pills that hang off the leading side still need vertical room. */
+  margin-inline-end: 0;
   padding-block: 26px;
+
+  /* CAPPED. Uncapped, the stage simply took its column, which on a 2560
+     screen meant a 1290px screenshot — half the display, and louder than
+     the headline it is supposed to be supporting. The cap holds it to a
+     size that still reads (the sidebar labels and the stat cards stay
+     legible) without letting the evidence outrank the argument.
+
+     margin-inline-start: auto keeps it flush to the bleeding edge as it
+     narrows, so the slack falls between the copy and the product rather
+     than opening a gap at the viewport edge and undoing the bleed. */
+  /* Inside the shell the column is already bounded, so the stage needs no
+     cap of its own. */
 }
 
 /* The blue, kept as light as it can be and still be there.
@@ -374,14 +450,21 @@
      the tail — already faded to nothing. Blurring a filled rectangle
      that is slightly larger than the frame puts the light exactly where
      it can be seen, which is the band just outside the edges. */
-  background: linear-gradient(
-    150deg,
-    color-mix(in oklab, var(--accent) 34%, transparent) 0%,
-    color-mix(in oklab, var(--accent) 16%, transparent) 52%,
-    color-mix(in oklab, var(--accent) 26%, transparent) 100%
+  /* A RADIAL that reaches transparent inside its own box, not a blurred
+     solid. 38px of blur on a 900px rectangle feathers about 4% of its
+     width, which is not a glow — it is a panel with soft corners, and
+     once the stage started bleeding, its straight edge got sliced by the
+     viewport and read as a stray rectangle sitting behind the product.
+     A radial that is already transparent at its rim has no edge to slice,
+     at any width. */
+  background: radial-gradient(
+    ellipse 78% 70% at 42% 42%,
+    color-mix(in oklab, var(--accent) 30%, transparent) 0%,
+    color-mix(in oklab, var(--accent) 14%, transparent) 45%,
+    transparent 78%
   );
-  filter: blur(38px);
-  opacity: 0.5;
+  filter: blur(52px);
+  opacity: 0.55;
 }
 
 /* The product shot sits proud of the grid, bleeding toward the edge, so
@@ -409,7 +492,10 @@
   position: absolute;
   z-index: 1;
   bottom: -4%;
-  inset-inline-end: -8%;
+  /* Flush with the frame's trailing edge. Both windows stop on the shell
+     line together, which reads as alignment now that the line is a margin
+     rather than the edge of the screen. */
+  inset-inline-end: 0;
   width: 46%;
   /* WIDER than the 16:10 capture, and that ratio is doing the cropping.
 
@@ -552,9 +638,16 @@
   inset-inline-start: -7%;
 }
 
+/* Inside the frame, not hanging past it. pillA and pillC still overhang
+   the leading edge, where there is page to overhang onto; on the trailing
+   side there is now only the edge of the screen, and a caption sliced in
+   half by it reads as a bug. */
 .pillB {
-  top: 44%;
-  inset-inline-end: -5%;
+  /* Dropped from 42% into the chart's empty band. At 42% it landed on the
+     stat row and covered "11 / next 14 days" — a caption is allowed to sit
+     ON the interface, but not on the number it is describing. */
+  top: 56%;
+  inset-inline-end: 5%;
 }
 
 /* Hangs off the frame like the other two. Sat INSIDE at first, which
@@ -584,6 +677,8 @@
 
   .heroStage {
     margin-inline-end: 0;
+    margin-inline-start: 0;
+    max-width: none;
     padding-block: 0;
   }
 
@@ -613,32 +708,58 @@
   padding-block: var(--band);
 }
 
+/* A MASTHEAD, not a stacked block.
+
+   Capped at 60ch and stacked, the head was fine when a section title was
+   50px. At 68px it left the right two-thirds of the screen empty above
+   every section on the page — the single biggest source of the "why is
+   this page so empty" feeling, and it got worse exactly as the type got
+   better.
+
+   So the title and its lede sit side by side and share a baseline: the
+   title takes the wide column, the lede sits in the narrow one, bottom
+   aligned so the two lock onto one horizontal. The lede keeps a real
+   measure (its column is narrow enough) and the void is spent on the
+   thing it should have been spent on all along. */
 .sectionHead {
-  max-width: 60ch;
+  max-width: none;
 }
 
 .sectionHead .body {
   margin-top: 16px;
 }
 
-/* One eyebrow budget for the whole page; this is it. */
-.eyebrow {
-  font-size: var(--t-1);
-  font-weight: 600;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--accent);
-  margin: 0 0 14px;
+@media (min-width: 900px) {
+  .sectionHead {
+    display: grid;
+    grid-template-columns: minmax(0, 1.06fr) minmax(0, 0.94fr);
+    gap: clamp(28px, 4.5vw, 80px);
+    align-items: end;
+  }
+
+  .sectionHead .body {
+    margin-top: 0;
+    /* Optical, not metric: the descenders of a 68px serif drop well
+       below its box, so a metric baseline match reads as the lede
+       sitting too high. */
+    padding-bottom: 0.5em;
+  }
 }
 
 /* ── Steps: alternating rows, capped at two before the rhythm breaks */
 
 .step {
   display: grid;
-  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
-  gap: clamp(24px, 4vw, 64px);
+  /* The frame takes more of the row than it used to. It cannot bleed the
+     way the hero does — on reversed rows the image sits on the leading
+     edge, which is where the progress rail runs — and it cannot be
+     cropped, because ImageCourier flies the whole 16:10 capture into it
+     and a cropped target would not match what lands. So the width comes
+     out of the copy column, which had more than its 65ch needed. */
+  grid-template-columns: minmax(0, 0.74fr) minmax(0, 1.26fr);
+  gap: clamp(24px, 3.4vw, 56px);
   align-items: center;
-  padding-block: clamp(28px, 4vw, 52px);
+  padding-block: clamp(24px, 3.4vw, 44px);
   border-top: 1px solid var(--line-soft);
 }
 
@@ -647,7 +768,7 @@
 }
 
 .stepIndex {
-  font-family: Fraunces, Georgia, serif;
+  font-family: var(--font-serif);
   font-size: var(--t-3);
   font-weight: 400;
   font-style: italic;
@@ -826,7 +947,7 @@
 }
 
 .cellName {
-  font-family: Fraunces, Georgia, serif;
+  font-family: var(--font-serif);
   font-size: var(--t-5);
   font-weight: 400;
   margin: 0;
@@ -1136,8 +1257,8 @@
 
 .termSum {
   margin: 18px 0 0;
-  font-family: Fraunces, Georgia, serif;
-  font-weight: 300;
+  font-family: var(--font-serif);
+  font-weight: 400;
   font-style: italic;
   font-size: var(--t-serif);
   line-height: 1.4;
@@ -1205,10 +1326,10 @@
 }
 
 .weekTitle {
-  font-family: Fraunces, Georgia, serif;
-  font-weight: 300;
+  font-family: var(--font-serif);
+  font-weight: 400;
   font-size: var(--d-1);
-  letter-spacing: -0.03em;
+  letter-spacing: -0.014em;
   line-height: 1.05;
   margin: 0;
 }
@@ -1506,18 +1627,9 @@
   color: var(--accent);
 }
 
-.faqNum {
-  flex: none;
-  font-size: var(--t-1);
-  font-weight: 600;
-  letter-spacing: 0.1em;
-  font-variant-numeric: tabular-nums;
-  color: var(--muted);
-}
-
 .faqQText {
   flex: 1;
-  font-family: Fraunces, Georgia, serif;
+  font-family: var(--font-serif);
   font-weight: 400;
   font-size: var(--t-serif);
   line-height: 1.28;
@@ -1596,33 +1708,15 @@
 
 /* ── "One more thing", preview1's closing structure ─────────────────── */
 
-.finalKicker {
-  display: inline-flex;
-  align-items: center;
-  gap: 12px;
-  margin: 0 0 clamp(28px, 5vh, 44px);
-  font-size: var(--t-1);
-  font-weight: 500;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  color: rgba(var(--band-fg-rgb), 0.7);
-}
-
-.finalKicker::before,
-.finalKicker::after {
-  content: "";
-  width: 24px;
-  height: 1px;
-  background: currentColor;
-  opacity: 0.5;
-}
-
+/* The colossal question opens the band directly now, so it carries the
+   top margin the removed kicker used to hold. */
 .finalQ {
   composes: display;
-  font-weight: 300;
+  font-weight: 400;
   font-size: var(--d-6);
   line-height: 0.98;
-  letter-spacing: -0.035em;
+  letter-spacing: -0.016em;
+  margin-block-start: clamp(8px, 2vh, 20px);
 }
 
 .finalQ em {
@@ -1633,8 +1727,8 @@
 }
 
 .finalSub {
-  font-family: Fraunces, Georgia, serif;
-  font-weight: 300;
+  font-family: var(--font-serif);
+  font-weight: 400;
   font-style: italic;
   font-size: var(--t-serif);
   line-height: 1.45;
@@ -1663,11 +1757,11 @@
 }
 
 .footTagline {
-  font-family: Fraunces, Georgia, serif;
-  font-weight: 300;
+  font-family: var(--font-serif);
+  font-weight: 400;
   font-size: var(--t-serif);
   line-height: 1.3;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.01em;
   color: var(--band-fg);
   max-width: 20ch;
   margin: 16px 0 0;
@@ -1813,17 +1907,17 @@
 
 .cyclePrice {
   margin: 2px 0 0;
-  font-family: Fraunces, Georgia, serif;
-  font-weight: 300;
+  font-family: var(--font-serif);
+  font-weight: 400;
   font-size: var(--d-5);
-  letter-spacing: -0.03em;
+  letter-spacing: -0.014em;
   line-height: 1;
   color: var(--ink);
   font-variant-numeric: tabular-nums;
 }
 
 .cycleUnit {
-  font-family: "Inter Tight", ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--font-sans);
   font-size: var(--t-1);
   font-weight: 500;
   letter-spacing: 0;
@@ -1995,10 +2089,10 @@
 }
 
 .legalH2 {
-  font-family: Fraunces, Georgia, serif;
-  font-weight: 300;
+  font-family: var(--font-serif);
+  font-weight: 400;
   font-size: var(--d-1);
-  letter-spacing: -0.02em;
+  letter-spacing: -0.01em;
   line-height: 1.15;
   color: var(--ink);
   margin: 0 0 14px;

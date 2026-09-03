@@ -122,8 +122,26 @@ export default function ImageCourier() {
                   dress();
                 },
                 scrollTrigger: {
-                  trigger: row,
-                  start: i === 0 ? "top bottom" : "top 78%",
+                  // LEG 0 IS ANCHORED TO THE HERO, NOT TO THE ROW.
+                  //
+                  // It used to start at the row's "top bottom" — the
+                  // moment the first step row enters the viewport — which
+                  // is only in the future if the row starts BELOW the
+                  // fold. On a tall viewport (2560x1440 is the everyday
+                  // case) the row is already on screen at scroll 0, so
+                  // leg 0 loaded at a progress above zero, unhid the
+                  // courier, and parked a second, slightly misaligned
+                  // copy of the dashboard directly on top of the hero.
+                  // It read as a rendering fault, and it got easier to
+                  // hit as the hero got shorter.
+                  //
+                  // Anchoring the start to the hero at "top top" pins
+                  // leg 0's zero to scroll position zero, at every
+                  // viewport height. endTrigger keeps the leg finishing
+                  // where it always did, against the row.
+                  trigger: i === 0 ? hero : row,
+                  start: i === 0 ? "top top" : "top 78%",
+                  endTrigger: i === 0 ? row : undefined,
                   end: i === 0 ? "top 58%" : "top 45%",
                   scrub: 0.7,
                   invalidateOnRefresh: true,

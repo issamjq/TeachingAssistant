@@ -4,6 +4,7 @@ import Link from "next/link";
 import MurchidLogo from "@/components/MurchidLogo";
 import { useEffect, useState } from "react";
 import { LangToggle, useT } from "@/shared/i18n";
+import { useHasSession } from "@/shared/lib/session";
 import Hero from "./sections/Hero";
 import Steps from "./sections/Steps";
 import Outputs from "./sections/Outputs";
@@ -47,6 +48,11 @@ export default function LandingPage({
   freeGrant?: number;
 }) {
   const t = useT();
+  // A signed-in teacher reaches this page on purpose — "/?home=1" is where
+  // the studio's own logo points, and EntryGate redirects them away from
+  // "/" otherwise. Offering them "Sign in" was therefore the one nav item
+  // that was wrong for exactly the audience most likely to see it.
+  const signedIn = useHasSession();
   // One reveal scope for the page: every [data-reveal] inside it rises
   // once as it enters. GSAP only, no Motion in this tree.
   const scope = useReveal<HTMLDivElement>();
@@ -150,8 +156,11 @@ export default function LandingPage({
               </a>
             ))}
             <LangToggle />
-            <Link href="/signin" className={s.navLink}>
-              {t("mk.nav.signin")}
+            <Link
+              href={signedIn ? "/dashboard" : "/signin"}
+              className={s.navLink}
+            >
+              {t(signedIn ? "mk.nav.dashboard" : "mk.nav.signin")}
             </Link>
           </nav>
         </div>
@@ -166,17 +175,17 @@ export default function LandingPage({
         <Pricing billingOn={billingOn} freeGrant={freeGrant} />
         <Questions billingOn={billingOn} freeGrant={freeGrant} />
 
-        {/* "One more thing" — preview1's closing structure, kept at the
-            owner's request: the kicker framed by two short rules, the
-            colossal serif question with its italic beat, an italic serif
-            sub, then the actions. Unpinned (the pin was preview1's; being
-            held here was already ruled out) on the page's second ink
-            ground. */}
+        {/* The closing structure: a colossal serif question with its
+            italic beat, an italic serif sub, then the actions, on the
+            page's second ink ground. Unpinned — being held here was
+            ruled out.
+
+            The tracked uppercase kicker that framed the question between
+            two short rules is gone, along with the two section eyebrows.
+            A label that only restates what the heading underneath already
+            says is furniture; the heading carries its own weight. */}
         <section className={s.closing} data-closing>
           <div className={s.shell}>
-            <p className={s.finalKicker} data-reveal>
-              {t("mk.final.kicker")}
-            </p>
             <h2 className={s.finalQ} data-reveal>
               {t("mk.final.q.a")} <em>{t("mk.final.q.em")}</em> {t("mk.final.q.b")}
             </h2>
