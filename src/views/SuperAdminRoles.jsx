@@ -34,6 +34,7 @@ import { api } from "./_shared";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PERMISSION_GROUPS } from "@/lib/permissions";
 import { ROLE_LABELS, ROLE_DESCRIPTIONS } from "@/lib/role";
+import AccountDrawer from "./AccountDrawer";
 
 /** The platform capabilities, with their labels, straight from the catalog. */
 const CAPS = PERMISSION_GROUPS.find((g) => g.id === "admin")?.keys || [];
@@ -51,6 +52,18 @@ export default function SuperAdminRoles() {
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(null);   // "role:cap" mid-flight
   const [notice, setNotice] = useState(null);
+  // Reading this screen is a grantable capability (`admin.roles`);
+  // MOVING a default is not — sa_set_role_cap() is sa_require(), because
+  // the capability that grants capabilities is the one nobody should be
+  // able to hand themselves. So a delegated admin gets the grid to read
+  // and locked switches, rather than switches that 403 on click.
+  const [me, setMe] = useState(null);
+  const canEdit = me?.role === "super_admin" || me?.role === "dev";
+  // Clicking a staff member opens their account, which is where a
+  // capability is pinned to a person. The grid moves a whole role; the
+  // drawer answers "give this one person the billing screen", and until
+  // now the two lived on screens that did not know about each other.
+  const [drawerId, setDrawerId] = useState(null);
 
   const load = React.useCallback(() => {
     setError(null);
@@ -60,6 +73,13 @@ export default function SuperAdminRoles() {
   }, []);
 
   useEffect(load, [load]);
+  useEffect(() => {
+    let live = true;
+    api("/api/auth/me")
+      .then((m) => { if (live) setMe(m); })
+      .catch(() => {});
+    return () => { live = false; };
+  }, []);
 
   // role → cap → {allowed, overrides}
   const cells = useMemo(() => {
@@ -166,6 +186,11 @@ export default function SuperAdminRoles() {
             </p>
           </div>
           <div className="flex items-center gap-4 font-mono text-[10px] uppercase tracking-wider text-muted">
+            {me && !canEdit && (
+              <span className="inline-flex items-center gap-1.5 text-ink-soft">
+                <Lock size={11} strokeWidth={2} /> read only
+              </span>
+            )}
             <span className="inline-flex items-center gap-1.5">
               <span className="h-3 w-3 rounded-sm bg-ink inline-block" /> granted
             </span>
@@ -226,15 +251,18 @@ export default function SuperAdminRoles() {
                       return (
                         <td key={r} className="py-3 px-2 text-center">
                           <button
-                            disabled={busy === key}
+                            disabled={busy === key || !canEdit}
                             onClick={() => toggle(r, cap.key, !on)}
                             aria-pressed={on}
                             aria-label={`${ROLE_LABELS[r] || r}: ${cap.label}`}
-                            className={`inline-flex items-center justify-center h-7 w-7 rounded-md border transition disabled:opacity-40 ${
+                            title={canEdit ? undefined : "Only a super admin can move a role default"}
+                            className={`inline-flex items-center justify-center h-7 w-7 rounded-md border transition ${
+                              !canEdit ? "cursor-default opacity-70" : ""
+                            } ${
                               on
-                                ? "bg-ink border-ink text-paper hover:bg-accent hover:border-accent"
-                                : "bg-transparent border-line text-muted hover:border-ink hover:text-ink"
-                            }`}
+                                ? "bg-ink border-ink text-paper" + (canEdit ? " hover:bg-accent hover:border-accent" : "")
+                                : "bg-transparent border-line text-muted" + (canEdit ? " hover:border-ink hover:text-ink" : "")
+                            } ${busy === key ? "opacity-40" : ""}`}
                           >
                             {on ? <Check size={13} strokeWidth={2.4} /> : <Minus size={13} strokeWidth={2.4} />}
                           </button>
@@ -276,7 +304,8 @@ export default function SuperAdminRoles() {
           <p className="text-xs text-muted mt-1 max-w-2xl">
             Everyone holding a staff role, and any capability pinned on their
             account. A pinned capability ignores the grid above — clearing it
-            hands the account back to its role&rsquo;s default.
+            hands the account back to its role&rsquo;s default. Open a person to
+            pin one, or to change what they are.
           </p>
         </div>
 
@@ -293,7 +322,13 @@ export default function SuperAdminRoles() {
                 k.startsWith("admin.")
               );
               return (
-                <li key={s.user_id} className="py-4">
+                <li
+                  key={s.user_id}
+                  onClick={() => s.faculty_id && setDrawerId(s.faculty_id)}
+                  className={`py-4 -mx-2 px-2 rounded-lg transition ${
+                    s.faculty_id ? "cursor-pointer hover:bg-paper-warm" : ""
+                  }`}
+                >
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="min-w-0">
                       <p className="text-ink flex items-center gap-2">
@@ -327,7 +362,7 @@ export default function SuperAdminRoles() {
                           <span className="text-ink-soft normal-case tracking-normal">{cap}</span>
                           {s.faculty_id && (
                             <button
-                              onClick={() => clearOverride(s.faculty_id, cap)}
+                              onClick={(e) => { e.stopPropagation(); clearOverride(s.faculty_id, cap); }}
                               title="Clear this override — fall back to the role default"
                               className="inline-flex items-center justify-center h-4 w-4 rounded-full text-muted hover:text-accent transition"
                             >
@@ -344,6 +379,15 @@ export default function SuperAdminRoles() {
           </ul>
         )}
       </section>
+
+      {drawerId && (
+        <AccountDrawer
+          accountId={drawerId}
+          isSelf={me?.id === drawerId}
+          onClose={() => setDrawerId(null)}
+          onChanged={load}
+        />
+      )}
     </div>
   );
 }

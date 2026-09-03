@@ -1,14 +1,17 @@
 "use client";
 
-// Super admin console — pyramid top. Creates / edits / removes accounts
-// across roles (admin, moe, owner, teacher) and assigns sub-roles where
-// applicable. Per-role business rules (what each role *does* in the app)
-// are defined elsewhere; this surface is just the account management
-// layer.
+// Account access — who exists, what they are, and whether they can sign
+// in. Creates / edits / removes accounts across roles (admin, MoE, owner,
+// teacher, student) and assigns sub-roles where the role defines any.
+// What a role can then REACH is Roles & access; what one PERSON can
+// reach on top of that is the drawer.
 //
-// Server-side gate: requireRole("admin", "super_admin", "dev") +
-// per-handler canGrantRole(). dev / super_admin / admin all reach
-// /api/admin/*; super_admin is the only one with full grant scope below.
+// The gate is in Postgres, not here: every write goes through an sa_*
+// SECURITY DEFINER function whose first act is sa_gate('admin.accounts'),
+// and sa_set_role() additionally refuses a non-super-admin who tries to
+// mint staff or touch a colleague (db/tune.sql §104). This screen mirrors
+// those rules so the controls match what the database will accept — the
+// mirror is UX, the function is the boundary.
 
 import { flash } from "@/shared/lib/flash";
 import React, { useEffect, useMemo, useState } from "react";
@@ -20,7 +23,7 @@ import {
   inputClasses, selectClasses, api,
 } from "./_shared";
 import {
-  ROLES, ROLE_LABELS, SUB_ROLES, SUB_ROLE_LABELS, rolesGrantableBy,
+  ROLES, ROLE_LABELS, SUB_ROLES, SUB_ROLE_LABELS, rolesGrantableBy, canEditRoleOf,
 } from "../lib/role";
 import AccountDrawer from "./AccountDrawer";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -31,10 +34,14 @@ const STATUS_LABEL = {
   deleted: "Deleted",
 };
 
-// Hardcode actor = super_admin for this console — it's only reachable
-// when role === "super_admin" (App.jsx routing). Server still validates.
-const ACTOR = { role: "super_admin", sub_role: null };
-const GRANTABLE = rolesGrantableBy(ACTOR);
+// The actor is READ, not assumed. This console stopped being
+// super-admin-only the moment `admin.accounts` became a grantable
+// capability (db/tune.sql §95): a delegated sub-admin reaches the same
+// screen and may reassign ordinary users only. Hardcoding the actor as a
+// super admin offered them every role in the dropdown — including
+// `super_admin` — and turned each one into a raw Postgres 42501 on save.
+// /api/auth/me is already fetched below for the self-row checks; its
+// resolved capability map is what rolesGrantableBy() now reads.
 
 const roleBadgeStyles = {
   super_admin: "border-accent text-accent",
@@ -89,6 +96,10 @@ export default function SuperAdminConsole() {
       .catch((err) => { setError(err.message); setLoading(false); });
   };
   useEffect(reload, []);
+
+  // What this actor may assign, and to whom. Empty until /api/auth/me
+  // answers, which is also when the table has rows to act on.
+  const grantable = useMemo(() => rolesGrantableBy(me), [me]);
 
   const setStatus = async (t, status) => {
     await api(`/api/admin/teachers/${t.id}/status`, { method: "PATCH", body: { status } });
@@ -156,9 +167,11 @@ export default function SuperAdminConsole() {
             <em className="italic">Roles &amp; access</em>.
           </p>
         </div>
-        <Button onClick={() => setEditing("new")}>
-          <Plus size={15} className="mr-2" /> New account
-        </Button>
+        {grantable.length > 0 && (
+          <Button onClick={() => setEditing("new")}>
+            <Plus size={15} className="mr-2" /> New account
+          </Button>
+        )}
       </div>
 
       {error && (
@@ -271,11 +284,14 @@ export default function SuperAdminConsole() {
                       </td>
                       <td className="py-3 px-5" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center gap-1">
-                          {/* Edit: super admin (and dev) can change role
-                              and sub_role on any account except their own.
-                              The grant dropdown inside the modal mirrors
-                              what the actor can assign via rolesGrantableBy. */}
-                          {!isSelf && (
+                          {/* Edit: a super admin (and dev) can change the
+                              role and sub_role on any account except their
+                              own. A delegated admin holding `admin.accounts`
+                              can reassign ordinary users and is refused on a
+                              colleague — sa_set_role() says so, and
+                              canEditRoleOf() says the same thing here, so
+                              the pencil is absent rather than fatal. */}
+                          {!isSelf && canEditRoleOf(me, t) && (
                             <button onClick={() => setEditing(t)} title="Edit role"
                               className="h-7 w-7 rounded-md border border-line hover:border-ink hover:bg-paper-warm flex items-center justify-center text-ink-soft transition">
                               <Pencil size={12} />
@@ -340,6 +356,7 @@ export default function SuperAdminConsole() {
       {editing && (
         <AccountModal
           row={editing === "new" ? null : editing}
+          grantable={grantable}
           onClose={() => setEditing(null)}
           onSaved={onSaved}
         />
@@ -492,16 +509,23 @@ function FilterChip({ active, onClick, label, count }) {
   );
 }
 
-function AccountModal({ row, onClose, onSaved }) {
+function AccountModal({ row, grantable = [], onClose, onSaved }) {
   const isEdit = !!row;
   const [form, setForm] = useState({
     first_name: row?.first_name || "",
     last_name:  row?.last_name  || "",
     email:      row?.email      || "",
     staff_id:   row?.staff_id   || "",
-    role:       row?.role       || GRANTABLE[0] || "teacher",
+    role:       row?.role       || grantable[0] || "teacher",
     sub_role:   row?.sub_role   || "",
   });
+  // On an edit the account's CURRENT role belongs in the list even when
+  // the actor could not grant it — otherwise the dropdown opens reading
+  // as something the account is not, and saving would change a role
+  // nobody asked to change.
+  const roleOptions = isEdit && row.role && !grantable.includes(row.role)
+    ? [row.role, ...grantable]
+    : grantable;
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState(null);
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
@@ -582,7 +606,7 @@ function AccountModal({ row, onClose, onSaved }) {
         <div className={subs.length ? "" : "md:col-span-2"}>
           <Field label="Role">
             <select className={selectClasses} value={form.role} onChange={(e) => set("role", e.target.value)}>
-              {GRANTABLE.map((r) => (
+              {roleOptions.map((r) => (
                 <option key={r} value={r}>{ROLE_LABELS[r]}</option>
               ))}
             </select>

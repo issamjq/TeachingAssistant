@@ -30,6 +30,12 @@ so the trail records who did what and the subject cannot edit it.
 
 ## The RPCs
 
+Since §104, `sa_account()` also returns `cap_defaults` (the account
+role's rows from `role_capabilities`), `staff`, and `sub_roles`; and
+`sa_set_role()` validates the sub-role against the role's taxonomy
+(`sub_roles_for()`) and strips every `admin.*` override when an account
+is demoted out of staff — grants end with the job.
+
 Reads: `sa_stats`, `sa_accounts`, `sa_account`, `sa_account_content`,
 `sa_overview`, `sa_signups`, `sa_logins`, `sa_recent_activity`, `sa_flags`.
 Writes: `sa_set_status`, `sa_set_role`, `sa_delete_account` (soft),
@@ -93,15 +99,45 @@ super-admin **dashboard**.
   primitives in `src/components/MiniCharts.jsx`.
 - **Account access** (`superadmin-console`) — every account with role
   filters; suspend / reactivate / soft-delete; change role + sub-role;
-  a **Feature flags** panel; and the **Audit trail**.
-- **Account drawer** (click any row) — identity, subscription, content
-  footprint, schools, the per-account **permission matrix**, a **billing
-  editor** (credits balance/allowance, plan, status, end date), and a
-  read-only **inspector** ("view their work" — the honest form of
-  impersonation in a direct-Supabase app; there is no session takeover).
+  a **Feature flags** panel; and the **Audit trail**. The role dropdown
+  is built from the *actual* actor (`/api/auth/me`), not from an assumed
+  super admin: a delegated sub-admin holding `admin.accounts` reaches
+  this screen too, may reassign teachers and students only, and is
+  refused on a staff row — so the pencil is absent there rather than
+  fatal on save.
+- **Account drawer** (click any row, on Account access *or* on Roles &
+  access) — identity, a **role editor**, subscription, content footprint,
+  schools, the per-account **permission matrix**, a **billing editor**
+  (credits balance/allowance, plan, status, end date), and a read-only
+  **inspector** ("view their work" — the honest form of impersonation in
+  a direct-Supabase app; there is no session takeover).
+
+  The two acts sit in the order they happen. The **role** is what makes
+  somebody staff and it is the only thing that can; the **matrix** below
+  it is how much of that staff role they get. For a staff account the
+  matrix shows the platform capabilities and nothing else — for anyone
+  else, the reverse. It keyed off `role === 'admin'` until §104, which
+  left an MoE officer or an owner with no screen at all even though both
+  have carried `role_capabilities` rows since §95.
+
+  The matrix's baseline comes from the **server** (`sa_account().cap_defaults`),
+  not from `ROLE_DEFAULTS` in `src/lib/permissions.js`. That is not
+  cosmetic: the drawer stores a toggle equal to its baseline as *no
+  override*, so a stale baseline throws the decision away — with the
+  table saying admins may bill and the browser constant saying they may
+  not, switching one admin's billing off deleted the override and handed
+  her back the table's `true`. The screen said denied and the gate said
+  allowed.
 - **Usage** (`superadmin-product`) and **Friction**
   (`superadmin-friction`) — the product telemetry, below.
-- **Roles** (`superadmin-roles`) — the capability grid, below.
+- **Roles** (`superadmin-roles`) — the capability grid, below. Reading it
+  is a grantable capability (`admin.roles`); **moving** a default is not
+  — `sa_set_role_cap()` is `sa_require()`, because the capability that
+  grants capabilities is the one nobody should be able to hand
+  themselves. A delegated reader gets the grid with locked switches and
+  a "read only" marker. Its staff list opens the account drawer, which is
+  where a capability is pinned to a *person*: the grid moves a whole role,
+  the drawer moves one individual.
 - **Keys** (`superadmin-keys`) — the OpenRouter key pool, below.
 
 Sidebar labels are one word each and carry an icon. The rail is read at a

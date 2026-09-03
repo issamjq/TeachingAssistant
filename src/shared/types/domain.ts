@@ -33,9 +33,15 @@ export type MoeSubRole = "head" | "inspector" | "staff";
 export type SubRole = AdminSubRole | MoeSubRole;
 
 // Anything that can act on the system — what grant checks take.
+//
+// `permissions` is the resolved capability map /api/auth/me returns, and
+// it is what decides delegation: since db/tune.sql §95 a sub-admin's
+// reach is a capability they were granted, not a sub_role they were
+// labelled with. Optional, because most call sites only need the role.
 export interface Actor {
   role: Role;
   sub_role?: SubRole | null;
+  permissions?: Record<string, boolean> | null;
 }
 
 // ── Permissions ──────────────────────────────────────────────────────

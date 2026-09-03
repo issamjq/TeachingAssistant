@@ -13679,3 +13679,189 @@ END $$;
 ALTER TABLE public.materials
   ADD COLUMN IF NOT EXISTS text_head text
   GENERATED ALWAYS AS (left(extracted_text, 2000)) STORED;
+
+
+-- ═══════════════════════════════════════════════════════════════════════
+-- §104  Making someone staff, and deciding how much staff they are
+--
+-- Two separate acts, and the console had one and a half of them.
+--
+-- §95 moved the per-role capability defaults into `role_capabilities`
+-- and pointed `admin_can()` at the table. The per-ACCOUNT override
+-- editor — the drawer's "Sub-admin access" panel — never got the memo:
+-- it still resolved its baseline from a hardcoded map in the browser
+-- (src/lib/permissions.js ROLE_DEFAULTS). While the two agreed that was
+-- invisible. The moment a super admin edited the grid the two disagreed,
+-- and the drawer does not just DISPLAY the baseline, it writes against
+-- it: a toggle whose new value equals the baseline is stored as "no
+-- override" rather than as a decision. So with the table saying admins
+-- may bill and the browser constant saying they may not, switching one
+-- admin's billing OFF deleted the override and handed her back the
+-- table's `true`. The screen said denied; the gate said allowed.
+--
+-- The fix is to stop asking the browser what a role's default is.
+-- `sa_account()` now returns `cap_defaults` — the same rows admin_can()
+-- reads — and the drawer resolves admin.* against that.
+--
+-- The second half is sub_role. `sa_set_role()` validated the role and
+-- took the sub_role on trust, so `{"role":"moe","sub_role":"accountant"}`
+-- stored a combination no screen can render and no rule mentions. The
+-- taxonomy is small and it is already written down twice (src/lib/role.ts,
+-- the backend catalog); this makes the database the third and last word.
+-- ═══════════════════════════════════════════════════════════════════════
+
+CREATE OR REPLACE FUNCTION public.sub_roles_for(p_role text)
+RETURNS text[]
+LANGUAGE sql IMMUTABLE
+AS $$
+  SELECT CASE p_role
+           WHEN 'admin' THEN ARRAY['operations','accountant','support']
+           WHEN 'moe'   THEN ARRAY['head','inspector','staff']
+           ELSE ARRAY[]::text[]
+         END;
+$$;
+REVOKE ALL ON FUNCTION public.sub_roles_for(text) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.sub_roles_for(text) TO authenticated;
+
+
+-- ── the account read, now carrying its role's defaults ────────────────
+--
+-- Identical to §37 but for `cap_defaults`: the capability layer under
+-- this account's own overrides. Empty for a teacher — cap_is_grantable()
+-- refuses an admin.* capability for one whatever the table says, so
+-- shipping rows for it would describe a permission that cannot exist.
+CREATE OR REPLACE FUNCTION public.sa_account(p_faculty uuid)
+RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE out jsonb;
+BEGIN
+  PERFORM public.sa_gate_any(ARRAY['admin.accounts','admin.dashboard']);
+  SELECT to_jsonb(a) - 'majors' - 'grade_levels'
+         || jsonb_build_object(
+              'permissions', COALESCE(u.permissions, '{}'::jsonb),
+              -- What this account gets before anyone overrides anything:
+              -- role_capabilities for a staff role, nothing for the rest.
+              'cap_defaults', (
+                SELECT COALESCE(jsonb_object_agg(rc.cap, rc.allowed), '{}'::jsonb)
+                  FROM role_capabilities rc
+                 WHERE rc.role = u.role
+                   AND public.cap_is_grantable(u.role, rc.cap)
+              ),
+              -- Whether an admin.* override on this account means anything
+              -- at all. The drawer shows the panel on this, rather than on
+              -- `role = 'admin'`: since §95 an MoE officer or an owner can
+              -- hold a platform capability too, and a super admin had no
+              -- way to grant one.
+              'staff', (u.role = ANY (public.staff_roles())),
+              'sub_roles', to_jsonb(public.sub_roles_for(u.role)),
+              'credits_balance', (SELECT balance FROM credits WHERE faculty_id = a.id),
+              'credits_allowance', (SELECT monthly_allowance FROM credits WHERE faculty_id = a.id),
+              'content', (
+                SELECT COALESCE(jsonb_object_agg(label, n), '{}'::jsonb) FROM (
+                  SELECT CASE type
+                           WHEN 'lesson_plan'  THEN 'Lessons'
+                           WHEN 'quiz'         THEN 'Quizzes'
+                           WHEN 'homework'     THEN 'Homework'
+                           WHEN 'presentation' THEN 'Presentations'
+                           WHEN 'activity'     THEN 'Activities'
+                           WHEN 'template'     THEN 'Templates'
+                           ELSE type
+                         END AS label,
+                         count(*) AS n
+                    FROM ai_studio
+                   WHERE faculty_id = a.id AND deleted_at IS NULL
+                   GROUP BY 1
+                ) c
+              ),
+              'schools', (
+                SELECT COALESCE(jsonb_agg(jsonb_build_object(
+                         'id', s.id, 'name', s.name, 'emirate', s.emirate,
+                         'is_primary', fs.is_primary)), '[]'::jsonb)
+                  FROM faculty_schools fs JOIN schools s ON s.id = fs.school_id
+                 WHERE fs.faculty_id = a.id
+              )
+            )
+    INTO out
+    FROM public.accounts a
+    JOIN users u ON u.id = a.user_id
+   WHERE a.id = p_faculty;
+  IF out IS NULL THEN
+    RAISE EXCEPTION 'account not found';
+  END IF;
+  RETURN out;
+END $$;
+GRANT EXECUTE ON FUNCTION public.sa_account(uuid) TO authenticated;
+
+
+-- ── the role write, now validating the sub-role ───────────────────────
+--
+-- Same guards as §41 (NULL rejected, escalation refused), plus: a
+-- sub_role must belong to the role it is being written next to, and a
+-- role with no taxonomy takes none. Blank and NULL both mean "none",
+-- which is what the console's dropdown sends when it clears itself.
+CREATE OR REPLACE FUNCTION public.sa_set_role(p_faculty uuid, p_role text, p_sub_role text)
+RETURNS jsonb
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE uid uuid; target_role text; sub text;
+BEGIN
+  PERFORM public.sa_gate('admin.accounts');
+  IF p_role IS NULL OR p_role NOT IN ('teacher','dev','super_admin','admin','moe','owner','student') THEN
+    RAISE EXCEPTION 'invalid role %', COALESCE(p_role, 'NULL') USING ERRCODE = '22023';
+  END IF;
+  sub := NULLIF(btrim(COALESCE(p_sub_role, '')), '');
+  IF sub IS NOT NULL AND NOT (sub = ANY (public.sub_roles_for(p_role))) THEN
+    RAISE EXCEPTION '% has no sub-role %', p_role, sub USING ERRCODE = '22023';
+  END IF;
+  uid := public.sa_user_of(p_faculty);
+  IF uid IS NULL THEN RAISE EXCEPTION 'account not found'; END IF;
+  -- Escalation guard: only a super admin may create staff or touch a staff
+  -- account. A delegated sub-admin may reassign ordinary users
+  -- (teacher/student) but cannot mint another admin or demote a colleague.
+  IF NOT public.is_super_admin() THEN
+    IF p_role NOT IN ('teacher','student') THEN
+      RAISE EXCEPTION 'only a super admin can grant staff roles' USING ERRCODE = '42501';
+    END IF;
+    SELECT role INTO target_role FROM users WHERE id = uid;
+    IF target_role IN ('dev','super_admin','admin','moe','owner') THEN
+      RAISE EXCEPTION 'only a super admin can change a staff account' USING ERRCODE = '42501';
+    END IF;
+  END IF;
+  -- Demoting a staff account leaves its admin.* overrides behind, and a
+  -- teacher row carrying `"admin.billing": true` is a landmine: harmless
+  -- while cap_is_grantable() holds the floor, and live again the moment
+  -- that account is made staff for some unrelated reason months later.
+  -- Grants follow the job, so they end with it.
+  UPDATE users
+     SET role = p_role,
+         sub_role = sub,
+         permissions = CASE
+           WHEN p_role = ANY (public.staff_roles()) THEN permissions
+           ELSE (SELECT COALESCE(jsonb_object_agg(k, v), '{}'::jsonb)
+                   FROM jsonb_each(COALESCE(permissions, '{}'::jsonb)) AS e(k, v)
+                  WHERE k NOT LIKE 'admin.%')
+         END,
+         updated_at = now()
+   WHERE id = uid;
+  PERFORM public.sa_write_audit('admin.teacher.role_update', 'users', uid,
+                                jsonb_build_object('role', p_role, 'sub_role', sub));
+  RETURN jsonb_build_object('id', p_faculty, 'role', p_role, 'sub_role', sub);
+END $$;
+GRANT EXECUTE ON FUNCTION public.sa_set_role(uuid, text, text) TO authenticated;
+
+DO $$
+DECLARE v_orphan int;
+BEGIN
+  -- Anything already stored outside the taxonomy predates the check and
+  -- is now unreachable through the console — say so rather than fix it
+  -- silently, since a wrong sub-role is a decision somebody made.
+  SELECT count(*) INTO v_orphan
+    FROM users
+   WHERE sub_role IS NOT NULL
+     AND NOT (sub_role = ANY (public.sub_roles_for(role)));
+  IF v_orphan > 0 THEN
+    RAISE NOTICE 'roles: % account(s) hold a sub-role their role does not define', v_orphan;
+  END IF;
+  RAISE NOTICE 'roles: sa_account() now returns cap_defaults; sa_set_role() validates sub_role';
+END $$;

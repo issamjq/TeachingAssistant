@@ -64,14 +64,53 @@ export const ROLE_DESCRIPTIONS: Record<Role, string> = {
   student:     "Your own work — assigned quizzes and homework, scores, and attendance.",
 };
 
-// Mirror of backend rolesGrantableBy(). The actor's role + sub_role
-// determines which top-level roles they can assign through the admin /
-// super-admin UI. See the backend project's role catalog for the canonical rules.
+// Which roles this actor may assign to somebody else.
+//
+// Mirror of sa_set_role()'s escalation guard in db/tune.sql §104, and it
+// has to be an exact one: this list is a dropdown, and every entry in it
+// that the database refuses is a control that raises a Postgres error
+// instead of doing something. The guard reads:
+//
+//   * super_admin / dev  — anything, including minting another super admin
+//   * anyone else holding `admin.accounts` — teacher and student only,
+//     and only on an account that is not itself staff (STAFF_ROLES below,
+//     checked per row rather than per dropdown)
+//   * everyone else — nothing
+//
+// It used to key delegation off `sub_role === "operations"`, which was
+// the pre-§95 rule and is now simply wrong in both directions: an admin
+// with the operations label but no `admin.accounts` grant saw a dropdown
+// the RPC refuses, and an admin granted `admin.accounts` with any other
+// label saw no dropdown at all.
 export function rolesGrantableBy(actor: Actor | null | undefined): Role[] {
   if (!actor) return [];
   if (actor.role === "dev" || actor.role === "super_admin") return [...ROLES];
-  if (actor.role === "admin" && actor.sub_role === "operations") return ["teacher"];
+  if (actor.permissions?.["admin.accounts"]) return ["teacher", "student"];
   return [];
+}
+
+// The roles that make somebody staff — they can hold platform
+// capabilities, and only a super admin may touch their account.
+// Mirrors staff_roles() in db/tune.sql §95.
+export const STAFF_ROLES: readonly Role[] = ["dev", "super_admin", "admin", "moe", "owner"];
+
+export const isStaffRole = (r: unknown): boolean =>
+  typeof r === "string" && (STAFF_ROLES as readonly string[]).includes(r);
+
+/**
+ * May this actor change THIS account's role? The dropdown says which
+ * roles exist for them; this says whether the row is theirs to touch at
+ * all — a delegated admin may reassign an ordinary user and is refused
+ * on a colleague, so showing them the pencil is showing them a 403.
+ */
+export function canEditRoleOf(
+  actor: Actor | null | undefined,
+  target: { role?: Role | string | null } | null | undefined
+): boolean {
+  if (!actor || !target) return false;
+  if (rolesGrantableBy(actor).length === 0) return false;
+  if (actor.role === "dev" || actor.role === "super_admin") return true;
+  return !isStaffRole(target.role);
 }
 
 // Narrows an untrusted string (localStorage, a URL param) to a real Role.

@@ -9,21 +9,37 @@
 //   GET   /api/superadmin/account/:id
 //   GET   /api/superadmin/ai/users/:id      (what this account has burned)
 //   PATCH /api/superadmin/account/:id/permissions
+//   PATCH /api/admin/teachers/:id/role
 //
-// Permissions: super admin can flip each key per-account. Empty
-// override (default) means the role default applies. The drawer
-// shows the effective value (role default | per-account override)
-// and lets you toggle to override.
+// The two acts, in the order they happen:
+//
+//   1. WHAT THIS ACCOUNT IS — the role, and its sub-role. This is what
+//      makes somebody staff, and it is the only thing that can. It used
+//      to live exclusively behind a pencil icon in the table one screen
+//      up, which meant the screen holding everything else about an
+//      account could not answer the first question asked of it.
+//   2. HOW MUCH OF IT THEY GET — the per-account capability overrides,
+//      on top of the role's defaults.
+//
+// The baseline for (2) is NOT the JS constant. Since db/tune.sql §95 the
+// admin.* defaults live in `role_capabilities` and admin_can() reads
+// them; sa_account() ships those rows as `cap_defaults` and roleDefaultsFor()
+// layers them over the constant. This matters beyond display: a toggle
+// whose value equals the baseline is saved as "no override", so a stale
+// baseline throws the decision away — see §104.
 
 import { flash } from "@/shared/lib/flash";
 import React, { useEffect, useState, useMemo } from "react";
-import { X, Save, RotateCcw, Pause, Play, Coins, Eye, FileText, Users, Cpu } from "lucide-react";
+import { X, Save, RotateCcw, Pause, Play, Coins, Eye, FileText, Users, Cpu, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { api, Field, inputClasses, selectClasses } from "./_shared";
 import {
-  PERMISSION_GROUPS, ROLE_DEFAULTS, resolvePermissions, PERMISSION_KEYS,
+  groupsForRole, roleDefaultsFor, STAFF_ROLES as STAFF,
 } from "../lib/permissions";
-import { ROLE_LABELS, SUB_ROLE_LABELS } from "../lib/role";
+import {
+  ROLE_LABELS, ROLE_DESCRIPTIONS, SUB_ROLE_LABELS, SUB_ROLES,
+  rolesGrantableBy, canEditRoleOf,
+} from "../lib/role";
 import { Skeleton } from "@/components/ui/skeleton";
 
 const STATUS_LABEL = {
@@ -79,6 +95,20 @@ export default function AccountDrawer({ accountId, isSelf, onClose, onChanged })
   const isSuper = actorRole === "super_admin" || actorRole === "dev";
   const canBill = isSuper || !!myCaps?.["admin.billing"];
   const canManage = isSuper || !!myCaps?.["admin.accounts"];
+  const actor = useMemo(
+    () => (actorRole ? { role: actorRole, permissions: myCaps || {} } : null),
+    [actorRole, myCaps]
+  );
+
+  // The role editor. Which roles are on offer is the actor's business
+  // (rolesGrantableBy); whether this row is theirs to touch at all is
+  // canEditRoleOf — a delegated admin may reassign an ordinary user and
+  // is refused on a colleague, so the control does not render rather
+  // than raising a 42501 on save.
+  const [roleForm, setRoleForm] = useState(null);
+  const [savingRole, setSavingRole] = useState(false);
+  const grantable = useMemo(() => rolesGrantableBy(actor), [actor]);
+  const canSetRole = !isSelf && !!account && canEditRoleOf(actor, account);
 
   // Fetch the full account on mount / id change. Cancel-on-unmount
   // guard so a quick close doesn't write stale data.
@@ -99,8 +129,24 @@ export default function AccountDrawer({ accountId, isSelf, onClose, onChanged })
     return () => { cancelled = true; };
   }, [accountId]);
 
-  const defaults = useMemo(() => (account ? ROLE_DEFAULTS[account.role] || {} : {}), [account]);
-  const effective = useMemo(() => (account ? resolvePermissions(account) : {}), [account]);
+  // The baseline: the constant for the studio/reports/data groups, the
+  // server's role_capabilities rows for admin.*.
+  const defaults = useMemo(
+    () => (account ? roleDefaultsFor(account, account.cap_defaults) : {}),
+    [account]
+  );
+  // Which groups this account can even hold — staff get the platform
+  // capabilities and nothing else, everyone else the reverse.
+  const groups = useMemo(() => groupsForRole(account?.role), [account]);
+  // The server says so (sa_account.staff); the constant answers for a
+  // database where §104 has not been applied yet.
+  const isStaff = account ? (account.staff ?? STAFF.includes(account.role)) : false;
+  // A super admin (and a dev) passes every gate BEFORE the capability
+  // layer is consulted, so they hold no role_capabilities rows and an
+  // override on their account changes nothing. Toggles here would read
+  // as eight denials against an account that can do everything — the
+  // Roles grid shows the same two columns locked, for the same reason.
+  const isAbsolute = account?.role === "super_admin" || account?.role === "dev";
 
   // What value should the toggle show?  Override if set, else default.
   const valueFor = (key) => (key in overrides ? !!overrides[key] : !!defaults[key]);
@@ -121,7 +167,7 @@ export default function AccountDrawer({ accountId, isSelf, onClose, onChanged })
   const resetGroup = (groupId) => {
     setOverrides((prev) => {
       const next = { ...prev };
-      const groupKeys = PERMISSION_GROUPS.find((g) => g.id === groupId)?.keys || [];
+      const groupKeys = groups.find((g) => g.id === groupId)?.keys || [];
       for (const { key } of groupKeys) delete next[key];
       return next;
     });
@@ -131,6 +177,53 @@ export default function AccountDrawer({ accountId, isSelf, onClose, onChanged })
   const resetAll = () => {
     setOverrides({});
     setDirty(true);
+  };
+
+  // Seed the role form from the account, like the billing form below.
+  useEffect(() => {
+    if (!account) { setRoleForm(null); return; }
+    setRoleForm({ role: account.role || "teacher", sub_role: account.sub_role || "" });
+  }, [account]);
+
+  const roleDirty =
+    !!account && !!roleForm &&
+    (roleForm.role !== account.role || (roleForm.sub_role || "") !== (account.sub_role || ""));
+
+  const subRoleChoices = SUB_ROLES[roleForm?.role] || [];
+
+  const setRoleField = (k, v) =>
+    setRoleForm((f) => {
+      const next = { ...f, [k]: v };
+      // A role with no taxonomy takes no sub-role, and since §104 the
+      // database refuses the pair rather than storing a combination no
+      // screen can render.
+      if (k === "role" && !(SUB_ROLES[v] || []).length) next.sub_role = "";
+      return next;
+    });
+
+  const saveRole = async () => {
+    if (!accountId || !roleForm) return;
+    setSavingRole(true);
+    try {
+      await api(`/api/admin/teachers/${accountId}/role`, {
+        method: "PATCH",
+        body: { role: roleForm.role, sub_role: roleForm.sub_role || null },
+      });
+      // Re-read rather than patch in place. A role change moves the
+      // capability baseline under the panel below AND, on a demotion,
+      // clears the admin.* overrides outright (§104) — showing the old
+      // toggles over the new role is how a stale grant gets re-saved.
+      const fresh = await api(`/api/superadmin/account/${accountId}`);
+      setAccount(fresh);
+      setOverrides(fresh.permissions || {});
+      setDirty(false);
+      onChanged && onChanged();
+      flash(`Role updated — ${ROLE_LABELS[fresh.role] || fresh.role}`);
+    } catch (e) {
+      flash(`Could not change the role: ${e.message}`);
+    } finally {
+      setSavingRole(false);
+    }
   };
 
   const save = async () => {
@@ -369,6 +462,82 @@ export default function AccountDrawer({ accountId, isSelf, onClose, onChanged })
                 <Cell label="Last login" value={account.last_login_at ? new Date(account.last_login_at).toLocaleString() : "—"} />
               </dl>
             </section>
+
+            {/* Role — what this account IS. The one control that decides
+                whether the capability panel further down means anything,
+                so it sits above it and not on another screen. */}
+            {canSetRole && roleForm && (
+              <section>
+                <div className="flex items-center justify-between mb-4">
+                  <SectionHeader label="Role" />
+                  <span className="font-mono text-[10px] uppercase tracking-wider text-muted inline-flex items-center gap-1.5">
+                    <ShieldCheck size={11} /> {isSuper ? "super admin" : "delegated"}
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <Field label="Role">
+                    <select
+                      className={selectClasses}
+                      value={roleForm.role}
+                      onChange={(e) => setRoleField("role", e.target.value)}
+                    >
+                      {/* The current role is always in the list even when
+                          the actor could not grant it — a dropdown that
+                          silently reads as something the account is not
+                          is worse than one option too many. */}
+                      {(grantable.includes(roleForm.role)
+                        ? grantable
+                        : [roleForm.role, ...grantable]
+                      ).map((r) => (
+                        <option key={r} value={r}>{ROLE_LABELS[r] || r}</option>
+                      ))}
+                    </select>
+                  </Field>
+                  {subRoleChoices.length > 0 ? (
+                    <Field label="Sub-role">
+                      <select
+                        className={selectClasses}
+                        value={roleForm.sub_role}
+                        onChange={(e) => setRoleField("sub_role", e.target.value)}
+                      >
+                        <option value="">— None —</option>
+                        {subRoleChoices.map((sr) => (
+                          <option key={sr} value={sr}>{SUB_ROLE_LABELS[sr] || sr}</option>
+                        ))}
+                      </select>
+                    </Field>
+                  ) : (
+                    <div />
+                  )}
+                </div>
+                <p className="text-xs text-muted mt-3">
+                  {ROLE_DESCRIPTIONS[roleForm.role] || ""}
+                </p>
+                {roleDirty && (
+                  <p className="text-xs text-muted mt-2">
+                    {STAFF.includes(roleForm.role) && !STAFF.includes(account.role)
+                      ? "Making this account staff opens the platform capabilities below. It gets the role's defaults until you pin one."
+                      : !STAFF.includes(roleForm.role) && STAFF.includes(account.role)
+                        ? "Taking staff away also clears every platform capability pinned on this account. Grants end with the job."
+                        : "The capabilities below are re-read against the new role."}
+                  </p>
+                )}
+                <div className="mt-4 flex items-center gap-2">
+                  <Button onClick={saveRole} disabled={!roleDirty || savingRole}>
+                    <Save size={13} className="mr-2" />
+                    {savingRole ? "Saving…" : "Save role"}
+                  </Button>
+                  {roleDirty && (
+                    <button
+                      onClick={() => setRoleForm({ role: account.role, sub_role: account.sub_role || "" })}
+                      className="font-mono text-[10px] uppercase tracking-wider text-muted hover:text-ink transition"
+                    >
+                      cancel
+                    </button>
+                  )}
+                </div>
+              </section>
+            )}
 
             {/* Subscription */}
             <section>
@@ -624,29 +793,43 @@ export default function AccountDrawer({ accountId, isSelf, onClose, onChanged })
 
             {/* Permissions editor — granting capabilities is a super-admin
                 power (sa_set_permissions is super-only), so it shows only to
-                a super admin. For an admin account it edits the sub-admin
-                capabilities; for a teacher, their studio permissions. */}
+                a super admin. For a STAFF account it edits the platform
+                capabilities; for everyone else, their studio permissions.
+                It keyed off `role === "admin"` before, which left an MoE
+                officer or an owner with no screen at all — both hold rows
+                in role_capabilities since §95. */}
             {isSuper && (
             <section>
               <div className="flex items-center justify-between mb-4">
-                <SectionHeader label={account.role === "admin" ? "Sub-admin access" : "Permissions"} />
+                <SectionHeader label={isStaff ? "Sub-admin access" : "Permissions"} />
                 <button
+                  hidden={isAbsolute}
                   onClick={resetAll}
                   className="font-mono text-[10px] uppercase tracking-wider text-muted hover:text-ink transition inline-flex items-center gap-1.5"
                 >
                   <RotateCcw size={11} /> reset all
                 </button>
               </div>
-              <p className="text-xs text-muted mb-5">
-                Toggles override the {ROLE_LABELS[account.role] || account.role} role defaults.
-                A purple dot marks per-account overrides; reset removes the override and falls back
-                to the role default.
-              </p>
+              {!isAbsolute && (
+                <p className="text-xs text-muted mb-5">
+                  Toggles override the {ROLE_LABELS[account.role] || account.role} role defaults
+                  {isStaff ? " set in Roles & access" : ""}. A purple dot marks per-account
+                  overrides; reset removes the override and falls back to the role default.
+                </p>
+              )}
 
+              {isAbsolute ? (
+                <div className="bg-paper-warm rounded-xl p-4 flex items-start gap-3">
+                  <ShieldCheck size={15} className="text-muted flex-shrink-0 mt-0.5" strokeWidth={1.9} />
+                  <p className="text-xs text-muted">
+                    {ROLE_LABELS[account.role] || account.role} holds every capability by
+                    definition — the gate answers before this layer is read, so an override
+                    here would change nothing. To take the access away, change the role above.
+                  </p>
+                </div>
+              ) : (
               <div className="space-y-6">
-                {PERMISSION_GROUPS
-                  .filter((g) => (account.role === "admin" ? g.id === "admin" : g.id !== "admin"))
-                  .map((g) => (
+                {groups.map((g) => (
                   <div key={g.id}>
                     <div className="flex items-center justify-between mb-2">
                       <h4 className="font-serif text-base text-ink">{g.label}</h4>
@@ -686,6 +869,7 @@ export default function AccountDrawer({ accountId, isSelf, onClose, onChanged })
                   </div>
                 ))}
               </div>
+              )}
             </section>
             )}
           </div>

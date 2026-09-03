@@ -14,11 +14,19 @@
 // the API server at boot. Types come from JSDoc, read by TypeScript via
 // allowJs.
 
+/**
+ * The roles that make somebody staff — the only ones an `admin.*`
+ * capability means anything for. Mirrors staff_roles() in db/tune.sql
+ * §95, and cap_is_grantable() enforces it: a teacher carrying
+ * `"admin.billing": true` in their JSONB is refused by the gate anyway.
+ */
+export const STAFF_ROLES = ["dev", "super_admin", "admin", "moe", "owner"];
+
 /** @typedef {import("../shared/types/domain").PermissionKey} PermissionKey */
 /** @typedef {import("../shared/types/domain").PermissionMap} PermissionMap */
 /** @typedef {import("../shared/types/domain").Role} Role */
 /** @typedef {{ key: PermissionKey, label: string }} PermissionEntry */
-/** @typedef {{ id: string, label: string, description: string, keys: PermissionEntry[] }} PermissionGroup */
+/** @typedef {{ id: string, label: string, description: string, keys: PermissionEntry[], roles?: string[] }} PermissionGroup */
 
 export const PERMISSION_GROUPS = /** @type {PermissionGroup[]} */ ([
   {
@@ -68,14 +76,19 @@ export const PERMISSION_GROUPS = /** @type {PermissionGroup[]} */ ([
     ],
   },
   {
-    // Delegated sub-admin capabilities. Shown only for `admin` accounts (see
-    // the drawer). The super admin grants a subset; the SAME keys gate the
-    // SECURITY DEFINER RPCs server-side (admin_can() in db/tune.sql §36), so
-    // hiding a control here is UX, not the security boundary.
+    // Delegated platform capabilities — shown for a staff account and no
+    // other (groupsForRole below). The super admin grants a subset; the
+    // SAME keys gate the SECURITY DEFINER RPCs server-side (admin_can()
+    // in db/tune.sql §36 / §95), so hiding a control here is UX, not the
+    // security boundary.
     id: "admin",
     label: "Sub-admin access",
-    roles: ["admin"],
-    description: "Which platform controls this admin can use.",
+    // Every staff role, not just `admin`. Since db/tune.sql §95 an MoE
+    // officer and an owner carry rows in role_capabilities too, so a
+    // super admin can hand one of them a platform surface — and while
+    // this said ["admin"] there was no screen on which to do it.
+    roles: STAFF_ROLES,
+    description: "Which platform controls this staff account can use.",
     keys: [
       { key: "admin.dashboard", label: "Platform dashboards (accounts, students, orgs)" },
       { key: "admin.accounts",  label: "Manage accounts (suspend, role, delete)" },
@@ -235,4 +248,55 @@ export function resolvePermissions(account) {
  */
 export function isPermitted(account, key) {
   return resolvePermissions(account)[key] === true;
+}
+
+/**
+ * The baseline under an account's own overrides — what it gets when it
+ * overrides nothing.
+ *
+ * The `admin.*` half must come from the SERVER. Since db/tune.sql §95
+ * the per-role defaults live in `role_capabilities`, editable from Roles
+ * & access without a deploy, and `admin_can()` reads that table — so
+ * resolving them from ROLE_DEFAULTS below means the editor's idea of the
+ * baseline drifts from the gate's the first time the grid is touched.
+ * That is not only a display problem: the drawer stores a toggle equal
+ * to its baseline as "no override", so a wrong baseline silently
+ * discards the decision. `cap_defaults` is those rows, shipped by
+ * sa_account().
+ *
+ * Everything else (studio, reports, data, account) has no table behind
+ * it and still comes from the constant.
+ *
+ * @param {PermissionedAccount | null | undefined} account
+ * @param {Record<string, boolean> | null | undefined} capDefaults
+ * @returns {PermissionMap}
+ */
+export function roleDefaultsFor(account, capDefaults) {
+  const base = { ...((account && ROLE_DEFAULTS[account.role]) || {}) };
+  if (capDefaults && typeof capDefaults === "object") {
+    for (const k of PERMISSION_KEYS) {
+      if (k.startsWith("admin.")) {
+        if (k in capDefaults) base[k] = !!capDefaults[k];
+        else delete base[k];
+      }
+    }
+  }
+  return /** @type {PermissionMap} */ (base);
+}
+
+/**
+ * Which permission groups apply to a role. A group with no `roles` is
+ * universal; the sub-admin group is staff-only, and for a staff account
+ * it is the ONLY one that means anything — nobody hands the MoE a lesson
+ * planner toggle.
+ *
+ * @param {Role | null | undefined} role
+ * @returns {PermissionGroup[]}
+ */
+export function groupsForRole(role) {
+  const staff = STAFF_ROLES.includes(/** @type {string} */ (role));
+  return PERMISSION_GROUPS.filter((g) => {
+    const scoped = Array.isArray(/** @type {any} */ (g).roles);
+    return staff ? scoped : !scoped;
+  });
 }
