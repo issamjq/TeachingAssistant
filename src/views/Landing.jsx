@@ -2900,10 +2900,9 @@ export default function Landing({ onOpenStudio, heroVariant = null, initialPage 
           // A row already existed, so this is a returning teacher however
           // they got here — even if they came through the sign-up page.
           //
-          // "This week", not the dashboard. The morning question is what
-          // am I teaching next and is it ready; the dashboard answers a
-          // different one, and answers it in widgets she has to arrange.
-          onOpenStudio("week");
+          // Dashboard, not "week" — /week was retired, its readiness view
+          // folded into the calendar (see config/nav.ts).
+          onOpenStudio("dashboard");
           return;
         }
       } catch (e) {

@@ -27,7 +27,6 @@ import {
   LayoutDashboard,
   CalendarRange,
   CalendarClock,
-  CalendarDays,
   Target,
   BookOpen,
   LibraryBig,
@@ -57,7 +56,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { asRoles, clearRole, getRole, onRoleChange, ROLE_LABELS, setRole, syncRoleFromServer } from "@/lib/role";
-import { CreditWarning } from "@/features/studio-ai/CreditMeter";
+import { CreditWarning } from "@/features/studio-ai";
 import { api, ApiError } from "@/shared/lib/apiClient";
 import { navigate, replace, clearRoute } from "@/lib/route";
 import { useT } from "@/shared/i18n";
@@ -113,7 +112,6 @@ const NAV_ICON: Record<string, LucideIcon> = {
   goals: Target,
   library: LibraryBig,
   materials: FileText,
-  week: CalendarDays,
   lessons: BookOpen,
   quizzes: ClipboardCheck,
   homework: PenLine,

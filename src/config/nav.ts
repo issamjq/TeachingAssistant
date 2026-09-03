@@ -54,8 +54,9 @@ export interface NavSection {
  * entry to a screen you only ever arrive at by asking for something is a
  * door beside an open door.
  *
- * Both routes stay reachable and neither is orphaned: /week from the
- * calendar, /studio from every composer and from the conversations link
+ * /week itself is gone — its readiness view lives in the calendar now,
+ * so the route was retired rather than left as an unlinked page. /studio
+ * stays reachable from every composer and from the conversations link
  * under it.
  */
 const TEACHER_NAV: NavSection[] = [
@@ -261,9 +262,8 @@ export const NAV_BY_ROLE: Record<Role, NavSection[]> = {
 
 /** Landing section for each role when no section is specified. */
 export const DEFAULT_ROUTE: Record<Role, string> = {
-  // Was "week", which is no longer a rail item — landing on a screen
-  // with no nav entry to return to is how a teacher gets lost. The
-  // dashboard is the overview and it links onward to both.
+  // Was "week" — that route is retired; the dashboard is the overview
+  // and links onward from there.
   teacher: "dashboard",
   admin: "superadmin-dashboard",
   dev: "dev-console",
@@ -288,7 +288,6 @@ export const TEACHING_RAIL_SECTIONS = new Set([
 // /quizzes from rendering for an admin who switched roles.
 export const SECTIONS_BY_ROLE: Record<Role, Set<string>> = {
   teacher: new Set([
-    "week",
     "dashboard",
     "studio",
     "planner",
