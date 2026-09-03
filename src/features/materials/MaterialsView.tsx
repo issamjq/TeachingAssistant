@@ -11,7 +11,10 @@
 // the service has managed to read it.
 
 import React, { useEffect, useMemo, useState } from "react";
-import { FileText, Search, Trash2, Pencil, Check, Upload } from "lucide-react";
+import {
+  classScopeLabel, filterByClassScope, setClassScope, useClassScope,
+} from "@/shared/lib/classScope";
+import { FileText, Search, Trash2, Pencil, Check, Upload, X } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Field, Modal, ConfirmDelete, inputClasses, selectClasses } from "@/views/_shared";
@@ -73,6 +76,8 @@ export default function MaterialsView() {
   const loading = rows === null;
   const [error, setError] = useState<string | null>(null);
   const [term, setTerm] = useState("");
+  // Which class the sidebar sent us here for.
+  const classScope = useClassScope();
   const [editing, setEditing] = useState<Material | null>(null);
   const [removing, setRemoving] = useState<Material | null>(null);
   const [busy, setBusy] = useState(false);
@@ -152,13 +157,18 @@ export default function MaterialsView() {
     return () => { live = false; };
   }, [reloadKey]);
 
+  // The shelf narrows to the class the sidebar sent us here for, then to
+  // whatever has been typed. A file with no subject on it stays visible
+  // in both: it belongs to no class, and hiding it behind a class filter
+  // would make it unreachable from a rail that only offers classes.
   const shown = useMemo(() => {
     const t = term.trim().toLowerCase();
     if (!rows) return [];
-    if (!t) return rows;
-    return rows.filter((m) =>
+    const scoped = filterByClassScope(rows as any[], classScope) as typeof rows;
+    if (!t) return scoped;
+    return scoped.filter((m) =>
       `${materialLabel(m)} ${m.subject || ""} ${m.grade || ""}`.toLowerCase().includes(t));
-  }, [rows, term]);
+  }, [rows, term, classScope]);
 
   const unread = (rows || []).filter(
     (m) => m.status !== "ready" && m.status !== "processing",
@@ -241,6 +251,23 @@ export default function MaterialsView() {
           </span>
         </label>
       </div>
+
+      {/* This shelf does not use the shared DataPageHeader, so it carries
+          its own copy of the chip. A screen that silently shows a third
+          of the shelf is worse than one that shows all of it. */}
+      {classScope && (
+        <div className="mb-4 inline-flex items-center gap-1.5 rounded-lg border border-accent/40 bg-accent/10 px-3 py-1.5 text-[12px] text-accent">
+          {classScopeLabel(classScope)}
+          <button
+            type="button"
+            onClick={() => setClassScope(null)}
+            aria-label={`Show every class, not just ${classScopeLabel(classScope)}`}
+            className="ms-1 -me-1 rounded-full p-0.5 hover:bg-accent/15"
+          >
+            <X size={12} strokeWidth={2.2} />
+          </button>
+        </div>
+      )}
 
       {!!rows?.length && (
         <div className="relative mb-4 max-w-sm">

@@ -18,6 +18,7 @@ import { Plus, X, Pencil, Trash2, LayoutGrid, List, Sparkles, RotateCcw, ArrowUp
 import { useT } from "../lib/i18n";
 import { navigate } from "../lib/route";
 import { api, DatePicker } from "./_shared";
+import { classScopeLabel, setClassScope, useClassScope } from "../shared/lib/classScope";
 
 // Shared toolbar chip class so every action button in the page header
 // (sort dropdown, date scope, view toggle, recently deleted, +New X,
@@ -105,6 +106,11 @@ export function DataPageHeader({
   const [popupOpen, setPopupOpen] = useState(false);
   const [trashOpen, setTrashOpen] = useState(false);
   const [scopeOpen, setScopeOpen] = useState(false);
+  // Which class the sidebar sent us here for. Read in the shared header
+  // rather than passed by each screen, so no library can filter itself
+  // silently — if the rows are narrowed, this says so and offers a way
+  // out of it, on every one of the six.
+  const classScope = useClassScope();
   return (
     <div className="mb-6">
       {/* Row 1 — eyebrow + serif title + caption. Always its own row
@@ -126,6 +132,22 @@ export function DataPageHeader({
           unit. The New X button stays visually distinct via colour
           (filled ink), not size. */}
       <div className="flex flex-wrap items-center gap-2">
+        {classScope && (
+          <span
+            className={`${TOOLBAR_CHIP} border-accent/40 bg-accent/10 text-accent`}
+            title={`Showing ${classScopeLabel(classScope)} only`}
+          >
+            {classScopeLabel(classScope)}
+            <button
+              type="button"
+              onClick={() => setClassScope(null)}
+              aria-label={`Show every class, not just ${classScopeLabel(classScope)}`}
+              className="ms-1 -me-1 p-0.5 rounded-full hover:bg-accent/15"
+            >
+              <X size={12} strokeWidth={2.2} />
+            </button>
+          </span>
+        )}
         {sortOptions && onSortChange && (
           <label className={`${TOOLBAR_CHIP_GHOST} cursor-pointer pr-2`}>
             <ArrowUpDown size={12} strokeWidth={2} className="text-muted" />

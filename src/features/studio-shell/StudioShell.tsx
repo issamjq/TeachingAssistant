@@ -70,6 +70,7 @@ import MurchidLogo from "@/components/MurchidLogo";
 import Avatar from "@/components/Avatar";
 import TeachingRail from "@/views/TeachingRail";
 import DeviceNotice from "./DeviceNotice";
+import ClassNav from "./ClassNav";
 import { ContextPanelRegion, useContextPanelState } from "@/shared/shell/ContextPanel";
 import { useMediaQuery } from "@/shared/hooks/useMediaQuery";
 import { ALLOW_API_OVERRIDE } from "@/config/env";
@@ -628,6 +629,18 @@ export default function StudioShell({ children }: { children: React.ReactNode })
         {(() => {
           let mi = 0;
           return nav.map((s, sectionIdx) => (
+            // A section the shell fills in rather than lists. Its own
+            // <section> and label live inside ClassNav, because what it
+            // renders — a fallback flat list, grade headers, a filter —
+            // decides what heading is honest above it.
+            s.dynamic === "classes" ? (
+              <ClassNav
+                key="classes"
+                section={section}
+                navT={navT}
+                collapsed={sidebarCollapsed}
+              />
+            ) : (
             <section
               key={s.section || `sec-${sectionIdx}`}
               className="murchid-sidebar-section"
@@ -709,6 +722,7 @@ export default function StudioShell({ children }: { children: React.ReactNode })
                 })}
               </div>
             </section>
+            )
           ));
         })()}
       </nav>

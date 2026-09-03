@@ -16,6 +16,7 @@ import { SkeletonCards, SkeletonList } from "@/components/ui/skeleton";
 import { DeliveryChip, useDeliveryMap } from "@/features/delivery";
 import { quizToDoc } from "../lib/toDoc";
 import { useT } from "../lib/i18n";
+import { filterByClassScope, useClassScope } from "../shared/lib/classScope";
 
 export default function Quizzes({ onOpenQuiz }) {
   const t = useT();
@@ -30,6 +31,8 @@ export default function Quizzes({ onOpenQuiz }) {
   const deliveryMap = useDeliveryMap();
   const [sortKey, setSortKey] = useState("scheduled_for-desc");
   const [scope, setScope, scopeRange] = useDateScope();
+  // Set by the sidebar when this library was opened from a class.
+  const classScope = useClassScope();
 
   const reload = (silent = false) => {
     if (!silent) setLoading(true);
@@ -49,7 +52,10 @@ export default function Quizzes({ onOpenQuiz }) {
     defaultDir: sortDir,
   });
   useEffect(() => { setSort({ key: sortField, dir: sortDir }); }, [sortKey, setSort, sortField, sortDir]);
-  const sorted = filterByDateScope(sortedAll, scopeRange, (q) => q.scheduled_for);
+  const sorted = filterByClassScope(
+    filterByDateScope(sortedAll, scopeRange, (q) => q.scheduled_for),
+    classScope,
+  );
 
   // Build the export doc for a row — the list only has summary fields, so
   // pull the full quiz + its questions before mapping.

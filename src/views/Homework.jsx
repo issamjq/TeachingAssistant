@@ -16,6 +16,7 @@ import { SkeletonCards, SkeletonList } from "@/components/ui/skeleton";
 import { DeliveryChip, useDeliveryMap } from "@/features/delivery";
 import { homeworkToDoc } from "../lib/toDoc";
 import { useT } from "../lib/i18n";
+import { filterByClassScope, useClassScope } from "../shared/lib/classScope";
 
 export default function Homework({ onOpenHomework }) {
   const t = useT();
@@ -30,6 +31,8 @@ export default function Homework({ onOpenHomework }) {
   const deliveryMap = useDeliveryMap();
   const [sortKey, setSortKey] = useState("due_date-asc");
   const [scope, setScope, scopeRange] = useDateScope();
+  // Set by the sidebar when this library was opened from a class.
+  const classScope = useClassScope();
 
   const reload = (silent = false) => {
     if (!silent) setLoading(true);
@@ -47,7 +50,10 @@ export default function Homework({ onOpenHomework }) {
     defaultDir: sortDir,
   });
   useEffect(() => { setSort({ key: sortField, dir: sortDir }); }, [sortKey, setSort, sortField, sortDir]);
-  const sorted = filterByDateScope(sortedAll, scopeRange, (h) => h.due_date);
+  const sorted = filterByClassScope(
+    filterByDateScope(sortedAll, scopeRange, (h) => h.due_date),
+    classScope,
+  );
 
   const hwExport = (h) => (
     <ExportMenu

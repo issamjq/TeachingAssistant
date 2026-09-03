@@ -15,6 +15,7 @@ import { ExportMenu } from "@/components/ui/export-menu";
 import { SkeletonCards, SkeletonList } from "@/components/ui/skeleton";
 import { presentationToDoc } from "../lib/toDoc";
 import { useT } from "../lib/i18n";
+import { filterByClassScope, useClassScope } from "../shared/lib/classScope";
 
 export default function Presentations({ onOpenPresentation }) {
   const t = useT();
@@ -27,6 +28,8 @@ export default function Presentations({ onOpenPresentation }) {
   const [viewMode, setViewMode] = useViewMode("murchid.view.presentations", "cards");
   const [sortKey, setSortKey] = useState("updated_at-desc");
   const [scope, setScope, scopeRange] = useDateScope();
+  // Set by the sidebar when this library was opened from a class.
+  const classScope = useClassScope();
 
   const sortedItems = React.useMemo(() => {
     const [k, dir] = sortKey.split("-");
@@ -40,7 +43,10 @@ export default function Presentations({ onOpenPresentation }) {
       return String(av).localeCompare(String(bv), undefined, { numeric: true }) * sign;
     });
   }, [items, sortKey]);
-  const visibleItems = filterByDateScope(sortedItems, scopeRange, (p) => p.scheduled_for);
+  const visibleItems = filterByClassScope(
+    filterByDateScope(sortedItems, scopeRange, (p) => p.scheduled_for),
+    classScope,
+  );
 
   const reload = (silent = false) => {
     if (!silent) setLoading(true);

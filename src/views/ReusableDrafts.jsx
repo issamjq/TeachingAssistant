@@ -24,6 +24,7 @@ import {
 } from "./_data-view";
 import { MAJORS } from "../lib/enums";
 import { useT } from "../lib/i18n";
+import { filterByClassScope, useClassScope } from "../shared/lib/classScope";
 
 const STATUSES = ["In progress", "Ready to use", "Blocked", "Paused"];
 
@@ -41,6 +42,8 @@ export default function ReusableDrafts({ onEditDraft, onNewLesson }) {
   const [viewMode, setViewMode] = useViewMode("murchid.view.drafts", "cards");
   const [sortKey, setSortKey] = useState("last_edited-desc");
   const [scope, setScope, scopeRange] = useDateScope();
+  // Set by the sidebar when this library was opened from a class.
+  const classScope = useClassScope();
 
   const reload = (silent = false) => {
     if (!silent) setLoading(true);
@@ -79,7 +82,10 @@ export default function ReusableDrafts({ onEditDraft, onNewLesson }) {
     defaultDir: sortDir,
   });
   useEffect(() => { setSort({ key: sortField, dir: sortDir }); }, [sortKey, setSort, sortField, sortDir]);
-  const sorted = filterByDateScope(sortedAll, scopeRange, (d) => d.last_edited);
+  const sorted = filterByClassScope(
+    filterByDateScope(sortedAll, scopeRange, (d) => d.last_edited),
+    classScope,
+  );
 
   const confirmDelete = async () => {
     setBusy(true);

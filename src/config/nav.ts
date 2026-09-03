@@ -23,6 +23,15 @@ export interface NavItem {
 export interface NavSection {
   section: string;
   items: NavItem[];
+  /**
+   * A section the shell fills in at runtime rather than a fixed list.
+   *
+   * "classes" is rendered by ClassNav: the teacher's own classes, each
+   * opening into the six things it holds. It cannot live here because
+   * the list is her roster, not a constant — but WHERE it sits in the
+   * rail is a layout decision and belongs with the rest of them.
+   */
+  dynamic?: "classes";
 }
 
 // The teacher nav tells the product's story in section order: get
@@ -54,23 +63,26 @@ const TEACHER_NAV: NavSection[] = [
     items: [
       { key: "planner", label: "Calendar", icon: "scheduler" },
       { key: "goals", label: "Goals", icon: "goals" },
-    ],
-  },
-  // What the teacher makes and reuses — the libraries, one per kind.
-  {
-    section: "Materials",
-    items: [
-      { key: "lesson-plans", label: "Lessons", icon: "lessons" },
-      { key: "quizzes", label: "Quizzes", icon: "quizzes" },
-      { key: "homework", label: "Homework", icon: "homework" },
-      { key: "presentations", label: "Presentations", icon: "presentations" },
-      { key: "activities", label: "Activities", icon: "activities" },
+      // The curated shelf the service publishes, as opposed to anything
+      // she made. It belongs to no class of hers, so it cannot go under
+      // one — and it is what a teacher plans FROM, which is here.
       { key: "library", label: "Templates", icon: "library" },
-      // Her own uploads, as opposed to Templates, which is the curated
-      // shelf the service publishes. Two different shelves, two words.
-      { key: "materials", label: "Material", icon: "materials" },
     ],
   },
+  /**
+   * The libraries used to be listed here, flat, under "Materials":
+   * Lessons, Quizzes, Homework, Presentations, Activities, Material —
+   * seven rows, each holding every class she teaches at once. So "the
+   * Grade 9 Physics quizzes" was never a place, only a filter she
+   * reapplied every time she went looking.
+   *
+   * They are nested under the class they belong to now. The list is her
+   * classes, which is a roster and not a constant, so the shell fills
+   * this section in — and falls back to exactly the flat list above when
+   * she has no classes yet, because a new teacher must not find her own
+   * lesson plans unreachable while the rail waits for one to exist.
+   */
+  { section: "My classes", items: [], dynamic: "classes" },
   // The class itself: who is in it, what they see, how they are doing.
   {
     section: "Classroom",
