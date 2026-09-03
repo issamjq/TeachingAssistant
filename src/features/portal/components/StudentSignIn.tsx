@@ -21,6 +21,7 @@ import { setRole } from "@/lib/role";
 import MurchidLogo from "@/components/MurchidLogo";
 import BrandLoader from "@/components/BrandLoader";
 import { GoogleMark } from "./ProviderMarks";
+import Link from "next/link";
 
 interface MeRow {
   role: string;
@@ -191,7 +192,7 @@ export default function StudentSignIn() {
        * happened by here; a profile that will not load is worth naming
        * rather than retrying forever.
        */
-      let me2: MeRow | null = null;
+      let me2: MeRow | null;
       try {
         me2 = await api<MeRow>("/api/auth/me");
       } catch {
@@ -297,9 +298,9 @@ export default function StudentSignIn() {
   return (
     <div className="min-h-screen bg-paper" dir="auto">
       <header className="px-6 md:px-12 py-6 flex items-center justify-between">
-        <a href="/" className="inline-flex items-center gap-2.5 text-ink hover:opacity-80 transition">
+        <Link href="/" className="inline-flex items-center gap-2.5 text-ink hover:opacity-80 transition">
           <MurchidLogo className="h-7 w-auto" />
-        </a>
+        </Link>
       </header>
 
       <main className="px-6 md:px-12 pb-16 pt-12 md:pt-24">
@@ -373,9 +374,9 @@ export default function StudentSignIn() {
           )}
 
           <div className="text-center mt-12 pt-8 border-t border-line">
-            <a href="/" className="inline-flex items-center gap-2 font-mono text-[11px] uppercase tracking-wider text-ink hover:text-accent transition">
+            <Link href="/" className="inline-flex items-center gap-2 font-mono text-[11px] uppercase tracking-wider text-ink hover:text-accent transition">
               Back to Murchid <ArrowRight size={12} />
-            </a>
+            </Link>
           </div>
         </div>
       </main>
