@@ -997,7 +997,10 @@ async function clearPrimary(fid: string) {
 // to render a list of names.
 
 const MAT = "id, title, file_name, file_path, mime_type, status, kind, grade, subject, section, pages, created_at, updated_at";
-const MAT_WITH_CLASSES = `${MAT}, material_classes(id, grade, subject, section)`;
+// text_head, not extracted_text: the shelf needs the opening to suggest a
+// class, and one of these documents is 923 KB.
+const MAT_LIST = `${MAT}, text_head`;
+const MAT_WITH_CLASSES = `${MAT_LIST}, material_classes(id, grade, subject, section)`;
 
 /**
  * The shelf, with the classes each file is filed under (§103).

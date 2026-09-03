@@ -13666,3 +13666,16 @@ BEGIN
      AND NOT EXISTS (SELECT 1 FROM public.material_classes mc WHERE mc.material_id = m.id);
   RAISE NOTICE 'material_classes ready: % filing(s), % live material(s) still unfiled', v_filed, v_unfiled;
 END $$;
+
+-- The first couple of pages, for the shelf.
+--
+-- `extracted_text` is the whole document — one of these is 923 KB — and
+-- the browser has no business downloading that to work out which class a
+-- file belongs to. The opening is enough: a syllabus says what it is in
+-- its first line ("CBSE Class 9 Maths Updated Syllabus"), and a set of
+-- notes says it in its header ("Revision Notes Class 10 Maths Chapter 9").
+-- Generated rather than copied, so it cannot fall out of step with the
+-- text it is a window onto.
+ALTER TABLE public.materials
+  ADD COLUMN IF NOT EXISTS text_head text
+  GENERATED ALWAYS AS (left(extracted_text, 2000)) STORED;

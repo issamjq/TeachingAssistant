@@ -17,7 +17,7 @@ import {
 import { useTeacherClasses } from "@/shared/lib/teacherClasses";
 import { classLabel, normGrade, normSubject } from "@/shared/lib/classMatch";
 import { setMaterialClasses } from "./api";
-import { suggestClasses, suggestionLabel } from "./suggest";
+import { describeWanted, suggestClasses, suggestionLabel } from "./suggest";
 
 /** One class, as a select value. Same shape the pickers key on. */
 const keyOfClass = (c: { grade: string; section: string; subject: string }) =>
@@ -373,10 +373,19 @@ export default function MaterialsView() {
           </p>
           <ul className="grid gap-3">
             {unfiled.map((m) => {
-              const hits = suggestClasses(m.file_name || m.title || "", myClasses);
+              const hits = suggestClasses(m.file_name || m.title || "", myClasses, (m as any).text_head);
+              // Nothing fits, but the file says what it wants.
+              const wants = hits.length
+                ? null
+                : describeWanted(m.file_name || m.title || "", myClasses, (m as any).text_head);
               return (
                 <li key={m.id} className="flex flex-wrap items-center gap-2 text-[13px] min-h-9">
                   <span className="min-w-0 flex-1 truncate">{materialLabel(m)}</span>
+                  {wants && (
+                    <span className="text-[12px] text-muted">
+                      looks like {wants.grade} · {wants.subject} — you have no such class
+                    </span>
+                  )}
                   {hits.length > 0 && (
                     <button
                       type="button"

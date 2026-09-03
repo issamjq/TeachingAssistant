@@ -109,13 +109,25 @@ export function filterByClassScope<T extends Record<string, any>>(
 ): T[] {
   if (!scope) return items;
   const [subject, grade] = scope.key.split("|");
-  return items.filter((it) => {
-    const s = normSubject(it.subject);
+  const fits = (s: string | null, g: string | null) => {
     if (!s) return true;
     if (s !== subject) return false;
-    // A row that names a subject but no grade belongs to every grade of
-    // it — the same rule §48 uses when it delivers one.
-    const g = normGrade(it.grade);
+    // Something that names a subject but no grade belongs to every grade
+    // of it — the same rule §48 uses when it delivers one.
     return !g || !grade || g === grade;
+  };
+  return items.filter((it) => {
+    /**
+     * A material names its classes in a table of its own (§103), and one
+     * file can serve three of them — a Term 1 scheme of work covering
+     * Physics 9, Physics 11 and Mathematics 10 is one document, not
+     * three. Its own grade/subject columns hold only the FIRST of those,
+     * so filtering on them hid it from the other two.
+     */
+    const filed = it.classes as { grade?: string | null; subject?: string | null }[] | undefined;
+    if (Array.isArray(filed) && filed.length) {
+      return filed.some((c) => fits(normSubject(c.subject), normGrade(c.grade)));
+    }
+    return fits(normSubject(it.subject), normGrade(it.grade));
   });
 }
