@@ -65,7 +65,7 @@ export default function Avatar({ avatarId, photoUrl = "", initial = "U", size = 
         justifyContent: "center",
         background: "#8e5435",
         color: "#f7f3ec",
-        fontFamily: "'Inter Tight', system-ui, sans-serif",
+        fontFamily: "var(--font-sans)",
         fontWeight: 600,
         fontSize: Math.round(size * 0.42),
         lineHeight: 1,

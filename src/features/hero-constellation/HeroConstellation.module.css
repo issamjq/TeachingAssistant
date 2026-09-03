@@ -199,7 +199,7 @@
 .tileLabelDesc {
   display: block;
   margin-block-start: 3px;
-  font-family: "Inter Tight", system-ui, sans-serif;
+  font-family: var(--font-sans);
   font-size: 11.5px;
   line-height: 1.35;
   letter-spacing: 0.005em;
@@ -293,7 +293,7 @@
   color: oklch(0.9 0.05 191 / 0.55);
 }
 .typeName {
-  font-family: "Fraunces", Georgia, serif;
+  font-family: var(--font-serif);
   font-weight: 400;
   font-size: calc(var(--row-h) * 0.54);
   line-height: 1;
@@ -301,7 +301,7 @@
   color: oklch(0.97 0.02 200 / 0.96);
 }
 .typeDesc {
-  font-family: "Inter Tight", system-ui, sans-serif;
+  font-family: var(--font-sans);
   font-size: calc(var(--row-h) * 0.22);
   white-space: nowrap;
   color: oklch(0.94 0.03 196 / 0.5);
@@ -347,7 +347,7 @@
   min-height: 54px;
   padding-inline: 32px;
   border-radius: 999px;
-  font-family: "Inter Tight", system-ui, sans-serif;
+  font-family: var(--font-sans);
   font-size: clamp(15px, 1.1vw, 17px);
   font-weight: 500;
   letter-spacing: 0.005em;

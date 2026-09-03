@@ -35,7 +35,7 @@
   color: var(--cm-on-drench, #b6dbe2);
 }
 .h2 {
-  font-family: 'Fraunces', Georgia, serif;
+  font-family: var(--font-serif);
   font-weight: 400;
   font-size: clamp(26px, 3.4vw, 46px);
   line-height: 1.1;
@@ -75,7 +75,7 @@
 /* ── detail ──────────────────────────────────────────────────────── */
 .detail { min-width: 0; padding-inline-start: clamp(8px, 1.5vw, 20px); }
 .num {
-  font-family: 'Fraunces', Georgia, serif;
+  font-family: var(--font-serif);
   font-style: italic;
   font-size: 15px;
   color: var(--cm-on-drench, #b6dbe2);
@@ -86,7 +86,7 @@
      the hero's pin that ancestor vanished and the headings fell back to the
      page's near-black ink — invisible on the drench. */
   color: var(--cm-cream, #f2f7f8);
-  font-family: 'Fraunces', Georgia, serif;
+  font-family: var(--font-serif);
   font-weight: 400;
   font-size: clamp(26px, 3.2vw, 40px);
   line-height: 1.06;
@@ -95,7 +95,7 @@
   font-variation-settings: 'opsz' 144;
 }
 .body {
-  font-family: 'Inter Tight', system-ui, sans-serif;
+  font-family: var(--font-sans);
   font-size: 14.5px;
   line-height: 1.62;
   color: oklch(0.95 0.03 210 / 0.82);
@@ -107,7 +107,7 @@
   display: flex;
   align-items: flex-start;
   gap: 10px;
-  font-family: 'Inter Tight', system-ui, sans-serif;
+  font-family: var(--font-sans);
   font-size: 13.5px;
   line-height: 1.45;
   color: oklch(0.96 0.02 200 / 0.94);

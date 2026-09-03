@@ -62,7 +62,7 @@ export function flash(message: string, tone: "error" | "ok" = "error"): void {
     borderRadius: "12px",
     boxShadow: "0 8px 24px rgba(16, 23, 24, 0.14)",
     padding: "10px 14px 10px 12px",
-    font: "13.5px/1.45 'Inter Tight', ui-sans-serif, system-ui, sans-serif",
+    font: "13.5px/1.45 var(--font-sans)",
     display: "flex",
     alignItems: "flex-start",
     gap: "9px",

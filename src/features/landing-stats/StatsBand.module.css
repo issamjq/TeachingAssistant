@@ -43,7 +43,7 @@
 .cell:first-child { border-inline-start: 0; padding-inline-start: 0; }
 
 .n {
-  font-family: 'Fraunces', Georgia, serif;
+  font-family: var(--font-serif);
   font-weight: 300;
   font-size: clamp(38px, 4.6vw, 62px);
   line-height: 0.95;
@@ -60,7 +60,7 @@
 }
 
 .l {
-  font-family: 'Inter Tight', system-ui, sans-serif;
+  font-family: var(--font-sans);
   font-size: clamp(11.5px, 1.1vw, 13px);
   line-height: 1.45;
   color: var(--cm-ink-2, #4a5c60);

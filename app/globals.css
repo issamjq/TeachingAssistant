@@ -20,6 +20,65 @@
 @source "../src";
 
 /* ═══════════════════════════════════════════════════════════════════
+   TYPEFACES — self-hosted, two variable families, four files.
+   ═══════════════════════════════════════════════════════════════════
+
+   These used to be a Google Fonts request for Fraunces + Inter Tight.
+   They are served from /public/fonts now, for the same reason the font
+   loading was split three ways in app/layout.tsx: a render-blocking
+   stylesheet on a third-party origin is on the critical path for first
+   paint, and this removes two DNS + TLS handshakes from it. The four
+   files total 156KB and are cached by Vercel with the rest of /public.
+
+   Fontshare only serves ONE family per request, so keeping them remote
+   would have cost two blocking stylesheets, not one.
+
+   Both are declared as a single variable face per style rather than an
+   enumerated set of weights. That is load-bearing, not tidiness: only a
+   variable face can be interpolated, and the studio animates font-weight
+   on scroll. An enumerated list renders at fixed weights and the
+   animation silently becomes a step function.
+
+   ITF Free Font License (Fontshare) — free for personal and commercial
+   use, and explicitly permits self-hosting on a web server. */
+
+@font-face {
+  font-family: "Gambetta";
+  src: url("/fonts/Gambetta-Variable.woff2") format("woff2-variations"),
+       url("/fonts/Gambetta-Variable.woff2") format("woff2");
+  font-weight: 300 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Gambetta";
+  src: url("/fonts/Gambetta-VariableItalic.woff2") format("woff2-variations"),
+       url("/fonts/Gambetta-VariableItalic.woff2") format("woff2");
+  font-weight: 300 700;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Switzer";
+  src: url("/fonts/Switzer-Variable.woff2") format("woff2-variations"),
+       url("/fonts/Switzer-Variable.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Switzer";
+  src: url("/fonts/Switzer-VariableItalic.woff2") format("woff2-variations"),
+       url("/fonts/Switzer-VariableItalic.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: italic;
+  font-display: swap;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
    PALETTE LAYER — the only place raw colour values are written.
    ═══════════════════════════════════════════════════════════════════
 
@@ -50,20 +109,26 @@
    accent is the most saturated thing in the system and is meant to stay
    rationed: roughly one primary action per screen. */
 :root {
-  --p-paper:        #e8e7e2;
-  --p-paper-warm:   #e0dfd9;
-  --p-paper-cool:   #f4f3ef;
-  --p-surface:      #f4f3ef;
-  --p-ink:          #101718;
-  --p-ink-soft:     #364043;
-  --p-muted:        #646e72;
-  --p-line:         #cdcdc6;
-  --p-accent:       #16646c;
-  --p-accent-hover: #0f4e55;
-  --p-accent-soft:  #d3e2e3;
-  --p-on-accent:    #f4f3ef;
-  --p-line-soft:    #dcdbd6;
-  --p-line-strong:  #c9c9c2;
+  /* Re-measured 2026-09-03, and the studio moves with the marketing site
+     because these tokens ARE the marketing site's (see the note in
+     src/features/marketing/Landing.module.css). The old ground/surface pair
+     separated by 1.12:1 and the hairline by 1.29:1, which is why panels,
+     table rules and card edges dissolved into the ground. Now 1.28:1 and
+     1.37:1. Text was never the problem and barely moved. */
+  --p-paper:        #e1dfd6;
+  --p-paper-warm:   #d8d5ca;
+  --p-paper-cool:   #fbfaf7;
+  --p-surface:      #fbfaf7;
+  --p-ink:          #0e1516;
+  --p-ink-soft:     #333c3f;
+  --p-muted:        #586260;
+  --p-line:         #c2c0b4;
+  --p-accent:       #12585f;
+  --p-accent-hover: #0d454b;
+  --p-accent-soft:  #dbe8e8;
+  --p-on-accent:    #fbfaf7;
+  --p-line-soft:    #d4d1c6;
+  --p-line-strong:  #b3b0a2;
 
   /* A surface that is deliberately the OPPOSITE of the page ground, and
      the text that sits on it. Separate from --p-ink because that token is
@@ -126,20 +191,23 @@
    firozeh, reading archival rather than jewelled. Only the values that
    actually differ are redeclared. */
 :root[data-palette="verdigris"] {
-  --p-paper:        #edeae1;
-  --p-paper-warm:   #e4e0d5;
-  --p-paper-cool:   #f7f5ef;
-  --p-surface:      #f7f5ef;
-  --p-ink:          #141917;
-  --p-ink-soft:     #3a423f;
-  --p-muted:        #6c7471;
-  --p-line:         #d5d0c4;
-  --p-accent:       #3c6b60;
-  --p-accent-hover: #2f574e;
-  --p-accent-soft:  #dce7e2;
-  --p-on-accent:    #f7f5ef;
-  --p-line-soft:    #e0dcd2;
-  --p-line-strong:  #cdc7b8;
+  /* Same re-measure as the default palette: ground/surface was 1.10:1 and
+     the hairline 1.28:1, so this palette dissolved even harder than firozeh.
+     Now 1.27:1 and 1.38:1. Muted darkened to clear 4.5:1 on the new ground. */
+  --p-paper:        #e4e0d3;
+  --p-paper-warm:   #dbd6c6;
+  --p-paper-cool:   #fcfaf5;
+  --p-surface:      #fcfaf5;
+  --p-ink:          #121716;
+  --p-ink-soft:     #373f3c;
+  --p-muted:        #59615d;
+  --p-line:         #c6c0ae;
+  --p-accent:       #345f55;
+  --p-accent-hover: #294a43;
+  --p-accent-soft:  #d9e5e0;
+  --p-on-accent:    #fcfaf5;
+  --p-line-soft:    #d8d3c3;
+  --p-line-strong:  #b6ae99;
 
   /* Verdigris sits near the green of "ok", so success is pushed bluer
      to stay distinguishable from the brand colour at a glance. */
@@ -173,16 +241,21 @@
    selected, lifted so it carries on a dark ground rather than replaced. */
 
 :root[data-theme="dark"] {
-  --p-paper:        #12181a;
-  --p-paper-warm:   #171f21;
-  --p-paper-cool:   #1a2325;
-  --p-surface:      #1a2325;
+  /* The dark ground had the same defect as the light one: surfaces sat
+     1.12:1 above the ground and the hairline 1.31:1 on top of them, so
+     panels merged into the page exactly as they did in light. Dropping the
+     ground rather than lifting the surfaces keeps the near-black the owner
+     approved while opening the step to 1.21:1, hairline to 1.53:1. */
+  --p-paper:        #0d1315;
+  --p-paper-warm:   #141c1e;
+  --p-paper-cool:   #1c2629;
+  --p-surface:      #1c2629;
   --p-ink:          #e9e7e1;
   --p-ink-soft:     #b9c2c2;
   --p-muted:        #8b9694;
-  --p-line:         #2c3739;
-  --p-line-soft:    #232d2f;
-  --p-line-strong:  #3a4649;
+  --p-line:         #364447;
+  --p-line-soft:    #263134;
+  --p-line-strong:  #45555a;
   --p-accent:       #4f9aa1;
   --p-accent-hover: #6fb3ad;
   --p-accent-soft:  #16242a;
@@ -244,13 +317,26 @@
   --color-amber: var(--p-ambient-lift);
   --color-cream: var(--p-ambient-pale);
 
-  --font-sans: "Inter Tight", ui-sans-serif, system-ui, sans-serif;
-  --font-serif: "Fraunces", Georgia, serif;
+  /* SELF-HOSTED, and declared once. See the @font-face block below the
+     @theme for why these are not a Google request any more.
+
+     Gambetta replaces Fraunces and Switzer replaces Inter Tight. Both
+     are variable (Gambetta 300-700, Switzer 100-900, each with a true
+     italic), so the studio's scroll-linked weight animation still has a
+     range to interpolate — that was the constraint that ruled out the
+     alternatives.
+
+     One family per surface, as before: marketing and the studio share
+     these tokens deliberately, which is the rule DESIGN.md set after an
+     earlier split made the site and the product look like two different
+     companies. */
+  --font-sans: "Switzer", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Gambetta", Georgia, serif;
   /* No more JetBrains Mono. Every `font-mono` utility now renders in
-     Inter Tight — eyebrows keep their uppercase + tracking styling,
+     the body sans — eyebrows keep their uppercase + tracking styling,
      but they share the same face as body copy so the whole project
      reads as one type system instead of three. */
-  --font-mono: "Inter Tight", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Switzer", ui-sans-serif, system-ui, sans-serif;
 
   /* Motion easings + durations as design tokens. Components should
      reach for these instead of hard-coding cubic-bezier strings. */
@@ -1603,7 +1689,7 @@ input[type="radio"]:focus-visible {
      fields (Name / Date / Grade / Section / Score). */
   .ws-paper { color: #1a1814; margin-bottom: 1.5rem; }
   .ws-paper .ws-title {
-    font-family: "Fraunces", Georgia, serif;
+    font-family: var(--font-serif);
     font-weight: 500;
     font-size: 26pt;
     text-align: center;
@@ -1623,7 +1709,7 @@ input[type="radio"]:focus-visible {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 0.55rem 1.25rem;
-    font-family: "Inter Tight", Inter, sans-serif;
+    font-family: var(--font-sans);
     font-size: 11pt;
     margin-bottom: 0.85rem;
   }
@@ -1653,7 +1739,7 @@ input[type="radio"]:focus-visible {
     font-weight: 600;
   }
   .ws-paper .ws-instr {
-    font-family: "Inter Tight", Inter, sans-serif;
+    font-family: var(--font-sans);
     font-size: 10.5pt;
     font-style: italic;
     color: #2a2620;
@@ -1677,7 +1763,7 @@ input[type="radio"]:focus-visible {
     page-break-inside: avoid;
   }
   .quiz-print-prompt {
-    font-family: "Inter Tight", Inter, sans-serif;
+    font-family: var(--font-sans);
     font-size: 11.5pt;
     line-height: 1.45;
     margin: 0 0 11pt 0;
@@ -1692,7 +1778,7 @@ input[type="radio"]:focus-visible {
     list-style: none;
     margin: 6pt 0 0 0;
     padding-inline-start: 22pt;
-    font-family: "Inter Tight", Inter, sans-serif;
+    font-family: var(--font-sans);
     font-size: 11pt;
     color: #1a1814;
   }
@@ -1712,7 +1798,7 @@ input[type="radio"]:focus-visible {
   .quiz-print-tf {
     margin: 4pt 0 0;
     margin-inline-start: 16pt;
-    font-family: "Inter Tight", Inter, sans-serif;
+    font-family: var(--font-sans);
     font-size: 11pt;
     letter-spacing: 0.04em;
   }
@@ -1814,16 +1900,16 @@ input[type="radio"]:focus-visible {
 
   .pd-doc {
     color: #1a1814;
-    font-family: "Inter Tight", Inter, system-ui, sans-serif;
+    font-family: var(--font-sans);
     font-size: 11.5pt; line-height: 1.5;
   }
   .pd-header { margin: 0 0 1.1rem 0; }
   .pd-title {
-    font-family: "Fraunces", Georgia, serif; font-weight: 500;
+    font-family: var(--font-serif); font-weight: 500;
     font-size: 26pt; line-height: 1.1; margin: 0 0 0.3rem 0;
   }
   .pd-subtitle {
-    font-family: "Fraunces", Georgia, serif; font-style: italic;
+    font-family: var(--font-serif); font-style: italic;
     font-size: 13pt; color: #8e5435; margin: 0 0 0.5rem 0;
   }
   .pd-meta {
@@ -1835,7 +1921,7 @@ input[type="radio"]:focus-visible {
   }
   .pd-meta-label { color: #8e5435; }
   .pd-body { margin-top: 1rem; }
-  .pd-h { font-family: "Fraunces", Georgia, serif; font-weight: 500; color: #1a1814; page-break-after: avoid; }
+  .pd-h { font-family: var(--font-serif); font-weight: 500; color: #1a1814; page-break-after: avoid; }
   .pd-h2 { font-size: 15pt; margin: 1.1rem 0 0.4rem; }
   .pd-h3 { font-size: 12.5pt; margin: 0.9rem 0 0.3rem; }
   .pd-h4 { font-size: 11.5pt; margin: 0.8rem 0 0.25rem; }

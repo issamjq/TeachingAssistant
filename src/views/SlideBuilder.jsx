@@ -200,12 +200,12 @@ function hexToRgba(hex, a) {
 // `body` family.
 const FONTS = {
   // Editorial defaults (the originals)
-  editorial:    { name: "Editorial",      cat: "Editorial", title: "'Fraunces', Georgia, serif",                       body: "'Inter Tight', system-ui, sans-serif" },
-  modern:       { name: "Modern",         cat: "Sans",      title: "'Inter Tight', system-ui, sans-serif",             body: "'Inter Tight', system-ui, sans-serif" },
-  classic:      { name: "Classic",        cat: "Editorial", title: "'Fraunces', Georgia, serif",                       body: "'Fraunces', Georgia, serif" },
+  editorial:    { name: "Editorial",      cat: "Editorial", title: "'Gambetta', Georgia, serif",                       body: "'Switzer', ui-sans-serif, system-ui, sans-serif" },
+  modern:       { name: "Modern",         cat: "Sans",      title: "'Switzer', ui-sans-serif, system-ui, sans-serif",             body: "'Switzer', ui-sans-serif, system-ui, sans-serif" },
+  classic:      { name: "Classic",        cat: "Editorial", title: "'Gambetta', Georgia, serif",                       body: "'Gambetta', Georgia, serif" },
   amiri:        { name: "Amiri",          cat: "Arabic",    title: "'Amiri', 'Times New Roman', serif",                body: "'Amiri', 'Times New Roman', serif" },
   // Editorial serifs
-  playfair:     { name: "Playfair",       cat: "Editorial", title: "'Playfair Display', Georgia, serif",               body: "'Inter Tight', system-ui, sans-serif" },
+  playfair:     { name: "Playfair",       cat: "Editorial", title: "'Playfair Display', Georgia, serif",               body: "'Switzer', ui-sans-serif, system-ui, sans-serif" },
   lora:         { name: "Lora",           cat: "Editorial", title: "'Lora', Georgia, serif",                           body: "'Lora', Georgia, serif" },
   garamond:     { name: "Garamond",       cat: "Editorial", title: "'EB Garamond', Georgia, serif",                    body: "'EB Garamond', Georgia, serif" },
   cormorant:    { name: "Cormorant",      cat: "Editorial", title: "'Cormorant Garamond', Georgia, serif",             body: "'Cormorant Garamond', Georgia, serif" },
@@ -221,9 +221,9 @@ const FONTS = {
   plexMono:     { name: "IBM Plex Mono",  cat: "Mono",      title: "'IBM Plex Mono', ui-monospace, monospace",         body: "'IBM Plex Mono', ui-monospace, monospace" },
   spaceMono:    { name: "Space Mono",     cat: "Mono",      title: "'Space Mono', ui-monospace, monospace",            body: "'Space Mono', ui-monospace, monospace" },
   // Display
-  bebas:        { name: "Bebas Neue",     cat: "Display",   title: "'Bebas Neue', Impact, sans-serif",                 body: "'Inter Tight', system-ui, sans-serif" },
-  shrikhand:    { name: "Shrikhand",      cat: "Display",   title: "'Shrikhand', Georgia, serif",                      body: "'Inter Tight', system-ui, sans-serif" },
-  pacifico:     { name: "Pacifico",       cat: "Display",   title: "'Pacifico', cursive",                              body: "'Inter Tight', system-ui, sans-serif" },
+  bebas:        { name: "Bebas Neue",     cat: "Display",   title: "'Bebas Neue', Impact, sans-serif",                 body: "'Switzer', ui-sans-serif, system-ui, sans-serif" },
+  shrikhand:    { name: "Shrikhand",      cat: "Display",   title: "'Shrikhand', Georgia, serif",                      body: "'Switzer', ui-sans-serif, system-ui, sans-serif" },
+  pacifico:     { name: "Pacifico",       cat: "Display",   title: "'Pacifico', cursive",                              body: "'Switzer', ui-sans-serif, system-ui, sans-serif" },
   // Handwriting
   caveat:       { name: "Caveat",         cat: "Hand",      title: "'Caveat', cursive",                                body: "'Caveat', cursive" },
   dancing:      { name: "Dancing Script", cat: "Hand",      title: "'Dancing Script', cursive",                        body: "'Dancing Script', cursive" },

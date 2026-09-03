@@ -475,7 +475,7 @@ export default function AccessibilityWidget({ embedded = false, bottomOffset = 0
           <div className="flex-1 min-w-0">
             <h2
               className="text-[17px] leading-tight font-semibold"
-              style={{ fontFamily: '"Fraunces", Georgia, serif' }}
+              style={{ fontFamily: 'var(--font-serif)' }}
             >
               {t("a11y.title")}
             </h2>

@@ -68,7 +68,7 @@
 
 /* The Arabic option renders in an Arabic face at a larger optical size. */
 .option:last-child {
-  font-family: "Amiri", "Fraunces", serif;
+  font-family: "Amiri", var(--font-serif);
   font-size: 16px;
   font-weight: 700;
 }

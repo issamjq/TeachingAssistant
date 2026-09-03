@@ -1,22 +1,22 @@
 ---
 name: Murchid
-description: One world. Firozeh turquoise rationed across a matte plaster ground, Fraunces over Inter Tight, shared by the marketing site and the studio.
+description: One world. Firozeh turquoise rationed across a matte plaster ground, Gambetta over Switzer, shared by the marketing site and the studio.
 colors:
-  paper: "#e8e7e2"
-  paper-warm: "#e0dfd9"
-  paper-cool: "#f4f3ef"
-  surface: "#f4f3ef"
-  ink: "#101718"
-  ink-soft: "#364043"
-  muted: "#646e72"
-  line: "#cdcdc6"
-  line-soft: "#dcdbd6"
-  line-strong: "#c9c9c2"
-  accent: "#16646c"
-  accent-hover: "#0f4e55"
-  accent-soft: "#d3e2e3"
+  paper: "#e1dfd6"
+  paper-warm: "#d8d5ca"
+  paper-cool: "#fbfaf7"
+  surface: "#fbfaf7"
+  ink: "#0e1516"
+  ink-soft: "#333c3f"
+  muted: "#586260"
+  line: "#c2c0b4"
+  line-soft: "#d4d1c6"
+  line-strong: "#b3b0a2"
+  accent: "#12585f"
+  accent-hover: "#0d454b"
+  accent-soft: "#dbe8e8"
   accent-on-ink: "#8fc9c4"
-  on-accent: "#f4f3ef"
+  on-accent: "#fbfaf7"
   ok: "#2f6e52"
   warn: "#94661f"
   crit: "#a0453c"
@@ -26,29 +26,29 @@ colors:
   ambient-pale: "#e3efef"
 typography:
   display:
-    fontFamily: "Fraunces, Georgia, serif"
+    fontFamily: "Gambetta, Georgia, serif"
     fontSize: "clamp(28px, 4.2vw, 56px)"
-    fontWeight: 300
+    fontWeight: 400
     lineHeight: 1.04
-    letterSpacing: "-0.028em"
+    letterSpacing: "-0.016em"
   headline:
-    fontFamily: "Fraunces, Georgia, serif"
+    fontFamily: "Gambetta, Georgia, serif"
     fontWeight: 400
     fontSize: "clamp(22px, 2.6vw, 36px)"
     lineHeight: 1.15
     letterSpacing: "-0.02em"
   title:
-    fontFamily: "Inter Tight, ui-sans-serif, system-ui, sans-serif"
+    fontFamily: "Switzer, ui-sans-serif, system-ui, sans-serif"
     fontWeight: 600
     fontSize: "15px"
     lineHeight: 1.3
   body:
-    fontFamily: "Inter Tight, ui-sans-serif, system-ui, sans-serif"
+    fontFamily: "Switzer, ui-sans-serif, system-ui, sans-serif"
     fontWeight: 400
     fontSize: "14px"
     lineHeight: 1.55
   label:
-    fontFamily: "Inter Tight, ui-sans-serif, system-ui, sans-serif"
+    fontFamily: "Switzer, ui-sans-serif, system-ui, sans-serif"
     fontWeight: 500
     fontSize: "clamp(11px, 1vw, 13px)"
     letterSpacing: "0.18em"
@@ -159,7 +159,7 @@ alignment claim its own FAQ contradicted. All three are gone.
 
 ### Type scale
 
-Fraunces at weight 300 for display, Inter Tight for everything else, Reem
+Gambetta at weight 400 for display, Switzer for everything else, Reem
 Kufi for the Arabic lockup and Cairo for running Arabic. Eleven steps, each
 with a job, declared as custom properties on `.page` in
 `src/features/marketing/Landing.module.css`:
@@ -173,11 +173,36 @@ with a job, declared as custom properties on `.page` in
 included 13/13.5, 14/14.5 and 15/15.5 pairs differing by half a pixel. Add a
 step only when no existing one can do the job, and add it here first.
 
-**The No-Eyebrow Rule.** At most one tracked uppercase label per three
-sections. The page currently uses exactly one.
+**The No-Eyebrow Rule.** Zero, not one. This rule used to budget "at most one
+per three sections" and claim the page used exactly one; by 2026-09-03 it was
+carrying three (`mk.how.eyebrow`, `mk.faq.eyebrow`, `mk.final.kicker`), which
+is how a budget of one ends. All three are gone, along with the decorative
+`01`-`06` numbering on the FAQ, whose order carries no information a reader
+needs. A label that restates the heading beneath it is furniture. The heading
+carries its own weight.
 
 **Zero em-dashes.** Not in headlines, labels, body, buttons or alt text. Use
-a period, a comma, or a hyphen.
+a period, a comma, or a hyphen. Six were sitting in the shipped `mk.*` copy on
+2026-09-03 (hero lede, both pricing lines, and three free-period strings) and
+are gone from English and Arabic alike.
+
+### The 2026-09-03 contrast re-measure
+
+The page read as one flat grey field and the instinct was to blame the text.
+The text was fine: ink 14.65:1, muted 4.55:1. The defect was **structural** —
+the plaster ground sat 1.12:1 from the chalk surface and the hairline 1.29:1
+from the ground, so cards, bento cells and table rules dissolved into the page.
+A card whose edge you cannot see is not a card.
+
+Every ground, surface and line hex moved; text colours barely did. Ground to
+surface is now 1.28:1, hairline on surface 1.75:1, accent on ground 6.08:1.
+All three palettes got the same treatment (firozeh, verdigris, dark) and every
+text pair clears 4.5:1 — verdigris muted and the studio's muted were both
+under the floor beforehand and are not now.
+
+**Do not widen this further.** A bigger step turns plaster-and-chalk into
+white-cards-on-grey, which is the generic SaaS ground this world exists to
+avoid. The material difference should be felt, not announced.
 
 ### Motion
 
@@ -251,7 +276,7 @@ Because `@theme` maps Tailwind's colour tokens onto the `--p-*` palette layer
 rather than onto literals, every `bg-paper`, `text-ink` and `border-line`
 already in the studio re-themed with no component changes at all.
 
-Ground `#12181a`, surface `#1a2325`, text `#e9e7e1`, lines `#2c3739`, accent
+Ground `#0d1315`, surface `#1c2629`, text `#e9e7e1`, lines `#364447`, accent
 lifted to `#4f9aa1` (Verdigris to `#5f9184`). Status colours lift too, since
 the light-mode values go muddy on a dark ground.
 
@@ -303,8 +328,8 @@ accent, which is turquoise the way it appears in tilework and dome glaze —
 *firozeh*, the stone the colour is named after — sitting on cool lime plaster.
 That contrast is the entire visual argument: a single saturated thing in a
 desaturated room reads as important without needing size, weight, or a badge to
-say so. Type reinforces it. Fraunces carries display and headline in light
-weights with a tight negative track; Inter Tight carries everything else,
+say so. Type reinforces it. Gambetta carries display and headline with a
+modest negative track; Switzer carries everything else,
 including the uppercase tracked eyebrows that used to be a separate mono face.
 One serif, one sans, no third voice.
 
@@ -317,9 +342,9 @@ through the visual vocabulary of an AI demo.
 
 **Key Characteristics:**
 
-- Matte plaster ground (`#e8e7e2`), never white
+- Matte plaster ground (`#e1dfd6`), never white
 - One rationed jewel accent; status colours deliberately separate from it
-- Fraunces light + tight tracking for display, Inter Tight for everything else
+- Gambetta + modest tracking for display, Switzer for everything else
 - Hairline borders as the primary separator; shadow reserved for hierarchy
 - Full-pill buttons, 16px cards, 10px nav items
 - Two shipped palettes, swapped on `<html data-palette>` with zero component changes
@@ -381,26 +406,41 @@ will not re-theme, and it will silently break the alternate palette.
 
 ## Typography
 
-**Display Font:** Fraunces (with Georgia, serif) — loaded as a true variable range
-`300..900` so weight can be interpolated, not stepped.
-**Body / UI / Label Font:** Inter Tight (with system sans fallback).
+**Display Font:** Gambetta (with Georgia, serif) — self-hosted variable range
+`300..700`, roman and italic, so weight can be interpolated, not stepped.
+**Body / UI / Label Font:** Switzer (with system sans fallback) — self-hosted
+variable range `100..900`, roman and italic.
+
+Both replaced their predecessors on 2026-09-03: Fraunces became Gambetta and
+Inter Tight became Switzer. Inter Tight was the generic half of the pairing,
+and the brief was explicitly to get off the face every AI-built interface
+reaches for. They are **self-hosted from `/public/fonts`** (four woff2 files,
+156KB total) rather than fetched, which took two families off the critical
+path and out of a third-party origin; the Google request that remains carries
+Reem Kufi alone. ITF Free Font License, which permits self-hosting.
+
+**The values did not carry over.** Fraunces is a wide, high-x-height soft
+serif that stays sturdy when light and needs pulling in; Gambetta is
+calligraphic with real stroke modulation. At the inherited weight 300 and
+`-0.035em` it went spindly and its terminals collided. Every serif heading is
+weight 400 now and the negative tracking is roughly halved. Re-tune before
+assuming a Fraunces-era number transfers.
 **Arabic:** Amiri — the product ships full English/Arabic with RTL.
 
-**Character:** A light, optically-sized serif set tight and large against a
-workmanlike sans. Fraunces at weight 300 with `-0.028em` tracking reads
-editorial rather than institutional; Inter Tight underneath keeps dense tables
+**Character:** A calligraphic serif set large against a workmanlike sans. Gambetta at weight 400 with `-0.016em` tracking reads
+editorial rather than institutional; Switzer underneath keeps dense tables
 and forms legible at 13–14px. There is **no mono face** — eyebrows kept their
-uppercase and 0.18em tracking but now render in Inter Tight, so the project reads
+uppercase and 0.18em tracking but now render in Switzer, so the project reads
 as one type system instead of three.
 
 ### Hierarchy
-- **Display** (Fraunces, 300, `clamp(28px, 4.2vw, 56px)`, 1.04, `-0.028em`): hero
+- **Display** (Gambetta, 400, `clamp(28px, 4.2vw, 56px)`, 1.04, `-0.016em`): hero
   and page-defining headings. `text-wrap: balance`.
-- **Headline** (Fraunces, 400, `clamp(22px, 2.6vw, 36px)`, 1.15): section
+- **Headline** (Gambetta, 400, `clamp(22px, 2.6vw, 36px)`, 1.15): section
   headings inside a screen.
-- **Title** (Inter Tight, 600, 15px): card titles, table headers, row leads.
-- **Body** (Inter Tight, 400, 14px, 1.55): all running copy and form values.
-- **Label / Eyebrow** (Inter Tight, 500, `clamp(11px, 1vw, 13px)`, `0.18em`,
+- **Title** (Switzer, 600, 15px): card titles, table headers, row leads.
+- **Body** (Switzer, 400, 14px, 1.55): all running copy and form values.
+- **Label** (Switzer, 500, `clamp(11px, 1vw, 13px)`, `0.18em`,
   uppercase): eyebrows, status pills, tags, metadata.
 
 ### Named Rules
@@ -416,7 +456,7 @@ orientation, so putting it on every small label flattens the distinction.
 
 **The Single Sans Rule.** Eyebrows are uppercase and tracked, not a different
 family. Do not reintroduce a mono or third display face; the `font-mono` utility
-deliberately resolves to Inter Tight.
+deliberately resolves to Switzer.
 
 ## Layout
 
@@ -515,7 +555,7 @@ tokenised transitions) and `.murchid-focus`.
   field treatment via `.murchid-field`, so one form never shows two ideas of focus.
 
 ### Navigation
-- **Sidebar item:** 10px radius, 13.5px Inter Tight, soft-ink label, transparent
+- **Sidebar item:** 10px radius, 13.5px Switzer, soft-ink label, transparent
   ground, staggered entrance animation (40ms per index).
 - **Active:** an 11% accent wash over chalk, accent-deep label at weight 600, an
   inset accent ring, and a soft accent glow beneath. Active state is expressed in

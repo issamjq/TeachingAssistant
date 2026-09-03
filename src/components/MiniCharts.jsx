@@ -131,7 +131,7 @@ export function DonutChart({ segments = [], height = 200, centerLabel, centerVal
         {arcs.map((a, i) => (
           <path key={i} d={a.d} fill={a.color} stroke="var(--color-paper, #f4ede0)" strokeWidth="1" />
         ))}
-        <text x={cx} y={cy - 4} textAnchor="middle" fontSize="22" fill={INK} fontFamily="Fraunces, Georgia, serif">
+        <text x={cx} y={cy - 4} textAnchor="middle" fontSize="22" fill={INK} fontFamily="var(--font-serif)">
           {centerValue ?? total}
         </text>
         {centerLabel && (

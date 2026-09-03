@@ -33,23 +33,28 @@ import {
 //   3. DECK — the 19 presentation typefaces, injected by the SlideBuilder
 //      when it mounts. See src/features/presentations/DeckFonts.tsx.
 //
-// Fraunces is requested as a true variable range (`wght@300..900`) rather
-// than the six discrete instances it used to list. Google serves discrete
-// `font-weight: 400` faces for an enumerated list and a single
-// `font-weight: 300 900` face for a range — only the latter can be
-// interpolated, which the studio's scroll-linked weight animation needs.
-// Rendering at any fixed weight is unchanged.
+// The CORE set is now one family, not three. Fraunces and Inter Tight left
+// this request entirely: they were replaced by Gambetta and Switzer, which
+// are SELF-HOSTED from /public/fonts and declared with @font-face at the top
+// of globals.css. See the block there for why.
+//
+// What that buys: this stylesheet went from three families to one, and the
+// two faces that actually set every heading and every line of body copy no
+// longer wait on a third-party origin at all. The variable-range argument
+// that governed the old Fraunces request still governs the new ones — both
+// replacements ship a real variable axis, because the studio's scroll-linked
+// weight animation can only interpolate a variable face.
 //
 // Archivo was dropped when the marketing page was rebuilt on the product's
-// own material: the site now uses the same Fraunces + Inter Tight pairing
-// the studio ships, so a third family was bytes nobody rendered.
+// own material: the site and the studio share one pairing, so a third family
+// was bytes nobody rendered.
 
 // Reem Kufi is in the core set despite being an Arabic face: the Murchid
 // lockup carries مرشد in every language, so an English visitor still needs
 // it. It is small. Amiri and Cairo — the faces that set running Arabic
 // text — stay on the Arabic path.
 const GOOGLE_FONTS_HREF =
-  "https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..900;1,9..144,300..900&family=Inter+Tight:wght@400;500;600;700&family=Reem+Kufi:wght@400;600&display=swap";
+  "https://fonts.googleapis.com/css2?family=Reem+Kufi:wght@400;600&display=swap";
 
 
 // Runs BEFORE first paint, stamping the saved palette onto <html>.
@@ -173,6 +178,36 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{ __html: PALETTE_BOOTSTRAP }}
         />
         <script dangerouslySetInnerHTML={{ __html: THEME_BOOTSTRAP }} />
+        {/* The three faces that set the first viewport, preloaded so they
+            are in flight before the CSS that references them has parsed.
+            Same origin, so there is no handshake to pay for.
+
+            Gambetta ITALIC is here and Switzer italic is not, because the
+            hero headline's accent word is italic serif and sits above the
+            fold on every visit — leaving it to swap in late means the one
+            element the whole page is built around reflows in front of the
+            visitor. Switzer italic is rare enough to load on demand. */}
+        <link
+          rel="preload"
+          as="font"
+          type="font/woff2"
+          href="/fonts/Switzer-Variable.woff2"
+          crossOrigin=""
+        />
+        <link
+          rel="preload"
+          as="font"
+          type="font/woff2"
+          href="/fonts/Gambetta-Variable.woff2"
+          crossOrigin=""
+        />
+        <link
+          rel="preload"
+          as="font"
+          type="font/woff2"
+          href="/fonts/Gambetta-VariableItalic.woff2"
+          crossOrigin=""
+        />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link
           rel="preconnect"
@@ -200,27 +235,32 @@ export default function RootLayout({
         <div
           dangerouslySetInnerHTML={{
             __html: `<!--
-MURCHID MARKETING DIRECTION CONTRACT — seed 0df4eaa5 (assigned index 4)
-THESIS: The page teaches itself the way a classroom wall teaches photosynthesis —
-one labelled diagram with numbered callouts. It refuses the category's scroll of
-feature cards, and equally refuses cream-plus-editorial-serif, its predictable opposite.
-OWN-WORLD: Saturated screenprint spot inks on chart stock — chart green #0E3B33,
-screenprint ochre #E8A33D, diagram red #D6402C, chalk #F2EFE6, firozeh #16646C.
-Heavy 3px keylines, numbered callout bubbles, dashed leader lines, laminate sheen.
-Archivo for lettering; Reem Kufi and Cairo carry Arabic. No eyebrows anywhere.
-STORY: A teacher sees a whole term's material — plans, notes, presentations, quizzes,
-exams, homework, activities — produced from one spoken brief, believes it is ready to
-teach, and starts the seven-day trial. (Revised 2026-08-11: the owner corrected the
-mechanism mid-build. Dispatch to every division is real but a SMALL feature, and now
-sits as a note beneath the outputs rather than owning a third of the diagram.)
-FIRST VIEWPORT: Full-bleed chart on green stock. A prepared Grade 9 physics TERM held
-at centre, laid out week by week; dashed leader lines out to every artefact the
-assistant hands back; callouts 01-04 naming each real step. Primary action sits as the
-chart's own printed plate, lower left.
-FORM: The laminated classroom didactic chart; candidate 4 of 7 grounded directions,
-chosen by the user over three challengers. Seed key 0df4eaa5.
-FINISH: unreviewed and undocumented is unfinished; this build ends with the finish
-review, the verdict, and DESIGN.md
+MURCHID — MARKETING DIRECTION, as shipped.
+SUPERSEDES: the "seed 0df4eaa5 / assigned index 4" wall-chart contract that stood
+here until 2026-09-03. That direction — saturated screenprint spot inks on chart
+stock, chart green #0E3B33, ochre #E8A33D, diagram red #D6402C, heavy keylines,
+numbered callouts — was chosen on 2026-08-11, BUILT, and then deliberately deleted
+in the same cycle. Recorded in DESIGN.md: "the result was that the site and the
+product looked like two different companies, and every real product screenshot
+landed on the page as a foreign object." Those five hexes survived only in this
+comment and appeared nowhere else in the repo, which made the page look like it
+had drifted from its own brief when in fact the brief was the stale artifact.
+.impeccable/surfaces/app-marketing-page-tsx.md still describes the deleted world
+and should be read as history, not as instruction.
+THESIS: the marketing site is built out of the PRODUCT'S OWN material. Plaster
+ground, chalk surfaces, firozeh accent rationed to roughly one primary action per
+screen, Gambetta display over Switzer text — the same tokens the studio ships,
+so a real screenshot is design material rather than a foreign object.
+STORY: A teacher sees a whole term's material — plans, notes, presentations,
+quizzes, exams, homework, activities — produced from one spoken brief, believes
+it is ready to teach, and starts the trial.
+FIRST VIEWPORT: asymmetric split. The headline arrives word by word; the real
+dashboard settles beside it with the library overlapping behind, three pills
+captioning the interface they sit on. No pin — the hero releases immediately.
+EVIDENCE: every screenshot is a real capture of the running studio holding the
+seeded demonstration term. A product preview built out of styled divs is
+forbidden. No testimonial, logo, statistic or endorsement that the owner has not
+supplied verbatim.
 -->`,
           }}
         />

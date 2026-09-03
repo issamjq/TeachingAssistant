@@ -37,7 +37,7 @@ html { scroll-behavior: smooth; }
   --line:        var(--p-line-soft);
   --line-strong: var(--p-line-strong);
 
-  font-family: 'Inter Tight', system-ui, sans-serif;
+  font-family: var(--font-sans);
   background: var(--paper);
   color: var(--ink);
   font-feature-settings: 'cv11', 'ss01', 'ss03';
@@ -53,7 +53,7 @@ html { scroll-behavior: smooth; }
 }
 
 .murchid-landing .font-display {
-  font-family: 'Fraunces', Georgia, serif;
+  font-family: var(--font-serif);
   font-optical-sizing: auto;
   letter-spacing: -0.02em;
 }
@@ -186,7 +186,7 @@ html { scroll-behavior: smooth; }
 .murchid-landing .dot { width: 10px; height: 10px; border-radius: 50%; }
 
 .murchid-landing .ui-tab {
-  font-family: 'Inter Tight', sans-serif;
+  font-family: var(--font-sans);
   font-size: 13px;
   color: var(--ink-2);
   padding: 6px 12px;
@@ -435,7 +435,7 @@ html { scroll-behavior: smooth; }
 }
 
 .cinema-eyebrow {
-  font-family: 'Inter Tight', system-ui, sans-serif;
+  font-family: var(--font-sans);
   font-size: clamp(11px, 1.1vw, 13px);
   font-weight: 500;
   letter-spacing: 0.16em;
@@ -459,7 +459,7 @@ html { scroll-behavior: smooth; }
   margin-block: clamp(20px, 4vh, 60px);
 }
 .cinema-word {
-  font-family: 'Fraunces', Georgia, serif;
+  font-family: var(--font-serif);
   font-weight: 300;
   font-optical-sizing: auto;
   font-variation-settings: 'opsz' 144, 'SOFT' 60;
@@ -477,13 +477,13 @@ html { scroll-behavior: smooth; }
   padding-inline: 0.04em;
 }
 .cinema-word--ar {
-  font-family: 'Amiri', 'Fraunces', serif;
+  font-family: 'Amiri', 'Gambetta', Georgia, serif;
   font-weight: 400;
   font-size: clamp(80px, 22vw, 360px);
   letter-spacing: 0;
 }
 .cinema-word-alt {
-  font-family: 'Inter Tight', system-ui, sans-serif;
+  font-family: var(--font-sans);
   font-size: clamp(12px, 1vw, 14px);
   letter-spacing: 0.32em;
   text-transform: uppercase;
@@ -493,7 +493,7 @@ html { scroll-behavior: smooth; }
 }
 
 .cinema-lede {
-  font-family: 'Fraunces', Georgia, serif;
+  font-family: var(--font-serif);
   font-weight: 300;
   font-size: clamp(20px, 2.6vw, 36px);
   line-height: 1.18;
@@ -526,7 +526,7 @@ html { scroll-behavior: smooth; }
   border: none;
   padding: 14px 28px;
   border-radius: 999px;
-  font-family: 'Inter Tight', system-ui, sans-serif;
+  font-family: var(--font-sans);
   font-weight: 500;
   font-size: clamp(14px, 1.1vw, 16px);
   letter-spacing: -0.005em;
@@ -548,7 +548,7 @@ html { scroll-behavior: smooth; }
   border: 1px solid oklch(0.95 0.03 210/ 0.3);
   padding: 14px 24px;
   border-radius: 999px;
-  font-family: 'Inter Tight', system-ui, sans-serif;
+  font-family: var(--font-sans);
   font-weight: 500;
   font-size: clamp(14px, 1.1vw, 16px);
   cursor: pointer;
@@ -566,7 +566,7 @@ html { scroll-behavior: smooth; }
   place-items: center;
   gap: 10px;
   color: oklch(0.95 0.03 210/ 0.6);
-  font-family: 'Inter Tight', system-ui, sans-serif;
+  font-family: var(--font-sans);
   font-size: 11px;
   letter-spacing: 0.24em;
   text-transform: uppercase;
@@ -629,7 +629,7 @@ html { scroll-behavior: smooth; }
   margin: 0 auto;
 }
 .manifest-kicker {
-  font-family: 'Inter Tight', system-ui, sans-serif;
+  font-family: var(--font-sans);
   font-size: 12px;
   letter-spacing: 0.18em;
   text-transform: uppercase;
@@ -645,7 +645,7 @@ html { scroll-behavior: smooth; }
   width: 24px; height: 1px; background: currentColor;
 }
 .manifest-body {
-  font-family: 'Fraunces', Georgia, serif;
+  font-family: var(--font-serif);
   font-weight: 300;
   font-size: clamp(28px, 4.5vw, 72px);
   line-height: 1.1;
@@ -684,7 +684,7 @@ html { scroll-behavior: smooth; }
   flex: 0 1 auto;
 }
 .manifest-stat-n {
-  font-family: 'Fraunces', Georgia, serif;
+  font-family: var(--font-serif);
   font-weight: 300;
   font-size: clamp(40px, 5vw, 64px);
   line-height: 1;
@@ -693,7 +693,7 @@ html { scroll-behavior: smooth; }
 }
 .manifest-stat-n em { font-style: italic; }
 .manifest-stat-l {
-  font-family: 'Inter Tight', system-ui, sans-serif;
+  font-family: var(--font-sans);
   font-size: 13px;
   color: var(--cm-ink-2);
   margin-block-start: 6px;
@@ -726,7 +726,7 @@ html { scroll-behavior: smooth; }
   .stage-head { grid-template-columns: 1fr; }
 }
 .stage-h1 {
-  font-family: 'Fraunces', Georgia, serif;
+  font-family: var(--font-serif);
   font-weight: 300;
   font-size: clamp(36px, 5.5vw, 80px);
   line-height: 1.0;
@@ -736,7 +736,7 @@ html { scroll-behavior: smooth; }
 }
 .stage-h1 em { font-style: italic; color: var(--cm-clay-d); }
 .stage-h1-sub {
-  font-family: 'Inter Tight', system-ui, sans-serif;
+  font-family: var(--font-sans);
   font-size: clamp(15px, 1.2vw, 17px);
   line-height: 1.55;
   color: var(--cm-ink-2);
@@ -779,7 +779,7 @@ html { scroll-behavior: smooth; }
 .stage-dot:nth-child(3) { background: oklch(0.72 0.12 175); }
 .stage-frame-title {
   margin-inline-start: 14px;
-  font-family: 'Fraunces', Georgia, serif;
+  font-family: var(--font-serif);
   font-size: 13px;
   font-style: italic;
   color: var(--cm-ink-2);
@@ -807,7 +807,7 @@ html { scroll-behavior: smooth; }
   display: flex; align-items: center; gap: 10px;
   padding: 10px 12px;
   border-radius: 10px;
-  font-family: 'Inter Tight', system-ui, sans-serif;
+  font-family: var(--font-sans);
   font-size: 13px;
   color: var(--cm-ink-2);
   transition: background 200ms var(--easeOutE);
@@ -840,7 +840,7 @@ html { scroll-behavior: smooth; }
   transition-delay: calc(var(--i, 0) * 140ms + 200ms);
 }
 .stage-card-eyebrow {
-  font-family: 'Inter Tight', system-ui, sans-serif;
+  font-family: var(--font-sans);
   font-size: 11px;
   letter-spacing: 0.16em;
   text-transform: uppercase;
@@ -849,7 +849,7 @@ html { scroll-behavior: smooth; }
   margin-block-end: 10px;
 }
 .stage-card-h {
-  font-family: 'Fraunces', Georgia, serif;
+  font-family: var(--font-serif);
   font-weight: 400;
   font-size: clamp(20px, 2vw, 26px);
   line-height: 1.15;
@@ -859,7 +859,7 @@ html { scroll-behavior: smooth; }
 .stage-card-h em { font-style: italic; color: var(--cm-clay-d); }
 .stage-card-meta {
   display: flex; gap: 12px; flex-wrap: wrap;
-  font-family: 'Inter Tight', system-ui, sans-serif;
+  font-family: var(--font-sans);
   font-size: 12px;
   color: var(--cm-ink-3);
 }
@@ -903,7 +903,7 @@ html { scroll-behavior: smooth; }
   margin-block-end: clamp(48px, 8vh, 80px);
 }
 .lineup-h1 {
-  font-family: 'Fraunces', Georgia, serif;
+  font-family: var(--font-serif);
   font-weight: 300;
   font-size: clamp(36px, 5.5vw, 80px);
   line-height: 1.0;
@@ -920,7 +920,7 @@ html { scroll-behavior: smooth; }
   color: transparent;
 }
 .lineup-sub {
-  font-family: 'Inter Tight', system-ui, sans-serif;
+  font-family: var(--font-sans);
   font-size: clamp(15px, 1.2vw, 17px);
   line-height: 1.55;
   color: var(--cm-ink-2);
@@ -1000,7 +1000,7 @@ html { scroll-behavior: smooth; }
   gap: 12px;
 }
 .lineup-tile-name {
-  font-family: 'Fraunces', Georgia, serif;
+  font-family: var(--font-serif);
   font-weight: 400;
   font-size: clamp(22px, 2vw, 28px);
   line-height: 1.15;
@@ -1009,7 +1009,7 @@ html { scroll-behavior: smooth; }
 }
 .lineup-tile-name em { font-style: italic; color: var(--cm-clay-d); }
 .lineup-tile-desc {
-  font-family: 'Inter Tight', system-ui, sans-serif;
+  font-family: var(--font-sans);
   font-size: 13px;
   color: var(--cm-ink-2);
   margin-block-start: 6px;
@@ -1061,7 +1061,7 @@ html { scroll-behavior: smooth; }
   margin-block-end: clamp(40px, 7vh, 64px);
 }
 .voices-h1 {
-  font-family: 'Fraunces', Georgia, serif;
+  font-family: var(--font-serif);
   font-weight: 300;
   font-size: clamp(36px, 5.5vw, 80px);
   line-height: 1.0;
@@ -1071,7 +1071,7 @@ html { scroll-behavior: smooth; }
 }
 .voices-h1 em { font-style: italic; color: oklch(0.86 0.035 200); }
 .voices-sub {
-  font-family: 'Inter Tight', system-ui, sans-serif;
+  font-family: var(--font-sans);
   font-size: clamp(15px, 1.2vw, 17px);
   line-height: 1.55;
   color: oklch(0.95 0.03 210/ 0.7);
@@ -1124,7 +1124,7 @@ html { scroll-behavior: smooth; }
   transform: translateY(-2px);
 }
 .voices-quote {
-  font-family: 'Fraunces', Georgia, serif;
+  font-family: var(--font-serif);
   font-style: italic;
   font-size: 16px;
   line-height: 1.45;
@@ -1132,7 +1132,7 @@ html { scroll-behavior: smooth; }
 }
 .voices-meta {
   display: flex; align-items: center; gap: 10px;
-  font-family: 'Inter Tight', system-ui, sans-serif;
+  font-family: var(--font-sans);
   font-size: 12px;
   color: oklch(0.95 0.03 210/ 0.7);
 }
@@ -1180,7 +1180,7 @@ html { scroll-behavior: smooth; }
 .plans-shell { width: 100%; max-width: 1200px; margin: 0 auto; }
 .plans-head { text-align: center; margin-block-end: clamp(48px, 7vh, 72px); }
 .plans-h1 {
-  font-family: 'Fraunces', Georgia, serif;
+  font-family: var(--font-serif);
   font-weight: 300;
   font-size: clamp(36px, 5.5vw, 72px);
   line-height: 1.0;
@@ -1190,7 +1190,7 @@ html { scroll-behavior: smooth; }
 }
 .plans-h1 em { font-style: italic; color: var(--cm-clay-d); }
 .plans-sub {
-  font-family: 'Inter Tight', system-ui, sans-serif;
+  font-family: var(--font-sans);
   font-size: clamp(15px, 1.2vw, 17px);
   color: var(--cm-ink-2);
   max-width: 42ch;
@@ -1229,7 +1229,7 @@ html { scroll-behavior: smooth; }
 }
 .plans-trial:hover { transform: translateY(-2px); box-shadow: 0 22px 44px -16px rgba(26, 24, 20, 0.55); }
 .plans-trial-text { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
-.plans-trial-title { font-family: 'Fraunces', Georgia, serif; font-size: clamp(17px, 2vw, 22px); line-height: 1.15; }
+.plans-trial-title { font-family: var(--font-serif); font-size: clamp(17px, 2vw, 22px); line-height: 1.15; }
 .plans-trial-note { font-size: 12.5px; opacity: 0.72; }
 .plans-trial-cta {
   flex-shrink: 0;
@@ -1277,14 +1277,14 @@ html { scroll-behavior: smooth; }
   color: oklch(0.2 0.05 197);
   padding: 4px 12px;
   border-radius: 999px;
-  font-family: 'Inter Tight', system-ui, sans-serif;
+  font-family: var(--font-sans);
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 .plans-name {
-  font-family: 'Inter Tight', system-ui, sans-serif;
+  font-family: var(--font-sans);
   font-size: 13px;
   font-weight: 500;
   letter-spacing: 0.14em;
@@ -1294,7 +1294,7 @@ html { scroll-behavior: smooth; }
 .plans-card.featured .plans-name { color: oklch(0.86 0.035 200); }
 .plans-price {
   display: flex; align-items: baseline; gap: 8px;
-  font-family: 'Fraunces', Georgia, serif;
+  font-family: var(--font-serif);
 }
 .plans-price-n {
   font-weight: 300;
@@ -1303,13 +1303,13 @@ html { scroll-behavior: smooth; }
   letter-spacing: -0.04em;
 }
 .plans-price-c {
-  font-family: 'Inter Tight', system-ui, sans-serif;
+  font-family: var(--font-sans);
   font-size: 14px;
   color: var(--cm-ink-2);
 }
 .plans-card.featured .plans-price-c { color: oklch(0.95 0.03 210/ 0.7); }
 .plans-bill {
-  font-family: 'Inter Tight', system-ui, sans-serif;
+  font-family: var(--font-sans);
   font-size: 13px;
   color: var(--cm-ink-2);
 }
@@ -1321,7 +1321,7 @@ html { scroll-behavior: smooth; }
   background: var(--cm-ink);
   color: var(--cm-cream);
   border: none;
-  font-family: 'Inter Tight', system-ui, sans-serif;
+  font-family: var(--font-sans);
   font-weight: 500;
   font-size: 14px;
   cursor: pointer;
@@ -1405,7 +1405,7 @@ html { scroll-behavior: smooth; }
   z-index: 1;
 }
 .final-kicker {
-  font-family: 'Inter Tight', system-ui, sans-serif;
+  font-family: var(--font-sans);
   font-size: 12px;
   letter-spacing: 0.18em;
   text-transform: uppercase;
@@ -1421,7 +1421,7 @@ html { scroll-behavior: smooth; }
   content: ''; width: 24px; height: 1px; background: currentColor; opacity: 0.5;
 }
 .final-q {
-  font-family: 'Fraunces', Georgia, serif;
+  font-family: var(--font-serif);
   font-weight: 200;
   font-size: clamp(48px, 8vw, 132px);
   line-height: 0.96;
@@ -1431,7 +1431,7 @@ html { scroll-behavior: smooth; }
 }
 .final-q em { font-style: italic; color: oklch(0.88 0.035 200); }
 .final-sub {
-  font-family: 'Fraunces', Georgia, serif;
+  font-family: var(--font-serif);
   font-weight: 300;
   font-style: italic;
   font-size: clamp(18px, 1.8vw, 24px);
@@ -1540,7 +1540,7 @@ html { scroll-behavior: smooth; }
 .atl-watermark {
   position: absolute; z-index: 0; top: 50%; left: 50%;
   transform: translate(-50%, -46%);
-  font-family: 'Amiri', 'Fraunces', serif; font-weight: 400;
+  font-family: 'Amiri', 'Gambetta', Georgia, serif; font-weight: 400;
   /* Fixed design size — the lockup is uniformly scaled by `k` in JS to fit
      any width, so the type itself must NOT also shrink with vw (that would
      double-scale and break the proportions). */
@@ -1553,7 +1553,7 @@ html { scroll-behavior: smooth; }
    foreground). Latin is far wider than مرشد, so use Fraunces + a smaller size
    so the whole word reads as a backdrop instead of overflowing. */
 .atl-watermark--latin {
-  font-family: 'Fraunces', Georgia, serif;
+  font-family: var(--font-serif);
   font-size: 250px; letter-spacing: -0.04em;
 }
 .atl-watermark--m.atl-watermark--latin {
@@ -1561,7 +1561,7 @@ html { scroll-behavior: smooth; }
 }
 .atl-word {
   position: relative; z-index: 1; margin: 0;
-  font-family: 'Fraunces', Georgia, serif; font-weight: 300;
+  font-family: var(--font-serif); font-weight: 300;
   font-optical-sizing: auto;
   font-variation-settings: 'opsz' 144, 'SOFT' 60;
   font-size: 200px;
@@ -1574,7 +1574,7 @@ html { scroll-behavior: smooth; }
   color: oklch(0.86 0.035 200); padding-inline: 0.02em;
 }
 .atl-word--ar {
-  font-family: 'Amiri', 'Fraunces', serif; font-weight: 400;
+  font-family: 'Amiri', 'Gambetta', Georgia, serif; font-weight: 400;
   font-size: 190px; letter-spacing: 0;
   /* Amiri runs taller and deeper than the Latin Fraunces. Keep a roomy
      line-height so the glyphs never overlap the meaning line beneath, but
@@ -1592,7 +1592,7 @@ html { scroll-behavior: smooth; }
 }
 .atl-tagline {
   position: relative; z-index: 1;
-  font-family: 'Fraunces', Georgia, serif; font-weight: 300;
+  font-family: var(--font-serif); font-weight: 300;
   font-size: 38px; line-height: 1.12;
   letter-spacing: -0.02em; color: oklch(0.97 0.025 210);
   max-width: 22ch; text-wrap: balance;
@@ -1614,7 +1614,7 @@ html { scroll-behavior: smooth; }
   background: var(--cm-cream); color: var(--cm-clay-dd); border: none;
   padding: 14px 30px; border-radius: 999px; cursor: pointer;
   position: relative; isolation: isolate;
-  font-family: 'Inter Tight', system-ui, sans-serif; font-weight: 500;
+  font-family: var(--font-sans); font-weight: 500;
   font-size: clamp(14px, 1.05vw, 16px); letter-spacing: -0.005em;
   box-shadow: 0 1px 2px oklch(0.18 0.05 197/ 0.18), 0 14px 34px oklch(0.18 0.05 197/ 0.3);
   transition: transform 0.5s var(--easeOutE), box-shadow 0.5s var(--easeOutE);
@@ -1697,7 +1697,7 @@ html { scroll-behavior: smooth; }
   text-transform: uppercase; color: oklch(0.86 0.035 200);
 }
 .atl-index-title {
-  font-family: 'Fraunces', Georgia, serif; font-weight: 300;
+  font-family: var(--font-serif); font-weight: 300;
   font-size: 68px; line-height: 1.04;
   letter-spacing: -0.025em; color: var(--cm-cream); margin: 0;
 }
@@ -1724,7 +1724,7 @@ html { scroll-behavior: smooth; }
   display: flex; flex-direction: column; align-items: center; gap: 3px;
 }
 .atl-toc-num {
-  font-family: 'Fraunces', Georgia, serif; font-style: italic;
+  font-family: var(--font-serif); font-style: italic;
   font-size: calc(28px * var(--toc-k, 1)); color: oklch(0.86 0.035 200); line-height: 1;
 }
 .atl-toc-label {
@@ -1734,7 +1734,7 @@ html { scroll-behavior: smooth; }
 }
 .atl-toc-desc {
   margin-block-start: 3px;
-  font-family: 'Inter Tight', system-ui, sans-serif;
+  font-family: var(--font-sans);
   font-size: calc(12.5px * var(--toc-k, 1)); line-height: 1.4; text-align: center;
   color: oklch(0.95 0.03 210/ 0.62);
   /* One line, no wrap — copy is kept short so it never collides with the
@@ -1814,11 +1814,11 @@ html { scroll-behavior: smooth; }
 .nav-brand { display: inline-flex; align-items: center; gap: 10px; }
 .nav-mark {
   display: grid; place-items: center; width: 30px; height: 30px;
-  border-radius: 9px; font-family: 'Fraunces', Georgia, serif;
+  border-radius: 9px; font-family: var(--font-serif);
   font-size: 17px; line-height: 1;
 }
 .nav-wordmark {
-  font-family: 'Fraunces', Georgia, serif; font-weight: 400;
+  font-family: var(--font-serif); font-weight: 400;
   font-size: 21px; letter-spacing: -0.01em;
 }
 .nav-link {
@@ -1846,7 +1846,7 @@ html { scroll-behavior: smooth; }
 .nav-cta {
   display: inline-flex; align-items: center; gap: 8px;
   padding: 14px 22px; border-radius: 999px; border: none; cursor: pointer;
-  font-family: 'Inter Tight', system-ui, sans-serif; font-weight: 500;
+  font-family: var(--font-sans); font-weight: 500;
   font-size: 14px; letter-spacing: -0.005em;
   box-shadow: 0 1px 2px oklch(0.18 0.05 197/ 0.16), 0 10px 26px oklch(0.18 0.05 197/ 0.22);
   transition: transform 0.5s var(--easeOutE), box-shadow 0.5s var(--easeOutE);
@@ -1875,13 +1875,13 @@ html { scroll-behavior: smooth; }
   to   { opacity: 1; transform: translateY(0); }
 }
 .nav-profile-name {
-  font-family: 'Inter Tight', system-ui, sans-serif; font-weight: 600; font-size: 13px;
+  font-family: var(--font-sans); font-weight: 600; font-size: 13px;
   color: var(--ink); padding: 8px 10px; border-bottom: 1px solid var(--line); margin-bottom: 4px;
 }
 .nav-profile-item {
   width: 100%; display: flex; align-items: center; gap: 10px;
   padding: 9px 10px; border-radius: 9px; border: none; background: transparent;
-  font-family: 'Inter Tight', system-ui, sans-serif; font-size: 13.5px; color: var(--ink);
+  font-family: var(--font-sans); font-size: 13.5px; color: var(--ink);
   cursor: pointer; text-align: start;
   transition: background 0.18s var(--easeOutE);
 }
@@ -1977,7 +1977,7 @@ html { scroll-behavior: smooth; }
 }
 .film-eyebrow::before { content: ''; width: 24px; height: 1px; background: currentColor; opacity: 0.6; }
 .film-title {
-  font-family: 'Fraunces', Georgia, serif; font-weight: 300;
+  font-family: var(--font-serif); font-weight: 300;
   font-size: clamp(30px, 4vw, 50px); line-height: 1.04; letter-spacing: -0.03em;
   margin: 10px 0 0;
 }
@@ -1995,7 +1995,7 @@ html { scroll-behavior: smooth; }
   animation: film-caret 1s steps(1) infinite;
 }
 .film-sub {
-  font-family: 'Inter Tight', system-ui, sans-serif; font-size: clamp(14px, 1.1vw, 16px);
+  font-family: var(--font-sans); font-size: clamp(14px, 1.1vw, 16px);
   line-height: 1.5; color: var(--cm-ink-2); max-width: 46ch; margin: 10px auto 0;
 }
 
@@ -2038,7 +2038,7 @@ html { scroll-behavior: smooth; }
   padding-block-end: clamp(12px, 1.6vh, 18px); border-block-end: 1px solid oklch(0.18 0.03 210/ 0.1);
 }
 .film-prompt-label {
-  font-family: 'Inter Tight', system-ui, sans-serif; font-size: clamp(15px, 1.4vw, 19px);
+  font-family: var(--font-sans); font-size: clamp(15px, 1.4vw, 19px);
   font-weight: 500; color: var(--cm-ink);
 }
 .film-caret { width: 2px; height: 1.1em; background: var(--cm-clay-d); animation: film-caret 1s steps(1) infinite; }
@@ -2060,7 +2060,7 @@ html { scroll-behavior: smooth; }
 .film-chip {
   display: inline-flex; align-items: center; gap: 8px; padding: 7px 14px; border-radius: 999px;
   background: var(--cm-cream-2); border: 1px solid oklch(0.18 0.03 210/ 0.1);
-  font-family: 'Inter Tight', system-ui, sans-serif; font-size: 12.5px; color: var(--cm-ink-2);
+  font-family: var(--font-sans); font-size: 12.5px; color: var(--cm-ink-2);
   opacity: 0.35; animation: film-chip-cycle 7s ease-in-out infinite; animation-delay: calc(var(--i) * 0.5s);
 }
 .film-check {
@@ -2094,7 +2094,7 @@ html { scroll-behavior: smooth; }
 .film-result { gap: clamp(8px, 1.2vh, 13px); }
 .film-compose-head {
   margin: 0;
-  font-family: 'Fraunces', Georgia, serif; font-weight: 300;
+  font-family: var(--font-serif); font-weight: 300;
   font-size: clamp(19px, 2.3vw, 30px); line-height: 1.25; letter-spacing: -0.015em;
   color: var(--cm-ink);
 }
@@ -2102,7 +2102,7 @@ html { scroll-behavior: smooth; }
   display: inline-flex; align-items: center; gap: 7px; vertical-align: middle;
   padding: 2px 12px; border-radius: 10px;
   background: var(--cm-ink); color: var(--cm-cream);
-  font-family: 'Inter Tight', system-ui, sans-serif; font-weight: 600; font-size: 0.66em;
+  font-family: var(--font-sans); font-weight: 600; font-size: 0.66em;
 }
 .film-promptbox {
   flex: 1 1 auto; min-height: 0;
@@ -2112,7 +2112,7 @@ html { scroll-behavior: smooth; }
 }
 .film-prompttext {
   flex: 1 1 auto; margin: 0;
-  font-family: 'Inter Tight', system-ui, sans-serif;
+  font-family: var(--font-sans);
   font-size: clamp(14px, 1.45vw, 18px); line-height: 1.5; color: var(--cm-ink);
 }
 .film-prompttext .film-caret { display: inline-block; vertical-align: text-bottom; margin-inline-start: 2px; }
@@ -2120,16 +2120,16 @@ html { scroll-behavior: smooth; }
 .film-oneliner {
   display: inline-flex; align-items: center; padding: 6px 13px; border-radius: 999px;
   background: var(--cm-cream-2); border: 1px solid oklch(0.18 0.03 210/ 0.12);
-  font-family: 'Inter Tight', system-ui, sans-serif; font-size: 12px; color: var(--cm-ink-2);
+  font-family: var(--font-sans); font-size: 12px; color: var(--cm-ink-2);
 }
 .film-willfill {
-  font-family: 'Fraunces', Georgia, serif; font-style: italic;
+  font-family: var(--font-serif); font-style: italic;
   font-size: 13px; color: var(--cm-ink-3); margin-inline-start: auto;
 }
 .film-makeit {
   display: inline-flex; align-items: center; gap: 8px; padding: 9px 18px; border-radius: 999px;
   background: oklch(0.86 0.035 200/ 0.18); border: 1px solid oklch(0.62 0.13 197/ 0.5);
-  color: var(--cm-clay-d); font-family: 'Inter Tight', system-ui, sans-serif;
+  color: var(--cm-clay-d); font-family: var(--font-sans);
   font-weight: 600; font-size: 13px; cursor: pointer;
 }
 /* Mobile/tablet — the studio "video" mockup. The screen stays ONE fixed
@@ -2190,22 +2190,22 @@ html { scroll-behavior: smooth; }
   font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.04em; color: var(--cm-clay-d);
 }
 .film-result-text {
-  font-family: 'Inter Tight', system-ui, sans-serif; font-size: clamp(13px, 1.2vw, 15.5px);
+  font-family: var(--font-sans); font-size: clamp(13px, 1.2vw, 15.5px);
   color: var(--cm-ink); line-height: 1.4;
 }
 /* Lesson result — a lesson-plan doc: title + chips + objective + agenda. */
 .film-lp-top { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
 .film-lp-title {
-  font-family: 'Fraunces', Georgia, serif; font-weight: 300;
+  font-family: var(--font-serif); font-weight: 300;
   font-size: clamp(20px, 2.3vw, 30px); line-height: 1; color: var(--cm-ink);
 }
 .film-lp-chip {
-  font-family: 'Inter Tight', system-ui, sans-serif; font-size: 11.5px;
+  font-family: var(--font-sans); font-size: 11.5px;
   padding: 3px 11px; border-radius: 999px; color: var(--cm-ink-2);
   background: var(--cm-cream-2); border: 1px solid oklch(0.18 0.03 210/ 0.12);
 }
 .film-lp-obj {
-  font-family: 'Inter Tight', system-ui, sans-serif; font-size: clamp(12.5px, 1.1vw, 14px);
+  font-family: var(--font-sans); font-size: clamp(12.5px, 1.1vw, 14px);
   color: var(--cm-ink-2);
 }
 /* Quiz result — questions with answer options (correct one highlighted). */
@@ -2222,7 +2222,7 @@ html { scroll-behavior: smooth; }
 }
 .film-qz-text {
   flex: 1 1 auto;
-  font-family: 'Inter Tight', system-ui, sans-serif; font-size: clamp(13px, 1.2vw, 15.5px);
+  font-family: var(--font-sans); font-size: clamp(13px, 1.2vw, 15.5px);
   color: var(--cm-ink); line-height: 1.35;
 }
 .film-qz-badge {
@@ -2232,7 +2232,7 @@ html { scroll-behavior: smooth; }
 }
 .film-qz-opts { display: flex; flex-wrap: wrap; gap: 7px; padding-inline-start: 36px; }
 .film-qz-opt {
-  font-family: 'Inter Tight', system-ui, sans-serif; font-size: 12px;
+  font-family: var(--font-sans); font-size: 12px;
   padding: 4px 12px; border-radius: 999px; color: var(--cm-ink-2);
   background: var(--cm-cream-2); border: 1px solid oklch(0.18 0.03 210/ 0.12);
 }
@@ -2243,7 +2243,7 @@ html { scroll-behavior: smooth; }
 /* Homework result — a worksheet: title + due, numbered tasks, assignment footer. */
 .film-hw-top { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
 .film-hw-title {
-  font-family: 'Fraunces', Georgia, serif; font-weight: 300;
+  font-family: var(--font-serif); font-weight: 300;
   font-size: clamp(20px, 2.3vw, 30px); line-height: 1; color: var(--cm-ink);
 }
 .film-hw-due {
@@ -2273,7 +2273,7 @@ html { scroll-behavior: smooth; }
   color: oklch(0.2 0.04 197/ 0.5);
 }
 .film-deck-slide-title {
-  font-family: 'Fraunces', Georgia, serif; font-weight: 300;
+  font-family: var(--font-serif); font-weight: 300;
   font-size: clamp(20px, 2.6vw, 34px); line-height: 1.1; color: oklch(0.2 0.05 197);
 }
 .film-deck-slide-art {
@@ -2329,7 +2329,7 @@ html { scroll-behavior: smooth; }
 .film-tab {
   display: inline-flex; align-items: center; gap: 7px; padding: 7px 14px; border-radius: 999px;
   background: var(--cm-cream-2); border: 1px solid oklch(0.18 0.03 210/ 0.12);
-  font-family: 'Inter Tight', system-ui, sans-serif; font-size: 12.5px; font-weight: 500;
+  font-family: var(--font-sans); font-size: 12.5px; font-weight: 500;
   color: var(--cm-ink-2); cursor: pointer; opacity: 0.55;
   transition: opacity 0.3s var(--easeOutE), background 0.3s var(--easeOutE),
     border-color 0.3s var(--easeOutE), color 0.3s var(--easeOutE);
@@ -2355,7 +2355,7 @@ html { scroll-behavior: smooth; }
   letter-spacing: 0.08em; text-transform: uppercase; color: var(--cm-clay-d);
 }
 .film-draft-text {
-  font-family: 'Inter Tight', system-ui, sans-serif; font-size: clamp(13px, 1.1vw, 15px);
+  font-family: var(--font-sans); font-size: clamp(13px, 1.1vw, 15px);
   color: var(--cm-ink); line-height: 1.4;
 }
 @keyframes film-draft-cycle {
@@ -2557,7 +2557,7 @@ body.lp-menu-open [data-a11y-node="reset-chip"] { display: none !important; }
   color: var(--cm-clay-d, #367683); flex-shrink: 0; width: 1.8em;
 }
 .lp-menu-label {
-  flex: 1 1 auto; font-family: 'Fraunces', Georgia, serif; font-weight: 400;
+  flex: 1 1 auto; font-family: var(--font-serif); font-weight: 400;
   font-size: clamp(30px, 8.4vw, 46px); line-height: 1.02; letter-spacing: -0.02em;
 }
 .lp-menu-chev {
@@ -2580,14 +2580,14 @@ body.lp-menu-open [data-a11y-node="reset-chip"] { display: none !important; }
 }
 .lp-menu-signin {
   align-self: center; padding: 6px 4px; cursor: pointer; background: transparent; border: 0;
-  font-family: 'Inter Tight', system-ui, sans-serif; font-size: 15px; font-weight: 500;
+  font-family: var(--font-sans); font-size: 15px; font-weight: 500;
   color: var(--cm-ink-2, #4A686E); text-decoration: underline; text-underline-offset: 4px;
 }
 .lp-menu-cta {
   display: inline-flex; align-items: center; justify-content: center; gap: 9px;
   width: 100%; padding: 17px 24px; border-radius: 16px; border: 0; cursor: pointer;
   background: var(--cm-ink, #17272A); color: var(--cm-cream, #ECF5F7);
-  font-family: 'Inter Tight', system-ui, sans-serif; font-size: 16px; font-weight: 600;
+  font-family: var(--font-sans); font-size: 16px; font-weight: 600;
   box-shadow: 0 16px 34px -16px oklch(0.18 0.05 197/ 0.55);
   transition: transform 260ms var(--easeOutE), box-shadow 260ms var(--easeOutE);
 }
@@ -3036,7 +3036,7 @@ body.lp-menu-open [data-a11y-node="reset-chip"] { display: none !important; }
 /* Trust line under the CTAs — the first screen had no reassurance at all. */
 .atl-trust {
   margin-block-start: 16px;
-  font-family: 'Inter Tight', system-ui, sans-serif;
+  font-family: var(--font-sans);
   font-size: 12.5px;
   letter-spacing: 0.01em;
   color: oklch(0.96 0.02 200 / 0.62);
@@ -3224,7 +3224,7 @@ body.lp-menu-open [data-a11y-node="reset-chip"] { display: none !important; }
   transform: scaleY(var(--row, 1));
 }
 .atl-mnum {
-  font-family: 'Fraunces', Georgia, serif;
+  font-family: var(--font-serif);
   font-style: italic;
   font-size: 19px;
   line-height: 1;
@@ -3238,7 +3238,7 @@ body.lp-menu-open [data-a11y-node="reset-chip"] { display: none !important; }
   color: var(--cm-cream, #f2f7f8);
 }
 .atl-mdesc {
-  font-family: 'Inter Tight', system-ui, sans-serif;
+  font-family: var(--font-sans);
   font-size: 11.5px;
   color: oklch(0.96 0.02 200 / 0.62);
   text-align: end;

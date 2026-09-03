@@ -78,7 +78,7 @@
 .dark .eyebrow { color: var(--cm-on-drench, #b6dbe2); }
 
 .title {
-  font-family: 'Fraunces', Georgia, serif;
+  font-family: var(--font-serif);
   font-weight: 400;
   font-size: 21px;
   line-height: 1.14;
@@ -94,7 +94,7 @@
 
 .foot {
   margin-block-start: auto;
-  font-family: 'Inter Tight', system-ui, sans-serif;
+  font-family: var(--font-sans);
   font-size: 10px;
   letter-spacing: 0.01em;
   padding-block-start: 12px;
@@ -120,7 +120,7 @@
    the height the way a headline does and keeps the editorial voice. */
 .statRow { display: flex; align-items: baseline; gap: 10px; margin-block-start: 4px; }
 .statN {
-  font-family: 'Fraunces', Georgia, serif;
+  font-family: var(--font-serif);
   font-weight: 300;
   font-size: 40px;
   line-height: 0.9;
@@ -128,7 +128,7 @@
   font-variation-settings: 'opsz' 96;
 }
 .statL {
-  font-family: 'Inter Tight', system-ui, sans-serif;
+  font-family: var(--font-sans);
   font-size: 10.5px;
   line-height: 1.25;
   letter-spacing: 0.02em;
@@ -141,7 +141,7 @@
 .tick { width: 9px; height: 9px; display: block; flex: none; }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-block-start: 12px; }
 .chip {
-  font-family: 'Inter Tight', system-ui, sans-serif;
+  font-family: var(--font-sans);
   font-size: 9.5px;
   font-weight: 500;
   padding: 5px 9px;
@@ -164,7 +164,7 @@
   border-radius: 10px 10px 10px 3px;
   background: oklch(1 0 0 / 0.1);
   border: 1px solid oklch(1 0 0 / 0.12);
-  font-family: 'Inter Tight', system-ui, sans-serif;
+  font-family: var(--font-sans);
   font-size: 11px;
   line-height: 1.4;
   color: oklch(0.96 0.02 200 / 0.92);
@@ -225,7 +225,7 @@
   display: flex;
   flex-wrap: wrap;
   gap: 4px 10px;
-  font-family: 'Inter Tight', system-ui, sans-serif;
+  font-family: var(--font-sans);
   font-size: 9.5px;
   color: var(--cm-ink-2, #4a5c60);
 }
@@ -236,7 +236,7 @@
 .traits { margin-block-start: 15px; display: flex; flex-direction: column; gap: 12px; }
 .trait { display: flex; flex-direction: column; gap: 6px; }
 .traitL {
-  font-family: 'Inter Tight', system-ui, sans-serif;
+  font-family: var(--font-sans);
   font-size: 11px;
   letter-spacing: 0.01em;
   opacity: 0.85;
@@ -276,7 +276,7 @@
   border-radius: 8px;
   background: oklch(1 0 0 / 0.6);
   border: 1px solid oklch(0.18 0.03 210 / 0.07);
-  font-family: 'Inter Tight', system-ui, sans-serif;
+  font-family: var(--font-sans);
   font-size: 11.5px;
 }
 .rAv {
@@ -290,7 +290,7 @@
 }
 .rName { flex: 1; min-width: 0; color: var(--cm-ink-2, #4a5c60); }
 .rScore {
-  font-family: 'Fraunces', Georgia, serif;
+  font-family: var(--font-serif);
   font-size: 15px;
   color: var(--cm-clay-d, #2c545e);
 }
@@ -318,7 +318,7 @@
   border-radius: 8px;
   background: oklch(1 0 0 / 0.07);
   border: 1px solid oklch(1 0 0 / 0.1);
-  font-family: 'Inter Tight', system-ui, sans-serif;
+  font-family: var(--font-sans);
   font-size: 11px;
 }
 .feed > span:nth-child(2) { flex: 1; }
@@ -347,7 +347,7 @@
   display: flex;
   align-items: flex-start;
   gap: 8px;
-  font-family: 'Inter Tight', system-ui, sans-serif;
+  font-family: var(--font-sans);
   font-size: 11px;
   line-height: 1.42;
 }
@@ -372,7 +372,7 @@
   font-size: 8.5px; letter-spacing: 0.12em;
 }
 .evName {
-  font-family: 'Inter Tight', system-ui, sans-serif;
+  font-family: var(--font-sans);
   font-size: 11.5px;
   color: var(--cm-cream, #f2f7f8);
 }
@@ -384,7 +384,7 @@
   border-radius: 11px 11px 11px 3px;
   background: oklch(0.62 0.1 200 / 0.14);
   border: 1px solid oklch(0.18 0.03 210 / 0.08);
-  font-family: 'Inter Tight', system-ui, sans-serif;
+  font-family: var(--font-sans);
   font-size: 11px;
   line-height: 1.42;
   color: var(--cm-ink-2, #4a5c60);
