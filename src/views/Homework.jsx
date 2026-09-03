@@ -106,7 +106,7 @@ export default function Homework({ onOpenHomework }) {
       {/* The studio, on the shelf it writes into. Opened from a class
           in the sidebar it is already writing for that class, so the
           question does not have to be re-answered somewhere else. */}
-      <StudioLauncher kind="homework" scope={classScope} />
+      <StudioLauncher kind="homework" scope={classScope} existing={sorted} />
 
       {error && (
         <div className="mb-4 bg-paper border border-accent rounded-lg p-4">

@@ -1,0 +1,91 @@
+/* The launcher's own placement and its one behavioural difference from
+   the studio's composer: nothing in the bar wraps.
+
+   In the chat the composer is the floor of a column that holds nothing
+   else, so a kind row spilling onto a second line costs nothing. On a
+   library screen it floats over a list, and a bar that changes height
+   as you tick a format makes the list jump underneath it — and "For
+   Grade 9 · A · Physics · 9 students" broke across two lines, which is
+   the one label on the bar that has to be read at a glance. */
+
+.dock {
+  position: sticky;
+  bottom: 0;
+  z-index: 20;
+  margin-top: 20px;
+  padding: 10px 0 12px;
+  /*
+     The list scrolls underneath, so something has to stop a serif
+     heading reading straight through the composer — a card title did,
+     at 10px of blur over nothing.
+     A floor with a colour and a top rule would draw a second box around
+     the composer, which is the thing the studio's own composer floor
+     was rewritten to avoid. So it is a fade instead: transparent where
+     the list still belongs to itself, and the pane's own ground by the
+     time it reaches the bar. No edge anywhere, and the list visibly
+     recedes rather than being covered.
+  */
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    color-mix(in oklab, var(--p-paper-cool) 88%, transparent) 42%
+  );
+  backdrop-filter: blur(16px) saturate(115%);
+  -webkit-backdrop-filter: blur(16px) saturate(115%);
+}
+
+/*
+   Wider than the chat's composer, because it carries the same controls
+   across a column that is wider than the chat's. At 760px the class
+   label, the material and skills pickers, the estimate and the send
+   button did not fit on one line at all, and scrolling the whole bar put
+   SEND off the right-hand edge — a composer you have to scroll sideways
+   to post from.
+*/
+.panel { max-width: 1040px; }
+
+/*
+   No LABEL wraps. "For Grade 9 · A · Physics · 9 students" broke across
+   two lines and read as two different facts; the class and the roll are
+   one thing said once.
+   The bar itself still wraps between controls, and has to. Pinning the
+   whole row to one line meant it could not fit inside a narrow column,
+   and flex does not clip — Skills, the estimate and SEND slid out over
+   the teaching rail, leaving a composer you could not post from.
+*/
+.bar { flex-wrap: wrap; row-gap: 8px; }
+.bar button,
+.bar span,
+.bar div { white-space: nowrap; }
+/* The pickers are popovers; their menus must still wrap. */
+.bar [role="listbox"],
+.bar [role="listbox"] * { white-space: normal; }
+
+/* The five formats stay one row whatever happens, and scroll sideways
+   in the last resort rather than folding — they are the one control here
+   whose shape you read rather than its words. */
+.kinds {
+  flex-wrap: nowrap;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.kinds::-webkit-scrollbar { display: none; }
+
+/* What this class already has, said before she asks for another one. */
+.already {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 9px 16px 0;
+  font-size: 11.5px;
+  color: var(--p-muted);
+  min-width: 0;
+}
+.alreadyCount { color: var(--p-ink); font-weight: 600; flex: none; }
+.alreadyList {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

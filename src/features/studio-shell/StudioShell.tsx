@@ -904,7 +904,14 @@ export default function StudioShell({ children }: { children: React.ReactNode })
 
           {TEACHING_RAIL_SECTIONS.has(section) ? (
             <div className="lg:flex lg:gap-6 h-full">
-              <div className="flex-1 min-w-0">{children}</div>
+              {/* The dock the studio launcher pins itself to. It has to be
+                  THIS column and not the pane: the pane also holds the
+                  teaching rail, and a composer centred across both would
+                  sit off to one side of the list it writes into.
+                  Only the five library sections mount a launcher, and all
+                  five are TEACHING_RAIL_SECTIONS — so the other branch
+                  needs no marker and keeps rendering children bare. */}
+              <div className="flex-1 min-w-0" data-studio-dock>{children}</div>
               <div className="hidden lg:block flex-shrink-0">
                 <TeachingRail />
               </div>

@@ -154,7 +154,7 @@ export default function ReusableDrafts({ onEditDraft, onNewLesson }) {
       {/* The studio, on the shelf it writes into. Opened from a class
           in the sidebar it is already writing for that class, so the
           question does not have to be re-answered somewhere else. */}
-      <StudioLauncher kind="lesson_plan" scope={classScope} />
+      <StudioLauncher kind="lesson_plan" scope={classScope} existing={sorted} />
 
       <div className="flex flex-col md:flex-row md:flex-wrap gap-3 mb-6">
         <div className="flex-1 min-w-[240px] bg-paper-cool rounded-lg border border-line px-4 py-2.5 flex items-center gap-2">

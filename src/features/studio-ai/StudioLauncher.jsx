@@ -16,6 +16,14 @@
 // studio's own stylesheet. Two composers that merely looked alike would
 // drift apart on the first change to either.
 //
+// It floats at the foot of the list rather than sitting above it, which
+// is where the studio keeps its own — a composer is a thing you come
+// back to between reading, not a header you scroll past once. It gets
+// there by portalling into the content column the shell marks with
+// `data-studio-dock`, because a sticky bar has to be the LAST child of
+// the column to settle at the bottom of it; mounted where the view
+// happens to render it, it would reserve a hole at the top instead.
+//
 // What it does NOT do is generate. Pressing send parks a `create_work`
 // payload — prompt, kinds, class, attachments — and opens the studio,
 // which starts on arrival. Generation is a streaming pipeline with
@@ -24,7 +32,8 @@
 // that works until the day it silently doesn't.
 // =====================================================================
 
-import React, { useRef, useState } from "react";
+import React, { useRef, useState, useSyncExternalStore } from "react";
+import { createPortal } from "react-dom";
 import { FileText, Paperclip, Send, X } from "lucide-react";
 import { navigate } from "@/lib/route";
 import { PREFILL_KEY } from "@/shared/lib/assistantPrefill";
@@ -36,11 +45,28 @@ import { SkillsPicker } from "./SkillsPicker";
 import { ClassPicker } from "./ClassPicker";
 import { KINDS, KIND_LABEL } from "./kinds";
 import s from "./Studio.module.css";
+import L from "./StudioLauncher.module.css";
 
 /** The studio remembers its own class pick under this key. */
 const STUDIO_PICK_KEY = "murchid.studio.class";
 
-export default function StudioLauncher({ kind, scope = null }) {
+// The column never moves once the shell has rendered it, so there is
+// nothing to subscribe to.
+const subscribeNever = () => () => {};
+const readDock = () => document.querySelector("[data-studio-dock]");
+const readDockOnServer = () => null;
+
+export default function StudioLauncher({ kind, scope = null, existing = [] }) {
+  /**
+   * The shell's content column.
+   *
+   * Read through useSyncExternalStore rather than set from an effect:
+   * the DOM is an external system, the snapshot is stable (querySelector
+   * hands back the same node every call), and the server snapshot is
+   * null — which is exactly what the hook is for, and what keeps this
+   * out of the cascading-render trap an effect + setState falls into.
+   */
+  const dock = useSyncExternalStore(subscribeNever, readDock, readDockOnServer);
   // The screen's own kind is on, and the rest are there to be added:
   // "a lesson and the quiz that goes with it" is one request, and asking
   // for it from the Lessons shelf should not mean starting again.
@@ -122,9 +148,32 @@ export default function StudioLauncher({ kind, scope = null }) {
 
   const one = kinds.length === 1 ? KIND_LABEL[kinds[0]] : null;
 
-  return (
-    <div className="mb-6">
-      <div className={s.composer}>
+  /**
+   * What is already here, said before she asks for another one.
+   *
+   * The rows are the ones this screen is showing — already narrowed to
+   * the class by the sidebar's scope — so the count is the answer to
+   * "have I done this already", which is the question that stops a
+   * teacher generating a second copy of Monday's quiz.
+   */
+  const titles = existing
+    .map((it) => it?.title || it?.name)
+    .filter(Boolean)
+    .slice(0, 3);
+
+  const bar = (
+    <div className={L.dock}>
+      <div className={`${s.composer} ${L.panel}`}>
+        {existing.length > 0 && (
+          <p className={L.already}>
+            <span className={L.alreadyCount}>
+              {existing.length} {one ? `${one.toLowerCase()}${existing.length === 1 ? "" : "s"}` : "already"}
+            </span>
+            <span className={L.alreadyList}>
+              already here{titles.length ? ` — ${titles.join(", ")}` : ""}
+            </span>
+          </p>
+        )}
         {notice && <p className="text-[12.5px] text-crit px-4 pt-3">{notice}</p>}
 
         {attachments.length > 0 && (
@@ -163,7 +212,7 @@ export default function StudioLauncher({ kind, scope = null }) {
           }}
         />
 
-        <div className={s.composerBar}>
+        <div className={`${s.composerBar} ${L.bar}`}>
           <button
             type="button"
             className={s.iconBtn}
@@ -183,7 +232,7 @@ export default function StudioLauncher({ kind, scope = null }) {
             onChange={attach}
           />
 
-          <div className={s.kindRow}>
+          <div className={`${s.kindRow} ${L.kinds}`}>
             {KINDS.map((k) => (
               <button
                 key={k.value}
@@ -236,11 +285,16 @@ export default function StudioLauncher({ kind, scope = null }) {
         </div>
       </div>
 
-      <p className="text-[11px] text-muted text-center mt-2 max-w-[760px] mx-auto">
+      <p className="text-[11px] text-muted text-center mt-2 max-w-[760px] mx-auto truncate">
         {pickedClass
           ? "Murchid drafts; you decide. Check anything before it reaches a class."
           : "Pick a class and the grade decides the reading level. Murchid drafts; you decide."}
       </p>
     </div>
   );
+
+  // Before the column is found — the server pass, and the first client
+  // render — it renders in place. A composer that appears a tick late is
+  // worse than one that moves a tick late.
+  return dock ? createPortal(bar, dock) : bar;
 }
