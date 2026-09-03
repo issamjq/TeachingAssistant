@@ -128,13 +128,19 @@ test.describe("landing page", () => {
   });
 });
 
-// The sign-in funnel is the other surface still living inside Landing.jsx,
-// so splitting that file has to leave it untouched too.
+// The sign-in funnel, reached the way a visitor reaches it: the nav item on
+// the landing page.
+//
+// That item is a <Link> to /signin, so its accessible role is LINK, not
+// button. It was a button when this test was written and the selector was
+// never updated, so the test spent 120s waiting for a role that no longer
+// existed and failed as a timeout rather than as a pixel difference — which
+// is why it read as flakiness. Do not change this back to getByRole("button").
 test("sign-in funnel renders unchanged", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.goto("/", { waitUntil: "networkidle" });
   await waitForContent(page);
-  await page.getByRole("button", { name: /sign in/i }).first().click();
+  await page.getByRole("link", { name: /sign in/i }).first().click();
   // The funnel does its own silent session restore before painting.
   await waitForContent(page);
   await page.getByRole("button", { name: /continue with google/i }).waitFor({ timeout: 20_000 });
