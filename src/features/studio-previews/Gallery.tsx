@@ -7,6 +7,7 @@
 
 import { VARIANTS, pathFor } from "./registry";
 import g from "./Gallery.module.css";
+import Link from "next/link";
 
 export default function Gallery() {
   return (
@@ -67,7 +68,7 @@ export default function Gallery() {
       </ol>
 
       <footer className={g.foot}>
-        <a className={g.footLink} href="/studio">Open the studio that ships today</a>
+        <Link className={g.footLink} href="/studio">Open the studio that ships today</Link>
         <span className={g.footNote}>
           All ten are noindex and read-only — nothing on them writes to your library.
         </span>

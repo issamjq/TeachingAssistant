@@ -231,7 +231,10 @@ export default function RootLayout({
           it does has any effect. The toolbar deliberately sits OUTSIDE #root
           so the visual filters never apply to the toolbar itself. */}
       <body>
-        {/* eslint-disable-next-line react/no-danger */}
+        {/* Safe by construction: the payload is a static HTML comment defined
+            right here, with no user or network input anywhere in it. The
+            react/no-danger rule that used to be named here cannot be enforced —
+            eslint-plugin-react has no ESLint 10 build yet (see eslint.config.mjs). */}
         <div
           dangerouslySetInnerHTML={{
             __html: `<!--

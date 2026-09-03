@@ -1,6 +1,7 @@
 import js from "@eslint/js";
 import tseslint from "typescript-eslint";
 import reactHooks from "eslint-plugin-react-hooks";
+import nextPlugin from "@next/eslint-plugin-next";
 
 // The architectural rules from docs/11-nextjs-migration.md §6, made
 // mechanical. Convention that isn't enforced is convention that erodes —
@@ -26,6 +27,15 @@ export default tseslint.config(
       // nobody on this workstream is going to action. Give it its own
       // config when the backend gets its own modernisation project.
       "backend/**",
+      // Vendored by `ruflo init` — its hook scripts, agent definitions and
+      // helpers are third-party Node CJS, not project code. Linting them
+      // against this config's browser globals produced 61 errors (47 of them
+      // no-undef on `require`/`module`/`__dirname`) and turned `npm run lint`
+      // red the moment the harness was installed. The directory is gitignored;
+      // ruflo owns what is in it.
+      ".claude/**",
+      ".claude-flow/**",
+      ".agents/**",
     ],
   },
 
@@ -95,6 +105,8 @@ export default tseslint.config(
         SVGElement: "readonly",
         MediaRecorder: "readonly",
         requestIdleCallback: "readonly",
+        Worker: "readonly",
+        createImageBitmap: "readonly",
       },
     },
     rules: {
@@ -111,6 +123,25 @@ export default tseslint.config(
       "@typescript-eslint/no-explicit-any": "off",
       "@typescript-eslint/no-require-imports": "off",
     },
+  },
+
+  // ── Next.js rules ──────────────────────────────────────────────────
+  //
+  // The tree already contained `eslint-disable-next-line @next/next/...`
+  // comments while the plugin was not installed. ESLint reports a disable
+  // comment for an unknown rule as an error on the comment itself, so the
+  // suppressions were producing the very errors they looked like they were
+  // silencing. Installing the plugin makes them mean what their authors
+  // intended, and turns on the rest of the Next.js checks as a bonus.
+  //
+  // Note: `eslint-plugin-react` and `eslint-plugin-jsx-a11y` cannot join
+  // them yet — both still cap their peer range at ESLint 9 and this repo is
+  // on ESLint 10. The three `react/no-danger` and `jsx-a11y/*` disables are
+  // written as plain comments until those plugins ship ESLint 10 support.
+  {
+    files: ["**/*.{js,mjs,cjs,jsx,ts,tsx}"],
+    plugins: nextPlugin.configs["core-web-vitals"].plugins,
+    rules: nextPlugin.configs["core-web-vitals"].rules,
   },
 
   // ── Module boundaries ──────────────────────────────────────────────
@@ -178,6 +209,27 @@ export default tseslint.config(
     },
   },
 
+  // The same budget for feature code that is still .jsx.
+  //
+  // Scoping the rule above to {ts,tsx} left a hole exactly where the
+  // problem is worst: StudioChat.jsx is 3,669 lines and was invisible to
+  // the linter, while StudioShell.tsx was correctly failing at 611. Six
+  // .jsx files under src/features/ are over budget.
+  //
+  // These are WARNINGS, not errors, for the reason given above — none of
+  // them is being touched right now and a red CI on untouched files trains
+  // everyone to ignore the linter. Each becomes an error for free when the
+  // file is peeled to .tsx, because the block above already covers it.
+  {
+    files: ["src/features/**/*.jsx", "src/shared/**/*.jsx"],
+    rules: {
+      "max-lines": [
+        "warn",
+        { max: 600, skipBlankLines: true, skipComments: true },
+      ],
+    },
+  },
+
   // ── Legacy carve-outs ──────────────────────────────────────────────
   //
   // src/views, src/lib, src/components and src/legacy predate the
@@ -194,6 +246,10 @@ export default tseslint.config(
       "max-lines": "off",
       "react-hooks/exhaustive-deps": "off",
       "no-empty": "off",
+      // src/views is being dismantled route by route. A full-reload <a> in a
+      // view that is scheduled for deletion is not worth converting to <Link>;
+      // the equivalents under src/features/ were converted.
+      "@next/next/no-html-link-for-pages": "warn",
       // Real smells, but in code that is being deleted route by route.
       // Warn so they're visible without failing CI on untouched files.
       "no-useless-escape": "warn",

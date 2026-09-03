@@ -40,6 +40,7 @@ import type { Portal } from "@/lib/portal";
 import type { Role } from "@/shared/types/domain";
 import MurchidLogo from "@/components/MurchidLogo";
 import BrandLoader from "@/components/BrandLoader";
+import Link from "next/link";
 import { GoogleMark, OutlookMark } from "./ProviderMarks";
 
 // Shape of the account row returned by /api/auth/me and /api/auth/supabase.
@@ -267,12 +268,12 @@ export default function PortalSignIn({ portal }: { portal: Portal }) {
   return (
     <div className="min-h-screen bg-paper" dir="auto">
       <header className="px-6 md:px-12 py-6 flex items-center justify-between">
-        <a
+        <Link
           href="/"
           className="inline-flex items-center gap-2.5 text-ink hover:opacity-80 transition"
         >
           <MurchidLogo className="h-7 w-auto" />
-        </a>
+        </Link>
         <LangToggle />
       </header>
 
@@ -370,13 +371,13 @@ export default function PortalSignIn({ portal }: { portal: Portal }) {
           {/* Footer — link back to the teacher landing */}
           <div className="text-center mt-12 pt-8 border-t border-line">
             <p className="text-xs text-muted mb-3">{t("portal.footer.notHere")}</p>
-            <a
+            <Link
               href="/"
               className="inline-flex items-center gap-2 font-mono text-[11px] uppercase tracking-wider text-ink hover:text-accent transition"
             >
               {t("portal.footer.toLanding")}
               <ArrowRight size={12} />
-            </a>
+            </Link>
           </div>
         </div>
       </main>

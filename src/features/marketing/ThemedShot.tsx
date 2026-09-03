@@ -48,6 +48,8 @@ type Props = {
 export default function ThemedShot({ src, ...rest }: Props) {
   const dark = useIsDark();
   const themed = dark ? src.replace(/\.jpg$/, "-dark.jpg") : src;
-  // eslint-disable-next-line jsx-a11y/alt-text -- alt arrives via ...rest
+  // `alt` arrives via ...rest, so this is not a missing-alt site. The
+  // jsx-a11y rule that used to be named here has no ESLint 10 build yet
+  // (see eslint.config.mjs).
   return <Image src={themed} {...rest} />;
 }

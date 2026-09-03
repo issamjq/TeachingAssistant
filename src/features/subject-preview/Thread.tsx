@@ -30,6 +30,7 @@ import { classKey } from "./model";
 import { outlineMeta, outlineOf } from "./outline";
 import s from "./Screens.module.css";
 import g from "./GoalPlanner.module.css";
+import Link from "next/link";
 
 export type Turn = {
   id: string;
@@ -162,9 +163,9 @@ export function TurnView({
               <button type="button" className={`${s.btn} ${s.btnQuiet} ${s.btnSmall}`}>
                 <Printer size={13} /> Print
               </button>
-              <a className={`${s.btn} ${s.btnQuiet} ${s.btnSmall}`} href="/studio">
+              <Link className={`${s.btn} ${s.btnQuiet} ${s.btnSmall}`} href="/studio">
                 <RotateCcw size={13} /> Try again
-              </a>
+              </Link>
             </div>
           </article>
         </div>

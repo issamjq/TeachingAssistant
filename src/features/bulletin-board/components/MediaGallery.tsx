@@ -42,7 +42,9 @@ export default function MediaGallery({ media }: { media: BulletinMedia[] }) {
       )}
 
       {videos.map((m) => (
-        // eslint-disable-next-line jsx-a11y/media-has-caption
+        // Teacher-uploaded video: there is no caption track to attach, so
+        // media-has-caption cannot be satisfied here. Rule not enforceable —
+        // eslint-plugin-jsx-a11y has no ESLint 10 build (see eslint.config.mjs).
         <video
           key={m.path}
           src={m.url}
@@ -63,7 +65,8 @@ export default function MediaGallery({ media }: { media: BulletinMedia[] }) {
             {t("bb.voiceNote")}
             {m.duration ? <span className="opacity-60">{fmtClock(m.duration)}</span> : null}
           </p>
-          {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+          {/* Voice note recorded in-app; no caption track exists to attach.
+              Rule not enforceable — see the note in eslint.config.mjs. */}
           <audio src={m.url} controls preload="metadata" className="h-9 w-full" />
         </div>
       ))}

@@ -42,7 +42,7 @@ export function mediaTypeOf(file: File | Blob): BulletinMediaType | null {
 const safeName = (name: string) =>
   name
     .normalize("NFKD")
-    .replace(/[^\w.\-]+/g, "-")
+    .replace(/[^\w.-]+/g, "-")
     .replace(/-+/g, "-")
     .slice(-80) || "attachment";
 

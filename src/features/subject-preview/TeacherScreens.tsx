@@ -28,6 +28,7 @@ import {
   Empty, Go, Ring, SectionHead, WorkCard, classLine, hhmm, longDate,
 } from "./parts";
 import s from "./Screens.module.css";
+import Link from "next/link";
 
 type Nav = { go: (r: Route) => void };
 /** Open the studio panel, already making this kind. */
@@ -221,7 +222,7 @@ export function Home({ m, go, onMake }: { m: TeacherModel } & Nav & Make) {
             icon={<Sparkles size={19} />}
             title="Nothing made yet"
             text="Lesson plans, quizzes and everything else you generate will collect here, newest first."
-            action={<a className={`${s.btn} ${s.btnMake}`} href="/studio">Open the studio</a>}
+            action={<Link className={`${s.btn} ${s.btnMake}`} href="/studio">Open the studio</Link>}
           />
         )}
       </section>

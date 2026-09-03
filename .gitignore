@@ -51,3 +51,20 @@ firebase-admin.json
 pnpm-lock.yaml
 yarn.lock
 bun.lockb
+
+# Ruflo agent harness (dev tooling — runtime state, vector memory, swarm
+# scratch). Never shipped: ruflo is installed globally, not as a dependency.
+/.claude-flow/
+/.swarm/
+/.hive-mind/
+/.ruflo-backup/
+
+# Ruflo local secrets and runtime data
+.env.*.local
+.claude-flow/data/
+.claude-flow/logs/
+.claude-flow/sessions/
+
+# Ruflo: cross-agent skill registry and RuVector store (binary, 1.5MB)
+/.agents/
+ruvector.db

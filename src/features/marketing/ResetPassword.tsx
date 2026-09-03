@@ -20,6 +20,7 @@ import MurchidLogo from "@/components/MurchidLogo";
 import { supabase } from "@/lib/supabaseClient";
 import { updatePassword } from "@/lib/supabaseAuth";
 import { passwordChecks, passwordScore, validatePassword } from "@/shared/lib/password";
+import Link from "next/link";
 
 type Phase = "checking" | "ready" | "saving" | "done" | "invalid";
 
@@ -86,9 +87,9 @@ export default function ResetPassword() {
   return (
     <main className="min-h-[100dvh] bg-paper text-ink flex flex-col items-center justify-center px-5 py-14">
       <div className="w-full max-w-[26rem]">
-        <a href="/" className="inline-flex mb-9" aria-label="Murchid — home">
+        <Link href="/" className="inline-flex mb-9" aria-label="Murchid — home">
           <MurchidLogo />
-        </a>
+        </Link>
 
         {phase === "checking" && (
           <p className="text-sm text-ink-soft">Checking your link…</p>

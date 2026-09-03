@@ -28,6 +28,7 @@ import {
 import { KINDS, type KindKey } from "./types";
 import { roleOf, subjectOf, type Route, type Surface } from "./route";
 import s from "./Shell.module.css";
+import Link from "next/link";
 
 export const KIND_ICON: Record<KindKey, LucideIcon> = {
   lesson_plan: BookOpen,
@@ -183,7 +184,7 @@ export default function Shell({
 
               <p className={s.groupLabel}>
                 <span>My classes{subjects.length > 0 && ` · ${subjects.length}`}</span>
-                <a className={s.groupAction} href="/database">Manage</a>
+                <Link className={s.groupAction} href="/database">Manage</Link>
               </p>
 
               {showFilter && (
@@ -257,10 +258,10 @@ export default function Shell({
                 <p className={s.noMatch}>No class matches &ldquo;{filter}&rdquo;.</p>
               )}
 
-              <a className={s.addSubject} href="/database">
+              <Link className={s.addSubject} href="/database">
                 <Plus size={14} strokeWidth={2} />
                 Add a class
-              </a>
+              </Link>
             </>
           ) : role === "admin" ? (
             <>

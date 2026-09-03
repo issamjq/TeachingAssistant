@@ -21,6 +21,7 @@ import type { Route } from "./route";
 import { SectionHead, classLine } from "./parts";
 import s from "./Screens.module.css";
 import x from "./ClassSettings.module.css";
+import Link from "next/link";
 
 export default function ClassSettings({
   sub, go,
@@ -53,9 +54,9 @@ export default function ClassSettings({
                 : "Nothing made under this class can reach a student until it has a grade — delivery matches grade and subject together."}
             </p>
           </div>
-          <a className={`${s.btn} ${sub.grade ? s.btnQuiet : s.btnMake} ${s.btnSmall}`} href="/database">
+          <Link className={`${s.btn} ${sub.grade ? s.btnQuiet : s.btnMake} ${s.btnSmall}`} href="/database">
             {sub.grade ? "Change" : "Set the grade"}
-          </a>
+          </Link>
         </article>
 
         {/* ── divisions ─────────────────────────────────────────────── */}
@@ -97,9 +98,9 @@ export default function ClassSettings({
               </p>
             )}
           </div>
-          <a className={`${s.btn} ${s.btnQuiet} ${s.btnSmall}`} href="/database">
+          <Link className={`${s.btn} ${s.btnQuiet} ${s.btnSmall}`} href="/database">
             Add students
-          </a>
+          </Link>
         </article>
 
         {/* ── the roll ──────────────────────────────────────────────── */}

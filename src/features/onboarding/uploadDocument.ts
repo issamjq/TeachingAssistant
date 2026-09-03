@@ -28,7 +28,7 @@ export type DocKind = keyof typeof BUCKETS;
 const safeName = (name: string) =>
   name
     .normalize("NFKD")
-    .replace(/[^\w.\-]+/g, "-")
+    .replace(/[^\w.-]+/g, "-")
     .replace(/-+/g, "-")
     .slice(-80) || "document";
 
