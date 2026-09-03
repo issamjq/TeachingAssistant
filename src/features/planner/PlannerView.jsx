@@ -68,6 +68,9 @@ export default function PlannerView() {
   useEffect(() => {
     try {
       const saved = localStorage.getItem(VIEW_KEY);
+      // Deliberate: the saved view comes from localStorage, which the server
+      // cannot see. Reading it during render is the hydration trap noted above.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       if (VIEWS.includes(saved)) setView(saved);
     } catch { /* default stands */ }
   }, []);

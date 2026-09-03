@@ -41,6 +41,9 @@ export default function StatsBand() {
   useEffect(() => {
     if (typeof window === "undefined") return undefined;
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      // Deliberate: matchMedia cannot be read during the server render, so the
+      // reduced-motion end-state is set once after mount rather than guessed.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setP(1);
       return undefined;
     }

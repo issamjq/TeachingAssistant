@@ -12,7 +12,7 @@
 // Every visual carries an accessible twin: charts have sr-only tables,
 // calendar days speak their counts, and nothing relies on colour alone.
 // =====================================================================
-import React, { useMemo, useRef, useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   ArrowUp, ArrowRight, Sparkles,
   FileText, GraduationCap, ClipboardList, Layers, Puzzle,
@@ -218,7 +218,13 @@ export function WeekSchedule({ entries = [], onOpen }) {
 export function MiniCalendar({ entries = [], onPick, dense = false }) {
   const { lang } = useI18n();
   const locale = lang === "ar" ? "ar" : undefined;
-  const today = new Date();
+  // `new Date()` in a render body is impure: two renders can disagree, so
+  // React Compiler will not preserve the memoization of anything derived
+  // from it — and y/m below are this month grid's memo dependencies.
+  // Captured once per mount, which is also what the widget means: the grid
+  // should not shift under a teacher because a re-render happened to land
+  // the other side of midnight.
+  const [today] = useState(() => new Date());
   const y = today.getFullYear();
   const m = today.getMonth();
 
@@ -231,15 +237,27 @@ export function MiniCalendar({ entries = [], onPick, dense = false }) {
     return map;
   }, [entries]);
 
+  // One expression instead of three loops that grew an array in place.
+  //
+  // Date already rolls day numbers over month boundaries — day 0 is the last
+  // day of the previous month, day `days + 1` the first of the next — so the
+  // leading and trailing padding need no special cases: a single 1-based day
+  // number walked from `1 - lead` produces the whole grid. Anything outside
+  // 1..days belongs to a neighbouring month.
+  //
+  // The previous version grew an array in place across three loops, reading
+  // its own length as the loop bound. That was not what blocked compilation
+  // — the impure `new Date()` above was — but one expression is easier to
+  // check than three loops, and this one is verified equivalent to the old
+  // output for every month from 2020 to 2032.
   const cells = useMemo(() => {
-    const first = new Date(y, m, 1);
-    const lead = (first.getDay() + 6) % 7;      // shift Sunday-based to Monday-first
-    const out = [];
-    for (let i = 0; i < lead; i++) out.push({ d: new Date(y, m, -(lead - 1 - i)), outside: true });
+    const lead = (new Date(y, m, 1).getDay() + 6) % 7;   // Sunday-based → Monday-first
     const days = new Date(y, m + 1, 0).getDate();
-    for (let i = 1; i <= days; i++) out.push({ d: new Date(y, m, i), outside: false });
-    while (out.length % 7) out.push({ d: new Date(y, m + 1, out.length - lead - days + 1), outside: true });
-    return out;
+    const total = Math.ceil((lead + days) / 7) * 7;
+    return Array.from({ length: total }, (_, i) => {
+      const dayNo = i - lead + 1;
+      return { d: new Date(y, m, dayNo), outside: dayNo < 1 || dayNo > days };
+    });
   }, [y, m]);
 
   const iso = (d) =>
@@ -709,13 +727,24 @@ export function KindDonut({ data = [], onPick, compact = false }) {
   const size = compact ? 92 : 132, stroke = compact ? 12 : 16;
   const r = (size - stroke) / 2;
   const c = 2 * Math.PI * r;
-  let acc = 0;
-  const segs = rows.map((row, i) => {
-    const frac = row.n / total;
-    const seg = { ...row, tone: DONUT_TONES[i % DONUT_TONES.length], dash: frac * c, off: -acc * c };
-    acc += frac;
-    return seg;
-  });
+  // Each arc starts where the previous one ended, so the offsets need a
+  // running total. It is accumulated in a plain loop rather than inside the
+  // map callback: React Compiler rejects reassigning a variable captured by
+  // a closure, because it cannot prove the writes stay inside this render.
+  // A local loop that never escapes is fine, and the drawing is identical.
+  const fracs = rows.map((row) => row.n / total);
+  const offsets = [];
+  let run = 0;
+  for (const frac of fracs) {
+    offsets.push(-run * c);
+    run += frac;
+  }
+  const segs = rows.map((row, i) => ({
+    ...row,
+    tone: DONUT_TONES[i % DONUT_TONES.length],
+    dash: fracs[i] * c,
+    off: offsets[i],
+  }));
 
   return (
     <div className={`flex items-center flex-wrap ${compact ? "gap-3" : "gap-5"}`}>

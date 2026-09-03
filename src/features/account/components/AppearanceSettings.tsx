@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 import { Check } from "lucide-react";
 import {
   PALETTES,
   PALETTE_META,
+  DEFAULT_PALETTE,
   getPalette,
   setPalette,
   onPaletteChange,
@@ -21,15 +22,17 @@ import styles from "./AppearanceSettings.module.css";
 // click away.
 
 export default function AppearanceSettings() {
-  // Server-render the default, then correct on mount. Reading storage during
-  // render would disagree with the server markup, and React does not repair
-  // mismatched attributes during hydration.
-  const [active, setActive] = useState<Palette>("firozeh");
-
-  useEffect(() => {
-    setActive(getPalette());
-    return onPaletteChange(setActive);
-  }, []);
+  // The palette lives outside React — localStorage plus a listener set — so
+  // it is read with the hook built for exactly that. getServerSnapshot hands
+  // the server the default, the client subscribes and reads the stored value,
+  // and the two reconcile without the state-in-effect cascade the previous
+  // mount-and-correct version needed. Same hydration safety, one render less,
+  // and the subscription replaces the manual unsubscribe.
+  const active = useSyncExternalStore(
+    onPaletteChange,
+    getPalette,
+    () => DEFAULT_PALETTE
+  );
 
   return (
     <section>

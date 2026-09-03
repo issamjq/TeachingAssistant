@@ -96,6 +96,9 @@ export function TeachingSkillsRoute() {
    * two always match and the voice affordances appear a tick later.
    */
   const [mounted, setMounted] = useState(false);
+  // Deliberate: this flag IS the hydration guard. Setting it in an effect is
+  // the mechanism — it must be false for the render React hydrates against.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => setMounted(true), []);
 
   const [reviewText, setReviewText] = useState("");

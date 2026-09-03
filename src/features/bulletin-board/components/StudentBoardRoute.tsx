@@ -18,7 +18,7 @@
 // reload.
 // =====================================================================
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Pin } from "lucide-react";
 import { LanguageProvider, useT } from "@/shared/i18n";
 import { readStorage, writeStorage } from "@/shared/lib/storage";
@@ -45,10 +45,16 @@ function Board({ token }: { token: string }) {
   // The baseline is read ONCE per visit: everything newer than it stays
   // marked "new" for the whole stay, even after the stored mark has
   // advanced underneath it.
-  const baselineRef = useRef<string | null>(null);
-  if (baselineRef.current === null && typeof window !== "undefined") {
-    baselineRef.current = readStorage(seenKey(token)) || "";
-  }
+  // A lazy useState initialiser, not a ref written during render. React
+  // Compiler forbids reading a ref while rendering — it cannot prove the
+  // value is stable across a render it may replay — and state computed by a
+  // lazy initialiser is the supported way to hold something derived once per
+  // mount. Nothing in the hydrating render reads it: posts arrive from an
+  // async fetch after mount, so the server and client markup still agree
+  // (see 8f1aeeb, which is about exactly this hazard).
+  const [baseline] = useState<string>(() =>
+    typeof window === "undefined" ? "" : readStorage(seenKey(token)) || ""
+  );
 
   const fetchBoard = useCallback(async () => {
     const { data, error: rpcErr } = await supabase.rpc("bulletin_board_public", {
@@ -91,8 +97,8 @@ function Board({ token }: { token: string }) {
       // First visit ever (empty baseline) marks nothing — a wall of NEW
       // stickers on day one would mean nothing and teach students to
       // ignore the sticker.
-      !!baselineRef.current && p.created_at > baselineRef.current,
-    []
+      !!baseline && p.created_at > baseline,
+    [baseline]
   );
 
   const newCount = useMemo(() => posts.filter(isNew).length, [posts, isNew]);

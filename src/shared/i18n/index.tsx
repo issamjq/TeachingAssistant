@@ -136,6 +136,9 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const saved = readStorage(STORAGE_KEY);
+    // Deliberate: the saved language is in localStorage, invisible to the
+    // server. Reading it during render is the mismatch described above.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (saved === "ar" || saved === "en") setLangState(saved);
   }, []);
 
