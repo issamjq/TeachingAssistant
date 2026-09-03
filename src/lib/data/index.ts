@@ -407,6 +407,10 @@ export async function resolve(
         return yes(await E.listMaterials({ grade: q.get("grade"), subject: q.get("subject") }));
       if (!a && method === "POST") return yes(await E.createMaterial(body));
       if (a && method === "PATCH") return yes(await E.updateMaterial(a, body));
+      // The classes a file is filed under (§103). A material with none
+      // reaches no class at all, so this is not an optional detail.
+      if (a && b === "classes" && method === "PUT")
+        return yes(await E.setMaterialClasses(a, body?.classes || []));
       if (a && method === "DELETE") return yes(await E.deleteMaterial(a));
       return { handled: false };
 

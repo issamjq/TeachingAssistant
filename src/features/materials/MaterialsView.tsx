@@ -14,6 +14,14 @@ import React, { useEffect, useMemo, useState } from "react";
 import {
   classScopeLabel, filterByClassScope, setClassScope, useClassScope,
 } from "@/shared/lib/classScope";
+import { useTeacherClasses } from "@/shared/lib/teacherClasses";
+import { classLabel, normGrade, normSubject } from "@/shared/lib/classMatch";
+import { setMaterialClasses } from "./api";
+import { suggestClasses, suggestionLabel } from "./suggest";
+
+/** One class, as a select value. Same shape the pickers key on. */
+const keyOfClass = (c: { grade: string; section: string; subject: string }) =>
+  [normGrade(c.grade) || "", c.section.trim().toLowerCase(), normSubject(c.subject) || ""].join("§");
 import { FileText, Search, Trash2, Pencil, Check, Upload, X } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -64,8 +72,16 @@ const sizeLine = (m: Material) =>
    m.kind ? KINDS.find((k) => k.value === m.kind)?.label : null].filter(Boolean).join(" · ");
 
 const classLine = (m: Material) => {
+  // The classes it is filed under, or the truth that it is filed under
+  // none. "Any class" was the old wildcard and it is not an audience.
+  const filed = (m as any).classes as { grade: string; subject: string; section: string | null }[] | undefined;
+  if (filed?.length) {
+    return filed
+      .map((c) => [c.grade, c.section, c.subject].filter(Boolean).join(" · "))
+      .join("  ·  ");
+  }
   const bits = [m.grade, m.section, m.subject].filter(Boolean);
-  return bits.length ? bits.join(" · ") : "Any class";
+  return bits.length ? bits.join(" · ") : "Not filed under a class";
 };
 
 export default function MaterialsView() {
@@ -78,6 +94,48 @@ export default function MaterialsView() {
   const [term, setTerm] = useState("");
   // Which class the sidebar sent us here for.
   const classScope = useClassScope();
+  const { classes: myClasses } = useTeacherClasses();
+  /**
+   * The class a new upload is filed under.
+   *
+   * Defaults to the class the sidebar sent us here for, because that is
+   * the answer already given. When nothing sent her here it has to be
+   * chosen: a file with no class reaches none, and the shelf is where
+   * that used to be silently allowed.
+   */
+  const [uploadFor, setUploadFor] = useState<string>("");
+  const scoped = useMemo(
+    () =>
+      classScope
+        ? myClasses.find(
+            (c) =>
+              normSubject(c.subject) === normSubject(classScope.subject) &&
+              normGrade(c.grade) === normGrade(classScope.grade),
+          ) ?? null
+        : null,
+    [myClasses, classScope],
+  );
+  const target =
+    myClasses.find((c) => keyOfClass(c) === uploadFor) ?? scoped ?? null;
+  const [filing, setFiling] = useState<string | null>(null);
+
+  /** Live material naming no class at all — invisible to every picker. */
+  const unfiled = useMemo(
+    () => (rows || []).filter((m: any) => !(m.classes || []).length),
+    [rows],
+  );
+
+  const fileUnder = async (id: string, picked: { grade: string; subject: string; section: string }[]) => {
+    setFiling(id);
+    try {
+      await setMaterialClasses(id, picked);
+      reload();
+    } catch (e: any) {
+      flash(`Could not file it: ${e.message}`);
+    } finally {
+      setFiling(null);
+    }
+  };
   const [editing, setEditing] = useState<Material | null>(null);
   const [removing, setRemoving] = useState<Material | null>(null);
   const [busy, setBusy] = useState(false);
@@ -180,7 +238,12 @@ export default function MaterialsView() {
     if (!files.length) return;
     setUploading(true);
     try {
-      for (const f of files) await uploadMaterial(f, { where: "shelf" });
+      for (const f of files) {
+        await uploadMaterial(f, {
+          where: "shelf",
+          audience: { grade: target!.grade, subject: target!.subject, section: target!.section },
+        });
+      }
       reload();
     } catch (err: any) {
       flash(err.message);
@@ -233,23 +296,46 @@ export default function MaterialsView() {
             nothing to use again.
           </p>
         </div>
-        <label className="inline-flex">
-          <input
-            type="file"
-            multiple
-            className="sr-only"
-            onChange={onFiles}
-            accept=".pdf,.doc,.docx,.txt,.md,.csv,.xls,.xlsx,image/*"
-          />
-          <span
-            role="button"
-            tabIndex={0}
-            className="inline-flex items-center gap-2 h-10 px-4 rounded-lg bg-ink text-paper text-sm font-medium cursor-pointer"
+        {/* The class comes first, and the file button waits for it. A
+            shelf that accepted a file and asked afterwards is how all 34
+            of these ended up filed under nothing. */}
+        <div className="flex flex-wrap items-center gap-2">
+          <select
+            className={`${selectClasses} max-w-[15rem]`}
+            value={target ? keyOfClass(target) : ""}
+            onChange={(e) => setUploadFor(e.target.value)}
+            aria-label="Which class this material is for"
           >
-            <Upload size={15} aria-hidden />
-            {uploading ? "Uploading…" : "Add material"}
-          </span>
-        </label>
+            <option value="">Which class?</option>
+            {myClasses.map((c) => (
+              <option key={keyOfClass(c)} value={keyOfClass(c)}>{classLabel(c)}</option>
+            ))}
+          </select>
+          <label className="inline-flex">
+            <input
+              type="file"
+              multiple
+              className="sr-only"
+              disabled={!target}
+              onChange={onFiles}
+              accept=".pdf,.doc,.docx,.txt,.md,.csv,.xls,.xlsx,image/*"
+            />
+            <span
+              role="button"
+              tabIndex={0}
+              aria-disabled={!target}
+              title={target ? undefined : "Pick the class this is for first"}
+              className={`inline-flex items-center gap-2 h-10 px-4 rounded-lg text-sm font-medium ${
+                target
+                  ? "bg-ink text-paper cursor-pointer"
+                  : "bg-paper-warm text-muted cursor-not-allowed"
+              }`}
+            >
+              <Upload size={15} aria-hidden />
+              {uploading ? "Uploading…" : "Add material"}
+            </span>
+          </label>
+        </div>
       </div>
 
       {/* This shelf does not use the shared DataPageHeader, so it carries
@@ -266,6 +352,59 @@ export default function MaterialsView() {
           >
             <X size={12} strokeWidth={2.2} />
           </button>
+        </div>
+      )}
+
+      {/* The 19 files that arrived with no class at all. Not an error
+          state — they are real material she uploaded — but until one is
+          named they reach nothing, and that is worth saying once, here,
+          rather than leaving her to wonder why the studio never offers
+          them. The suggestion is read off the FILENAME and only offered
+          when the subject is one she actually teaches at that grade; it
+          is a proposal she taps, never something written for her. */}
+      {unfiled.length > 0 && (
+        <div className="mb-5 rounded-xl border border-gold/40 bg-gold/[0.07] p-4">
+          <p className="text-[13px] font-medium text-ink">
+            {unfiled.length} file{unfiled.length === 1 ? "" : "s"} {unfiled.length === 1 ? "is" : "are"} not filed under a class
+          </p>
+          <p className="text-[12.5px] text-muted mt-1 mb-3 max-w-[62ch]">
+            A file reaches a class by naming it. Until then these stay here and the
+            studio will not offer them when you are writing for a class.
+          </p>
+          <ul className="grid gap-3">
+            {unfiled.map((m) => {
+              const hits = suggestClasses(m.file_name || m.title || "", myClasses);
+              return (
+                <li key={m.id} className="flex flex-wrap items-center gap-2 text-[13px] min-h-9">
+                  <span className="min-w-0 flex-1 truncate">{materialLabel(m)}</span>
+                  {hits.length > 0 && (
+                    <button
+                      type="button"
+                      disabled={filing === m.id}
+                      onClick={() => fileUnder(m.id, hits)}
+                      className="h-8 px-3 rounded-lg bg-ink text-paper text-[12.5px] font-medium disabled:opacity-50"
+                    >
+                      {filing === m.id ? "Filing…" : `File under ${suggestionLabel(hits)}`}
+                    </button>
+                  )}
+                  <select
+                    className={`${selectClasses} max-w-[13rem] text-[12.5px] py-1.5`}
+                    value=""
+                    aria-label={`File ${materialLabel(m)} under a class`}
+                    onChange={(e) => {
+                      const c = myClasses.find((x) => keyOfClass(x) === e.target.value);
+                      if (c) fileUnder(m.id, [c]);
+                    }}
+                  >
+                    <option value="">{hits.length ? "Somewhere else…" : "Choose a class…"}</option>
+                    {myClasses.map((c) => (
+                      <option key={keyOfClass(c)} value={keyOfClass(c)}>{classLabel(c)}</option>
+                    ))}
+                  </select>
+                </li>
+              );
+            })}
+          </ul>
         </div>
       )}
 

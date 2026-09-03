@@ -20,6 +20,7 @@
 // than filling it in.
 // =====================================================================
 import { supabase } from "@/lib/supabaseClient";
+import { normGrade, normSubject } from "@/shared/lib/classMatch";
 import { api } from "@/shared/lib/apiClient";
 import { clearIdent, facultyId, ident } from "./session";
 import { daysFromToday } from "../localDate";
@@ -996,18 +997,75 @@ async function clearPrimary(fid: string) {
 // to render a list of names.
 
 const MAT = "id, title, file_name, file_path, mime_type, status, kind, grade, subject, section, pages, created_at, updated_at";
+const MAT_WITH_CLASSES = `${MAT}, material_classes(id, grade, subject, section)`;
 
+/**
+ * The shelf, with the classes each file is filed under (§103).
+ *
+ * The classes come back as an array rather than being flattened onto the
+ * row: a syllabus genuinely serves 9A and 9B, and a single grade/subject
+ * pair on the row is what made "any class" the only way to say that.
+ */
 export async function listMaterials(query: Record<string, any> = {}) {
-  let q = supabase
-    .from("materials").select(MAT).is("deleted_at", null)
+  const q = supabase
+    .from("materials").select(MAT_WITH_CLASSES).is("deleted_at", null)
     .order("updated_at", { ascending: false });
-  // Narrowing is optional: the shelf shows everything by default, and a
-  // class filter is a view of it rather than a different query.
-  if (query.grade) q = q.eq("grade", query.grade);
-  if (query.subject) q = q.eq("subject", query.subject);
   const { data, error } = await q;
   if (error) throw error;
-  return data || [];
+
+  /**
+   * Narrowing happens here rather than in SQL, and strictly.
+   *
+   * The old filter matched on the row's own grade/subject, where a blank
+   * meant "any" — so a file with neither, which was every file, matched
+   * every class. A material now reaches a class only if it NAMES that
+   * class. Unfiled material reaches nothing, which is the point: it is
+   * the absence of an answer, not an answer that fits everywhere.
+   */
+  const rows = (data || []).map((r: any) => {
+    const { material_classes, ...rest } = r;
+    return { ...rest, classes: (material_classes || []).map(outClass) };
+  });
+  if (!query.grade && !query.subject) return rows;
+  return rows.filter((m: any) =>
+    m.classes.some(
+      (c: any) =>
+        (!query.subject || normSubject(c.subject) === normSubject(query.subject)) &&
+        (!query.grade || normGrade(c.grade) === normGrade(query.grade)),
+    ));
+}
+
+const outClass = (c: any) => ({
+  id: c.id,
+  grade: c.grade,
+  subject: c.subject,
+  // '' is stored so uniqueness works; the UI thinks in "every division".
+  section: c.section || null,
+});
+
+/**
+ * File a material under one or more classes (§103).
+ *
+ * Goes through the RPC rather than writing the table directly: the
+ * ownership check, "at least one class", and keeping the legacy columns
+ * pointing at the first one all live in one place there, and a browser
+ * that inserted rows itself would be a second implementation of a rule
+ * the database is supposed to hold.
+ */
+export async function setMaterialClasses(
+  id: string,
+  classes: { grade: string; subject: string; section?: string | null }[],
+) {
+  const { data, error } = await supabase.rpc("set_material_classes", {
+    p_material: id,
+    p_classes: (classes || []).map((c) => ({
+      grade: String(c.grade ?? "").trim(),
+      subject: String(c.subject ?? "").trim(),
+      section: String(c.section ?? "").trim(),
+    })),
+  });
+  if (error) throw error;
+  return data;
 }
 
 export async function createMaterial(body: Record<string, any>) {

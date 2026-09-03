@@ -5,6 +5,7 @@ export {
   updateMaterial,
   deleteMaterial,
   uploadMaterial,
+  setMaterialClasses,
   extractMaterial,
   extractPending,
   materialLabel,

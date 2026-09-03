@@ -16,6 +16,7 @@ import { createPortal } from "react-dom";
 import { FileText, Check } from "lucide-react";
 import { listMaterials, materialLabel } from "./api";
 import { useMounted } from "@/shared/hooks/useMounted";
+import { normGrade, normSubject } from "@/shared/lib/classMatch";
 
 export default function MaterialPicker({ attached = [], onPick, audience = null }) {
   const mounted = useMounted();
@@ -58,15 +59,28 @@ export default function MaterialPicker({ attached = [], onPick, audience = null 
     };
   }, [open]);
 
-  // Her material for THIS class first — 6A and 6B may work from
-  // different notes — then everything else, so nothing is hidden.
+  /**
+   * Only this class's material, and that is a filter rather than a sort.
+   *
+   * It used to sort the whole shelf with the fitting files first, on a
+   * rule where a blank grade or subject on the row counted as a match —
+   * so a file with neither, which was every file, "fitted" every class.
+   * Writing a Grade 9 Physics lesson, the picker offered a Class 10
+   * Maths chapter and a company logo.
+   *
+   * A material reaches a class now only if it NAMES that class (§103).
+   * With no class in scope the whole shelf is offered, because then
+   * there is nothing to narrow to and hiding it would be worse.
+   */
   const ordered = React.useMemo(() => {
     if (!rows) return null;
     if (!audience?.grade && !audience?.subject) return rows;
-    const fits = (m) =>
-      (!m.grade || !audience?.grade || m.grade === audience.grade) &&
-      (!m.subject || !audience?.subject || m.subject === audience.subject);
-    return [...rows].sort((a, b) => Number(fits(b)) - Number(fits(a)));
+    return rows.filter((m) =>
+      (m.classes || []).some(
+        (c) =>
+          (!audience?.subject || normSubject(c.subject) === normSubject(audience.subject)) &&
+          (!audience?.grade || normGrade(c.grade) === normGrade(audience.grade)),
+      ));
   }, [rows, audience]);
 
   const isOn = (id) => attached.some((a) => a.id === id);
@@ -127,7 +141,11 @@ export default function MaterialPicker({ attached = [], onPick, audience = null 
                 <span className="min-w-0 flex-1">
                   <span className="block text-[13px] truncate">{materialLabel(m)}</span>
                   <span className="block text-[11px] text-muted truncate">
-                    {[m.grade, m.section, m.subject].filter(Boolean).join(" · ") || "Any class"}
+                    {(m.classes || []).length
+                      ? (m.classes || [])
+                          .map((c) => [c.grade, c.section, c.subject].filter(Boolean).join(" · "))
+                          .join("  ·  ")
+                      : "Not filed under a class"}
                     {m.status === "ready" ? " · read" : ""}
                   </span>
                 </span>

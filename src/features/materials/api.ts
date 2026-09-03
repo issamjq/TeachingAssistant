@@ -73,6 +73,22 @@ const safeName = (n: string) => n.replace(/[^\w.-]+/g, "_").slice(-80);
  * `where` labels the folder only — the row is the same wherever it came
  * from, so a file attached in the studio is on the shelf too.
  */
+/** File a material under one or more classes (§103). */
+export async function setMaterialClasses(
+  id: string,
+  classes: { grade: string; subject: string; section?: string | null }[],
+) {
+  const { error } = await supabase.rpc("set_material_classes", {
+    p_material: id,
+    p_classes: (classes || []).map((c) => ({
+      grade: String(c.grade ?? "").trim(),
+      subject: String(c.subject ?? "").trim(),
+      section: String(c.section ?? "").trim(),
+    })),
+  });
+  if (error) throw error;
+}
+
 export async function uploadMaterial(
   file: File,
   opts: {
@@ -83,6 +99,21 @@ export async function uploadMaterial(
 ): Promise<Attachment> {
   if (file.size > MAX_BYTES) {
     throw new Error(`"${file.name}" is over 25 MB.`);
+  }
+  /**
+   * A file with no class reaches no class (§103).
+   *
+   * This used to be optional and nothing ever supplied it, so all 34
+   * live materials arrived with no grade and no subject — and the
+   * readers treated a blank as "matches everything". Refused at the
+   * upload rather than filed as "any class", because "any class" was
+   * never an answer; it was the absence of one, rendered as a match
+   * against every class she teaches.
+   */
+  const grade = String(opts.audience?.grade ?? "").trim();
+  const subject = String(opts.audience?.subject ?? "").trim();
+  if (!grade || !subject) {
+    throw new Error("Pick the class this is for before uploading it — a file with no class reaches none.");
   }
   const { data: auth } = await supabase.auth.getUser();
   const uid = auth?.user?.id;
@@ -104,15 +135,24 @@ export async function uploadMaterial(
       mime_type: file.type,
       status: "uploaded",
       kind: opts.kind ?? null,
-      // Bound to a class from the first save. Retrofitting this later
-      // would mean a migration and asking her to upload it all again.
-      grade: opts.audience?.grade ?? null,
-      subject: opts.audience?.subject ?? null,
-      section: opts.audience?.section ?? null,
+      // The legacy columns keep the first class so anything still
+      // reading them sees a truth. material_classes is the source.
+      grade,
+      subject,
+      section: String(opts.audience?.section ?? "").trim() || null,
     })
     .select("id")
     .single();
   if (rowErr) throw rowErr;
+
+  // Filed in the same breath as it is stored. An upload that succeeded
+  // and then failed to say which class it is for is exactly the state
+  // this section exists to stop.
+  const { error: fileErr } = await supabase.rpc("set_material_classes", {
+    p_material: row.id,
+    p_classes: [{ grade, subject, section: String(opts.audience?.section ?? "").trim() }],
+  });
+  if (fileErr) throw fileErr;
 
   // Ask the service to read it once, so later generations use the stored
   // text instead of re-downloading and re-charging for the same pages.

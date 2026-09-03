@@ -13489,3 +13489,180 @@ BEGIN
   RAISE NOTICE 'academic year ready: % live ai_studio row(s) still unstamped, current year is %',
     v_null, public.current_academic_year();
 END $$;
+
+
+-- ─────────────────────────────────────────────────────────────────────
+-- §103  A material belongs to classes, and "any class" is not one
+-- ─────────────────────────────────────────────────────────────────────
+--
+-- `materials` has carried grade / subject / section since §96 and not one
+-- of the 34 live rows has ever had any of them set. Nothing wrote them:
+-- the shelf's own uploader never asked, and the studio only passes an
+-- audience when a class happened to be picked in the composer.
+--
+-- The reader treats a blank as a wildcard — `!m.grade || m.grade ===
+-- audience.grade` — so every file matched every class, and the material
+-- picker inside Grade 9 Physics offered a Class 10 Maths chapter. An
+-- "any class" material is not a convenience; it is the absence of an
+-- answer, rendered as a match against everything.
+--
+-- So a material now names its classes in a table of its own. Several,
+-- because one syllabus genuinely does serve 9A and 9B — that was never
+-- the problem. What is refused is a row that names NEITHER a grade nor a
+-- subject, which is the "any class" category itself.
+--
+-- Section stays optional and blank still means "every division of that
+-- grade", because that is what §48 already means by a blank section
+-- everywhere else in the product. Grade and subject do not, because they
+-- are the two fields delivery matches on.
+
+CREATE TABLE IF NOT EXISTS public.material_classes (
+  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  material_id uuid NOT NULL REFERENCES public.materials(id) ON DELETE CASCADE,
+  grade       text NOT NULL,
+  subject     text NOT NULL,
+  -- '' rather than NULL: a blank section is a real audience ("the whole
+  -- grade"), and NULL would make the uniqueness index below stop working
+  -- exactly where two rows would otherwise collide.
+  section     text NOT NULL DEFAULT '',
+  created_at  timestamptz NOT NULL DEFAULT now()
+);
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint
+                 WHERE conname = 'material_classes_named'
+                   AND connamespace = 'public'::regnamespace) THEN
+    -- The rule, in one line: a class has a grade and a subject.
+    ALTER TABLE public.material_classes ADD CONSTRAINT material_classes_named
+      CHECK (btrim(grade) <> '' AND btrim(subject) <> '');
+  END IF;
+END $$;
+
+-- The same class twice is a duplicate, not a second audience. Compared
+-- case- and space-insensitively because that is how a teacher types it.
+CREATE UNIQUE INDEX IF NOT EXISTS material_classes_key
+  ON public.material_classes (
+    material_id, lower(btrim(grade)), lower(btrim(section)), lower(btrim(subject)));
+CREATE INDEX IF NOT EXISTS material_classes_lookup
+  ON public.material_classes (lower(btrim(subject)), lower(btrim(grade)));
+
+ALTER TABLE public.material_classes ENABLE ROW LEVEL SECURITY;
+
+-- Owned through the file. There is no faculty_id here on purpose: a
+-- second copy of "whose is this" is a second place for it to be wrong.
+DO $$
+DECLARE p record;
+BEGIN
+  FOR p IN SELECT * FROM (VALUES
+    ('material_classes_read', 'SELECT'),
+    ('material_classes_ins',  'INSERT'),
+    ('material_classes_upd',  'UPDATE'),
+    ('material_classes_del',  'DELETE')
+  ) AS t(name, cmd) LOOP
+    EXECUTE format('DROP POLICY IF EXISTS %I ON public.material_classes', p.name);
+  END LOOP;
+END $$;
+
+CREATE POLICY material_classes_read ON public.material_classes FOR SELECT
+  USING (EXISTS (SELECT 1 FROM public.materials m
+                  WHERE m.id = material_id
+                    AND m.faculty_id = public.current_faculty_id()
+                    AND public.is_current_device()));
+CREATE POLICY material_classes_ins ON public.material_classes FOR INSERT
+  WITH CHECK (EXISTS (SELECT 1 FROM public.materials m
+                       WHERE m.id = material_id
+                         AND m.faculty_id = public.current_faculty_id()
+                         AND public.is_current_device()
+                         AND public.subscription_active()));
+CREATE POLICY material_classes_upd ON public.material_classes FOR UPDATE
+  USING (EXISTS (SELECT 1 FROM public.materials m
+                  WHERE m.id = material_id
+                    AND m.faculty_id = public.current_faculty_id()
+                    AND public.is_current_device()
+                    AND public.subscription_active()));
+CREATE POLICY material_classes_del ON public.material_classes FOR DELETE
+  USING (EXISTS (SELECT 1 FROM public.materials m
+                  WHERE m.id = material_id
+                    AND m.faculty_id = public.current_faculty_id()
+                    AND public.is_current_device()));
+
+-- Anything the legacy columns DO hold becomes the material's first class,
+-- so a database where they were populated loses nothing. On this one it
+-- matches no rows, which is the finding rather than a no-op.
+INSERT INTO public.material_classes (material_id, grade, subject, section)
+SELECT m.id, btrim(m.grade), btrim(m.subject), coalesce(btrim(m.section), '')
+  FROM public.materials m
+ WHERE m.deleted_at IS NULL
+   AND coalesce(btrim(m.grade), '') <> ''
+   AND coalesce(btrim(m.subject), '') <> ''
+ON CONFLICT DO NOTHING;
+
+/**
+ * Replace the classes a material is filed under, in one statement.
+ *
+ * SECURITY DEFINER for one reason: the ownership check belongs in the
+ * function rather than being re-derived by every caller. It is the first
+ * thing that runs and there is no id a teacher could pass to refile
+ * somebody else's file.
+ *
+ * At least one class, always. This is where "any class" is refused for
+ * new data — the CHECK above catches a nameless class, and this catches
+ * no class at all.
+ */
+CREATE OR REPLACE FUNCTION public.set_material_classes(p_material uuid, p_classes jsonb)
+RETURNS jsonb
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE fid uuid; n int;
+BEGIN
+  SELECT f.id INTO fid FROM public.faculty f WHERE f.user_id = (SELECT auth.uid());
+  IF fid IS NULL THEN
+    RAISE EXCEPTION 'no teaching profile for this account' USING ERRCODE = '42501';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM public.materials m
+                  WHERE m.id = p_material AND m.faculty_id = fid) THEN
+    RAISE EXCEPTION 'that material is not yours' USING ERRCODE = '42501';
+  END IF;
+
+  IF p_classes IS NULL OR jsonb_array_length(p_classes) = 0 THEN
+    RAISE EXCEPTION 'a material must name at least one class' USING ERRCODE = '23514';
+  END IF;
+
+  DELETE FROM public.material_classes WHERE material_id = p_material;
+
+  INSERT INTO public.material_classes (material_id, grade, subject, section)
+  SELECT p_material,
+         btrim(c ->> 'grade'),
+         btrim(c ->> 'subject'),
+         coalesce(btrim(c ->> 'section'), '')
+    FROM jsonb_array_elements(p_classes) AS c
+  ON CONFLICT DO NOTHING;
+
+  GET DIAGNOSTICS n = ROW_COUNT;
+
+  -- The legacy columns keep the first one, so anything still reading
+  -- them sees a truth rather than a blank. They are no longer the
+  -- source; material_classes is.
+  UPDATE public.materials m
+     SET grade = mc.grade, subject = mc.subject, section = nullif(mc.section, ''),
+         updated_at = now()
+    FROM (SELECT grade, subject, section FROM public.material_classes
+           WHERE material_id = p_material ORDER BY created_at, id LIMIT 1) mc
+   WHERE m.id = p_material;
+
+  RETURN jsonb_build_object('material_id', p_material, 'classes', n);
+END $$;
+
+GRANT EXECUTE ON FUNCTION public.set_material_classes(uuid, jsonb) TO authenticated;
+
+DO $$
+DECLARE v_unfiled int; v_filed int;
+BEGIN
+  SELECT count(*) INTO v_filed FROM public.material_classes;
+  SELECT count(*) INTO v_unfiled FROM public.materials m
+   WHERE m.deleted_at IS NULL
+     AND NOT EXISTS (SELECT 1 FROM public.material_classes mc WHERE mc.material_id = m.id);
+  RAISE NOTICE 'material_classes ready: % filing(s), % live material(s) still unfiled', v_filed, v_unfiled;
+END $$;
