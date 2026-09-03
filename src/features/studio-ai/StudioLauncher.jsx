@@ -1,0 +1,246 @@
+"use client";
+
+// =====================================================================
+// The studio's composer, on the library screen it writes into
+//
+// Every library — Lessons, Quizzes, Homework, Presentations, Activities
+// — now sits inside a class, because the sidebar puts it there. So the
+// question "make me one of these, for this class" is answerable on the
+// screen a teacher is already standing on, instead of being a trip to
+// /studio where she re-answers what she just said by opening Quizzes
+// under Physics · Grade 9.
+//
+// It is the SAME composer, not a copy of one: the kind row, the class
+// picker, the material picker, the skills picker, the credit estimate
+// and the send button are the studio's own components rendered with the
+// studio's own stylesheet. Two composers that merely looked alike would
+// drift apart on the first change to either.
+//
+// What it does NOT do is generate. Pressing send parks a `create_work`
+// payload — prompt, kinds, class, attachments — and opens the studio,
+// which starts on arrival. Generation is a streaming pipeline with
+// credits, aborts, retries and a conversation to write into; a second
+// implementation of it behind a library screen is the kind of thing
+// that works until the day it silently doesn't.
+// =====================================================================
+
+import React, { useRef, useState } from "react";
+import { FileText, Paperclip, Send, X } from "lucide-react";
+import { navigate } from "@/lib/route";
+import { PREFILL_KEY } from "@/shared/lib/assistantPrefill";
+import { writeStorage } from "@/shared/lib/storage";
+import { normGrade, normSubject } from "@/shared/lib/classMatch";
+import { uploadMaterial, MaterialPicker } from "@/features/materials";
+import { useCredits, CreditEstimate, chargesRead } from "./CreditMeter";
+import { SkillsPicker } from "./SkillsPicker";
+import { ClassPicker } from "./ClassPicker";
+import { KINDS, KIND_LABEL } from "./kinds";
+import s from "./Studio.module.css";
+
+/** The studio remembers its own class pick under this key. */
+const STUDIO_PICK_KEY = "murchid.studio.class";
+
+export default function StudioLauncher({ kind, scope = null }) {
+  // The screen's own kind is on, and the rest are there to be added:
+  // "a lesson and the quiz that goes with it" is one request, and asking
+  // for it from the Lessons shelf should not mean starting again.
+  const [kinds, setKinds] = useState(() => (kind ? [kind] : ["lesson_plan"]));
+  const [draft, setDraft] = useState("");
+  const [attachments, setAttachments] = useState([]);
+  const [uploading, setUploading] = useState(false);
+  const [notice, setNotice] = useState(null);
+  const [pickedClass, setPickedClass] = useState(null);
+  const classSel = useRef(null);
+  const skillSel = useRef(null);
+  const fileRef = useRef(null);
+  const { credits } = useCredits();
+
+  const toggleKind = (v) =>
+    setKinds((prev) =>
+      // One format always stays on: a send with none selected has no
+      // shape to write in, and the studio would pick one for her.
+      prev.includes(v) ? (prev.length === 1 ? prev : prev.filter((k) => k !== v)) : [...prev, v],
+    );
+
+  const attach = async (e) => {
+    const files = [...(e.target.files || [])];
+    e.target.value = "";
+    if (!files.length) return;
+    setUploading(true);
+    setNotice(null);
+    try {
+      for (const f of files) {
+        // The same upload path as the studio and the shelf, so a file
+        // attached here is filed under this class exactly as it would be
+        // there — see features/materials/api.ts.
+        const att = await uploadMaterial(f, { where: "studio", audience: classSel.current });
+        setAttachments((a) => [...a, att]);
+      }
+    } catch (err) {
+      setNotice(err.message);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  /**
+   * Hand over to the studio, already set up.
+   *
+   * `kinds` and `attachments` travel as arrays because send() has always
+   * accepted them that way (opts.kinds / opts.attachments) — this is the
+   * shape the generator already speaks, not a new one. The class is
+   * written into the studio's own remembered pick as well, which is the
+   * only thing that survives the navigation on its side.
+   */
+  const send = () => {
+    const prompt = draft.trim();
+    if (!prompt && !attachments.length) return;
+    const cls = classSel.current;
+    try {
+      sessionStorage.setItem(PREFILL_KEY, JSON.stringify({
+        action: "create_work",
+        prompt,
+        kinds,
+        kind: kinds[0],
+        attachments,
+        skills: skillSel.current || undefined,
+        subject: cls?.subject, grade: cls?.grade, section: cls?.section,
+        autostart: true,
+        at: Date.now(),
+      }));
+    } catch {
+      /* private browsing: the studio opens empty, which is the old behaviour */
+    }
+    if (cls) {
+      writeStorage(
+        STUDIO_PICK_KEY,
+        [normGrade(cls.grade) || "", (cls.section || "").trim().toLowerCase(), normSubject(cls.subject) || ""].join("§"),
+      );
+    }
+    navigate(["studio"]);
+  };
+
+  const one = kinds.length === 1 ? KIND_LABEL[kinds[0]] : null;
+
+  return (
+    <div className="mb-6">
+      <div className={s.composer}>
+        {notice && <p className="text-[12.5px] text-crit px-4 pt-3">{notice}</p>}
+
+        {attachments.length > 0 && (
+          <div className={s.attachRow}>
+            {attachments.map((a) => (
+              <span key={a.path} className={s.attach}>
+                <FileText size={12} className="text-accent flex-shrink-0" />
+                <span className="truncate flex-1">{a.name}</span>
+                <button
+                  type="button"
+                  aria-label={`Remove ${a.name}`}
+                  onClick={() => setAttachments((x) => x.filter((y) => y.path !== a.path))}
+                >
+                  <X size={12} />
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
+
+        <textarea
+          className={s.input}
+          rows={1}
+          value={draft}
+          placeholder={
+            one
+              ? `Describe the ${one.toLowerCase()} you need…`
+              : `Describe it once — you'll get ${kinds.map((k) => KIND_LABEL[k].toLowerCase()).join(" + ")}…`
+          }
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey && window.innerWidth > 640) {
+              e.preventDefault();
+              send();
+            }
+          }}
+        />
+
+        <div className={s.composerBar}>
+          <button
+            type="button"
+            className={s.iconBtn}
+            onClick={() => fileRef.current?.click()}
+            disabled={uploading}
+            aria-label="Attach a syllabus or chapter"
+            title="Attach"
+          >
+            <Paperclip size={17} />
+          </button>
+          <input
+            ref={fileRef}
+            type="file"
+            multiple
+            accept="application/pdf,.pdf,.doc,.docx,.txt,.md,.csv,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown,text/csv,image/*"
+            className="hidden"
+            onChange={attach}
+          />
+
+          <div className={s.kindRow}>
+            {KINDS.map((k) => (
+              <button
+                key={k.value}
+                type="button"
+                className={s.kindBtn}
+                data-on={kinds.includes(k.value)}
+                onClick={() => toggleKind(k.value)}
+                aria-pressed={kinds.includes(k.value)}
+                title={
+                  kinds.includes(k.value) && kinds.length === 1
+                    ? `${k.label} — at least one format stays on`
+                    : `Toggle ${k.label.toLowerCase()}`
+                }
+              >
+                <k.icon size={13} /> {k.label}
+              </button>
+            ))}
+          </div>
+
+          <ClassPicker
+            preferred={scope}
+            onSelection={(cls) => { classSel.current = cls; setPickedClass(cls); }}
+          />
+          <MaterialPicker
+            attached={attachments}
+            audience={pickedClass}
+            onPick={(att) =>
+              setAttachments((a) => (a.some((x) => x.id === att.id) ? a : [...a, att]))
+            }
+          />
+          <SkillsPicker onSelection={(sel) => { skillSel.current = sel; }} />
+
+          <span className="flex-1" />
+
+          <CreditEstimate
+            credits={credits}
+            kinds={kinds}
+            hasMaterials={attachments.some(chargesRead)}
+          />
+
+          <button
+            type="button"
+            className={s.send}
+            disabled={!draft.trim() && !attachments.length}
+            onClick={send}
+            aria-label="Send"
+          >
+            <Send size={16} />
+          </button>
+        </div>
+      </div>
+
+      <p className="text-[11px] text-muted text-center mt-2 max-w-[760px] mx-auto">
+        {pickedClass
+          ? "Murchid drafts; you decide. Check anything before it reaches a class."
+          : "Pick a class and the grade decides the reading level. Murchid drafts; you decide."}
+      </p>
+    </div>
+  );
+}

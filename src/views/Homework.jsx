@@ -17,6 +17,7 @@ import { DeliveryChip, useDeliveryMap } from "@/features/delivery";
 import { homeworkToDoc } from "../lib/toDoc";
 import { useT } from "../lib/i18n";
 import { filterByClassScope, useClassScope } from "../shared/lib/classScope";
+import StudioLauncher from "../features/studio-ai/StudioLauncher";
 
 export default function Homework({ onOpenHomework }) {
   const t = useT();
@@ -101,6 +102,11 @@ export default function Homework({ onOpenHomework }) {
         dateScope={scope}
         onDateScopeChange={setScope}
       />
+
+      {/* The studio, on the shelf it writes into. Opened from a class
+          in the sidebar it is already writing for that class, so the
+          question does not have to be re-answered somewhere else. */}
+      <StudioLauncher kind="homework" scope={classScope} />
 
       {error && (
         <div className="mb-4 bg-paper border border-accent rounded-lg p-4">

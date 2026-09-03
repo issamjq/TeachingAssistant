@@ -59,6 +59,7 @@ import { ConversationListSkeleton, ThreadSkeleton } from "./DocumentSkeleton";
 import { renderMarkdown } from "@/lib/markdown";
 import { SkillsPicker } from "./SkillsPicker";
 import { ClassPicker } from "./ClassPicker";
+import { KINDS } from "./kinds";
 import ClassSignal from "./ClassSignal";
 import { classLabel } from "@/shared/lib/classMatch";
 import { navigate } from "@/lib/route";
@@ -70,13 +71,6 @@ import { useContextPanelSlot } from "@/shared/shell/ContextPanel";
 import { useMediaQuery } from "@/shared/hooks/useMediaQuery";
 import s from "./Studio.module.css";
 
-const KINDS = [
-  { value: "lesson_plan",  label: "Lesson",       icon: FileText },
-  { value: "quiz",         label: "Quiz",         icon: GraduationCap },
-  { value: "homework",     label: "Homework",     icon: ClipboardList },
-  { value: "presentation", label: "Presentation", icon: Layers },
-  { value: "activity",     label: "Activity",     icon: Puzzle },
-];
 
 const STARTERS = [
   { kind: "lesson_plan",  text: "A 45-minute Grade 7 lesson on photosynthesis, with a hands-on starter and an exit ticket." },
@@ -891,15 +885,35 @@ export default function StudioChat({ initialKind = "lesson_plan" }) {
       const text = [pre.prompt, pre.topic, pre.title, pre.description]
         .find((v) => typeof v === "string" && v.trim());
       const kind = typeof pre.kind === "string" && KIND_META[pre.kind] ? pre.kind : null;
+      /**
+       * A hand-off may name SEVERAL formats.
+       *
+       * The launcher on a library screen lets a teacher ask for a lesson
+       * and the quiz that goes with it in one request, which is what
+       * send() has always meant by `opts.kinds` — so it travels as the
+       * array the generator already speaks rather than as a second
+       * shape to keep in step. `kind` stays for the older callers.
+       */
+      const many = Array.isArray(pre.kinds)
+        ? pre.kinds.filter((k) => typeof k === "string" && KIND_META[k])
+        : [];
+      const atts = Array.isArray(pre.attachments) ? pre.attachments : [];
       // A day of a placed term. Carried through the send so the service
       // can mark that day drafted; it survives exactly one generation,
       // because the second lesson she writes is not that Tuesday.
       if (typeof pre.goal_day_id === "string") goalDayRef.current = pre.goal_day_id;
       if (text) setDraft(String(text).trim());
-      if (kind) setKinds([kind]);
-      // send() takes the text as an argument rather than reading `draft`,
-      // which has not committed yet on this tick.
-      if (pre.autostart && text) send(String(text).trim(), kind || undefined);
+      if (many.length) setKinds(many);
+      else if (kind) setKinds([kind]);
+      if (atts.length) setAttachments(atts);
+      // send() takes everything as arguments rather than reading state,
+      // none of which has committed yet on this tick.
+      if (pre.autostart && (text || atts.length)) {
+        send(String(text ?? "").trim(), many.length ? undefined : kind || undefined, {
+          ...(many.length ? { kinds: many } : {}),
+          ...(atts.length ? { attachments: atts } : {}),
+        });
+      }
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

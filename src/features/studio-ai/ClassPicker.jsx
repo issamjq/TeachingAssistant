@@ -15,7 +15,7 @@
 // nothing asks. The pick is remembered per browser — a teacher preps
 // for the same class in the gaps around teaching it.
 // =====================================================================
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Users, Check } from "lucide-react";
 import { readStorage, writeStorage } from "@/shared/lib/storage";
 import { useRoster } from "@/features/delivery";
@@ -32,22 +32,71 @@ const keyOf = (c) =>
  * current pick through onSelection(cls | null) whenever it changes; the
  * parent keeps it in a ref and reads it at send time.
  */
-export function ClassPicker({ onSelection }) {
+export function ClassPicker({ onSelection, preferred = null }) {
   const { roster, ready } = useRoster();
+  /**
+   * `preferred` is the class the screen was opened for — the sidebar
+   * sends a teacher to /quizzes FROM Physics · Grade 9, and the composer
+   * on that screen should already be writing for it.
+   *
+   * It only decides the FIRST render, and only when it names a class she
+   * actually has. After that her own pick wins, including picking "no
+   * class": a preference that reasserted itself on every render would be
+   * a control that undoes what you just did.
+   */
   const [pickedKey, setPickedKey] = useState(() => readStorage(PICK_KEY) || "");
+  // Once she has chosen — including choosing "no class" — the screen's
+  // preference stops applying. A default that reasserted itself would be
+  // a control that undoes what you just did. State, not a ref: it is read
+  // while rendering, which is the definition of something React has to
+  // know about.
+  const [touched, setTouched] = useState(false);
   const [open, setOpen] = useState(false);
   const wrapRef = useRef(null);
   const onSelectionRef = useRef(onSelection);
   useEffect(() => { onSelectionRef.current = onSelection; });
 
-  const classes = ready ? distinctClasses(roster) : [];
+  /**
+   * Memoised, and it has to be.
+   *
+   * distinctClasses() builds fresh objects every call, so an unmemoised
+   * call made `picked` a new reference on every render — and the effect
+   * below, which reports the pick to the parent, fired every time. A
+   * parent that keeps the pick in state then re-rendered us, and the two
+   * chased each other until React gave up with "maximum update depth".
+   */
+  const classes = useMemo(() => (ready ? distinctClasses(roster) : []), [ready, roster]);
   // A remembered pick whose class has left the roster resolves to null
   // rather than silently labelling work for a class that no longer exists.
-  const picked = classes.find((c) => keyOf(c) === pickedKey) || null;
+  const stored = classes.find((c) => keyOf(c) === pickedKey) || null;
+  /**
+   * The class the screen was opened for, matched on grade and subject
+   * only.
+   *
+   * `preferred` comes from the sidebar, which files a class by subject
+   * and grade — a lesson is written once for Grade 9 and taught to 9A,
+   * 9B and 9C. The roster splits those into one row per division, so
+   * matching on the full key would find nothing. The first division is
+   * offered and she can change it; what matters is that the grade and
+   * subject — the two fields that decide delivery — arrive already set.
+   */
+  const wanted =
+    !stored && !touched && preferred
+      ? classes.find(
+          (c) =>
+            normSubject(c.subject) === normSubject(preferred.subject) &&
+            normGrade(c.grade) === normGrade(preferred.grade),
+        ) || null
+      : null;
+  const picked = stored || wanted;
 
+  // Keyed on WHICH class, not on the object holding it — belt and braces
+  // with the memo above, and the thing that stays true if the memo ever
+  // stops holding.
+  const pickedId = picked ? keyOf(picked) : "";
   useEffect(() => {
     onSelectionRef.current?.(picked);
-  }, [picked]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [pickedId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!open) return;
@@ -62,6 +111,7 @@ export function ClassPicker({ onSelection }) {
   if (!ready || classes.length === 0) return null;
 
   const pick = (c) => {
+    setTouched(true);
     const next = c && picked && keyOf(c) === keyOf(picked) ? null : c;
     setPickedKey(next ? keyOf(next) : "");
     writeStorage(PICK_KEY, next ? keyOf(next) : "");
@@ -79,7 +129,10 @@ export function ClassPicker({ onSelection }) {
         title="Which class this is for — its grade and subject decide which students receive the work"
         onClick={() => setOpen((v) => !v)}
       >
-        <Users size={13} /> {picked ? `For ${classLabel(picked)}` : "For · any class"}
+        <Users size={13} />{" "}
+        {picked
+          ? `For ${classLabel(picked)} · ${picked.count} student${picked.count === 1 ? "" : "s"}`
+          : "For · any class"}
       </button>
 
       {open && (
