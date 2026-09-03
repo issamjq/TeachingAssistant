@@ -309,6 +309,7 @@ export const SECTIONS_BY_ROLE: Record<Role, Set<string>> = {
     // to the dashboard while these were missing.
     "class-settings",
     "subjects",
+    "curriculum",
     "account",
     "plans",
     "credit-usage",

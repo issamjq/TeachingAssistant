@@ -32,7 +32,8 @@ import { uploadMaterial } from "@/features/materials";
 import s from "./Goals.module.css";
 import PlanningProgress from "./PlanningProgress";
 import PlaceOnTimetable from "./PlaceOnTimetable";
-import CurriculumStart from "./CurriculumStart";
+import { CurriculumPicker } from "@/features/curriculum";
+import { CURRICULUM_SEED_KEY } from "@/shared/lib/curriculumHandoff";
 
 /**
  * How long she has, in her own words.
@@ -119,15 +120,33 @@ async function uploadGoalMaterial(file) {
 }
 
 function NewGoal({ onCreated, onClose, startWithCurriculum = false }) {
-  const [title, setTitle] = useState("");
-  const [brief, setBrief] = useState("");
-  const [timeline, setTimeline] = useState("");
+  // A unit picked on the standalone /curriculum page, if that is how we
+  // got here — read once, synchronously, before first paint, so the
+  // form never flashes empty and then fills in. Consumed immediately:
+  // a stale seed must not reapply itself to the NEXT goal opened in
+  // this tab.
+  const [seed] = useState(() => {
+    if (typeof window === "undefined") return null;
+    try {
+      const raw = sessionStorage.getItem(CURRICULUM_SEED_KEY);
+      if (!raw) return null;
+      sessionStorage.removeItem(CURRICULUM_SEED_KEY);
+      return JSON.parse(raw);
+    } catch {
+      return null;
+    }
+  });
+  const [title, setTitle] = useState(seed?.title || "");
+  const [brief, setBrief] = useState(seed?.brief || "");
+  const [timeline, setTimeline] = useState(seed?.timeline || "");
   // Parsed as she types, so what the planner will be told is always on screen.
   const days = daysFromTimeline(timeline);
   const [docs, setDocs] = useState([]);          // { id, file_name }
   // Carried straight onto the goal when the unit came from the
   // curriculum, so the plan already knows who it is for.
-  const [pickedClass, setPickedClass] = useState(null);
+  const [pickedClass, setPickedClass] = useState(
+    seed ? { grade: seed.grade, subject: seed.subject } : null
+  );
   const [periods, setPeriods] = useState(null);
   const [busy, setBusy] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -199,8 +218,11 @@ function NewGoal({ onCreated, onClose, startWithCurriculum = false }) {
         {/* Before the empty box, not after it. The syllabus already
             decided what she is teaching; asking her to type it first is
             asking for the easy half in order to unlock the hard half. */}
-        <CurriculumStart
-          startOpen={startWithCurriculum}
+        <CurriculumPicker
+          // Already have a seed from /curriculum: the pick already
+          // happened on the previous screen, so re-opening the picker
+          // here would just ask the same question twice.
+          startOpen={startWithCurriculum && !seed}
           onPick={(u) => {
             setTitle(u.title);
             setBrief(u.brief);

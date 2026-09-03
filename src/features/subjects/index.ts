@@ -7,20 +7,32 @@
 export {
   listSubjects,
   createSubject,
+  updateSubject,
   archiveSubject,
   listDivisions,
   createDivision,
+  updateDivision,
+  archiveDivision,
   divisionRoll,
   addToDivision,
   removeFromDivision,
   listClasses,
   teachSubject,
+  archiveClass,
   classRoster,
   setClassException,
   rollYear,
+  listClassDocuments,
+  createClassDocument,
+  deleteClassDocument,
   type Subject,
   type Division,
   type RollEntry,
   type ClassRow,
+  type ClassDocument,
 } from "./api";
 export { default as SubjectsView } from "./SubjectsView";
+export { default as AddStudentsModal } from "./AddStudentsModal";
+export { default as AddSubjectNameModal } from "./AddSubjectNameModal";
+export { default as AddSubjectToDivisionsModal } from "./AddSubjectToDivisionsModal";
+export { uploadClassDocument } from "./uploadClassDocument";

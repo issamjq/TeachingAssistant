@@ -2,12 +2,11 @@
 
 // "Start from your curriculum."
 //
-// The goal planner has always opened with an empty box asking what her
-// students should master. A teacher of twelve years does not need help
-// deciding that — the syllabus decided it in August. What she needs is
-// the production work, and being asked to type the unit name first is
-// being asked to do the one part she finds trivial in order to unlock
-// the part she finds expensive.
+// A teacher of twelve years does not need help deciding what her
+// students should master this term — the syllabus decided it in August.
+// What she needs is the production work, and being asked to type the
+// unit name first is being asked to do the one part she finds trivial
+// in order to unlock the part she finds expensive.
 //
 // So: pick what you teach, and the unit is already written — its title,
 // its outcomes, a pacing hint. She edits from something instead of from
@@ -18,13 +17,20 @@
 // showing the second when we only have the first is how a veteran ends
 // up auditing every week before she can trust any of it — which costs
 // her more than building it herself would have.
+//
+// Shared by two callers with different jobs: the goal composer embeds
+// this to seed a new goal from a unit (`onPick`, collapsible so a
+// teacher writing her own brief can dismiss it); the standalone
+// /curriculum page mounts it as the whole screen, browsing the sequence
+// as reference rather than as a step toward creating anything
+// (`collapsible={false}` — there is nothing to collapse back to).
 
 import React, { useEffect, useMemo, useState } from "react";
 import { BookMarked, ChevronRight, Check } from "lucide-react";
 import { api } from "@/views/_shared";
 import { flash } from "@/shared/lib/flash";
 import { GRADE_LEVELS, MAJORS } from "@/lib/enums";
-import s from "./Goals.module.css";
+import s from "./Curriculum.module.css";
 
 const SOURCE_NOTE = {
   derived:
@@ -35,16 +41,20 @@ const SOURCE_NOTE = {
     "A starter sequence, drafted by us — the topics almost every board covers, in the usual order. Check it against your school's scheme and change what differs.",
 };
 
-export default function CurriculumStart({ onPick, startOpen = false }) {
+export default function CurriculumPicker({
+  onPick, startOpen = false, defaultGrade = "", defaultSubject = "", collapsible = true,
+  showEmptyState = false,
+}) {
   const [curricula, setCurricula] = useState([]);
   const [coverage, setCoverage] = useState([]);
+  const [loaded, setLoaded] = useState(false);
   const [cur, setCur] = useState("");
-  const [grade, setGrade] = useState("");
-  const [subject, setSubject] = useState("");
+  // Seeded from the class this was opened against, so a teacher who
+  // came here from one class's settings is not made to re-pick a grade
+  // and subject she was just looking at.
+  const [grade, setGrade] = useState(defaultGrade);
+  const [subject, setSubject] = useState(defaultSubject);
   const [units, setUnits] = useState(null);
-  // Arriving from class-settings' "Curriculum" link means she already
-  // asked for this picker — showing the collapsed teaser button again
-  // would be the same wrong-screen complaint one level down.
   const [open, setOpen] = useState(startOpen);
   const [deriving, setDeriving] = useState(false);
   const [derived, setDerived] = useState(null);
@@ -58,6 +68,7 @@ export default function CurriculumStart({ onPick, startOpen = false }) {
       if (!live) return;
       setCurricula(Array.isArray(c) ? c : []);
       setCoverage(Array.isArray(cov) ? cov : []);
+      setLoaded(true);
     });
     return () => { live = false; };
   }, []);
@@ -94,8 +105,23 @@ export default function CurriculumStart({ onPick, startOpen = false }) {
     return () => { live = false; };
   }, [cur, grade, subject]);
 
-  // Nothing seeded at all — say nothing rather than offer an empty shelf.
-  if (!coverage.length) return null;
+  // Nothing seeded at all. Embedded in the goal composer this says
+  // nothing — an empty picker would be clutter around a form that
+  // works fine without it. The standalone page IS the curriculum
+  // screen, so it says so instead of rendering blank.
+  if (loaded && !coverage.length) {
+    if (!showEmptyState) return null;
+    return (
+      <div className="rounded-lg border border-dashed border-line p-6 text-center">
+        <BookMarked size={18} className="mx-auto text-muted" aria-hidden />
+        <p className="mt-2 text-[14px] text-ink">No curriculum content yet</p>
+        <p className="mx-auto mt-1 max-w-sm text-[12.5px] leading-relaxed text-muted">
+          Nobody has added a unit sequence for your school's board. Upload a syllabus under
+          My material and check back, or describe your own units in a goal.
+        </p>
+      </div>
+    );
+  }
 
   if (!open) {
     return (
@@ -135,13 +161,15 @@ export default function CurriculumStart({ onPick, startOpen = false }) {
     <div className="rounded-lg border border-line p-3.5">
       <div className="flex items-center justify-between gap-3 mb-3">
         <p className={s.eyebrow}>From your curriculum</p>
-        <button
-          type="button"
-          onClick={() => setOpen(false)}
-          className="text-[12px] text-muted hover:text-ink"
-        >
-          I'll write it myself
-        </button>
+        {collapsible && (
+          <button
+            type="button"
+            onClick={() => setOpen(false)}
+            className="text-[12px] text-muted hover:text-ink"
+          >
+            I'll write it myself
+          </button>
+        )}
       </div>
 
       <div className="grid grid-cols-3 gap-2">
@@ -247,7 +275,11 @@ export default function CurriculumStart({ onPick, startOpen = false }) {
                       grade,
                       subject,
                     });
-                    setOpen(false);
+                    // Only when embedded: the goal composer below is now
+                    // the thing to look at. The standalone page has
+                    // nowhere more relevant to collapse TO — onPick
+                    // there navigates away entirely.
+                    if (collapsible) setOpen(false);
                   }}
                   className="w-full text-start rounded-lg border border-line px-3 py-2.5 hover:border-ink transition-colors"
                 >

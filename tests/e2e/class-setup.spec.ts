@@ -74,9 +74,21 @@ const CLASS_DOCUMENTS = [
   },
 ];
 
+const CURRICULA = [{ code: "cbse", name: "CBSE", name_ar: null, region: "IN" }];
+const CURRICULUM_UNITS = [
+  {
+    id: "unit-1", curriculum_code: "cbse", grade: "Grade 9", subject: "Physics",
+    seq: 1, title: "Forces and Motion", outcomes: ["Explain Newton's laws"],
+    typical_weeks: 3, source: "starter",
+  },
+];
+
 const STUDENTS = [
   { id: "s1", first_name: "Reem", last_name: "Al Dhaheri", student_code: "STU-00001", email: "r@x.com", grade: "Grade 9", division: "A" },
   { id: "s2", first_name: "Saif", last_name: "Al Nuaimi", student_code: "STU-00002", email: "s@x.com", grade: "Grade 9", division: "A" },
+  // Not in either division's roll — the one the "add students" picker
+  // has left to offer.
+  { id: "s3", first_name: "Mariam", last_name: "Al Hashimi", student_code: "STU-00003", email: "m@x.com", grade: "Grade 9", division: "" },
 ];
 
 /** Every write the page made, so a click can be asserted on its effect. */
@@ -187,7 +199,16 @@ async function studio(page: Page, opts: { scope?: boolean } = {}) {
     if (url.includes("/rest/v1/classes")) return json(method === "GET" ? CLASSES : CLASSES[0]);
     if (url.includes("/rest/v1/faculty_subjects")) return json(method === "GET" ? FACULTY_SUBJECTS : FACULTY_SUBJECTS[0]);
     if (url.includes("/rest/v1/class_documents")) return json(method === "GET" ? CLASS_DOCUMENTS : (method === "DELETE" ? [] : CLASS_DOCUMENTS[0]));
-    if (url.includes("/rest/v1/division_members")) return json(method === "GET" ? STUDENTS.map((s) => ({ id: `m-${s.id}`, joined_at: null, students: s })) : []);
+    if (url.includes("/rest/v1/curricula")) return json(CURRICULA);
+    if (url.includes("/rest/v1/curriculum_units")) return json(CURRICULUM_UNITS);
+    if (url.includes("/rest/v1/division_members")) {
+      if (method !== "GET") return json([]);
+      // Division-aware, unlike the other stubs here: the "add students"
+      // picker needs a real difference between "already in this
+      // division" and "not yet" to be worth testing at all.
+      const roll = url.includes(DIVISION_A_ID) ? [STUDENTS[0], STUDENTS[1]] : [];
+      return json(roll.map((s) => ({ id: `m-${s.id}`, joined_at: null, students: s })));
+    }
     if (url.includes("/rest/v1/class_members")) return json([]);
     if (url.includes("/rest/v1/faculty")) return json({ id: "00000000-0000-0000-0000-0000000000bb" });
     if (url.includes("/rest/v1/students")) return json(STUDENTS);
@@ -437,6 +458,66 @@ test.describe("required documents on an existing class", () => {
   });
 });
 
+test.describe("a subject can exist before it has a class", () => {
+  test("Add subject on /subjects only names it — no class is written", async ({ page }) => {
+    const written = await studio(page);
+    await page.goto("/subjects");
+    await expect(page.getByRole("heading", { name: /^Grade 9/ }).first()).toBeVisible();
+
+    await page.getByRole("button", { name: "Add subject" }).click();
+    await expect(page.getByRole("heading", { name: "Add a subject" })).toBeVisible();
+    await page.getByLabel(/subject name/i).fill("Debate");
+    await page.getByRole("button", { name: "Add subject" }).last().click();
+    await expect(page.getByRole("heading", { name: "Add a subject" })).toBeHidden({ timeout: 10_000 });
+
+    const w = written.find((x) => x.url.includes("faculty_subjects") && x.method === "POST");
+    expect(w, "the subject itself is created").toBeTruthy();
+    expect((w!.body as Record<string, unknown>).name).toBe("Debate");
+    expect(written.some((x) => x.url.includes("/rest/v1/classes")), "no class or division is touched").toBe(false);
+  });
+
+  test("Add a subject here, from class settings, teaches it to the same divisions", async ({ page }) => {
+    const written = await studio(page, { scope: true });
+    await page.goto("/class-settings");
+    await expect(page.getByText("Reem Al Dhaheri")).toBeVisible();
+
+    await page.getByRole("button", { name: "Add a subject here" }).click();
+    await expect(page.getByRole("heading", { name: "Add a subject here" })).toBeVisible();
+    await page.getByLabel(/subject name/i).fill("Chemistry");
+    await page.getByRole("button", { name: "Add subject" }).click();
+    await expect(page.getByRole("heading", { name: "Add a subject here" })).toBeHidden({ timeout: 10_000 });
+
+    const classWrite = written.find((x) => x.url.includes("/rest/v1/classes") && x.method === "POST");
+    expect(classWrite, "taught straight to the class's own division, no picker needed").toBeTruthy();
+    expect((classWrite!.body as Record<string, unknown>).subject).toBe("Chemistry");
+    expect((classWrite!.body as Record<string, unknown>).division_id).toBe(DIVISION_A_ID);
+  });
+});
+
+test.describe("students can be enrolled straight into a division", () => {
+  test("the picker on /subjects offers only students not already in it", async ({ page }) => {
+    const written = await studio(page);
+    await page.goto("/subjects");
+    await expect(page.getByRole("heading", { name: /^Grade 9/ }).first()).toBeVisible();
+
+    await page.getByRole("button", { name: "Add students to Grade 9 A" }).click();
+    await expect(page.getByRole("heading", { name: "Add students to Grade 9 A" })).toBeVisible();
+
+    // s1 and s2 are already on this division's roll (the fixture) — only
+    // s3 is left to offer.
+    await expect(page.getByText("Mariam Al Hashimi")).toBeVisible();
+    await expect(page.getByText("Reem Al Dhaheri")).toBeHidden();
+
+    await page.getByText("Mariam Al Hashimi").click();
+    await page.getByRole("button", { name: "Add 1" }).click();
+    await expect(page.getByRole("heading", { name: "Add students to Grade 9 A" })).toBeHidden({ timeout: 10_000 });
+
+    const w = written.find((x) => x.url.includes("/rest/v1/division_members") && x.method === "POST");
+    expect(w, "joins the division, not a class").toBeTruthy();
+    expect((w!.body as { student_id: string }[])[0]?.student_id).toBe("s3");
+  });
+});
+
 test.describe("class settings drives the roll", () => {
   test("shows the resolved roll and does not bounce to the dashboard", async ({ page }) => {
     await studio(page, { scope: true });
@@ -470,14 +551,33 @@ test.describe("class settings drives the roll", () => {
     await expect(page.getByRole("heading", { name: /pick a class first/i })).toBeVisible();
   });
 
-  test("the Curriculum link opens goals with the picker already up", async ({ page }) => {
+  test("the Curriculum link opens the standalone curriculum page, scoped to the class", async ({ page }) => {
     await studio(page, { scope: true });
     await page.goto("/class-settings");
 
     await page.getByText("Curriculum", { exact: true }).click();
+    await expect(page).toHaveURL(/\/curriculum$/);
+    // Not a detour through "+ New goal" — its own screen, with the
+    // class already scoped so a teacher does not re-pick a grade and
+    // subject she was just looking at.
+    await expect(page.getByRole("heading", { name: /physics.*units and pacing/i })).toBeVisible();
+    await expect(page.getByLabel("Grade")).toHaveValue("Grade 9");
+    await expect(page.getByLabel("Subject")).toHaveValue("Physics");
+  });
+
+  test("picking a unit on the curriculum page hands it to the goal planner", async ({ page }) => {
+    await studio(page, { scope: true });
+    await page.goto("/curriculum");
+
+    await page.getByLabel("Curriculum").selectOption("cbse");
+    await expect(page.getByText("Forces and Motion")).toBeVisible();
+    await page.getByText("Forces and Motion").click();
+
     await expect(page).toHaveURL(/\/goals\?curriculum=1$/);
-    // The composer — and the curriculum picker inside it — must be the
-    // first thing on screen, not a hero she has to click through.
+    // The composer opens with the unit already filling the goal in —
+    // picking it a second time inside goals would be asking the same
+    // question twice.
     await expect(page.getByRole("heading", { name: /what should your students master/i })).toBeVisible();
+    await expect(page.getByLabel(/^goal$/i)).toHaveValue("Forces and Motion");
   });
 });
