@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import Landing from "@/views/Landing";
 import { navigate } from "@/lib/route";
 import { getRole } from "@/lib/role";
@@ -16,9 +17,19 @@ import { DEFAULT_ROUTE } from "@/config/nav";
 // deep-link the funnel.
 
 export default function FunnelRoute({ mode }: { mode: "signup" | "signin" }) {
+  const router = useRouter();
   return (
     <Landing
       initialPage={mode}
+      /**
+       * Back to home means the marketing site, which is a route.
+       *
+       * Landing.jsx carries a `page === "home"` of its own that renders
+       * LandingHome — the landing "/" stopped using when the marketing
+       * site was rebuilt. Flipping to it left a teacher looking at the
+       * old page, at /signin, with the real one one click away.
+       */
+      onHome={() => router.push("/")}
       // Landing names a destination when it has one. When it does not, the
       // right default is whatever this role's home is — "planner" belongs
       // to a teacher, and sending a student there only made the studio

@@ -2591,7 +2591,7 @@ function MarketingPage({ page, onSignUp, onProfileDone, onChoosePlan, onPage, on
 // go to the AI Studio, which is the one screen that is useful when empty.
 // A returning teacher goes to the dashboard, which is a summary of work
 // they have actually done.
-export default function Landing({ onOpenStudio, heroVariant = null, initialPage = "home" }) {
+export default function Landing({ onOpenStudio, heroVariant = null, initialPage = "home", onHome = null }) {
   // `initialPage` is how a real route hands this view its starting screen.
   // The funnel used to be reachable only as internal state at "/", which
   // meant the primary CTA never changed the URL and the browser's Back
@@ -2616,7 +2616,24 @@ export default function Landing({ onOpenStudio, heroVariant = null, initialPage 
   // DB before the studio loads).
   const [pendingAuthUser, setPendingAuthUser] = useState(null);
 
+  /**
+   * "Home" is a ROUTE now, not a page of this view.
+   *
+   * This file is mounted only by FunnelRoute, at /signin and /signup, and
+   * its own `page === "home"` renders LandingHome — the landing that "/"
+   * stopped using when the marketing site was rebuilt in August. So the
+   * back link on the auth screens flipped internal state and showed the
+   * old page, at the wrong URL, with the real one one click away.
+   *
+   * `onHome` hands that back to the router. The internal fallback stays
+   * for anywhere this view is mounted without one, which is nowhere
+   * today.
+   */
   const goPage = (p) => {
+    if (p === "home" && onHome) {
+      onHome();
+      return;
+    }
     setPage(p);
     window.scrollTo(0, 0);
   };

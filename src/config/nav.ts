@@ -42,10 +42,18 @@ const TEACHER_NAV: NavSection[] = [
   {
     section: "Overview",
     items: [
-      // The working screen, and the one a teacher opens in the morning:
-      // what am I teaching next, and is it ready. Dashboard stays as the
-      // configurable overview it is, one rung down.
-      { key: "week", label: "This week", icon: "week" },
+      /**
+       * "This week" is no longer a rail item.
+       *
+       * It and Calendar were the same seven days over the same table
+       * drawn twice — the calendar has a Week view and a panel headed
+       * "This week" of its own. What the screen had that the calendar
+       * did not is READINESS, and that moved: the calendar's rail now
+       * carries "Not ready · N with nothing behind them", and pressing
+       * it opens the list with its Make it buttons. The route stays
+       * reachable, from there and from a bookmark; it just is not a
+       * second entry for the same week.
+       */
       { key: "dashboard", label: "Dashboard", icon: "dashboard" },
       { key: "studio", label: "Studio", icon: "studio" },
     ],
@@ -260,7 +268,10 @@ export const NAV_BY_ROLE: Record<Role, NavSection[]> = {
 
 /** Landing section for each role when no section is specified. */
 export const DEFAULT_ROUTE: Record<Role, string> = {
-  teacher: "week",
+  // Was "week", which is no longer a rail item — landing on a screen
+  // with no nav entry to return to is how a teacher gets lost. The
+  // dashboard is the overview and it links onward to both.
+  teacher: "dashboard",
   admin: "superadmin-dashboard",
   dev: "dev-console",
   super_admin: "superadmin-dashboard",

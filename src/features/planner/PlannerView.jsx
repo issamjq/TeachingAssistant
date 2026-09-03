@@ -31,6 +31,7 @@ import {
 } from "lucide-react";
 import { useT, useI18n } from "@/lib/i18n";
 import { api } from "@/views/_shared";
+import { navigate } from "@/lib/route";
 import { Button } from "@/components/ui/button";
 import SchedulePopup from "@/views/_schedule-popup";
 import PlannerTour, { hasSeenPlannerTour } from "@/views/onboarding/PlannerTour";
@@ -319,7 +320,34 @@ export default function PlannerView() {
     };
   }, [peek, peekEnd]);
 
-  // Phrased once; the rail and the phone strip render the same four.
+  /**
+   * How many of this week's lessons have nothing behind them yet.
+   *
+   * "This week" was a section of its own in the rail, and it and the
+   * calendar were the same seven days over the same table drawn twice —
+   * this view even carries a panel called This week. What that screen
+   * had and this one did not is READINESS: an entry can sit on the
+   * timetable with no lesson behind it, and the calendar showed it
+   * looking exactly like one that is ready.
+   *
+   * So the count comes here, from the same /api/week the screen used, so
+   * the two cannot disagree — and the screen itself stays one click
+   * away for the list and the Make it buttons.
+   */
+  const [notReady, setNotReady] = useState(null);
+  useEffect(() => {
+    let live = true;
+    api("/api/week")
+      .then((w) => {
+        if (!live) return;
+        const rows = Array.isArray(w?.lessons) ? w.lessons : [];
+        setNotReady(rows.filter((l) => !l.has_draft).length);
+      })
+      .catch(() => { /* a missing count is not worth a broken calendar */ });
+    return () => { live = false; };
+  }, []);
+
+  // Phrased once; the rail and the phone strip render the same figures.
   const loadFigures = useMemo(() => {
     const busiestDay = load.busiest
       ? new Date(`${load.busiest.day}T00:00:00`).toLocaleDateString(locale, { weekday: "short" })
@@ -343,8 +371,18 @@ export default function PlannerView() {
         value: load.next ? load.next.time || t("planner.allDay") : "—",
         note: load.next ? load.next.title : t("planner.load.clear"),
       },
+      // Only when there is something to say. A standing "0 to make" is a
+      // row a teacher learns to stop reading.
+      ...(notReady
+        ? [{
+            label: "Not ready",
+            value: String(notReady),
+            note: "with nothing behind them",
+            to: "week",
+          }]
+        : []),
     ];
-  }, [load, locale, t]);
+  }, [load, locale, t, notReady]);
 
   const fallToDay = (d) => {
     setAnchor(new Date(d));
@@ -447,15 +485,30 @@ export default function PlannerView() {
 
           <div className={s.railSection}>
             <p className={s.railTitle}>{t("planner.thisWeek")}</p>
-            {loadFigures.map((f) => (
-              <div key={f.label} className={s.sumRow}>
-                <span className={s.sumLabel}>{f.label}</span>
-                <span className={s.sumValue} title={f.note}>
-                  {f.value}
-                  <span className={s.sumNote}>{f.note}</span>
-                </span>
-              </div>
-            ))}
+            {loadFigures.map((f) =>
+              f.to ? (
+                <button
+                  key={f.label}
+                  type="button"
+                  onClick={() => navigate([f.to])}
+                  className={`${s.sumRow} w-full text-start cursor-pointer`}
+                  title={`${f.value} ${f.note} — open the list`}
+                >
+                  <span className={s.sumLabel}>{f.label}</span>
+                  <span className={s.sumValue}>
+                    {f.value}
+                    <span className={s.sumNote}>{f.note}</span>
+                  </span>
+                </button>
+              ) : (
+                <div key={f.label} className={s.sumRow}>
+                  <span className={s.sumLabel}>{f.label}</span>
+                  <span className={s.sumValue} title={f.note}>
+                    {f.value}
+                    <span className={s.sumNote}>{f.note}</span>
+                  </span>
+                </div>
+              ))}
           </div>
 
           <div className={s.railSection}>
