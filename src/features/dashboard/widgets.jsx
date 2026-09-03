@@ -404,20 +404,47 @@ export function TaskList({ tasks = [], onOpen }) {
       </div>
     );
   }
+  // Two jobs wearing one coat. "Teach forces at 09:00" is a clock
+  // saying be somewhere; "Finish this draft" is work waiting whenever
+  // there's a gap. Flat, the only thing separating them was the colour
+  // of a 6px dot, so the list read as seven equal chores and a teacher
+  // had to parse every row to find the ones with a time on them.
+  // buildTasks already labels each row with a `kind` — this just stops
+  // throwing that away.
+  const groups = [
+    { id: "today", label: t("dash.tasks.group.today"), items: tasks.filter((x) => x.kind === "lesson") },
+    { id: "open", label: t("dash.tasks.group.open"), items: tasks.filter((x) => x.kind !== "lesson") },
+  ].filter((g) => g.items.length);
+
+  const row = (item) => (
+    <li key={item.id}>
+      <button type="button" className={s.task} onClick={() => onOpen?.(item.section)}>
+        <span className={s.taskPip} data-urgent={!!item.urgent} aria-hidden="true" />
+        <span className="min-w-0 flex-1">
+          <span className="block text-[13.5px] text-ink leading-snug">{item.title}</span>
+          <span className="block text-[11.5px] text-muted mt-0.5">{item.meta}</span>
+        </span>
+      </button>
+    </li>
+  );
+
+  // One kind on its own needs no heading — a lone group label is a
+  // header for a list of one thing, which is just noise.
+  if (groups.length < 2) {
+    return <ul className="space-y-1">{tasks.map(row)}</ul>;
+  }
+
   return (
-    <ul className="space-y-1">
-      {tasks.map((t) => (
-        <li key={t.id}>
-          <button type="button" className={s.task} onClick={() => onOpen?.(t.section)}>
-            <span className={s.taskPip} data-urgent={!!t.urgent} aria-hidden="true" />
-            <span className="min-w-0 flex-1">
-              <span className="block text-[13.5px] text-ink leading-snug">{t.title}</span>
-              <span className="block text-[11.5px] text-muted mt-0.5">{t.meta}</span>
-            </span>
-          </button>
-        </li>
+    <div className="space-y-4">
+      {groups.map((g) => (
+        <div key={g.id}>
+          <p className={`${s.taskGroup} mb-1.5`}>
+            {g.label} <span className={s.taskGroupCount}>{g.items.length}</span>
+          </p>
+          <ul className="space-y-1">{g.items.map(row)}</ul>
+        </div>
       ))}
-    </ul>
+    </div>
   );
 }
 

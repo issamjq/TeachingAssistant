@@ -103,7 +103,7 @@ function nowLesson(lessons, now) {
   return next ? { mode: "next", lesson: next, until: delta } : { mode: "clear" };
 }
 
-function Head({ eyebrow, title, action, onAction }) {
+function Head({ eyebrow, title, action, onAction, meta }) {
   return (
     // Wraps rather than spills: a header action pushed past the card
     // edge is the one break a narrow tile produces reliably, and it
@@ -113,6 +113,11 @@ function Head({ eyebrow, title, action, onAction }) {
         {eyebrow && <p className={`${s.eyebrow} mb-1`}>{eyebrow}</p>}
         <h2 className={s.title}>{title}</h2>
       </div>
+      {/* A chart's own value, sitting where a header action would. A
+          drawing without a number is a shape: the reader can see that a
+          week rose without being told what it rose to. Charts pass this;
+          tiles that already ARE their number do not. */}
+      {meta && <div className="shrink-0 text-right">{meta}</div>}
       {action && (
         <button
           type="button"
@@ -668,21 +673,43 @@ export default function DashboardView({ onJump }) {
             ))}
           </section>
         );
-      case "rhythm":
+      case "rhythm": {
+        // The window the drawing actually shows — compact keeps five
+        // weeks, so the readout has to be counted over the same slice
+        // or the number would describe a chart that isn't on screen.
+        const act = data?.activity || [];
+        const shown = chartCompact ? act.slice(-5) : act;
+        const thisWeek = shown.length ? shown[shown.length - 1].n : 0;
+        const spanTotal = shown.reduce((a, d) => a + d.n, 0);
         return (
           <section className={`${s.glass} p-5 md:p-6 h-full flex flex-col`}>
             <Head
               eyebrow={chartCompact ? t("dash.w.rhythm.eyebrow5") : t("dash.w.rhythm.eyebrow8")}
               title={<>{t("dash.w.rhythm.titlePlain")}<em>{t("dash.w.rhythm.titleEm")}</em></>}
+              meta={!loading && spanTotal > 0 && (
+                <>
+                  <p className={`${s.statFigure} text-ink leading-none`}>{thisWeek}</p>
+                  <p className="text-[12px] text-muted mt-1 whitespace-nowrap">
+                    {t("dash.w.rhythm.thisWeek")}
+                  </p>
+                </>
+              )}
             />
             <div className={`flex-1 flex flex-col justify-end ${chartCompact ? "min-h-[104px]" : "min-h-[150px]"}`}>
               {loading ? <Bar w="w-full" h={chartCompact ? "h-20" : "h-28"} />
                 : prefs.charts.rhythm === "line"
-                  ? <LineTrend data={data?.activity || []} compact={chartCompact} />
-                  : <PillBars data={data?.activity || []} compact={chartCompact} />}
+                  ? <LineTrend data={act} compact={chartCompact} />
+                  : <PillBars data={act} compact={chartCompact} />}
             </div>
+            {!loading && spanTotal > 0 && (
+              <p className="text-[12px] text-muted mt-3">
+                {t("dash.w.rhythm.total").replace("{n}", String(spanTotal))
+                  .replace("{w}", String(shown.length))}
+              </p>
+            )}
           </section>
         );
+      }
       case "calendar": {
         // At its smallest the calendar shows the WEEK, not a shrunken
         // month. Seven columns in a quarter-width tile give ~30px cells,

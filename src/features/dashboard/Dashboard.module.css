@@ -386,6 +386,30 @@
 }
 .taskPip[data-urgent="true"] { background: var(--p-accent); }
 
+/* Group headings inside "Needs you". Same eyebrow voice as a card
+   header but a step quieter — these divide a list, they do not title a
+   card, and at full eyebrow weight they competed with the card's own
+   title for the same eye. */
+.taskGroup {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--p-muted);
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.taskGroupCount {
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--p-ink-soft);
+  background: color-mix(in oklab, var(--p-muted) 14%, transparent);
+  border-radius: 999px;
+  padding: 1px 6px;
+}
+
 /* ── edit mode ─────────────────────────────────────────────────────────
    The page becomes its own editor, the way a phone's quick-panel edit
    works: a bar on top with Done and Reset, controls ON each tile, and a
