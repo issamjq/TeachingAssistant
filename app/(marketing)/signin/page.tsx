@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import FunnelRoute from "@/features/marketing/FunnelRoute";
+import { FunnelRoute } from "@/features/marketing";
 
 export const metadata: Metadata = { title: "Sign in — Murchid" };
 

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import LegalSheet from "@/features/marketing/LegalSheet";
+import { LegalSheet } from "@/features/marketing";
 
 const DOCS = ["privacy", "terms"] as const;
 type Doc = (typeof DOCS)[number];

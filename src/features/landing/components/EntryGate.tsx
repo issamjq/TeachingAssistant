@@ -25,7 +25,7 @@
 // =====================================================================
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import LandingPage from "@/features/marketing/LandingPage";
+import { LandingPage } from "@/features/marketing";
 // Moved to a shared module: the marketing nav needs the same answer, to
 // decide whether it offers "Sign in" or a way back into the app.
 import { hasStoredSession } from "@/shared/lib/session";

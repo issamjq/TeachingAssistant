@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import FunnelRoute from "@/features/marketing/FunnelRoute";
+import { FunnelRoute } from "@/features/marketing";
 import { readBillingMode } from "@/features/marketing/billingMode";
 
 // Metadata is generated rather than static: the title and description are

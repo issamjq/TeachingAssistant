@@ -76,6 +76,7 @@ import { ContextPanelRegion, useContextPanelState } from "@/shared/shell/Context
 import { useMediaQuery } from "@/shared/hooks/useMediaQuery";
 import { ALLOW_API_OVERRIDE } from "@/config/env";
 import { startTelemetry, trackView } from "@/lib/telemetry";
+import { NavBadge } from "@/shared/shell/navIcons";
 import {
   NAV_BY_ROLE,
   DEFAULT_ROUTE,
@@ -99,64 +100,6 @@ const SIDEBAR_COLLAPSED_KEY = "murchid.sidebar.collapsed";
 const DevApiEndpoint = ALLOW_API_OVERRIDE
   ? dynamic(() => import("./DevApiEndpoint"), { ssr: false })
   : () => null;
-
-// Semantic key → icon. Letters were placeholders from before the nav
-// had a design; an icon says what a place IS before the label is read,
-// which a mono "H" never did.
-const NAV_ICON: Record<string, LucideIcon> = {
-  dashboard: LayoutDashboard,
-  studio: Sparkles,
-  scheduler: CalendarRange,
-  // The weekly teaching grid — the surface where work is delivered.
-  timetable: CalendarClock,
-  goals: Target,
-  library: LibraryBig,
-  materials: FileText,
-  lessons: BookOpen,
-  quizzes: ClipboardCheck,
-  homework: PenLine,
-  presentations: MonitorPlay,
-  activities: Puzzle,
-  bulletin: Pin,
-  students: Users,
-  subjects: Layers,
-  skills: GraduationCap,
-  reports: BarChart3,
-  keys: KeyRound,
-  coins: Coins,
-  orgs: Building2,
-  activity: Activity,
-  friction: TriangleAlert,
-  shield: ShieldCheck,
-  ministry: Landmark,
-  owner: Briefcase,
-  terminal: Terminal,
-  // Tokens and pricing both used to be `coins`, which made Revenue and
-  // Credit costs indistinguishable in a rail read at a glance. One is
-  // what the models burn, the other is the price list.
-  tokens: Cpu,
-  pricing: Tag,
-  // Distinct from `keys` (Accounts) on purpose: two identical keys in a
-  // rail read at a glance identify neither.
-  keypool: KeySquare,
-};
-
-function NavBadge({ letter, icon }: { letter?: string; icon?: string }) {
-  const Icon = icon ? NAV_ICON[icon] : undefined;
-  if (Icon) {
-    return (
-      <span className="murchid-nav-badge" aria-hidden>
-        <Icon size={15} strokeWidth={1.9} />
-      </span>
-    );
-  }
-  // Anything unmapped keeps the letter rather than a blank square.
-  return (
-    <span className="murchid-nav-badge" aria-hidden>
-      {letter || icon}
-    </span>
-  );
-}
 
 export default function StudioShell({ children }: { children: React.ReactNode }) {
   /**
@@ -189,6 +132,9 @@ export default function StudioShell({ children }: { children: React.ReactNode })
 
   useEffect(() => {
     const stored = getRole();
+    // Deliberate: the stored role is device state the server cannot read, so
+    // it is applied after the first render — see the note above this effect.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (stored !== "teacher") setRoleState(stored);
     setRoleReady(true);
   }, []);

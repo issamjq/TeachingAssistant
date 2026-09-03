@@ -21,31 +21,16 @@
 
 import type { ReactNode } from "react";
 import {
-  LayoutDashboard, Sparkles, CalendarRange, Target, BookOpen, ClipboardCheck,
-  PenLine, MonitorPlay, Puzzle, Pin, Users, GraduationCap, BarChart3,
+  LayoutDashboard, Sparkles,
   PanelLeftClose, Search, Bell, HelpCircle, Plus, ChevronRight,
-  type LucideIcon,
 } from "lucide-react";
+// The same map the shipped rail uses. This preview had its own copy of
+// thirteen of these entries; there is one now.
+import { NAV_ICON } from "@/shared/shell/navIcons";
 import { ACTIVE_NAV, NAV, teacher } from "./fixture";
 import f from "./StudioFrame.module.css";
 
 // Same mapping StudioShell uses — semantic key to icon.
-const NAV_ICON: Record<string, LucideIcon> = {
-  dashboard: LayoutDashboard,
-  studio: Sparkles,
-  scheduler: CalendarRange,
-  goals: Target,
-  lessons: BookOpen,
-  quizzes: ClipboardCheck,
-  homework: PenLine,
-  presentations: MonitorPlay,
-  activities: Puzzle,
-  bulletin: Pin,
-  students: Users,
-  skills: GraduationCap,
-  reports: BarChart3,
-};
-
 export type FrameProps = {
   children: ReactNode;
   /** Render on the product's shipped dark theme rather than on paper. */

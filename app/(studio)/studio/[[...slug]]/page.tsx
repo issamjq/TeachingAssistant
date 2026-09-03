@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import StudioRoute from "@/features/studio-ai/components/StudioRoute";
+import { StudioRoute } from "@/features/studio-ai";
 
 export const metadata: Metadata = { title: "Studio — Murchid" };
 

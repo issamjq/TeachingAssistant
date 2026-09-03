@@ -15,7 +15,7 @@
 import React, { useEffect, useState } from "react";
 import { api } from "@/views/_shared";
 import { PresentDeck, resolveTheme } from "@/views/SlideBuilder";
-import { SlideFullscreen } from "@/features/studio-ai/artifacts";
+import { SlideFullscreen } from "@/features/studio-ai";
 
 
 /** Slides shaped by the studio rather than typed into the manual editor. */
