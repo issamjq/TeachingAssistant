@@ -904,14 +904,23 @@ export default function StudioShell({ children }: { children: React.ReactNode })
 
           {TEACHING_RAIL_SECTIONS.has(section) ? (
             <div className="lg:flex lg:gap-6 h-full">
-              {/* The dock the studio launcher pins itself to. It has to be
-                  THIS column and not the pane: the pane also holds the
+              {/* This column and not the pane: the pane also holds the
                   teaching rail, and a composer centred across both would
-                  sit off to one side of the list it writes into.
-                  Only the five library sections mount a launcher, and all
-                  five are TEACHING_RAIL_SECTIONS — so the other branch
-                  needs no marker and keeps rendering children bare. */}
-              <div className="flex-1 min-w-0" data-studio-dock>{children}</div>
+                  sit beside the list it writes into. `min-h-full` keeps
+                  the slot's containing block reaching the bottom of the
+                  scrollport on a short page. The empty slot is load
+                  bearing — see StudioLauncher. */}
+              <div className="flex-1 min-w-0 min-h-full flex flex-col">
+                {children}
+                {/* `mt-auto` and not sticky alone: sticky is relative
+                    until something scrolls past it, so on a screen with
+                    one card there is no scroll, no threshold, and the
+                    bar stayed wherever the content happened to end.
+                    Pushed to the foot of a full-height column it is at
+                    the bottom either way, and sticky takes over the
+                    moment the list is long enough to move. */}
+                <div data-studio-dock className="mt-auto" />
+              </div>
               <div className="hidden lg:block flex-shrink-0">
                 <TeachingRail />
               </div>

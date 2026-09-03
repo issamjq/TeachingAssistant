@@ -19,10 +19,20 @@
 // It floats at the foot of the list rather than sitting above it, which
 // is where the studio keeps its own — a composer is a thing you come
 // back to between reading, not a header you scroll past once. It gets
-// there by portalling into the content column the shell marks with
-// `data-studio-dock`, because a sticky bar has to be the LAST child of
-// the column to settle at the bottom of it; mounted where the view
-// happens to render it, it would reserve a hole at the top instead.
+// there by portalling into `[data-studio-dock]`, because a sticky bar
+// has to be the LAST child of its column to settle at the bottom of it;
+// mounted where the view happens to render it, it would reserve a hole
+// at the top instead.
+//
+// That slot is an EMPTY div the shell renders after {children}, and it
+// has to be. Portalling into the column itself — which React also fills
+// with {children} — worked until the first client-side navigation:
+// React does not know about a portal's DOM, so it re-inserted its own
+// children relative to the container's first child and shoved the
+// composer to the TOP of the page. A hard reload mounted everything in
+// order and looked correct, which is exactly why it read as a rendering
+// glitch rather than as a bug. A slot React never puts anything into
+// cannot be shuffled.
 //
 // What it does NOT do is generate. Pressing send parks a `create_work`
 // payload — prompt, kinds, class, attachments — and opens the studio,
