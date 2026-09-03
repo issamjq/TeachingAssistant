@@ -597,7 +597,11 @@ export function SortHeader({ label, sortKey, sort, onToggle, className = "", pad
 }
 
 // Modal shell. Click backdrop or × to close. Escape also closes.
-export function Modal({ open, onClose, title, eyebrow, children, footer, wide = false }) {
+// `eyebrow` and `footer` default to undefined so they are OPTIONAL to a
+// TypeScript caller. Without the defaults, prop types inferred from this
+// .jsx file mark every destructured name required, and a .tsx screen has
+// to pass eyebrow={undefined} to render a modal with no eyebrow.
+export function Modal({ open, onClose, title, eyebrow = undefined, children, footer = undefined, wide = false }) {
   useEffect(() => {
     if (!open) return;
     const onKey = (e) => {

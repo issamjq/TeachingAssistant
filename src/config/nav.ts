@@ -304,6 +304,12 @@ export const SECTIONS_BY_ROLE: Record<Role, Set<string>> = {
     "database",
     "teaching-skills",
     "reports",
+    // §105. Both are reachable routes for a teacher, so both must be
+    // listed here — StudioShell redirects any section a role does not
+    // hold to that role's home, which is what sent a click on Settings
+    // to the dashboard while these were missing.
+    "class-settings",
+    "subjects",
     "account",
     "plans",
     "credit-usage",

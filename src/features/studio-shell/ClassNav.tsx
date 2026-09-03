@@ -35,7 +35,7 @@
 import { Fragment, useMemo, useState } from "react";
 import {
   BookOpen, ChevronRight, ClipboardCheck, FileText, MonitorPlay,
-  PenLine, Puzzle, Search, X, type LucideIcon,
+  PenLine, Puzzle, Search, Settings2, X, type LucideIcon,
 } from "lucide-react";
 import { navigate } from "@/lib/route";
 import {
@@ -51,9 +51,17 @@ const GROUP_AT = 5;
 type Kind = { key: string; label: string; icon: LucideIcon; route: string };
 
 /**
- * The six things a class holds, in the order the product makes them:
- * what you plan with, what students read, what they do, what you assess
- * with, what you present from, and what you uploaded it all against.
+ * What a class holds, in the order the product makes them: what you plan
+ * with, what students read, what they do, what you assess with, what you
+ * present from, and what you uploaded it all against.
+ *
+ * Settings is last and is not a library — it is the class's own control
+ * panel: its roll, its divisions, its curriculum, and starting it over
+ * for next year. It lives HERE rather than as a section in the rail
+ * because there is no such thing as settings-in-general: every one of
+ * them belongs to a particular subject at a particular grade, and a
+ * top-level tab would have to ask which one before it could show
+ * anything.
  */
 const KINDS: Kind[] = [
   { key: "lesson-plans",  label: "Lessons",       icon: BookOpen,       route: "lesson-plans" },
@@ -62,6 +70,7 @@ const KINDS: Kind[] = [
   { key: "activities",    label: "Activities",    icon: Puzzle,         route: "activities" },
   { key: "presentations", label: "Presentations", icon: MonitorPlay,    route: "presentations" },
   { key: "materials",     label: "Material",      icon: FileText,       route: "materials" },
+  { key: "class-settings", label: "Settings",     icon: Settings2,      route: "class-settings" },
 ];
 
 export default function ClassNav({
