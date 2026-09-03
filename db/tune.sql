@@ -13865,3 +13865,319 @@ BEGIN
   END IF;
   RAISE NOTICE 'roles: sa_account() now returns cap_defaults; sa_set_role() validates sub_role';
 END $$;
+
+
+-- ─────────────────────────────────────────────────────────────────────
+-- §105  A subject a teacher named, and a roll held once
+--
+-- Three complaints, one shape.
+--
+--   1. A teacher cannot add a subject. `subject` has always been free
+--      text in the database — there is no CHECK on it anywhere — so the
+--      nineteen-item ceiling was never the schema's. It was MAJORS in
+--      src/lib/enums.js feeding every dropdown. A teacher who teaches
+--      Robotics had to file it under something else.
+--
+--   2. A student has to be added per subject. `classes` already means
+--      (subject × grade × division), and `class_members` hangs off it,
+--      so enrolling a child in Grade 9-A Physics says nothing about
+--      Grade 9-A Chemistry taught by the same teacher to the same
+--      children. `students.subject` exists for the same reason and is
+--      the same mistake one level down.
+--
+--   3. Divisions are a text column, so they cannot hold anything.
+--
+-- The roll moves to where it belongs: a DIVISION is a group of children
+-- (grade + division + year), and a class is a subject taught to one. Add
+-- a child to 9-A once and every subject that teacher teaches 9-A has
+-- them.
+--
+-- NOTHING IS TAKEN AWAY. `class_members` keeps every row it has and
+-- gains a `mode`, so it becomes the exception layer rather than the
+-- enrolment: 'include' adds a child the division does not have (an
+-- elective, a set), 'exclude' removes one it does. Existing rows default
+-- to 'include', which is exactly what they meant before this section
+-- existed, so the resolved roster of every current class is unchanged on
+-- the day this runs. §102's roll_class_year() is untouched and still
+-- leaves students behind, which is still correct: a new year is a new
+-- division, not the same children.
+-- ─────────────────────────────────────────────────────────────────────
+
+-- ── The subjects a teacher named ────────────────────────────────────
+CREATE TABLE IF NOT EXISTS public.faculty_subjects (
+  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  faculty_id  uuid NOT NULL REFERENCES public.faculty(id) ON DELETE CASCADE,
+  name        text NOT NULL,
+  name_ar     text,
+  is_archived boolean NOT NULL DEFAULT false,
+  created_at  timestamptz NOT NULL DEFAULT now(),
+  updated_at  timestamptz NOT NULL DEFAULT now()
+);
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint
+                 WHERE conname = 'faculty_subjects_named'
+                   AND connamespace = 'public'::regnamespace) THEN
+    ALTER TABLE public.faculty_subjects ADD CONSTRAINT faculty_subjects_named
+      CHECK (btrim(name) <> '');
+  END IF;
+END $$;
+
+-- "Maths" typed twice is one subject. Compared the way a teacher types it.
+CREATE UNIQUE INDEX IF NOT EXISTS faculty_subjects_key
+  ON public.faculty_subjects (faculty_id, lower(btrim(name)));
+
+ALTER TABLE public.faculty_subjects ENABLE ROW LEVEL SECURITY;
+
+DO $$
+DECLARE p record;
+BEGIN
+  FOR p IN SELECT * FROM (VALUES
+    ('faculty_subjects_read',''), ('faculty_subjects_ins',''),
+    ('faculty_subjects_upd',''),  ('faculty_subjects_del','')
+  ) AS t(name, unused) LOOP
+    EXECUTE format('DROP POLICY IF EXISTS %I ON public.faculty_subjects', p.name);
+  END LOOP;
+END $$;
+
+CREATE POLICY faculty_subjects_read ON public.faculty_subjects FOR SELECT
+  USING (faculty_id = public.current_faculty_id() AND public.is_current_device());
+CREATE POLICY faculty_subjects_ins ON public.faculty_subjects FOR INSERT
+  WITH CHECK (faculty_id = public.current_faculty_id() AND public.is_current_device()
+              AND public.subscription_active());
+CREATE POLICY faculty_subjects_upd ON public.faculty_subjects FOR UPDATE
+  USING (faculty_id = public.current_faculty_id() AND public.is_current_device()
+         AND public.subscription_active());
+CREATE POLICY faculty_subjects_del ON public.faculty_subjects FOR DELETE
+  USING (faculty_id = public.current_faculty_id() AND public.is_current_device());
+
+
+-- ── The division: a group of children, held once ────────────────────
+CREATE TABLE IF NOT EXISTS public.divisions (
+  id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  faculty_id    uuid NOT NULL REFERENCES public.faculty(id) ON DELETE CASCADE,
+  grade         text NOT NULL,
+  -- '' rather than NULL, for the same reason §103 gives for `section`:
+  -- "the whole grade, undivided" is a real group, and NULL would break
+  -- the uniqueness index exactly where two rows would otherwise collide.
+  division      text NOT NULL DEFAULT '',
+  academic_year text NOT NULL DEFAULT public.current_academic_year(),
+  is_archived   boolean NOT NULL DEFAULT false,
+  created_at    timestamptz NOT NULL DEFAULT now(),
+  updated_at    timestamptz NOT NULL DEFAULT now()
+);
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint
+                 WHERE conname = 'divisions_named'
+                   AND connamespace = 'public'::regnamespace) THEN
+    ALTER TABLE public.divisions ADD CONSTRAINT divisions_named
+      CHECK (btrim(grade) <> '');
+  END IF;
+END $$;
+
+CREATE UNIQUE INDEX IF NOT EXISTS divisions_key
+  ON public.divisions (faculty_id, lower(btrim(grade)), lower(btrim(division)), academic_year);
+
+ALTER TABLE public.divisions ENABLE ROW LEVEL SECURITY;
+
+DO $$
+DECLARE n text;
+BEGIN
+  FOREACH n IN ARRAY ARRAY['divisions_read','divisions_ins','divisions_upd','divisions_del'] LOOP
+    EXECUTE format('DROP POLICY IF EXISTS %I ON public.divisions', n);
+  END LOOP;
+END $$;
+
+CREATE POLICY divisions_read ON public.divisions FOR SELECT
+  USING (faculty_id = public.current_faculty_id() AND public.is_current_device());
+CREATE POLICY divisions_ins ON public.divisions FOR INSERT
+  WITH CHECK (faculty_id = public.current_faculty_id() AND public.is_current_device()
+              AND public.subscription_active());
+CREATE POLICY divisions_upd ON public.divisions FOR UPDATE
+  USING (faculty_id = public.current_faculty_id() AND public.is_current_device()
+         AND public.subscription_active());
+CREATE POLICY divisions_del ON public.divisions FOR DELETE
+  USING (faculty_id = public.current_faculty_id() AND public.is_current_device());
+
+
+-- ── Who is in it ────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS public.division_members (
+  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  division_id uuid NOT NULL REFERENCES public.divisions(id) ON DELETE CASCADE,
+  student_id  uuid NOT NULL REFERENCES public.students(id) ON DELETE CASCADE,
+  joined_at   timestamptz NOT NULL DEFAULT now(),
+  created_at  timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS division_members_key
+  ON public.division_members (division_id, student_id);
+CREATE INDEX IF NOT EXISTS division_members_student
+  ON public.division_members (student_id);
+
+ALTER TABLE public.division_members ENABLE ROW LEVEL SECURITY;
+
+DO $$
+DECLARE n text;
+BEGIN
+  FOREACH n IN ARRAY ARRAY['division_members_read','division_members_ins',
+                           'division_members_upd','division_members_del'] LOOP
+    EXECUTE format('DROP POLICY IF EXISTS %I ON public.division_members', n);
+  END LOOP;
+END $$;
+
+-- Owned through the division, the way §103 owns a filing through its
+-- file: a second copy of "whose is this" is a second place to be wrong.
+CREATE POLICY division_members_read ON public.division_members FOR SELECT
+  USING (EXISTS (SELECT 1 FROM public.divisions d
+                  WHERE d.id = division_id
+                    AND d.faculty_id = public.current_faculty_id()
+                    AND public.is_current_device()));
+CREATE POLICY division_members_ins ON public.division_members FOR INSERT
+  WITH CHECK (EXISTS (SELECT 1 FROM public.divisions d
+                       WHERE d.id = division_id
+                         AND d.faculty_id = public.current_faculty_id()
+                         AND public.is_current_device()
+                         AND public.subscription_active()));
+CREATE POLICY division_members_upd ON public.division_members FOR UPDATE
+  USING (EXISTS (SELECT 1 FROM public.divisions d
+                  WHERE d.id = division_id
+                    AND d.faculty_id = public.current_faculty_id()
+                    AND public.is_current_device()
+                    AND public.subscription_active()));
+CREATE POLICY division_members_del ON public.division_members FOR DELETE
+  USING (EXISTS (SELECT 1 FROM public.divisions d
+                  WHERE d.id = division_id
+                    AND d.faculty_id = public.current_faculty_id()
+                    AND public.is_current_device()));
+
+
+-- ── A class is a subject taught to a division ───────────────────────
+ALTER TABLE public.classes
+  ADD COLUMN IF NOT EXISTS division_id uuid REFERENCES public.divisions(id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS classes_division_idx ON public.classes (division_id);
+
+-- class_members stops being the enrolment and becomes the exception.
+-- 'include' is the default because it is what every existing row means.
+ALTER TABLE public.class_members
+  ADD COLUMN IF NOT EXISTS mode text NOT NULL DEFAULT 'include';
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint
+                 WHERE conname = 'class_members_mode'
+                   AND connamespace = 'public'::regnamespace) THEN
+    ALTER TABLE public.class_members ADD CONSTRAINT class_members_mode
+      CHECK (mode IN ('include', 'exclude'));
+  END IF;
+END $$;
+
+
+-- ── The resolved roll of one class ──────────────────────────────────
+--
+-- division ∪ explicit includes − explicit excludes.
+--
+-- SECURITY INVOKER, deliberately: this must be readable only through the
+-- same policies the tables carry, so a teacher cannot resolve a roster
+-- that is not theirs by passing someone else's class id. A DEFINER
+-- function here would be a hole with a friendly name.
+--
+-- A class with no division_id resolves to its class_members alone, which
+-- is exactly what every class does today. That is what makes this safe
+-- to ship before anything is migrated: on an unmigrated database the
+-- answer is byte-for-byte the old one.
+CREATE OR REPLACE FUNCTION public.class_roster(p_class uuid)
+RETURNS TABLE (student_id uuid)
+LANGUAGE sql
+STABLE
+SECURITY INVOKER
+SET search_path = public, pg_temp
+AS $$
+  WITH c AS (
+    SELECT id, division_id FROM public.classes WHERE id = p_class
+  ),
+  base AS (
+    SELECT dm.student_id
+      FROM public.division_members dm
+      JOIN c ON c.division_id = dm.division_id
+  ),
+  inc AS (
+    SELECT cm.student_id FROM public.class_members cm
+     WHERE cm.class_id = p_class AND cm.mode = 'include'
+  ),
+  exc AS (
+    SELECT cm.student_id FROM public.class_members cm
+     WHERE cm.class_id = p_class AND cm.mode = 'exclude'
+  )
+  SELECT u.student_id
+    FROM (SELECT student_id FROM base UNION SELECT student_id FROM inc) u
+   WHERE NOT EXISTS (SELECT 1 FROM exc WHERE exc.student_id = u.student_id);
+$$;
+
+GRANT EXECUTE ON FUNCTION public.class_roster(uuid) TO authenticated;
+
+
+-- ── Backfill: divisions from the classes that already exist ─────────
+--
+-- ADDITIVE ONLY. Nothing is deleted, no existing column is rewritten,
+-- and class_members is not touched — so both models describe the same
+-- database and the old one keeps answering until the cutover is run
+-- deliberately.
+INSERT INTO public.divisions (faculty_id, grade, division, academic_year)
+SELECT DISTINCT c.faculty_id,
+       btrim(c.grade),
+       coalesce(btrim(c.division), ''),
+       coalesce(c.academic_year, public.current_academic_year())
+  FROM public.classes c
+ WHERE coalesce(btrim(c.grade), '') <> ''
+ON CONFLICT DO NOTHING;
+
+-- ...and from the roster, which knows divisions that never got a class
+-- row. `created_by` is the ownership link students actually carry;
+-- there is no faculty_id on that table.
+INSERT INTO public.divisions (faculty_id, grade, division, academic_year)
+SELECT DISTINCT s.created_by,
+       btrim(s.grade),
+       coalesce(btrim(s.division), ''),
+       coalesce(s.academic_year, public.current_academic_year())
+  FROM public.students s
+ WHERE s.created_by IS NOT NULL
+   AND coalesce(btrim(s.grade), '') <> ''
+ON CONFLICT DO NOTHING;
+
+-- Point every class at its division.
+UPDATE public.classes c
+   SET division_id = d.id
+  FROM public.divisions d
+ WHERE c.division_id IS NULL
+   AND d.faculty_id = c.faculty_id
+   AND lower(btrim(d.grade))                        = lower(btrim(c.grade))
+   AND lower(btrim(coalesce(d.division, '')))       = lower(btrim(coalesce(c.division, '')))
+   AND d.academic_year = coalesce(c.academic_year, public.current_academic_year());
+
+-- Fill the rolls from the roster's own grade/division.
+INSERT INTO public.division_members (division_id, student_id)
+SELECT d.id, s.id
+  FROM public.students s
+  JOIN public.divisions d
+    ON d.faculty_id = s.created_by
+   AND lower(btrim(d.grade))                  = lower(btrim(s.grade))
+   AND lower(btrim(coalesce(d.division, ''))) = lower(btrim(coalesce(s.division, '')))
+   AND d.academic_year = coalesce(s.academic_year, public.current_academic_year())
+ WHERE s.created_by IS NOT NULL
+   AND coalesce(btrim(s.grade), '') <> ''
+ON CONFLICT DO NOTHING;
+
+DO $$
+DECLARE n_div int; n_mem int; n_linked int; n_unlinked int;
+BEGIN
+  SELECT count(*) INTO n_div  FROM public.divisions;
+  SELECT count(*) INTO n_mem  FROM public.division_members;
+  SELECT count(*) INTO n_linked   FROM public.classes WHERE division_id IS NOT NULL;
+  SELECT count(*) INTO n_unlinked FROM public.classes WHERE division_id IS NULL;
+  RAISE NOTICE '§105: % division(s), % roll entr(ies), % class(es) linked, % still unlinked',
+    n_div, n_mem, n_linked, n_unlinked;
+  RAISE NOTICE '§105: class_members untouched — legacy delivery unchanged until cutover';
+END $$;

@@ -299,8 +299,43 @@ export async function resolve(
     // The teacher's classes, and the year each one belongs to (§102).
     case "classes":
       if (!a && method === "GET") return yes(await E.listClasses());
+      // Teach a subject to a division (§105).
+      if (!a && method === "POST") return yes(await E.createClass(body));
+      if (a && method === "DELETE") return yes(await E.archiveClass(a));
       if (a === "current-year" && method === "GET")
         return yes({ academic_year: await E.currentAcademicYear() });
+      // Who is actually in this subject: the division, plus this
+      // subject's own additions, minus its own removals (§105).
+      if (a && b === "roster" && method === "GET") return yes(await E.classRoster(a));
+      // One child in or out of THIS subject only — the elective case.
+      if (a && b === "roster" && method === "PUT")
+        return yes(await E.setClassException(a, body?.student_id, body?.mode));
+      // Start this subject over for next year's children. The work is
+      // roll_class_year(), which has been in the database since §102 and
+      // had no way to be called until now.
+      if (a && b === "rollover" && method === "POST")
+        return yes(await E.rollClassYear(a, body || {}));
+      return { handled: false };
+
+    // The subjects a teacher can file under: the built-in list plus the
+    // ones they named (§105).
+    case "subjects":
+      if (!a && method === "GET") return yes(await E.listSubjects());
+      if (!a && method === "POST") return yes(await E.createSubject(body));
+      if (a && method === "PATCH") return yes(await E.updateSubject(a, body));
+      if (a && method === "DELETE") return yes(await E.archiveSubject(a));
+      return { handled: false };
+
+    // Divisions: the roll, held once and shared by every subject taught
+    // to it (§105).
+    case "divisions":
+      if (!a && method === "GET") return yes(await E.listDivisions());
+      if (!a && method === "POST") return yes(await E.createDivision(body));
+      if (a && b === "roll" && method === "GET") return yes(await E.divisionRoll(a));
+      if (a && b === "roll" && method === "POST")
+        return yes(await E.addToDivision(a, body?.student_ids || []));
+      if (a && b === "roll" && method === "DELETE")
+        return yes(await E.removeFromDivision(a, body?.student_id));
       return { handled: false };
 
     case "schedule":

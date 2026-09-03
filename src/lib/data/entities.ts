@@ -2261,3 +2261,302 @@ export async function studentDashboard() {
   }
   return data;
 }
+
+
+// =====================================================================
+// §105 — subjects a teacher named, and the roll held once
+//
+// Three things the studio could not do: name a subject, keep a roll in
+// one place, and start a subject over for next year's children. The
+// third was already in the database — roll_class_year() has existed
+// since §102 — and had simply never been callable from the app.
+// =====================================================================
+
+export type FacultySubject = {
+  id: string;
+  name: string;
+  name_ar: string | null;
+  is_archived: boolean;
+};
+
+/**
+ * Every subject this teacher can file work under: the built-in list
+ * plus the ones they named.
+ *
+ * Merged here rather than in the screens, because "which subjects exist"
+ * was being answered by MAJORS in four different pickers and a teacher
+ * who added one would otherwise see it in whichever of them was
+ * remembered. `custom` is flagged so the UI can offer rename/remove on
+ * a teacher's own and not on the built-ins.
+ */
+export async function listSubjects() {
+  const { MAJORS } = await import("@/lib/enums");
+  const { data, error } = await supabase
+    .from("faculty_subjects")
+    .select("id, name, name_ar, is_archived")
+    .eq("is_archived", false)
+    .order("name");
+  if (error) throw error;
+
+  const own = (data || []) as FacultySubject[];
+  const seen = new Set(own.map((r) => r.name.trim().toLowerCase()));
+  return [
+    ...own.map((r) => ({ ...r, custom: true })),
+    // A built-in the teacher has also named is not offered twice.
+    ...MAJORS.filter((m: string) => !seen.has(m.toLowerCase())).map((m: string) => ({
+      id: `builtin:${m}`,
+      name: m,
+      name_ar: null,
+      is_archived: false,
+      custom: false,
+    })),
+  ];
+}
+
+export async function createSubject(body: { name?: string; name_ar?: string | null }) {
+  const name = String(body?.name ?? "").trim();
+  if (!name) throw new Error("A subject needs a name.");
+  const { data, error } = await supabase
+    .from("faculty_subjects")
+    .insert({ faculty_id: await facultyId(), name, name_ar: body?.name_ar ?? null })
+    .select("id, name, name_ar, is_archived")
+    .single();
+  // The unique index is per teacher and case-insensitive, so this is
+  // "you already have that one" rather than a failure worth a stack.
+  if (error?.code === "23505") throw new Error(`You already have a subject called ${name}.`);
+  if (error) throw error;
+  return data;
+}
+
+export async function updateSubject(id: string, body: { name?: string; name_ar?: string | null }) {
+  const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
+  if (body?.name !== undefined) patch.name = String(body.name).trim();
+  if (body?.name_ar !== undefined) patch.name_ar = body.name_ar;
+  const { data, error } = await supabase
+    .from("faculty_subjects").update(patch).eq("id", id)
+    .select("id, name, name_ar, is_archived").single();
+  if (error) throw error;
+  return data;
+}
+
+/**
+ * Archived, not deleted. Work already filed under the subject keeps its
+ * text label — `subject` is free text on every table that carries it —
+ * so removing the row must not orphan a term of lesson plans.
+ */
+export async function archiveSubject(id: string) {
+  const { error } = await supabase
+    .from("faculty_subjects")
+    .update({ is_archived: true, updated_at: new Date().toISOString() })
+    .eq("id", id);
+  if (error) throw error;
+  return { ok: true };
+}
+
+
+// ── Divisions: the roll, held once ──────────────────────────────────
+
+const DIV_COLS = "id, grade, division, academic_year, is_archived, created_at";
+
+export async function listDivisions() {
+  const { data, error } = await supabase
+    .from("divisions")
+    .select(`${DIV_COLS}, division_members(student_id), classes(id, subject)`)
+    .eq("is_archived", false)
+    .order("grade");
+  if (error) throw error;
+  return (data || []).map((d: any) => {
+    const { division_members, classes, ...rest } = d;
+    return {
+      ...rest,
+      students: (division_members || []).length,
+      // The point of the whole section, said in the payload: these are
+      // the subjects this roll is taught, and they all share it.
+      subjects: (classes || []).map((c: any) => c.subject).filter(Boolean),
+    };
+  });
+}
+
+export async function createDivision(body: { grade?: string; division?: string; academic_year?: string }) {
+  const grade = String(body?.grade ?? "").trim();
+  if (!grade) throw new Error("A division needs a grade.");
+  const { data, error } = await supabase
+    .from("divisions")
+    .insert({
+      faculty_id: await facultyId(),
+      grade,
+      division: String(body?.division ?? "").trim(),
+      ...(body?.academic_year ? { academic_year: body.academic_year } : {}),
+    })
+    .select(DIV_COLS)
+    .single();
+  if (error?.code === "23505") throw new Error("You already have that division this year.");
+  if (error) throw error;
+  return data;
+}
+
+/** The roll itself, with the child's name rather than just an id. */
+export async function divisionRoll(divisionId: string) {
+  const { data, error } = await supabase
+    .from("division_members")
+    .select("id, joined_at, students(id, first_name, last_name, student_code, email)")
+    .eq("division_id", divisionId);
+  if (error) throw error;
+  return (data || []).map((r: any) => ({ member_id: r.id, joined_at: r.joined_at, ...r.students }));
+}
+
+/**
+ * Add a child to the division ONCE, and every subject taught to it has
+ * them. That sentence is the entire feature.
+ */
+export async function addToDivision(divisionId: string, studentIds: string[]) {
+  const rows = (studentIds || []).filter(Boolean).map((student_id) => ({ division_id: divisionId, student_id }));
+  if (!rows.length) return { added: 0 };
+  const { error } = await supabase.from("division_members").upsert(rows, {
+    onConflict: "division_id,student_id",
+    ignoreDuplicates: true,
+  });
+  if (error) throw error;
+  return { added: rows.length };
+}
+
+export async function removeFromDivision(divisionId: string, studentId: string) {
+  const { error } = await supabase
+    .from("division_members").delete()
+    .eq("division_id", divisionId).eq("student_id", studentId);
+  if (error) throw error;
+  return { ok: true };
+}
+
+
+// ── One class: its resolved roll, and starting it over ──────────────
+
+/**
+ * Who is actually in this class: the division, plus anyone explicitly
+ * added to this subject, minus anyone explicitly taken out of it.
+ *
+ * Resolved in the database by class_roster() so the answer cannot drift
+ * from the one the policies would give — see §105. A class with no
+ * division still answers with its class_members, which is what every
+ * class did before the section existed.
+ */
+export async function classRoster(classId: string) {
+  const { data, error } = await supabase.rpc("class_roster", { p_class: classId });
+  if (error) throw error;
+  const ids = (data || []).map((r: any) => r.student_id ?? r);
+  if (!ids.length) return [];
+  const { data: rows, error: e2 } = await supabase
+    .from("students")
+    .select("id, first_name, last_name, student_code, email, grade, division")
+    .in("id", ids);
+  if (e2) throw e2;
+  return rows || [];
+}
+
+/** Add or remove one child for THIS subject only (the elective case). */
+export async function setClassException(
+  classId: string,
+  studentId: string,
+  mode: "include" | "exclude" | "clear"
+) {
+  if (mode === "clear") {
+    const { error } = await supabase
+      .from("class_members").delete()
+      .eq("class_id", classId).eq("student_id", studentId);
+    if (error) throw error;
+    return { ok: true };
+  }
+  const { error } = await supabase.from("class_members").upsert(
+    { class_id: classId, student_id: studentId, mode },
+    { onConflict: "class_id,student_id" }
+  );
+  if (error) throw error;
+  return { ok: true };
+}
+
+/**
+ * Start this subject over for next year's children.
+ *
+ * The whole operation is roll_class_year() from §102, which has been in
+ * the database — untouched and uncalled — since that section landed. It
+ * carries the subject, its material and (optionally) its goals into the
+ * new year, is idempotent on a second run, and says in its own return
+ * value what it deliberately leaves behind: students, attendance, marks,
+ * submissions and the timetable. A new year is new children.
+ */
+export async function rollClassYear(
+  classId: string,
+  body: { academic_year?: string; carry?: string[] | null; goals?: boolean; archive?: boolean } = {}
+) {
+  const { data, error } = await supabase.rpc("roll_class_year", {
+    p_class: classId,
+    p_year: body?.academic_year ?? null,
+    p_carry: body?.carry ?? null,
+    p_goals: body?.goals ?? true,
+    p_archive: body?.archive ?? false,
+  });
+  if (error) throw error;
+  return data;
+}
+
+
+/**
+ * Teach a subject to a division.
+ *
+ * This is the row that used to be the enrolment and is now only the
+ * pairing: subject × division × year. The roll comes from the division,
+ * so creating one of these is all it takes for every child in 9-A to be
+ * in the new subject.
+ *
+ * `class_code` is NOT NULL with no default and is the teacher-facing
+ * join code, so it is generated here rather than left to the caller.
+ */
+export async function createClass(body: {
+  subject?: string;
+  division_id?: string;
+  grade?: string;
+  division?: string;
+  name?: string;
+}) {
+  const subject = String(body?.subject ?? "").trim();
+  if (!subject) throw new Error("A class needs a subject.");
+
+  let grade = String(body?.grade ?? "").trim();
+  let division = String(body?.division ?? "").trim();
+  let academic_year: string | undefined;
+
+  // The division is the source of truth for grade, division and year
+  // when one is given — three chances to disagree otherwise.
+  if (body?.division_id) {
+    const { data: d, error } = await supabase
+      .from("divisions").select("grade, division, academic_year")
+      .eq("id", body.division_id).single();
+    if (error) throw error;
+    grade = d.grade; division = d.division ?? ""; academic_year = d.academic_year;
+  }
+  if (!grade) throw new Error("A class needs a grade.");
+
+  const code = `${subject.slice(0, 3).toUpperCase()}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
+  const { data, error } = await supabase
+    .from("classes")
+    .insert({
+      faculty_id: await facultyId(),
+      name: String(body?.name ?? "").trim() || `${grade}${division ? ` ${division}` : ""} ${subject}`,
+      subject, grade, division,
+      class_code: code,
+      division_id: body?.division_id ?? null,
+      ...(academic_year ? { academic_year } : {}),
+    })
+    .select("id, name, subject, grade, division, class_code, academic_year, division_id, is_archived")
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function archiveClass(id: string) {
+  const { error } = await supabase
+    .from("classes").update({ is_archived: true, updated_at: new Date().toISOString() })
+    .eq("id", id);
+  if (error) throw error;
+  return { ok: true };
+}
