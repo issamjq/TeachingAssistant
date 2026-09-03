@@ -23,6 +23,7 @@
 // service-role key nothing in this system holds.
 // =====================================================================
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   Target, Plus, Upload, FileText, Trash2, Sparkles, X, ArrowRight,
 } from "lucide-react";
@@ -117,7 +118,7 @@ async function uploadGoalMaterial(file) {
   return { id: att.id, file_name: att.name };
 }
 
-function NewGoal({ onCreated, onClose }) {
+function NewGoal({ onCreated, onClose, startWithCurriculum = false }) {
   const [title, setTitle] = useState("");
   const [brief, setBrief] = useState("");
   const [timeline, setTimeline] = useState("");
@@ -199,6 +200,7 @@ function NewGoal({ onCreated, onClose }) {
             decided what she is teaching; asking her to type it first is
             asking for the easy half in order to unlock the hard half. */}
         <CurriculumStart
+          startOpen={startWithCurriculum}
           onPick={(u) => {
             setTitle(u.title);
             setBrief(u.brief);
@@ -634,9 +636,14 @@ function GoalDetail({ goal, onClose }) {
 }
 
 export default function GoalsView() {
+  const searchParams = useSearchParams();
+  // class-settings' "Curriculum" link lands here with ?curriculum=1 so the
+  // composer — and the curriculum picker inside it — is the first thing on
+  // screen, not a hero she has to find her own way through.
+  const startWithCurriculum = searchParams.get("curriculum") === "1";
   const [goals, setGoals] = useState(null);
   const [error, setError] = useState(null);
-  const [creating, setCreating] = useState(false);
+  const [creating, setCreating] = useState(startWithCurriculum);
   const [planning, setPlanning] = useState(null);
   const [planError, setPlanError] = useState(null);
   // Which goal's plan is open beside the list, if any.
@@ -787,6 +794,7 @@ export default function GoalsView() {
 
       {creating && (
         <NewGoal
+          startWithCurriculum={startWithCurriculum}
           onClose={() => setCreating(false)}
           /**
            * Creating a goal starts the plan.

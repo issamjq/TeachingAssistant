@@ -166,8 +166,8 @@ const withSearch = (path: string) => {
 // The App Router is the real navigator. The history fallback only matters if
 // something navigates before <RouterBridge /> has mounted; without it that
 // call would be silently dropped.
-const go = (path: string, mode: "push" | "replace") => {
-  const href = withSearch(path);
+const go = (path: string, mode: "push" | "replace", query?: Record<string, string>) => {
+  const href = query ? `${path}?${new URLSearchParams(query)}` : withSearch(path);
   if (_router) {
     _router[mode](href);
     return;
@@ -194,11 +194,16 @@ export const replace = (parts: NavPart[]) => {
 
 // Push a new history entry. For top-level section changes — the back button
 // then returns the user where they were.
-export const navigate = (parts: NavPart[]) => {
+//
+// `query` replaces the URL's search string rather than preserving it (the
+// no-argument path still does, via withSearch) — a caller that passes one
+// means "land on this exact state", e.g. class-settings opening /goals
+// with its composer already up rather than the bare hero.
+export const navigate = (parts: NavPart[], query?: Record<string, string>) => {
   const next = pathFor(parts);
-  if (typeof window !== "undefined" && window.location.pathname === next)
+  if (typeof window !== "undefined" && window.location.pathname === next && !query)
     return;
-  tryNav(() => go(next, "push"));
+  tryNav(() => go(next, "push", query));
 };
 
 // Return to the landing page from the studio. Pushes "/" so back still works.

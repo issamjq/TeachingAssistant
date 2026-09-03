@@ -214,7 +214,17 @@ export default function ClassSettingsView() {
 
       {/* ── Navigation, deliberately quiet. Not settings. ─────────── */}
       <nav className="mt-12 flex flex-wrap gap-x-8 gap-y-2 border-t border-line-soft pt-6">
-        <QuietLink icon={BookMarked} label="Curriculum" hint="units and pacing" onClick={() => navigate(["goals"])} />
+        <QuietLink
+          icon={BookMarked}
+          label="Curriculum"
+          hint="units and pacing"
+          // Landing on the bare goals hero left the picker two clicks away
+          // and looking like a different feature — "New goal", then "Start
+          // from your curriculum". This query tells /goals to open both
+          // straight away, so the board/grade/subject picker (or "build one
+          // from my syllabus") is the first thing on screen.
+          onClick={() => navigate(["goals"], { curriculum: "1" })}
+        />
         <QuietLink icon={FileText} label="Material" hint="uploads filed here" onClick={() => navigate(["materials"])} />
         <QuietLink label="Add a subject or division" onClick={() => navigate(["subjects"])} />
       </nav>

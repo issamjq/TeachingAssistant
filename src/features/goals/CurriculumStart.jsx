@@ -35,14 +35,17 @@ const SOURCE_NOTE = {
     "A starter sequence, drafted by us — the topics almost every board covers, in the usual order. Check it against your school's scheme and change what differs.",
 };
 
-export default function CurriculumStart({ onPick }) {
+export default function CurriculumStart({ onPick, startOpen = false }) {
   const [curricula, setCurricula] = useState([]);
   const [coverage, setCoverage] = useState([]);
   const [cur, setCur] = useState("");
   const [grade, setGrade] = useState("");
   const [subject, setSubject] = useState("");
   const [units, setUnits] = useState(null);
-  const [open, setOpen] = useState(false);
+  // Arriving from class-settings' "Curriculum" link means she already
+  // asked for this picker — showing the collapsed teaser button again
+  // would be the same wrong-screen complaint one level down.
+  const [open, setOpen] = useState(startOpen);
   const [deriving, setDeriving] = useState(false);
   const [derived, setDerived] = useState(null);
 
