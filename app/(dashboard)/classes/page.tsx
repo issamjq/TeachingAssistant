@@ -144,10 +144,23 @@ function BatchGrades({
   );
 }
 
+function academicYearOptions(): { label: string; startYear: number }[] {
+  const now = new Date().getFullYear();
+  const options = [];
+  for (let y = now - 1; y <= now + 3; y++) {
+    options.push({ label: `${y}-${String(y + 1).slice(-2)}`, startYear: y });
+  }
+  return options;
+}
+
+const CUSTOM_VALUE = "__custom__";
+
 function AddBatchForm({ ownerId, onAdded }: { ownerId: string; onAdded: () => void }) {
+  const options = academicYearOptions();
   const [open, setOpen] = useState(false);
-  const [label, setLabel] = useState("");
-  const [startYear, setStartYear] = useState(new Date().getFullYear());
+  const [selected, setSelected] = useState<string>(options[1]?.label ?? CUSTOM_VALUE);
+  const [customLabel, setCustomLabel] = useState("");
+  const [customYear, setCustomYear] = useState(new Date().getFullYear());
   const [saving, setSaving] = useState(false);
 
   if (!open) {
@@ -158,30 +171,53 @@ function AddBatchForm({ ownerId, onAdded }: { ownerId: string; onAdded: () => vo
     );
   }
 
+  const isCustom = selected === CUSTOM_VALUE;
+
   async function submit() {
-    if (!label.trim()) return;
+    const label = isCustom ? customLabel.trim() : selected;
+    const startYear = isCustom
+      ? customYear
+      : (options.find((o) => o.label === selected)?.startYear ?? customYear);
+    if (!label) return;
     setSaving(true);
-    await createBatch(ownerId, label.trim(), startYear);
+    await createBatch(ownerId, label, startYear);
     setSaving(false);
     setOpen(false);
-    setLabel("");
+    setCustomLabel("");
     onAdded();
   }
 
   return (
     <div className="flex items-center gap-2">
-      <Input
-        placeholder="2026-27"
-        value={label}
-        onChange={(e) => setLabel(e.target.value)}
-        className="h-8 w-28"
-      />
-      <Input
-        type="number"
-        value={startYear}
-        onChange={(e) => setStartYear(Number(e.target.value))}
-        className="h-8 w-20"
-      />
+      <select
+        value={selected}
+        onChange={(e) => setSelected(e.target.value)}
+        className="flex h-8 rounded-md border border-input bg-background px-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        {options.map((o) => (
+          <option key={o.label} value={o.label}>
+            {o.label}
+          </option>
+        ))}
+        <option value={CUSTOM_VALUE}>Custom…</option>
+      </select>
+      {isCustom ? (
+        <>
+          <Input
+            placeholder="e.g. 2030-31"
+            value={customLabel}
+            onChange={(e) => setCustomLabel(e.target.value)}
+            className="h-8 w-28"
+            autoFocus
+          />
+          <Input
+            type="number"
+            value={customYear}
+            onChange={(e) => setCustomYear(Number(e.target.value))}
+            className="h-8 w-20"
+          />
+        </>
+      ) : null}
       <Button size="sm" onClick={submit} disabled={saving}>
         Add
       </Button>
