@@ -105,7 +105,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
       <main className="min-w-0 flex-1 overflow-x-hidden">{children}</main>
       <Button
         asChild
-        className="fixed right-6 bottom-6 h-11 rounded-full px-5 shadow-lg"
+        className="fixed right-6 bottom-6 z-40 h-11 rounded-full px-5 shadow-lg"
       >
         <Link href="/support">
           <Sparkles className="size-4" />

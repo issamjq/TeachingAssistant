@@ -31,7 +31,7 @@ export function StudioComposerBar({
   }
 
   return (
-    <div className="flex items-end gap-2 rounded-2xl border border-border bg-card p-2.5 shadow-sm">
+    <div className="mx-auto flex w-full max-w-2xl items-end gap-2 rounded-2xl border border-border bg-card p-2.5 shadow-sm">
       <Textarea
         rows={1}
         placeholder={placeholder}
