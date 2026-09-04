@@ -51,13 +51,9 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-svh">
       <aside className="flex w-60 shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground">
-        <div className="flex h-16 items-center gap-2 px-4">
-          <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-primary text-sm font-semibold text-primary-foreground">
-            M
-          </span>
-          <span className="font-serif text-base font-medium tracking-tight">
-            Murchid
-          </span>
+        <div className="flex h-16 items-center px-4">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/murchid-logo-green.svg" alt="Murchid" className="h-6 w-auto" />
         </div>
         <nav className="flex flex-1 flex-col gap-0.5 overflow-y-auto px-3 pb-2">
           {NAV.map(({ href, label, icon: Icon }) => {
@@ -105,7 +101,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
       <main className="min-w-0 flex-1 overflow-x-hidden">{children}</main>
       <Button
         asChild
-        className="fixed right-6 bottom-6 z-40 h-11 rounded-full px-5 shadow-lg"
+        className="fixed right-6 bottom-6 z-40 h-11 rounded-full bg-lime px-5 text-lime-foreground shadow-lg hover:bg-lime/90"
       >
         <Link href="/support">
           <Sparkles className="size-4" />

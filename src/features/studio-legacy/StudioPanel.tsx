@@ -50,7 +50,7 @@ export function StudioPanel() {
             <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
               {item.kind} studio{item.classLabel ? ` · ${item.classLabel}` : ""}
             </p>
-            <h2 className="mt-0.5 font-serif text-lg font-medium text-foreground">
+            <h2 className="mt-0.5 text-lg font-black text-foreground">
               {item.title}
             </h2>
           </div>

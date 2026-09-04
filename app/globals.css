@@ -96,13 +96,17 @@
 }
 
 /* ── App theme: everything behind sign-in ──────────────────────────────
-   Scoped deliberately, not global — the studio keeps its own quieter
-   tokens, separate from marketing's bolder ones below.
-   Reference: user-supplied "EduAI Studio" screenshots — visual reference
-   only, not a brand to copy the name of.
-   THESIS/OWN-WORLD/etc direction contract lives in app/layout.tsx. */
+   Scoped deliberately, not global — kept as its own class so the studio
+   can diverge again later, but its values are now the same as
+   .theme-marketing below (unified 2026-09-05, replacing the quieter,
+   Lora-serif "EduAI Studio"-referenced look this used to carry) so the
+   pitch and the product read as one brand. The one deliberate exception
+   is --sidebar-primary: pale sage, not the dark-green primary — the
+   sidebar's active-item highlight stays quiet on purpose so it doesn't
+   compete with the one real dark-green/lime call to action on a given
+   screen. */
 .theme-app {
-  --radius: 0.75rem;
+  --radius: 1.25rem;
 
   --background: #f4efe2;
   --foreground: #21201b;
@@ -145,6 +149,10 @@
   --sidebar-accent-foreground: #21201b;
   --sidebar-border: #ede7d8;
   --sidebar-ring: #1b4b3a;
+
+  /* Same rationed accent as .theme-marketing — see its comment below. */
+  --lime: #c6f232;
+  --lime-foreground: #142317;
 }
 
 /* ── Marketing theme: the public site (`/`) ─────────────────────────────

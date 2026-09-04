@@ -73,16 +73,12 @@ export function SuperAdminShell({ children }: { children: React.ReactNode }) {
     <div className="theme-app flex min-h-svh bg-background text-foreground">
       <AnalyticsTracker />
       <aside className="flex w-64 shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground">
-        <div className="flex h-16 items-center gap-2 px-4">
-          <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-primary text-sm font-semibold text-primary-foreground">
-            M
-          </span>
-          <div className="min-w-0">
-            <p className="font-serif text-base font-medium tracking-tight">Murchid</p>
-            <p className="text-xs text-sidebar-foreground/60">
-              {user.role === "super_admin" ? "Super admin" : "Sub-admin"}
-            </p>
-          </div>
+        <div className="flex h-16 flex-col justify-center gap-1 px-4">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/murchid-logo-green.svg" alt="Murchid" className="h-6 w-auto" />
+          <p className="text-xs text-sidebar-foreground/60">
+            {user.role === "super_admin" ? "Super admin" : "Sub-admin"}
+          </p>
         </div>
         <nav className="flex flex-1 flex-col gap-0.5 overflow-y-auto px-3 pb-2">
           {NAV.map(({ href, label, icon: Icon }) => {

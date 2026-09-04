@@ -5,5 +5,9 @@ export default function PortalLayout({
 }: {
   children: React.ReactNode;
 }) {
-  return children;
+  return (
+    <div className="theme-app min-h-svh bg-background text-foreground">
+      {children}
+    </div>
+  );
 }
