@@ -168,7 +168,7 @@ create table if not exists public.goal_items (
   id uuid primary key default gen_random_uuid(),
   goal_id uuid not null references public.goals(id) on delete cascade,
   owner_id uuid not null references auth.users(id) on delete cascade,
-  kind text not null check (kind in ('slide_deck','notes','quiz','exam','activity','homework')),
+  kind text not null check (kind in ('lesson_plan','slide_deck','notes','quiz','exam','activity','homework')),
   title text not null,
   detail text,
   content jsonb,

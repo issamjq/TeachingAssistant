@@ -122,6 +122,164 @@ export async function createClass(ownerId: string, divisionId: string, subject: 
   return data;
 }
 
+// ── Goal items: lesson plans, presentations, activities, homework ──
+export type GoalItemKind =
+  | "lesson_plan"
+  | "slide_deck"
+  | "notes"
+  | "quiz"
+  | "exam"
+  | "activity"
+  | "homework";
+
+export interface GoalItemRow {
+  id: string;
+  kind: GoalItemKind;
+  title: string;
+  detail: string | null;
+  scheduled_for: string | null;
+  created_at: string;
+}
+
+export async function listGoalItemsByKind(
+  classId: string,
+  kind: GoalItemKind,
+): Promise<GoalItemRow[]> {
+  const db = requireClient();
+  const { data: goals, error: goalsError } = await db
+    .from("goals")
+    .select("id")
+    .eq("class_id", classId);
+  if (goalsError) throw goalsError;
+  const goalIds = (goals ?? []).map((g) => g.id);
+  if (goalIds.length === 0) return [];
+  const { data, error } = await db
+    .from("goal_items")
+    .select("id, kind, title, detail, scheduled_for, created_at")
+    .in("goal_id", goalIds)
+    .eq("kind", kind)
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return (data ?? []) as GoalItemRow[];
+}
+
+export async function createGoalItemFromPrompt(
+  ownerId: string,
+  classId: string,
+  kind: GoalItemKind,
+  prompt: string,
+): Promise<GoalItemRow> {
+  const db = requireClient();
+  const { data: goal, error: goalError } = await db
+    .from("goals")
+    .insert({ owner_id: ownerId, class_id: classId, prompt, source: "prompt", status: "draft" })
+    .select()
+    .single();
+  if (goalError) throw goalError;
+
+  const title = prompt.length > 60 ? `${prompt.slice(0, 57)}…` : prompt;
+  const { data: item, error: itemError } = await db
+    .from("goal_items")
+    .insert({
+      owner_id: ownerId,
+      goal_id: goal.id,
+      kind,
+      title,
+      detail: "Drafted from the studio — simulated content, no AI backend wired up yet.",
+    })
+    .select()
+    .single();
+  if (itemError) throw itemError;
+  return item as GoalItemRow;
+}
+
+// ── Assessments: quizzes and exams ──
+export interface AssessmentRow {
+  id: string;
+  kind: "quiz" | "exam";
+  title: string;
+  status: "draft" | "scheduled";
+  scheduled_for: string | null;
+  created_at: string;
+}
+
+export async function listAssessments(
+  classId: string,
+  kind: "quiz" | "exam",
+): Promise<AssessmentRow[]> {
+  const db = requireClient();
+  const { data, error } = await db
+    .from("assessments")
+    .select("id, kind, title, status, scheduled_for, created_at")
+    .eq("class_id", classId)
+    .eq("kind", kind)
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return (data ?? []) as AssessmentRow[];
+}
+
+export async function createAssessmentFromPrompt(
+  ownerId: string,
+  classId: string,
+  kind: "quiz" | "exam",
+  prompt: string,
+): Promise<AssessmentRow> {
+  const db = requireClient();
+  const title = prompt.length > 60 ? `${prompt.slice(0, 57)}…` : prompt;
+  const { data, error } = await db
+    .from("assessments")
+    .insert({ owner_id: ownerId, class_id: classId, kind, title, status: "draft" })
+    .select()
+    .single();
+  if (error) throw error;
+  return data as AssessmentRow;
+}
+
+// ── Materials: notes & text, shared across classes ──
+export interface MaterialRow {
+  id: string;
+  title: string;
+  kind: string;
+  created_at: string;
+}
+
+export async function listMaterialsForClass(classId: string): Promise<MaterialRow[]> {
+  const db = requireClient();
+  const { data, error } = await db
+    .from("class_materials")
+    .select("material:materials(id, title, kind, created_at)")
+    .eq("class_id", classId);
+  if (error) throw error;
+  return ((data ?? []) as unknown as { material: MaterialRow }[]).map((l) => l.material);
+}
+
+export async function createMaterialFromPrompt(
+  ownerId: string,
+  classId: string,
+  prompt: string,
+): Promise<MaterialRow> {
+  const db = requireClient();
+  const title = prompt.length > 60 ? `${prompt.slice(0, 57)}…` : prompt;
+  const { data: material, error: materialError } = await db
+    .from("materials")
+    .insert({
+      owner_id: ownerId,
+      title,
+      kind: "note",
+      body_md: "Drafted from the studio — simulated content, no AI backend wired up yet.",
+    })
+    .select()
+    .single();
+  if (materialError) throw materialError;
+
+  const { error: linkError } = await db
+    .from("class_materials")
+    .insert({ class_id: classId, material_id: material.id, owner_id: ownerId });
+  if (linkError) throw linkError;
+
+  return material as MaterialRow;
+}
+
 export async function updateBatch(id: string, label: string, startYear: number) {
   const db = requireClient();
   const { error } = await db
