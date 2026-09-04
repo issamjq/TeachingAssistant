@@ -18,7 +18,7 @@ import { GoogleButton } from "@/features/auth/google-button";
 import { EmailPasswordAuth } from "@/features/auth/email-password-auth";
 
 export default function SignInPage() {
-  const { user, loading, configured, signInWithGoogle } = useSession();
+  const { user, loading, configured, signInWithGoogle, supersededMessage } = useSession();
   const router = useRouter();
 
   useEffect(() => {
@@ -43,6 +43,11 @@ export default function SignInPage() {
           <CardDescription>For teachers, organisations, and admins.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          {supersededMessage ? (
+            <p className="rounded-md border border-warning/40 bg-warning/10 p-3 text-center text-xs text-warning">
+              {supersededMessage}
+            </p>
+          ) : null}
           <GoogleButton onClick={signInWithGoogle} disabled={!configured} />
           <div className="flex items-center gap-3">
             <Separator className="flex-1" />

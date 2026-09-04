@@ -40,6 +40,11 @@ interface SessionContextValue {
   user: SessionUser | null;
   loading: boolean;
   configured: boolean;
+  /** Set when hydrate() finds a valid token but no readable profile — the
+   * one way that happens is another device claiming the session (see
+   * session_ok() in db/tune.sql). Cleared by clearSupersededMessage(). */
+  supersededMessage: string | null;
+  clearSupersededMessage: () => void;
   signInWithGoogle: () => Promise<void>;
   signInWithPassword: (email: string, password: string) => Promise<void>;
   signUpWithPassword: (
@@ -52,9 +57,13 @@ interface SessionContextValue {
 
 const SessionContext = createContext<SessionContextValue | null>(null);
 
+const SUPERSEDED_MESSAGE =
+  "You've been signed out because this account was used on another device.";
+
 export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<SessionUser | null>(null);
   const [loading, setLoading] = useState(true);
+  const [supersededMessage, setSupersededMessage] = useState<string | null>(null);
 
   const hydrate = useCallback(async () => {
     if (!supabase) {
@@ -74,18 +83,50 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       .select("role, status, name, email, institution, staff_id, syllabus")
       .eq("id", session.user.id)
       .single();
-    setUser(profile ? toSessionUser(session.user, profile as ProfileRow) : null);
+    if (!profile) {
+      // The profile row always exists once created — the only way RLS
+      // hides it from its own owner is session_ok() failing, i.e. another
+      // device claimed this account. Clear the stale local session too,
+      // rather than leaving it to fail silently on every next call.
+      await supabase.auth.signOut();
+      setSupersededMessage(SUPERSEDED_MESSAGE);
+      setUser(null);
+      setLoading(false);
+      return;
+    }
+    setUser(toSessionUser(session.user, profile as ProfileRow));
     setLoading(false);
   }, []);
+
+  // Claims this session before the first profile read — the row this
+  // overwrites may belong to a session that's about to be superseded, so
+  // it must bypass RLS (see claim_session() in db/tune.sql). Idempotent:
+  // safe to call more than once for the same session (the auth-state
+  // listener below does it again for OAuth/magic-link redirects), since
+  // it just resets active_session_id to the same value.
+  const claimAndHydrate = useCallback(async () => {
+    if (!supabase) return;
+    await supabase.rpc("claim_session");
+    await hydrate();
+  }, [hydrate]);
 
   useEffect(() => {
     hydrate();
     if (!supabase) return;
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(() => hydrate());
+    } = supabase.auth.onAuthStateChange((event) => {
+      // Only a genuine new sign-in claims — never a token refresh or a
+      // page reload restoring an already-open session, which would let a
+      // superseded session silently re-claim itself back.
+      if (event === "SIGNED_IN") {
+        claimAndHydrate();
+      } else {
+        hydrate();
+      }
+    });
     return () => subscription.unsubscribe();
-  }, [hydrate]);
+  }, [hydrate, claimAndHydrate]);
 
   async function signInWithGoogle() {
     if (!supabase) return;
@@ -99,7 +140,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     if (!supabase) throw new Error("Sign-in isn't configured yet");
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) throw error;
-    await hydrate();
+    await claimAndHydrate();
   }
 
   async function signUpWithPassword(
@@ -114,7 +155,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     });
     if (error) throw error;
     if (data.session) {
-      await hydrate();
+      await claimAndHydrate();
       return { needsEmailConfirmation: false };
     }
     return { needsEmailConfirmation: true };
@@ -146,6 +187,8 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         user,
         loading,
         configured: isSupabaseConfigured,
+        supersededMessage,
+        clearSupersededMessage: () => setSupersededMessage(null),
         signInWithGoogle,
         signInWithPassword,
         signUpWithPassword,

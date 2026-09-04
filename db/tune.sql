@@ -20,9 +20,54 @@ create table if not exists public.profiles (
 
 alter table public.profiles enable row level security;
 
+-- Single-device enforcement: a second sign-in supersedes the first.
+-- claim_session() is called by the frontend right after a genuine
+-- sign-in (SIGNED_IN, not a token refresh or page reload of an
+-- already-open session) and unconditionally sets active_session_id to
+-- the new session's id — it must bypass RLS to overwrite a row that may
+-- belong to a session about to be superseded. session_ok() is what
+-- every owner-scoped policy below ANDs in: true if the profile has
+-- never claimed a session (NULL — so accounts predating this migration
+-- aren't instantly locked out) or the caller's own JWT session_id still
+-- matches what's on record.
+alter table public.profiles add column if not exists active_session_id text;
+
+create or replace function public.claim_session()
+returns void
+language sql
+security definer
+set search_path = public
+as $$
+  update public.profiles
+  set active_session_id = auth.jwt()->>'session_id'
+  where id = auth.uid();
+$$;
+revoke all on function public.claim_session() from public, anon;
+grant execute on function public.claim_session() to authenticated;
+
+create or replace function public.session_ok()
+returns boolean
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select coalesce(
+    (select active_session_id is null or active_session_id = (auth.jwt()->>'session_id')
+       from public.profiles where id = auth.uid()),
+    true
+  );
+$$;
+revoke all on function public.session_ok() from public, anon;
+grant execute on function public.session_ok() to authenticated;
+
+-- Claiming itself goes through claim_session() (bypasses RLS), so
+-- gating the general update-own-profile path with session_ok() is
+-- safe: it only blocks a superseded session from editing its own
+-- profile, never blocks a fresh sign-in from claiming.
 drop policy if exists "select own profile" on public.profiles;
 create policy "select own profile" on public.profiles
-  for select using (auth.uid() = id);
+  for select using (auth.uid() = id and public.session_ok());
 
 -- A policy on `profiles` cannot query `profiles` inline (via EXISTS) to
 -- check the caller's own role — Postgres detects that as infinite
@@ -48,16 +93,16 @@ grant execute on function public.is_admin() to authenticated;
 -- the signed-in one.
 drop policy if exists "admins read all profiles" on public.profiles;
 create policy "admins read all profiles" on public.profiles
-  for select using (public.is_admin());
+  for select using (public.is_admin() and public.session_ok());
 
 drop policy if exists "update own profile" on public.profiles;
 create policy "update own profile" on public.profiles
-  for update using (auth.uid() = id);
+  for update using (auth.uid() = id and public.session_ok());
 
 -- Lets a super_admin/sub_admin approve other teachers.
 drop policy if exists "admins manage other profiles" on public.profiles;
 create policy "admins manage other profiles" on public.profiles
-  for update using (public.is_admin());
+  for update using (public.is_admin() and public.session_ok());
 
 create or replace function public.handle_new_user()
 returns trigger
@@ -246,26 +291,37 @@ alter table public.results enable row level security;
 alter table public.attendance enable row level security;
 
 drop policy if exists "owner full access" on public.batches;
-create policy "owner full access" on public.batches for all using (owner_id = auth.uid()) with check (owner_id = auth.uid());
+create policy "owner full access" on public.batches for all
+  using (owner_id = auth.uid() and public.session_ok())
+  with check (owner_id = auth.uid() and public.session_ok());
 drop policy if exists "owner full access" on public.grades;
-create policy "owner full access" on public.grades for all using (owner_id = auth.uid()) with check (owner_id = auth.uid());
+create policy "owner full access" on public.grades for all
+  using (owner_id = auth.uid() and public.session_ok())
+  with check (owner_id = auth.uid() and public.session_ok());
 drop policy if exists "owner full access" on public.divisions;
-create policy "owner full access" on public.divisions for all using (owner_id = auth.uid()) with check (owner_id = auth.uid());
+create policy "owner full access" on public.divisions for all
+  using (owner_id = auth.uid() and public.session_ok())
+  with check (owner_id = auth.uid() and public.session_ok());
 drop policy if exists "owner full access" on public.classes;
-create policy "owner full access" on public.classes for all using (owner_id = auth.uid()) with check (owner_id = auth.uid());
+create policy "owner full access" on public.classes for all
+  using (owner_id = auth.uid() and public.session_ok())
+  with check (owner_id = auth.uid() and public.session_ok());
 drop policy if exists "owner full access" on public.class_materials;
-create policy "owner full access" on public.class_materials for all using (owner_id = auth.uid()) with check (owner_id = auth.uid());
+create policy "owner full access" on public.class_materials for all
+  using (owner_id = auth.uid() and public.session_ok())
+  with check (owner_id = auth.uid() and public.session_ok());
 -- Any signed-in teacher can read the shared library ("choose from deck"),
 -- but only super_admin/sub_admin can add to it — a teacher still fully
 -- manages their own private materials.
 drop policy if exists "owner full access" on public.materials;
 drop policy if exists "read own or shared materials" on public.materials;
 create policy "read own or shared materials" on public.materials
-  for select using (owner_id = auth.uid() or is_shared = true);
+  for select using ((owner_id = auth.uid() and public.session_ok()) or is_shared = true);
 drop policy if exists "insert own materials, shared requires admin role" on public.materials;
 create policy "insert own materials, shared requires admin role" on public.materials
   for insert with check (
     owner_id = auth.uid()
+    and public.session_ok()
     and (
       is_shared = false
       or exists (select 1 from public.profiles p where p.id = auth.uid() and p.role in ('super_admin','sub_admin'))
@@ -273,64 +329,87 @@ create policy "insert own materials, shared requires admin role" on public.mater
   );
 drop policy if exists "update own materials" on public.materials;
 create policy "update own materials" on public.materials
-  for update using (owner_id = auth.uid()) with check (owner_id = auth.uid());
+  for update using (owner_id = auth.uid() and public.session_ok())
+  with check (owner_id = auth.uid() and public.session_ok());
 drop policy if exists "delete own materials" on public.materials;
 create policy "delete own materials" on public.materials
-  for delete using (owner_id = auth.uid());
+  for delete using (owner_id = auth.uid() and public.session_ok());
 drop policy if exists "owner full access" on public.doubts;
-create policy "owner full access" on public.doubts for all using (owner_id = auth.uid()) with check (owner_id = auth.uid());
+create policy "owner full access" on public.doubts for all
+  using (owner_id = auth.uid() and public.session_ok())
+  with check (owner_id = auth.uid() and public.session_ok());
 drop policy if exists "owner full access" on public.goal_items;
-create policy "owner full access" on public.goal_items for all using (owner_id = auth.uid()) with check (owner_id = auth.uid());
+create policy "owner full access" on public.goal_items for all
+  using (owner_id = auth.uid() and public.session_ok())
+  with check (owner_id = auth.uid() and public.session_ok());
 drop policy if exists "owner full access" on public.assessments;
-create policy "owner full access" on public.assessments for all using (owner_id = auth.uid()) with check (owner_id = auth.uid());
+create policy "owner full access" on public.assessments for all
+  using (owner_id = auth.uid() and public.session_ok())
+  with check (owner_id = auth.uid() and public.session_ok());
 drop policy if exists "owner full access" on public.results;
-create policy "owner full access" on public.results for all using (owner_id = auth.uid()) with check (owner_id = auth.uid());
+create policy "owner full access" on public.results for all
+  using (owner_id = auth.uid() and public.session_ok())
+  with check (owner_id = auth.uid() and public.session_ok());
 drop policy if exists "owner full access" on public.attendance;
-create policy "owner full access" on public.attendance for all using (owner_id = auth.uid()) with check (owner_id = auth.uid());
+create policy "owner full access" on public.attendance for all
+  using (owner_id = auth.uid() and public.session_ok())
+  with check (owner_id = auth.uid() and public.session_ok());
 
 -- Preparation (drafting) is open to pending teachers; only actions that
 -- reach real students require an approved profile.
 drop policy if exists "owner reads own students" on public.students;
-create policy "owner reads own students" on public.students for select using (owner_id = auth.uid());
+create policy "owner reads own students" on public.students for select
+  using (owner_id = auth.uid() and public.session_ok());
 -- The super-admin students console reads across every teacher's roster.
 drop policy if exists "admins read all students" on public.students;
 create policy "admins read all students" on public.students
-  for select using (public.is_admin());
+  for select using (public.is_admin() and public.session_ok());
 drop policy if exists "owner updates own students" on public.students;
-create policy "owner updates own students" on public.students for update using (owner_id = auth.uid()) with check (owner_id = auth.uid());
+create policy "owner updates own students" on public.students for update
+  using (owner_id = auth.uid() and public.session_ok())
+  with check (owner_id = auth.uid() and public.session_ok());
 drop policy if exists "owner deletes own students" on public.students;
-create policy "owner deletes own students" on public.students for delete using (owner_id = auth.uid());
+create policy "owner deletes own students" on public.students for delete
+  using (owner_id = auth.uid() and public.session_ok());
 drop policy if exists "active teachers add students" on public.students;
 create policy "active teachers add students" on public.students
   for insert
   with check (
     owner_id = auth.uid()
+    and public.session_ok()
     and exists (select 1 from public.profiles p where p.id = auth.uid() and p.status = 'active')
   );
 
 drop policy if exists "owner reads own enrollments" on public.class_members;
-create policy "owner reads own enrollments" on public.class_members for select using (owner_id = auth.uid());
+create policy "owner reads own enrollments" on public.class_members for select
+  using (owner_id = auth.uid() and public.session_ok());
 drop policy if exists "owner removes own enrollments" on public.class_members;
-create policy "owner removes own enrollments" on public.class_members for delete using (owner_id = auth.uid());
+create policy "owner removes own enrollments" on public.class_members for delete
+  using (owner_id = auth.uid() and public.session_ok());
 drop policy if exists "active teachers enroll students" on public.class_members;
 create policy "active teachers enroll students" on public.class_members
   for insert
   with check (
     owner_id = auth.uid()
+    and public.session_ok()
     and exists (select 1 from public.profiles p where p.id = auth.uid() and p.status = 'active')
   );
 
 drop policy if exists "owner drafts goals" on public.goals;
-create policy "owner drafts goals" on public.goals for insert with check (owner_id = auth.uid());
+create policy "owner drafts goals" on public.goals for insert
+  with check (owner_id = auth.uid() and public.session_ok());
 drop policy if exists "owner reads own goals" on public.goals;
-create policy "owner reads own goals" on public.goals for select using (owner_id = auth.uid());
+create policy "owner reads own goals" on public.goals for select
+  using (owner_id = auth.uid() and public.session_ok());
 drop policy if exists "owner deletes own goals" on public.goals;
-create policy "owner deletes own goals" on public.goals for delete using (owner_id = auth.uid());
+create policy "owner deletes own goals" on public.goals for delete
+  using (owner_id = auth.uid() and public.session_ok());
 drop policy if exists "owner updates goals, approval needs active status" on public.goals;
 create policy "owner updates goals, approval needs active status" on public.goals
-  for update using (owner_id = auth.uid())
+  for update using (owner_id = auth.uid() and public.session_ok())
   with check (
     owner_id = auth.uid()
+    and public.session_ok()
     and (
       status = 'draft'
       or exists (select 1 from public.profiles p where p.id = auth.uid() and p.status = 'active')
@@ -397,7 +476,7 @@ alter table public.analytics_events enable row level security;
 
 drop policy if exists "owner logs own events" on public.analytics_events;
 create policy "owner logs own events" on public.analytics_events
-  for insert with check (owner_id = auth.uid());
+  for insert with check (owner_id = auth.uid() and public.session_ok());
 
 drop policy if exists "admins read all events" on public.analytics_events;
 create policy "admins read all events" on public.analytics_events
