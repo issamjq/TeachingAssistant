@@ -96,10 +96,10 @@
 }
 
 /* ── App theme: everything behind sign-in ──────────────────────────────
-   Scoped deliberately, not global — marketing (`/`, `/signin`) stays on
-   the neutral tokens above until it gets its own visual sign-off (see
-   CLAUDE.md's deploy policy). Reference: user-supplied "EduAI Studio"
-   screenshots — visual reference only, not a brand to copy the name of.
+   Scoped deliberately, not global — the studio keeps its own quieter
+   tokens, separate from marketing's bolder ones below.
+   Reference: user-supplied "EduAI Studio" screenshots — visual reference
+   only, not a brand to copy the name of.
    THESIS/OWN-WORLD/etc direction contract lives in app/layout.tsx. */
 .theme-app {
   --radius: 0.75rem;
@@ -147,6 +147,53 @@
   --sidebar-ring: #1b4b3a;
 }
 
+/* ── Marketing theme: the public site (`/`) ─────────────────────────────
+   Scoped to the landing page only — signed-in surfaces keep .theme-app.
+   Given its own visual sign-off 2026-09-04/05 against a user-supplied
+   fintech-dashboard reference: bold black display type, a rationed lime
+   "jewel" accent (confirmed — keep it) on a warm cream ground, dark-forest
+   content bands. The wordmark (public/murchid-logo-green.svg) is the real
+   public/murchid-logo.svg recolored into this same dark-green/lime pair
+   instead of its native cream/peach, so the mark reads directly on the
+   page instead of needing its own dark chip. --primary is deliberately
+   the same forest green as .theme-app: the one deliberate thread between
+   "here's the pitch" and "here's the product". */
+.theme-marketing {
+  --radius: 1.25rem;
+
+  --background: #f2f0e2;
+  --foreground: #16201a;
+  --card: #ffffff;
+  --card-foreground: #16201a;
+  --popover: #ffffff;
+  --popover-foreground: #16201a;
+
+  --primary: #1b4b3a;
+  --primary-foreground: #f7f5e9;
+  --secondary: #e3eedd;
+  --secondary-foreground: #163a2c;
+  --muted: #e9e4d1;
+  --muted-foreground: #6c6656;
+  --accent: #e3eedd;
+  --accent-foreground: #163a2c;
+
+  --destructive: #b23a2b;
+  --destructive-foreground: #fbf8f0;
+  --success: #2b6b4a;
+  --success-foreground: #fbf8f0;
+  --warning: #9c5b12;
+  --warning-foreground: #fbf8f0;
+
+  --border: #e1dbc4;
+  --input: #e1dbc4;
+  --ring: #1b4b3a;
+
+  /* The rationed jewel accent — bold band backgrounds and one CTA class,
+     never body text on body text (fails contrast at that size). */
+  --lime: #c6f232;
+  --lime-foreground: #142317;
+}
+
 @theme inline {
   --font-sans: var(--font-inter);
   --font-serif: var(--font-lora);
@@ -188,6 +235,9 @@
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
 
+  --color-lime: var(--lime);
+  --color-lime-foreground: var(--lime-foreground);
+
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -201,7 +251,8 @@
   body {
     @apply bg-background text-foreground font-sans antialiased;
   }
-  .theme-app ::selection {
+  .theme-app ::selection,
+  .theme-marketing ::selection {
     background: var(--secondary);
     color: var(--secondary-foreground);
   }
