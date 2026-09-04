@@ -54,8 +54,9 @@ deploy policy in the root [CLAUDE.md](../CLAUDE.md)).
   once the data model is in place.
 - **Goal Planner** — the core pipeline, below.
 - **My Classes** — Batch → Grade → Division → Subject. Each subject-class
-  has: Lessons, Notes & Text, Settings, Exams & Quizzes, Results, Attendance,
-  Students list.
+  has: Lessons, Presentations, Activities, Homework, Notes & Text, Exams,
+  Quizzes, Results, Attendance, Students list, Settings — one tab per
+  Goal Planner output kind, plus the class-management tabs.
 - **Profile → Settings**
 - **Support** — a help screen plus a site-wide support assistant.
 
