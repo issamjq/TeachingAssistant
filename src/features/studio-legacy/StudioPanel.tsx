@@ -65,10 +65,16 @@ export function StudioPanel() {
         </div>
 
         <div className="flex-1 space-y-3.5 overflow-y-auto p-5">
+          {item.content ? (
+            <div className="rounded-xl border border-border bg-background p-4 text-sm leading-relaxed whitespace-pre-wrap">
+              {item.content}
+            </div>
+          ) : null}
           {turns.length === 0 ? (
             <p className="mx-auto max-w-[260px] pt-10 text-center text-sm text-muted-foreground">
-              Prompt the assistant to draft or revise this {item.kind.toLowerCase()} —
-              it only sees this one record, nothing else in your account.
+              {item.content
+                ? `Ask for changes to this ${item.kind.toLowerCase()} below — the assistant only sees this one record, nothing else in your account.`
+                : `Prompt the assistant to draft or revise this ${item.kind.toLowerCase()} — it only sees this one record, nothing else in your account.`}
             </p>
           ) : (
             turns.map((t, i) => (

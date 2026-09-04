@@ -1,0 +1,41 @@
+import { backendFetch } from "./backend";
+
+export type Feature =
+  | "lesson_plan"
+  | "slide_deck"
+  | "activity"
+  | "homework"
+  | "note"
+  | "quiz"
+  | "exam";
+
+export interface GenerationResult {
+  title: string;
+  content: string;
+  usage?: { input_tokens: number; output_tokens: number };
+  // Shape not fully specified by the backend yet — treated as opaque,
+  // only its length is relied on.
+  unread_materials?: unknown[];
+}
+
+export function generateContent(
+  feature: Feature,
+  classId: string,
+  prompt: string,
+): Promise<GenerationResult> {
+  return backendFetch<GenerationResult>("/studio/generate", {
+    method: "POST",
+    body: { feature, classId, prompt },
+    // Generation is slower than a normal request — give it real room
+    // rather than the default 30s.
+    timeoutMs: 90_000,
+  });
+}
+
+export function unreadMaterialsNotice(result: GenerationResult): string | undefined {
+  const count = result.unread_materials?.length ?? 0;
+  if (count === 0) return undefined;
+  return `${count} material${count === 1 ? "" : "s"} attached to this class ${
+    count === 1 ? "hasn't" : "haven't"
+  } been read yet (uploaded as a file with no extracted text) — this draft may be missing that context.`;
+}

@@ -10,6 +10,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { useSession } from "@/features/auth/session-context";
 import { useStudio } from "@/features/studio-legacy/studio-context";
 import { StudioComposerBar } from "@/features/studio-legacy/StudioComposerBar";
+import { generateContent, unreadMaterialsNotice } from "@/lib/data/generation";
 import {
   listMaterialsForClass,
   createMaterialFromPrompt,
@@ -32,8 +33,11 @@ export default function ClassNotesPage() {
 
   async function handleCreate(prompt: string) {
     if (!user) return;
-    await createMaterialFromPrompt(user.id, classId, prompt);
+    const result = await generateContent("note", classId, prompt);
+    await createMaterialFromPrompt(user.id, classId, result);
     refresh();
+    const notice = unreadMaterialsNotice(result);
+    return notice ? { notice } : undefined;
   }
 
   return (
@@ -60,7 +64,7 @@ export default function ClassNotesPage() {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => open({ title: n.title, kind: "Note" })}
+                    onClick={() => open({ title: n.title, kind: "Note", content: n.body_md })}
                   >
                     Open
                   </Button>

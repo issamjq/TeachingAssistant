@@ -6,6 +6,8 @@ export interface StudioItem {
   title: string;
   kind: "Lesson" | "Presentation" | "Activity" | "Homework" | "Note" | "Exam" | "Quiz";
   classLabel?: string;
+  /** The real generated markdown, when there is one to show. */
+  content?: string | null;
 }
 
 interface StudioContextValue {

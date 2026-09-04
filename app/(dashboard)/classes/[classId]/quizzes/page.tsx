@@ -11,6 +11,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { useSession } from "@/features/auth/session-context";
 import { useStudio } from "@/features/studio-legacy/studio-context";
 import { StudioComposerBar } from "@/features/studio-legacy/StudioComposerBar";
+import { generateContent, unreadMaterialsNotice } from "@/lib/data/generation";
 import {
   listAssessments,
   createAssessmentFromPrompt,
@@ -36,8 +37,11 @@ export default function ClassQuizzesPage() {
 
   async function handleCreate(prompt: string) {
     if (!user || !hasReference) return;
-    await createAssessmentFromPrompt(user.id, classId, "quiz", prompt);
+    const result = await generateContent("quiz", classId, prompt);
+    await createAssessmentFromPrompt(user.id, classId, "quiz", result);
     refresh();
+    const notice = unreadMaterialsNotice(result);
+    return notice ? { notice } : undefined;
   }
 
   return (
@@ -65,7 +69,9 @@ export default function ClassQuizzesPage() {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => open({ title: q.title, kind: "Quiz" })}
+                      onClick={() =>
+                        open({ title: q.title, kind: "Quiz", content: q.content?.markdown })
+                      }
                     >
                       Review
                     </Button>

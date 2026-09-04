@@ -11,6 +11,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { useSession } from "@/features/auth/session-context";
 import { useStudio } from "@/features/studio-legacy/studio-context";
 import { StudioComposerBar } from "@/features/studio-legacy/StudioComposerBar";
+import { generateContent, unreadMaterialsNotice } from "@/lib/data/generation";
 import {
   listGoalItemsByKind,
   createGoalItemFromPrompt,
@@ -36,8 +37,11 @@ export default function ClassPresentationsPage() {
 
   async function handleCreate(prompt: string) {
     if (!user || !hasReference) return;
-    await createGoalItemFromPrompt(user.id, classId, "slide_deck", prompt);
+    const result = await generateContent("slide_deck", classId, prompt);
+    await createGoalItemFromPrompt(user.id, classId, "slide_deck", prompt, result);
     refresh();
+    const notice = unreadMaterialsNotice(result);
+    return notice ? { notice } : undefined;
   }
 
   return (
@@ -70,7 +74,9 @@ export default function ClassPresentationsPage() {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => open({ title: p.title, kind: "Presentation" })}
+                      onClick={() =>
+                        open({ title: p.title, kind: "Presentation", content: p.content?.markdown })
+                      }
                     >
                       Open
                     </Button>

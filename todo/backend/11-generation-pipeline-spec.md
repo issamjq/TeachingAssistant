@@ -1,3 +1,17 @@
+> **Built and wired 2026-09-04.** `POST /api/studio/generate` is live on
+> `final/backend` and every studio composer bar now calls it for real
+> (`src/lib/data/generation.ts`, wired into all 7 class tabs). Two
+> additions beyond this spec: the backend fetches the class's grade via
+> `divisions.grade_id → grades.level` (not in the request), and a
+> material with a `storage_path` but no `body_md` comes back listed in
+> `unread_materials` rather than silently grounding on nothing — the
+> frontend surfaces that as a notice under the composer. Verified for
+> real: a live class with no attached materials generated a real note on
+> photosynthesis and correctly disclosed "no reference material was
+> provided" in the output. Chat, curriculum derive, corpus/grounding,
+> materials extraction, and template library are still separate,
+> unbuilt work — see below, unchanged.
+
 # The core generation endpoint — spec for a from-scratch build
 
 Scoped deliberately to **one endpoint**: the thing every studio composer

@@ -11,6 +11,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { useSession } from "@/features/auth/session-context";
 import { useStudio } from "@/features/studio-legacy/studio-context";
 import { StudioComposerBar } from "@/features/studio-legacy/StudioComposerBar";
+import { generateContent, unreadMaterialsNotice } from "@/lib/data/generation";
 import {
   listGoalItemsByKind,
   createGoalItemFromPrompt,
@@ -36,8 +37,11 @@ export default function ClassActivitiesPage() {
 
   async function handleCreate(prompt: string) {
     if (!user || !hasReference) return;
-    await createGoalItemFromPrompt(user.id, classId, "activity", prompt);
+    const result = await generateContent("activity", classId, prompt);
+    await createGoalItemFromPrompt(user.id, classId, "activity", prompt, result);
     refresh();
+    const notice = unreadMaterialsNotice(result);
+    return notice ? { notice } : undefined;
   }
 
   return (
@@ -70,7 +74,9 @@ export default function ClassActivitiesPage() {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => open({ title: a.title, kind: "Activity" })}
+                      onClick={() =>
+                        open({ title: a.title, kind: "Activity", content: a.content?.markdown })
+                      }
                     >
                       Open
                     </Button>

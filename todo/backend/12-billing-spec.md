@@ -1,3 +1,15 @@
+> **Built 2026-09-04.** All three endpoints are live on `final/backend`
+> exactly as specified below. Blocked only on a dashboard task, not
+> code: the Stripe account has no recurring Murchid prices yet (two
+> unrelated one-off products/prices exist instead), so `/checkout`
+> answers `503 price_not_configured` until `STRIPE_PRICE_PRO_MONTHLY`/
+> `STRIPE_PRICE_PRO_ANNUAL` are set in Render. Also worth checking
+> before real money moves: the server key is `rk_live_…` (live mode) —
+> confirm that's intentional, or switch to a test key while wiring the
+> frontend UI. No teacher-facing "Upgrade"/"Manage billing" UI exists
+> yet — that's next, once prices exist to actually test checkout
+> against.
+
 # Billing — flat monthly/annual per teacher
 
 Pricing model confirmed: flat per-teacher subscription (Free / Pro),

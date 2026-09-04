@@ -11,6 +11,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { useSession } from "@/features/auth/session-context";
 import { useStudio } from "@/features/studio-legacy/studio-context";
 import { StudioComposerBar } from "@/features/studio-legacy/StudioComposerBar";
+import { generateContent, unreadMaterialsNotice } from "@/lib/data/generation";
 import {
   listAssessments,
   createAssessmentFromPrompt,
@@ -36,8 +37,11 @@ export default function ClassExamsPage() {
 
   async function handleCreate(prompt: string) {
     if (!user || !hasReference) return;
-    await createAssessmentFromPrompt(user.id, classId, "exam", prompt);
+    const result = await generateContent("exam", classId, prompt);
+    await createAssessmentFromPrompt(user.id, classId, "exam", result);
     refresh();
+    const notice = unreadMaterialsNotice(result);
+    return notice ? { notice } : undefined;
   }
 
   return (
@@ -65,7 +69,9 @@ export default function ClassExamsPage() {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => open({ title: e.title, kind: "Exam" })}
+                      onClick={() =>
+                        open({ title: e.title, kind: "Exam", content: e.content?.markdown })
+                      }
                     >
                       Review
                     </Button>

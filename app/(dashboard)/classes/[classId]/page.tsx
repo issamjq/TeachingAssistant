@@ -11,6 +11,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { useSession } from "@/features/auth/session-context";
 import { useStudio } from "@/features/studio-legacy/studio-context";
 import { StudioComposerBar } from "@/features/studio-legacy/StudioComposerBar";
+import { generateContent, unreadMaterialsNotice } from "@/lib/data/generation";
 import {
   listGoalItemsByKind,
   createGoalItemFromPrompt,
@@ -36,8 +37,11 @@ export default function ClassLessonsPage() {
 
   async function handleCreate(prompt: string) {
     if (!user || !hasReference) return;
-    await createGoalItemFromPrompt(user.id, classId, "lesson_plan", prompt);
+    const result = await generateContent("lesson_plan", classId, prompt);
+    await createGoalItemFromPrompt(user.id, classId, "lesson_plan", prompt, result);
     refresh();
+    const notice = unreadMaterialsNotice(result);
+    return notice ? { notice } : undefined;
   }
 
   return (
@@ -70,7 +74,9 @@ export default function ClassLessonsPage() {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => open({ title: l.title, kind: "Lesson" })}
+                      onClick={() =>
+                        open({ title: l.title, kind: "Lesson", content: l.content?.markdown })
+                      }
                     >
                       Open in Studio
                     </Button>

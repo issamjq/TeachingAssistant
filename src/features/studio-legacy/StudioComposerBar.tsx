@@ -21,7 +21,7 @@ export function StudioComposerBar({
 }: {
   placeholder: string;
   buttonLabel: string;
-  onSubmit: (prompt: string) => Promise<void>;
+  onSubmit: (prompt: string) => Promise<{ notice?: string } | void>;
   classId: string;
   ownerId: string | null;
   feature: string;
@@ -32,15 +32,22 @@ export function StudioComposerBar({
   const [prompt, setPrompt] = useState("");
   const [busy, setBusy] = useState(false);
   const [attachOpen, setAttachOpen] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   async function submit() {
     const value = prompt.trim();
     if (!value || busy || !canSend) return;
     setBusy(true);
+    setError(null);
+    setNotice(null);
     try {
-      await onSubmit(value);
+      const result = await onSubmit(value);
       if (ownerId) logGeneration(ownerId, feature, classId);
       setPrompt("");
+      if (result?.notice) setNotice(result.notice);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Generation failed — try again.");
     } finally {
       setBusy(false);
     }
@@ -102,6 +109,8 @@ export function StudioComposerBar({
           )}
         </p>
       ) : null}
+      {error ? <p className="px-1 text-xs text-destructive">{error}</p> : null}
+      {notice ? <p className="px-1 text-xs text-warning">{notice}</p> : null}
     </div>
   );
 }

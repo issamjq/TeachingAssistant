@@ -249,6 +249,7 @@ create table if not exists public.assessments (
   kind text not null check (kind in ('quiz','exam')),
   title text not null,
   status text not null default 'draft' check (status in ('draft','scheduled')),
+  content jsonb,
   scheduled_for date,
   created_at timestamptz not null default now()
 );
@@ -286,6 +287,9 @@ alter table public.class_materials enable row level security;
 alter table public.doubts enable row level security;
 alter table public.goals enable row level security;
 alter table public.goal_items enable row level security;
+-- Added after the table already existed live — explicit for re-runs.
+alter table public.assessments add column if not exists content jsonb;
+
 alter table public.assessments enable row level security;
 alter table public.results enable row level security;
 alter table public.attendance enable row level security;

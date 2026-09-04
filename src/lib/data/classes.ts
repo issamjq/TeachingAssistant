@@ -137,6 +137,7 @@ export interface GoalItemRow {
   kind: GoalItemKind;
   title: string;
   detail: string | null;
+  content: { markdown: string } | null;
   scheduled_for: string | null;
   created_at: string;
 }
@@ -155,7 +156,7 @@ export async function listGoalItemsByKind(
   if (goalIds.length === 0) return [];
   const { data, error } = await db
     .from("goal_items")
-    .select("id, kind, title, detail, scheduled_for, created_at")
+    .select("id, kind, title, detail, content, scheduled_for, created_at")
     .in("goal_id", goalIds)
     .eq("kind", kind)
     .order("created_at", { ascending: false });
@@ -168,6 +169,7 @@ export async function createGoalItemFromPrompt(
   classId: string,
   kind: GoalItemKind,
   prompt: string,
+  generated: { title: string; content: string },
 ): Promise<GoalItemRow> {
   const db = requireClient();
   const { data: goal, error: goalError } = await db
@@ -177,15 +179,14 @@ export async function createGoalItemFromPrompt(
     .single();
   if (goalError) throw goalError;
 
-  const title = prompt.length > 60 ? `${prompt.slice(0, 57)}…` : prompt;
   const { data: item, error: itemError } = await db
     .from("goal_items")
     .insert({
       owner_id: ownerId,
       goal_id: goal.id,
       kind,
-      title,
-      detail: "Drafted from the studio — simulated content, no AI backend wired up yet.",
+      title: generated.title,
+      content: { markdown: generated.content },
     })
     .select()
     .single();
@@ -199,6 +200,7 @@ export interface AssessmentRow {
   kind: "quiz" | "exam";
   title: string;
   status: "draft" | "scheduled";
+  content: { markdown: string } | null;
   scheduled_for: string | null;
   created_at: string;
 }
@@ -210,7 +212,7 @@ export async function listAssessments(
   const db = requireClient();
   const { data, error } = await db
     .from("assessments")
-    .select("id, kind, title, status, scheduled_for, created_at")
+    .select("id, kind, title, status, content, scheduled_for, created_at")
     .eq("class_id", classId)
     .eq("kind", kind)
     .order("created_at", { ascending: false });
@@ -222,13 +224,19 @@ export async function createAssessmentFromPrompt(
   ownerId: string,
   classId: string,
   kind: "quiz" | "exam",
-  prompt: string,
+  generated: { title: string; content: string },
 ): Promise<AssessmentRow> {
   const db = requireClient();
-  const title = prompt.length > 60 ? `${prompt.slice(0, 57)}…` : prompt;
   const { data, error } = await db
     .from("assessments")
-    .insert({ owner_id: ownerId, class_id: classId, kind, title, status: "draft" })
+    .insert({
+      owner_id: ownerId,
+      class_id: classId,
+      kind,
+      title: generated.title,
+      content: { markdown: generated.content },
+      status: "draft",
+    })
     .select()
     .single();
   if (error) throw error;
@@ -240,6 +248,7 @@ export interface MaterialRow {
   id: string;
   title: string;
   kind: string;
+  body_md: string | null;
   created_at: string;
 }
 
@@ -247,7 +256,7 @@ export async function listMaterialsForClass(classId: string): Promise<MaterialRo
   const db = requireClient();
   const { data, error } = await db
     .from("class_materials")
-    .select("material:materials(id, title, kind, created_at)")
+    .select("material:materials(id, title, kind, body_md, created_at)")
     .eq("class_id", classId);
   if (error) throw error;
   return ((data ?? []) as unknown as { material: MaterialRow }[]).map((l) => l.material);
@@ -271,17 +280,16 @@ export async function hasReferenceMaterial(classId: string): Promise<boolean> {
 export async function createMaterialFromPrompt(
   ownerId: string,
   classId: string,
-  prompt: string,
+  generated: { title: string; content: string },
 ): Promise<MaterialRow> {
   const db = requireClient();
-  const title = prompt.length > 60 ? `${prompt.slice(0, 57)}…` : prompt;
   const { data: material, error: materialError } = await db
     .from("materials")
     .insert({
       owner_id: ownerId,
-      title,
+      title: generated.title,
       kind: "note",
-      body_md: "Drafted from the studio — simulated content, no AI backend wired up yet.",
+      body_md: generated.content,
     })
     .select()
     .single();
