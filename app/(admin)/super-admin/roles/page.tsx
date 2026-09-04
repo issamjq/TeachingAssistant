@@ -38,7 +38,7 @@ export default function SuperAdminRolesPage() {
         }
       />
       <div className="p-6 md:p-8">
-        <Card>
+        <Card className="overflow-hidden">
           <CardContent className="p-0">
             <Table>
               <TableHeader>

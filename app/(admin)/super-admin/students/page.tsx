@@ -40,7 +40,7 @@ export default function SuperAdminStudentsPage() {
             description="Students show up here once a teacher invites their first one."
           />
         ) : (
-          <Card>
+          <Card className="overflow-hidden">
             <CardContent className="p-0">
               <Table>
                 <TableHeader>

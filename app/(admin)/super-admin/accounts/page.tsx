@@ -97,7 +97,7 @@ export default function SuperAdminAccountsPage() {
         ) : filtered.length === 0 ? (
           <EmptyState icon={Users} title="No accounts match" description="Try a different role filter." />
         ) : (
-          <Card>
+          <Card className="overflow-hidden">
             <CardContent className="p-0">
               <Table>
                 <TableHeader>

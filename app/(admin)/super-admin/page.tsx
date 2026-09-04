@@ -17,18 +17,19 @@ import {
 
 export default function SuperAdminDashboardPage() {
   const [stats, setStats] = useState<PlatformStats | null>(null);
-  const [recent, setRecent] = useState<AccountRow[] | null>(null);
+  const [accounts, setAccounts] = useState<AccountRow[] | null>(null);
 
   const refresh = useCallback(() => {
     getPlatformStats().then(setStats);
-    listAllAccounts().then((rows) => setRecent(rows.slice(0, 6)));
+    listAllAccounts().then(setAccounts);
   }, []);
 
   useEffect(() => {
     refresh();
   }, [refresh]);
 
-  const pending = recent?.filter((a) => a.status === "pending") ?? [];
+  const recent = accounts?.slice(0, 6) ?? null;
+  const pending = accounts?.filter((a) => a.status === "pending") ?? [];
 
   return (
     <div>
@@ -61,7 +62,7 @@ export default function SuperAdminDashboardPage() {
               </Button>
             </CardHeader>
             <CardContent className="space-y-2">
-              {pending.map((a) => (
+              {pending.slice(0, 8).map((a) => (
                 <div
                   key={a.id}
                   className="flex items-center justify-between rounded-md border border-border px-3 py-2"
@@ -75,6 +76,11 @@ export default function SuperAdminDashboardPage() {
                   <StatusPill status="pending" />
                 </div>
               ))}
+              {pending.length > 8 ? (
+                <p className="pt-1 text-xs text-muted-foreground">
+                  +{pending.length - 8} more waiting — see Accounts.
+                </p>
+              ) : null}
             </CardContent>
           </Card>
         ) : null}
