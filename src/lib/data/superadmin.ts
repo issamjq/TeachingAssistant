@@ -143,6 +143,26 @@ export async function updateFeatureCost(feature: string, creditCost: number): Pr
   if (error) throw error;
 }
 
+export interface SubscriptionRow {
+  id: string;
+  owner_id: string;
+  plan: "free" | "pro";
+  status: "active" | "trialing" | "past_due" | "canceled";
+  billing_period: "monthly" | "annual" | null;
+  current_period_end: string | null;
+  created_at: string;
+}
+
+export async function listAllSubscriptions(): Promise<SubscriptionRow[]> {
+  const db = requireClient();
+  const { data, error } = await db
+    .from("subscriptions")
+    .select("id, owner_id, plan, status, billing_period, current_period_end, created_at")
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return (data ?? []) as SubscriptionRow[];
+}
+
 export async function getPlatformStats(): Promise<PlatformStats> {
   const [totalAccounts, pendingAccounts, activeAccounts, totalClasses, totalStudents, sharedMaterials] =
     await Promise.all([

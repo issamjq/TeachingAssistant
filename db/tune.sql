@@ -591,3 +591,34 @@ begin new.updated_at := now(); return new; end $$;
 drop trigger if exists llm_keys_touch on public.llm_keys;
 create trigger llm_keys_touch before update on public.llm_keys
   for each row execute function public.set_key_pool_updated_at();
+
+-- ── Subscriptions: flat monthly/annual per teacher ──
+-- Written only by the backend's Stripe webhook handler, over its own
+-- pooler connection (bypasses RLS) — no insert/update/delete policy
+-- exists for any browser role on purpose, matching the same principle
+-- as credits/usage_logs/audit_log: a teacher cannot extend their own
+-- plan, and a frontend bug can't fabricate a subscription either.
+create table if not exists public.subscriptions (
+  id uuid primary key default gen_random_uuid(),
+  owner_id uuid not null unique references auth.users(id) on delete cascade,
+  plan text not null default 'free' check (plan in ('free', 'pro')),
+  status text not null default 'active' check (status in ('active', 'trialing', 'past_due', 'canceled')),
+  billing_period text check (billing_period in ('monthly', 'annual')),
+  stripe_customer_id text,
+  stripe_subscription_id text,
+  current_period_end timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists subscriptions_owner_idx on public.subscriptions (owner_id);
+
+alter table public.subscriptions enable row level security;
+
+drop policy if exists "owner reads own subscription" on public.subscriptions;
+create policy "owner reads own subscription" on public.subscriptions
+  for select using (owner_id = auth.uid() and public.session_ok());
+
+drop policy if exists "admins read all subscriptions" on public.subscriptions;
+create policy "admins read all subscriptions" on public.subscriptions
+  for select using (public.is_admin() and public.session_ok());
