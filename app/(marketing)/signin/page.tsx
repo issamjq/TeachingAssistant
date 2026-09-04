@@ -22,7 +22,12 @@ export default function SignInPage() {
   const router = useRouter();
 
   useEffect(() => {
-    if (!loading && user) {
+    if (loading || !user) return;
+    if (user.role === "super_admin" || user.role === "sub_admin") {
+      router.replace("/super-admin");
+    } else if (user.role === "organisation") {
+      router.replace("/organisation");
+    } else {
       router.replace(isOnboarded(user) ? "/overview" : "/onboarding/teacher");
     }
   }, [loading, user, router]);
