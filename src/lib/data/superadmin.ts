@@ -80,6 +80,69 @@ async function countRows(
   return count ?? 0;
 }
 
+export interface AnalyticsEventRow {
+  id: string;
+  owner_id: string;
+  kind: "page_view" | "generation" | "client_error";
+  path: string | null;
+  feature: string | null;
+  class_id: string | null;
+  message: string | null;
+  created_at: string;
+}
+
+async function listEvents(
+  kind: AnalyticsEventRow["kind"],
+  limit: number,
+): Promise<AnalyticsEventRow[]> {
+  const db = requireClient();
+  const { data, error } = await db
+    .from("analytics_events")
+    .select("id, owner_id, kind, path, feature, class_id, message, created_at")
+    .eq("kind", kind)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (error) throw error;
+  return (data ?? []) as AnalyticsEventRow[];
+}
+
+export function listGenerationEvents(limit = 1000): Promise<AnalyticsEventRow[]> {
+  return listEvents("generation", limit);
+}
+
+export function listPageViewEvents(limit = 1000): Promise<AnalyticsEventRow[]> {
+  return listEvents("page_view", limit);
+}
+
+export function listClientErrorEvents(limit = 200): Promise<AnalyticsEventRow[]> {
+  return listEvents("client_error", limit);
+}
+
+export interface FeatureCostRow {
+  feature: string;
+  credit_cost: number;
+  updated_at: string;
+}
+
+export async function listFeatureCosts(): Promise<FeatureCostRow[]> {
+  const db = requireClient();
+  const { data, error } = await db
+    .from("feature_costs")
+    .select("feature, credit_cost, updated_at")
+    .order("feature", { ascending: true });
+  if (error) throw error;
+  return (data ?? []) as FeatureCostRow[];
+}
+
+export async function updateFeatureCost(feature: string, creditCost: number): Promise<void> {
+  const db = requireClient();
+  const { error } = await db
+    .from("feature_costs")
+    .update({ credit_cost: creditCost, updated_at: new Date().toISOString() })
+    .eq("feature", feature);
+  if (error) throw error;
+}
+
 export async function getPlatformStats(): Promise<PlatformStats> {
   const [totalAccounts, pendingAccounts, activeAccounts, totalClasses, totalStudents, sharedMaterials] =
     await Promise.all([

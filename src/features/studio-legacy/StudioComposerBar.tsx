@@ -5,6 +5,7 @@ import { Paperclip, Sparkles, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { logGeneration } from "@/lib/data/analytics";
 import { ComposerAttachMenu } from "./ComposerAttachMenu";
 
 export function StudioComposerBar({
@@ -13,6 +14,7 @@ export function StudioComposerBar({
   onSubmit,
   classId,
   ownerId,
+  feature,
   canSend = true,
   disabledHint,
   onAttached,
@@ -22,6 +24,7 @@ export function StudioComposerBar({
   onSubmit: (prompt: string) => Promise<void>;
   classId: string;
   ownerId: string | null;
+  feature: string;
   canSend?: boolean;
   disabledHint?: string;
   onAttached?: () => void;
@@ -36,6 +39,7 @@ export function StudioComposerBar({
     setBusy(true);
     try {
       await onSubmit(value);
+      if (ownerId) logGeneration(ownerId, feature, classId);
       setPrompt("");
     } finally {
       setBusy(false);

@@ -85,6 +85,7 @@ export default function ClassHomeworkPage() {
         <StudioComposerBar
           classId={classId}
           ownerId={user?.id ?? null}
+          feature="homework"
           canSend={hasReference !== false}
           placeholder="e.g. A worksheet labeling the stages of cellular respiration…"
           buttonLabel="Create"

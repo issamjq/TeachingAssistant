@@ -80,6 +80,7 @@ export default function ClassExamsPage() {
         <StudioComposerBar
           classId={classId}
           ownerId={user?.id ?? null}
+          feature="exam"
           canSend={hasReference !== false}
           placeholder="e.g. A 45-minute mid-term covering Units 3 and 4…"
           buttonLabel="Create"

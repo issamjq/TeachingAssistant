@@ -74,6 +74,7 @@ export default function ClassNotesPage() {
         <StudioComposerBar
           classId={classId}
           ownerId={user?.id ?? null}
+          feature="note"
           placeholder="e.g. A one-page reading on the Silk Road for Grade 10…"
           buttonLabel="Create"
           onSubmit={handleCreate}

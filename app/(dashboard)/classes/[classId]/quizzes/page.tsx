@@ -80,6 +80,7 @@ export default function ClassQuizzesPage() {
         <StudioComposerBar
           classId={classId}
           ownerId={user?.id ?? null}
+          feature="quiz"
           canSend={hasReference !== false}
           placeholder="e.g. A 10-question quick check on the Silk Road…"
           buttonLabel="Create"

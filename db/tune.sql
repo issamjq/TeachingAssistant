@@ -372,3 +372,63 @@ create policy "shared_library_admin_update" on storage.objects for update
 drop policy if exists "shared_library_admin_delete" on storage.objects;
 create policy "shared_library_admin_delete" on storage.objects for delete
   using (bucket_id = 'shared-library' and exists (select 1 from public.profiles p where p.id = auth.uid() and p.role in ('super_admin','sub_admin')));
+
+-- ── Analytics: real, minimal event logging ──
+-- Not full product telemetry (no rage-click/dead-click/session tracking)
+-- — just three honest signals the app can actually emit today: a page
+-- was viewed, a generation was requested, a client error was thrown.
+create table if not exists public.analytics_events (
+  id uuid primary key default gen_random_uuid(),
+  owner_id uuid not null references auth.users(id) on delete cascade,
+  kind text not null check (kind in ('page_view','generation','client_error')),
+  path text,
+  feature text,
+  class_id uuid references public.classes(id) on delete set null,
+  message text,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists analytics_events_kind_created_at_idx
+  on public.analytics_events (kind, created_at desc);
+create index if not exists analytics_events_owner_id_idx
+  on public.analytics_events (owner_id);
+
+alter table public.analytics_events enable row level security;
+
+drop policy if exists "owner logs own events" on public.analytics_events;
+create policy "owner logs own events" on public.analytics_events
+  for insert with check (owner_id = auth.uid());
+
+drop policy if exists "admins read all events" on public.analytics_events;
+create policy "admins read all events" on public.analytics_events
+  for select using (public.is_admin());
+
+-- ── Feature costs: real editable config, not yet enforced ──
+-- There's no live credits/billing system to deduct against, so this is
+-- pricing policy the super-admin can set now, ready for when generation
+-- and credits are both real.
+create table if not exists public.feature_costs (
+  feature text primary key check (feature in ('lesson_plan','slide_deck','activity','homework','note','quiz','exam')),
+  credit_cost numeric not null default 1,
+  updated_at timestamptz not null default now()
+);
+
+alter table public.feature_costs enable row level security;
+
+drop policy if exists "anyone signed in reads feature costs" on public.feature_costs;
+create policy "anyone signed in reads feature costs" on public.feature_costs
+  for select using (auth.uid() is not null);
+
+drop policy if exists "admins write feature costs" on public.feature_costs;
+create policy "admins write feature costs" on public.feature_costs
+  for all using (public.is_admin()) with check (public.is_admin());
+
+insert into public.feature_costs (feature, credit_cost) values
+  ('lesson_plan', 1),
+  ('slide_deck', 2),
+  ('activity', 1),
+  ('homework', 1),
+  ('note', 1),
+  ('quiz', 1),
+  ('exam', 2)
+on conflict (feature) do nothing;

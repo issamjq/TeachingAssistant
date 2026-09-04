@@ -85,6 +85,7 @@ export default function ClassLessonsPage() {
         <StudioComposerBar
           classId={classId}
           ownerId={user?.id ?? null}
+          feature="lesson_plan"
           canSend={hasReference !== false}
           placeholder="e.g. A 45-minute lesson plan on cellular respiration…"
           buttonLabel="Create"

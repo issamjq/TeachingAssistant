@@ -85,6 +85,7 @@ export default function ClassPresentationsPage() {
         <StudioComposerBar
           classId={classId}
           ownerId={user?.id ?? null}
+          feature="slide_deck"
           canSend={hasReference !== false}
           placeholder="e.g. An 18-slide deck introducing the Silk Road…"
           buttonLabel="Create"

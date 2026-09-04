@@ -22,6 +22,7 @@ import {
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useSession } from "@/features/auth/session-context";
+import { AnalyticsTracker } from "@/features/analytics/analytics-tracker";
 
 const NAV = [
   { href: "/super-admin", label: "Dashboard", icon: LayoutDashboard },
@@ -70,6 +71,7 @@ export function SuperAdminShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="theme-app flex min-h-svh bg-background text-foreground">
+      <AnalyticsTracker />
       <aside className="flex w-64 shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground">
         <div className="flex h-16 items-center gap-2 px-4">
           <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-primary text-sm font-semibold text-primary-foreground">

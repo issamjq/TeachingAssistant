@@ -85,6 +85,7 @@ export default function ClassActivitiesPage() {
         <StudioComposerBar
           classId={classId}
           ownerId={user?.id ?? null}
+          feature="activity"
           canSend={hasReference !== false}
           placeholder="e.g. A 20-minute group activity comparing trade routes…"
           buttonLabel="Create"

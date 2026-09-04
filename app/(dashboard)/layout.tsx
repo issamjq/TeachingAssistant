@@ -3,6 +3,7 @@ import { RequireOnboardedTeacher } from "@/features/auth/require-onboarded-teach
 import { ClassesRefreshProvider } from "@/features/classes/classes-refresh-context";
 import { StudioProvider } from "@/features/studio-legacy/studio-context";
 import { StudioPanel } from "@/features/studio-legacy/StudioPanel";
+import { AnalyticsTracker } from "@/features/analytics/analytics-tracker";
 
 export default function DashboardLayout({
   children,
@@ -11,6 +12,7 @@ export default function DashboardLayout({
 }) {
   return (
     <div className="theme-app min-h-svh bg-background text-foreground">
+      <AnalyticsTracker />
       <RequireOnboardedTeacher>
         <ClassesRefreshProvider>
           <StudioProvider>
