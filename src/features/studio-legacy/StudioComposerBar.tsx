@@ -31,7 +31,7 @@ export function StudioComposerBar({
   }
 
   return (
-    <div className="sticky bottom-6 mt-6 flex items-end gap-2 rounded-2xl border border-border bg-card p-3 shadow-lg">
+    <div className="flex items-end gap-2 rounded-2xl border border-border bg-card p-2.5 shadow-sm">
       <Textarea
         rows={1}
         placeholder={placeholder}
@@ -43,7 +43,7 @@ export function StudioComposerBar({
             submit();
           }
         }}
-        className="min-h-10 flex-1 resize-none rounded-xl"
+        className="min-h-10 flex-1 resize-none rounded-xl border-0 shadow-none focus-visible:ring-0"
       />
       <Button onClick={submit} disabled={busy || !prompt.trim()} className="shrink-0 rounded-full">
         <Sparkles className="size-4" />

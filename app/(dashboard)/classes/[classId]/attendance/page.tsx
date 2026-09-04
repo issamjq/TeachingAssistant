@@ -13,7 +13,7 @@ const STATUSES = ["present", "present", "late", "present", "absent", "present", 
 
 export default function ClassAttendancePage() {
   return (
-    <div className="space-y-4">
+    <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-6 md:p-8">
       <p className="text-sm text-muted-foreground">Today, 12 Oct</p>
       <Table>
         <TableHeader>

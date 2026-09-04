@@ -18,25 +18,27 @@ function scoreFor(studentId: string, assessment: string) {
 
 export default function ClassResultsPage() {
   return (
-    <Table>
-      <TableHeader>
-        <TableRow>
-          <TableHead>Student</TableHead>
-          {ASSESSMENTS.map((a) => (
-            <TableHead key={a}>{a}</TableHead>
-          ))}
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {ROSTER.map((s) => (
-          <TableRow key={s.id}>
-            <TableCell className="font-medium">{s.name}</TableCell>
+    <div className="min-h-0 flex-1 overflow-y-auto p-6 md:p-8">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Student</TableHead>
             {ASSESSMENTS.map((a) => (
-              <TableCell key={a}>{scoreFor(s.id, a)}%</TableCell>
+              <TableHead key={a}>{a}</TableHead>
             ))}
           </TableRow>
-        ))}
-      </TableBody>
-    </Table>
+        </TableHeader>
+        <TableBody>
+          {ROSTER.map((s) => (
+            <TableRow key={s.id}>
+              <TableCell className="font-medium">{s.name}</TableCell>
+              {ASSESSMENTS.map((a) => (
+                <TableCell key={a}>{scoreFor(s.id, a)}%</TableCell>
+              ))}
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
   );
 }

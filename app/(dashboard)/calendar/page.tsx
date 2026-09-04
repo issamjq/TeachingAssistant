@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Sparkles } from "lucide-react";
+import { Sparkles, CalendarDays } from "lucide-react";
 
 import { PageHeader } from "@/components/layout/page-header";
 import { Card, CardContent } from "@/components/ui/card";
@@ -50,6 +50,7 @@ export default function CalendarPage() {
           <p className="text-sm text-muted-foreground">Loading…</p>
         ) : items.length === 0 ? (
           <EmptyState
+            icon={CalendarDays}
             title="Nothing scheduled yet"
             description="Approve a plan in the Goal Planner, or schedule a quiz or exam from a class, and it shows up here."
             action={

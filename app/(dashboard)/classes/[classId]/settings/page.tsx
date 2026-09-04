@@ -32,10 +32,18 @@ export default function ClassSettingsPage() {
   }, [classId]);
 
   if (cls === undefined) {
-    return <p className="text-sm text-muted-foreground">Loading…</p>;
+    return (
+      <div className="min-h-0 flex-1 overflow-y-auto p-6 md:p-8">
+        <p className="text-sm text-muted-foreground">Loading…</p>
+      </div>
+    );
   }
   if (cls === null) {
-    return <p className="text-sm text-destructive">Class not found.</p>;
+    return (
+      <div className="min-h-0 flex-1 overflow-y-auto p-6 md:p-8">
+        <p className="text-sm text-destructive">Class not found.</p>
+      </div>
+    );
   }
 
   async function saveSubject() {
@@ -61,7 +69,7 @@ export default function ClassSettingsPage() {
   }
 
   return (
-    <div className="max-w-xl space-y-6">
+    <div className="min-h-0 max-w-xl flex-1 space-y-6 overflow-y-auto p-6 md:p-8">
       <Card>
         <CardHeader>
           <CardTitle>Class details</CardTitle>

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
+import { Users } from "lucide-react";
 
 import { StatusPill } from "@/components/ui/status-pill";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -29,7 +30,7 @@ export default function ClassStudentsPage() {
   }, [refresh]);
 
   return (
-    <div className="space-y-4">
+    <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-6 md:p-8">
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted-foreground">
           Invite-only — a student needs an invite to get a login.
@@ -40,6 +41,7 @@ export default function ClassStudentsPage() {
         <p className="text-sm text-muted-foreground">Loading…</p>
       ) : students.length === 0 ? (
         <EmptyState
+          icon={Users}
           title="No students yet"
           description="Invite a student above once your account is approved."
         />

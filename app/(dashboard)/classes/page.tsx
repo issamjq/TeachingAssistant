@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
-import { Plus, Pencil, Trash2, Check, X } from "lucide-react";
+import { Plus, Pencil, Trash2, Check, X, School } from "lucide-react";
 
 import { PageHeader } from "@/components/layout/page-header";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -80,6 +80,7 @@ export default function ClassesPage() {
       <div className="p-6 md:p-8">
         {batches.length === 0 ? (
           <EmptyState
+            icon={School}
             title="No classes yet"
             description="Start by adding a batch (a school year, e.g. 2025-26) — grades, divisions, and subjects nest under it."
           />

@@ -13,6 +13,11 @@ import { getClassWithPath, type ClassWithPath } from "@/lib/data/classes";
 // batch — a single row, not four nested params. Tabs below (lessons, notes,
 // exams, quizzes, results, attendance, students, settings) are sibling
 // route segments under this layout.
+//
+// This is a fixed-height flex column (not document scroll) so a tab page
+// can pin a composer to the true bottom of the viewport while its own
+// list scrolls independently above it — see StudioComposerBar usage in
+// the content-tab pages.
 export default function ClassLayout({ children }: { children: React.ReactNode }) {
   const { classId } = useParams<{ classId: string }>();
   const [cls, setCls] = useState<ClassWithPath | null | undefined>(undefined);
@@ -57,16 +62,18 @@ export default function ClassLayout({ children }: { children: React.ReactNode })
   }
 
   return (
-    <div>
-      <div className="px-6 pt-5 md:px-8">
+    <div className="flex h-svh flex-col">
+      <div className="shrink-0 px-6 pt-5 md:px-8">
         {backLink}
         <h1 className="font-serif text-xl font-medium tracking-tight">
           Grade {cls.grade.level} · Div {cls.division.label} · {cls.subject}
         </h1>
         <p className="text-sm text-muted-foreground">Batch {cls.batch.label}</p>
       </div>
-      <ClassTabs classId={classId} />
-      <div className="p-6 md:p-8">{children}</div>
+      <div className="shrink-0">
+        <ClassTabs classId={classId} />
+      </div>
+      <div className="flex min-h-0 flex-1 flex-col">{children}</div>
     </div>
   );
 }

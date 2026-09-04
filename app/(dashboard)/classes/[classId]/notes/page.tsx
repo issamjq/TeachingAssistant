@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { Upload, LibraryBig } from "lucide-react";
+import { FileText, Upload, LibraryBig } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -37,50 +37,55 @@ export default function ClassNotesPage() {
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">
-          Uploaded and AI-extracted, picked from the shared deck, or drafted below.
-        </p>
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm">
-            <LibraryBig /> Choose from deck
-          </Button>
-          <Button size="sm">
-            <Upload /> Upload
-          </Button>
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-6 md:p-8">
+        <div className="flex items-center justify-between">
+          <p className="text-sm text-muted-foreground">
+            Uploaded and AI-extracted, picked from the shared deck, or drafted below.
+          </p>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm">
+              <LibraryBig /> Choose from deck
+            </Button>
+            <Button size="sm">
+              <Upload /> Upload
+            </Button>
+          </div>
         </div>
+        {items === null ? (
+          <p className="text-sm text-muted-foreground">Loading…</p>
+        ) : items.length === 0 ? (
+          <EmptyState
+            icon={FileText}
+            title="No notes yet"
+            description="Upload a document, choose from the shared deck, or prompt the studio below."
+          />
+        ) : (
+          <div className="space-y-3">
+            {items.map((n) => (
+              <Card key={n.id}>
+                <CardContent className="flex items-center justify-between p-4">
+                  <p className="text-sm font-medium">{n.title}</p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => open({ title: n.title, kind: "Note" })}
+                  >
+                    Open
+                  </Button>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
       </div>
-      {items === null ? (
-        <p className="text-sm text-muted-foreground">Loading…</p>
-      ) : items.length === 0 ? (
-        <EmptyState
-          title="No notes yet"
-          description="Upload a document, choose from the shared deck, or prompt the studio below."
+      <div className="shrink-0 border-t border-border bg-background p-4 md:px-8">
+        <StudioComposerBar
+          placeholder="e.g. A one-page reading on the Silk Road for Grade 10…"
+          buttonLabel="Create"
+          onSubmit={handleCreate}
         />
-      ) : (
-        <div className="space-y-3">
-          {items.map((n) => (
-            <Card key={n.id}>
-              <CardContent className="flex items-center justify-between p-4">
-                <p className="text-sm font-medium">{n.title}</p>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => open({ title: n.title, kind: "Note" })}
-                >
-                  Open
-                </Button>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
-      <StudioComposerBar
-        placeholder="e.g. A one-page reading on the Silk Road for Grade 10…"
-        buttonLabel="Create"
-        onSubmit={handleCreate}
-      />
+      </div>
     </div>
   );
 }
