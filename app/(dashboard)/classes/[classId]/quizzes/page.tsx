@@ -1,8 +1,11 @@
+"use client";
+
 import { Sparkles, Plus } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { StatusPill } from "@/components/ui/status-pill";
+import { useStudio } from "@/features/studio-legacy/studio-context";
 
 const QUIZZES = [
   { id: "q1", title: "Trade routes — quick check", questions: 8, status: "scheduled" as const },
@@ -11,6 +14,7 @@ const QUIZZES = [
 ];
 
 export default function ClassQuizzesPage() {
+  const { open } = useStudio();
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -36,7 +40,11 @@ export default function ClassQuizzesPage() {
               </div>
               <div className="flex items-center gap-3">
                 <StatusPill status={q.status} />
-                <Button variant="outline" size="sm">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => open({ title: q.title, kind: "Quiz" })}
+                >
                   Review
                 </Button>
               </div>

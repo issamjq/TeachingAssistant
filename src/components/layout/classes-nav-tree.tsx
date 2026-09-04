@@ -9,6 +9,16 @@ import { cn } from "@/lib/utils";
 import { listHierarchy, type BatchRow } from "@/lib/data/classes";
 import { useClassesRefresh } from "@/features/classes/classes-refresh-context";
 
+const CONTENT_TABS = [
+  { segment: "", label: "Lessons" },
+  { segment: "presentations", label: "Presentations" },
+  { segment: "activities", label: "Activities" },
+  { segment: "homework", label: "Homework" },
+  { segment: "notes", label: "Notes & text" },
+  { segment: "exams", label: "Exams" },
+  { segment: "quizzes", label: "Quizzes" },
+] as const;
+
 function currentAcademicStartYear(): number {
   const now = new Date();
   // UAE school year runs roughly Aug/Sep -> Jun, so anything from July
@@ -123,6 +133,35 @@ export function ClassesNavTree() {
                         >
                           {c.label}
                         </Link>
+                        {active ? (
+                          <div className="relative ml-2 mt-0.5 space-y-0.5 border-l border-sidebar-border pb-1 pl-3">
+                            {CONTENT_TABS.map((tab) => {
+                              const tabHref = tab.segment ? `${href}/${tab.segment}` : href;
+                              const tabActive = pathname === tabHref;
+                              return (
+                                <div key={tab.label} className="relative">
+                                  <span
+                                    className={cn(
+                                      "absolute -left-[13px] top-1/2 size-1 -translate-y-1/2 rounded-full",
+                                      tabActive ? "bg-primary" : "bg-sidebar-border",
+                                    )}
+                                  />
+                                  <Link
+                                    href={tabHref}
+                                    className={cn(
+                                      "block truncate rounded-md px-1.5 py-0.5 text-[11px]",
+                                      tabActive
+                                        ? "text-primary font-medium"
+                                        : "text-sidebar-foreground/50 hover:text-sidebar-accent-foreground",
+                                    )}
+                                  >
+                                    {tab.label}
+                                  </Link>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ) : null}
                       </div>
                     );
                   })

@@ -173,6 +173,74 @@ export async function deleteClass(id: string) {
   if (error) throw error;
 }
 
+export interface UpcomingItem {
+  id: string;
+  title: string;
+  kind: "quiz" | "exam" | "slide_deck" | "notes" | "activity" | "homework";
+  scheduledFor: string;
+  classLabel: string;
+  classId: string;
+}
+
+export async function listUpcoming(): Promise<UpcomingItem[]> {
+  const db = requireClient();
+  const [assessments, goalItems] = await Promise.all([
+    db
+      .from("assessments")
+      .select("id, title, kind, scheduled_for, class:classes(id, subject, division:divisions(label, grade:grades(level)))")
+      .not("scheduled_for", "is", null)
+      .order("scheduled_for", { ascending: true }),
+    db
+      .from("goal_items")
+      .select(
+        "id, title, kind, scheduled_for, goal:goals(class:classes(id, subject, division:divisions(label, grade:grades(level))))",
+      )
+      .not("scheduled_for", "is", null)
+      .order("scheduled_for", { ascending: true }),
+  ]);
+  if (assessments.error) throw assessments.error;
+  if (goalItems.error) throw goalItems.error;
+
+  type ClassRef = { id: string; subject: string; division: { label: string; grade: { level: number } } };
+  function classLabel(c: ClassRef) {
+    return `Grade ${c.division.grade.level} · ${c.division.label} · ${c.subject}`;
+  }
+
+  const fromAssessments = (assessments.data ?? []).map((a) => {
+    const row = a as unknown as { id: string; title: string; kind: UpcomingItem["kind"]; scheduled_for: string; class: ClassRef };
+    return {
+      id: row.id,
+      title: row.title,
+      kind: row.kind,
+      scheduledFor: row.scheduled_for,
+      classLabel: classLabel(row.class),
+      classId: row.class.id,
+    };
+  });
+
+  const fromGoalItems = (goalItems.data ?? []).map((g) => {
+    const row = g as unknown as {
+      id: string;
+      title: string;
+      kind: UpcomingItem["kind"];
+      scheduled_for: string;
+      goal: { class: ClassRef };
+    };
+    return {
+      id: row.id,
+      title: row.title,
+      kind: row.kind,
+      scheduledFor: row.scheduled_for,
+      classLabel: classLabel(row.goal.class),
+      classId: row.goal.class.id,
+    };
+  });
+
+  return [...fromAssessments, ...fromGoalItems].sort((a, b) =>
+    a.scheduledFor.localeCompare(b.scheduledFor),
+  );
+}
+
 export interface StudentRow {
   id: string;
   name: string;

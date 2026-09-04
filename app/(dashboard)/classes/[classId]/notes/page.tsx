@@ -1,7 +1,10 @@
+"use client";
+
 import { Upload, LibraryBig, MessageCircleQuestion } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { useStudio } from "@/features/studio-legacy/studio-context";
 
 const NOTES = [
   { id: "n1", title: "Ancient Trade Routes — reading", pages: 6, doubts: 3 },
@@ -10,6 +13,7 @@ const NOTES = [
 ];
 
 export default function ClassNotesPage() {
+  const { open } = useStudio();
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -46,7 +50,11 @@ export default function ClassNotesPage() {
                     No doubts raised
                   </span>
                 )}
-                <Button variant="outline" size="sm">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => open({ title: n.title, kind: "Note" })}
+                >
                   Open
                 </Button>
               </div>

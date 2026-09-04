@@ -6,6 +6,7 @@ import {
   LayoutDashboard,
   Sparkles,
   BookOpen,
+  CalendarDays,
   User,
   LifeBuoy,
   LogOut,
@@ -21,6 +22,7 @@ const NAV = [
   { href: "/overview", label: "Overview", icon: LayoutDashboard },
   { href: "/goal-planner", label: "Goal Planner", icon: Sparkles },
   { href: "/classes", label: "My Classes", icon: BookOpen },
+  { href: "/calendar", label: "Calendar", icon: CalendarDays },
   { href: "/profile", label: "Profile", icon: User },
   { href: "/support", label: "Support", icon: LifeBuoy },
 ] as const;

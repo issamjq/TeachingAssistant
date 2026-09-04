@@ -1,8 +1,11 @@
+"use client";
+
 import { Sparkles, Plus } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { StatusPill } from "@/components/ui/status-pill";
+import { useStudio } from "@/features/studio-legacy/studio-context";
 
 const EXAMS = [
   { id: "e1", title: "Mid-term exam", date: "28 Oct", status: "scheduled" as const, generated: true },
@@ -10,6 +13,7 @@ const EXAMS = [
 ];
 
 export default function ClassExamsPage() {
+  const { open } = useStudio();
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -35,7 +39,11 @@ export default function ClassExamsPage() {
               </div>
               <div className="flex items-center gap-3">
                 <StatusPill status={e.status} />
-                <Button variant="outline" size="sm">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => open({ title: e.title, kind: "Exam" })}
+                >
                   Review
                 </Button>
               </div>

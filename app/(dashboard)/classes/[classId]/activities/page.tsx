@@ -1,8 +1,11 @@
+"use client";
+
 import { Sparkles, Plus } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { StatusPill } from "@/components/ui/status-pill";
+import { useStudio } from "@/features/studio-legacy/studio-context";
 
 const ACTIVITIES = [
   { id: "a1", title: "Map-reading group activity", detail: "In-class, 20 min", status: "scheduled" as const },
@@ -10,6 +13,7 @@ const ACTIVITIES = [
 ];
 
 export default function ClassActivitiesPage() {
+  const { open } = useStudio();
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -33,7 +37,11 @@ export default function ClassActivitiesPage() {
               </div>
               <div className="flex items-center gap-3">
                 <StatusPill status={a.status} />
-                <Button variant="outline" size="sm">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => open({ title: a.title, kind: "Activity" })}
+                >
                   Open
                 </Button>
               </div>
