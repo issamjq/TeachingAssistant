@@ -41,6 +41,11 @@ interface SessionContextValue {
   loading: boolean;
   configured: boolean;
   signInWithGoogle: () => Promise<void>;
+  signInWithPassword: (email: string, password: string) => Promise<void>;
+  signUpWithPassword: (
+    email: string,
+    password: string,
+  ) => Promise<{ needsEmailConfirmation: boolean }>;
   completeOnboarding: (input: OnboardingInput) => Promise<void>;
   signOut: () => Promise<void>;
 }
@@ -90,6 +95,31 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     });
   }
 
+  async function signInWithPassword(email: string, password: string) {
+    if (!supabase) throw new Error("Sign-in isn't configured yet");
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) throw error;
+    await hydrate();
+  }
+
+  async function signUpWithPassword(
+    email: string,
+    password: string,
+  ): Promise<{ needsEmailConfirmation: boolean }> {
+    if (!supabase) throw new Error("Sign-in isn't configured yet");
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
+    });
+    if (error) throw error;
+    if (data.session) {
+      await hydrate();
+      return { needsEmailConfirmation: false };
+    }
+    return { needsEmailConfirmation: true };
+  }
+
   async function completeOnboarding(input: OnboardingInput) {
     if (!supabase || !user) return;
     await supabase
@@ -117,6 +147,8 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         loading,
         configured: isSupabaseConfigured,
         signInWithGoogle,
+        signInWithPassword,
+        signUpWithPassword,
         completeOnboarding,
         signOut,
       }}
