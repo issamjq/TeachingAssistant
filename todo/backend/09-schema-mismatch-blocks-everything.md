@@ -1,3 +1,13 @@
+> **Resolved 2026-09-04.** Confirmed same project. Fixed on `final/backend`
+> (`0081ae5`): `loadAccount()` now reads `profiles` directly, role gate
+> accepts `super_admin`/`sub_admin`, `audit_log` and the key pool tables are
+> restored. No data was lost — the pool held one seeded key, which re-seeds
+> itself from `OPENROUTER_API_KEY`. `is_admin()` doesn't work over the
+> backend's direct pooler connection (`auth.uid()` is null there) — it reads
+> `profiles` with the already-verified uid instead. Keys is now live and
+> wired on the frontend. See [10-remaining-after-keys.md](10-remaining-after-keys.md)
+> for what's still open. Left below as the record of the original diagnosis.
+
 # The backend's auth is broken against the current database — not just Keys
 
 Written from the frontend side after being asked to wire the super-admin
