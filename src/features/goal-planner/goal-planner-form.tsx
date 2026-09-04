@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { Sparkles, Upload, LibraryBig, Check, Lock } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Sparkles, Upload, LibraryBig, Check, Lock, FileWarning } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,8 +10,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
 import { StatusPill } from "@/components/ui/status-pill";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { CLASSES, classLabel } from "@/features/classes/mock-data";
 import { useSession } from "@/features/auth/session-context";
+import {
+  listHierarchy,
+  hasReferenceMaterial,
+  type BatchRow,
+} from "@/lib/data/classes";
 
 const DRAFT_ITEMS = [
   { label: "Slide deck", detail: "18 slides" },
@@ -22,15 +26,69 @@ const DRAFT_ITEMS = [
   { label: "Homework", detail: "2 assignments" },
 ];
 
+// A detailed enough prompt counts as grounding on its own, per the
+// concept: "curriculum, or proper detailed prompts, and textbooks or
+// documents, or choose from the materials." Anything real and attached
+// to the class (Notes & text) also counts, checked separately below.
+const MIN_GROUNDED_PROMPT_LENGTH = 40;
+
 type Stage = "idle" | "generating" | "ready";
+
+interface ClassOption {
+  id: string;
+  label: string;
+}
+
+function flattenClasses(batches: BatchRow[]): ClassOption[] {
+  return batches
+    .slice()
+    .sort((a, b) => b.start_year - a.start_year)
+    .flatMap((b) =>
+      b.grades
+        .slice()
+        .sort((g1, g2) => g1.level - g2.level)
+        .flatMap((g) =>
+          g.divisions.flatMap((d) =>
+            d.classes.map((c) => ({
+              id: c.id,
+              label: `${b.label} · Grade ${g.level} · ${d.label} · ${c.subject}`,
+            })),
+          ),
+        ),
+    );
+}
 
 export function GoalPlannerForm() {
   const { user } = useSession();
   const approved = user?.status === "active";
   const [stage, setStage] = useState<Stage>("idle");
   const [progress, setProgress] = useState(0);
+  const [classes, setClasses] = useState<ClassOption[] | null>(null);
+  const [classId, setClassId] = useState<string>("");
+  const [prompt, setPrompt] = useState("");
+  const [hasReference, setHasReference] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    listHierarchy().then((data) => {
+      const options = flattenClasses(data);
+      setClasses(options);
+      if (options.length > 0) setClassId(options[0].id);
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!classId) {
+      setHasReference(null);
+      return;
+    }
+    hasReferenceMaterial(classId).then(setHasReference);
+  }, [classId]);
+
+  const grounded = hasReference || prompt.trim().length >= MIN_GROUNDED_PROMPT_LENGTH;
+  const canGenerate = Boolean(classId) && grounded && stage !== "generating";
 
   function generate() {
+    if (!canGenerate) return;
     setStage("generating");
     setProgress(0);
     const timer = setInterval(() => {
@@ -54,17 +112,26 @@ export function GoalPlannerForm() {
         <CardContent className="space-y-4">
           <div className="space-y-1.5">
             <Label htmlFor="class">Class</Label>
-            <select
-              id="class"
-              className="flex h-9 w-full rounded-md border border-input bg-background px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              defaultValue={CLASSES[2]?.id}
-            >
-              {CLASSES.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {classLabel(c)}
-                </option>
-              ))}
-            </select>
+            {classes === null ? (
+              <p className="text-sm text-muted-foreground">Loading your classes…</p>
+            ) : classes.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                No classes yet — add one in My Classes first.
+              </p>
+            ) : (
+              <select
+                id="class"
+                value={classId}
+                onChange={(e) => setClassId(e.target.value)}
+                className="flex h-9 w-full rounded-md border border-input bg-background px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                {classes.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.label}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
 
           <Tabs defaultValue="prompt">
@@ -76,6 +143,8 @@ export function GoalPlannerForm() {
             <TabsContent value="prompt">
               <Textarea
                 rows={6}
+                value={prompt}
+                onChange={(e) => setPrompt(e.target.value)}
                 placeholder="e.g. Term 2, Unit 3: Trade routes of the ancient world. Cover the Silk Road, maritime trade, and the spread of ideas. Reference the Grade 10 CBSE Social Studies syllabus."
               />
             </TabsContent>
@@ -105,17 +174,26 @@ export function GoalPlannerForm() {
             </TabsContent>
           </Tabs>
 
+          {classId && !grounded ? (
+            <div className="flex items-start gap-2 rounded-md border border-dashed border-warning/40 bg-warning/5 p-3">
+              <FileWarning className="size-4 shrink-0 text-warning" />
+              <p className="text-xs text-muted-foreground">
+                This class has no syllabus, curriculum, or reference attached,
+                and the prompt is too thin to draft from reliably. Add a
+                reference in Notes & text, choose from the shared library
+                above, or write more detail here first — otherwise the draft
+                would be guessing.
+              </p>
+            </div>
+          ) : null}
+
           <Button
             className="w-full"
             onClick={generate}
-            disabled={stage === "generating"}
+            disabled={!canGenerate}
           >
             <Sparkles /> Generate term plan
           </Button>
-          <p className="text-xs text-muted-foreground">
-            Thin on detail? The planner will ask for the missing curriculum or
-            reference material instead of inventing content.
-          </p>
         </CardContent>
       </Card>
 

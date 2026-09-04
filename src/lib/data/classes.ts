@@ -253,6 +253,21 @@ export async function listMaterialsForClass(classId: string): Promise<MaterialRo
   return ((data ?? []) as unknown as { material: MaterialRow }[]).map((l) => l.material);
 }
 
+// A class needs at least one attached reference (syllabus, curriculum,
+// textbook chapter, or notes) before the studio or Goal Planner generates
+// anything for it — otherwise there's nothing to ground the draft in and
+// it comes out unreliable. See docs/00-concept.md's load-bearing
+// constraint: ask for the missing reference instead of inventing content.
+export async function hasReferenceMaterial(classId: string): Promise<boolean> {
+  const db = requireClient();
+  const { count, error } = await db
+    .from("class_materials")
+    .select("*", { count: "exact", head: true })
+    .eq("class_id", classId);
+  if (error) throw error;
+  return (count ?? 0) > 0;
+}
+
 export async function createMaterialFromPrompt(
   ownerId: string,
   classId: string,

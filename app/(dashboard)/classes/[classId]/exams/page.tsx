@@ -11,9 +11,11 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { useSession } from "@/features/auth/session-context";
 import { useStudio } from "@/features/studio-legacy/studio-context";
 import { StudioComposerBar } from "@/features/studio-legacy/StudioComposerBar";
+import { ReferenceRequiredNotice } from "@/features/studio-legacy/ReferenceRequiredNotice";
 import {
   listAssessments,
   createAssessmentFromPrompt,
+  hasReferenceMaterial,
   type AssessmentRow,
 } from "@/lib/data/classes";
 
@@ -22,9 +24,11 @@ export default function ClassExamsPage() {
   const { user } = useSession();
   const { open } = useStudio();
   const [items, setItems] = useState<AssessmentRow[] | null>(null);
+  const [hasReference, setHasReference] = useState<boolean | null>(null);
 
   const refresh = useCallback(() => {
     listAssessments(classId, "exam").then(setItems);
+    hasReferenceMaterial(classId).then(setHasReference);
   }, [classId]);
 
   useEffect(() => {
@@ -32,7 +36,7 @@ export default function ClassExamsPage() {
   }, [refresh]);
 
   async function handleCreate(prompt: string) {
-    if (!user) return;
+    if (!user || !hasReference) return;
     await createAssessmentFromPrompt(user.id, classId, "exam", prompt);
     refresh();
   }
@@ -74,11 +78,15 @@ export default function ClassExamsPage() {
         )}
       </div>
       <div className="shrink-0 border-t border-border bg-background p-4 md:px-8">
-        <StudioComposerBar
-          placeholder="e.g. A 45-minute mid-term covering Units 3 and 4…"
-          buttonLabel="Create"
-          onSubmit={handleCreate}
-        />
+        {hasReference === false ? (
+          <ReferenceRequiredNotice classId={classId} />
+        ) : (
+          <StudioComposerBar
+            placeholder="e.g. A 45-minute mid-term covering Units 3 and 4…"
+            buttonLabel="Create"
+            onSubmit={handleCreate}
+          />
+        )}
       </div>
     </div>
   );
