@@ -125,6 +125,8 @@ create table if not exists public.materials (
   storage_path text,
   subject text,
   syllabus text,
+  grade_level int,
+  is_shared boolean not null default false,
   created_at timestamptz not null default now()
 );
 
@@ -235,8 +237,28 @@ drop policy if exists "owner full access" on public.classes;
 create policy "owner full access" on public.classes for all using (owner_id = auth.uid()) with check (owner_id = auth.uid());
 drop policy if exists "owner full access" on public.class_materials;
 create policy "owner full access" on public.class_materials for all using (owner_id = auth.uid()) with check (owner_id = auth.uid());
+-- Any signed-in teacher can read the shared library ("choose from deck"),
+-- but only super_admin/sub_admin can add to it — a teacher still fully
+-- manages their own private materials.
 drop policy if exists "owner full access" on public.materials;
-create policy "owner full access" on public.materials for all using (owner_id = auth.uid()) with check (owner_id = auth.uid());
+drop policy if exists "read own or shared materials" on public.materials;
+create policy "read own or shared materials" on public.materials
+  for select using (owner_id = auth.uid() or is_shared = true);
+drop policy if exists "insert own materials, shared requires admin role" on public.materials;
+create policy "insert own materials, shared requires admin role" on public.materials
+  for insert with check (
+    owner_id = auth.uid()
+    and (
+      is_shared = false
+      or exists (select 1 from public.profiles p where p.id = auth.uid() and p.role in ('super_admin','sub_admin'))
+    )
+  );
+drop policy if exists "update own materials" on public.materials;
+create policy "update own materials" on public.materials
+  for update using (owner_id = auth.uid()) with check (owner_id = auth.uid());
+drop policy if exists "delete own materials" on public.materials;
+create policy "delete own materials" on public.materials
+  for delete using (owner_id = auth.uid());
 drop policy if exists "owner full access" on public.doubts;
 create policy "owner full access" on public.doubts for all using (owner_id = auth.uid()) with check (owner_id = auth.uid());
 drop policy if exists "owner full access" on public.goal_items;

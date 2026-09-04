@@ -13,6 +13,7 @@ import {
   TableHead,
   TableCell,
 } from "@/components/ui/table";
+import { SharedLibraryManager } from "@/features/admin/shared-library-manager";
 
 const PENDING_ORGS = [
   { id: "o1", name: "Greenwood International School", applied: "2 days ago" },
@@ -93,6 +94,8 @@ export default function SuperAdminPage() {
             </Table>
           </CardContent>
         </Card>
+
+        <SharedLibraryManager />
       </div>
     </div>
   );

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { FileText, Upload, LibraryBig } from "lucide-react";
+import { FileText, Upload } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -10,6 +10,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { useSession } from "@/features/auth/session-context";
 import { useStudio } from "@/features/studio-legacy/studio-context";
 import { StudioComposerBar } from "@/features/studio-legacy/StudioComposerBar";
+import { ChooseFromDeckPanel } from "@/features/classes/choose-from-deck-panel";
 import {
   listMaterialsForClass,
   createMaterialFromPrompt,
@@ -39,19 +40,17 @@ export default function ClassNotesPage() {
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-6 md:p-8">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-2">
           <p className="text-sm text-muted-foreground">
             Uploaded and AI-extracted, picked from the shared deck, or drafted below.
           </p>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm">
-              <LibraryBig /> Choose from deck
-            </Button>
-            <Button size="sm">
-              <Upload /> Upload
-            </Button>
-          </div>
+          <Button size="sm">
+            <Upload /> Upload
+          </Button>
         </div>
+        {user ? (
+          <ChooseFromDeckPanel ownerId={user.id} classId={classId} onAttached={refresh} />
+        ) : null}
         {items === null ? (
           <p className="text-sm text-muted-foreground">Loading…</p>
         ) : items.length === 0 ? (
