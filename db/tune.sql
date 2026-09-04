@@ -60,6 +60,17 @@ as $$
 $$;
 revoke all on function public.session_ok() from public, anon;
 grant execute on function public.session_ok() to authenticated;
+-- Also to anon: without EXECUTE, any request that reaches a
+-- session_ok()-gated policy without a valid session (an anon-context
+-- call, or a request made in a brief window before a session is fully
+-- attached) throws "permission denied for function" — a raw error —
+-- instead of denying cleanly. Safe to grant: with auth.uid() null the
+-- inner select finds no row and this coalesces to true, which is
+-- harmless on its own because every policy ANDs it with an owner_id/
+-- role check that still correctly evaluates to false for anon. Found
+-- live in production (repeated "permission denied for function
+-- session_ok" in postgres_logs) the same day this function shipped.
+grant execute on function public.session_ok() to anon;
 
 -- Claiming itself goes through claim_session() (bypasses RLS), so
 -- gating the general update-own-profile path with session_ok() is
@@ -88,6 +99,10 @@ as $$
 $$;
 revoke all on function public.is_admin() from public, anon, authenticated;
 grant execute on function public.is_admin() to authenticated;
+-- Also to anon, for the same reason as session_ok() above: with
+-- auth.uid() null the inner select finds no row, exists() is false,
+-- which correctly denies admin-only reads for anon instead of throwing.
+grant execute on function public.is_admin() to anon;
 
 -- The super-admin accounts console needs to see every teacher, not just
 -- the signed-in one.
