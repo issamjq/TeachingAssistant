@@ -432,3 +432,83 @@ insert into public.feature_costs (feature, credit_cost) values
   ('quiz', 1),
   ('exam', 2)
 on conflict (feature) do nothing;
+
+-- ── Owned by the backend, mirrored here defensively ──
+-- audit_log and the OpenRouter key pool belong to murchid-backend
+-- (final/backend, db/2026-09-04-audit-and-key-pool.sql), not this repo —
+-- nothing in the frontend reads or writes them. They're copied here only
+-- so a future "clean slate" migration doesn't silently drop them again,
+-- which is exactly what clean_slate_v2 did on 2026-09-04: it took out
+-- these tables without anyone noticing until the Keys console broke.
+-- If this file and the backend's copy ever disagree, the backend's is
+-- authoritative — update this block to match, not the other way round.
+create table if not exists public.audit_log (
+  id bigint generated always as identity primary key,
+  actor_id uuid,
+  action text not null,
+  entity text,
+  entity_id text,
+  meta jsonb,
+  ip text,
+  user_agent text,
+  created_at timestamptz not null default now()
+);
+create index if not exists audit_log_actor_idx on public.audit_log (actor_id, created_at desc);
+create index if not exists audit_log_recent_idx on public.audit_log (created_at desc);
+
+create table if not exists public.llm_keys (
+  id bigint generated always as identity primary key,
+  provider text not null default 'openrouter',
+  label text not null unique,
+  key_value text not null unique,
+  status text not null default 'active' check (status in ('active', 'probation', 'disabled')),
+  cooldown_until timestamptz,
+  last_ok_at timestamptz,
+  last_err_at timestamptz,
+  note text,
+  added_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index if not exists llm_keys_active_idx on public.llm_keys (provider, id) where status = 'active';
+
+create table if not exists public.llm_key_events (
+  id bigint generated always as identity primary key,
+  label text not null,
+  event text not null check (event in ('added', 'seeded', 'probed_ok', 'probe_failed',
+    'rate_limited', 'refused', 'transient', 'cooled', 'probation', 'disabled', 'reenabled', 'removed')),
+  detail text,
+  created_at timestamptz not null default now()
+);
+create index if not exists llm_key_events_label_idx on public.llm_key_events (label, created_at desc);
+create index if not exists llm_key_events_recent_idx on public.llm_key_events (created_at desc);
+
+create table if not exists public.key_pool_settings (
+  id boolean primary key default true check (id),
+  min_active_keys int not null default 1,
+  cooldown_minutes int not null default 90,
+  min_keys_alert int not null default 3,
+  alert_email text,
+  last_alert_at timestamptz,
+  updated_at timestamptz not null default now()
+);
+insert into public.key_pool_settings (id) values (true) on conflict (id) do nothing;
+
+-- RLS on with NO policy: unreachable from any browser role. Only the
+-- backend's own pooler connection (which bypasses RLS) can read these.
+alter table public.audit_log         enable row level security;
+alter table public.llm_keys          enable row level security;
+alter table public.llm_key_events    enable row level security;
+alter table public.key_pool_settings enable row level security;
+
+revoke all on public.audit_log         from public, anon, authenticated;
+revoke all on public.llm_keys          from public, anon, authenticated;
+revoke all on public.llm_key_events    from public, anon, authenticated;
+revoke all on public.key_pool_settings from public, anon, authenticated;
+
+create or replace function public.set_key_pool_updated_at()
+returns trigger language plpgsql as $$
+begin new.updated_at := now(); return new; end $$;
+
+drop trigger if exists llm_keys_touch on public.llm_keys;
+create trigger llm_keys_touch before update on public.llm_keys
+  for each row execute function public.set_key_pool_updated_at();
