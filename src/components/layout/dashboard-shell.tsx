@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { StatusPill } from "@/components/ui/status-pill";
 import { useSession } from "@/features/auth/session-context";
+import { ClassesNavTree } from "@/components/layout/classes-nav-tree";
 
 const NAV = [
   { href: "/overview", label: "Overview", icon: LayoutDashboard },
@@ -49,24 +50,26 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
         <div className="flex h-14 items-center px-4 text-sm font-semibold tracking-tight">
           Murchid
         </div>
-        <nav className="flex flex-1 flex-col gap-0.5 px-2">
+        <nav className="flex flex-1 flex-col gap-0.5 overflow-y-auto px-2 pb-2">
           {NAV.map(({ href, label, icon: Icon }) => {
             const active =
               pathname === href || pathname?.startsWith(`${href}/`);
             return (
-              <Link
-                key={href}
-                href={href}
-                className={cn(
-                  "flex items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium transition-colors",
-                  active
-                    ? "bg-sidebar-primary text-sidebar-primary-foreground"
-                    : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-                )}
-              >
-                <Icon className="size-4" />
-                {label}
-              </Link>
+              <div key={href}>
+                <Link
+                  href={href}
+                  className={cn(
+                    "flex items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                    active
+                      ? "bg-sidebar-primary text-sidebar-primary-foreground"
+                      : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                  )}
+                >
+                  <Icon className="size-4" />
+                  {label}
+                </Link>
+                {href === "/classes" ? <ClassesNavTree /> : null}
+              </div>
             );
           })}
         </nav>

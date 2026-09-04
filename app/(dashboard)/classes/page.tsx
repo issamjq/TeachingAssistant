@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useSession } from "@/features/auth/session-context";
+import { useClassesRefresh } from "@/features/classes/classes-refresh-context";
 import {
   listHierarchy,
   createBatch,
@@ -22,6 +23,7 @@ import {
 
 export default function ClassesPage() {
   const { user } = useSession();
+  const { bump } = useClassesRefresh();
   const [batches, setBatches] = useState<BatchRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -29,7 +31,8 @@ export default function ClassesPage() {
     listHierarchy()
       .then(setBatches)
       .catch((e) => setError(e.message ?? "Failed to load classes"));
-  }, []);
+    bump();
+  }, [bump]);
 
   useEffect(() => {
     refresh();

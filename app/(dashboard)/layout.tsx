@@ -1,5 +1,6 @@
 import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { RequireOnboardedTeacher } from "@/features/auth/require-onboarded-teacher";
+import { ClassesRefreshProvider } from "@/features/classes/classes-refresh-context";
 
 export default function DashboardLayout({
   children,
@@ -8,7 +9,9 @@ export default function DashboardLayout({
 }) {
   return (
     <RequireOnboardedTeacher>
-      <DashboardShell>{children}</DashboardShell>
+      <ClassesRefreshProvider>
+        <DashboardShell>{children}</DashboardShell>
+      </ClassesRefreshProvider>
     </RequireOnboardedTeacher>
   );
 }
