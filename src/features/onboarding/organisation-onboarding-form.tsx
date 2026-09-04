@@ -4,13 +4,6 @@ import { useState } from "react";
 import { Upload, CheckCircle2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { StatusPill } from "@/components/ui/status-pill";
@@ -39,87 +32,95 @@ export function OrganisationOnboardingForm() {
 
   if (stage === "submitted") {
     return (
-      <Card>
-        <CardContent className="flex flex-col items-center gap-3 p-10 text-center">
-          <CheckCircle2 className="size-8 text-success" />
-          <p className="font-medium">Submitted for review</p>
-          <p className="max-w-sm text-sm text-muted-foreground">
-            A super_admin or sub_admin will review {orgName}&apos;s
-            documents. We&apos;ll email {email} once it&apos;s decided.
-          </p>
-          <StatusPill status="pending" />
-        </CardContent>
-      </Card>
+      <div className="flex flex-col items-center gap-3 rounded-3xl border border-border bg-card p-10 text-center shadow-xl">
+        <div className="flex size-14 items-center justify-center rounded-full bg-success/12 text-success">
+          <CheckCircle2 className="size-7" />
+        </div>
+        <p className="text-lg font-bold">Submitted for review</p>
+        <p className="max-w-sm text-sm text-muted-foreground">
+          A super admin or sub admin will review {orgName}&apos;s documents.
+          We&apos;ll email {email} once it&apos;s decided.
+        </p>
+        <StatusPill status="pending" />
+      </div>
     );
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Apply as an organisation</CardTitle>
-        <CardDescription>
-          Reviewed by a super_admin or sub_admin. Once approved, your
-          organisation can approve its own teachers directly.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <form className="space-y-4" onSubmit={handleSubmit}>
-          <div className="space-y-1.5">
-            <Label htmlFor="org-name">Organisation name</Label>
-            <Input
-              id="org-name"
-              list="org-name-options"
-              placeholder="Start typing your school or institution"
-              value={orgName}
-              onChange={(e) => setOrgName(e.target.value)}
-            />
-            <datalist id="org-name-options">
-              {UAE_INSTITUTIONS.map((i) => (
-                <option key={i.name} value={i.name}>
-                  {i.emirate}
-                </option>
-              ))}
-            </datalist>
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="emirate">Emirate</Label>
-            <select
-              id="emirate"
-              className="flex h-9 w-full rounded-md border border-input bg-background px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              {EMIRATES.map((e) => (
-                <option key={e}>{e}</option>
-              ))}
-            </select>
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="contact-email">Contact email</Label>
-            <Input
-              id="contact-email"
-              type="email"
-              placeholder="admin@greenwood.edu"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label>Identity / proof documents</Label>
-            <div className="flex flex-col items-center gap-2 rounded-md border border-dashed border-border p-6 text-center">
-              <Upload className="size-5 text-muted-foreground" />
-              <p className="text-sm text-muted-foreground">
-                Registration certificate, accreditation, or similar proof.
-              </p>
-              <Button type="button" variant="outline" size="sm">
-                Choose file
-              </Button>
+    <div className="rounded-3xl border border-border bg-card p-8 shadow-xl">
+      <h1 className="text-2xl font-black tracking-tight">Apply as an organisation</h1>
+      <p className="mt-1 text-sm text-muted-foreground">
+        Reviewed by a super admin or sub admin. Once approved, your
+        organisation can approve its own teachers directly.
+      </p>
+
+      <form className="mt-6 space-y-5" onSubmit={handleSubmit}>
+        <div className="space-y-1.5">
+          <Label htmlFor="org-name">Organisation name</Label>
+          <Input
+            id="org-name"
+            list="org-name-options"
+            placeholder="Start typing your school or institution"
+            value={orgName}
+            onChange={(e) => setOrgName(e.target.value)}
+          />
+          <datalist id="org-name-options">
+            {UAE_INSTITUTIONS.map((i) => (
+              <option key={i.name} value={i.name}>
+                {i.emirate}
+              </option>
+            ))}
+          </datalist>
+        </div>
+
+        <div className="space-y-1.5">
+          <Label htmlFor="emirate">Emirate</Label>
+          <select
+            id="emirate"
+            className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            {EMIRATES.map((e) => (
+              <option key={e}>{e}</option>
+            ))}
+          </select>
+        </div>
+
+        <div className="space-y-1.5">
+          <Label htmlFor="contact-email">Contact email</Label>
+          <Input
+            id="contact-email"
+            type="email"
+            placeholder="admin@greenwood.edu"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+          />
+        </div>
+
+        <div className="space-y-1.5">
+          <Label>Identity / proof documents</Label>
+          <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-border bg-secondary/30 p-7 text-center">
+            <div className="flex size-10 items-center justify-center rounded-full bg-secondary text-primary">
+              <Upload className="size-5" />
             </div>
+            <p className="text-sm text-muted-foreground">
+              Registration certificate, accreditation, or similar proof.
+            </p>
+            <Button type="button" variant="outline" size="sm">
+              Choose file
+            </Button>
           </div>
-          {error ? <p className="text-sm text-destructive">{error}</p> : null}
-          <Button type="submit" className="w-full" disabled={stage === "submitting"}>
-            {stage === "submitting" ? "Submitting…" : "Submit for review"}
-          </Button>
-        </form>
-      </CardContent>
-    </Card>
+        </div>
+
+        {error ? (
+          <p role="alert" className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
+            {error}
+          </p>
+        ) : null}
+
+        <Button type="submit" className="w-full" disabled={stage === "submitting"}>
+          {stage === "submitting" ? "Submitting…" : "Submit for review"}
+        </Button>
+      </form>
+    </div>
   );
 }

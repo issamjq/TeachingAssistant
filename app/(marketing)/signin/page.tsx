@@ -1,24 +1,14 @@
 "use client";
 
 import { useEffect } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
 import { useSession } from "@/features/auth/session-context";
 import { isOnboarded } from "@/features/auth/types";
-import { GoogleButton } from "@/features/auth/google-button";
-import { EmailPasswordAuth } from "@/features/auth/email-password-auth";
+import { AuthCard } from "@/features/auth/auth-card";
 
 export default function SignInPage() {
-  const { user, loading, configured, signInWithGoogle, supersededMessage } = useSession();
+  const { user, loading } = useSession();
   const router = useRouter();
 
   useEffect(() => {
@@ -33,40 +23,8 @@ export default function SignInPage() {
   }, [loading, user, router]);
 
   return (
-    <div className="flex min-h-svh items-center justify-center p-6">
-      <Card className="w-full max-w-sm">
-        <CardHeader className="text-center">
-          <Link href="/" className="text-sm font-semibold tracking-tight">
-            Murchid
-          </Link>
-          <CardTitle className="mt-2">Sign in</CardTitle>
-          <CardDescription>For teachers, organisations, and admins.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {supersededMessage ? (
-            <p className="rounded-md border border-warning/40 bg-warning/10 p-3 text-center text-xs text-warning">
-              {supersededMessage}
-            </p>
-          ) : null}
-          <GoogleButton onClick={signInWithGoogle} disabled={!configured} />
-          <div className="flex items-center gap-3">
-            <Separator className="flex-1" />
-            <span className="text-xs text-muted-foreground">or</span>
-            <Separator className="flex-1" />
-          </div>
-          <EmailPasswordAuth />
-          {!configured ? (
-            <p className="text-center text-xs text-destructive">
-              Sign-in isn&apos;t configured yet — NEXT_PUBLIC_SUPABASE_URL /
-              NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY are missing.
-            </p>
-          ) : null}
-          <p className="text-center text-xs text-muted-foreground">
-            New teachers and organisations go through a short approval step
-            after signing in.
-          </p>
-        </CardContent>
-      </Card>
+    <div className="theme-marketing flex min-h-svh items-center justify-center bg-background px-4 py-12 text-foreground">
+      <AuthCard />
     </div>
   );
 }

@@ -1,13 +1,10 @@
-import { SiteHeader } from "@/components/layout/site-header";
+import { OnboardingShell } from "@/features/onboarding/onboarding-shell";
 import { TeacherOnboardingForm } from "@/features/onboarding/teacher-onboarding-form";
 
 export default function TeacherOnboardingPage() {
   return (
-    <div>
-      <SiteHeader homeHref="/" label="Teacher onboarding" />
-      <div className="mx-auto max-w-lg p-6 md:p-10">
-        <TeacherOnboardingForm />
-      </div>
-    </div>
+    <OnboardingShell label="Teacher application">
+      <TeacherOnboardingForm />
+    </OnboardingShell>
   );
 }

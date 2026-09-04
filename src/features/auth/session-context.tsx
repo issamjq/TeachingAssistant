@@ -51,6 +51,8 @@ interface SessionContextValue {
     email: string,
     password: string,
   ) => Promise<{ needsEmailConfirmation: boolean }>;
+  requestPasswordReset: (email: string) => Promise<void>;
+  updatePassword: (newPassword: string) => Promise<void>;
   completeOnboarding: (input: OnboardingInput) => Promise<void>;
   signOut: () => Promise<void>;
 }
@@ -161,6 +163,26 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     return { needsEmailConfirmation: true };
   }
 
+  // Supabase doesn't reveal whether the email has an account either way
+  // — the caller should show the same "check your email" notice
+  // regardless of what this resolves to.
+  async function requestPasswordReset(email: string) {
+    if (!supabase) throw new Error("Sign-in isn't configured yet");
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/auth/reset-password`,
+    });
+    if (error) throw error;
+  }
+
+  // Only valid inside the recovery session established by the emailed
+  // link (see app/auth/reset-password) — Supabase rejects this otherwise.
+  async function updatePassword(newPassword: string) {
+    if (!supabase) throw new Error("Sign-in isn't configured yet");
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    if (error) throw error;
+    await hydrate();
+  }
+
   async function completeOnboarding(input: OnboardingInput) {
     if (!supabase || !user) return;
     await supabase
@@ -192,6 +214,8 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         signInWithGoogle,
         signInWithPassword,
         signUpWithPassword,
+        requestPasswordReset,
+        updatePassword,
         completeOnboarding,
         signOut,
       }}

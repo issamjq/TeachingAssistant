@@ -1,13 +1,10 @@
-import { SiteHeader } from "@/components/layout/site-header";
+import { OnboardingShell } from "@/features/onboarding/onboarding-shell";
 import { OrganisationOnboardingForm } from "@/features/onboarding/organisation-onboarding-form";
 
 export default function OrganisationOnboardingPage() {
   return (
-    <div>
-      <SiteHeader homeHref="/" label="Organisation application" />
-      <div className="mx-auto max-w-lg p-6 md:p-10">
-        <OrganisationOnboardingForm />
-      </div>
-    </div>
+    <OnboardingShell label="Organisation application">
+      <OrganisationOnboardingForm />
+    </OnboardingShell>
   );
 }
