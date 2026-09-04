@@ -1,17 +1,20 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard,
   Sparkles,
   BookOpen,
   User,
   LifeBuoy,
+  LogOut,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { StatusPill } from "@/components/ui/status-pill";
+import { useSession } from "@/features/auth/session-context";
 
 const NAV = [
   { href: "/overview", label: "Overview", icon: LayoutDashboard },
@@ -23,6 +26,22 @@ const NAV = [
 
 export function DashboardShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
+  const { user, signOut } = useSession();
+
+  const initials = user?.name
+    ? user.name
+        .split(" ")
+        .map((p) => p[0])
+        .slice(0, 2)
+        .join("")
+        .toUpperCase()
+    : "?";
+
+  async function handleSignOut() {
+    await signOut();
+    router.push("/signin");
+  }
 
   return (
     <div className="flex min-h-svh">
@@ -53,14 +72,22 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
         </nav>
         <div className="flex items-center gap-2 border-t border-sidebar-border p-3">
           <Avatar className="size-8">
-            <AvatarFallback>T</AvatarFallback>
+            <AvatarFallback>{initials}</AvatarFallback>
           </Avatar>
-          <div className="min-w-0">
-            <p className="truncate text-sm font-medium">Teacher</p>
-            <p className="truncate text-xs text-sidebar-foreground/60">
-              pending approval
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-medium">
+              {user?.name ?? "Teacher"}
             </p>
+            <StatusPill status={user?.status ?? "pending"} />
           </div>
+          <button
+            type="button"
+            onClick={handleSignOut}
+            title="Sign out"
+            className="rounded-md p-1.5 text-sidebar-foreground/50 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+          >
+            <LogOut className="size-4" />
+          </button>
         </div>
       </aside>
       <main className="min-w-0 flex-1 overflow-x-hidden">{children}</main>

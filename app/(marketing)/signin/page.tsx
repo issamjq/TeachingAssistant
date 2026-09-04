@@ -1,9 +1,20 @@
+"use client";
+
 import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
+import { useSession } from "@/features/auth/session-context";
 
 export default function SignInPage() {
+  const { signInWithGoogle, configured } = useSession();
+
   return (
     <div className="flex min-h-svh items-center justify-center p-6">
       <Card className="w-full max-w-sm">
@@ -15,7 +26,12 @@ export default function SignInPage() {
           <CardDescription>For teachers, organisations, and admins.</CardDescription>
         </CardHeader>
         <CardContent>
-          <Button className="w-full" variant="outline">
+          <Button
+            className="w-full"
+            variant="outline"
+            disabled={!configured}
+            onClick={signInWithGoogle}
+          >
             <svg viewBox="0 0 24 24" className="size-4">
               <path fill="#4285F4" d="M23.49 12.27c0-.79-.07-1.54-.2-2.27H12v4.51h6.47a5.53 5.53 0 0 1-2.4 3.63v3h3.88c2.27-2.09 3.54-5.17 3.54-8.87z" />
               <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.87-3a7.46 7.46 0 0 1-11.1-3.93H.9v3.09A12 12 0 0 0 12 24z" />
@@ -24,6 +40,12 @@ export default function SignInPage() {
             </svg>
             Continue with Google
           </Button>
+          {!configured ? (
+            <p className="mt-3 text-center text-xs text-destructive">
+              Sign-in isn&apos;t configured yet — NEXT_PUBLIC_SUPABASE_URL /
+              NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY are missing.
+            </p>
+          ) : null}
           <p className="mt-4 text-center text-xs text-muted-foreground">
             New teachers and organisations go through a short approval step
             after signing in.

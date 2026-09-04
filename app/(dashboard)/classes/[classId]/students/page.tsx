@@ -1,5 +1,3 @@
-import { UserPlus } from "lucide-react";
-
 import { Button } from "@/components/ui/button";
 import { StatusPill } from "@/components/ui/status-pill";
 import {
@@ -11,6 +9,7 @@ import {
   TableCell,
 } from "@/components/ui/table";
 import { ROSTER } from "@/features/classes/mock-data";
+import { InviteStudentButton } from "@/features/classes/invite-student-button";
 
 export default function ClassStudentsPage() {
   return (
@@ -19,9 +18,7 @@ export default function ClassStudentsPage() {
         <p className="text-sm text-muted-foreground">
           Invite-only — a student needs an invite to get a login.
         </p>
-        <Button size="sm">
-          <UserPlus /> Invite student
-        </Button>
+        <InviteStudentButton />
       </div>
       <Table>
         <TableHeader>

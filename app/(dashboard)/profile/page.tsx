@@ -1,3 +1,5 @@
+"use client";
+
 import Link from "next/link";
 import { Settings } from "lucide-react";
 
@@ -7,8 +9,20 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { StatusPill } from "@/components/ui/status-pill";
 import { Separator } from "@/components/ui/separator";
+import { useSession } from "@/features/auth/session-context";
 
 export default function ProfilePage() {
+  const { user } = useSession();
+
+  const initials = user?.name
+    ? user.name
+        .split(" ")
+        .map((p) => p[0])
+        .slice(0, 2)
+        .join("")
+        .toUpperCase()
+    : "?";
+
   return (
     <div>
       <PageHeader
@@ -26,39 +40,40 @@ export default function ProfilePage() {
           <CardContent className="space-y-6 p-6">
             <div className="flex items-center gap-4">
               <Avatar className="size-14">
-                <AvatarFallback className="text-lg">RA</AvatarFallback>
+                <AvatarFallback className="text-lg">{initials}</AvatarFallback>
               </Avatar>
               <div>
-                <p className="text-base font-semibold">Rana Al Sayed</p>
-                <p className="text-sm text-muted-foreground">
-                  rana.alsayed@greenwood.edu
-                </p>
+                <p className="text-base font-semibold">{user?.name}</p>
+                <p className="text-sm text-muted-foreground">{user?.email}</p>
               </div>
-              <StatusPill status="pending" />
+              <StatusPill status={user?.status ?? "pending"} />
             </div>
             <Separator />
             <dl className="grid grid-cols-2 gap-4 text-sm">
               <div>
                 <dt className="text-muted-foreground">Role</dt>
-                <dd className="font-medium">Teacher</dd>
+                <dd className="font-medium capitalize">{user?.role}</dd>
               </div>
               <div>
                 <dt className="text-muted-foreground">Institution</dt>
-                <dd className="font-medium">Greenwood International School</dd>
+                <dd className="font-medium">{user?.institution}</dd>
               </div>
               <div>
                 <dt className="text-muted-foreground">Staff ID</dt>
-                <dd className="font-medium">GIS-2291</dd>
+                <dd className="font-medium">{user?.staffId ?? "—"}</dd>
               </div>
               <div>
                 <dt className="text-muted-foreground">Syllabus</dt>
-                <dd className="font-medium">CBSE</dd>
+                <dd className="font-medium">{user?.syllabus}</dd>
               </div>
             </dl>
-            <p className="text-xs text-muted-foreground">
-              Awaiting approval from Greenwood International School. You can
-              browse the app, but can&apos;t add students until approved.
-            </p>
+            {user?.status === "pending" ? (
+              <p className="text-xs text-muted-foreground">
+                Awaiting approval from {user.institution}. You can browse the
+                app and prepare material, but can&apos;t add students until
+                approved.
+              </p>
+            ) : null}
           </CardContent>
         </Card>
       </div>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Sparkles, Upload, LibraryBig, Check } from "lucide-react";
+import { Sparkles, Upload, LibraryBig, Check, Lock } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,6 +11,7 @@ import { Progress } from "@/components/ui/progress";
 import { StatusPill } from "@/components/ui/status-pill";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { CLASSES, classLabel } from "@/features/classes/mock-data";
+import { useSession } from "@/features/auth/session-context";
 
 const DRAFT_ITEMS = [
   { label: "Slide deck", detail: "18 slides" },
@@ -24,6 +25,8 @@ const DRAFT_ITEMS = [
 type Stage = "idle" | "generating" | "ready";
 
 export function GoalPlannerForm() {
+  const { user } = useSession();
+  const approved = user?.status === "active";
   const [stage, setStage] = useState<Stage>("idle");
   const [progress, setProgress] = useState(0);
 
@@ -157,9 +160,21 @@ export function GoalPlannerForm() {
                   </div>
                 ))}
               </div>
-              <Button className="w-full" variant="default">
-                <Check /> Approve &amp; schedule
-              </Button>
+              {approved ? (
+                <Button className="w-full" variant="default">
+                  <Check /> Approve &amp; schedule
+                </Button>
+              ) : (
+                <div className="space-y-1.5">
+                  <Button className="w-full" variant="default" disabled>
+                    <Lock /> Approve &amp; schedule
+                  </Button>
+                  <p className="text-center text-xs text-muted-foreground">
+                    Drafting is open now — scheduling to students needs your
+                    account approved first.
+                  </p>
+                </div>
+              )}
             </div>
           )}
         </CardContent>
