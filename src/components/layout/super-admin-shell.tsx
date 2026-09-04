@@ -70,7 +70,7 @@ export function SuperAdminShell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="theme-app flex min-h-svh bg-background text-foreground">
+    <div className="theme-app flex h-svh overflow-hidden bg-background text-foreground">
       <AnalyticsTracker />
       <aside className="flex w-64 shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground">
         <div className="flex h-16 flex-col justify-center gap-1 px-4">

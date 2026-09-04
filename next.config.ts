@@ -20,6 +20,14 @@ const API_TARGET = process.env.API_PROXY_TARGET || "";
 const nextConfig: NextConfig = {
   reactStrictMode: true,
 
+  // The marketing page's photography (src/features/marketing) is sourced
+  // from Unsplash rather than shipped as local assets, so next/image can
+  // optimise it — this is the "marketing image host" the CSP comment
+  // below already anticipated.
+  images: {
+    remotePatterns: [{ protocol: "https", hostname: "images.unsplash.com" }],
+  },
+
   // Replaces the `rewrites` block that lived in vercel.json. The SPA
   // catch-all rewrite from that file is NOT carried over — the App Router
   // resolves paths natively, so it is no longer needed.

@@ -11,7 +11,7 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="theme-app min-h-svh bg-background text-foreground">
+    <div className="theme-app h-svh bg-primary p-3 text-foreground md:p-4">
       <AnalyticsTracker />
       <RequireOnboardedTeacher>
         <ClassesRefreshProvider>

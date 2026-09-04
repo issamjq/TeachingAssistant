@@ -31,6 +31,7 @@ stayed healthy throughout because they read Supabase directly.
 | # | What | Spec |
 |---|---|---|
 | — | **Grounded generation** — inject retrieved passages into lesson and quiz prompts, prefer her material over ours, cite which source a section drew on. The corpus and `/api/corpus/search` now exist; this is the step that uses them | this file, §3 |
+| 15 | **Derive, exercised for real** — `/api/curriculum/derive` is built and its logic verified on a CBSE syllabus, but the table below still lists the HTTP route and the `not_a_syllabus` refusal as unverified. The syllabus upload now sits next to the derive action instead of in another screen, so this is finally reachable in one sitting. Needs one real run: upload → read → units, and one deliberate non-syllabus to see the refusal | this file, table below |
 
 **§08 was never missing.** The route exists and `skill_ids` are honoured
 through `resolveSkills({ explicitIds })`, on both branches. Our 404 was

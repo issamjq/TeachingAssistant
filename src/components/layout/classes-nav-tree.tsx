@@ -9,16 +9,6 @@ import { cn } from "@/lib/utils";
 import { listHierarchy, type BatchRow } from "@/lib/data/classes";
 import { useClassesRefresh } from "@/features/classes/classes-refresh-context";
 
-const CONTENT_TABS = [
-  { segment: "", label: "Lessons" },
-  { segment: "presentations", label: "Presentations" },
-  { segment: "activities", label: "Activities" },
-  { segment: "homework", label: "Homework" },
-  { segment: "notes", label: "Notes & text" },
-  { segment: "exams", label: "Exams" },
-  { segment: "quizzes", label: "Quizzes" },
-] as const;
-
 function currentAcademicStartYear(): number {
   const now = new Date();
   // UAE school year runs roughly Aug/Sep -> Jun, so anything from July
@@ -26,6 +16,11 @@ function currentAcademicStartYear(): number {
   return now.getMonth() >= 6 ? now.getFullYear() : now.getFullYear() - 1;
 }
 
+// Batch -> Class only. The third level this used to carry (Lessons,
+// Presentations, ... Quizzes) duplicated ClassTabs, which already renders
+// every tab — 11 of them, not just these 7 — at the top of the class page
+// itself once you're on it. The sidebar's job stops at "which class";
+// "which view of this class" belongs to the page you're already on.
 export function ClassesNavTree() {
   const pathname = usePathname();
   const { version } = useClassesRefresh();
@@ -55,7 +50,7 @@ export function ClassesNavTree() {
   const sorted = batches.slice().sort((a, b) => b.start_year - a.start_year);
 
   return (
-    <div className="relative ml-4 mt-1 space-y-0.5 border-l border-sidebar-border pl-3">
+    <div className="mt-1 ml-1 space-y-0.5">
       {sorted.map((batch) => {
         const isOpen = expanded.has(batch.id);
         const isCurrent = batch.start_year === currentYear;
@@ -72,13 +67,7 @@ export function ClassesNavTree() {
           );
 
         return (
-          <div key={batch.id} className="relative">
-            <span
-              className={cn(
-                "absolute -left-[15px] top-2 size-2 rounded-full border-2 border-sidebar",
-                isCurrent ? "bg-primary" : "bg-sidebar-border",
-              )}
-            />
+          <div key={batch.id}>
             <button
               type="button"
               onClick={() =>
@@ -89,25 +78,25 @@ export function ClassesNavTree() {
                   return next;
                 })
               }
-              className="flex w-full items-center gap-1 rounded-md px-1.5 py-1 text-xs font-medium text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+              className="flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-semibold text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
             >
               {isOpen ? (
-                <ChevronDown className="size-3 shrink-0" />
+                <ChevronDown className="size-3.5 shrink-0" />
               ) : (
-                <ChevronRight className="size-3 shrink-0" />
+                <ChevronRight className="size-3.5 shrink-0" />
               )}
               <span className="truncate">{batch.label}</span>
               {isCurrent ? (
-                <span className="ml-auto shrink-0 text-[10px] font-normal text-primary">
+                <span className="ml-auto shrink-0 rounded-full bg-secondary px-1.5 py-0.5 text-[10px] font-medium text-primary">
                   Current
                 </span>
               ) : null}
             </button>
 
             {isOpen ? (
-              <div className="relative ml-3 mt-0.5 space-y-0.5 border-l border-sidebar-border pb-1 pl-3">
+              <div className="mt-0.5 space-y-0.5 pb-1 pl-6">
                 {items.length === 0 ? (
-                  <p className="py-1 text-[11px] text-sidebar-foreground/40">
+                  <p className="px-2 py-1 text-xs text-sidebar-foreground/40">
                     No classes yet
                   </p>
                 ) : (
@@ -115,54 +104,18 @@ export function ClassesNavTree() {
                     const href = `/classes/${c.id}`;
                     const active = pathname?.startsWith(href);
                     return (
-                      <div key={c.id} className="relative">
-                        <span
-                          className={cn(
-                            "absolute -left-[13px] top-1/2 size-1.5 -translate-y-1/2 rounded-full",
-                            active ? "bg-primary" : "bg-sidebar-border",
-                          )}
-                        />
-                        <Link
-                          href={href}
-                          className={cn(
-                            "block truncate rounded-md px-1.5 py-1 text-[11px]",
-                            active
-                              ? "bg-sidebar-primary text-sidebar-primary-foreground"
-                              : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-                          )}
-                        >
-                          {c.label}
-                        </Link>
-                        {active ? (
-                          <div className="relative ml-2 mt-0.5 space-y-0.5 border-l border-sidebar-border pb-1 pl-3">
-                            {CONTENT_TABS.map((tab) => {
-                              const tabHref = tab.segment ? `${href}/${tab.segment}` : href;
-                              const tabActive = pathname === tabHref;
-                              return (
-                                <div key={tab.label} className="relative">
-                                  <span
-                                    className={cn(
-                                      "absolute -left-[13px] top-1/2 size-1 -translate-y-1/2 rounded-full",
-                                      tabActive ? "bg-primary" : "bg-sidebar-border",
-                                    )}
-                                  />
-                                  <Link
-                                    href={tabHref}
-                                    className={cn(
-                                      "block truncate rounded-md px-1.5 py-0.5 text-[11px]",
-                                      tabActive
-                                        ? "text-primary font-medium"
-                                        : "text-sidebar-foreground/50 hover:text-sidebar-accent-foreground",
-                                    )}
-                                  >
-                                    {tab.label}
-                                  </Link>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        ) : null}
-                      </div>
+                      <Link
+                        key={c.id}
+                        href={href}
+                        className={cn(
+                          "block truncate rounded-md px-2 py-1.5 text-xs",
+                          active
+                            ? "bg-sidebar-primary font-medium text-sidebar-primary-foreground"
+                            : "text-sidebar-foreground/65 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                        )}
+                      >
+                        {c.label}
+                      </Link>
                     );
                   })
                 )}

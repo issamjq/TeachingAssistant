@@ -17,7 +17,9 @@ import { getClassWithPath, type ClassWithPath } from "@/lib/data/classes";
 // This is a fixed-height flex column (not document scroll) so a tab page
 // can pin a composer to the true bottom of the viewport while its own
 // list scrolls independently above it — see StudioComposerBar usage in
-// the content-tab pages.
+// the content-tab pages. Height comes from `main` (h-full), not h-svh
+// directly — DashboardShell's <main> is itself viewport-height-bounded
+// with its own scroll, inside the floating shell's padding.
 export default function ClassLayout({ children }: { children: React.ReactNode }) {
   const { classId } = useParams<{ classId: string }>();
   const [cls, setCls] = useState<ClassWithPath | null | undefined>(undefined);
@@ -62,7 +64,7 @@ export default function ClassLayout({ children }: { children: React.ReactNode })
   }
 
   return (
-    <div className="flex h-svh flex-col">
+    <div className="flex h-full flex-col">
       <div className="shrink-0 px-6 pt-5 md:px-8">
         {backLink}
         <h1 className="text-xl font-black tracking-tight">

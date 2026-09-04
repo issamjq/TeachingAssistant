@@ -6,6 +6,13 @@
       "headers": {
         "x-api-key": "${TWENTYFIRST_API_KEY}"
       }
+    },
+    "claude-flow": {
+      "command": "ruflo",
+      "args": [
+        "mcp",
+        "start"
+      ]
     }
   }
 }
