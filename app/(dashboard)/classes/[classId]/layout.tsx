@@ -45,7 +45,7 @@ export default function ClassLayout({ children }: { children: React.ReactNode })
     return (
       <div className="px-6 pt-5 md:px-8">
         {backLink}
-        <h1 className="text-lg font-semibold tracking-tight">Class not found</h1>
+        <h1 className="font-serif text-xl font-medium tracking-tight">Class not found</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           This class doesn&apos;t exist, or isn&apos;t yours.
         </p>
@@ -60,7 +60,7 @@ export default function ClassLayout({ children }: { children: React.ReactNode })
     <div>
       <div className="px-6 pt-5 md:px-8">
         {backLink}
-        <h1 className="text-lg font-semibold tracking-tight">
+        <h1 className="font-serif text-xl font-medium tracking-tight">
           Grade {cls.grade.level} · Div {cls.division.label} · {cls.subject}
         </h1>
         <p className="text-sm text-muted-foreground">Batch {cls.batch.label}</p>

@@ -10,13 +10,15 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   return (
-    <RequireOnboardedTeacher>
-      <ClassesRefreshProvider>
-        <StudioProvider>
-          <DashboardShell>{children}</DashboardShell>
-          <StudioPanel />
-        </StudioProvider>
-      </ClassesRefreshProvider>
-    </RequireOnboardedTeacher>
+    <div className="theme-app min-h-svh bg-background text-foreground">
+      <RequireOnboardedTeacher>
+        <ClassesRefreshProvider>
+          <StudioProvider>
+            <DashboardShell>{children}</DashboardShell>
+            <StudioPanel />
+          </StudioProvider>
+        </ClassesRefreshProvider>
+      </RequireOnboardedTeacher>
+    </div>
   );
 }

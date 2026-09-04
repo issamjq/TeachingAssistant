@@ -95,8 +95,61 @@
   --sidebar-ring: oklch(0.7 0.16 264);
 }
 
+/* ── App theme: everything behind sign-in ──────────────────────────────
+   Scoped deliberately, not global — marketing (`/`, `/signin`) stays on
+   the neutral tokens above until it gets its own visual sign-off (see
+   CLAUDE.md's deploy policy). Reference: user-supplied "EduAI Studio"
+   screenshots — visual reference only, not a brand to copy the name of.
+   THESIS/OWN-WORLD/etc direction contract lives in app/layout.tsx. */
+.theme-app {
+  --radius: 0.75rem;
+
+  --background: #f4efe2;
+  --foreground: #21201b;
+  --card: #ffffff;
+  --card-foreground: #21201b;
+  --popover: #ffffff;
+  --popover-foreground: #21201b;
+
+  --primary: #1b4b3a;
+  --primary-foreground: #fbf8f0;
+  --secondary: #e7efe6;
+  --secondary-foreground: #1b4b3a;
+  --muted: #ece7d8;
+  --muted-foreground: #837c6d;
+  --accent: #e7efe6;
+  --accent-foreground: #1b4b3a;
+
+  --destructive: #b23a2b;
+  --destructive-foreground: #fbf8f0;
+  --success: #2b6b4a;
+  --success-foreground: #fbf8f0;
+  --warning: #9c5b12;
+  --warning-foreground: #fbf8f0;
+
+  --border: #e8e2d2;
+  --input: #e8e2d2;
+  --ring: #1b4b3a;
+
+  --chart-1: #1b4b3a;
+  --chart-2: #b2622e;
+  --chart-3: #3a6ea5;
+  --chart-4: #8a5a44;
+  --chart-5: #6b6350;
+
+  --sidebar: #ffffff;
+  --sidebar-foreground: #21201b;
+  --sidebar-primary: #e7efe6;
+  --sidebar-primary-foreground: #1b4b3a;
+  --sidebar-accent: #f4efe2;
+  --sidebar-accent-foreground: #21201b;
+  --sidebar-border: #ede7d8;
+  --sidebar-ring: #1b4b3a;
+}
+
 @theme inline {
   --font-sans: var(--font-inter);
+  --font-serif: var(--font-lora);
 
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -147,5 +200,9 @@
   }
   body {
     @apply bg-background text-foreground font-sans antialiased;
+  }
+  .theme-app ::selection {
+    background: var(--secondary);
+    color: var(--secondary-foreground);
   }
 }

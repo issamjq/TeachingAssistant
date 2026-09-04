@@ -10,7 +10,7 @@ export function PageHeader({
   return (
     <div className="flex items-start justify-between gap-4 border-b border-border px-6 py-5 md:px-8">
       <div>
-        <h1 className="text-lg font-semibold tracking-tight">{title}</h1>
+        <h1 className="font-serif text-xl font-medium tracking-tight">{title}</h1>
         {description ? (
           <p className="mt-1 text-sm text-muted-foreground">{description}</p>
         ) : null}
