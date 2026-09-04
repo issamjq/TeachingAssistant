@@ -7,6 +7,34 @@ and `08-skills-refinement.md`. Superseding `00-open.md` where the two
 disagree, since that file describes `backendv2`'s feature set and
 `final/backend` — the one actually deployed — doesn't have most of it.
 
+> **Backend replied 2026-09-04 (`6eac326`), confirmed against the live
+> service.** One real fix, three corrections, everything else endorsed
+> as written:
+>
+> - **Fixed:** unknown `/api/*` paths used to 401 (auth ran before
+>   routing, so "doesn't exist" and "no token" were indistinguishable).
+>   Now correctly `404 {"code":"not_found"}` — confirmed directly against
+>   the live service (`/api/studio/generate`, `/api/corpus/search`, and a
+>   made-up path all now 404; `/api/superadmin/keys` with no token still
+>   401s). This closes item §6's 404 half.
+> - **§4/§5 corrected below:** Gemini, `EMBEDDING_API_KEY`/
+>   `GEMINI_EMBED_MODEL`, and the keepwarm pinger were listed as pending
+>   decisions/ops but are actually just gone from `final/backend`'s
+>   config — not decisions waiting, providers/routes that would need
+>   re-adding. Also: `/api/keepwarm` turned out to be a **frontend**
+>   route (`app/api/keepwarm/route.ts`) that was deleted in the same
+>   `clean_slate_v2` rebuild — restored, see §5.
+> - **Not acted on, and why:** the backend suggested the frontend's
+>   composer-bar placeholders "let the placeholder branch" on the new
+>   404-vs-401 signal — try the real endpoint, fall back to the honest
+>   simulation only on a confirmed `404 not_found`. Deliberately not
+>   built yet: every route in §2 404s unconditionally right now, so it
+>   would have zero behavioural effect today, and guessing a request
+>   shape against a contract §1 hasn't decided yet (new schema, no SSE
+>   vocabulary defined) is the kind of speculative code this project
+>   avoids. Worth doing *as part of* wiring the first real route, not
+>   ahead of it.
+
 ## 1. The decision that scopes everything below
 
 `final/backend` is a deliberate scaffold: boot, auth, health, the key
@@ -66,21 +94,32 @@ shapes in that file don't map onto anything live today.
   `00-open.md`: the composer quoted ~6 credits, the real spend was 9
   (a lesson plan + student notes, +5 and +4). Whatever answers this
   needs to exist before credits/billing comes back at all.
-- **Gemini's tier.** Still free as of the last note; blast radius is
-  smaller than once thought since generation runs a separate provider
-  and Gemini now only serves embeddings — but retrieval quality is
-  gated on this until it's decided.
+
+## 4b. Not decisions — providers/config actually removed
+
+`final/backend`'s reset dropped these along with the code that read
+them. Re-adding them is part of rebuilding whatever route needs them,
+not a standalone decision:
+
+- **Gemini and Anthropic are both gone** from the env schema and
+  `package.json`, along with Stripe. There is currently no AI provider
+  configured on `final/backend` at all except OpenRouter (the key
+  pool). Whichever route gets rebuilt first picks its own provider.
+- **`EMBEDDING_API_KEY`/`GEMINI_EMBED_MODEL`** no longer exist in
+  `config/env.ts`. Setting them in Render does nothing until retrieval
+  is rebuilt and reads them again.
 
 ## 5. Ops, not code
 
 - A **Brevo-validated sender address** — until one exists, Brevo
   answers 201 and silently drops every email.
-- A **scheduled pinger on `/api/keepwarm`**, every ~10 minutes. The
-  route already exists and answers 200; this is a monitor to point at
-  it, not a build.
-- **`EMBEDDING_API_KEY`/`GEMINI_EMBED_MODEL`** in the backend
-  environment, if retrieval comes back — currently falls back to
-  `GEMINI_API_KEY`.
+- A **scheduled pinger on `/api/keepwarm`**, every ~10 minutes.
+  Restored on the frontend (`app/api/keepwarm/route.ts` — it was
+  deleted in the same rebuild as everything else, confirmed 200 against
+  the live backend again now). The route lives in **this** repo, not
+  the backend's — pointing an external pinger (cron-job.org,
+  UptimeRobot) at `https://www.murchid.com/api/keepwarm` is still an
+  outstanding ops task for whoever holds those accounts.
 
 ## 6. Worth re-verifying once the relevant routes come back
 
@@ -89,10 +128,10 @@ not survive into whatever replaces those routes — flagging so nobody
 assumes they're already fixed just because the code they lived in is
 gone:
 
-- **A real 404 must carry a `code` field.** Without one, the frontend's
-  own error handling can't distinguish "this genuinely doesn't exist"
-  from "not connected yet," and renders the more alarming message for
-  both.
+- ~~A real 404 must carry a `code` field.~~ **Done.** Confirmed live:
+  every unmatched `/api/*` path now returns `404 {"code":"not_found"}`
+  instead of the auth gate's `401`. Write this into whatever replaces
+  the routes in §2 so it doesn't regress with them.
 - **An SSE heartbeat** (a `:` comment frame at least every ~90s) on any
   streaming route. Its absence meant a slow-thinking model on a long
   turn got killed mid-generation once the frontend's own 90s idle
