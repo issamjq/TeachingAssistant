@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
-import { Plus } from "lucide-react";
+import { Plus, Pencil, Trash2, Check, X } from "lucide-react";
 
 import { PageHeader } from "@/components/layout/page-header";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -15,9 +15,17 @@ import { useClassesRefresh } from "@/features/classes/classes-refresh-context";
 import {
   listHierarchy,
   createBatch,
+  updateBatch,
+  deleteBatch,
   createGrade,
+  updateGrade,
+  deleteGrade,
   createDivision,
+  updateDivision,
+  deleteDivision,
   createClass,
+  updateClass,
+  deleteClass,
   type BatchRow,
 } from "@/lib/data/classes";
 
@@ -26,6 +34,7 @@ export default function ClassesPage() {
   const { bump } = useClassesRefresh();
   const [batches, setBatches] = useState<BatchRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [activeBatch, setActiveBatch] = useState<string | undefined>(undefined);
 
   const refresh = useCallback(() => {
     listHierarchy()
@@ -75,7 +84,7 @@ export default function ClassesPage() {
             description="Start by adding a batch (a school year, e.g. 2025-26) — grades, divisions, and subjects nest under it."
           />
         ) : (
-          <Tabs defaultValue={batches[0].id}>
+          <Tabs value={activeBatch ?? batches[0].id} onValueChange={setActiveBatch}>
             <TabsList>
               {batches.map((b) => (
                 <TabsTrigger key={b.id} value={b.id}>
@@ -85,7 +94,12 @@ export default function ClassesPage() {
             </TabsList>
             {batches.map((batch) => (
               <TabsContent key={batch.id} value={batch.id} className="space-y-6">
-                <BatchGrades batch={batch} ownerId={ownerId} onChanged={refresh} />
+                <BatchDetail
+                  batch={batch}
+                  ownerId={ownerId}
+                  onChanged={refresh}
+                  onDeleted={() => setActiveBatch(undefined)}
+                />
               </TabsContent>
             ))}
           </Tabs>
@@ -95,54 +109,291 @@ export default function ClassesPage() {
   );
 }
 
-function BatchGrades({
+function IconButton({
+  onClick,
+  title,
+  variant = "ghost",
+  children,
+}: {
+  onClick: () => void;
+  title: string;
+  variant?: "ghost" | "destructive";
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={title}
+      className={
+        variant === "destructive"
+          ? "rounded p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+          : "rounded p-1 text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+      }
+    >
+      {children}
+    </button>
+  );
+}
+
+function BatchDetail({
   batch,
   ownerId,
   onChanged,
+  onDeleted,
 }: {
   batch: BatchRow;
   ownerId: string;
   onChanged: () => void;
+  onDeleted: () => void;
 }) {
+  const [editing, setEditing] = useState(false);
+  const [label, setLabel] = useState(batch.label);
+  const [startYear, setStartYear] = useState(batch.start_year);
+  const [saving, setSaving] = useState(false);
+
+  async function saveEdit() {
+    if (!label.trim()) return;
+    setSaving(true);
+    await updateBatch(batch.id, label.trim(), startYear);
+    setSaving(false);
+    setEditing(false);
+    onChanged();
+  }
+
+  async function remove() {
+    if (!confirm(`Delete batch "${batch.label}"? This removes every grade, division, and subject under it.`)) return;
+    await deleteBatch(batch.id);
+    onDeleted();
+    onChanged();
+  }
+
   return (
     <div className="space-y-6">
+      <div className="flex items-center gap-2">
+        {editing ? (
+          <>
+            <Input value={label} onChange={(e) => setLabel(e.target.value)} className="h-8 w-28" autoFocus />
+            <Input
+              type="number"
+              value={startYear}
+              onChange={(e) => setStartYear(Number(e.target.value))}
+              className="h-8 w-20"
+            />
+            <IconButton title="Save" onClick={saveEdit}>
+              <Check className="size-4" />
+            </IconButton>
+            <IconButton title="Cancel" onClick={() => setEditing(false)}>
+              <X className="size-4" />
+            </IconButton>
+          </>
+        ) : (
+          <>
+            <h2 className="text-sm font-semibold">{batch.label}</h2>
+            <IconButton title="Rename batch" onClick={() => setEditing(true)} >
+              <Pencil className="size-3.5" />
+            </IconButton>
+            <IconButton title="Delete batch" variant="destructive" onClick={remove}>
+              <Trash2 className="size-3.5" />
+            </IconButton>
+          </>
+        )}
+        {saving ? <span className="text-xs text-muted-foreground">Saving…</span> : null}
+      </div>
+
       {batch.grades
         .slice()
         .sort((a, b) => a.level - b.level)
         .map((grade) => (
-          <div key={grade.id} className="space-y-3">
-            <h2 className="text-sm font-semibold">Grade {grade.level}</h2>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {grade.divisions.map((division) => (
-                <Card key={division.id}>
-                  <CardContent className="space-y-2 p-4">
-                    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                      Division {division.label}
-                    </p>
-                    <div className="flex flex-wrap items-center gap-2">
-                      {division.classes.map((c) => (
-                        <Link
-                          key={c.id}
-                          href={`/classes/${c.id}`}
-                          className="rounded-md border border-border px-2.5 py-1 text-sm hover:border-primary hover:text-primary"
-                        >
-                          {c.subject}
-                        </Link>
-                      ))}
-                      <AddSubjectForm
-                        ownerId={ownerId}
-                        divisionId={division.id}
-                        onAdded={onChanged}
-                      />
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-              <AddDivisionCard ownerId={ownerId} gradeId={grade.id} onAdded={onChanged} />
-            </div>
-          </div>
+          <GradeSection key={grade.id} grade={grade} ownerId={ownerId} onChanged={onChanged} />
         ))}
       <AddGradeForm ownerId={ownerId} batchId={batch.id} onAdded={onChanged} />
+    </div>
+  );
+}
+
+function GradeSection({
+  grade,
+  ownerId,
+  onChanged,
+}: {
+  grade: BatchRow["grades"][number];
+  ownerId: string;
+  onChanged: () => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [level, setLevel] = useState(grade.level);
+
+  async function saveEdit() {
+    await updateGrade(grade.id, level);
+    setEditing(false);
+    onChanged();
+  }
+
+  async function remove() {
+    if (!confirm(`Delete Grade ${grade.level}? This removes every division and subject under it.`)) return;
+    await deleteGrade(grade.id);
+    onChanged();
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-2">
+        {editing ? (
+          <>
+            <Input
+              type="number"
+              value={level}
+              onChange={(e) => setLevel(Number(e.target.value))}
+              className="h-7 w-16"
+              autoFocus
+            />
+            <IconButton title="Save" onClick={saveEdit}>
+              <Check className="size-3.5" />
+            </IconButton>
+            <IconButton title="Cancel" onClick={() => setEditing(false)}>
+              <X className="size-3.5" />
+            </IconButton>
+          </>
+        ) : (
+          <>
+            <h2 className="text-sm font-semibold">Grade {grade.level}</h2>
+            <IconButton title="Edit grade" onClick={() => setEditing(true)}>
+              <Pencil className="size-3.5" />
+            </IconButton>
+            <IconButton title="Delete grade" variant="destructive" onClick={remove}>
+              <Trash2 className="size-3.5" />
+            </IconButton>
+          </>
+        )}
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {grade.divisions.map((division) => (
+          <DivisionCard
+            key={division.id}
+            division={division}
+            ownerId={ownerId}
+            onChanged={onChanged}
+          />
+        ))}
+        <AddDivisionCard ownerId={ownerId} gradeId={grade.id} onAdded={onChanged} />
+      </div>
+    </div>
+  );
+}
+
+function DivisionCard({
+  division,
+  ownerId,
+  onChanged,
+}: {
+  division: BatchRow["grades"][number]["divisions"][number];
+  ownerId: string;
+  onChanged: () => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [label, setLabel] = useState(division.label);
+
+  async function saveEdit() {
+    if (!label.trim()) return;
+    await updateDivision(division.id, label.trim());
+    setEditing(false);
+    onChanged();
+  }
+
+  async function remove() {
+    if (!confirm(`Delete Division ${division.label}? This removes every subject under it.`)) return;
+    await deleteDivision(division.id);
+    onChanged();
+  }
+
+  return (
+    <Card>
+      <CardContent className="space-y-2 p-4">
+        <div className="flex items-center gap-1">
+          {editing ? (
+            <>
+              <Input value={label} onChange={(e) => setLabel(e.target.value)} className="h-7 w-16" autoFocus />
+              <IconButton title="Save" onClick={saveEdit}>
+                <Check className="size-3.5" />
+              </IconButton>
+              <IconButton title="Cancel" onClick={() => setEditing(false)}>
+                <X className="size-3.5" />
+              </IconButton>
+            </>
+          ) : (
+            <>
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Division {division.label}
+              </p>
+              <IconButton title="Edit division" onClick={() => setEditing(true)}>
+                <Pencil className="size-3" />
+              </IconButton>
+              <IconButton title="Delete division" variant="destructive" onClick={remove}>
+                <Trash2 className="size-3" />
+              </IconButton>
+            </>
+          )}
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          {division.classes.map((c) => (
+            <SubjectChip key={c.id} classRow={c} onChanged={onChanged} />
+          ))}
+          <AddSubjectForm ownerId={ownerId} divisionId={division.id} onAdded={onChanged} />
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function SubjectChip({
+  classRow,
+  onChanged,
+}: {
+  classRow: { id: string; subject: string };
+  onChanged: () => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [subject, setSubject] = useState(classRow.subject);
+
+  async function saveEdit() {
+    if (!subject.trim()) return;
+    await updateClass(classRow.id, subject.trim());
+    setEditing(false);
+    onChanged();
+  }
+
+  async function remove() {
+    if (!confirm(`Delete "${classRow.subject}"? This removes its lessons, notes, and results.`)) return;
+    await deleteClass(classRow.id);
+    onChanged();
+  }
+
+  if (editing) {
+    return (
+      <div className="flex items-center gap-1">
+        <Input value={subject} onChange={(e) => setSubject(e.target.value)} className="h-8 w-28" autoFocus />
+        <IconButton title="Save" onClick={saveEdit}>
+          <Check className="size-3.5" />
+        </IconButton>
+        <IconButton title="Cancel" onClick={() => setEditing(false)}>
+          <X className="size-3.5" />
+        </IconButton>
+      </div>
+    );
+  }
+
+  return (
+    <div className="group flex items-center gap-0.5 rounded-md border border-border pl-2.5 pr-1 hover:border-primary">
+      <Link href={`/classes/${classRow.id}`} className="py-1 text-sm hover:text-primary">
+        {classRow.subject}
+      </Link>
+      <IconButton title="Rename subject" onClick={() => setEditing(true)}>
+        <Pencil className="size-3" />
+      </IconButton>
+      <IconButton title="Delete subject" variant="destructive" onClick={remove}>
+        <Trash2 className="size-3" />
+      </IconButton>
     </div>
   );
 }

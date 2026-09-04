@@ -122,6 +122,57 @@ export async function createClass(ownerId: string, divisionId: string, subject: 
   return data;
 }
 
+export async function updateBatch(id: string, label: string, startYear: number) {
+  const db = requireClient();
+  const { error } = await db
+    .from("batches")
+    .update({ label, start_year: startYear })
+    .eq("id", id);
+  if (error) throw error;
+}
+
+export async function deleteBatch(id: string) {
+  const db = requireClient();
+  const { error } = await db.from("batches").delete().eq("id", id);
+  if (error) throw error;
+}
+
+export async function updateGrade(id: string, level: number) {
+  const db = requireClient();
+  const { error } = await db.from("grades").update({ level }).eq("id", id);
+  if (error) throw error;
+}
+
+export async function deleteGrade(id: string) {
+  const db = requireClient();
+  const { error } = await db.from("grades").delete().eq("id", id);
+  if (error) throw error;
+}
+
+export async function updateDivision(id: string, label: string) {
+  const db = requireClient();
+  const { error } = await db.from("divisions").update({ label }).eq("id", id);
+  if (error) throw error;
+}
+
+export async function deleteDivision(id: string) {
+  const db = requireClient();
+  const { error } = await db.from("divisions").delete().eq("id", id);
+  if (error) throw error;
+}
+
+export async function updateClass(id: string, subject: string) {
+  const db = requireClient();
+  const { error } = await db.from("classes").update({ subject }).eq("id", id);
+  if (error) throw error;
+}
+
+export async function deleteClass(id: string) {
+  const db = requireClient();
+  const { error } = await db.from("classes").delete().eq("id", id);
+  if (error) throw error;
+}
+
 export interface StudentRow {
   id: string;
   name: string;
