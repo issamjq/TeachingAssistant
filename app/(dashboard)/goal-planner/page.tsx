@@ -1,12 +1,16 @@
+import { PageHeader } from "@/components/layout/page-header";
+import { GoalPlannerForm } from "@/features/goal-planner/goal-planner-form";
+
 export default function GoalPlannerPage() {
   return (
-    <main>
-      <h1>Goal Planner</h1>
-      <p>
-        Curriculum/prompt/documents in → AI-drafted term material out →
-        teacher approval → scheduled to the calendar. See the pipeline in
-        docs/00-concept.md.
-      </p>
-    </main>
+    <div>
+      <PageHeader
+        title="Goal Planner"
+        description="Curriculum, a prompt, or documents in — a full term's material out, ready for your approval."
+      />
+      <div className="p-6 md:p-8">
+        <GoalPlannerForm />
+      </div>
+    </div>
   );
 }

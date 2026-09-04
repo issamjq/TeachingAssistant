@@ -1,10 +1,11 @@
-// Teacher app shell. No nav yet — this is a placeholder until the
-// auth/role model (see docs/00-concept.md) lands and the shell can be
-// built role-aware.
+import { DashboardShell } from "@/components/layout/dashboard-shell";
+
+// Teacher app shell. Static "Teacher / pending approval" identity for now —
+// becomes role-aware once auth (docs/00-concept.md) lands.
 export default function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  return children;
+  return <DashboardShell>{children}</DashboardShell>;
 }

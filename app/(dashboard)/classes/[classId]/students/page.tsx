@@ -1,13 +1,54 @@
-export default async function ClassStudentsPage({
-  params,
-}: {
-  params: Promise<{ classId: string }>;
-}) {
-  const { classId } = await params;
+import { UserPlus } from "lucide-react";
+
+import { Button } from "@/components/ui/button";
+import { StatusPill } from "@/components/ui/status-pill";
+import {
+  Table,
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableHead,
+  TableCell,
+} from "@/components/ui/table";
+import { ROSTER } from "@/features/classes/mock-data";
+
+export default function ClassStudentsPage() {
   return (
-    <main>
-      <h1>Students</h1>
-      <p>Class {classId}. Invite-only — no self-registration.</p>
-    </main>
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-muted-foreground">
+          Invite-only — a student needs an invite to get a login.
+        </p>
+        <Button size="sm">
+          <UserPlus /> Invite student
+        </Button>
+      </div>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Roll no.</TableHead>
+            <TableHead>Student</TableHead>
+            <TableHead>Status</TableHead>
+            <TableHead />
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {ROSTER.map((s) => (
+            <TableRow key={s.id}>
+              <TableCell className="text-muted-foreground">{s.rollNo}</TableCell>
+              <TableCell className="font-medium">{s.name}</TableCell>
+              <TableCell>
+                <StatusPill status="active" />
+              </TableCell>
+              <TableCell className="text-right">
+                <Button variant="ghost" size="sm">
+                  Manage
+                </Button>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
   );
 }
