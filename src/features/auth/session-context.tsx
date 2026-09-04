@@ -80,15 +80,33 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       setLoading(false);
       return;
     }
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("role, status, name, email, institution, staff_id, syllabus")
-      .eq("id", session.user.id)
-      .single();
+    const fetchProfile = () =>
+      supabase!
+        .from("profiles")
+        .select("role, status, name, email, institution, staff_id, syllabus")
+        .eq("id", session.user.id)
+        .single();
+
+    let { data: profile, error } = await fetchProfile();
+    if (error && error.code !== "PGRST116") {
+      // Transient failure (a cold connection right after a hard refresh,
+      // a network blip) — not evidence of anything. Retry once before
+      // deciding, rather than treating any hiccup as a sign-out signal.
+      ({ data: profile, error } = await fetchProfile());
+    }
+
     if (!profile) {
-      // The profile row always exists once created — the only way RLS
-      // hides it from its own owner is session_ok() failing, i.e. another
-      // device claimed this account. Clear the stale local session too,
+      if (error && error.code !== "PGRST116") {
+        // Still failing, but not because RLS returned zero rows (PGRST116
+        // is the only code that actually means that). Don't sign anyone
+        // out over a network problem — leave the session alone and let
+        // the next hydrate() try again.
+        setLoading(false);
+        return;
+      }
+      // PGRST116 (or no error and no data): the profile row always exists
+      // once created, so RLS hiding it from its own owner means another
+      // device claimed this session. Clear the stale local session too,
       // rather than leaving it to fail silently on every next call.
       await supabase.auth.signOut();
       setSupersededMessage(SUPERSEDED_MESSAGE);
