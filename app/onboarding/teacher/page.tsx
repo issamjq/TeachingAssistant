@@ -1,11 +1,11 @@
+import { Upload } from "lucide-react";
+
 import { SiteHeader } from "@/components/layout/site-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Upload } from "lucide-react";
-
-const SYLLABI = ["CBSE", "ICSE", "IB", "UK National Curriculum", "American Curriculum", "Other"];
+import { SYLLABUS_TYPES, UAE_INSTITUTIONS } from "@/features/onboarding/uae-institutions";
 
 export default function TeacherOnboardingPage() {
   return (
@@ -24,7 +24,21 @@ export default function TeacherOnboardingPage() {
           <CardContent className="space-y-4">
             <div className="space-y-1.5">
               <Label htmlFor="institution">Institution name</Label>
-              <Input id="institution" placeholder="Greenwood International School" />
+              <Input
+                id="institution"
+                list="institution-options"
+                placeholder="Start typing your school or institution"
+              />
+              <datalist id="institution-options">
+                {UAE_INSTITUTIONS.map((i) => (
+                  <option key={i.name} value={i.name}>
+                    {i.emirate}
+                  </option>
+                ))}
+              </datalist>
+              <p className="text-xs text-muted-foreground">
+                Not listed? Type the full name — it goes to review either way.
+              </p>
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="staff-id">Staff ID (number)</Label>
@@ -43,7 +57,7 @@ export default function TeacherOnboardingPage() {
                 id="syllabus"
                 className="flex h-9 w-full rounded-md border border-input bg-background px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
-                {SYLLABI.map((s) => (
+                {SYLLABUS_TYPES.map((s) => (
                   <option key={s}>{s}</option>
                 ))}
               </select>
