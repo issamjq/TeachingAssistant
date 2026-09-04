@@ -24,34 +24,40 @@ drop policy if exists "select own profile" on public.profiles;
 create policy "select own profile" on public.profiles
   for select using (auth.uid() = id);
 
+-- A policy on `profiles` cannot query `profiles` inline (via EXISTS) to
+-- check the caller's own role — Postgres detects that as infinite
+-- recursion (42P17) and 500s every request, admin or not. Route the
+-- self-lookup through a SECURITY DEFINER function instead, which runs
+-- outside the calling role's RLS context.
+create or replace function public.is_admin()
+returns boolean
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select exists (
+    select 1 from public.profiles
+    where id = auth.uid() and role in ('super_admin','sub_admin')
+  );
+$$;
+revoke all on function public.is_admin() from public, anon, authenticated;
+grant execute on function public.is_admin() to authenticated;
+
 -- The super-admin accounts console needs to see every teacher, not just
 -- the signed-in one.
 drop policy if exists "admins read all profiles" on public.profiles;
 create policy "admins read all profiles" on public.profiles
-  for select
-  using (
-    exists (
-      select 1 from public.profiles p
-      where p.id = auth.uid() and p.role in ('super_admin','sub_admin')
-    )
-  );
+  for select using (public.is_admin());
 
 drop policy if exists "update own profile" on public.profiles;
 create policy "update own profile" on public.profiles
   for update using (auth.uid() = id);
 
--- Forward-looking: lets a super_admin/sub_admin approve other teachers
--- once those roles actually exist. Inert today — Google sign-in only
--- ever creates role='teacher'.
+-- Lets a super_admin/sub_admin approve other teachers.
 drop policy if exists "admins manage other profiles" on public.profiles;
 create policy "admins manage other profiles" on public.profiles
-  for update
-  using (
-    exists (
-      select 1 from public.profiles p
-      where p.id = auth.uid() and p.role in ('super_admin','sub_admin')
-    )
-  );
+  for update using (public.is_admin());
 
 create or replace function public.handle_new_user()
 returns trigger
@@ -289,13 +295,7 @@ create policy "owner reads own students" on public.students for select using (ow
 -- The super-admin students console reads across every teacher's roster.
 drop policy if exists "admins read all students" on public.students;
 create policy "admins read all students" on public.students
-  for select
-  using (
-    exists (
-      select 1 from public.profiles p
-      where p.id = auth.uid() and p.role in ('super_admin','sub_admin')
-    )
-  );
+  for select using (public.is_admin());
 drop policy if exists "owner updates own students" on public.students;
 create policy "owner updates own students" on public.students for update using (owner_id = auth.uid()) with check (owner_id = auth.uid());
 drop policy if exists "owner deletes own students" on public.students;
