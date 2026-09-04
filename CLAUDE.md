@@ -1,33 +1,24 @@
-# Murchid — Teacher Studio
+# Murchid
 
-AI lesson director for teachers (KG–G12). **Next.js (App Router) frontend on Supabase.** Two surfaces:
-
-- **Landing page** — marketing site at `/`. Lives in `src/views/Landing.jsx` + `src/landing.css`.
-- **Studio** — the teacher workspace. Lives in `src/App.jsx` + `src/views/*`. Opened by "Lesson Planner →" in the landing nav; the studio's × button returns to landing.
+A focused, teacher-first LMS: one coherent pipeline (curriculum in → AI-drafted
+term material → teacher approval → scheduled and notified) instead of the
+feature-pile most LMS products become. Full concept, roles, and the Goal
+Planner pipeline: [docs/00-concept.md](docs/00-concept.md). Deferred features
+live in [docs/FUTURE-SCOPE.md](docs/FUTURE-SCOPE.md) — add to that instead of
+scope-creeping current work.
 
 The user (Issa) calls the project "murchid" — that's the **product** name, not the assistant.
 
-## ⚠️ Mid-migration — read this first
+**Next.js (App Router) frontend on Supabase.** The app is being rebuilt from a
+blank slate as of the v2 concept — there is no legacy SPA, no pre-migration
+views, and no design system doc yet. `app/` is the whole routing surface.
 
-The frontend is migrating **Vite → Next.js + TypeScript + Tailwind + CSS Modules**. Read [docs/11-nextjs-migration.md](docs/11-nextjs-migration.md) before touching frontend code.
-
-**Phase 1 is complete.** Next.js owns the build. The whole pre-migration SPA currently renders inside a single catch-all route:
-
-```
-app/[[...slug]]/page.tsx → LegacyAppMount (ssr: false) → src/legacy/LegacyRoot.jsx → src/App.jsx + src/views/*
-```
-
-What this means in practice:
-
-- **`src/views/*` and `src/App.jsx` are legacy.** They still ship, but they are being dismantled route by route. Don't build new features there.
 - **New work goes in `src/features/<feature>/`** with a matching route segment under `app/`. Feature modules own their components, `api.ts`, and `types.ts`.
-- **Peeling a route is additive** — create the real segment (e.g. `app/(studio)/quizzes/page.tsx`) and it automatically stops reaching the catch-all. Nothing needs removing.
-- `src/legacy/` and `app/[[...slug]]/` are **scaffolding** and get deleted in Phase 4.
 - **There is no backend in this repo.** The browser reads and writes Supabase directly through `src/lib/data/`, with Row Level Security doing the authorisation an API used to do in middleware. The handful of endpoints that need a secret — AI generation, CV parsing, the assistant, the privileged consoles — live in a separate project, deployed at `https://murchid-backend-no24.onrender.com`. Reach it by setting `API_PROXY_TARGET` (**in Vercel too**, or production 404s every AI path); `next.config.ts` then rewrites `/api/*` there server-side. What works, what is blocked, and the exact fixes: [todo/backend-integration.md](todo/backend-integration.md).
 
-## Frontend conventions (post-migration)
+## Frontend conventions
 
-- **TypeScript for anything new.** `strict` is off while `.jsx` remains; it flips on in Phase 5. A file becomes `.tsx` when it's peeled, not speculatively.
+- **TypeScript for everything new.** `strict` is on — the codebase is starting clean, so there's no `.jsx` backlog to accommodate.
 - **Styling, three non-overlapping tiers:** design tokens + reset in `app/globals.css`; layout/spacing/colour via Tailwind utilities; keyframes and complex selectors in a co-located `Component.module.css`. No new global CSS.
 - **Client env vars go through `src/config/env.ts`** — never read `process.env` in a component. `import.meta.env` no longer exists (that was Vite); `NEXT_PUBLIC_*` values are public and inlined into the browser bundle.
 - **`app/**` files stay thin** — resolve params, set metadata, render one feature component. No business logic.
@@ -52,32 +43,17 @@ balance or extend their own plan.
 
 ## Where to find things
 
-Full documentation lives in [`docs/`](docs/README.md). Read it before making non-trivial changes:
+- [docs/00-concept.md](docs/00-concept.md) — roles, auth/verification flow, the Goal Planner pipeline, storage recommendation, route map.
+- [docs/FUTURE-SCOPE.md](docs/FUTURE-SCOPE.md) — deferred features. Add to it rather than scope-creeping current work.
 
-- [01 — Overview](docs/01-overview.md) — what Murchid is, who it's for
-- [02 — Getting started](docs/02-getting-started.md) — env, scripts, prereqs
-- [03 — Tech stack](docs/03-tech-stack.md) — React 18, Tailwind v4, Next.js, Supabase
-- [04 — Architecture](docs/04-architecture.md) — file layout, boot flow, view router *(pre-migration)*
-- [05 — Design system](docs/05-design-system.md) — brand tokens, fonts, patterns
-- [06 — Database](docs/06-database.md) — schema, status / subject values, seeds
-- [07 — API](docs/07-api.md) — endpoints
-- [08 — Views](docs/08-views.md) — what each screen does
-- [09 — Conventions](docs/09-conventions.md) — rules to follow when adding code
-- [10 — Roadmap](docs/10-roadmap.md) — what's stubbed, what's missing, what's next
-- [11 — Next.js migration](docs/11-nextjs-migration.md) — **current**: plan, phases, architecture
-- [12 — Super admin](docs/12-super-admin.md) — the privileged console, and who gets the role
-- [13 — Student invites](docs/13-student-invites.md) — the invite gate, the mail, and the two Supabase dashboard settings it depends on
-
-⚠️ **Docs 01–10 drifted badly** (roadmap still claims there's no auth and no production deploy — both long since shipped) and 03/04 describe the Vite build. Trust the code and doc 11 over them until they're rewritten in Phase 5.
+There is no design-system doc yet — the v2 visual direction hasn't been defined. Don't assume the old cream/Fraunces/red-italic aesthetic carries over; ask before committing to a visual direction for anything user-facing.
 
 ## Hard rules when working in this repo
 
-1. **Visual quality matters.** The user compares against polished editorial design references. Match the Murchid aesthetic precisely: cream paper bg, Fraunces serif titles with red italic accents, mono-styled uppercase tracked eyebrows, Inter Tight body. See [Design system](docs/05-design-system.md).
-2. **Don't override `bg-*` / `text-*` on `<Button>` via `className`** — class collisions cause invisible buttons. Add a variant in `src/components/ui/button.jsx` instead.
-3. **`app/layout.tsx` is the shell** (fonts + `globals.css`). It's a server component — keep it one. All marketing markup lives in `src/views/Landing.jsx`, all marketing CSS in `src/landing.css`. Don't put marketing content in the layout.
-4. **Don't commit `.env`.** It's gitignored. Connection strings stay local.
-5. **Routing is the App Router.** Peeled routes use `next/navigation`. Unpeeled legacy views still use `src/lib/route.js` (`pushState`-based) — that shim goes away in Phase 4. Don't add a router library.
-6. **The landing page CSS is global and class-scoped** (`.hero`, `.lesson-card`, `.dash-mock`, etc.) — it coexists with the studio's Tailwind. Don't reuse those class names in studio components. *(Converting it to CSS Modules in Phase 3 removes this hazard.)*
+1. **Marketing waits for visual sign-off** (see deploy policy below) — everything else doesn't need a visual direction confirmed before building functionally, but ask before treating any one screen's look as the template for the rest.
+2. **`app/layout.tsx` is the shell** (fonts + `globals.css`). It's a server component — keep it one. Marketing markup belongs in its own feature component, not the layout.
+3. **Don't commit `.env`.** It's gitignored. Connection strings stay local.
+4. **Routing is the App Router only.** Don't add a router library.
 
 ## Quickstart
 
@@ -129,8 +105,8 @@ every boot is exactly what this replaced.
 Two carve-outs:
 
 - **Marketing and the landing page wait for approval.** The hero,
-  `src/features/marketing/*`, `src/landing.css` / `Landing.module.css`, and
-  anything else a visitor sees before signing in. Build it, run it, and show
+  `src/features/marketing/*`, and anything else a visitor sees before signing
+  in. Build it, run it, and show
   it — `localhost:3000/?home=1`, which is the URL that bypasses the
   signed-in redirect to the dashboard — then wait for a yes. This is the
   public face of the product and its owner signs off on how it looks. Everything

@@ -18,12 +18,7 @@
     "incremental": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
-    // Gradual typing. `.jsx` and `.tsx` coexist through the migration, so
-    // strict mode would flood the build with errors from files nobody has
-    // touched yet. Phase 5 flips these on once no `.jsx` remains — see
-    // docs/11-nextjs-migration.md §4.2.
-    "strict": false,
-    "noImplicitAny": false,
+    "strict": true,
     "plugins": [
       {
         "name": "next"
@@ -42,8 +37,6 @@
     "next-env.d.ts",
     "**/*.ts",
     "**/*.tsx",
-    "app/**/*.jsx",
-    "src/**/*.jsx",
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts"
   ],
