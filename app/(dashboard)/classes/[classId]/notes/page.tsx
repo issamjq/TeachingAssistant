@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { FileText, Upload } from "lucide-react";
+import { FileText } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -10,7 +10,6 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { useSession } from "@/features/auth/session-context";
 import { useStudio } from "@/features/studio-legacy/studio-context";
 import { StudioComposerBar } from "@/features/studio-legacy/StudioComposerBar";
-import { ChooseFromDeckPanel } from "@/features/classes/choose-from-deck-panel";
 import {
   listMaterialsForClass,
   createMaterialFromPrompt,
@@ -40,24 +39,17 @@ export default function ClassNotesPage() {
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-6 md:p-8">
-        <div className="flex items-center justify-between gap-2">
-          <p className="text-sm text-muted-foreground">
-            Uploaded and AI-extracted, picked from the shared deck, or drafted below.
-          </p>
-          <Button size="sm">
-            <Upload /> Upload
-          </Button>
-        </div>
-        {user ? (
-          <ChooseFromDeckPanel ownerId={user.id} classId={classId} onAttached={refresh} />
-        ) : null}
+        <p className="text-sm text-muted-foreground">
+          Everything grounding this class — use the attach button in the bar below to choose
+          from the shared deck or add a syllabus/curriculum, or prompt the studio for a plain note.
+        </p>
         {items === null ? (
           <p className="text-sm text-muted-foreground">Loading…</p>
         ) : items.length === 0 ? (
           <EmptyState
             icon={FileText}
             title="No notes yet"
-            description="Upload a document, choose from the shared deck, or prompt the studio below."
+            description="Use the attach button in the bar below to choose from the shared deck or add your syllabus/curriculum — or prompt the studio for a plain note."
           />
         ) : (
           <div className="space-y-3">
@@ -80,9 +72,12 @@ export default function ClassNotesPage() {
       </div>
       <div className="shrink-0 border-t border-border bg-background p-4 md:px-8">
         <StudioComposerBar
+          classId={classId}
+          ownerId={user?.id ?? null}
           placeholder="e.g. A one-page reading on the Silk Road for Grade 10…"
           buttonLabel="Create"
           onSubmit={handleCreate}
+          onAttached={refresh}
         />
       </div>
     </div>

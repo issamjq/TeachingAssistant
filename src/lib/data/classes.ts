@@ -295,6 +295,32 @@ export async function createMaterialFromPrompt(
   return material as MaterialRow;
 }
 
+// A teacher's own syllabus/curriculum/textbook text, pasted in directly
+// (no file-upload/OCR pipeline exists yet) rather than AI-drafted — kept
+// distinct from createMaterialFromPrompt because the body is the
+// teacher's real reference content, not simulated studio output.
+export async function attachOwnReference(
+  ownerId: string,
+  classId: string,
+  title: string,
+  bodyMd: string,
+): Promise<MaterialRow> {
+  const db = requireClient();
+  const { data: material, error: materialError } = await db
+    .from("materials")
+    .insert({ owner_id: ownerId, title, kind: "note", body_md: bodyMd })
+    .select()
+    .single();
+  if (materialError) throw materialError;
+
+  const { error: linkError } = await db
+    .from("class_materials")
+    .insert({ class_id: classId, material_id: material.id, owner_id: ownerId });
+  if (linkError) throw linkError;
+
+  return material as MaterialRow;
+}
+
 export async function updateBatch(id: string, label: string, startYear: number) {
   const db = requireClient();
   const { error } = await db

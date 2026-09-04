@@ -11,7 +11,6 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { useSession } from "@/features/auth/session-context";
 import { useStudio } from "@/features/studio-legacy/studio-context";
 import { StudioComposerBar } from "@/features/studio-legacy/StudioComposerBar";
-import { ReferenceRequiredNotice } from "@/features/studio-legacy/ReferenceRequiredNotice";
 import {
   listGoalItemsByKind,
   createGoalItemFromPrompt,
@@ -83,15 +82,15 @@ export default function ClassPresentationsPage() {
         )}
       </div>
       <div className="shrink-0 border-t border-border bg-background p-4 md:px-8">
-        {hasReference === false ? (
-          <ReferenceRequiredNotice classId={classId} />
-        ) : (
-          <StudioComposerBar
-            placeholder="e.g. An 18-slide deck introducing the Silk Road…"
-            buttonLabel="Create"
-            onSubmit={handleCreate}
-          />
-        )}
+        <StudioComposerBar
+          classId={classId}
+          ownerId={user?.id ?? null}
+          canSend={hasReference !== false}
+          placeholder="e.g. An 18-slide deck introducing the Silk Road…"
+          buttonLabel="Create"
+          onSubmit={handleCreate}
+          onAttached={refresh}
+        />
       </div>
     </div>
   );
