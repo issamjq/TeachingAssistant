@@ -1,101 +1,111 @@
-import { UserPlus } from "lucide-react";
+"use client";
 
-import { SiteHeader } from "@/components/layout/site-header";
+import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
+
 import { PageHeader } from "@/components/layout/page-header";
-import { Button } from "@/components/ui/button";
+import { StatCard } from "@/components/ui/stat-card";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatusPill } from "@/components/ui/status-pill";
+import { Button } from "@/components/ui/button";
 import {
-  Table,
-  TableHeader,
-  TableBody,
-  TableRow,
-  TableHead,
-  TableCell,
-} from "@/components/ui/table";
-import { SharedLibraryManager } from "@/features/admin/shared-library-manager";
+  getPlatformStats,
+  listAllAccounts,
+  type PlatformStats,
+  type AccountRow,
+} from "@/lib/data/superadmin";
 
-const PENDING_ORGS = [
-  { id: "o1", name: "Greenwood International School", applied: "2 days ago" },
-  { id: "o2", name: "Al Noor Academy", applied: "5 days ago" },
-];
+export default function SuperAdminDashboardPage() {
+  const [stats, setStats] = useState<PlatformStats | null>(null);
+  const [recent, setRecent] = useState<AccountRow[] | null>(null);
 
-const SUB_ADMINS = [
-  { id: "sa1", name: "Meera Krishnan", scope: "UAE — Northern region", status: "active" as const },
-  { id: "sa2", name: "Daniel Cho", scope: "Independent schools", status: "active" as const },
-];
+  const refresh = useCallback(() => {
+    getPlatformStats().then(setStats);
+    listAllAccounts().then((rows) => setRecent(rows.slice(0, 6)));
+  }, []);
 
-export default function SuperAdminPage() {
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
+
+  const pending = recent?.filter((a) => a.status === "pending") ?? [];
+
   return (
     <div>
-      <SiteHeader homeHref="/super-admin" label="Super admin" />
       <PageHeader
-        title="Super admin"
-        description="Grants access to sub-admins and organisations."
+        title="Dashboard"
+        description="Live counts from Supabase — no fabricated numbers."
       />
       <div className="space-y-6 p-6 md:p-8">
+        <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
+          <StatCard label="Accounts" value={stats ? String(stats.totalAccounts) : "…"} />
+          <StatCard
+            label="Pending approval"
+            value={stats ? String(stats.pendingAccounts) : "…"}
+          />
+          <StatCard label="Active" value={stats ? String(stats.activeAccounts) : "…"} />
+          <StatCard label="Classes" value={stats ? String(stats.totalClasses) : "…"} />
+          <StatCard label="Students" value={stats ? String(stats.totalStudents) : "…"} />
+          <StatCard
+            label="Shared materials"
+            value={stats ? String(stats.sharedMaterials) : "…"}
+          />
+        </div>
+
+        {pending.length > 0 ? (
+          <Card>
+            <CardHeader className="flex-row items-center justify-between space-y-0">
+              <CardTitle>Waiting on approval</CardTitle>
+              <Button asChild size="sm" variant="outline">
+                <Link href="/super-admin/accounts">Review in Accounts</Link>
+              </Button>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {pending.map((a) => (
+                <div
+                  key={a.id}
+                  className="flex items-center justify-between rounded-md border border-border px-3 py-2"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium">{a.name ?? a.email}</p>
+                    <p className="truncate text-xs text-muted-foreground">
+                      {a.email} · {a.role}
+                    </p>
+                  </div>
+                  <StatusPill status="pending" />
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        ) : null}
+
         <Card>
           <CardHeader>
-            <CardTitle>Pending organisations</CardTitle>
+            <CardTitle>Newest accounts</CardTitle>
           </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Organisation</TableHead>
-                  <TableHead>Applied</TableHead>
-                  <TableHead />
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {PENDING_ORGS.map((o) => (
-                  <TableRow key={o.id}>
-                    <TableCell className="font-medium">{o.name}</TableCell>
-                    <TableCell className="text-muted-foreground">{o.applied}</TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
-                        <Button variant="outline" size="sm">Review docs</Button>
-                        <Button size="sm">Approve</Button>
-                        <Button variant="destructive" size="sm">Reject</Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+          <CardContent className="space-y-2">
+            {recent === null ? (
+              <p className="text-sm text-muted-foreground">Loading…</p>
+            ) : recent.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No accounts yet.</p>
+            ) : (
+              recent.map((a) => (
+                <div
+                  key={a.id}
+                  className="flex items-center justify-between rounded-md border border-border px-3 py-2"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium">{a.name ?? a.email}</p>
+                    <p className="truncate text-xs text-muted-foreground capitalize">
+                      {a.role.replace("_", " ")}
+                    </p>
+                  </div>
+                  <StatusPill status={a.status} />
+                </div>
+              ))
+            )}
           </CardContent>
         </Card>
-
-        <Card>
-          <CardHeader className="flex-row items-center justify-between space-y-0">
-            <CardTitle>Sub-admins</CardTitle>
-            <Button size="sm" variant="outline">
-              <UserPlus /> Invite sub-admin
-            </Button>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Delegated scope</TableHead>
-                  <TableHead>Status</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {SUB_ADMINS.map((s) => (
-                  <TableRow key={s.id}>
-                    <TableCell className="font-medium">{s.name}</TableCell>
-                    <TableCell className="text-muted-foreground">{s.scope}</TableCell>
-                    <TableCell><StatusPill status={s.status} /></TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-
-        <SharedLibraryManager />
       </div>
     </div>
   );

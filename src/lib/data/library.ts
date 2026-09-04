@@ -12,7 +12,24 @@ export interface SharedMaterialRow {
   subject: string | null;
   syllabus: string | null;
   grade_level: number | null;
+  storage_path: string | null;
   created_at: string;
+}
+
+const SHARED_MATERIAL_COLUMNS =
+  "id, title, kind, subject, syllabus, grade_level, storage_path, created_at";
+
+export function sharedLibraryFileUrl(storagePath: string): string {
+  const db = requireClient();
+  return db.storage.from("shared-library").getPublicUrl(storagePath).data.publicUrl;
+}
+
+export async function uploadSharedLibraryFile(file: File): Promise<string> {
+  const db = requireClient();
+  const path = `${crypto.randomUUID()}-${file.name}`;
+  const { error } = await db.storage.from("shared-library").upload(path, file);
+  if (error) throw error;
+  return path;
 }
 
 export interface SharedMaterialFilters {
@@ -27,7 +44,7 @@ export async function listSharedMaterials(
   const db = requireClient();
   let query = db
     .from("materials")
-    .select("id, title, kind, subject, syllabus, grade_level, created_at")
+    .select(SHARED_MATERIAL_COLUMNS)
     .eq("is_shared", true)
     .order("syllabus", { ascending: true })
     .order("grade_level", { ascending: true })
@@ -60,6 +77,7 @@ export interface NewSharedMaterialInput {
   gradeLevel: number;
   subject: string;
   bodyMd: string;
+  storagePath?: string;
 }
 
 export async function createSharedMaterial(
@@ -77,9 +95,10 @@ export async function createSharedMaterial(
       grade_level: input.gradeLevel,
       subject: input.subject,
       body_md: input.bodyMd,
+      storage_path: input.storagePath ?? null,
       is_shared: true,
     })
-    .select("id, title, kind, subject, syllabus, grade_level, created_at")
+    .select(SHARED_MATERIAL_COLUMNS)
     .single();
   if (error) throw error;
   return data as SharedMaterialRow;

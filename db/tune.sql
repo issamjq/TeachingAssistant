@@ -24,6 +24,18 @@ drop policy if exists "select own profile" on public.profiles;
 create policy "select own profile" on public.profiles
   for select using (auth.uid() = id);
 
+-- The super-admin accounts console needs to see every teacher, not just
+-- the signed-in one.
+drop policy if exists "admins read all profiles" on public.profiles;
+create policy "admins read all profiles" on public.profiles
+  for select
+  using (
+    exists (
+      select 1 from public.profiles p
+      where p.id = auth.uid() and p.role in ('super_admin','sub_admin')
+    )
+  );
+
 drop policy if exists "update own profile" on public.profiles;
 create policy "update own profile" on public.profiles
   for update using (auth.uid() = id);
@@ -274,6 +286,16 @@ create policy "owner full access" on public.attendance for all using (owner_id =
 -- reach real students require an approved profile.
 drop policy if exists "owner reads own students" on public.students;
 create policy "owner reads own students" on public.students for select using (owner_id = auth.uid());
+-- The super-admin students console reads across every teacher's roster.
+drop policy if exists "admins read all students" on public.students;
+create policy "admins read all students" on public.students
+  for select
+  using (
+    exists (
+      select 1 from public.profiles p
+      where p.id = auth.uid() and p.role in ('super_admin','sub_admin')
+    )
+  );
 drop policy if exists "owner updates own students" on public.students;
 create policy "owner updates own students" on public.students for update using (owner_id = auth.uid()) with check (owner_id = auth.uid());
 drop policy if exists "owner deletes own students" on public.students;
@@ -314,3 +336,39 @@ create policy "owner updates goals, approval needs active status" on public.goal
       or exists (select 1 from public.profiles p where p.id = auth.uid() and p.status = 'active')
     )
   );
+
+-- ── Storage: shared curriculum library ──
+-- Public-read bucket so any signed-in teacher can open a document a
+-- super_admin/sub_admin curated into the shared library; writes are
+-- admin-only. (The other buckets — avatars, class-documents, etc. —
+-- predate this file and aren't yet captured here.)
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values (
+  'shared-library', 'shared-library', true, 26214400,
+  array['application/pdf','application/msword',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'application/vnd.ms-powerpoint',
+        'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+        'text/plain']
+)
+on conflict (id) do nothing;
+
+drop policy if exists "shared_library_public_read" on storage.objects;
+create policy "shared_library_public_read" on storage.objects for select
+  using (bucket_id = 'shared-library');
+
+drop policy if exists "shared_library_admin_insert" on storage.objects;
+create policy "shared_library_admin_insert" on storage.objects for insert
+  with check (
+    bucket_id = 'shared-library'
+    and exists (select 1 from public.profiles p where p.id = auth.uid() and p.role in ('super_admin','sub_admin'))
+  );
+
+drop policy if exists "shared_library_admin_update" on storage.objects;
+create policy "shared_library_admin_update" on storage.objects for update
+  using (bucket_id = 'shared-library' and exists (select 1 from public.profiles p where p.id = auth.uid() and p.role in ('super_admin','sub_admin')))
+  with check (bucket_id = 'shared-library' and exists (select 1 from public.profiles p where p.id = auth.uid() and p.role in ('super_admin','sub_admin')));
+
+drop policy if exists "shared_library_admin_delete" on storage.objects;
+create policy "shared_library_admin_delete" on storage.objects for delete
+  using (bucket_id = 'shared-library' and exists (select 1 from public.profiles p where p.id = auth.uid() and p.role in ('super_admin','sub_admin')));
