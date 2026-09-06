@@ -17,6 +17,7 @@ import {
   AlertTriangle,
   KeyRound,
   LogOut,
+  Milestone,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -37,6 +38,7 @@ const NAV = [
   { href: "/super-admin/product", label: "Product analytics", icon: BarChart3 },
   { href: "/super-admin/friction", label: "Friction", icon: AlertTriangle },
   { href: "/super-admin/keys", label: "API keys", icon: KeyRound },
+  { href: "/roadmap", label: "Roadmap", icon: Milestone },
 ] as const;
 
 export function SuperAdminShell({ children }: { children: React.ReactNode }) {

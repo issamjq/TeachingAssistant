@@ -1,0 +1,88 @@
+export type CheckpointStatus = "done" | "in-progress" | "planned";
+
+export type RoadmapCheckpoint = {
+  id: string;
+  title: string;
+  period: string;
+  status: CheckpointStatus;
+  summary: string;
+  items: string[];
+};
+
+// Edit this list to update the roadmap — the page reads straight from it.
+export const ROADMAP_UPDATED = "6 Sep 2026";
+
+export const ROADMAP: RoadmapCheckpoint[] = [
+  {
+    id: "foundation",
+    title: "Platform foundation",
+    period: "Completed",
+    status: "done",
+    summary:
+      "Rebuilt from a blank slate on Next.js (App Router) and Supabase, replacing the legacy SPA.",
+    items: [
+      "Role-based auth for teacher, sub-admin, super-admin, and organisation roles, enforced with Supabase RLS",
+      "Core routes scaffolded: dashboard, classes, calendar, goal planner, onboarding, and admin consoles",
+    ],
+  },
+  {
+    id: "dashboard-live-data",
+    title: "Dashboard wired to real data",
+    period: "Completed",
+    status: "done",
+    summary: "Replaced hardcoded numbers across the teacher dashboard with live Supabase queries.",
+    items: [
+      "Overview page pulled real counts instead of placeholder stats",
+      "Dashboard charts wired up; sidebar height/nav and favicon fixed",
+      "My Classes redesigned — fixed duplicate batch heading, card hierarchy, hover-reveal actions",
+      "Fixed a bug where a hard refresh could falsely sign users out",
+    ],
+  },
+  {
+    id: "marketing-photography",
+    title: "Marketing page — real photography",
+    period: "Completed",
+    status: "done",
+    summary: "Swapped placeholder art for real photography on the public-facing landing page.",
+    items: ["Hero, features grid, and roles section now use real photography"],
+  },
+  {
+    id: "full-redesign",
+    title: "Full site redesign",
+    period: "Target: Sun, 20 Sep 2026",
+    status: "in-progress",
+    summary: "A visual pass across the whole app — the current focus.",
+    items: [
+      "Company-wide visual refresh across dashboard, classes, and admin surfaces",
+      "Public marketing pages still wait for visual sign-off before shipping, per project policy",
+    ],
+  },
+  {
+    id: "goal-planner-pipeline",
+    title: "Goal Planner pipeline",
+    period: "Planned",
+    status: "planned",
+    summary:
+      "The core teaching pipeline: curriculum in, AI-drafted term material out, teacher-approved and scheduled.",
+    items: ["Curriculum intake → AI-drafted term material → teacher approval → scheduled & notified"],
+  },
+  {
+    id: "backend-polish",
+    title: "Backend integration polish",
+    period: "Planned",
+    status: "planned",
+    summary: "Remaining items on the AI backend surface.",
+    items: [
+      "Skill-profile endpoint with assignment-aware skill IDs",
+      "Per-field confidence scoring on onboarding document parsing",
+    ],
+  },
+  {
+    id: "future-scope",
+    title: "Future scope",
+    period: "Not started",
+    status: "planned",
+    summary: "Deliberately deferred until the core pipeline is solid.",
+    items: ["Student self-serve learning materials, independent of teacher-assigned work"],
+  },
+];
