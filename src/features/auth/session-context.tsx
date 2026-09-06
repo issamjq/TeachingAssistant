@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 
 import { supabase } from "@/lib/supabase/client";
@@ -66,11 +66,24 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<SessionUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [supersededMessage, setSupersededMessage] = useState<string | null>(null);
+  // Set for the duration of a real claim_session() RPC. 2026-09-06
+  // incident: a redundant auth event (TOKEN_REFRESHED firing right
+  // alongside a genuine SIGNED_IN — seen in the live auth log, both
+  // real events) could call the plain hydrate() below concurrently with
+  // claimAndHydrate()'s own claim, reading profiles against the
+  // *previous* login's still-current active_session_id before this
+  // login's claim landed. Any hydrate() now waits out an in-flight claim
+  // instead of racing it — claimAndHydrate() itself is unaffected, since
+  // it awaits its own claim before ever reaching hydrate().
+  const claimInFlightRef = useRef<Promise<void> | null>(null);
 
   const hydrate = useCallback(async () => {
     if (!supabase) {
       setLoading(false);
       return;
+    }
+    if (claimInFlightRef.current) {
+      await claimInFlightRef.current;
     }
     const {
       data: { session },
@@ -107,8 +120,14 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       // PGRST116 (or no error and no data): the profile row always exists
       // once created, so RLS hiding it from its own owner means another
       // device claimed this session. Clear the stale local session too,
-      // rather than leaving it to fail silently on every next call.
-      await supabase.auth.signOut();
+      // rather than leaving it to fail silently on every next call —
+      // scope: 'local' only, never the default 'global'. A bare
+      // signOut() deletes every session and refresh token the account
+      // owns, everywhere — on 2026-09-06 that turned "you were signed
+      // out here" into every device a teacher owned being logged out,
+      // including on a fresh login of its own (see db/tune.sql's
+      // "select own profile" policy for the other half of that fix).
+      await supabase.auth.signOut({ scope: "local" });
       setSupersededMessage(SUPERSEDED_MESSAGE);
       setUser(null);
       setLoading(false);
@@ -126,7 +145,10 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   // it just resets active_session_id to the same value.
   const claimAndHydrate = useCallback(async () => {
     if (!supabase) return;
-    await supabase.rpc("claim_session");
+    const claim = Promise.resolve(supabase.rpc("claim_session")).then(() => {});
+    claimInFlightRef.current = claim;
+    await claim;
+    claimInFlightRef.current = null;
     await hydrate();
   }, [hydrate]);
 

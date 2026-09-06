@@ -53,8 +53,18 @@ set search_path = public
 stable
 as $$
   select coalesce(
-    (select active_session_id is null or active_session_id = (auth.jwt()->>'session_id')
-       from public.profiles where id = auth.uid()),
+    (select active_session_id is null
+        or active_session_id = (auth.jwt()->>'session_id')
+        -- A claimed session whose auth.sessions row is gone (signed out,
+        -- expired, revoked) is not evidence of another device — there is
+        -- no other device holding it. Without this, a dead pointer left
+        -- over from the 2026-09-06 incident (see below) permanently
+        -- locks an account out instead of letting it recover on its own.
+        or not exists (
+             select 1 from auth.sessions s
+             where s.id::text = p.active_session_id
+           )
+       from public.profiles p where p.id = auth.uid()),
     true
   );
 $$;
@@ -72,13 +82,18 @@ grant execute on function public.session_ok() to authenticated;
 -- session_ok" in postgres_logs) the same day this function shipped.
 grant execute on function public.session_ok() to anon;
 
--- Claiming itself goes through claim_session() (bypasses RLS), so
--- gating the general update-own-profile path with session_ok() is
--- safe: it only blocks a superseded session from editing its own
--- profile, never blocks a fresh sign-in from claiming.
+-- Reading your own profile is NEVER gated on session_ok() — 2026-09-06
+-- incident: the window between a fresh sign-in landing (new session_id)
+-- and claim_session() overwriting active_session_id is a legitimate
+-- moment where this would otherwise return zero rows. The frontend
+-- (session-context.tsx) took an empty read as proof of a real supersede
+-- and called a *global* signOut(), destroying every session and refresh
+-- token the account owned, on every device, on its own fresh login.
+-- Writes still gate on session_ok() below — a superseded session can
+-- read its own stale row (harmless) but can't act on it.
 drop policy if exists "select own profile" on public.profiles;
 create policy "select own profile" on public.profiles
-  for select using (auth.uid() = id and public.session_ok());
+  for select using (auth.uid() = id);
 
 -- A policy on `profiles` cannot query `profiles` inline (via EXISTS) to
 -- check the caller's own role — Postgres detects that as infinite

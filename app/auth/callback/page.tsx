@@ -30,14 +30,26 @@ export default function AuthCallbackPage() {
       }
       const { data: profile } = await supabase
         .from("profiles")
-        .select("institution, syllabus")
+        .select("role, institution, syllabus")
         .eq("id", user.id)
         .single();
-      router.replace(
-        profile?.institution && profile?.syllabus
-          ? "/overview"
-          : "/onboarding/teacher",
-      );
+      // Role first, onboarding status only for the teacher branch —
+      // matching RequireOnboardedTeacher one screen later. Previously
+      // this only ever checked institution/syllabus, so an admin or
+      // organisation account (institution/syllabus always null for
+      // those roles) landed on the teacher onboarding funnel instead of
+      // its own console.
+      if (profile?.role === "super_admin" || profile?.role === "sub_admin") {
+        router.replace("/super-admin");
+      } else if (profile?.role === "organisation") {
+        router.replace("/organisation");
+      } else {
+        router.replace(
+          profile?.institution && profile?.syllabus
+            ? "/overview"
+            : "/onboarding/teacher",
+        );
+      }
     })();
   }, [router]);
 
