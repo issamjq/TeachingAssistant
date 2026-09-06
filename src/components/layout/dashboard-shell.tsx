@@ -10,6 +10,7 @@ import {
   CalendarDays,
   User,
   LifeBuoy,
+  Milestone,
   LogOut,
   Menu,
   X,
@@ -31,6 +32,7 @@ const NAV = [
 ] as const;
 
 const BOTTOM_NAV = [
+  { href: "/roadmap", label: "Roadmap", icon: Milestone },
   { href: "/profile", label: "Profile", icon: User },
   { href: "/support", label: "Support", icon: LifeBuoy },
 ] as const;

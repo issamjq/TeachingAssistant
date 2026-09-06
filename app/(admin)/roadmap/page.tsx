@@ -1,10 +1,10 @@
-import { SuperAdminShell } from "@/components/layout/super-admin-shell";
+import { RoadmapShell } from "@/components/layout/roadmap-shell";
 import { RoadmapPage } from "@/features/admin/roadmap";
 
 export default function Roadmap() {
   return (
-    <SuperAdminShell>
+    <RoadmapShell>
       <RoadmapPage />
-    </SuperAdminShell>
+    </RoadmapShell>
   );
 }
