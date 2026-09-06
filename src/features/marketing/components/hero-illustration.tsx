@@ -1,19 +1,33 @@
+import Image from "next/image";
 import { CheckCircle2, Sparkles } from "lucide-react";
 
+const TEACHER_PHOTO =
+  "https://images.unsplash.com/photo-1511629091441-ee46146481b6?fm=jpg&q=80&w=1200&auto=format&fit=crop&ixlib=rb-4.1.0";
+
 /**
- * A composed product mockup, not a screenshot — three cards standing in
- * for one Goal Planner pass (input → draft → scheduled) inside concentric
- * rings, echoing the reference layout without claiming to be real product
- * UI.
+ * A real photo (Unsplash, standard license) as the hero's visual anchor,
+ * with two composed product-mockup cards floating on top — not a
+ * screenshot, so they don't claim to be captured UI. See docs/00-concept.md
+ * for what these represent (Goal Planner input -> an approved, scheduled
+ * term).
  */
 export function HeroIllustration() {
   return (
-    <div className="relative mx-auto flex h-[420px] w-full max-w-md items-center justify-center md:h-[480px]">
-      <div className="absolute inset-0 rounded-full border border-primary/15" />
-      <div className="absolute inset-8 rounded-full border border-primary/10" />
+    <div className="relative mx-auto w-full max-w-md pb-6 pl-8 pr-4 pt-4">
+      <div className="relative aspect-[4/5] overflow-hidden rounded-[2rem] shadow-2xl">
+        <Image
+          src={TEACHER_PHOTO}
+          alt="A teacher writing on a chalkboard"
+          fill
+          priority
+          sizes="(min-width: 768px) 420px, 90vw"
+          className="object-cover"
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-primary/70 via-primary/0 to-primary/10" />
+      </div>
 
       {/* Input card */}
-      <div className="absolute left-0 top-6 w-48 rounded-2xl bg-primary p-4 text-primary-foreground shadow-xl md:top-10">
+      <div className="absolute -left-4 top-0 w-48 rounded-2xl bg-primary p-4 text-primary-foreground shadow-xl md:-left-8">
         <div className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-primary-foreground/70">
           <Sparkles className="size-3.5" />
           Goal Planner
@@ -27,7 +41,7 @@ export function HeroIllustration() {
       </div>
 
       {/* Approved term card */}
-      <div className="absolute bottom-6 right-0 w-56 rounded-2xl border border-border bg-card p-4 shadow-xl">
+      <div className="absolute -bottom-2 right-0 w-56 rounded-2xl border border-border bg-card p-4 shadow-xl">
         <div className="flex items-center justify-between">
           <p className="text-sm font-semibold">Week 6 · Photosynthesis</p>
           <span className="flex items-center gap-1 rounded-full bg-success/15 px-2 py-0.5 text-[11px] font-medium text-success">
@@ -48,7 +62,7 @@ export function HeroIllustration() {
       </div>
 
       {/* Notified pill */}
-      <div className="absolute right-6 top-0 flex items-center gap-2 rounded-full bg-lime px-3.5 py-2 text-lime-foreground shadow-lg md:top-2">
+      <div className="absolute right-0 top-8 flex items-center gap-2 rounded-full bg-lime px-3.5 py-2 text-lime-foreground shadow-lg">
         <div className="flex -space-x-2">
           <span className="size-5 rounded-full border-2 border-lime bg-primary" />
           <span className="size-5 rounded-full border-2 border-lime bg-secondary-foreground/40" />

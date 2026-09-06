@@ -1,4 +1,9 @@
-import { BookOpen, Sparkles, CheckCircle2, CalendarCheck, MessagesSquare, Bot } from "lucide-react";
+import { Fragment } from "react";
+import Image from "next/image";
+import { BookOpen, Sparkles, CheckCircle2, CalendarCheck, MessagesSquare, Bot, ChevronRight } from "lucide-react";
+
+const DESK_PHOTO =
+  "https://images.unsplash.com/photo-1683921055230-c3ba01e70131?fm=jpg&q=80&w=1200&auto=format&fit=crop&ixlib=rb-4.1.0";
 
 const FLOW = [
   { icon: BookOpen, label: "Curriculum in" },
@@ -38,31 +43,43 @@ export function FeaturesGrid() {
         </p>
       </div>
 
-      <div className="mt-12 grid gap-5 lg:grid-cols-3 lg:grid-rows-2">
-        <div className="flex flex-col justify-between rounded-3xl bg-primary p-8 text-primary-foreground lg:col-span-2 lg:row-span-2">
-          <div>
-            <h3 className="text-2xl font-bold tracking-tight">
-              The Goal Planner pipeline
-            </h3>
-            <p className="mt-2 max-w-md text-primary-foreground/75">
-              A syllabus, a prompt, source documents, or the shared material
-              library — one input, one full term drafted at once.
-            </p>
-          </div>
+      <div className="mt-12 grid gap-5 lg:grid-cols-3">
+        <div className="rounded-3xl bg-primary p-9 text-primary-foreground lg:col-span-2">
+          <h3 className="text-2xl font-bold tracking-tight">
+            The Goal Planner pipeline
+          </h3>
+          <p className="mt-3 max-w-md text-primary-foreground/75">
+            A syllabus, a prompt, source documents, or the shared material
+            library — one input, one full term drafted at once.
+          </p>
 
-          <div className="mt-10 flex flex-wrap items-center gap-2 sm:flex-nowrap">
+          <div className="mt-9 flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-0">
             {FLOW.map((step, i) => (
-              <div key={step.label} className="flex flex-1 items-center gap-2">
-                <div className="flex flex-1 flex-col items-center gap-2 rounded-2xl bg-primary-foreground/10 px-3 py-5 text-center">
-                  <step.icon className="size-5 text-lime" />
-                  <span className="text-xs font-semibold">{step.label}</span>
+              <Fragment key={step.label}>
+                <div className="flex flex-1 items-center gap-3 rounded-2xl bg-primary-foreground/10 px-4 py-4 sm:flex-col sm:justify-center sm:gap-2 sm:py-6 sm:text-center">
+                  <step.icon className="size-6 shrink-0 text-lime" />
+                  <span className="text-sm font-semibold">{step.label}</span>
                 </div>
                 {i < FLOW.length - 1 ? (
-                  <div className="hidden h-px w-4 shrink-0 bg-primary-foreground/25 sm:block" />
+                  <ChevronRight className="hidden size-4 shrink-0 self-center text-primary-foreground/30 sm:mx-2 sm:block" />
                 ) : null}
-              </div>
+              </Fragment>
             ))}
           </div>
+        </div>
+
+        <div className="relative min-h-[300px] overflow-hidden rounded-3xl">
+          <Image
+            src={DESK_PHOTO}
+            alt="A desk with a laptop, notepad, and pen"
+            fill
+            sizes="(min-width: 1024px) 33vw, 90vw"
+            className="object-cover"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-primary/85 via-primary/10 to-transparent" />
+          <p className="absolute inset-x-5 bottom-5 text-lg font-bold text-primary-foreground">
+            Bring what you already have
+          </p>
         </div>
 
         {CARDS.map((card) => (
